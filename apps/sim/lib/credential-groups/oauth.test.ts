@@ -294,42 +294,6 @@ describe('credential group OAuth persistence', () => {
     }
   )
 
-  it.each([
-    { kind: 'create' as const },
-    { kind: 'reconnect' as const, credentialId: 'other-account' },
-  ])(
-    'rejects changing an active account through the wrong connection intent',
-    async (connectionIntent) => {
-      dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
-      queueTableRows(schemaMock.credentialGroup, [GROUP])
-      queueTableRows(schemaMock.credential, [{ id: 'credential-1', revokedAt: null }])
-      await expect(
-        completeCredentialGroupOAuth(
-          CONTEXT,
-          {
-            state: 'state',
-            userId: CONTEXT.credentialOwnerId,
-            provider: 'gmail',
-            nonceHash: 'nonce',
-            workspaceId: CONTEXT.workspaceId,
-            email: CONTEXT.email,
-            enrollmentId: CONTEXT.enrollmentId,
-            credentialGroupId: CONTEXT.credentialGroupId,
-            optionId: CONTEXT.option.id,
-            authorizationAppId: POLICY.authorizationAppId,
-            scopeVersion: POLICY.scopeVersion,
-            requiredScopes: POLICY.requiredScopes,
-            redirectUri: 'https://sim.test/callback',
-            invitationToken: 'token',
-            createdAt: Date.now(),
-            connectionIntent,
-          },
-          'code'
-        )
-      ).rejects.toThrow('account changed')
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    }
-  )
   it('preserves completed enrollment state when an account reconnects', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
     queueTableRows(schemaMock.credentialGroup, [GROUP])

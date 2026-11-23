@@ -6,13 +6,13 @@ import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { observeContentDelivery } from '@/lib/core/application'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
@@ -163,11 +163,11 @@ export async function processContextsServer(
   if (contexts.length > MAX_CHAT_CONTEXTS) {
     throw new Error(`Context count exceeds the maximum of ${MAX_CHAT_CONTEXTS}`)
   }
-  const pageBudgetError = getPageContextBudgetError(contexts)
-  if (pageBudgetError) throw new Error(pageBudgetError)
   for (const context of contexts) {
     if (context.kind === 'browser_page') pageSnapshotSchema.parse(context.snapshot)
   }
+  const pageBudgetError = getPageContextBudgetError(contexts)
+  if (pageBudgetError) throw new Error(pageBudgetError)
   if ((userMessage?.length ?? 0) > MAX_CHAT_MESSAGE_LENGTH) {
     throw new Error(`Message exceeds the maximum of ${MAX_CHAT_MESSAGE_LENGTH} characters`)
   }

@@ -15,7 +15,7 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { isFileResourceType } from '@/lib/mothership/resources/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'

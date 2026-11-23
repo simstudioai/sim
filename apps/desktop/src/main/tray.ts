@@ -332,6 +332,7 @@ export interface TrayDeps {
   appOrigin: () => string
   lastRoute: () => string | undefined
   openMainWindow: (route?: string) => void
+  openQuickChat: () => void
 }
 
 function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
@@ -373,6 +374,7 @@ export function buildTrayMenuTemplate(
   }
   template.push(
     { label: 'New Chat', click: () => deps.openMainWindow(newChatRoute(deps.lastRoute())) },
+    { label: 'Quick Chat', click: deps.openQuickChat },
     { label: 'Open Sim', click: () => deps.openMainWindow() },
     { type: 'separator' },
     // Plain item, not role:'quit' — macOS Tahoe auto-decorates standard roles

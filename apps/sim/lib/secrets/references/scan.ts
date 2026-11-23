@@ -1,10 +1,10 @@
 import { db } from '@sim/db'
 import { customTools, mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { ENV_REF_PATTERN, remapSubBlocks } from '@/lib/workflows/references/remap-references'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 
 const logger = createLogger('SecretReferenceScan')

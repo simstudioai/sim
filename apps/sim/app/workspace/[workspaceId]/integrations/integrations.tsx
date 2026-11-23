@@ -26,6 +26,7 @@ import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import { useSavedTokenExpiryLabel } from '@/app/workspace/[workspaceId]/integrations/hooks/use-saved-token-expiry-label'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import {
   ALL_CATEGORY,
@@ -142,15 +143,32 @@ interface ConnectedItemProps {
   name: string
   description: string
   icon: ComponentType<{ className?: string }>
+  /** ISO time the saved token stops working, when its vendor stated one. */
+  expiresAt?: string
 }
 
-function ConnectedItem({ href, blockType, name, description, icon: Icon }: ConnectedItemProps) {
+function ConnectedItem({
+  href,
+  blockType,
+  name,
+  description,
+  icon: Icon,
+  expiresAt,
+}: ConnectedItemProps) {
+  const expiryLabel = useSavedTokenExpiryLabel(expiresAt)
   return (
     <SettingsResourceRow
       iconVariant='custom'
       icon={<IntegrationTile blockType={blockType} icon={Icon} />}
       title={name}
       description={description}
+      badge={
+        expiryLabel ? (
+          <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+            {expiryLabel}
+          </span>
+        ) : undefined
+      }
       href={href}
       clickLabel={`Open ${name}`}
       navigable
@@ -439,6 +457,7 @@ function IntegrationsContent() {
                     name={item.name}
                     description={item.description}
                     icon={item.icon}
+                    expiresAt={item.credential.expiresAt}
                   />
                 ))}
               </IntegrationSection>

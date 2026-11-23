@@ -1,0 +1,15 @@
+{
+  "namespace": "legacy.fathom",
+  "methods": {
+    "fathom_get_summary": "getSummary",
+    "fathom_get_transcript": "getTranscript",
+    "fathom_list_meeting_types": "listMeetingTypes",
+    "fathom_list_meetings": "listMeetings",
+    "fathom_list_team_members": "listTeamMembers",
+    "fathom_list_teams": "listTeams"
+  },
+  "triggers": {
+    "fathom_new_meeting": "newMeeting",
+    "fathom_webhook": "webhook"
+  }
+}

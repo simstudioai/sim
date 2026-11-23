@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('IntercomSearchConversations')
@@ -123,6 +124,7 @@ export const intercomSearchConversationsTool: ToolConfig<
   name: 'Search Conversations in Intercom',
   description: 'Search for conversations in Intercom using a query',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...searchConversationsBase,
 
@@ -214,6 +216,7 @@ export const intercomSearchConversationsV2Tool: ToolConfig<
   description:
     'Search for conversations in Intercom using a query. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

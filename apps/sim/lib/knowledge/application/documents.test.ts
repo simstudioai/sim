@@ -1,3 +1,5 @@
+import { toPrincipalActor } from '@sim/auth/principal'
+import { sha256Hex } from '@sim/security/hash'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import {
   createPersonalApiKeyPrincipal,
@@ -159,6 +161,7 @@ const storedDocumentInput = {
   filename: uploadFile.filename,
   fileUrl: '/api/files/serve/kb%2Fupload-1?context=knowledge-base',
   fileSize: uploadFile.fileSize,
+  fileSha256: sha256Hex(uploadFile.buffer),
   mimeType: uploadFile.mimeType,
 }
 
@@ -370,6 +373,7 @@ describe('knowledge document application use cases', () => {
             actorUserId: 'billing-owner-1',
             workspaceId: 'workspace-1',
           },
+          eventId: expect.any(String),
         },
       }
     )
@@ -379,7 +383,7 @@ describe('knowledge document application use cases', () => {
         actorName: 'Workspace API key',
         metadata: expect.objectContaining({
           operation: 'knowledge.documents.upload',
-          actor: createWorkspaceApiKeyPrincipal(),
+          actor: toPrincipalActor(createWorkspaceApiKeyPrincipal()),
         }),
       })
     )

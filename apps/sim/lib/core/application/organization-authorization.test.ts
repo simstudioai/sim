@@ -193,7 +193,7 @@ describe('organization operation authorization', () => {
   )
   it.each([
     principal,
-    { kind: 'personal_api_key' as const, userId: 'member', keyId: 'key' },
+    { kind: 'personal_api_key' as const, userId: 'member', keyId: 'key', access: 'write' as const },
     delegated,
   ])('keeps $kind access independent of the OAuth app restriction', async (caller) => {
     mocks.config.mockResolvedValue({
@@ -243,7 +243,7 @@ describe('organization operation authorization', () => {
   it('never accepts a workspace key as organization authority', async () => {
     await expect(
       authorizeOrganizationOperation(
-        { kind: 'workspace_api_key', keyId: 'key', workspaceId: 'org' },
+        { kind: 'workspace_api_key', keyId: 'key', access: 'write', workspaceId: 'org' },
         operation,
         { organizationId: 'org' }
       )

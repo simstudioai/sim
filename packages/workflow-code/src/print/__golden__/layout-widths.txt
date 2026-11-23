@@ -1,0 +1,27 @@
+// @sim-sdk 1
+import { api, block, env, slack, t, todo, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const numbers = block('custom_block_metrics', 'Numbers', {
+    messages: [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+      27, 28, 29, 30, -0.5,
+    ],
+    model: 'm',
+    temperature: 1e21,
+  })
+  const shortKey = slack.sendMessage('Short key', {
+    credential: todo(),
+    channel: todo(),
+    text: 'a very long message body that will never fit on the same line as its very short key',
+  })
+  const widths = api('Widths', {
+    url: 'https://example.com/a/very/long/path/that/keeps/going/and/going/until/it/overflows/the/line',
+    method: 'GET',
+    headers: [
+      { cells: { Key: 'Authorization', Value: t`Bearer ${env.API_TOKEN}` } },
+      { cells: { Key: 'Accept', Value: 'application/json' } },
+    ],
+  })
+})

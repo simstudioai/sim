@@ -1,4 +1,5 @@
 import type { DynamoDBScanParams, DynamoDBScanResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanResponse> = {
@@ -6,6 +7,7 @@ export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanRespon
   name: 'DynamoDB Scan',
   description: 'Scan all items in a DynamoDB table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -70,6 +72,32 @@ export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanRespon
       description:
         "Pagination token from a previous scan's lastEvaluatedKey to continue fetching results",
     },
+    indexName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Secondary index to scan instead of the table (e.g., "GSI1")',
+    },
+    consistentRead: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Use a strongly consistent read (default: false). Not supported on global secondary indexes',
+    },
+    segment: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Segment to scan in a parallel scan (0 to totalSegments - 1). Requires totalSegments',
+    },
+    totalSegments: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Total number of segments in a parallel scan (1-1000000). Requires segment',
+    },
   },
 
   operation: {
@@ -88,6 +116,10 @@ export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanRespon
       }),
       ...(params.limit && { limit: params.limit }),
       ...(params.exclusiveStartKey && { exclusiveStartKey: params.exclusiveStartKey }),
+      ...(params.indexName && { indexName: params.indexName }),
+      ...(params.consistentRead !== undefined && { consistentRead: params.consistentRead }),
+      ...(params.segment !== undefined && { segment: params.segment }),
+      ...(params.totalSegments !== undefined && { totalSegments: params.totalSegments }),
     }),
   },
 
@@ -104,6 +136,7 @@ export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanRespon
         message: data.message || 'Scan executed successfully',
         items: data.items || [],
         count: data.count || 0,
+        scannedCount: data.scannedCount ?? null,
         ...(data.lastEvaluatedKey && { lastEvaluatedKey: data.lastEvaluatedKey }),
       },
       error: undefined,
@@ -114,6 +147,11 @@ export const scanTool: InternalToolConfig<DynamoDBScanParams, DynamoDBScanRespon
     message: { type: 'string', description: 'Operation status message' },
     items: { type: 'array', description: 'Array of items returned' },
     count: { type: 'number', description: 'Number of items returned' },
+    scannedCount: {
+      type: 'number',
+      description: 'Number of items evaluated before the filter expression was applied',
+      optional: true,
+    },
     lastEvaluatedKey: {
       type: 'json',
       description:

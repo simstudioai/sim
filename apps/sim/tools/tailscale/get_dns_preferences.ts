@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleBaseParams,
   TailscaleGetDnsPreferencesResponse,
@@ -14,6 +15,7 @@ export const tailscaleGetDnsPreferencesTool: ToolConfig<
   name: 'Tailscale Get DNS Preferences',
   description: 'Get the MagicDNS preference for the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

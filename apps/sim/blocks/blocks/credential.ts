@@ -28,7 +28,7 @@ export const CredentialBlock: BlockConfig = {
   - Use the Provider filter to narrow results to specific services (e.g. Gmail, Slack).
   - Use "List Organization Accounts" with Providers selected and Email blank to discover all accessible accounts for those integrations.
   - Organization lists return one page at a time. While hasMore is true, pass nextCursor as Cursor with the same filters to get every matching account.
-  - "Find Organization Account" requires an exact enrollment email and provider, and fails unless exactly one active account matches.
+  - "Find Organization Account" requires an exact enrollment email and provider, and returns that person's first connected account for the provider, or fails if there is none. Use "List Organization Accounts" to reach their other accounts.
   - Outputs contain account identities and credential references, never secret values.
   - To switch credentials across environments, replace the single Credential block rather than updating every downstream block.
   `,

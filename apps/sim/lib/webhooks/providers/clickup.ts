@@ -4,11 +4,13 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -46,7 +48,7 @@ async function resolveClickUpAccessToken(
   requestId: string
 ): Promise<string> {
   if (!credentialId) {
-    throw new Error(
+    throw new WebhookDeploymentConfigurationError(
       'ClickUp account connection required. Please connect your ClickUp account in the trigger configuration and try again.'
     )
   }
@@ -72,7 +74,9 @@ function parseOptionalNumericId(value: unknown, label: string): number | undefin
   if (!raw) return undefined
   const parsed = Number(raw)
   if (!Number.isInteger(parsed)) {
-    throw new Error(`ClickUp ${label} must be a whole number. Received: ${raw}`)
+    throw new WebhookDeploymentConfigurationError(
+      `ClickUp ${label} must be a whole number. Received: ${raw}`
+    )
   }
   return parsed
 }
@@ -84,7 +88,7 @@ function parseOptionalStringId(value: unknown): string | undefined {
 }
 
 async function deleteClickUpWebhook(accessToken: string, externalId: string): Promise<Response> {
-  return fetch(`${CLICKUP_API_BASE_URL}/webhook/${externalId}`, {
+  return outboundFetch(`${CLICKUP_API_BASE_URL}/webhook/${externalId}`, {
     method: 'DELETE',
     headers: { Authorization: clickupAuthorizationHeader(accessToken) },
   })
@@ -107,12 +111,8 @@ export const clickupHandler: WebhookProviderHandler = {
       const { isClickUpEventMatch, getClickUpEventType } = await import('@/triggers/clickup/utils')
       if (!isClickUpEventMatch(triggerId, obj)) {
         logger.debug(
-          `[${requestId}] ClickUp event mismatch for trigger ${triggerId}. Event: ${getClickUpEventType(obj)}. Skipping execution.`,
-          {
-            webhookId: webhook.id,
-            workflowId: workflow.id,
-            triggerId,
-          }
+          `ClickUp event mismatch for trigger ${triggerId}. Event: ${getClickUpEventType(obj)}. Skipping execution.`,
+          { requestId, webhookId: webhook.id, workflowId: workflow.id, triggerId }
         )
         return NextResponse.json({
           status: 'skipped',
@@ -154,7 +154,7 @@ export const clickupHandler: WebhookProviderHandler = {
 
       const workspaceId = parseOptionalStringId(config.triggerWorkspaceId)
       if (!workspaceId) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'ClickUp workspace is required. Please select a workspace in the trigger configuration and try again.'
         )
       }
@@ -185,7 +185,7 @@ export const clickupHandler: WebhookProviderHandler = {
       if (listId !== undefined) requestBody.list_id = listId
       if (taskId !== undefined) requestBody.task_id = taskId
 
-      const clickupResponse = await fetch(
+      const clickupResponse = await outboundFetch(
         `${CLICKUP_API_BASE_URL}/team/${encodeURIComponent(workspaceId)}/webhook`,
         {
           method: 'POST',
@@ -200,8 +200,8 @@ export const clickupHandler: WebhookProviderHandler = {
       if (!clickupResponse.ok) {
         const errorBody = (await clickupResponse.json().catch(() => ({}))) as { err?: string }
         logger.error(
-          `[${requestId}] Failed to create webhook in ClickUp for webhook ${webhookRecord.id}. Status: ${clickupResponse.status}`,
-          { response: errorBody }
+          `Failed to create webhook in ClickUp for webhook ${webhookRecord.id}. Status: ${clickupResponse.status}`,
+          { requestId, response: errorBody }
         )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in ClickUp'
@@ -236,23 +236,24 @@ export const clickupHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.error(
-          `[${requestId}] ClickUp webhook created but no webhook id returned for webhook ${webhookRecord.id}`,
-          { response: redactedResponse }
+          `ClickUp webhook created but no webhook id returned for webhook ${webhookRecord.id}`,
+          { requestId, response: redactedResponse }
         )
         throw new Error('ClickUp webhook creation succeeded but no webhook ID was returned')
       }
 
       if (!secret) {
         logger.error(
-          `[${requestId}] ClickUp webhook created but no secret returned for webhook ${webhookRecord.id}. Rolling back.`,
-          { response: redactedResponse }
+          `ClickUp webhook created but no secret returned for webhook ${webhookRecord.id}. Rolling back.`,
+          { requestId, response: redactedResponse }
         )
         const rollback = await deleteClickUpWebhook(accessToken, externalId).catch(() => undefined)
         if (!rollback || (!rollback.ok && rollback.status !== 404)) {
-          logger.error(
-            `[${requestId}] Failed to roll back ClickUp webhook ${externalId} after missing secret`,
-            { clickupWebhookId: externalId, status: rollback?.status }
-          )
+          logger.error(`Failed to roll back ClickUp webhook ${externalId} after missing secret`, {
+            requestId,
+            clickupWebhookId: externalId,
+            status: rollback?.status,
+          })
           throw new Error(
             `ClickUp webhook creation succeeded but no signing secret was returned, and rolling back the webhook failed. Delete webhook ${externalId} manually in ClickUp before retrying.`
           )
@@ -260,22 +261,21 @@ export const clickupHandler: WebhookProviderHandler = {
         throw new Error('ClickUp webhook creation succeeded but no signing secret was returned')
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in ClickUp for webhook ${webhookRecord.id}.`,
-        {
-          clickupWebhookId: externalId,
-          workspaceId,
-          events,
-        }
-      )
+      logger.info(`Successfully created webhook in ClickUp for webhook ${webhookRecord.id}.`, {
+        requestId,
+        clickupWebhookId: externalId,
+        workspaceId,
+        events,
+      })
 
       return { providerConfigUpdates: { externalId, webhookSecret: secret } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const message = toError(error).message
-      logger.error(
-        `[${requestId}] Exception during ClickUp webhook creation for webhook ${webhookRecord.id}.`,
-        { message }
-      )
+      logger.error(`Exception during ClickUp webhook creation for webhook ${webhookRecord.id}.`, {
+        requestId,
+        message,
+      })
       throw error
     }
   },
@@ -292,7 +292,8 @@ export const clickupHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.warn(
-          `[${requestId}] Missing externalId for ClickUp webhook deletion ${webhookRecord.id}, skipping cleanup`
+          `Missing externalId for ClickUp webhook deletion ${webhookRecord.id}, skipping cleanup`,
+          { requestId }
         )
         if (strict) throw new Error('Missing ClickUp externalId for webhook deletion')
         return
@@ -300,7 +301,8 @@ export const clickupHandler: WebhookProviderHandler = {
 
       if (!credentialId) {
         logger.warn(
-          `[${requestId}] Missing credentialId for ClickUp webhook deletion ${webhookRecord.id}, skipping cleanup`
+          `Missing credentialId for ClickUp webhook deletion ${webhookRecord.id}, skipping cleanup`,
+          { requestId }
         )
         if (strict) throw new Error('Missing ClickUp credentialId for webhook deletion')
         return
@@ -309,8 +311,8 @@ export const clickupHandler: WebhookProviderHandler = {
       const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
       if (!accessToken) {
-        const message = `[${requestId}] Could not retrieve ClickUp access token. Cannot delete webhook.`
-        logger.warn(message, { webhookId: webhookRecord.id })
+        const message = 'Could not retrieve ClickUp access token. Cannot delete webhook.'
+        logger.warn(message, { requestId, webhookId: webhookRecord.id })
         if (strict) throw new Error(message)
         return
       }
@@ -319,16 +321,16 @@ export const clickupHandler: WebhookProviderHandler = {
 
       if (!clickupResponse.ok && clickupResponse.status !== 404) {
         const responseBody = await clickupResponse.json().catch(() => ({}))
-        logger.warn(
-          `[${requestId}] Failed to delete ClickUp webhook (non-fatal): ${clickupResponse.status}`,
-          { response: responseBody }
-        )
+        logger.warn(`Failed to delete ClickUp webhook (non-fatal): ${clickupResponse.status}`, {
+          requestId,
+          response: responseBody,
+        })
         if (strict) throw new Error(`Failed to delete ClickUp webhook: ${clickupResponse.status}`)
       } else {
-        logger.info(`[${requestId}] Successfully deleted ClickUp webhook ${externalId}`)
+        logger.info(`Successfully deleted ClickUp webhook ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting ClickUp webhook (non-fatal)`, error)
+      logger.warn('Error deleting ClickUp webhook (non-fatal)', error, { requestId })
       if (strict) throw error
     }
   },

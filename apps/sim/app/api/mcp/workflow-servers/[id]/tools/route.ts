@@ -40,7 +40,7 @@ export const GET = withRouteHandler(
     try {
       const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
-      logger.info(`[${requestId}] Listing tools for workflow MCP server: ${serverId}`)
+      logger.info(`Listing tools for workflow MCP server: ${serverId}`, { requestId })
 
       const [server] = await db
         .select({ id: workflowMcpServer.id })
@@ -80,11 +80,11 @@ export const GET = withRouteHandler(
         )
         .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
 
-      logger.info(`[${requestId}] Found ${tools.length} tools for server ${serverId}`)
+      logger.info(`Found ${tools.length} tools for server ${serverId}`, { requestId })
 
       return createMcpSuccessResponse({ tools })
     } catch (error) {
-      logger.error(`[${requestId}] Error listing tools:`, error)
+      logger.error('Error listing tools:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to list tools', 500)
     }
   })
@@ -114,7 +114,8 @@ export const POST = withRouteHandler(
 
         const body = parsedBody.data
 
-        logger.info(`[${requestId}] Adding tool to workflow MCP server: ${serverId}`, {
+        logger.info(`Adding tool to workflow MCP server: ${serverId}`, {
+          requestId,
           workflowId: body.workflowId,
         })
 
@@ -141,14 +142,15 @@ export const POST = withRouteHandler(
         const tool = result.tool
 
         logger.info(
-          `[${requestId}] Successfully added tool ${tool.toolName} (workflow: ${body.workflowId}) to server ${serverId}`
+          `Successfully added tool ${tool.toolName} (workflow: ${body.workflowId}) to server ${serverId}`,
+          { requestId }
         )
 
         return createMcpSuccessResponse({ tool }, 201)
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error adding tool:`, error)
+        logger.error('Error adding tool:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to add tool', 500)
       }
     }

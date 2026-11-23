@@ -22,35 +22,31 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
   },
 }))
 
-import { CredentialProviderOperationError } from '@/lib/credentials/application/crud'
+import {
+  CredentialProviderOperationError,
+  throwCredentialMutationFailure,
+} from '@/lib/credentials/application/crud'
+import { WorkloadIdentitySubjectError } from '@/lib/credentials/workload-identity/subject'
 import { PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
 
-vi.mock('@/lib/credentials/application/crud', async () => {
-  const { OrchestrationError: BaseError } = await import('@/lib/core/orchestration/types')
-  class MockCredentialProviderOperationError extends BaseError {
-    constructor(
-      message: string,
-      readonly providerErrorCode: string,
-      readonly providerUnavailable: boolean
-    ) {
-      super('validation', message)
-      this.name = 'CredentialProviderOperationError'
-    }
-  }
-  return {
-    CredentialProviderOperationError: MockCredentialProviderOperationError,
-    updateWorkspaceCredentialUseCase: {
-      operation: { id: 'credentials.update' },
-      execute: mocks.update,
-    },
-  }
-})
+vi.mock('@/lib/credentials/application/crud', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/credentials/application/crud')>()),
+  updateWorkspaceCredentialUseCase: {
+    operation: { id: 'credentials.update' },
+    execute: mocks.update,
+  },
+}))
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 const CREDENTIAL_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -193,6 +189,31 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
         code: 'BAD_REQUEST',
         message: 'invalid_credentials',
         details: { providerErrorCode: 'invalid_credentials' },
+      },
+    })
+  })
+
+  it('reports a reconnect whose subject another credential holds with the create code', async () => {
+    mocks.update.mockImplementation(() =>
+      throwCredentialMutationFailure({
+        success: false,
+        error: 'Another credential already uses this trust setup.',
+        errorCode: 'conflict',
+        keylessRefusal: new WorkloadIdentitySubjectError(
+          'Another credential already uses this trust setup.',
+          'WORKLOAD_IDENTITY_SUBJECT_IN_USE'
+        ),
+      })
+    )
+
+    const response = await PATCH(patchRequest({ serviceAccountJson: '{}' }), context)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'CONFLICT',
+        message: 'Another credential already uses this trust setup.',
+        details: { code: 'WORKLOAD_IDENTITY_SUBJECT_IN_USE' },
       },
     })
   })

@@ -1,6 +1,8 @@
 import { truncate } from '@sim/utils/string'
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { CommentsListResponse, ListIssueCommentsParams } from '@/tools/github/types'
 import { COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, CommentsListResponse> = {
@@ -8,6 +10,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
   name: 'GitHub Issue Comments Lister',
   description: 'List all comments on a GitHub issue',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -58,7 +61,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}/comments`
+      const baseUrl = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.since) queryParams.append('since', params.since)
@@ -85,7 +88,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
             .slice(0, 5)
             .map(
               (c: any) =>
-                `- ${c.user.login} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body, 80)}"`
+                `- ${c.user?.login ?? 'unknown'} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body ?? '', 80)}"`
             )
             .join('\n')}`
         : ''
@@ -99,7 +102,7 @@ export const listIssueCommentsTool: ToolConfig<ListIssueCommentsParams, Comments
           comments: data.map((comment: any) => ({
             id: comment.id,
             body: comment.body,
-            user: { login: comment.user.login },
+            user: { login: comment.user?.login ?? null },
             created_at: comment.created_at,
             html_url: comment.html_url,
           })),
@@ -146,6 +149,7 @@ export const listIssueCommentsV2Tool: ToolConfig<ListIssueCommentsParams, any> =
   name: listIssueCommentsTool.name,
   description: listIssueCommentsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listIssueCommentsTool.params,
   request: listIssueCommentsTool.request,
 

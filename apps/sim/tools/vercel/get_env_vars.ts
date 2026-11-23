@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetEnvVarsParams, VercelGetEnvVarsResponse } from '@/tools/vercel/types'
@@ -7,6 +8,7 @@ export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetE
   name: 'Vercel Get Environment Variables',
   description: 'Retrieve environment variables for a Vercel project',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

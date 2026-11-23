@@ -6,7 +6,7 @@ import {
 } from '@/lib/mothership/chat/persisted-message'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
-import { CopilotChatFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotChatFinalizeOutcome } from '@/lib/mothership/observability/trace-attribute-values'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
@@ -28,7 +28,7 @@ export function buildOnComplete(params: {
    * assistant message + invoked tool calls are recorded as
    * `gen_ai.output.messages` on it before persistence runs. Keeps
    * the Honeycomb Gen AI view complete across both the Sim root
-   * span and the Go-side `llm.stream` spans.
+   * span and the worker's model-call spans.
    */
   otelRoot?: {
     setOutputMessages: (output: {
@@ -119,7 +119,8 @@ export function buildOnComplete(params: {
       }
     } catch (error) {
       if (error instanceof StreamControllerSupersededError) throw error
-      logger.error(`[${requestId}] Failed to persist chat messages`, {
+      logger.error('Failed to persist chat messages', {
+        requestId,
         chatId,
         error: getErrorMessage(error, 'Unknown error'),
       })
@@ -183,7 +184,8 @@ export function buildOnError(params: {
       }
     } catch (error) {
       if (error instanceof StreamControllerSupersededError) throw error
-      logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
+      logger.error('Failed to finalize errored chat stream', {
+        requestId,
         chatId,
         error: getErrorMessage(error, 'Unknown error'),
       })

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
 import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { findWebhooksByRoutingKey, type WebhookDispatchResult } from '@/lib/webhooks/processor'
@@ -101,11 +102,11 @@ export async function authenticateSlackCustomBotRequest({
 }: SlackCustomBotRequestOptions): Promise<NextResponse | { credentialVersion: string }> {
   const botCredential = await getSlackBotCredential(credentialId)
   if (!botCredential) {
-    logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
+    logger.warn(`Unknown Slack bot credential ${credentialId}`, { requestId })
     return new NextResponse(null, { status: 404 })
   }
   if (!botCredential.signingSecret) {
-    logger.warn(`[${requestId}] Slack bot credential ${credentialId} has no signing secret`)
+    logger.warn(`Slack bot credential ${credentialId} has no signing secret`, { requestId })
     return new NextResponse(null, { status: 404 })
   }
 
@@ -128,9 +129,9 @@ export async function dispatchSlackCustomBotCredential({
 }: DispatchSlackCustomBotOptions): Promise<WebhookDispatchResult[]> {
   const webhooks = await findWebhooksByRoutingKey(credentialId, requestId, 'slack')
   if (webhooks.length === 0) {
-    logger.info(
-      `[${requestId}] No active trigger for bot credential ${credentialId}; nothing to run`
-    )
+    logger.info(`No active trigger for bot credential ${credentialId}; nothing to run`, {
+      requestId,
+    })
     return []
   }
 
@@ -163,5 +164,7 @@ export async function handleSlackAgentSessionStopped(
   if (!credential) {
     throw new Error('Slack agent session stop credential is unavailable')
   }
-  await setSlackAgentSessionStatus(credential.botToken, target, 'active')
+  const { botToken, workspaceId } = credential
+  const restoreStatus = () => setSlackAgentSessionStatus(botToken, target, 'active')
+  await (workspaceId ? withResourceOutboundScope({ workspaceId }, restoreStatus) : restoreStatus())
 }

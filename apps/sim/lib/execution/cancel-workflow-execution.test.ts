@@ -158,7 +158,7 @@ describe('cancelWorkflowExecution', () => {
     mockClearExecutionCancellation.mockReset().mockResolvedValue(undefined)
     mockMarkExecutionCancelled
       .mockReset()
-      .mockResolvedValue({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValue({ durablyRecorded: false, reason: 'redis_write_failed' })
     mockAbortManualExecution.mockReset().mockReturnValue(false)
     mockBeginPausedCancellation.mockReset().mockResolvedValue(false)
     mockStagePausedCancellation.mockReset().mockResolvedValue({ kind: 'not_paused' })
@@ -271,7 +271,7 @@ describe('cancelWorkflowExecution', () => {
     })
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
 
     const response = await POST(makeRequest(), makeParams())
@@ -280,7 +280,7 @@ describe('cancelWorkflowExecution', () => {
     await expect(response.json()).resolves.toMatchObject({
       success: false,
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     expect(mockMarkExecutionCancelled).toHaveBeenCalledOnce()
     expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
@@ -330,7 +330,7 @@ describe('cancelWorkflowExecution', () => {
     ])
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     mockAbortManualExecution.mockReturnValue(true)
     mockCancelWorkflowGroupExecution.mockResolvedValue({
@@ -348,7 +348,7 @@ describe('cancelWorkflowExecution', () => {
       success: true,
       durablyRecorded: false,
       locallyAborted: true,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
     expect(mockCancelByExecution).not.toHaveBeenCalled()
@@ -443,7 +443,7 @@ describe('cancelWorkflowExecution', () => {
     mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     mockCancelByExecution.mockResolvedValue(1)
     mockCancelWorkflowGroupExecution.mockResolvedValue({
@@ -672,26 +672,6 @@ describe('cancelWorkflowExecution', () => {
     expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
   })
 
-  it('returns unsuccessful response when Redis is unavailable', async () => {
-    mockMarkExecutionCancelled.mockResolvedValue({
-      durablyRecorded: false,
-      reason: 'redis_unavailable',
-    })
-
-    const response = await POST(makeRequest(), makeParams())
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      executionId: 'ex-1',
-      redisAvailable: false,
-      durablyRecorded: false,
-      locallyAborted: false,
-      pausedCancelled: false,
-      reason: 'redis_unavailable',
-    })
-  })
-
   it('returns unsuccessful response when Redis persistence fails', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
@@ -712,10 +692,10 @@ describe('cancelWorkflowExecution', () => {
     })
   })
 
-  it('returns success when local fallback aborts execution without Redis durability', async () => {
+  it('returns success when an in-process abort lands although the Redis write failed', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     mockAbortManualExecution.mockReturnValue(true)
 
@@ -725,18 +705,18 @@ describe('cancelWorkflowExecution', () => {
     await expect(response.json()).resolves.toEqual({
       success: true,
       executionId: 'ex-1',
-      redisAvailable: false,
+      redisAvailable: true,
       durablyRecorded: false,
       locallyAborted: true,
       pausedCancelled: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
   })
 
   it('returns success when the queue backend cancels the active job', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     mockCancelByExecution.mockResolvedValue(1)
 
@@ -817,7 +797,7 @@ describe('cancelWorkflowExecution', () => {
     mockGetActiveResumeCancellationTarget.mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
     mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
     mockMarkExecutionCancelled
-      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_write_failed' })
       .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
       .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
     mockCompletePausedCancellation.mockResolvedValueOnce(true)
@@ -859,8 +839,8 @@ describe('cancelWorkflowExecution', () => {
     mockGetActiveResumeCancellationTarget.mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
     mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
     mockMarkExecutionCancelled
-      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
-      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_write_failed' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_write_failed' })
       .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
       .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
     mockCompletePausedCancellation.mockResolvedValueOnce(true)
@@ -907,8 +887,8 @@ describe('cancelWorkflowExecution', () => {
     mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
     mockCancelByExecution.mockResolvedValue(1)
     mockMarkExecutionCancelled
-      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
-      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_write_failed' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_write_failed' })
       .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
 
     const response = await POST(makeRequest(), makeParams())
@@ -1386,7 +1366,7 @@ describe('cancelWorkflowExecution', () => {
     await expect(response.json()).resolves.toMatchObject({
       success: false,
       redisAvailable: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
@@ -1557,7 +1537,6 @@ describe('cancelWorkflowExecution', () => {
           code: 'conflict',
           executionId: 'ex-1',
           executionStatus,
-          redisAvailable: true,
           locallyAborted: false,
         })
       )
@@ -1603,7 +1582,6 @@ describe('cancelWorkflowExecution', () => {
         code: 'conflict',
         executionId: 'ex-1',
         executionStatus: 'completed',
-        redisAvailable: true,
         locallyAborted: false,
       })
     )
@@ -1765,7 +1743,7 @@ describe('cancelWorkflowExecution', () => {
     databaseMock.db.update.mockReturnValueOnce({ set: mockSet })
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     mockAbortManualExecution.mockReturnValue(true)
 
@@ -1774,7 +1752,7 @@ describe('cancelWorkflowExecution', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       success: true,
-      reason: 'redis_unavailable',
+      reason: 'redis_write_failed',
     })
     expect(databaseMock.db.update).toHaveBeenCalled()
     expect(mockSet).toHaveBeenCalledWith({

@@ -498,7 +498,7 @@ describe('Slack Assistant delivery', () => {
   )
   it.each([
     ['failed retrieval', 'search_workspace', false, 'https://example.com/document'],
-    ['unrelated tool', 'web_search', true, 'https://example.com/document'],
+    ['unrelated tool', 'call_integration_tool', true, 'https://example.com/document'],
     ['non-web URL', 'read_document', true, 'javascript:alert(1)'],
     ['embedded credentials', 'read_document', true, 'https://user:password@example.com/document'],
   ])('does not link %s', async (_name, tool, success, url) => {

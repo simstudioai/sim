@@ -1,6 +1,7 @@
 import { normalizeLabelTree } from '@/tools/jotform/normalize'
 import type { JotformListLabelsParams, JotformListLabelsResponse } from '@/tools/jotform/types'
 import { buildJotformHeaders, buildJotformUrl, parseJotformResponse } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLabelsTool: ToolConfig<JotformListLabelsParams, JotformListLabelsResponse> = {
@@ -9,6 +10,7 @@ export const listLabelsTool: ToolConfig<JotformListLabelsParams, JotformListLabe
   description:
     'List the labels on the account as a tree. Labels are how Jotform groups forms, workflows, sheets, and apps, replacing the older folder endpoints.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

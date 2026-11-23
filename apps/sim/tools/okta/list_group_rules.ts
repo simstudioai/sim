@@ -11,6 +11,7 @@ import {
   parseOktaPagination,
   throwOktaError,
 } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListGroupRules')
@@ -24,6 +25,7 @@ export const oktaListGroupRulesTool: ToolConfig<
   description:
     'List the group rules in your Okta organization. Each rule assigns users to groups automatically based on an expression over their profile, so this shows how group membership is being driven.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

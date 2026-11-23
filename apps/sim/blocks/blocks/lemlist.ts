@@ -1,9 +1,12 @@
 import { LemlistIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const LemlistBlock: BlockConfig = {
   type: 'lemlist',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'lemlist_v2' },
   name: 'Lemlist',
   description: 'Manage outreach activities, leads, and send emails via Lemlist',
   authMode: AuthMode.ApiKey,
@@ -70,8 +73,8 @@ export const LemlistBlock: BlockConfig = {
         { label: 'Email Sent', id: 'emailsSent' },
         { label: 'Email Bounced', id: 'emailsBounced' },
         { label: 'Paused', id: 'paused' },
-        { label: 'Interested', id: 'interested' },
-        { label: 'Not Interested', id: 'notInterested' },
+        { label: 'Email Interested', id: 'interested' },
+        { label: 'Email Not Interested', id: 'notInterested' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'get_activities' },
@@ -150,16 +153,14 @@ export const LemlistBlock: BlockConfig = {
       id: 'contactId',
       title: 'Contact ID',
       type: 'short-input',
-      placeholder: 'Recipient contact ID',
-      required: { field: 'operation', value: 'send_email' },
+      placeholder: 'Recipient contact ID (or provide the lead ID)',
       condition: { field: 'operation', value: 'send_email' },
     },
     {
       id: 'leadId',
       title: 'Lead ID',
       type: 'short-input',
-      placeholder: 'Associated lead ID',
-      required: { field: 'operation', value: 'send_email' },
+      placeholder: 'Associated lead ID (or provide the contact ID)',
       condition: { field: 'operation', value: 'send_email' },
     },
     {
@@ -201,7 +202,6 @@ export const LemlistBlock: BlockConfig = {
     access: ['lemlist_get_activities', 'lemlist_get_lead', 'lemlist_send_email'],
     config: {
       tool: (params) => {
-        if (params.filterLeadId) params.leadId = params.filterLeadId
         switch (params.operation) {
           case 'get_activities':
             return 'lemlist_get_activities'
@@ -213,10 +213,15 @@ export const LemlistBlock: BlockConfig = {
             return 'lemlist_get_activities'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         if (params.limit) result.limit = Number(params.limit)
         if (params.offset) result.offset = Number(params.offset)
+        // Get Activities collects its lead filter as `filterLeadId`; the raw `leadId` belongs to
+        // Send Email, so on the canvas it is never the filter.
+        if (mapperOperation(params, context) === 'get_activities') {
+          result.leadId = params.filterLeadId || toolCallArg(context, params.leadId) || undefined
+        }
         return result
       },
     },
@@ -364,3 +369,17 @@ export const LemlistBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LemlistV2Block: BlockConfig = {
+  ...LemlistBlock,
+  type: 'lemlist_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(LemlistBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'lemlist',
+    title: 'Lemlist Credential',
+  }),
+}

@@ -75,6 +75,7 @@ beforeEach(() => {
       'https://www.sim.ai/models/anthropic',
       'https://www.sim.ai/models/anthropic/claude-opus-4-6',
     ]),
+    simCatalog: { integrations: 280, actions: 5826, triggers: 538 },
   }
   mkdirSync(path.join(config.contentDir, 'authors'), { recursive: true })
   writeFileSync(path.join(config.contentDir, 'authors', 'sim.json'), '{"id":"sim","name":"Sim"}')
@@ -316,6 +317,152 @@ describe('check-library-content', () => {
     const findings = await findingsFor('library', 'post')
     expect(findings).toHaveLength(1)
     expect(findings[0]).toMatchObject({ line: 12, rule: 'mdx' })
+  })
+
+  it.each([
+    ['Sim connects 1,000+ integrations and every major LLM.', '1,000+ integrations', 'overstates'],
+    [
+      "Sim's [100+ integrations](https://www.sim.ai/integrations) cover the basics.",
+      '100+ integrations',
+      'stale',
+    ],
+    ['Sim ships 9,000+ actions across its catalog.', '9,000+ actions', 'overstates'],
+    ['Sim listens for events with 300+ triggers.', '300+ triggers', 'stale'],
+    ['Sim has **1,000+** integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim has 1,000+ Integrations.', '1,000+ Integrations', 'overstates'],
+    ['Sim offers: 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim, unlike Zapier, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim, which ships 1,000+ integrations, runs agents.', '1,000+ integrations', 'overstates'],
+    [
+      'Sim is an AI workspace, which connects to 1,000+ integrations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    ['Sim, unlike n8n, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    [
+      'Zapier lists thousands of apps, while Make lists 3,000 apps. Sim has 1,000+ integrations, and more.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      'Zapier, while Sim has 1,000+ integrations, focuses on simple automations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      'Zapier is popular, while Sim has 1,000+ integrations, and both support webhooks.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    ['Sim, unlike Make.com, has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim connects tools like Slack to 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['Sim is open source but has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    ['| Catalog | Sim has 1,000+ integrations |', '1,000+ integrations', 'overstates'],
+    [
+      'Sim has 280+ integrations while working across 9,000+ actions.',
+      '9,000+ actions',
+      'overstates',
+    ],
+    ['Sim is open source, but has 1,000+ integrations.', '1,000+ integrations', 'overstates'],
+    [
+      'While Sim is open source but has 1,000+ integrations, Zapier is proprietary.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      'While Sim has 280+ integrations, 9,000+ actions, and 530+ triggers, Zapier focuses on simple automations.',
+      '9,000+ actions',
+      'overstates',
+    ],
+    [
+      'While Sim has 1,000+ integrations, Zapier focuses on simple automations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    ['Sim | Governed agents | 1,000+ integrations |', '1,000+ integrations', 'overstates'],
+    [
+      '[Sim](https://www.sim.ai) combines [Chat](https://docs.sim.ai/execution/chat) with 1,000+ integrations.',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      "Sim's Agent blocks support 28 LLM providers, and the workspace connects to 1,000+ integrations.",
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      '| Sim | Governed agents across SaaS tools | 1,000+ integrations |',
+      '1,000+ integrations',
+      'overstates',
+    ],
+    [
+      '| [Sim](https://www.sim.ai) | Governed agents | 1,000+ integrations |',
+      '1,000+ integrations',
+      'overstates',
+    ],
+  ])('rejects a Sim count the catalog does not support: %s', async (body, claim, verdict) => {
+    writePost('library', 'post', body)
+    expect(await findingsFor('library', 'post')).toEqual([
+      {
+        line: 10,
+        rule: 'sim-count',
+        message: expect.stringMatching(new RegExp(`${claim.replace('+', '\\+')}.*${verdict}`)),
+      },
+    ])
+  })
+
+  it('rejects an unsupported Sim count in a frontmatter FAQ answer, at its line', async () => {
+    writePost('library', 'post', 'Body.', {
+      faq: '\n  - q: "How many integrations does Sim have?"\n    a: "Sim has 1,000+ integrations."',
+    })
+    expect(await findingsFor('library', 'post')).toEqual([
+      expect.objectContaining({ line: 10, rule: 'sim-count' }),
+    ])
+  })
+
+  it('accepts true Sim counts and leaves competitor counts alone', async () => {
+    writePost(
+      'library',
+      'post',
+      [
+        'Sim has 280+ integrations, 5,800+ actions, and 530+ triggers.',
+        "Sim's pricing page documents more than 270 integrations.",
+        'Sim fits teams that want a collaborative visual builder, 270+ integrations, and an Apache 2.0 core.',
+        "Zapier lists 9,000+ integrations, while Sim's 280+ integrations focus on agents.",
+        'Compared with Sim, MindStudio advertises 1,000+ integrations.',
+        'Sim is open source. Workato cites 14,000+ integrations.',
+        'Unlike Sim, Zapier lists 9,000+ integrations.',
+        'Like Sim, n8n ships 2,000+ integrations.',
+        '- Unlike Sim, Zapier lists 9,000+ integrations.',
+        "Sim has fewer than [Zapier](https://zapier.com)'s 9,000+ integrations.",
+        'Sim has 280+ integrations, unlike Zapier, which has 9,000+ integrations.',
+        'Zapier, unlike Sim, has 9,000+ integrations.',
+        'Sim is open source but Zapier has 9,000+ integrations.',
+        'While Sim has 280+ integrations but Zapier has 9,000+ integrations, both support webhooks.',
+        '"Sim is open source." Zapier has 9,000+ integrations.',
+        'While Sim has 280+ integrations, 9,000+ integrations are available in Zapier.',
+        'Sim has 280+ integrations, and Zapier has 9,000+ integrations.',
+        'Sim has 280+ integrations, while n8n lists 2,000+ integrations.',
+        '| Catalog | Sim has 280+ integrations | n8n lists 2,000+ integrations |',
+        'While Sim has 280+ integrations, Zapier lists 9,000+ integrations.',
+        'Zapier, like Sim, has 9,000+ integrations.',
+        'Sim, unlike Zapier, which has 9,000+ integrations, is open source.',
+        'n8n | Alternative to Sim | 2,000+ integrations |',
+        'Sim has 280+ integrations, while Zapier lists 9,000+ integrations.',
+        "Sim has 280+ integrations, fewer than Zapier's 9,000+ integrations.",
+        '| n8n | Self-hosted, unlike Sim | 2,000+ integrations |',
+        'Teams that need 20 integrations and five builders often pick Sim.',
+        '```text\nSim has 1,000+ integrations\n```',
+        '````md\n```text\nSim has 1,000+ integrations\n````',
+      ].join('\n\n'),
+      { faq: '\n  - q: "Is Sim like n8n?"\n    a: "Like Sim, n8n ships 2,000+ integrations."' }
+    )
+    expect(await findingsFor('library', 'post')).toEqual([])
+  })
+
+  it('does not check dated blog or changelog posts, whose counts were true when published', async () => {
+    writePost('blog', 'v0-5', 'Sim v0.5 adds 100+ integrations spanning 300+ actions.')
+    expect(await findingsFor('blog', 'v0-5')).toEqual([])
   })
 
   it('rejects an FAQ heading in the body', async () => {

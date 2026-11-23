@@ -4,7 +4,7 @@
  * AGENT_MEMORY_TEST_LIVE=1 uses configured OpenAI/Anthropic credentials and synthetic PDFs.
  * Otherwise only provider HTTP responses are simulated; storage, SQL, hydration, dispatch,
  * SDK request construction, response parsing, and memory persistence execute real code.
- * Account policy/key lookup use fixtures, Redis uses the in-memory fallback, and no API route runs.
+ * Account policy/key lookup use fixtures, Redis is the integration test instance, and no API route runs.
  * AGENT_MEMORY_TEST_REPORT optionally writes SQL snapshots and outgoing attachment hashes.
  */
 
@@ -496,6 +496,7 @@ describe('Agent memory through PostgreSQL, storage, and provider transports', ()
           kind: 'workspace_api_key',
           workspaceId: scope.workspaceId,
           keyId: 'harness-key',
+          access: 'write',
         },
         input: { key, assertedWorkspaceId: scope.workspaceId },
       })

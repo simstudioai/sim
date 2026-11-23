@@ -63,6 +63,7 @@ import type { AwsSsmPutParameterBody } from '@/lib/api/contracts/tools/aws/ssm-p
 import type { AwsSsmSendCommandBody } from '@/lib/api/contracts/tools/aws/ssm-send-command'
 import type { AwsSsmStartAutomationExecutionBody } from '@/lib/api/contracts/tools/aws/ssm-start-automation-execution'
 import type { AwsSsmStopAutomationExecutionBody } from '@/lib/api/contracts/tools/aws/ssm-stop-automation-execution'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 
 interface SsmConnectionConfig {
   region: string
@@ -72,11 +73,7 @@ interface SsmConnectionConfig {
 
 export function createSsmClient(config: SsmConnectionConfig): SSMClient {
   return new SSMClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

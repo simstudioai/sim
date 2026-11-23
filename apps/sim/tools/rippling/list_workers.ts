@@ -1,5 +1,7 @@
 import type { RipplingListWorkersParams } from '@/tools/rippling/types'
-import { WORKER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { WORKER_DETAIL_OUTPUT_PROPERTIES, WORKER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { nextCursorFromLink, pickOutputFields } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
@@ -7,6 +9,7 @@ export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
   name: 'Rippling List Workers',
   description: 'List all workers with optional filtering and pagination',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -30,13 +33,14 @@ export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort field. Prefix with - for descending',
+      description:
+        'Sort field(s), comma-separated; append " desc" for descending (e.g. created_at desc)',
     },
     cursor: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor from previous response',
+      description: 'Pagination cursor: the nextCursor output of the previous page',
     },
   },
   request: {
@@ -95,9 +99,11 @@ export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
           termination_details: item.termination_details ?? null,
           custom_fields: item.custom_fields ?? null,
           country_fields: item.country_fields ?? null,
+          ...pickOutputFields(item, WORKER_DETAIL_OUTPUT_PROPERTIES),
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        nextCursor: nextCursorFromLink(data.next_link),
         __meta: data.__meta ?? null,
       },
     }
@@ -110,6 +116,13 @@ export const ripplingListWorkersTool: ToolConfig<RipplingListWorkersParams> = {
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+      optional: true,
+      nullable: true,
+    },
     __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

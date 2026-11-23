@@ -2,6 +2,8 @@ import type {
   HexListDataConnectionsParams,
   HexListDataConnectionsResponse,
 } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDataConnectionsTool: ToolConfig<
@@ -13,8 +15,10 @@ export const listDataConnectionsTool: ToolConfig<
   description:
     'List all data connections in the Hex workspace (e.g., Snowflake, PostgreSQL, BigQuery).',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -25,7 +29,7 @@ export const listDataConnectionsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of connections to return (1-500, default: 25)',
+      description: 'Maximum number of connections to return (1-100, default: 25)',
     },
     sortBy: {
       type: 'string',
@@ -62,7 +66,7 @@ export const listDataConnectionsTool: ToolConfig<
       if (params.after) searchParams.set('after', params.after)
       if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/data-connections${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/data-connections${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

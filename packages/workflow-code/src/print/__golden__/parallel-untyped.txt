@@ -1,0 +1,13 @@
+// @sim-sdk 1
+import { api, parallel, t, todo, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const batch = parallel('Batch', { count: 4 }, (p) => {
+    const ping = api('Ping', { url: t`https://x.test/${p.index}`, method: todo() })
+
+    p.to(ping)
+  })
+
+  start.to(batch)
+})

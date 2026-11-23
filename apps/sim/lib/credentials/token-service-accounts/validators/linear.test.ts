@@ -103,4 +103,36 @@ describe('validateLinearServiceAccount', () => {
       status: 400,
     })
   })
+
+  it('identifies a client-credentials app token by its workspace when Linear returns no viewer', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          data: { viewer: null, organization: { id: 'org-1', name: 'Acme' } },
+          errors: [{ message: 'Forbidden', extensions: { code: 'FORBIDDEN' } }],
+        },
+        200
+      )
+    )
+
+    const result = await validateLinearServiceAccount({
+      apiToken: 'lin_oauth_minted',
+      authMethod: 'client_credentials',
+    })
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit]
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer lin_oauth_minted')
+    expect(result.principal).toEqual({ kind: 'tenant', id: 'org-1', label: 'Acme' })
+    expect(result.storedMetadata).toEqual({ organizationId: 'org-1' })
+  })
+
+  it('still refuses a pasted key that answers with no viewer', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ data: { viewer: null, organization: { id: 'org-1', name: 'Acme' } } }, 200)
+    )
+
+    await expect(validateLinearServiceAccount({ apiToken: 'lin_api_abc' })).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+  })
 })

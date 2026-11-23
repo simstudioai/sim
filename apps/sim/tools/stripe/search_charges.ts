@@ -1,4 +1,6 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ChargeListResponse, SearchChargesParams } from '@/tools/stripe/types'
+import { SEARCH_METADATA_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeListResponse> = {
@@ -6,6 +8,7 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
   name: 'Stripe Search Charges',
   description: 'Search for charges using query syntax',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -26,6 +29,13 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
       visibility: 'user-or-llm',
       description: 'Number of results to return (default 10, max 100)',
     },
+    page: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Pagination token from metadata.next_page of the previous search; omit for the first page',
+    },
   },
 
   request: {
@@ -33,6 +43,7 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
       const url = new URL('https://api.stripe.com/v1/charges/search')
       url.searchParams.append('query', params.query)
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      if (params.page) url.searchParams.append('page', params.page)
       return url.toString()
     },
     method: 'GET',
@@ -51,6 +62,7 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
         metadata: {
           count: (data.data || []).length,
           has_more: data.has_more || false,
+          next_page: data.next_page ?? null,
         },
       },
     }
@@ -65,10 +77,7 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
       type: 'json',
       description: 'Search metadata including count and has_more',
 
-      properties: {
-        count: { type: 'number', description: 'Number of items returned' },
-        has_more: { type: 'boolean', description: 'Whether more items exist beyond this page' },
-      },
+      properties: SEARCH_METADATA_OUTPUT_PROPERTIES,
     },
   },
 }

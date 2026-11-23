@@ -2,7 +2,7 @@
 title: Logfire
 description: Query traces, logs, and metrics in Pydantic Logfire
 integration:
-  type: "logfire"
+  type: "logfire_v2"
   color: "#000000"
 ---
 
@@ -14,7 +14,7 @@ Use [Pydantic Logfire](https://pydantic.dev/logfire) to query telemetry collecte
 
 Trace lookup returns spans ordered by time with parent-child relationships for request investigation. Credential lookup identifies the organization and project targeted by a read token.
 
-Create a project **read token** under **Settings → Read tokens**. Sim detects the cloud region from its prefix. For a self-hosted instance, set **Host** to a publicly resolvable HTTPS base URL that Sim can reach.
+Create a project **read token** under **Settings → Read tokens**. Sim detects the cloud region from its prefix. For a self-hosted instance, enter a publicly resolvable HTTPS base URL that Sim can reach as the credential's region or host (the legacy block's **Host** field).
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -27,13 +27,12 @@ Run SQL over your observability data, search spans and logs with structured filt
 
 Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the records and metrics tables using PostgreSQL-compatible syntax.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Logfire read token |
-| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
-| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
 | `sql` | string | Yes | SQL SELECT query to run against the records or metrics table |
 | `minTimestamp` | string | No | ISO 8601 lower bound on start_timestamp. Defaults to 2020-01-01T00:00:00Z when omitted. |
 | `maxTimestamp` | string | No | ISO 8601 upper bound on start_timestamp |
@@ -52,6 +51,8 @@ Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the r
 |   ↳ `nullable` | boolean | Whether the column is nullable |
 | `rowCount` | number | Number of rows returned |
 
+</ReferenceDetails>
+
 ### Logfire Search Records
 
 Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL.
@@ -62,9 +63,6 @@ Search Logfire spans and logs using structured filters for message text, service
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Logfire read token |
-| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
-| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
 | `query` | string | No | Case-insensitive text to match within the record message |
 | `service` | string | No | Exact service name to filter on |
 | `spanName` | string | No | Exact span name to filter on |
@@ -110,9 +108,6 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Logfire read token |
-| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
-| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
 | `traceId` | string | Yes | 32-character hexadecimal trace identifier |
 | `minTimestamp` | string | No | ISO 8601 lower bound on start_timestamp. Defaults to 2020-01-01T00:00:00Z when omitted. |
 | `maxTimestamp` | string | No | ISO 8601 upper bound on start_timestamp |
@@ -147,13 +142,12 @@ Fetch every span and log belonging to a Logfire trace, ordered from earliest to 
 
 Resolve which Logfire organization and project a read token belongs to. Useful for confirming a credential targets the expected project before querying it.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Logfire read token |
-| `region` | string | No | Logfire data region: auto, us, or eu. Auto reads the region from the token. |
-| `host` | string | No | Base URL of a self-hosted Logfire instance, e.g. https://logfire.example.com. Overrides region. Leave blank for Logfire Cloud. |
 
 #### Output
 
@@ -163,5 +157,7 @@ Resolve which Logfire organization and project a read token belongs to. Useful f
 | `projectName` | string | Logfire project the read token belongs to |
 | `expiresAt` | string | When the read token expires. Null when it never expires. |
 | `spendingCapReachedAt` | string | When the organization's spending cap was reached, which stops queries. Null when it has not been reached. |
+
+</ReferenceDetails>
 
 

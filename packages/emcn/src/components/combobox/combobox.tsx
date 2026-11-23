@@ -128,6 +128,8 @@ export interface ComboboxProps
   onArrowLeft?: () => void
   /** Enable search input in dropdown (useful for multiselect) */
   searchable?: boolean
+  /** Server search receives the input through onSearchChange and supplies the matching options. */
+  searchMode?: 'local' | 'server'
   /**
    * Notified when the dropdown's search box changes value, including the `''` a
    * select, close, Escape, or ArrowLeft resets it to. Deduped, so an already-empty
@@ -137,12 +139,13 @@ export interface ComboboxProps
    * This is the `searchable` search box only. In `editable` mode the typed text
    * arrives via `onChange`, not here.
    *
-   * Client-side filtering of `options` is unaffected — this is an additional
-   * signal for consumers that also resolve matches server-side.
+   * In local mode the combobox filters the options. In server mode the consumer
+   * supplies matches for the current search.
    */
   onSearchChange?: (query: string) => void
   /** Placeholder for search input */
   searchPlaceholder?: string
+  searchMaxLength?: number
   /** Size variant */
   size?: 'sm' | 'md'
   /** Dropdown alignment */
@@ -208,8 +211,10 @@ const Combobox = memo(
         onOpenChange,
         onArrowLeft,
         searchable = false,
+        searchMode = 'local',
         onSearchChange,
         searchPlaceholder = 'Search...',
+        searchMaxLength,
         align = 'start',
         dropdownWidth = 'trigger',
         disablePortal = false,
@@ -392,7 +397,7 @@ const Combobox = memo(
           }
         }
 
-        if (searchable && searchQuery) {
+        if (searchable && searchMode === 'local' && searchQuery) {
           const query = searchQuery.toLowerCase()
           result = result.filter((option) => {
             const label = option.label.toLowerCase()
@@ -402,7 +407,7 @@ const Combobox = memo(
         }
 
         return result
-      }, [allOptions, value, open, filterOptions, searchable, searchQuery])
+      }, [allOptions, value, open, filterOptions, searchable, searchMode, searchQuery])
 
       /**
        * Filter groups based on search query (preserves group structure)
@@ -417,7 +422,7 @@ const Combobox = memo(
           }))
           .filter((group) => group.items.length > 0)
 
-        if (!searchable || !searchQuery) return baseGroups
+        if (!searchable || searchMode === 'server' || !searchQuery) return baseGroups
 
         const query = searchQuery.toLowerCase()
         return baseGroups
@@ -430,7 +435,7 @@ const Combobox = memo(
             }),
           }))
           .filter((group) => group.items.length > 0)
-      }, [groups, searchable, searchQuery])
+      }, [groups, searchable, searchMode, searchQuery])
 
       const virtualizeOptions =
         !filteredGroups && !showAllOption && filteredOptions.length >= VIRTUALIZE_OPTION_THRESHOLD
@@ -441,11 +446,10 @@ const Combobox = memo(
         overscan: 8,
       })
       const hasActiveSearch = searchActive || (searchable && searchQuery.trim().length > 0)
-      const continuationAction = hasActiveSearch ? (onLoadAll ?? onLoadMore) : onLoadMore
-      const continuationLabel = hasActiveSearch ? 'Search all options' : 'Load more'
-      const continuationLoadingLabel = hasActiveSearch
-        ? 'Searching options...'
-        : 'Loading options...'
+      const searchAll = hasActiveSearch && Boolean(onLoadAll)
+      const continuationAction = searchAll ? onLoadAll : onLoadMore
+      const continuationLabel = searchAll ? 'Search all options' : 'Load more'
+      const continuationLoadingLabel = searchAll ? 'Searching options...' : 'Loading options...'
 
       /**
        * Handles selection of an option. In editable mode the input is blurred on
@@ -941,6 +945,7 @@ const Combobox = memo(
                     ref={searchInputRef}
                     className={MENU_STYLES.searchInput}
                     placeholder={searchPlaceholder}
+                    maxLength={searchMaxLength}
                     value={searchQuery}
                     onChange={(e) => updateSearchQuery(e.target.value)}
                     onKeyDown={(e) => {

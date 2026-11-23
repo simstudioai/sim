@@ -1,11 +1,14 @@
 import type { GetInboxParams, GetInboxResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> = {
   id: 'agentmail_get_inbox',
   name: 'Get Inbox',
   description: 'Get details of a specific email inbox in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -23,7 +26,8 @@ export const agentmailGetInboxTool: ToolConfig<GetInboxParams, GetInboxResult> =
   },
 
   request: {
-    url: (params) => `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}`,
+    url: (params) =>
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

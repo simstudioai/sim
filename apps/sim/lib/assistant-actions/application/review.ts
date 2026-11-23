@@ -38,6 +38,10 @@ interface ReviewInput {
   runId: string
 }
 
+function nothingToReview() {
+  return { runId: null, streamId: null, actions: [], nextCursor: null }
+}
+
 export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseCase({
   operation: assistantActionOperations.list,
   async execute({
@@ -64,9 +68,16 @@ export const listOrganizationAssistantActions = defineAuthorizedOrganizationUseC
       )
       .orderBy(desc(copilotRuns.startedAt), desc(copilotRuns.id))
       .limit(1)
-    if (!latest) return { runId: null, streamId: null, actions: [], nextCursor: null }
+    if (!latest) return nothingToReview()
     const runId = latest.id
-    const run = await requireAssistantRun(principal, { ...input, runId }, context.userId)
+    const run = await requireAssistantRun(principal, { ...input, runId }, context.userId).catch(
+      (error: unknown) => {
+        // The lookup above takes no lock, so the run can close before this one is granted.
+        if (error instanceof OrchestrationError && error.code === 'conflict') return null
+        throw error
+      }
+    )
+    if (!run) return nothingToReview()
     const records = await db
       .select()
       .from(copilotAsyncToolCalls)

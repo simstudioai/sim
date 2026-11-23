@@ -1,5 +1,6 @@
 import { CloudflareIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /** Advanced inputs serialize before conditions; separate aliases prevent hidden values crossing operations. */
 const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
@@ -251,6 +252,8 @@ const ALIASED_SUBBLOCK_IDS = [
 
 export const CloudflareBlock: BlockConfig = {
   type: 'cloudflare',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudflare_v2' },
   name: 'Cloudflare',
   description: 'Manage DNS, WAF, Zero Trust access, and edge infrastructure',
   authMode: AuthMode.ApiKey,
@@ -4518,11 +4521,16 @@ export const CloudflareBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `cloudflare_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result = { ...params }
-        const operation = typeof result.operation === 'string' ? result.operation : ''
-        for (const [toolParam, aliasId] of Object.entries(SUBBLOCK_ALIASES[operation] ?? {}))
-          result[toolParam] = result[aliasId]
+        const operation = mapperOperation(params, context)
+        const toolCall = isToolCall(context)
+        for (const [toolParam, aliasId] of Object.entries(SUBBLOCK_ALIASES[operation] ?? {})) {
+          const aliasValue = result[aliasId]
+          const aliasBlank = aliasValue === undefined || aliasValue === null || aliasValue === ''
+          // A tool call carries the model's value under the tool's own param name.
+          if (!(toolCall && aliasBlank)) result[toolParam] = aliasValue
+        }
         for (const aliasId of ALIASED_SUBBLOCK_IDS) result[aliasId] = void 0
         if (result.proxied === 'true') result.proxied = !0
         else if (result.proxied === 'false') result.proxied = !1
@@ -4542,7 +4550,7 @@ export const CloudflareBlock: BlockConfig = {
         if (result.match === '') result.match = void 0
         if (result.tag_match === '') result.tag_match = void 0
         if (result.deploy === '') result.deploy = void 0
-        if (result.operation === 'update_dns_record') {
+        if (operation === 'update_dns_record') {
           if (result.content === '') result.content = void 0
           if (result.name === '') result.name = void 0
           if (result.comment === '') result.comment = void 0
@@ -5899,3 +5907,17 @@ export const CloudflareBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudflareV2Block: BlockConfig = {
+  ...CloudflareBlock,
+  type: 'cloudflare_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CloudflareBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'cloudflare',
+    title: 'Cloudflare Credential',
+  }),
+}

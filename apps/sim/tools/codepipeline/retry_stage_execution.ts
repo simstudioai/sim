@@ -2,6 +2,7 @@ import type {
   CodePipelineRetryStageExecutionParams,
   CodePipelineRetryStageExecutionResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const retryStageExecutionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const retryStageExecutionTool: InternalToolConfig<
   name: 'CodePipeline Retry Stage Execution',
   description: 'Retry the failed actions (or all actions) of a failed CodePipeline stage',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -1,21 +1,4 @@
-/** Registered workspace references shared by workflow imports and fork synchronization. */
-export const WORKFLOW_RESOURCE_KINDS = [
-  'credential',
-  'env-var',
-  'knowledge-base',
-  'knowledge-document',
-  'table',
-  'file',
-  'file-folder',
-  'mcp-server',
-  'custom-tool',
-  'custom-block',
-  'skill',
-  'sandbox',
-] as const
-
-export type WorkflowResourceKind = (typeof WORKFLOW_RESOURCE_KINDS)[number]
-export type PortableResourceKind = WorkflowResourceKind | 'workflow'
+import type { PortableResourceKind } from '@sim/workflow-types/resources'
 
 export interface ReferenceOccurrence {
   blockId: string

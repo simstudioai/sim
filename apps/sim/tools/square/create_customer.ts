@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineSquareKeyedSite,
   type SquareDeliveryContextParams,
@@ -8,7 +9,7 @@ import type { CreateCustomerParams, CustomerResponse } from '@/tools/square/type
 import {
   CUSTOMER_METADATA_OUTPUT_PROPERTIES,
   CUSTOMER_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -26,9 +27,11 @@ export const squareCreateCustomerTool: ToolConfig<
   name: 'Square Create Customer',
   description: 'Create a new customer profile in the Square customer directory',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -104,7 +107,7 @@ export const squareCreateCustomerTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/customers`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/customers`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

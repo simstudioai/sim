@@ -2,15 +2,16 @@
 title: Extend
 description: Parse and extract content from documents
 integration:
-  type: "extend_v2"
+  type: "extend_v3"
   color: "#000000"
 ---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Extend](https://www.extend.ai/) to parse a document supplied as a file or file reference. The result includes structured chunks and block-level elements, the page count, and credits consumed. Pass those outputs to later steps for extraction or document review.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -22,6 +23,8 @@ Parse and extract structured content from documents or file references.
 
 Parse and extract content from documents using Extend AI
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -30,7 +33,6 @@ Parse and extract content from documents using Extend AI
 | `outputFormat` | string | No | Target output format \(markdown or spatial\). Defaults to markdown. |
 | `chunking` | string | No | Chunking strategy \(page, document, or section\). Defaults to page. |
 | `engine` | string | No | Parsing engine \(parse_performance or parse_light\). Defaults to parse_performance. |
-| `apiKey` | string | Yes | Extend API key |
 
 #### Output
 
@@ -39,8 +41,10 @@ Parse and extract content from documents using Extend AI
 | `id` | string | Unique identifier for the parser run |
 | `status` | string | Processing status |
 | `chunks` | json | Parsed document content chunks |
-| `blocks` | json | Block-level document elements with type and content |
+| `blocks` | json | Top-level block elements; Extend returns blocks inside each chunk \(chunks\[\].blocks\), so this is usually empty |
 | `pageCount` | number | Number of pages processed |
 | `creditsUsed` | number | API credits consumed |
+
+</ReferenceDetails>
 
 

@@ -50,6 +50,13 @@ export const uploadTool: InternalToolConfig<OneDriveToolParams, OneDriveUploadRe
       visibility: 'user-or-llm',
       description: 'Folder ID to upload the file to (e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M")',
     },
+    conflictBehavior: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'What to do when a file with the same name exists: "replace", "rename", or "fail". When unset, Graph applies its default behavior',
+    },
   },
 
   operation: {
@@ -62,6 +69,7 @@ export const uploadTool: InternalToolConfig<OneDriveToolParams, OneDriveUploadRe
         folderId: params.folderId ?? null,
         mimeType: params.mimeType ?? null,
         values: params.values ?? null,
+        conflictBehavior: params.conflictBehavior ?? null,
       }
     },
   },
@@ -77,7 +85,7 @@ export const uploadTool: InternalToolConfig<OneDriveToolParams, OneDriveUploadRe
     file: {
       type: 'object',
       description:
-        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps',
+        'The uploaded file object with metadata including id, name, webViewLink, webContentLink, timestamps, parentReference, eTag, createdBy, and lastModifiedBy',
     },
   },
 }

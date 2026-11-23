@@ -15,6 +15,8 @@ describe('identity_center_describe_user outputs', () => {
       email: null,
       userStatus: null,
       title: null,
+      givenName: null,
+      familyName: null,
       externalIds: [],
     })
   })

@@ -6,11 +6,12 @@ integration:
   color: "#0072B1"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [LinkedIn](https://www.linkedin.com) to publish to your personal feed and retrieve your profile information from a workflow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -38,6 +39,8 @@ Share posts to your personal feed and access your LinkedIn profile information.
 
 Share a post to your personal LinkedIn feed
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -54,9 +57,13 @@ Share a post to your personal LinkedIn feed
 | `profile` | json | LinkedIn profile information |
 | `error` | string | Error message if operation failed |
 
+</ReferenceDetails>
+
 ### Get LinkedIn Profile
 
 Retrieve your LinkedIn profile information
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,5 +78,7 @@ Retrieve your LinkedIn profile information
 | `postId` | string | Created post ID |
 | `profile` | json | LinkedIn profile information |
 | `error` | string | Error message if operation failed |
+
+</ReferenceDetails>
 
 

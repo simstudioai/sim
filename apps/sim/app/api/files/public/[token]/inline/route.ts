@@ -13,6 +13,7 @@ import {
 import {
   authorizePublicFileShare,
   readPublicFileShareInline,
+  retryOnSharedFileRevisionChange,
 } from '@/lib/public-shares/application'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { FILE_CACHE_CONTROL } from '@/lib/uploads/server/delivery'
@@ -34,11 +35,9 @@ export const GET = withRouteHandler(
         credential: await publicFileShareCredential(request.cookies.getAll(), getClientIp(request)),
       })
       if (!auth.authorized) return publicFileAuthDenied(auth)
-      const result = await readPublicFileShareInline({
-        grant: auth.grant,
-        ...parsed.data.query,
-        request,
-      })
+      const result = await retryOnSharedFileRevisionChange(() =>
+        readPublicFileShareInline({ grant: auth.grant, ...parsed.data.query, request })
+      )
       return createConditionalFileResponse(
         {
           buffer: result.buffer,

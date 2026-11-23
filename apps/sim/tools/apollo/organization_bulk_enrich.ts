@@ -2,6 +2,8 @@ import type {
   ApolloOrganizationBulkEnrichParams,
   ApolloOrganizationBulkEnrichResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloOrganizationBulkEnrichTool: ToolConfig<
@@ -12,8 +14,10 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
   name: 'Apollo Bulk Organization Enrichment',
   description: 'Enrich data for up to 10 organizations at once using Apollo',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -41,7 +45,7 @@ export const apolloOrganizationBulkEnrichTool: ToolConfig<
     method: 'POST',
     headers: (params: ApolloOrganizationBulkEnrichParams) => ({
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
   },
 

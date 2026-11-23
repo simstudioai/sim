@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { ChipLink } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
+import { memberIntegrationEntries } from '@/lib/credential-groups/member-integrations'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationPage } from '@/app/o/[organizationId]/components/organization-page'
 import { IntegrationDetail } from '@/app/o/[organizationId]/integrations/integration-detail'
@@ -11,10 +12,7 @@ import {
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/app/o/[organizationId]/integrations/search-params'
-import {
-  memberIntegrationEntries,
-  memberIntegrationStatus,
-} from '@/app/o/[organizationId]/integrations/utils'
+import { memberIntegrationStatus } from '@/app/o/[organizationId]/integrations/utils'
 import {
   GenericSecretSourceIcon,
   GenericSecretSourceRow,

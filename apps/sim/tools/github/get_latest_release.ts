@@ -1,9 +1,11 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { GetLatestReleaseParams, ReleaseResponse } from '@/tools/github/types'
 import {
   RELEASE_ASSET_OUTPUT_PROPERTIES,
   RELEASE_OUTPUT_PROPERTIES,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseResponse> = {
@@ -12,6 +14,7 @@ export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseRes
   description:
     'Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -35,7 +38,8 @@ export const getLatestReleaseTool: ToolConfig<GetLatestReleaseParams, ReleaseRes
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/releases/latest`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/releases/latest`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -135,6 +139,7 @@ export const getLatestReleaseV2Tool: ToolConfig<GetLatestReleaseParams, any> = {
   name: getLatestReleaseTool.name,
   description: getLatestReleaseTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getLatestReleaseTool.params,
   request: getLatestReleaseTool.request,
 

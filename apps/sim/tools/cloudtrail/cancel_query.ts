@@ -2,6 +2,7 @@ import type {
   CloudTrailCancelQueryParams,
   CloudTrailCancelQueryResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const cancelQueryTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const cancelQueryTool: InternalToolConfig<
   name: 'CloudTrail Cancel Query',
   description: 'Cancel a running CloudTrail Lake query',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -6,9 +6,7 @@ import { z } from 'zod'
 import { WORKER_STREAM_IDLE_TIMEOUT_MS } from '@/lib/mothership/constants'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
 import { type StreamReplayEnd, StreamReplayRequest } from '@/lib/mothership/generated/protocol'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
-import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/go/parser'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import {
   isTerminalStreamStatus,
@@ -16,6 +14,8 @@ import {
   parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session/contract'
 import { toReplayEnvelope } from '@/lib/mothership/request/session/types'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
+import { FatalSseEventError, processSSEStream } from '@/lib/mothership/request/worker/parser'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 const logger = createLogger('RunReplay')
@@ -60,12 +60,12 @@ export async function openRunReplay(params: {
   )
   let response: Response
   try {
-    response = await fetchGo(`${baseUrl}${REPLAY_PATH}`, {
+    response = await fetchWorker(`${baseUrl}${REPLAY_PATH}`, {
       method: 'POST',
       headers: mothershipRequestHeaders(),
       body: JSON.stringify(StreamReplayRequest.parse({ streamId, chatId, userId })),
       signal: AbortSignal.any([signal, unanswered.signal]),
-      spanName: `sim → go ${REPLAY_PATH}`,
+      spanName: `sim → worker ${REPLAY_PATH}`,
       operation: 'stream_replay',
       attributes: { [TraceAttr.StreamId]: streamId, [TraceAttr.ChatId]: chatId },
     })

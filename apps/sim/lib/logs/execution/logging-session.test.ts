@@ -6,6 +6,7 @@ import {
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { executionPayloadStoreMock } from '@sim/testing/mocks/execution-payload-store.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   getMockPlatformEvent,
   telemetryMock,
@@ -139,6 +140,9 @@ function createDisplayProvenance(matches: ResolvedSecretTraceMatch[], complete =
     }),
   }
 }
+
+/** A run's input, as its completion records it. */
+const INPUT = { hello: 'world' }
 
 describe('LoggingSession diagnostic projection', () => {
   it('projects execution errors with the run-scoped secret provenance', () => {
@@ -550,6 +554,29 @@ describe('LoggingSession completion retries', () => {
     )
   })
 
+  it.each([
+    ['success', (session: LoggingSession) => session.safeComplete({ workflowInput: INPUT })],
+    ['error', (session: LoggingSession) => session.safeCompleteWithError({ workflowInput: INPUT })],
+    [
+      'cancellation',
+      (session: LoggingSession) => session.safeCompleteWithCancellation({ workflowInput: INPUT }),
+    ],
+    ['pause', (session: LoggingSession) => session.safeCompleteWithPause({ workflowInput: INPUT })],
+  ])('keeps the run input when a %s completion falls back', async (_, complete) => {
+    const session = new LoggingSession('workflow-1', 'execution-input', 'api', 'req-1')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('finalize failed'))
+      .mockResolvedValueOnce({})
+
+    await complete(session)
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ executionId: 'execution-input', workflowInput: INPUT })
+    )
+  })
+
   it('projects only TraceSpans while preserving functional completion values', async () => {
     const session = new LoggingSession('workflow-1', 'execution-safe', 'api', 'req-1')
     const secret = 'sk-demo / trace?token=7f3a91'
@@ -772,6 +799,35 @@ describe('LoggingSession completion retries', () => {
     expect(displayLogs[0].output).toEqual({ value: 'row-0:{{TOKEN}}' })
     expect(displayLogs[128].output).toEqual({ value: 'row-128:{{TOKEN}}' })
     expect(rawLogs[128].output.value).toBe('row-128:raw-secret')
+  })
+
+  it('labels a live block-log projection warning with the live phase', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-live-phase', 'manual', 'req-1')
+    session.setResolvedSecretTraceRegistry(
+      createSecretRegistry([{ plaintext: 'raw-secret', replacement: '{{TOKEN}}' }])
+    )
+
+    await session.projectBlockLogsForDisplay([
+      {
+        blockId: 'function-1',
+        blockName: 'Function 1',
+        blockType: 'function',
+        startedAt: '2026-07-01T00:00:00.000Z',
+        endedAt: '2026-07-01T00:00:00.001Z',
+        durationMs: 1,
+        success: true,
+        executionOrder: 1,
+        output: { rows: Array.from({ length: 100_001 }, (_, index) => index) },
+        displayResolvedSecretTraceProvenance: createDisplayProvenance([
+          { plaintext: 'raw-secret', replacement: '{{TOKEN}}' },
+        ]),
+      },
+    ])
+
+    expect(getMockLogger('TraceSecretProjection').warn).toHaveBeenCalledWith(
+      'Omitting trace content that could not be sanitized',
+      expect.objectContaining({ executionId: 'execution-live-phase', phase: 'live' })
+    )
   })
 
   it('projects a numeric Function result produced by a resolved numeric secret', async () => {

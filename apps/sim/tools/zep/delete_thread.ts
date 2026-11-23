@@ -1,11 +1,14 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
+import { zepFinalPathSegment } from '@/tools/zep/utils'
 
 export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
   id: 'zep_delete_thread',
   name: 'Delete Thread',
   description: 'Delete a conversation thread from Zep',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {
@@ -23,7 +26,8 @@ export const zepDeleteThreadTool: ToolConfig<any, ZepResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.getzep.com/api/v2/threads/${params.threadId}`,
+    url: (params) =>
+      `https://api.getzep.com/api/v2/threads/${zepFinalPathSegment(params.threadId, 'threadId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Api-Key ${params.apiKey}`,

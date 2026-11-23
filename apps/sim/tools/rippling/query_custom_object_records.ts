@@ -1,6 +1,8 @@
 import type { RipplingQueryCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCustomObjectRecordsParams> =
   {
@@ -8,6 +10,7 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
     name: 'Rippling Query Custom Object Records',
     description: 'Query custom object records with filters',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -33,16 +36,28 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
         visibility: 'user-or-llm',
         description: 'Maximum number of records to return',
       },
+      search: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Search record names or owners (token/prefix match); ANDed with query',
+      },
+      orderBy: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'One field API name with optional asc or desc, e.g. name desc',
+      },
       cursor: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Pagination cursor',
+        description: 'Pagination cursor: the cursor output of the previous page',
       },
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/query/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/query/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -54,6 +69,8 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
         if (params.query != null) body.query = params.query
         if (params.limit != null) body.limit = params.limit
         if (params.cursor != null) body.cursor = params.cursor
+        if (params.search) body.search = params.search
+        if (params.orderBy) body.order_by = params.orderBy
         return body
       },
     },

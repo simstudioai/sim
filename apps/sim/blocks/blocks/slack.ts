@@ -10,13 +10,16 @@ import {
   SLACK_WORKFLOW_OPERATIONS,
   SLACK_WORKFLOW_SENTENCES,
 } from '@/blocks/blocks/slack-workflow-operations'
-import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  isToolCall,
+  mapperOperation,
   normalizeFileInput,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
 } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 import { SLACK_AGENT_SCOPES } from '@/triggers/slack/shared'
@@ -633,10 +636,11 @@ export const SlackBlock: BlockConfig = {
       title: 'Message',
       type: 'long-input',
       placeholder: 'Enter your message (supports Slack mrkdwn)',
+      description:
+        'With Block Kit, this optional text is what Slack shows in notifications and in clients that cannot render blocks.',
       condition: {
         field: 'operation',
         value: ['send', 'ephemeral', 'schedule_message'],
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1044,7 +1048,7 @@ Return ONLY the JSON array - no explanations, no quotes around the array, no ext
       id: 'historyMaxPages',
       title: 'Max Pages',
       type: 'short-input',
-      placeholder: '10',
+      placeholder: '10 (max 50)',
       mode: 'advanced',
       condition: {
         field: 'operation',
@@ -1143,10 +1147,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'New Message Text',
       type: 'long-input',
       placeholder: 'Enter new message text (supports Slack mrkdwn)',
+      description:
+        'With Block Kit, this optional text is what Slack shows in notifications and in clients that cannot render blocks.',
       condition: {
         field: 'operation',
         value: 'update',
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1506,7 +1511,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['open_view', 'push_view'],
       },
-      required: true,
     },
     {
       id: 'viewInteractivityPointer',
@@ -1875,13 +1879,13 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             throw new Error(`Invalid Slack operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           authMethod,
           botToken,
           botCredential,
-          operation,
           destinationType,
           channel,
           dmUserId,
@@ -2011,7 +2015,9 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
 
           case 'ephemeral': {
             baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
-            baseParams.user = ephemeralUser ? String(ephemeralUser).trim() : ''
+            baseParams.user = ephemeralUser
+              ? String(ephemeralUser).trim()
+              : (toolCallArg(context, params.user) ?? '')
             if (threadTs) {
               baseParams.threadTs = threadTs
             }
@@ -2039,11 +2045,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'get_message':
-            baseParams.timestamp = getMessageTimestamp
+            baseParams.timestamp = getMessageTimestamp ?? toolCallArg(context, params.timestamp)
             break
 
           case 'get_thread': {
-            baseParams.threadTs = getThreadTimestamp
+            baseParams.threadTs = getThreadTimestamp ?? toolCallArg(context, params.threadTs)
             if (threadLimit) {
               const parsedLimit = Number.parseInt(threadLimit, 10)
               if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
@@ -2054,7 +2060,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'set_status': {
-            baseParams.threadTs = getThreadTimestamp
+            baseParams.threadTs = getThreadTimestamp ?? toolCallArg(context, params.threadTs)
             baseParams.status = status ?? ''
             if (loadingMessages) {
               baseParams.loadingMessages = loadingMessages
@@ -2063,14 +2069,14 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'set_title': {
-            baseParams.threadTs = getThreadTimestamp
-            baseParams.title = assistantTitle
+            baseParams.threadTs = getThreadTimestamp ?? toolCallArg(context, params.threadTs)
+            baseParams.title = assistantTitle ?? toolCallArg(context, params.title)
             break
           }
 
           case 'set_suggested_prompts': {
-            baseParams.threadTs = getThreadTimestamp
-            baseParams.prompts = suggestedPrompts
+            baseParams.threadTs = getThreadTimestamp ?? toolCallArg(context, params.threadTs)
+            baseParams.prompts = suggestedPrompts ?? toolCallArg(context, params.prompts)
             if (promptsTitle) {
               baseParams.promptsTitle = promptsTitle
             }
@@ -2078,14 +2084,14 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'get_permalink': {
-            baseParams.messageTs = getMessageTimestamp
+            baseParams.messageTs = getMessageTimestamp ?? toolCallArg(context, params.messageTs)
             break
           }
 
           case 'get_channel_history':
           case 'get_thread_replies': {
             if (operation === 'get_thread_replies') {
-              baseParams.threadTs = getThreadTimestamp
+              baseParams.threadTs = getThreadTimestamp ?? toolCallArg(context, params.threadTs)
             }
             if (historyOldest) {
               baseParams.oldest = String(historyOldest).trim()
@@ -2108,18 +2114,28 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             if (historyCursor) {
               baseParams.cursor = String(historyCursor).trim()
             }
-            baseParams.inclusive = historyInclusive === 'true'
+            baseParams.inclusive =
+              historyInclusive === undefined
+                ? (toolCallArg(context, params.inclusive) ?? false)
+                : historyInclusive === 'true' || historyInclusive === true
             break
           }
 
           case 'list_channels': {
-            baseParams.includePrivate = includePrivate !== 'false'
-            baseParams.excludeArchived = true
+            baseParams.includePrivate = includePrivate !== 'false' && includePrivate !== false
+            const modelExcludeArchived = toolCallArg(context, params.excludeArchived)
+            baseParams.excludeArchived =
+              modelExcludeArchived !== false && modelExcludeArchived !== 'false'
             const hasChannelLimit =
               channelLimit !== undefined &&
               channelLimit !== null &&
               (typeof channelLimit !== 'string' || Boolean(channelLimit.trim()))
-            const parsedLimit = hasChannelLimit ? Number(channelLimit) : 100
+            const modelLimit = toolCallArg(context, params.limit)
+            const parsedLimit = hasChannelLimit
+              ? Number(channelLimit)
+              : modelLimit === undefined || modelLimit === null || modelLimit === ''
+                ? 100
+                : Number(modelLimit)
             if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
               throw new Error('Conversations per page must be an integer between 1 and 200')
             }
@@ -2131,7 +2147,9 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'list_members': {
-            baseParams.limit = memberLimit ? Number.parseInt(memberLimit, 10) : 100
+            baseParams.limit = memberLimit
+              ? Number.parseInt(memberLimit, 10)
+              : (toolCallArg(context, params.limit) ?? 100)
             if (paginationCursor) {
               baseParams.cursor = String(paginationCursor).trim()
             }
@@ -2139,8 +2157,10 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'list_users': {
-            baseParams.includeDeleted = includeDeleted === 'true'
-            baseParams.limit = userLimit ? Number.parseInt(userLimit, 10) : 100
+            baseParams.includeDeleted = includeDeleted === 'true' || includeDeleted === true
+            baseParams.limit = userLimit
+              ? Number.parseInt(userLimit, 10)
+              : (toolCallArg(context, params.limit) ?? 100)
             if (paginationCursor) {
               baseParams.cursor = String(paginationCursor).trim()
             }
@@ -2159,35 +2179,41 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
           }
 
-          case 'update':
-            baseParams.timestamp = updateTimestamp
-            baseParams.text = messageFormat === 'blocks' && !updateText ? ' ' : updateText
+          case 'update': {
+            baseParams.timestamp = updateTimestamp ?? toolCallArg(context, params.timestamp)
+            const updateBody = updateText ?? toolCallArg(context, params.text)
+            baseParams.text = messageFormat === 'blocks' && !updateBody ? ' ' : updateBody
             if (blocks) {
               baseParams.blocks = blocks
             }
             break
+          }
 
           case 'delete':
-            baseParams.timestamp = deleteTimestamp
+            baseParams.timestamp = deleteTimestamp ?? toolCallArg(context, params.timestamp)
             break
 
           case 'react':
           case 'unreact':
-            baseParams.timestamp = reactionTimestamp
-            baseParams.name = emojiName
+            baseParams.timestamp = reactionTimestamp ?? toolCallArg(context, params.timestamp)
+            baseParams.name = emojiName ?? toolCallArg(context, params.name)
             break
 
           case 'get_channel_info':
-            baseParams.includeNumMembers = includeNumMembers !== 'false'
+            baseParams.includeNumMembers =
+              includeNumMembers !== 'false' && includeNumMembers !== false
             break
 
           case 'get_user_presence':
-            baseParams.userId = presenceUserId
+            baseParams.userId = presenceUserId ?? toolCallArg(context, params.userId)
             break
 
           case 'edit_canvas':
-            baseParams.canvasId = editCanvasId
-            baseParams.operation = canvasOperation
+            baseParams.canvasId = editCanvasId ?? toolCallArg(context, params.canvasId)
+            // A tool call's own `operation` arg (the edit kind) stays in the merged params.
+            if (canvasOperation !== undefined || !isToolCall(context)) {
+              baseParams.operation = canvasOperation
+            }
             if (canvasContent) {
               baseParams.content = canvasContent
             }
@@ -2209,18 +2235,20 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'get_canvas':
-            baseParams.canvasId = getCanvasId
+            baseParams.canvasId = getCanvasId ?? toolCallArg(context, params.canvasId)
             break
 
           case 'list_canvases':
-            baseParams.count = parseOptionalNumberInput(canvasListCount, 'Canvas Limit', {
-              integer: true,
-              min: 1,
-            })
-            baseParams.page = parseOptionalNumberInput(canvasListPage, 'Canvas Page', {
-              integer: true,
-              min: 1,
-            })
+            baseParams.count =
+              parseOptionalNumberInput(canvasListCount, 'Canvas Limit', {
+                integer: true,
+                min: 1,
+              }) ?? toolCallArg(context, params.count)
+            baseParams.page =
+              parseOptionalNumberInput(canvasListPage, 'Canvas Page', {
+                integer: true,
+                min: 1,
+              }) ?? toolCallArg(context, params.page)
             if (canvasListUser) {
               baseParams.user = String(canvasListUser).trim()
             }
@@ -2236,40 +2264,41 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'lookup_canvas_sections':
-            baseParams.canvasId = lookupCanvasId
-            baseParams.criteria = sectionCriteria
+            baseParams.canvasId = lookupCanvasId ?? toolCallArg(context, params.canvasId)
+            baseParams.criteria = sectionCriteria ?? toolCallArg(context, params.criteria)
             break
 
           case 'delete_canvas':
-            baseParams.canvasId = deleteCanvasId
+            baseParams.canvasId = deleteCanvasId ?? toolCallArg(context, params.canvasId)
             break
 
           case 'create_conversation':
-            baseParams.name = conversationName
-            baseParams.isPrivate = isPrivate === 'true'
+            baseParams.name = conversationName ?? toolCallArg(context, params.name)
+            baseParams.isPrivate = isPrivate === 'true' || isPrivate === true
             if (teamId) {
               baseParams.teamId = teamId
             }
             break
 
           case 'invite_to_conversation':
-            baseParams.users = inviteUsers
+            baseParams.users = inviteUsers ?? toolCallArg(context, params.users)
             if (inviteForce === 'true') {
               baseParams.force = true
             }
             break
 
           case 'open_view':
-            baseParams.triggerId = viewTriggerId
+            baseParams.triggerId = viewTriggerId ?? toolCallArg(context, params.triggerId)
             if (viewInteractivityPointer) {
               baseParams.interactivityPointer = viewInteractivityPointer
             }
-            baseParams.view = viewPayload
+            baseParams.view = viewPayload ?? toolCallArg(context, params.view)
             break
 
           case 'update_view': {
             const trimmedViewId = viewId ? String(viewId).trim() : ''
-            const trimmedExternalId = viewExternalId ? String(viewExternalId).trim() : ''
+            const externalId = viewExternalId || toolCallArg(context, params.externalId)
+            const trimmedExternalId = externalId ? String(externalId).trim() : ''
             if (!trimmedViewId && !trimmedExternalId) {
               throw new Error('update_view requires either View ID or External ID')
             }
@@ -2282,24 +2311,24 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             if (viewHash) {
               baseParams.hash = viewHash
             }
-            baseParams.view = viewPayload
+            baseParams.view = viewPayload ?? toolCallArg(context, params.view)
             break
           }
 
           case 'push_view':
-            baseParams.triggerId = viewTriggerId
+            baseParams.triggerId = viewTriggerId ?? toolCallArg(context, params.triggerId)
             if (viewInteractivityPointer) {
               baseParams.interactivityPointer = viewInteractivityPointer
             }
-            baseParams.view = viewPayload
+            baseParams.view = viewPayload ?? toolCallArg(context, params.view)
             break
 
           case 'publish_view':
-            baseParams.userId = publishUserId
+            baseParams.userId = publishUserId ?? toolCallArg(context, params.userId)
             if (viewHash) {
               baseParams.hash = viewHash
             }
-            baseParams.view = viewPayload
+            baseParams.view = viewPayload ?? toolCallArg(context, params.view)
             break
 
           case 'schedule_message': {
@@ -2310,7 +2339,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             if (threadTs) {
               baseParams.threadTs = threadTs
             }
-            const parsedPostAt = Number.parseInt(String(scheduleAt ?? '').trim(), 10)
+            const postAt = scheduleAt ?? toolCallArg(context, params.postAt)
+            const parsedPostAt = Number.parseInt(String(postAt ?? '').trim(), 10)
             if (Number.isNaN(parsedPostAt)) {
               throw new Error('Send At must be a Unix timestamp in seconds')
             }
@@ -2339,15 +2369,15 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'rename_conversation':
-            baseParams.name = renameChannelName
+            baseParams.name = renameChannelName ?? toolCallArg(context, params.name)
             break
 
           case 'set_conversation_topic':
-            baseParams.topic = conversationTopic
+            baseParams.topic = conversationTopic ?? toolCallArg(context, params.topic)
             break
 
           case 'set_conversation_purpose':
-            baseParams.purpose = conversationPurpose
+            baseParams.purpose = conversationPurpose ?? toolCallArg(context, params.purpose)
             break
         }
 
@@ -2596,6 +2626,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       type: 'json',
       description: 'Array of user IDs who are members of the channel',
     },
+    ids: { type: 'json', description: 'IDs of the returned channels or users' },
+    names: { type: 'json', description: 'Names of the returned channels or users' },
 
     users: {
       type: 'json',
@@ -3015,12 +3047,8 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
       id: 'agentThreadTs',
       title: 'Thread Timestamp',
       type: 'short-input',
-      placeholder: 'Thread timestamp (thread_ts)',
+      placeholder: 'Thread timestamp (thread_ts); leave empty for session channels',
       condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS] },
-      required: {
-        field: 'operation',
-        value: ['set_agent_session_status', 'rename_agent_session'],
-      },
     },
     {
       id: 'agentSessionStatus',
@@ -3100,9 +3128,19 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
   ]
 }
 
-function mapSlackListParams(params: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Maps a Slack List operation's block fields to its tool params. On a tool call the block-only
+ * fields are absent and the model's args arrive under the tool's param names, so each assignment
+ * falls back to the model's value through {@link toolCallArg}.
+ */
+function mapSlackListParams(
+  operation: string,
+  params: Record<string, unknown>,
+  context: BlockToolParamsContext | undefined
+): Record<string, unknown> {
+  const modelArg = (param: string) => toolCallArg(context, params[param])
   const result: Record<string, unknown> = {
-    credential: params.listCredentialId,
+    credential: params.listCredentialId ?? modelArg('credential'),
     listId: params.listId,
   }
   const optional = (field: string) => {
@@ -3115,56 +3153,63 @@ function mapSlackListParams(params: Record<string, unknown>): Record<string, unk
     if (parsed === undefined && value !== undefined) throw new Error(`${field} must be a boolean`)
     return parsed
   }
-  switch (params.operation) {
+  switch (operation) {
     case 'create_list':
-      result.name = params.listName
-      result.schema = parseOptionalJsonInput(params.listSchema, 'Column Schema')
-      result.description = optional('listDescription')
-      result.todoMode = boolean('listTodoMode')
+      result.name = params.listName ?? modelArg('name')
+      result.schema =
+        parseOptionalJsonInput(params.listSchema, 'Column Schema') ?? modelArg('schema')
+      result.description = optional('listDescription') ?? modelArg('description')
+      result.todoMode = boolean('listTodoMode') ?? modelArg('todoMode')
       break
     case 'rename_list':
-      result.name = optional('listName')
-      result.description = optional('listDescription')
+      result.name = optional('listName') ?? modelArg('name')
+      result.description = optional('listDescription') ?? modelArg('description')
       if (params.listUpdateTodoMode && params.listUpdateTodoMode !== 'unchanged') {
         result.todoMode = boolean('listUpdateTodoMode')
       }
       break
     case 'share_list':
-      result.accessLevel = params.listAccessLevel ?? 'read'
+      result.accessLevel = params.listAccessLevel ?? modelArg('accessLevel') ?? 'read'
       switch (params.listShareTarget ?? 'users') {
         case 'users':
-          result.userIds = parseOptionalJsonInput(params.listShareUserIds, 'User IDs')
+          result.userIds =
+            parseOptionalJsonInput(params.listShareUserIds, 'User IDs') ?? modelArg('userIds')
           break
         case 'channels':
-          result.channelIds = parseOptionalJsonInput(params.listShareChannelIds, 'Channel IDs')
+          result.channelIds =
+            parseOptionalJsonInput(params.listShareChannelIds, 'Channel IDs') ??
+            modelArg('channelIds')
           break
         default:
           throw new Error('Share With must be users or channels')
       }
       break
     case 'list_items':
-      result.limit = parseOptionalNumberInput(params.listLimit, 'Page Size', {
-        integer: true,
-        min: 1,
-      })
-      result.cursor = optional('listCursor')
-      result.archived = boolean('listArchived')
-      result.includeList = boolean('listIncludeSchema')
+      result.limit =
+        parseOptionalNumberInput(params.listLimit, 'Page Size', {
+          integer: true,
+          min: 1,
+        }) ?? modelArg('limit')
+      result.cursor = optional('listCursor') ?? modelArg('cursor')
+      result.archived = boolean('listArchived') ?? modelArg('archived')
+      result.includeList = boolean('listIncludeSchema') ?? modelArg('includeList')
       break
     case 'get_list_item':
     case 'delete_list_item':
-      result.itemId = params.listItemId
+      result.itemId = params.listItemId ?? modelArg('itemId')
       break
     case 'create_list_item':
-      result.initialFields = parseOptionalJsonInput(params.listInitialFields, 'Initial Fields')
-      result.parentItemId = optional('listParentItemId')
-      result.duplicatedItemId = optional('listDuplicatedItemId')
+      result.initialFields =
+        parseOptionalJsonInput(params.listInitialFields, 'Initial Fields') ??
+        modelArg('initialFields')
+      result.parentItemId = optional('listParentItemId') ?? modelArg('parentItemId')
+      result.duplicatedItemId = optional('listDuplicatedItemId') ?? modelArg('duplicatedItemId')
       break
     case 'update_list_items':
-      result.cells = parseOptionalJsonInput(params.listCells, 'Cells')
+      result.cells = parseOptionalJsonInput(params.listCells, 'Cells') ?? modelArg('cells')
       break
     default:
-      throw new Error(`Invalid Slack List operation: ${params.operation}`)
+      throw new Error(`Invalid Slack List operation: ${operation}`)
   }
   return result
 }
@@ -3782,29 +3827,31 @@ Block Kit messages can contain buttons, selects and forms, but interactions requ
           }
         }
       },
-      params: (params) => {
-        const operation = getSlackWorkflowOperation(params.operation)
-        if (operation) return mapSlackWorkflowParams(operation, params)
-        if (SLACK_V2_LIST_OPERATIONS.includes(params.operation as never)) {
-          return mapSlackListParams(params)
+      params: (params, context) => {
+        const operationId = mapperOperation(params, context)
+        const workflowOperation = getSlackWorkflowOperation(operationId)
+        if (workflowOperation) return mapSlackWorkflowParams(workflowOperation, params, context)
+        if (SLACK_V2_LIST_OPERATIONS.includes(operationId as never)) {
+          return mapSlackListParams(operationId, params, context)
         }
         const mapParams = SlackBlock.tools.config?.params
         if (!mapParams) throw new Error('Slack parameter mapper is required')
-        const baseParams = mapParams(params)
-        if (!SLACK_V2_AGENT_OPERATIONS.includes(params.operation as never)) return baseParams
+        const baseParams = mapParams(params, context)
+        if (!SLACK_V2_AGENT_OPERATIONS.includes(operationId as never)) return baseParams
 
+        const modelArg = (param: string) => toolCallArg(context, params[param])
         return {
           ...baseParams,
-          credential: params.agentCredentialId,
-          channel: params.agentChannelId,
-          threadTs: params.agentThreadTs,
-          status: params.agentSessionStatus,
-          title: params.agentSessionTitle,
-          initiatorUserId: params.agentInitiatorUserId,
-          iconEmoji: params.agentIconEmoji,
-          iconUrl: params.agentIconUrl,
-          username: params.agentUsername,
-          prompts: params.suggestedPrompts,
+          credential: params.agentCredentialId ?? modelArg('credential'),
+          channel: params.agentChannelId ?? modelArg('channel'),
+          threadTs: params.agentThreadTs ?? modelArg('threadTs'),
+          status: params.agentSessionStatus ?? modelArg('status'),
+          title: params.agentSessionTitle ?? modelArg('title'),
+          initiatorUserId: params.agentInitiatorUserId ?? modelArg('initiatorUserId'),
+          iconEmoji: params.agentIconEmoji ?? modelArg('iconEmoji'),
+          iconUrl: params.agentIconUrl ?? modelArg('iconUrl'),
+          username: params.agentUsername ?? modelArg('username'),
+          prompts: params.suggestedPrompts ?? modelArg('prompts'),
           promptsTitle: params.promptsTitle,
         }
       },
@@ -3862,7 +3909,7 @@ Block Kit messages can contain buttons, selects and forms, but interactions requ
     emoji: { type: 'json', description: 'Custom emoji names mapped to image URLs or aliases' },
     team: { type: 'json', description: 'Workspace details' },
     job_id: { type: 'string', description: 'List export job ID' },
-    status: { type: 'string', description: 'List export job status' },
+    status: { type: 'string', description: 'List export job status, or agent session status' },
     download_url: { type: 'string', description: 'List export download URL when ready' },
     response_metadata: { type: 'json', description: 'Pagination metadata including next_cursor' },
     dnd_enabled: { type: 'boolean', description: 'Whether Do Not Disturb is enabled' },

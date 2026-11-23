@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TailscaleGetAclParams, TailscaleGetAclResponse } from '@/tools/tailscale/types'
 import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const tailscaleGetAclTool: ToolConfig<TailscaleGetAclParams, TailscaleGet
   name: 'Tailscale Get ACL',
   description: 'Get the tailnet policy file',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     details: {
       type: 'boolean',

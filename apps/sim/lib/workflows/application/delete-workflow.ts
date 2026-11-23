@@ -1,10 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowDeleted, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
@@ -21,14 +20,7 @@ export const deleteWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.delete,
   resolveContext: resolvePrincipalWorkflowContext<DeleteWorkflowInput>,
   async execute({ principal, context }) {
-    try {
-      await assertWorkflowMutable(context.workflowId)
-    } catch (error) {
-      if (error instanceof WorkflowLockedError) {
-        throw new OrchestrationError('locked', error.message)
-      }
-      throw error
-    }
+    await requireMutableWorkflow(context.workflowId)
 
     const transition = await deleteWorkflowRecord({
       workflowId: context.workflowId,

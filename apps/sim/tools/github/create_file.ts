@@ -1,4 +1,7 @@
+import { encodeContentPath } from '@/tools/github/content-path'
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreateFileParams, FileOperationResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse> = {
@@ -7,6 +10,7 @@ export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse>
   description:
     'Create a new file in a GitHub repository. The file content will be automatically Base64 encoded. Supports files up to 1MB.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -55,7 +59,7 @@ export const createFileTool: ToolConfig<CreateFileParams, FileOperationResponse>
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/contents/${encodeContentPath(params.path)}`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

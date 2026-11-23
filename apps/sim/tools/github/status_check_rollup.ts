@@ -18,6 +18,7 @@ import type {
   StatusCheckRollupParams,
   StatusCheckRollupResponse,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CONTEXT = 'GitHub status check rollup response'
@@ -155,6 +156,7 @@ export const statusCheckRollupTool: ToolConfig<StatusCheckRollupParams, StatusCh
     description:
       'Read the merged check-run and commit-status state for one commit SHA, including whether each check is required to merge a given pull request.',
     version: '1.0.0',
+    oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {
       owner: {

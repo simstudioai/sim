@@ -18,6 +18,7 @@ const DescribeChangeSetSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   changeSetName: z.string().min(1, 'Change set name is required'),
   stackName: z.string().optional(),
+  nextToken: z.string().optional(),
 })
 
 const DescribeChangeSetResponseSchema = z.object({
@@ -40,8 +41,38 @@ const DescribeChangeSetResponseSchema = z.object({
         physicalResourceId: z.string().optional(),
         resourceType: z.string().optional(),
         replacement: z.string().optional(),
+        type: z.string().optional(),
+        policyAction: z.string().optional(),
+        scope: z.array(z.string()),
+        changeSetId: z.string().optional(),
+        details: z.array(
+          z.object({
+            attribute: z.string().optional(),
+            name: z.string().optional(),
+            requiresRecreation: z.string().optional(),
+            evaluation: z.string().optional(),
+            changeSource: z.string().optional(),
+            causingEntity: z.string().optional(),
+          })
+        ),
       })
     ),
+    parameters: z.array(
+      z.object({
+        parameterKey: z.string(),
+        parameterValue: z.string().optional(),
+        usePreviousValue: z.boolean().optional(),
+        resolvedValue: z.string().optional(),
+      })
+    ),
+    tags: z.array(z.object({ key: z.string(), value: z.string() })),
+    notificationArns: z.array(z.string()),
+    includeNestedStacks: z.boolean().optional(),
+    parentChangeSetId: z.string().optional(),
+    rootChangeSetId: z.string().optional(),
+    onStackFailure: z.string().optional(),
+    importExistingResources: z.boolean().optional(),
+    nextToken: z.string().nullable(),
   }),
 })
 

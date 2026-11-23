@@ -326,11 +326,9 @@ describe('createStreamingResponse', () => {
     expect(events).toContainEqual({ event: 'error', error: message })
     expect(events.some((event) => event.event === 'final')).toBe(false)
     expect(workflowStreamingLogger.error).toHaveBeenCalledWith(
-      '[request-secret-failure] Stream error',
-      {
-        errorType: 'error',
-        hasStack: true,
-      }
+      'Stream error',
+      { errorType: 'error', hasStack: true },
+      { requestId: 'request-secret-failure' }
     )
     const loggerPayload = JSON.stringify(workflowStreamingLogger.error.mock.calls)
     expect(loggerPayload).not.toContain(secret)
@@ -377,8 +375,9 @@ describe('createStreamingResponse', () => {
 
     expect(events).toContainEqual({ event: 'stream_error', blockId: 'agent-1', error: message })
     expect(workflowStreamingLogger.error).toHaveBeenCalledWith(
-      '[request-block-stream-failure] Error reading stream for block agent-1',
-      { errorType: 'error', hasStack: true }
+      'Error reading stream for block agent-1',
+      { errorType: 'error', hasStack: true },
+      { requestId: 'request-block-stream-failure' }
     )
     const loggerPayload = JSON.stringify(workflowStreamingLogger.error.mock.calls)
     expect(loggerPayload).not.toContain(secret)
@@ -606,8 +605,9 @@ describe('createStreamingResponse', () => {
 
     expect(events).toContainEqual({ event: 'error', blockId: 'block', error: message })
     expect(workflowStreamingLogger.warn).toHaveBeenCalledWith(
-      '[request-selected-output-failure] Failed to materialize selected output',
+      'Failed to materialize selected output',
       {
+        requestId: 'request-selected-output-failure',
         blockId: 'block',
         outputId: 'block_value',
         errorType: 'error',
@@ -1439,13 +1439,13 @@ describe('createStreamingResponse agent-events-v1', () => {
 
     await vi.waitFor(() =>
       expect(workflowStreamingLogger.info).toHaveBeenCalledWith(
-        '[request-client-cancel] Streaming execution aborted by client disconnect'
+        'Streaming execution aborted by client disconnect',
+        { requestId: 'request-client-cancel' }
       )
     )
-    expect(workflowStreamingLogger.error).not.toHaveBeenCalledWith(
-      '[request-client-cancel] Stream error',
-      expect.anything()
-    )
+    expect(
+      workflowStreamingLogger.error.mock.calls.some((call: unknown[]) => call[0] === 'Stream error')
+    ).toBe(false)
   })
 
   it('thinking never enters streamedChunks / log content rewrite', async () => {

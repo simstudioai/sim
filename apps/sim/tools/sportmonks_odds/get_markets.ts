@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -33,6 +34,7 @@ export const sportmonksOddsGetMarketsTool: ToolConfig<
   name: 'Get Markets',
   description: 'Retrieve all betting markets from the Sportmonks Odds API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

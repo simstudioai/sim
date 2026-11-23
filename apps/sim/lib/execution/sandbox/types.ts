@@ -29,6 +29,8 @@ export interface SandboxBrokerContext {
   resolvePreparedFile?: (fileId: string) => { content: Buffer; contentType: string }
   /** Host-side identity used to authorize and admit each actual broker read. Never sent to the isolate. */
   filePrincipal?: Principal
+  /** Serves one `sim.api` call from a code-mode program; it closes over the caller's credential, which stays on the host. */
+  callSimApi?: (call: unknown) => Promise<unknown>
   onWorkspaceFileAccess?: (identity: {
     fileId: string
     key: string

@@ -15,6 +15,13 @@
       "integration": "attio",
       "title": "API keys"
     },
+    "aws-credentials": {
+      "title": "AWS credentials"
+    },
+    "bitbucket-service-account": {
+      "integration": "bitbucket",
+      "title": "Access tokens"
+    },
     "box-service-account": {
       "integration": "box",
       "title": "Service accounts"
@@ -27,12 +34,20 @@
       "integration": "clickup",
       "title": "API tokens"
     },
+    "databricks-credentials": {
+      "integration": "databricks",
+      "title": "Databricks connections"
+    },
+    "docusign-service-account": {
+      "integration": "docusign",
+      "title": "JWT Grant"
+    },
     "google-service-account": {
       "title": "Google service accounts"
     },
     "hubspot-service-account": {
       "integration": "hubspot",
-      "title": "Private app tokens"
+      "title": "Service keys and private app tokens"
     },
     "hubspot-setup": {
       "integration": "hubspot",
@@ -41,6 +56,9 @@
     "linear-service-account": {
       "integration": "linear",
       "title": "API keys"
+    },
+    "microsoft-app-credentials": {
+      "title": "Microsoft app credentials"
     },
     "monday-service-account": {
       "integration": "monday",
@@ -68,7 +86,7 @@
     },
     "snowflake-service-account": {
       "integration": "snowflake",
-      "title": "Programmatic access tokens"
+      "title": "Snowflake connections"
     },
     "trello-service-account": {
       "integration": "trello",

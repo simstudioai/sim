@@ -46,6 +46,18 @@ describe('inferred cells pick a format from the key shape', () => {
   })
 })
 
+describe('a record keyed by data rather than by field names', () => {
+  // `workflows outline` answers `{ blocks: { <block id>: {...} } }`: once the
+  // single-key wrapper is unwrapped, each label is a block id the reader copies.
+  const blockId = '112f78c0-9170-4843-abb7-d07329fe3cc7'
+  const outline = { blocks: { [blockId]: { type: 'agent', name: 'Agent 1', enabled: true } } }
+
+  it('labels each entry with its key exactly as the API sent it', () => {
+    renderResult('getWorkflowOutline', 'text', outline, CLI_CONTRACT.getWorkflowOutline ?? {})
+    expect(logged[0].split('\t')[0]).toBe(blockId)
+  })
+})
+
 describe('cells the user named, not the API', () => {
   // `tables rows list` and `tables rows query` expand `data`, whose keys are
   // whatever the caller called their columns. A key shape is a promise about

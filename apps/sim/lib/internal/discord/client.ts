@@ -1,4 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { DiscordOperationError } from '@/lib/internal/discord/errors'
@@ -11,15 +12,18 @@ export async function sendDiscordMessage(
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   signal?.throwIfAborted()
-  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bot ${botToken}`,
-      ...(contentType === 'json' ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body,
-    signal,
-  })
+  const response = await outboundFetch(
+    `https://discord.com/api/v10/channels/${channelId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        ...(contentType === 'json' ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body,
+      signal,
+    }
+  )
   let data: unknown
   try {
     data = await readResponseJsonWithLimit<unknown>(response, {

@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentRolesCreateParams,
   IncidentioIncidentRolesCreateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentRolesCreateTool: ToolConfig<
@@ -12,6 +13,7 @@ export const incidentRolesCreateTool: ToolConfig<
   name: 'Create Incident Role',
   description: 'Create a new incident role in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -93,7 +95,11 @@ export const incidentRolesCreateTool: ToolConfig<
           description: 'Short form abbreviation of the role',
         },
         role_type: { type: 'string', description: 'The type of role' },
-        required: { type: 'boolean', description: 'Whether the role is required' },
+        required: {
+          type: 'boolean',
+          description: 'Not returned by the incident.io API; always empty',
+          optional: true,
+        },
         created_at: { type: 'string', description: 'When the role was created' },
         updated_at: { type: 'string', description: 'When the role was last updated' },
       },

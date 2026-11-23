@@ -34,6 +34,7 @@ const SOURCE_ADDRESS_FIELDS = new Set([
   'host',
   'domain',
   'project',
+  'group',
   'projectKey',
   'spaceKey',
   'folderId',
@@ -79,6 +80,7 @@ const OPAQUE_SOURCE_FIELDS = new Map([
 
 const NAMED_SOURCE_FIELDS = new Map([
   ['project', 'project'],
+  ['group', 'group'],
   ['projectKey', 'project'],
   ['spaceKey', 'space'],
   ['repository', 'repository'],

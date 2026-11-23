@@ -1,0 +1,66 @@
+{
+  "namespace": "hubspot",
+  "methods": {
+    "add_list_memberships": "addListMembers",
+    "create_appointment": "createAppointment",
+    "create_association": "createAssociation",
+    "create_company": "createCompany",
+    "create_contact": "createContact",
+    "create_deal": "createDeal",
+    "create_email": "createEmail",
+    "create_line_item": "createLineItem",
+    "create_list": "createList",
+    "create_note": "createNote",
+    "create_ticket": "createTicket",
+    "delete_association": "deleteAssociation",
+    "delete_company": "deleteCompany",
+    "delete_contact": "deleteContact",
+    "delete_deal": "deleteDeal",
+    "delete_line_item": "deleteLineItem",
+    "delete_ticket": "deleteTicket",
+    "get_appointments": "getAppointments",
+    "get_association_labels": "getAssociationLabels",
+    "get_carts": "getCarts",
+    "get_companies": "getCompanies",
+    "get_contacts": "getContacts",
+    "get_deals": "getDeals",
+    "get_emails": "getEmails",
+    "get_line_items": "getLineItems",
+    "get_list_memberships": "getListMembers",
+    "get_lists": "getLists",
+    "get_marketing_events": "getMarketingEvents",
+    "get_notes": "getNotes",
+    "get_properties": "getProperties",
+    "get_quotes": "getQuotes",
+    "get_tickets": "getTickets",
+    "get_users": "getUsers",
+    "list_associations": "listAssociations",
+    "list_owners": "listOwners",
+    "remove_list_memberships": "removeListMembers",
+    "search_companies": "searchCompanies",
+    "search_contacts": "searchContacts",
+    "search_deals": "searchDeals",
+    "search_emails": "searchEmails",
+    "search_line_items": "searchLineItems",
+    "search_notes": "searchNotes",
+    "search_quotes": "searchQuotes",
+    "search_tickets": "searchTickets",
+    "update_appointment": "updateAppointment",
+    "update_company": "updateCompany",
+    "update_contact": "updateContact",
+    "update_deal": "updateDeal",
+    "update_line_item": "updateLineItem",
+    "update_ticket": "updateTicket"
+  },
+  "triggers": {
+    "hubspot_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

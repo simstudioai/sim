@@ -1,5 +1,6 @@
 import { PlanetScaleIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 function optionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') return undefined
@@ -12,6 +13,8 @@ function optionalNumber(value: unknown): number | undefined {
 }
 export const PlanetScaleBlock: BlockConfig = {
   type: 'planetscale',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'planetscale_v2' },
   name: 'PlanetScale',
   description: 'Manage PlanetScale databases, branches, backups, and deploy requests',
   longDescription:
@@ -970,29 +973,33 @@ export const PlanetScaleBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `planetscale_${params.operation}`,
-      params: (params) => ({
-        ...params,
-        page: optionalNumber(params.page),
-        perPage: optionalNumber(params.perPage),
-        production: optionalBoolean(params.production),
-        safeMigrations: optionalBoolean(params.safeMigrations),
-        deletionProtected: optionalBoolean(params.deletionProtected),
-        replicas: optionalNumber(params.replicas),
-        deleteDescendants: optionalBoolean(params.deleteDescendants),
-        all: optionalBoolean(params.all),
-        retentionValue: optionalNumber(params.retentionValue),
-        emergency: optionalBoolean(params.emergency),
-        autoCutover: optionalBoolean(params.autoCutover),
-        autoDeleteBranch: optionalBoolean(params.autoDeleteBranch),
-        deployRequestNumber: optionalNumber(params.deployRequestNumber),
-        instantDdl: optionalBoolean(params.instantDdl),
-        state:
-          params.operation === 'list_backups'
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const blockState =
+          operation === 'list_backups'
             ? params.backupState
-            : params.operation === 'list_deploy_requests'
+            : operation === 'list_deploy_requests'
               ? params.deployRequestState
-              : params.reviewState,
-      }),
+              : params.reviewState
+        return {
+          ...params,
+          page: optionalNumber(params.page),
+          perPage: optionalNumber(params.perPage),
+          production: optionalBoolean(params.production),
+          safeMigrations: optionalBoolean(params.safeMigrations),
+          deletionProtected: optionalBoolean(params.deletionProtected),
+          replicas: optionalNumber(params.replicas),
+          deleteDescendants: optionalBoolean(params.deleteDescendants),
+          all: optionalBoolean(params.all),
+          retentionValue: optionalNumber(params.retentionValue),
+          emergency: optionalBoolean(params.emergency),
+          autoCutover: optionalBoolean(params.autoCutover),
+          autoDeleteBranch: optionalBoolean(params.autoDeleteBranch),
+          deployRequestNumber: optionalNumber(params.deployRequestNumber),
+          instantDdl: optionalBoolean(params.instantDdl),
+          state: blockState ?? toolCallArg(context, params.state) ?? blockState,
+        }
+      },
     },
   },
   outputs: {
@@ -1185,3 +1192,28 @@ export const PlanetScaleBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const PlanetScaleV2Block: BlockConfig = {
+  ...PlanetScaleBlock,
+  type: 'planetscale_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    PlanetScaleBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'planetscale',
+      title: 'PlanetScale Credential',
+    },
+    {
+      selectorKeys: {
+        'planetscale.databases': 'planetscale.savedDatabases',
+        'planetscale.branches': 'planetscale.savedBranches',
+        'planetscale.backups': 'planetscale.savedBackups',
+        'planetscale.deployRequests': 'planetscale.savedDeployRequests',
+      },
+    }
+  ),
+}

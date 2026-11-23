@@ -1,0 +1,70 @@
+// @sim-sdk 1
+import {
+  agent,
+  condition,
+  credential,
+  env,
+  js,
+  response,
+  slack,
+  t,
+  table,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow(
+  'Support triage',
+  {
+    description: 'Classifies inbound tickets and routes them.',
+    variables: { escalations: { type: 'number', value: 0 } },
+  },
+  ({ vars }) => {
+    const ticketIn = trigger.webhook('Ticket in', {
+      requireAuth: true,
+      token: env.TICKETS_WEBHOOK_TOKEN,
+      inputFormat: { subject: 'string', body: 'string' },
+    })
+    const classify = agent('Classify', {
+      messages: [
+        { role: 'system', content: 'Classify support tickets.' },
+        {
+          role: 'user',
+          content: t`${ticketIn.subject}
+
+${ticketIn.body}`,
+        },
+      ],
+      model: 'claude-sonnet-5-5',
+      temperature: 0.2,
+    })
+    const byCategory = condition('By category', {
+      billing: js`${classify.content} === 'billing'`,
+      urgent: js`${classify.content}.includes("urgent") && ${vars.escalations} < 3`,
+      else: true,
+    })
+    const logTicket = table.insertRow('Log ticket', {
+      tableId: table('tickets'),
+      data: { subject: ticketIn.subject },
+    })
+    const notify = slack.sendMessage(
+      'Notify',
+      {
+        credential: credential('support-slack'),
+        channel: 'C0SUPPORT',
+        text: t`New ${classify.content} ticket: ${ticketIn.subject}`,
+      },
+      { errorPort: true }
+    )
+    const reply = response('Reply', { body: { ok: true, category: classify.content } })
+
+    ticketIn.to(classify)
+    classify.to(byCategory)
+    byCategory.billing.to(logTicket)
+    byCategory.urgent.to(notify)
+    byCategory.else.to(reply)
+    logTicket.to(notify)
+    logTicket.onError(notify)
+    notify.to(reply)
+  }
+)

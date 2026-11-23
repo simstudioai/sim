@@ -7,18 +7,17 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
-import {
-  hasDesktopBackgroundExecutor,
-  isDesktopBackgroundExecutorAvailable,
-} from '@/lib/desktop/executor/availability'
+import { hasDesktopBackgroundExecutor } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
+import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { isWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
@@ -44,13 +43,6 @@ import { WorkspaceHostProvider } from '@/app/workspace/[workspaceId]/providers/w
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import {
-  getBrandConfig,
-  mergeOrgBrandConfig,
-  type OrganizationWhitelabelSettings,
-} from '@/ee/whitelabeling'
-import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
-import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode
@@ -63,11 +55,6 @@ interface WorkspaceContentProps {
   session: NonNullable<Awaited<ReturnType<typeof getSession>>>
   queryClient: QueryClient
   hostContext: WorkspaceHostContext
-  orgSettings: Promise<OrganizationWhitelabelSettings | null>
-}
-
-interface WorkspaceLoadingProps {
-  orgSettings: Promise<OrganizationWhitelabelSettings | null>
 }
 
 export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
@@ -83,28 +70,18 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     return <WorkspaceAccessDenied />
   }
 
-  const orgSettings = hostContext.hostOrganizationId
-    ? getOrgWhitelabelSettings(hostContext.hostOrganizationId)
-    : Promise.resolve(null)
-
   return (
-    <Suspense fallback={<WorkspaceLoading orgSettings={orgSettings} />}>
+    <Suspense fallback={<ApplicationLoading />}>
       <WorkspaceContent
         workspaceId={workspaceId}
         session={session}
         queryClient={queryClient}
         hostContext={hostContext}
-        orgSettings={orgSettings}
       >
         {children}
       </WorkspaceContent>
     </Suspense>
   )
-}
-
-async function WorkspaceLoading({ orgSettings }: WorkspaceLoadingProps) {
-  const brand = mergeOrgBrandConfig(await orgSettings, getBrandConfig())
-  return <ApplicationLoading brand={brand} />
 }
 
 async function WorkspaceContent({
@@ -113,7 +90,6 @@ async function WorkspaceContent({
   session,
   queryClient,
   hostContext,
-  orgSettings,
 }: WorkspaceContentProps) {
   const activeOrganizationId = getActiveOrganizationId(session)
   const principal = {
@@ -123,20 +99,19 @@ async function WorkspaceContent({
   } as const
   const [
     cookieStore,
-    initialOrgSettings,
     ,
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
     dashboardsEnabled,
     workflowTestsEnabled,
+    workflowCodeEnabled,
     changelogEnabled,
     desktopExecutorRegistered,
-    computerUseEnabled,
     projectsEnabled,
+    simLinkOrganizationId,
   ] = await Promise.all([
     cookies(),
-    orgSettings,
     prefetchWorkspaceSidebar(
       queryClient,
       workspaceId,
@@ -149,10 +124,15 @@ async function WorkspaceContent({
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
+    isWorkflowCodeEnabled({
+      orgId: hostContext.hostOrganizationId,
+      workspaceId,
+      userId: session.user.id,
+    }),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
-    isComputerUseAvailable(hostContext.hostOrganizationId),
     isProjectsEnabled(),
+    resolveSimLinkOrganization(principal),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -164,19 +144,15 @@ async function WorkspaceContent({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
+          'workflow-code': workflowCodeEnabled,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
-          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
           projects: projectsEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
-          <BrandingProvider
-            hostOrganizationId={hostContext.hostOrganizationId}
-            viewerIsHostOrganizationMember={hostContext.viewer.isHostOrganizationMember}
-            initialOrgSettings={initialOrgSettings}
-          >
+          <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
             <DesktopOAuthConnectListener />
             <InFlightUploadGuard />
             <SettingsLoader />
@@ -194,10 +170,7 @@ async function WorkspaceContent({
                       sidebar={
                         <Sidebar
                           organizationHref={organizationHref}
-                          desktopExecutor={{
-                            available: isDesktopBackgroundExecutorAvailable(),
-                            registered: desktopExecutorRegistered,
-                          }}
+                          desktopExecutorRegistered={desktopExecutorRegistered}
                         />
                       }
                       initialSidebarCollapsed={initialSidebarCollapsed}
@@ -208,7 +181,7 @@ async function WorkspaceContent({
                 </WorkspacePermissionsProvider>
               </WorkspaceViewport>
             </GlobalCommandsProvider>
-          </BrandingProvider>
+          </SimLinkOrganizationProvider>
         </WorkspaceHostProvider>
       </FeatureFlagsProvider>
     </HydrationBoundary>

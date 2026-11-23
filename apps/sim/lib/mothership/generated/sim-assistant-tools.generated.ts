@@ -13,9 +13,12 @@ export const liveSearchProviderSchema = z.enum([
   'jira',
   'confluence',
   'github',
+  'jama',
+  'flow',
   'gitlab',
   'linear',
   'lucid',
+  'hex',
   'hubspot',
   'fireflies',
   'granola',
@@ -478,6 +481,8 @@ export const workspaceKnowledgeSearchResultSchema = z.object({
   sourceDate: z.string().nullable().optional(),
   sourceContainerName: z.string().optional(),
   sourceContainerUrl: z.string().optional(),
+  /** Zero-based nativeQueries entries that returned this result, retained through rank fusion. */
+  queryIndexes: z.array(z.number().int().min(0).max(8)).min(1).max(9).optional(),
   sourceDateType: z.enum(['event_start', 'message', 'modified']).optional(),
   /** The person behind the document, from its author-like tag; null when the source names none. */
   author: z.string().nullable(),

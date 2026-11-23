@@ -6,7 +6,9 @@ import type {
   OktaFactor,
 } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaEnrollFactor')
 
@@ -16,6 +18,7 @@ export const oktaEnrollFactorTool: ToolConfig<OktaEnrollFactorParams, OktaEnroll
   description:
     'Enroll an MFA factor for a user. The profile fields required depend on the factor type: a phone number for sms and call, an email address for email, and a question and answer for question. Factors that enroll from the user device, such as webauthn and push, need no profile fields.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -88,7 +91,7 @@ export const oktaEnrollFactorTool: ToolConfig<OktaEnrollFactorParams, OktaEnroll
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/factors`
+      const base = `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/factors`
       return params.activate === undefined
         ? base
         : `${base}?activate=${isOktaFlagEnabled(params.activate)}`

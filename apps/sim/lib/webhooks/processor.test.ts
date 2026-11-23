@@ -24,7 +24,7 @@ import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { NextRequest, NextResponse } from 'next/server'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_REJECTION_CODE } from '@/lib/core/admission/rejection'
 import {
   ADMISSION_ERROR_CODE,
@@ -38,11 +38,13 @@ type WebhookLookupRow = {
   workflow: Pick<WorkflowRecord, 'id'>
 }
 
-const { mockEnqueue, mockExecuteWebhookJob, mockProviderHandler } = vi.hoisted(() => ({
-  mockEnqueue: vi.fn(),
-  mockExecuteWebhookJob: vi.fn().mockResolvedValue({ success: true }),
-  mockProviderHandler: { current: {} as Record<string, unknown> },
-}))
+const { mockEnqueue, mockExecuteWebhookJob, mockProviderHandler, mockResolveBackgroundWebhookEnv } =
+  vi.hoisted(() => ({
+    mockEnqueue: vi.fn(),
+    mockResolveBackgroundWebhookEnv: vi.fn(),
+    mockExecuteWebhookJob: vi.fn().mockResolvedValue({ success: true }),
+    mockProviderHandler: { current: {} as Record<string, unknown> },
+  }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
@@ -85,6 +87,10 @@ vi.mock('@/lib/webhooks/providers', () => ({
   getProviderHandler: vi.fn(() => mockProviderHandler.current),
 }))
 
+vi.mock('@/lib/webhooks/env-resolver', () => ({
+  resolveBackgroundWebhookEnv: mockResolveBackgroundWebhookEnv,
+}))
+
 vi.mock('@/background/webhook-execution', () => ({
   executeWebhookJob: mockExecuteWebhookJob,
 }))
@@ -118,7 +124,9 @@ import {
   handleWebhookEventFilter,
   parseWebhookBody,
   processPolledWebhookEvent,
+  verifyProviderAuth,
 } from '@/lib/webhooks/processor'
+import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 
 const mockGetInlineJobQueue = asyncJobsMockFns.mockGetInlineJobQueue
 const mockGetJobQueue = asyncJobsMockFns.mockGetJobQueue
@@ -793,5 +801,77 @@ describe('handleProviderChallenges method gating', () => {
 
     await expect(response).resolves.toBeNull()
     expect(handleChallenge).not.toHaveBeenCalled()
+  })
+})
+
+describe('verifyProviderAuth env-referenced secrets', () => {
+  const PLACEHOLDER = '{{WEBHOOK_SECRET}}'
+
+  const verifyAuth = vi.fn(
+    ({ request, providerConfig }: { request: Request; providerConfig: Record<string, unknown> }) =>
+      request.headers.get('authorization') === `Bearer ${providerConfig.token}`
+        ? null
+        : new NextResponse('Unauthorized', { status: 401 })
+  )
+
+  const deliver = (
+    bearer: string,
+    providerConfig: Record<string, unknown> = { token: PLACEHOLDER }
+  ) =>
+    verifyProviderAuth(
+      { id: 'webhook-1', provider: 'generic', providerConfig } as never,
+      { id: 'workflow-1', userId: 'owner-1', workspaceId: 'workspace-1' } as never,
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/abc', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${bearer}` },
+      }),
+      '{}',
+      'req-1'
+    )
+
+  beforeAll(async () => {
+    const actual = await vi.importActual<typeof import('@/executor/utils/reference-validation')>(
+      '@/executor/utils/reference-validation'
+    )
+    vi.mocked(resolveEnvVarReferences).mockImplementation(actual.resolveEnvVarReferences)
+  })
+
+  afterAll(() => {
+    vi.mocked(resolveEnvVarReferences).mockImplementation((value) => value)
+  })
+
+  beforeEach(() => {
+    verifyAuth.mockClear()
+    mockResolveBackgroundWebhookEnv.mockReset()
+    mockProviderHandler.current = { verifyAuth }
+  })
+
+  it('authenticates with the resolved secret, read through the background webhook env', async () => {
+    mockResolveBackgroundWebhookEnv.mockImplementation(async (userId, workspaceId) =>
+      userId === 'owner-1' && workspaceId === 'workspace-1'
+        ? { WEBHOOK_SECRET: 'correct-horse' }
+        : {}
+    )
+
+    await expect(deliver('correct-horse')).resolves.toBeNull()
+  })
+
+  it('rejects the literal placeholder when the referenced variable no longer exists', async () => {
+    mockResolveBackgroundWebhookEnv.mockResolvedValue({})
+
+    expect((await deliver(PLACEHOLDER))?.status).toBe(401)
+  })
+
+  it('ignores unresolved braces in a field auth never reads', async () => {
+    mockResolveBackgroundWebhookEnv.mockResolvedValue({ WEBHOOK_SECRET: 'correct-horse' })
+
+    const providerConfig = { token: PLACEHOLDER, responseBody: '{"greeting": "{{name}}"}' }
+    await expect(deliver('correct-horse', providerConfig)).resolves.toBeNull()
+  })
+
+  it('rejects the literal placeholder when the env cannot be loaded', async () => {
+    mockResolveBackgroundWebhookEnv.mockRejectedValue(new Error('Access denied to workspace'))
+
+    expect((await deliver(PLACEHOLDER))?.status).toBe(500)
   })
 })

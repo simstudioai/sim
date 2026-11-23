@@ -16,6 +16,14 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import {
+  buildCanonicalIndex,
+  type CanonicalIndex,
+  type CanonicalModeOverrides,
+  isCanonicalPair,
+  resolveCanonicalMode,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
@@ -34,14 +42,8 @@ import {
 } from '@/lib/permission-groups/operation-access'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
-  buildCanonicalIndex,
-  type CanonicalIndex,
-  type CanonicalModeOverrides,
-  isCanonicalPair,
   reindexToolCanonicalModes,
-  resolveCanonicalMode,
   resolveDependencyValue,
-  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import {
@@ -70,6 +72,7 @@ import {
   isCustomToolAlreadySelected,
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
+  supportsToolUsageControlForModel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -103,8 +106,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { supportsForcedToolUse, supportsToolUsageControl } from '@/providers/models'
-import { getProviderFromModel } from '@/providers/utils'
+import { supportsForcedToolUse } from '@/providers/models'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -281,7 +283,9 @@ function hasMultipleOperations(block: BlockConfig | undefined): boolean {
  * @param block - The block config to get operations for
  * @returns Array of operation options with label and id properties
  */
-function getOperationOptions(block: BlockConfig | undefined): { label: string; id: string }[] {
+function getOperationOptions(
+  block: BlockConfig | undefined
+): { label: string; id: string; hidden?: boolean }[] {
   if (!block || !block.tools?.access) return []
 
   const operationSubBlock = block.subBlocks.find((sb) => sb.id === OPERATION_SUBBLOCK_ID)
@@ -290,7 +294,7 @@ function getOperationOptions(block: BlockConfig | undefined): { label: string; i
     operationSubBlock.type === 'dropdown' &&
     Array.isArray(operationSubBlock.options)
   ) {
-    return operationSubBlock.options as { label: string; id: string }[]
+    return operationSubBlock.options as { label: string; id: string; hidden?: boolean }[]
   }
 
   return block.tools.access.map((toolId) => {
@@ -599,9 +603,7 @@ export const ToolInput = memo(function ToolInput({
 
   const modelValue = useSubBlockStore((state) => state.getValue(blockId, 'model'))
   const model = typeof modelValue === 'string' ? modelValue : ''
-  const provider = model ? getProviderFromModel(model) : ''
-  const supportsToolControl =
-    blockType === 'mothership' || (provider ? supportsToolUsageControl(provider) : false)
+  const supportsToolControl = supportsToolUsageControlForModel(blockType, model)
   const supportsForce = blockType === 'mothership' || supportsForcedToolUse(model)
 
   const {
@@ -612,8 +614,9 @@ export const ToolInput = memo(function ToolInput({
   const { getDeniedOperations } = useOperationAccess()
 
   /**
-   * A tool block's selectable operations paired with the ones the caller's
-   * permission group denies.
+   * A tool block's selectable operations paired with the ones the caller may not
+   * pick: those the caller's permission group denies, and retired operations the
+   * block keeps as `hidden` options so saved workflows stay valid.
    *
    * Both callers derive from this single result so they cannot drift: the
    * picker *removes* denied operations (it must never offer or default to one),
@@ -623,12 +626,14 @@ export const ToolInput = memo(function ToolInput({
   const getOperationChoices = useCallback(
     (block: BlockConfig | undefined) => {
       const options = getOperationOptions(block).filter((option) => option.id !== '')
+      const denied = getDeniedOperations(
+        block,
+        options.map((option) => option.id)
+      )
+      const hiddenIds = options.filter((option) => option.hidden).map((option) => option.id)
       return {
         options,
-        denied: getDeniedOperations(
-          block,
-          options.map((option) => option.id)
-        ),
+        denied: hiddenIds.length > 0 ? new Set([...denied, ...hiddenIds]) : denied,
       }
     },
     [getDeniedOperations]
@@ -981,7 +986,7 @@ export const ToolInput = memo(function ToolInput({
         return
       }
 
-      const preservedParams = getParamsForToolOperation(tool, newToolConfig)
+      const preservedParams = getParamsForToolOperation(tool, newToolConfig, operation)
 
       if (tool.type === 'jira') {
         const subBlockStore = useSubBlockStore.getState()

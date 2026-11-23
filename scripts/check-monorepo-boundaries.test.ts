@@ -67,6 +67,84 @@ describe('package boundary command', () => {
     }
   }, 30_000)
 
+  it('keeps @sim/workflow-code free of Node built-ins and dynamic code execution', () => {
+    const fixture = mkdtempSync(path.join(ROOT, 'node_modules/.boundary-audit-'))
+    try {
+      mkdirSync(path.join(fixture, 'scripts'))
+      mkdirSync(path.join(fixture, 'apps'))
+      mkdirSync(path.join(fixture, 'packages/workflow-code/src'), { recursive: true })
+      mkdirSync(path.join(fixture, 'packages/other/src'), { recursive: true })
+      copyFileSync(
+        path.join(ROOT, 'scripts/check-monorepo-boundaries.ts'),
+        path.join(fixture, 'scripts/check-monorepo-boundaries.ts')
+      )
+      const source = 'packages/workflow-code/src/compile.ts'
+      const cases = [
+        ["import vm from 'vm'", source, false],
+        ["import { runInNewContext } from 'node:vm'", source, false],
+        ["import { readFile } from 'node:fs/promises'", source, false],
+        ["import { exec } from 'child_process'", source, false],
+        ["import type { Script } from 'node:vm'", source, false],
+        ["export { spawn } from 'node:child_process'", source, false],
+        ["const vm = require('vm')", source, false],
+        ["const parser = import('@babel/parser')", source, false],
+        ['const mod = import(specifier)', source, false],
+        ["const value = eval('1 + 1')", source, false],
+        ["const value = globalThis.eval('1')", source, false],
+        ["const value = globalThis['eval']('1')", source, false],
+        ["const run = new Function('return 1')", source, false],
+        ["const run = Function('return 1')", source, false],
+        ["const F = globalThis['Function']", source, false],
+        ["const run = (() => {}).constructor('return 1')", source, false],
+        ["const F = ({})['constructor']['constructor']", source, false],
+        ['const { constructor: F } = () => {}', source, false],
+        ['const { constructor } = () => {}', source, false],
+        ["const { 'constructor': F } = () => {}", source, false],
+        ["const { ['constructor']: F } = () => {}", source, false],
+        ['const g = globalThis', source, false],
+        ["const run = globalThis[['ev', 'al'].join('')]", source, false],
+        ['const g = Reflect.get(globalThis, name)', source, false],
+        ["const value = Reflect.apply(fn, undefined, ['1'])", source, false],
+        ['const load = require', source, false],
+        ['const here = import.meta.url', source, false],
+        ['const w = window', source, false],
+        ['class Parser { constructor() {} }', source, true],
+        ['const record = { constructor: 1 }', source, true],
+        ['const { name: label } = record', source, true],
+        ['type Host = typeof globalThis', source, true],
+        ["import vm from 'vm'", 'packages/workflow-code/src/nested/deep.ts', false],
+        ["import { parse } from '@babel/parser'", source, true],
+        ["import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'", source, true],
+        ['const record = { eval: 1, Function: 2 }', source, true],
+        ['interface Hooks { eval(): void }', source, true],
+        ["// import vm from 'vm'", source, true],
+        ['const text = "eval(\'x\')"', source, true],
+        [
+          "import { readFile } from 'node:fs/promises'",
+          'packages/workflow-code/src/x.test.ts',
+          true,
+        ],
+        ["import vm from 'node:vm'", 'packages/other/src/index.ts', true],
+      ] as const
+
+      for (const [code, file, allowed] of cases) {
+        rmSync(path.join(fixture, 'packages/workflow-code/src'), { recursive: true, force: true })
+        rmSync(path.join(fixture, 'packages/other/src'), { recursive: true, force: true })
+        mkdirSync(path.dirname(path.join(fixture, file)), { recursive: true })
+        writeFileSync(path.join(fixture, file), `${code}\n`)
+        const result = spawnSync(
+          'bun',
+          [path.join(fixture, 'scripts/check-monorepo-boundaries.ts')],
+          { cwd: fixture, encoding: 'utf8' }
+        )
+        expect.soft(result.status, `${file}: ${code}\n${result.stderr}`).toBe(allowed ? 0 : 1)
+        if (!allowed) expect.soft(result.stderr).toContain(`${file}:1`)
+      }
+    } finally {
+      rmSync(fixture, { recursive: true, force: true })
+    }
+  }, 30_000)
+
   it('keeps application code surface-neutral while allowing shared contract vocabulary', () => {
     const fixture = mkdtempSync(path.join(ROOT, 'node_modules/.boundary-audit-'))
     try {

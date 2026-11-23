@@ -1,5 +1,6 @@
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { BROWSER_USE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const runTaskTool: InternalToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskResponse> = {
@@ -7,6 +8,7 @@ export const runTaskTool: InternalToolConfig<BrowserUseRunTaskParams, BrowserUse
   name: 'Browser Use',
   description: 'Runs a browser automation task using BrowserUse',
   version: '1.0.0',
+  oauth: BROWSER_USE_CREDENTIAL_OAUTH,
 
   params: {
     task: {
@@ -61,7 +63,7 @@ export const runTaskTool: InternalToolConfig<BrowserUseRunTaskParams, BrowserUse
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Optional text appended to the agent system prompt (max 2000 chars)',
+      description: 'Optional text appended to the agent system prompt (max 10000 chars)',
     },
     structuredOutput: {
       type: 'string',
@@ -73,7 +75,7 @@ export const runTaskTool: InternalToolConfig<BrowserUseRunTaskParams, BrowserUse
       type: 'boolean',
       required: false,
       visibility: 'user-only',
-      description: 'Highlight interactive elements on the page (default true)',
+      description: 'Highlight interactive elements on the page (default false)',
     },
     metadata: {
       type: 'json',

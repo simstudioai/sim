@@ -19,10 +19,12 @@ import {
   type DesktopUpdateState,
   type DesktopWindowState,
   type DesktopZoomPercent,
+  isComputerUsePermission,
   isDesktopAppearanceTheme,
   isDesktopScopeId,
   isDesktopZoomPercent,
   isPendingDesktopScopeId,
+  isQuickChatShortcut,
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import {
@@ -746,9 +748,21 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       needsUserActivation: true,
       denied: null,
       handler: (permission) => {
-        if (permission !== 'accessibility' && permission !== 'screenCapture')
+        if (!isComputerUsePermission(permission))
           throw new Error('Unknown Computer Use permission.')
         return deps.computerUse?.requestPermission(permission)
+      },
+    },
+    'computer-use:set-ask-for-apps': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: (ask) => {
+        if (typeof ask !== 'boolean')
+          throw new Error('A boolean Computer Use preference is required.')
+        return deps.computerUse?.setAskForApps(ask)
       },
     },
     'computer-use:list-permissions': {
@@ -928,6 +942,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (enabled) =>
         typeof enabled === 'boolean'
           ? deps.settings.setPreventSleepWhileRunning(enabled)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-quick-chat-shortcut': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (shortcut) =>
+        shortcut === null || isQuickChatShortcut(shortcut)
+          ? deps.settings.setQuickChatShortcut(shortcut)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-appearance': {

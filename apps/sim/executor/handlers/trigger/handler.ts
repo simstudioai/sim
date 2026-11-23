@@ -15,7 +15,7 @@ export class TriggerBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<any> {
-    logger.info(`Executing trigger block: ${block.id} (Type: ${block.metadata?.id})`)
+    logger.debug(`Executing trigger block: ${block.id} (Type: ${block.metadata?.id})`)
 
     if (block.metadata?.id === BlockType.STARTER) {
       return this.executeStarterBlock(ctx, block, inputs)

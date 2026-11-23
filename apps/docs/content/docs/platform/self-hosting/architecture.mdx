@@ -15,7 +15,7 @@ Sim runs an app, a realtime server, PostgreSQL, Redis, and a scheduler. This pag
 | **realtime** | `ghcr.io/simstudioai/realtime` | 3002 | In-flight collaboration state | Yes |
 | **migrations** | `ghcr.io/simstudioai/migrations` | — | One-shot schema and data migrations | Yes |
 | **postgresql** | `pgvector/pgvector:pg17` | 5432 | Durable application data | Yes |
-| **redis** | `redis:7-alpine` | 6379 | Cache, coordination, and live events | Bundled by default; required across replicas |
+| **redis** | `redis:7-alpine` | 6379 | Rate limits, coordination, and live events | Yes (bundled by default) |
 | **cron** | `ghcr.io/simstudioai/cron` (Compose) / `curlimages/curl` (Kubernetes) | — | None | Required for scheduled work |
 | **pii** | `ghcr.io/simstudioai/pii` | 5001 | None | Optional |
 | **ollama** | `ollama/ollama` | 11434 | Model cache | Optional |
@@ -36,7 +36,7 @@ The Bun Socket.IO server carries collaborative editing, live execution updates, 
 Realtime shares PostgreSQL and `BETTER_AUTH_SECRET` with the app, using Better Auth's shared-database-session pattern. It authenticates the same accounts without a separate login.
 
 <Callout type="warn">
-  More than one realtime replica requires `REDIS_URL`. The Socket.IO Redis adapter carries events between replicas; without it, members connected to different pods do not see each other's edits.
+  Realtime requires `REDIS_URL`, pointing at the same Redis as the app. The Socket.IO Redis adapter carries events between replicas, so members connected to different pods see each other's edits.
 </Callout>
 
 A realtime server must exist for editing and live updates. Set `realtime.enabled: false` in Helm only when `app.env.SOCKET_SERVER_URL` points to a realtime instance you run separately.
@@ -55,7 +55,7 @@ PostgreSQL holds workflows, runs, logs, accounts, organizations, credentials, kn
 
 ### Redis
 
-Redis carries live events and stores shared coordination state. Some stores fall back to PostgreSQL or process-local state, but cross-pod collaboration has no local fallback. CLI API-key pairing also requires Redis, even with one replica; OAuth login uses a separate path. See [Redis](/platform/self-hosting/redis) for the full fallback matrix.
+Redis is required, even with one replica. It holds rate-limit buckets, one-time passcodes, and shared coordination state, and carries live events between processes. There is no PostgreSQL or process-local fallback, and the app refuses to start without `REDIS_URL`. See [Redis](/platform/self-hosting/redis) for everything it backs.
 
 ### Scheduler
 

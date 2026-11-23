@@ -4,7 +4,11 @@ import type {
   SalesforceQueryMoreResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_MORE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import {
+  extractErrorMessage,
+  getInstanceUrl,
+  resolveNextRecordsPath,
+} from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceQuery')
@@ -48,11 +52,7 @@ export const salesforceQueryMoreTool: ToolConfig<
         )
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      // nextRecordsUrl is typically a relative path like /services/data/v59.0/query/01g...
-      const nextUrl = params.nextRecordsUrl.startsWith('/')
-        ? params.nextRecordsUrl
-        : `/${params.nextRecordsUrl}`
-      return `${instanceUrl}${nextUrl}`
+      return `${instanceUrl}${resolveNextRecordsPath(params.nextRecordsUrl, instanceUrl)}`
     },
     method: 'GET',
     headers: (params) => ({

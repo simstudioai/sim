@@ -156,7 +156,7 @@ Get details of a specific booking by its UID
 
 ### Cal.com List Bookings
 
-List all bookings with optional status filter
+List bookings, optionally filtered by status, attendee email, or time range
 
 <ReferenceDetails>
 
@@ -167,6 +167,10 @@ List all bookings with optional status filter
 | `status` | string | No | Filter bookings by status: upcoming, recurring, past, cancelled, or unconfirmed |
 | `take` | number | No | Number of bookings to return \(pagination limit\) |
 | `skip` | number | No | Number of bookings to skip \(pagination offset\) |
+| `attendeeEmail` | string | No | Only return bookings that include an attendee with this email |
+| `afterStart` | string | No | Only return bookings starting after this ISO 8601 time |
+| `beforeEnd` | string | No | Only return bookings ending before this ISO 8601 time |
+| `sortStart` | string | No | Sort bookings by start time: asc or desc |
 
 #### Output
 
@@ -485,6 +489,9 @@ Create a new event type in Cal.com
 |   ↳ `disableGuests` | boolean | Whether guests are disabled |
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
+|   ↳ `bookingUrl` | string | Public booking page URL for the event type |
+|   ↳ `hidden` | boolean | Whether the event type is hidden from the profile |
+|   ↳ `ownerId` | number | ID of the user who owns the event type |
 
 </ReferenceDetails>
 
@@ -519,6 +526,9 @@ Get detailed information about a specific event type
 |   ↳ `disableGuests` | boolean | Whether guests are disabled |
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
+|   ↳ `bookingUrl` | string | Public booking page URL for the event type |
+|   ↳ `hidden` | boolean | Whether the event type is hidden from the profile |
+|   ↳ `ownerId` | number | ID of the user who owns the event type |
 
 </ReferenceDetails>
 
@@ -553,6 +563,9 @@ Retrieve a list of all event types
 |   ↳ `disableGuests` | boolean | Whether guests are disabled |
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
+|   ↳ `bookingUrl` | string | Public booking page URL for the event type |
+|   ↳ `hidden` | boolean | Whether the event type is hidden from the profile |
+|   ↳ `ownerId` | number | ID of the user who owns the event type |
 
 </ReferenceDetails>
 
@@ -597,6 +610,9 @@ Update an existing event type in Cal.com
 |   ↳ `disableGuests` | boolean | Whether guests are disabled |
 |   ↳ `createdAt` | string | ISO timestamp of creation |
 |   ↳ `updatedAt` | string | ISO timestamp of last update |
+|   ↳ `bookingUrl` | string | Public booking page URL for the event type |
+|   ↳ `hidden` | boolean | Whether the event type is hidden from the profile |
+|   ↳ `ownerId` | number | ID of the user who owns the event type |
 
 </ReferenceDetails>
 

@@ -1,6 +1,7 @@
 import type { GoogleVaultUpdateMatterParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateMattersTool: ToolConfig<GoogleVaultUpdateMatterParams> = {
   id: 'google_vault_update_matters',
@@ -41,7 +42,8 @@ export const updateMattersTool: ToolConfig<GoogleVaultUpdateMatterParams> = {
   },
 
   request: {
-    url: (params) => `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}`,
+    url: (params) =>
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

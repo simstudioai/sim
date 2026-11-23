@@ -285,8 +285,8 @@ export async function clearState(rowId: string, context = 'unknown'): Promise<vo
  *      long-running refreshes don't drop the lock and let another process
  *      race onto the same refresh.
  *
- * Falls open if Redis is unavailable — `acquireLock` no-ops, but in-process
- * serialization still holds within a single Node process.
+ * Falls open if a Redis lock call fails — the refresh runs uncoordinated, but
+ * in-process serialization still holds within a single Node process.
  */
 const REFRESH_LOCK_TTL_SEC = 15
 const REFRESH_LOCK_EXTEND_INTERVAL_MS = 5_000

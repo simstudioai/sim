@@ -67,6 +67,7 @@ describe('performCreateWorkflowTransition unique-violation handling', () => {
       success: false,
       error: 'A workflow named "My Workflow" already exists in this folder',
       errorCode: 'conflict',
+      conflict: 'name',
     })
   })
 

@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CatalogListResponse, SearchCatalogObjectsParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -16,9 +17,11 @@ export const squareSearchCatalogObjectsTool: ToolConfig<
   name: 'Square Search Catalog Objects',
   description: 'Search catalog objects by type and query filters',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -53,7 +56,7 @@ export const squareSearchCatalogObjectsTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/catalog/search`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/catalog/search`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

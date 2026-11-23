@@ -13,9 +13,12 @@ import {
   type ToolUseBlock,
 } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { getAwsCredentials } from '@/lib/core/config/aws'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 import { validateAwsRegion } from '@/lib/core/security/input-validation'
 import type { IterationToolCall, NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
@@ -67,6 +70,9 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('BedrockProvider')
+
+/** Bedrock Runtime defaults to HTTP/2, which a customer's direct requests keep. */
+const customerRequestHandler = () => organizationAwsRequestHandler({ http2: true })
 
 function enrichLastModelSegmentFromBedrockResponse(
   timeSegments: TimeSegment[],
@@ -121,6 +127,72 @@ function enrichLastModelSegmentFromBedrockResponse(
   })
 }
 
+/**
+ * The credentials a Bedrock client signs with, and the part of its cache key
+ * that names them, or `null` when the client must not be cached. A saved
+ * credential's session is used alone, so selecting one never falls back to
+ * inline keys or the deployment's own AWS credentials. An STS session (assumed
+ * or keyless role) is fresh on every resolve, so its client is built for the one
+ * request rather than filling the shared client cache with entries never read
+ * again. A long-lived saved key pair is keyed by credential plus a digest of the
+ * key material, so a corrected pair gets a fresh client without the cache key
+ * holding a secret.
+ */
+function resolveBedrockClientCredentials(request: ProviderRequest): {
+  credentials: BedrockRuntimeClientConfig['credentials']
+  credentialKey: string | null
+  createRequestHandler: () => BedrockRuntimeClientConfig['requestHandler']
+} {
+  const session = request.bedrockSession
+  if (session) {
+    const { accessKeyId, secretAccessKey, sessionToken } = session
+    if (sessionToken) {
+      return {
+        credentials: { accessKeyId, secretAccessKey, sessionToken },
+        credentialKey: null,
+        createRequestHandler: customerRequestHandler,
+      }
+    }
+    return {
+      credentials: { accessKeyId, secretAccessKey },
+      credentialKey: [
+        'credential',
+        session.credentialId,
+        sha256Hex([accessKeyId, secretAccessKey].join('\0')),
+      ].join(':'),
+      createRequestHandler: customerRequestHandler,
+    }
+  }
+
+  const hasAccessKey = Boolean(request.bedrockAccessKeyId)
+  const hasSecretKey = Boolean(request.bedrockSecretKey)
+  if (hasAccessKey !== hasSecretKey) {
+    throw new Error(
+      'Both bedrockAccessKeyId and bedrockSecretKey must be provided together. ' +
+        'Provide both for explicit credentials, or omit both to use the AWS default credential chain.'
+    )
+  }
+
+  if (request.bedrockAccessKeyId && request.bedrockSecretKey) {
+    // Key on the full credential (access key id + secret) so a corrected secret
+    // under the same access key id yields a fresh client rather than a stale one.
+    return {
+      credentials: {
+        accessKeyId: request.bedrockAccessKeyId,
+        secretAccessKey: request.bedrockSecretKey,
+      },
+      credentialKey: `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`,
+      createRequestHandler: customerRequestHandler,
+    }
+  }
+  // The deployment's own credentials stay on Sim's network, never an organization's route.
+  return {
+    credentials: getAwsCredentials(),
+    credentialKey: 'default-chain',
+    createRequestHandler: awsRequestHandler,
+  }
+}
+
 export const bedrockProvider: ProviderConfig = {
   id: 'bedrock',
   name: 'AWS Bedrock',
@@ -150,33 +222,14 @@ export const bedrockProvider: ProviderConfig = {
       region,
     })
 
-    const hasAccessKey = Boolean(request.bedrockAccessKeyId)
-    const hasSecretKey = Boolean(request.bedrockSecretKey)
-    if (hasAccessKey !== hasSecretKey) {
-      throw new Error(
-        'Both bedrockAccessKeyId and bedrockSecretKey must be provided together. ' +
-          'Provide both for explicit credentials, or omit both to use the AWS default credential chain.'
-      )
-    }
-
-    const clientConfig: BedrockRuntimeClientConfig = {
-      region,
-      credentials:
-        request.bedrockAccessKeyId && request.bedrockSecretKey
-          ? { accessKeyId: request.bedrockAccessKeyId, secretAccessKey: request.bedrockSecretKey }
-          : getAwsCredentials(),
-    }
-
-    // Key on the full credential (access key id + secret) so a corrected secret
-    // under the same access key id yields a fresh client rather than a stale one.
-    const credentialKey =
-      request.bedrockAccessKeyId && request.bedrockSecretKey
-        ? `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`
-        : 'default-chain'
-    const client = getCachedProviderClient(
-      `bedrock::${region}::${credentialKey}`,
-      () => new BedrockRuntimeClient(clientConfig)
-    )
+    const { credentials, credentialKey, createRequestHandler } =
+      resolveBedrockClientCredentials(request)
+    const buildClient = () =>
+      new BedrockRuntimeClient({ region, credentials, requestHandler: createRequestHandler() })
+    const client =
+      credentialKey === null
+        ? buildClient()
+        : getCachedProviderClient(`bedrock::${region}::${credentialKey}`, buildClient)
 
     const { messages, systemContent } = convertBedrockRequestHistory(request)
     const canonicalModelId = `bedrock/${getBedrockBaseModelId(request.model)}`

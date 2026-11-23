@@ -255,6 +255,8 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
       const source = arg as Record<string, unknown>
       for (const key of Object.keys(source)) {
         const value = source[key]
+        // An absent optional field must not erase one the line already carries, such as `requestId`.
+        if (value === undefined) continue
         if (value instanceof Error) {
           const logged = toLoggedError(value)
           entry[key] = logged.message
@@ -312,13 +314,17 @@ const tolerantReplacer = () => {
  * path — losing the line and aborting whatever was being logged about. A
  * logger must never be able to break its caller.
  */
-const serializeEntry = (base: Record<string, unknown>, args: unknown[]): string => {
+const serializeEntry = (
+  base: Record<string, unknown>,
+  args: unknown[],
+  owned: Record<string, unknown>
+): string => {
   try {
-    return JSON.stringify(mergeArgs({ ...base }, args), errorReplacer(false))
+    return JSON.stringify({ ...mergeArgs({ ...base }, args), ...owned }, errorReplacer(false))
   } catch {}
 
   try {
-    return JSON.stringify(mergeArgs({ ...base }, args), tolerantReplacer())
+    return JSON.stringify({ ...mergeArgs({ ...base }, args), ...owned }, tolerantReplacer())
   } catch {}
 
   return minimalEntry(base)
@@ -442,7 +448,9 @@ export class Logger {
   /**
    * Creates a child logger with additional metadata merged in.
    * The child inherits this logger's module name, config, and existing metadata.
-   * New metadata keys override existing ones with the same name.
+   * New metadata keys override existing ones with the same name, except
+   * `requestId`: inside a request context the context's id is authoritative, so
+   * a bound or per-line `requestId` only names the request outside one.
    */
   withMetadata(metadata: LoggerMetadata): Logger {
     const child = Object.create(Logger.prototype) as Logger
@@ -491,10 +499,12 @@ export class Logger {
     const formattedArgs = this.formatArgs(args)
 
     const reqCtx = getRequestContext()
+    // The request context owns `requestId`: a per-line or bound one only names the request outside it.
+    const owned: LoggerMetadata = reqCtx ? { requestId: reqCtx.requestId } : {}
     const effectiveMetadata = reqCtx
-      ? { ...requestContextMetadata(reqCtx), ...this.metadata }
+      ? { ...requestContextMetadata(reqCtx), ...this.metadata, ...owned }
       : this.metadata
-    emitOtelLogRecord(level, this.module, message, effectiveMetadata, args)
+    emitOtelLogRecord(level, this.module, message, effectiveMetadata, args, owned)
     const metadataEntries = Object.entries(filterUndefined(effectiveMetadata))
     const metadataStr =
       metadataEntries.length > 0
@@ -541,7 +551,7 @@ export class Logger {
         base[k] = v
       }
 
-      const line = serializeEntry(base, args)
+      const line = serializeEntry(base, args, owned)
       if (level === LogLevel.ERROR) {
         console.error(line)
       } else {
@@ -611,7 +621,7 @@ export function createLogger(module: string, config?: LoggerConfig): Logger {
   return new Logger(module, config)
 }
 
-export type { RequestAuth, RequestContext, SetRequestAuthOptions } from './request-context'
+export type { RequestAuth, RequestContext } from './request-context'
 export {
   getRequestContext,
   runWithRequestContext,
@@ -628,6 +638,12 @@ const OTEL_LOG_SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string
 
 const OTEL_LOG_ARG_MAX_CHARS = 2000
 
+const isOtelScalar = (value: unknown): value is string | number | boolean | bigint =>
+  typeof value === 'string' ||
+  typeof value === 'number' ||
+  typeof value === 'boolean' ||
+  typeof value === 'bigint'
+
 /**
  * Fans every accepted log line out through the OTel Logs API. Until an
  * application installs a global LoggerProvider (apps/sim does in
@@ -642,7 +658,8 @@ function emitOtelLogRecord(
   module: string,
   message: string,
   metadata: Record<string, unknown>,
-  args: unknown[]
+  args: unknown[],
+  owned: Record<string, unknown>
 ): void {
   try {
     const severity = OTEL_LOG_SEVERITY[level]
@@ -650,6 +667,19 @@ function emitOtelLogRecord(
     for (const [key, value] of Object.entries(filterUndefined(metadata))) {
       attributes[key] = String(value)
     }
+    // Scalar fields passed with the line become attributes, as they are top-level keys in the JSON
+    // line, so `{ documentId }` filters the same way in both; nested values stay in `log.args`.
+    for (const arg of args) {
+      if (!isRecordLike(arg) || arg instanceof Error) continue
+      try {
+        for (const [key, value] of Object.entries(arg)) {
+          if (isOtelScalar(value)) attributes[key] = String(value)
+        }
+      } catch {
+        // A throwing getter loses only its own argument's fields; `log.args` still records it.
+      }
+    }
+    for (const [key, value] of Object.entries(owned)) attributes[key] = String(value)
     const error = primaryError(args)
     if (error) {
       const logged = toLoggedError(error)

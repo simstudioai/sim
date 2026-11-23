@@ -1,5 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WebflowUpdateItemParams, WebflowUpdateItemResponse } from '@/tools/webflow/types'
+import { WEBFLOW_ITEM_OUTPUT_PROPERTIES } from '@/tools/webflow/types'
 
 export const webflowUpdateItemTool: ToolConfig<WebflowUpdateItemParams, WebflowUpdateItemResponse> =
   {
@@ -22,9 +24,10 @@ export const webflowUpdateItemTool: ToolConfig<WebflowUpdateItemParams, WebflowU
       },
       siteId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
-        description: 'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741")',
+        description:
+          'ID of the Webflow site (e.g., "580e63e98c9a982ac9b8b741"). Not sent to Webflow; item requests are scoped by collection.',
       },
       collectionId: {
         type: 'string',
@@ -49,7 +52,7 @@ export const webflowUpdateItemTool: ToolConfig<WebflowUpdateItemParams, WebflowU
 
     request: {
       url: (params) =>
-        `https://api.webflow.com/v2/collections/${params.collectionId}/items/${params.itemId}`,
+        `https://api.webflow.com/v2/collections/${safeUrlPathSegment(params.collectionId, 'collectionId')}/items/${safeUrlPathSegment(params.itemId, 'itemId')}`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
@@ -75,12 +78,14 @@ export const webflowUpdateItemTool: ToolConfig<WebflowUpdateItemParams, WebflowU
 
     outputs: {
       item: {
-        type: 'json',
+        type: 'object',
         description: 'The updated item object',
+        properties: WEBFLOW_ITEM_OUTPUT_PROPERTIES,
       },
       metadata: {
-        type: 'json',
+        type: 'object',
         description: 'Metadata about the updated item',
+        properties: { itemId: { type: 'string', description: 'ID of the updated item' } },
       },
     },
   }

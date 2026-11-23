@@ -64,9 +64,13 @@ afterAll(async () => {
 
 /** A fal generation that bills through `onCost` before returning, as the real client does. */
 function billsThen(media: Record<string, unknown>) {
-  return async ({ onCost }: { onCost: (cost: { costDollars: number }) => Promise<void> }) => {
+  return async ({
+    onCost,
+  }: {
+    onCost: (cost: { costDollars: number }, hostedKey: { envVarName: string }) => Promise<void>
+  }) => {
     const cost = { costDollars: 0.1 }
-    await onCost(cost)
+    await onCost(cost, { envVarName: 'FALAI_API_KEY_1' })
     return { ...media, cost }
   }
 }

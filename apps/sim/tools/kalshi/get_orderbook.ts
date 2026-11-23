@@ -1,6 +1,7 @@
 import type { KalshiOrderbook } from '@/tools/kalshi/types'
 import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiGetOrderbookParams {
   ticker: string
@@ -32,7 +33,8 @@ export const kalshiGetOrderbookTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildKalshiUrl(`/markets/${params.ticker.trim()}/orderbook`),
+    url: (params) =>
+      buildKalshiUrl(`/markets/${safeUrlPathSegment(params.ticker, 'ticker')}/orderbook`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -120,7 +122,9 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
       if (params.depth) queryParams.append('depth', params.depth.toString())
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/markets/${params.ticker.trim()}/orderbook`)
+      const url = buildKalshiUrl(
+        `/markets/${safeUrlPathSegment(params.ticker, 'ticker')}/orderbook`
+      )
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

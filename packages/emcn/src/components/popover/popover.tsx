@@ -5,7 +5,7 @@
  * @example
  * Basic usage with folders:
  * ```tsx
- * import { Popover, PopoverAnchor, PopoverBackButton, PopoverContent, PopoverFolder, PopoverItem } from '../../index'
+ * import { Popover, PopoverAnchor, PopoverContent, PopoverFolder, PopoverItem } from '../../index'
  * import { Workflow } from '@sim/emcn/icons'
  *
  * function MyMenu() {
@@ -18,7 +18,6 @@
  *         <button>Open Menu</button>
  *       </PopoverAnchor>
  *       <PopoverContent>
- *         <PopoverBackButton />
  *         <PopoverItem rootOnly onClick={() => console.log('Docs')}>
  *           <BookOpen className="size-3.5" />
  *           <span>Docs</span>
@@ -54,7 +53,7 @@ import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { createPortal } from 'react-dom'
 import { MENU_STYLES } from '#menu-styles'
-import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
+import { Check, ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chrome'
 import { InsideModalContext } from '../modal/modal'
@@ -89,17 +88,12 @@ const STYLES = {
     default: {
       text: 'text-[var(--text-body)] [&_svg]:text-[var(--text-icon)]',
       section: 'text-[var(--text-muted)]',
-      search: 'text-[var(--text-muted)]',
-      searchInput: 'text-[var(--text-body)] placeholder:text-[var(--text-muted)]',
       content: '',
       divider: 'border-[var(--border)]',
     },
     inverted: {
       text: 'text-white dark:text-[var(--text-primary)]',
       section: 'text-[var(--text-muted-inverse)]',
-      search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
-      searchInput:
-        'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
       content:
         'border-[var(--border-inverted)] bg-[var(--surface-inverted)] text-white dark:text-foreground',
       divider: 'border-[var(--border-inverted)]',
@@ -109,8 +103,6 @@ const STYLES = {
     {
       text: string
       section: string
-      search: string
-      searchInput: string
       content: string
       divider: string
     }
@@ -143,21 +135,12 @@ function getItemStateClasses(colorScheme: PopoverColorScheme, isActive: boolean)
 }
 
 interface PopoverContextValue {
-  openFolder: (
-    id: string,
-    title: string,
-    onLoad?: () => void | Promise<void>,
-    onSelect?: () => void
-  ) => void
+  openFolder: (id: string, onLoad?: () => void | Promise<void>) => void
   closeFolder: () => void
   currentFolder: string | null
   isInFolder: boolean
-  folderTitle: string | null
-  onFolderSelect: (() => void) | null
   size: PopoverSize
   colorScheme: PopoverColorScheme
-  searchQuery: string
-  setSearchQuery: (query: string) => void
   /** ID of the last hovered item (for hover submenus) */
   lastHoveredItem: string | null
   setLastHoveredItem: (id: string | null) => void
@@ -167,12 +150,6 @@ interface PopoverContextValue {
   /** Currently selected item index for keyboard navigation */
   selectedIndex: number
   setSelectedIndex: (index: number) => void
-  /** Register a menu item and get its index. Returns a cleanup function. */
-  registerItem: (id: string) => number
-  /** Unregister a menu item */
-  unregisterItem: (id: string) => void
-  /** Get the total number of registered items */
-  itemCount: number
 }
 
 const PopoverContext = React.createContext<PopoverContextValue | null>(null)
@@ -216,38 +193,16 @@ const Popover: React.FC<PopoverProps> = ({
 }) => {
   const insideModal = React.useContext(InsideModalContext)
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
-  const [folderTitle, setFolderTitle] = React.useState<string | null>(null)
-  const [onFolderSelect, setOnFolderSelect] = React.useState<(() => void) | null>(null)
-  const [searchQuery, setSearchQuery] = React.useState<string>('')
   const [lastHoveredItem, setLastHoveredItem] = React.useState<string | null>(null)
   const [isKeyboardNav, setIsKeyboardNav] = React.useState(false)
   const [selectedIndex, setSelectedIndex] = React.useState(-1)
-  const registeredItemsRef = React.useRef<string[]>([])
-
-  const registerItem = React.useCallback((id: string) => {
-    if (!registeredItemsRef.current.includes(id)) {
-      registeredItemsRef.current.push(id)
-    }
-    return registeredItemsRef.current.indexOf(id)
-  }, [])
-
-  const unregisterItem = React.useCallback((id: string) => {
-    const index = registeredItemsRef.current.indexOf(id)
-    if (index !== -1) {
-      registeredItemsRef.current.splice(index, 1)
-    }
-  }, [])
 
   /** Resets all navigation state to initial values */
   const resetState = React.useCallback(() => {
     setCurrentFolder(null)
-    setFolderTitle(null)
-    setOnFolderSelect(null)
-    setSearchQuery('')
     setLastHoveredItem(null)
     setIsKeyboardNav(false)
     setSelectedIndex(-1)
-    registeredItemsRef.current = []
   }, [])
 
   React.useEffect(() => {
@@ -266,29 +221,20 @@ const Popover: React.FC<PopoverProps> = ({
     [onOpenChange]
   )
 
-  const openFolder = React.useCallback(
-    (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
-      setCurrentFolder(id)
-      setFolderTitle(title)
-      setOnFolderSelect(() => onSelect ?? null)
-      if (onLoad) {
-        void Promise.resolve(onLoad())
-      }
-    },
-    []
-  )
+  const openFolder = React.useCallback((id: string, onLoad?: () => void | Promise<void>) => {
+    setCurrentFolder(id)
+    if (onLoad) {
+      void Promise.resolve(onLoad())
+    }
+  }, [])
 
   const closeFolder = React.useCallback(() => {
     setCurrentFolder(null)
-    setFolderTitle(null)
-    setOnFolderSelect(null)
   }, [])
 
   const setKeyboardNav = React.useCallback((value: boolean) => {
     setIsKeyboardNav(value)
   }, [])
-
-  const itemCount = registeredItemsRef.current.length
 
   const contextValue = React.useMemo<PopoverContextValue>(
     () => ({
@@ -296,38 +242,25 @@ const Popover: React.FC<PopoverProps> = ({
       closeFolder,
       currentFolder,
       isInFolder: currentFolder !== null,
-      folderTitle,
-      onFolderSelect,
       size,
       colorScheme,
-      searchQuery,
-      setSearchQuery,
       lastHoveredItem,
       setLastHoveredItem,
       isKeyboardNav,
       setKeyboardNav,
       selectedIndex,
       setSelectedIndex,
-      registerItem,
-      unregisterItem,
-      itemCount,
     }),
     [
       openFolder,
       closeFolder,
       currentFolder,
-      folderTitle,
-      onFolderSelect,
       size,
       colorScheme,
-      searchQuery,
       lastHoveredItem,
       isKeyboardNav,
       setKeyboardNav,
       selectedIndex,
-      registerItem,
-      unregisterItem,
-      itemCount,
     ]
   )
 
@@ -864,8 +797,6 @@ interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
   icon?: React.ReactNode
   /** Callback when folder opens (for lazy loading) */
   onOpen?: () => void | Promise<void>
-  /** Callback when folder title is selected from within folder view */
-  onSelect?: () => void
   /** Folder contents */
   children?: React.ReactNode
   /** Whether currently active/selected */
@@ -881,23 +812,12 @@ interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
 /**
  * Expandable folder that shows nested content.
  * Supports two modes:
- * - Click mode (default): Replaces parent content, shows back button
+ * - Click mode (default): Replaces parent content
  * - Hover mode (expandOnHover): Shows floating submenu alongside parent
  */
 const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
   (
-    {
-      className,
-      id,
-      title,
-      icon,
-      onOpen,
-      onSelect,
-      children,
-      active,
-      expandOnHover = false,
-      ...props
-    },
+    { className, id, title, icon, onOpen, children, active, expandOnHover = false, ...props },
     ref
   ) => {
     const {
@@ -946,7 +866,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
     if (currentFolder === id) return <>{children}</>
 
     const handleClickOpen = () => {
-      openFolder(id, title, onOpen, onSelect)
+      openFolder(id, onOpen)
     }
 
     const handleClick = (e: React.MouseEvent) => {
@@ -1041,149 +961,6 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
 
 PopoverFolder.displayName = 'PopoverFolder'
 
-interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** Ref callback for folder title element */
-  folderTitleRef?: (el: HTMLElement | null) => void
-  /** Whether folder title is active/selected */
-  folderTitleActive?: boolean
-  /** Callback on folder title mouse enter */
-  onFolderTitleMouseEnter?: () => void
-}
-
-/**
- * Back button shown inside folders. Hidden at root level.
- */
-const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
-  ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, onFolderSelect, size, colorScheme } =
-      usePopoverContext()
-
-    if (!isInFolder) return null
-
-    return (
-      <div className='flex flex-col'>
-        <div
-          ref={ref}
-          className={cn(
-            'peer',
-            STYLES.itemBase,
-            STYLES.colorScheme[colorScheme].text,
-            STYLES.size[size].item,
-            getItemStateClasses(colorScheme, false),
-            className
-          )}
-          role='button'
-          onClick={(e) => {
-            e.stopPropagation()
-            closeFolder()
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.stopPropagation()
-              closeFolder()
-            }
-          }}
-          {...props}
-        >
-          <ChevronLeft className={STYLES.size[size].icon} />
-          <span>Back</span>
-        </div>
-        {folderTitle && onFolderSelect && (
-          <div
-            ref={folderTitleRef}
-            className={cn(
-              STYLES.itemBase,
-              STYLES.colorScheme[colorScheme].text,
-              STYLES.size[size].item,
-              getItemStateClasses(colorScheme, !!folderTitleActive),
-              'peer-hover:bg-transparent!'
-            )}
-            role='button'
-            onClick={(e) => {
-              e.stopPropagation()
-              onFolderSelect()
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.stopPropagation()
-                onFolderSelect()
-              }
-            }}
-            onMouseEnter={onFolderTitleMouseEnter}
-          >
-            <span>{folderTitle}</span>
-          </div>
-        )}
-        {folderTitle && !onFolderSelect && (
-          <div className={cn(STYLES.size[size].section, STYLES.colorScheme[colorScheme].section)}>
-            {folderTitle}
-          </div>
-        )}
-      </div>
-    )
-  }
-)
-
-PopoverBackButton.displayName = 'PopoverBackButton'
-
-interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * Placeholder text
-   * @default 'Search...'
-   */
-  placeholder?: string
-  /** Callback when query changes */
-  onValueChange?: (value: string) => void
-}
-
-/**
- * Search input for filtering popover items.
- */
-const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
-  ({ className, placeholder = 'Search...', onValueChange, ...props }, ref) => {
-    const { searchQuery, setSearchQuery, size, colorScheme } = usePopoverContext()
-    const inputRef = React.useRef<HTMLInputElement>(null)
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value
-      setSearchQuery(value)
-      onValueChange?.(value)
-    }
-
-    React.useEffect(() => {
-      setSearchQuery('')
-      onValueChange?.('')
-      inputRef.current?.focus()
-    }, [setSearchQuery, onValueChange])
-
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          MENU_STYLES.search,
-          colorScheme === 'inverted' &&
-            'border-[var(--border-inverted)] bg-transparent dark:bg-transparent',
-          className
-        )}
-        {...props}
-      >
-        <Search
-          className={cn('shrink-0', STYLES.colorScheme[colorScheme].search, STYLES.size[size].icon)}
-        />
-        <input
-          ref={inputRef}
-          className={cn(MENU_STYLES.searchInput, STYLES.colorScheme[colorScheme].searchInput)}
-          placeholder={placeholder}
-          value={searchQuery}
-          onChange={handleChange}
-        />
-      </div>
-    )
-  }
-)
-
-PopoverSearch.displayName = 'PopoverSearch'
-
 interface PopoverDividerProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Only show when not inside any folder */
   rootOnly?: boolean
@@ -1221,8 +998,6 @@ export {
   PopoverItem,
   PopoverSection,
   PopoverFolder,
-  PopoverBackButton,
-  PopoverSearch,
   PopoverDivider,
   usePopoverContext,
 }

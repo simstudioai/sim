@@ -1,5 +1,6 @@
 import type { AshbyGetCandidateResponse } from '@/tools/ashby/types'
 import { CANDIDATE_OUTPUTS } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 interface Params {
@@ -14,6 +15,7 @@ export const uploadCandidateFileTool: InternalToolConfig<Params, AshbyGetCandida
   name: 'Ashby Upload Candidate File',
   description: 'Securely uploads a file and attaches it to an Ashby candidate.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

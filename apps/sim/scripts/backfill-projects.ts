@@ -556,7 +556,7 @@ The registered migration first commits the durable column-authority switch after
       const { mcpPubSub } = await import('@/lib/mcp/pubsub')
       const { closeRedisConnection } = await import('@/lib/core/config/redis')
       const { db, dbReplica } = await import('@sim/db')
-      mcpPubSub?.dispose()
+      mcpPubSub.dispose()
       await closeRedisConnection()
       await Promise.all(
         [...new Set([db.$client, dbReplica.$client])].map((client) => client.end({ timeout: 5 }))

@@ -1,10 +1,13 @@
 import { ClipboardList, Table } from '@sim/emcn/icons'
 import { CirclebackIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const CirclebackBlock: BlockConfig = {
   type: 'circleback',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'circleback_v2' },
   name: 'Circleback',
   description: 'Read Circleback meetings, notes, transcripts, and action items',
   longDescription:
@@ -449,18 +452,19 @@ export const CirclebackBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `circleback_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         /* Filter variants live on their own subBlocks so an operation switch
            cannot leak a mutation input into a list filter; remap them onto the
            tool param names here. */
         const result: Record<string, unknown> = {}
-        if (params.operation === 'list_action_items') {
+        if (operation === 'list_action_items') {
           if (params.statusFilter) result.status = params.statusFilter
           if (params.assigneeFilterProfileId) {
             result.assigneeProfileId = params.assigneeFilterProfileId
           }
         }
-        if (params.operation === 'search_meetings' && params.searchMeetingIds) {
+        if (operation === 'search_meetings' && params.searchMeetingIds) {
           result.meetingIds = params.searchMeetingIds
         }
         return result
@@ -720,3 +724,17 @@ export const CirclebackBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CirclebackV2Block: BlockConfig = {
+  ...CirclebackBlock,
+  type: 'circleback_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CirclebackBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'circleback',
+    title: 'Circleback Credential',
+  }),
+}

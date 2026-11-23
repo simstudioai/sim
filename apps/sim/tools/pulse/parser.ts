@@ -1,6 +1,7 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
+import { PULSE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOutput> = {
@@ -8,6 +9,7 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
   name: 'Pulse Document Parser',
   description: 'Parse documents (PDF, images, Office docs) using Pulse OCR API',
   version: '1.0.0',
+  oauth: PULSE_CREDENTIAL_OAUTH,
 
   params: {
     filePath: {
@@ -179,6 +181,7 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
         markdown: pulseData.markdown ?? '',
         page_count: pulseData.page_count ?? 0,
         job_id: pulseData.job_id ?? '',
+        extraction_id: pulseData.extraction_id ?? null,
         'plan-info': pulseData['plan-info'] ?? { pages_used: 0, tier: 'unknown' },
         bounding_boxes: pulseData.bounding_boxes ?? null,
         extraction_url: pulseData.extraction_url ?? null,
@@ -202,6 +205,11 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
     job_id: {
       type: 'string',
       description: 'Unique job identifier',
+    },
+    extraction_id: {
+      type: 'string',
+      description: 'Persisted extraction ID, for use with Pulse split and schema steps',
+      optional: true,
     },
     'plan-info': {
       type: 'object',

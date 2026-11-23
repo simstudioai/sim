@@ -1,8 +1,8 @@
+import { isValidTimezone } from '@sim/utils/timezone'
 import { z } from 'zod'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { BILLING_USAGE_LOG_SOURCES, INTERNAL_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
-import { isValidTimezone } from '@/lib/core/utils/timezone'
 
 /**
  * Organization usage monitoring (enterprise).

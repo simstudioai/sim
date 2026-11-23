@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundReferralsReportParams, ProfoundReferralsReportResponse } from './types'
 
@@ -10,6 +11,7 @@ export const profoundReferralsReportTool: ToolConfig<
   description:
     'Query human referral traffic report with hourly granularity for a domain in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

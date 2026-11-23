@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { requestSlackApi } from '@/lib/internal/slack/client'
@@ -25,7 +26,7 @@ export async function exchangeSlackBotAuthorization(input: {
   code: string
   redirectUri?: string
 }) {
-  const response = await fetch('https://slack.com/api/oauth.v2.access', {
+  const response = await outboundFetch('https://slack.com/api/oauth.v2.access', {
     method: 'POST',
     headers: {
       Authorization: `Basic ${Buffer.from(`${input.clientId}:${input.clientSecret}`).toString('base64')}`,

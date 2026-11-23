@@ -12,7 +12,12 @@ import { createMcpToolOutputSnapshot } from '@/lib/mcp/output-schema'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
 
 const discover = mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase
-const principal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'user-1',
+  keyId: 'key-1',
+  access: 'write',
+} as const
 const options = { principal, workspaceId: 'workspace-1' }
 
 const ON_CALL_SCHEMA = {

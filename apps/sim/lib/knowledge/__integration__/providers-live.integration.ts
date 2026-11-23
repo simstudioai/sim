@@ -168,6 +168,7 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
         kind: 'workspace_api_key',
         workspaceId: ids.workspaceId,
         keyId: 'synthetic-provider-fixture',
+        access: 'write',
       },
       input: {
         workspaceId: ids.workspaceId,
@@ -615,7 +616,12 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
       expect(result.results[0]?.documentId).toBe(created.documentId)
       for (const deniedPrincipal of [
         { ...principal, userId: ids.bobId },
-        { kind: 'workspace_api_key' as const, workspaceId: ids.workspaceId, keyId: 'fixture' },
+        {
+          kind: 'workspace_api_key' as const,
+          workspaceId: ids.workspaceId,
+          keyId: 'fixture',
+          access: 'write' as const,
+        },
       ]) {
         await expect(
           readKnowledgeDocument.execute({ principal: deniedPrincipal, input })

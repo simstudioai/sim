@@ -5,6 +5,7 @@ import {
   type Ec2DescribeSubnetsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeSubnetsTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeSubnetsTool: InternalToolConfig<
   name: 'EC2 Describe Subnets',
   description: 'List subnets with their CIDR, Availability Zone, and free IP count',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

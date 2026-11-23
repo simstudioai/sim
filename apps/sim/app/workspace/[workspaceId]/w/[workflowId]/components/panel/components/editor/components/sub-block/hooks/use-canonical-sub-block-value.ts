@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from 'react'
+import type {
+  CanonicalIndex,
+  CanonicalModeOverrides,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   buildCanonicalIndexForSurface,
-  type CanonicalIndex,
-  type CanonicalModeOverrides,
   resolveActiveDependencyValue,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'

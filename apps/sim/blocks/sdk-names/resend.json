@@ -1,0 +1,31 @@
+{
+  "namespace": "legacy.resend",
+  "methods": {
+    "cancel_email": "cancelEmail",
+    "create_audience": "createAudience",
+    "create_broadcast": "createBroadcast",
+    "create_contact": "createContact",
+    "delete_audience": "deleteAudience",
+    "delete_contact": "deleteContact",
+    "get_audience": "getAudience",
+    "get_broadcast": "getBroadcast",
+    "get_contact": "getContact",
+    "get_email": "getEmail",
+    "list_audiences": "listAudiences",
+    "list_contacts": "listContacts",
+    "list_domains": "listDomains",
+    "send_broadcast": "sendBroadcast",
+    "send_email": "sendEmail",
+    "update_contact": "updateContact"
+  },
+  "triggers": {
+    "resend_email_bounced": "emailBounced",
+    "resend_email_clicked": "emailClicked",
+    "resend_email_complained": "emailComplained",
+    "resend_email_delivered": "emailDelivered",
+    "resend_email_failed": "emailFailed",
+    "resend_email_opened": "emailOpened",
+    "resend_email_sent": "emailSent",
+    "resend_webhook": "webhook"
+  }
+}

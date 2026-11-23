@@ -8,6 +8,7 @@ import {
   normalizeSimLinkName,
   type SimLinkFields,
   type SimLinkSort,
+  stripSimLinkPrefix,
 } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
 
@@ -82,20 +83,23 @@ export async function listSimLinks(
   viewer: SimLinkViewer,
   {
     search,
+    url,
     cursor,
     sort = 'name',
     dir = sort === 'popular' ? 'desc' : 'asc',
-  }: { search?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
+  }: { search?: string; url?: string; cursor?: string; sort?: SimLinkSort; dir?: SortDirection }
 ): Promise<{ links: SimLinkRecord[]; nextCursor: string | null }> {
   const [order, after] = dir === 'asc' ? ([asc, gt] as const) : ([desc, lt] as const)
   const conditions: (SQL | undefined)[] = [eq(simLink.organizationId, organizationId)]
   if (!viewer.isAdmin) {
     conditions.push(or(eq(simLink.unlisted, false), eq(simLink.createdBy, viewer.userId)))
   }
-  const query = search?.trim().replace(/^sim\//i, '')
+  if (url) conditions.push(eq(simLink.url, url))
+  const query = search && stripSimLinkPrefix(search.trim())
   if (query) {
     const pattern = `%${escapeLikePattern(query)}%`
-    const normalized = normalizeSimLinkName(query)
+    // Names hold no spaces, so a typed phrase like `team handbook` still finds `team-handbook`.
+    const normalized = normalizeSimLinkName(query).replace(/\s+/g, '')
     conditions.push(
       or(
         ilike(simLink.url, pattern),
@@ -137,13 +141,15 @@ export async function getSimLink(
 const SUGGESTION_LIMIT = 6
 
 /**
- * Listed links whose name starts with `namePrefix` (normalized), most visited first; the most
- * visited overall when it is empty. Unlisted links never appear: suggesting is browsing.
+ * Listed links whose name contains `typedName` (normalized), names starting with it first and then
+ * most visited; the most visited overall when it is empty. Unlisted links never appear: suggesting
+ * is browsing.
  */
 export async function suggestSimLinks(
   organizationId: string,
-  namePrefix: string
+  typedName: string
 ): Promise<{ name: string; description: string | null; url: string }[]> {
+  const pattern = escapeLikePattern(typedName)
   return db
     .select({ name: simLink.name, description: simLink.description, url: simLink.url })
     .from(simLink)
@@ -151,10 +157,14 @@ export async function suggestSimLinks(
       and(
         eq(simLink.organizationId, organizationId),
         eq(simLink.unlisted, false),
-        namePrefix ? like(simLink.normalizedName, `${escapeLikePattern(namePrefix)}%`) : undefined
+        typedName ? like(simLink.normalizedName, `%${pattern}%`) : undefined
       )
     )
-    .orderBy(desc(simLink.visitCount), asc(simLink.normalizedName))
+    .orderBy(
+      desc(sql`${simLink.normalizedName} like ${`${pattern}%`}`),
+      desc(simLink.visitCount),
+      asc(simLink.normalizedName)
+    )
     .limit(SUGGESTION_LIMIT)
 }
 

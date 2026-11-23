@@ -1,3 +1,4 @@
+import { type Node, type Program, VISITOR_KEYS } from '@babel/types'
 import type {
   DelegatedPrincipal,
   OrganizationDelegatedPrincipal,
@@ -35,6 +36,7 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
+import { parseUserJavaScript } from '@/lib/execution/javascript-syntax'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import {
   inspectPrivateSecretProvenanceRequest,
@@ -385,108 +387,89 @@ const JS_RESERVED_WORDS = new Set([
   'public',
 ])
 
-type TypeScriptModule = typeof import('@typescript/typescript6')
-
-let typescriptModulePromise: Promise<TypeScriptModule> | null = null
-
-async function loadTypeScriptModule(): Promise<TypeScriptModule> {
-  if (!typescriptModulePromise) {
-    typescriptModulePromise = import('@typescript/typescript6').then(
-      (mod) => (mod?.default ?? mod) as TypeScriptModule,
-      (error) => {
-        typescriptModulePromise = null
-        throw error
-      }
-    )
-  }
-
-  return typescriptModulePromise
+function isSyntaxNode(value: unknown): value is Node {
+  return (
+    typeof value === 'object' && value !== null && typeof Reflect.get(value, 'type') === 'string'
+  )
 }
 
-async function extractJavaScriptImports(code: string): Promise<{
+function forEachSyntaxNode(root: Node, visit: (node: Node) => void): void {
+  const pending: Node[] = [root]
+  for (let node = pending.pop(); node; node = pending.pop()) {
+    visit(node)
+    for (const key of VISITOR_KEYS[node.type] ?? []) {
+      const child: unknown = Reflect.get(node, key)
+      /* One push per child: spreading a 100,000-element array literal exceeds Bun's argument limit. */
+      if (Array.isArray(child)) {
+        for (const item of child) if (isSyntaxNode(item)) pending.push(item)
+      } else if (isSyntaxNode(child)) pending.push(child)
+    }
+  }
+}
+
+/**
+ * Splits a function body's static imports from the rest of its code. Each import is
+ * blanked to its newlines in the remaining code, so the lines after it keep their numbers.
+ * Code that does not parse comes back whole, with no imports, and fails where it runs.
+ */
+function extractJavaScriptImports(code: string): {
   imports: string
   remainingCode: string
   hasRequireCalls: boolean
   identifierNames: ReadonlySet<string>
-}> {
+} {
+  let program: Program
   try {
-    const tsModule = await loadTypeScriptModule()
-
-    const sourceFile = tsModule.createSourceFile(
-      'user-code.js',
-      code,
-      tsModule.ScriptTarget.Latest,
-      true,
-      tsModule.ScriptKind.JS
-    )
-
-    const importSegments: Array<{ text: string; start: number; end: number }> = []
-    const identifierNames = new Set<string>()
-    let hasRequireCalls = false
-
-    const visit = (node: import('@typescript/typescript6').Node): void => {
-      if (tsModule.isIdentifier(node)) identifierNames.add(node.text)
-      if (
-        tsModule.isCallExpression(node) &&
-        tsModule.isIdentifier(node.expression) &&
-        node.expression.text === 'require'
-      ) {
-        hasRequireCalls = true
-      }
-      tsModule.forEachChild(node, visit)
-    }
-    visit(sourceFile)
-
-    sourceFile.statements.forEach((statement) => {
-      if (
-        tsModule.isImportDeclaration(statement) ||
-        tsModule.isImportEqualsDeclaration(statement)
-      ) {
-        importSegments.push({
-          text: statement.getFullText(sourceFile).trim(),
-          start: statement.getFullStart(),
-          end: statement.getEnd(),
-        })
-      }
-    })
-
-    if (importSegments.length === 0) {
-      return { imports: '', remainingCode: code, hasRequireCalls, identifierNames }
-    }
-
-    importSegments.sort((a, b) => a.start - b.start)
-
-    const imports = importSegments.map((segment) => segment.text).join('\n')
-
-    let cursor = 0
-    const parts: string[] = []
-    for (const segment of importSegments) {
-      if (segment.start > cursor) {
-        parts.push(code.slice(cursor, segment.start))
-      }
-
-      const removedSegment = code.slice(segment.start, segment.end)
-      const newlinePlaceholder = removedSegment.replace(/[^\n]/g, '')
-      parts.push(newlinePlaceholder)
-
-      cursor = segment.end
-    }
-
-    if (cursor < code.length) {
-      parts.push(code.slice(cursor))
-    }
-
-    const remainingCode = parts.join('')
-
-    return { imports, remainingCode, hasRequireCalls, identifierNames }
+    program = parseUserJavaScript(code).program
   } catch {
-    logger.error('Failed to extract JavaScript imports')
-    return {
-      imports: '',
-      remainingCode: code,
-      hasRequireCalls: false,
-      identifierNames: new Set(),
+    return { imports: '', remainingCode: code, hasRequireCalls: false, identifierNames: new Set() }
+  }
+
+  const identifierNames = new Set<string>()
+  let hasRequireCalls = false
+  forEachSyntaxNode(program, (node) => {
+    if (node.type === 'Identifier') identifierNames.add(node.name)
+    if (
+      (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'require'
+    ) {
+      hasRequireCalls = true
     }
+  })
+
+  /* An import's text runs from the end of whatever precedes it, so the comments above it travel with it. */
+  const importSegments: Array<{ text: string; start: number; end: number }> = []
+  let previousEnd = program.directives.at(-1)?.end ?? program.interpreter?.end ?? 0
+  for (const statement of program.body) {
+    if (statement.type === 'ImportDeclaration' && statement.end != null) {
+      importSegments.push({
+        text: code.slice(previousEnd, statement.end).trim(),
+        start: previousEnd,
+        end: statement.end,
+      })
+    }
+    previousEnd = statement.end ?? previousEnd
+  }
+
+  if (importSegments.length === 0) {
+    return { imports: '', remainingCode: code, hasRequireCalls, identifierNames }
+  }
+
+  let cursor = 0
+  let remainingCode = ''
+  for (const segment of importSegments) {
+    remainingCode += code.slice(cursor, segment.start)
+    remainingCode += code.slice(segment.start, segment.end).replace(/[^\n]/g, '')
+    cursor = segment.end
+  }
+  remainingCode += code.slice(cursor)
+
+  return {
+    imports: importSegments.map((segment) => segment.text).join('\n'),
+    remainingCode,
+    hasRequireCalls,
+    identifierNames,
   }
 }
 
@@ -586,8 +569,24 @@ function extractEnhancedError(
 }
 
 /**
+ * A leading absolute file path a sandbox puts before a JavaScript error's message
+ * (`/home/user/index.js: Unexpected token`).
+ */
+const SANDBOX_FILE_PATH_PREFIX = /^(?:file:\/\/)?\/\S*:\s*/
+
+/**
+ * The type label a sandbox error leads with, when a message follows: `ValueError: invalid phone`,
+ * or Node's bracketed form `Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'x'`.
+ */
+const SANDBOX_ERROR_LABEL = /^[A-Za-z_$][\w$.]*(?: \[[\w.$-]+\])?:\s+(?=\S)/
+
+/**
  * Parse and format E2B error message
- * Removes E2B-specific line references and adds correct user line numbers
+ * Removes E2B-specific line references and adds correct user line numbers.
+ *
+ * `errorMessage` is the thrown message alone: `formattedError` without its
+ * `Line N: \`code\` -` location and its error-type label, or the labelled form
+ * when the error has no message of its own.
  */
 function formatE2BError(
   errorMessage: string,
@@ -595,7 +594,7 @@ function formatE2BError(
   language: CodeLanguage,
   userCode: string,
   prologueLineCount: number
-): { formattedError: string; cleanedOutput: string } {
+): { formattedError: string; cleanedOutput: string; errorMessage: string } {
   const wrapperLines =
     language === CodeLanguage.Python ? E2B_PYTHON_WRAPPER_LINES : E2B_JS_WRAPPER_LINES
   const totalOffset = prologueLineCount + wrapperLines
@@ -603,6 +602,7 @@ function formatE2BError(
   let userLine: number | undefined
   let cleanErrorType = ''
   let cleanErrorMsg = ''
+  let thrownMessage = ''
 
   if (language === CodeLanguage.Python) {
     const moduleMatch = errorOutput.match(/<sim-function-module>[^\n]*line (\d+)/)
@@ -621,6 +621,7 @@ function formatE2BError(
       .replace(/\s*\(detected at line \d+\)/g, '')
       .replace(/\s*\([^)]+\.py, line \d+\)/g, '')
       .trim()
+    thrownMessage = cleanErrorMsg.replace(SANDBOX_ERROR_LABEL, '')
   } else if (language === CodeLanguage.JavaScript) {
     const firstLineEnd = errorMessage.indexOf('\n')
     const firstLine = firstLineEnd > 0 ? errorMessage.substring(0, firstLineEnd) : errorMessage
@@ -629,6 +630,7 @@ function formatE2BError(
     if (jsErrorMatch) {
       cleanErrorType = jsErrorMatch[1]
       cleanErrorMsg = jsErrorMatch[2].trim()
+      thrownMessage = cleanErrorMsg
       const originalLine = Number.parseInt(jsErrorMatch[3], 10)
       userLine = originalLine - totalOffset
     } else {
@@ -644,8 +646,15 @@ function formatE2BError(
           .replace(/^[^:]+:\s*/, '') // Remove file path
           .replace(/\s*\(\d+:\d+\)\s*$/, '') // Remove line:col at end
           .trim()
+        // `cleanErrorMsg` also cuts a message's own text before its first colon
+        // (`invalid phone: 555`); the thrown message drops only a real path.
+        thrownMessage = errorMatch[2]
+          .replace(SANDBOX_FILE_PATH_PREFIX, '')
+          .replace(/\s*\(\d+:\d+\)\s*$/, '')
+          .trim()
       } else {
         cleanErrorMsg = firstLine
+        thrownMessage = firstLine.replace(SANDBOX_ERROR_LABEL, '')
       }
     }
   }
@@ -672,7 +681,7 @@ function formatE2BError(
 
   const cleanedOutput = finalErrorMsg
 
-  return { formattedError, cleanedOutput }
+  return { formattedError, cleanedOutput, errorMessage: thrownMessage || finalErrorMsg }
 }
 
 /**
@@ -2414,6 +2423,7 @@ export async function executeFunctionRequest(
               ? { organizationId: admittedChatOwner.organizationId }
               : { workspaceId }),
             userId: auth.attributedUserId,
+            principal: auth.principal,
             signal: executionSignal,
           })
         : undefined
@@ -2467,7 +2477,8 @@ export async function executeFunctionRequest(
     const executionParams = { ...params }
     executionParams._context = undefined
 
-    logger.debug(`[${requestId}] Function execution request`, {
+    logger.debug('Function execution request', {
+      requestId,
       hasCode: !!code,
       paramsCount: Object.keys(executionParams).length,
       timeout,
@@ -2620,7 +2631,7 @@ export async function executeFunctionRequest(
     let hasImports = false
 
     if (lang === CodeLanguage.JavaScript) {
-      const extractionResult = await extractJavaScriptImports(resolvedCode)
+      const extractionResult = extractJavaScriptImports(resolvedCode)
       jsImports = extractionResult.imports
       jsRemainingCode = extractionResult.remainingCode
       jsIdentifierNames = extractionResult.identifierNames
@@ -2724,7 +2735,8 @@ export async function executeFunctionRequest(
       // messages already say which file and what to do, so they are the response
       // rather than a 500 that reads like the platform broke. Matches the
       // too-many-files refusal above.
-      logger.warn(`[${requestId}] Could not resolve sandbox file mounts`, {
+      logger.warn('Could not resolve sandbox file mounts', {
+        requestId,
         error: getErrorMessage(error),
       })
       return functionJsonResponse(
@@ -2800,9 +2812,7 @@ export async function executeFunctionRequest(
         : undefined
 
     if (mountManifest.length > 0) {
-      logger.info(`[${requestId}] Mounted files into sandbox`, {
-        mountCount: mountManifest.length,
-      })
+      logger.info('Mounted files into sandbox', { requestId, mountCount: mountManifest.length })
     }
 
     if (lang === CodeLanguage.Shell) {
@@ -2814,7 +2824,8 @@ export async function executeFunctionRequest(
         shellEnvs[k] = serializeForShellEnv(v, 'null')
       }
 
-      logger.info(`[${requestId}] E2B shell execution`, {
+      logger.info('E2B shell execution', {
+        requestId,
         enabled: remoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         envVarCount: Object.keys(shellEnvs).length,
@@ -2852,7 +2863,8 @@ export async function executeFunctionRequest(
       })
       const executionTime = Date.now() - execStart
 
-      logger.info(`[${requestId}] E2B shell sandbox`, {
+      logger.info('E2B shell sandbox', {
+        requestId,
         sandboxId,
         succeeded: !shellError,
         executionTime,
@@ -2931,7 +2943,8 @@ export async function executeFunctionRequest(
     }
 
     if (useRemoteSandbox) {
-      logger.info(`[${requestId}] E2B status`, {
+      logger.info('E2B status', {
+        requestId,
         enabled: remoteSandboxEnabled,
         hasApiKey: Boolean(process.env.E2B_API_KEY),
         language: lang,
@@ -3011,7 +3024,8 @@ export async function executeFunctionRequest(
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
 
-        logger.info(`[${requestId}] E2B JS sandbox`, {
+        logger.info('E2B JS sandbox', {
+          requestId,
           sandboxId,
           succeeded: !e2bError,
           executionTime,
@@ -3021,7 +3035,7 @@ export async function executeFunctionRequest(
 
         if (e2bError) {
           const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
-          const { formattedError, cleanedOutput } = formatE2BError(
+          const { formattedError, cleanedOutput, errorMessage } = formatE2BError(
             scrubInternalIdentifiers(
               getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
               compilerInternalIdentifiers
@@ -3035,6 +3049,7 @@ export async function executeFunctionRequest(
             {
               success: false,
               error: formattedError,
+              errorMessage,
               output: {
                 result: null,
                 stdout: cleanedOutput,
@@ -3143,7 +3158,8 @@ export async function executeFunctionRequest(
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
 
-      logger.info(`[${requestId}] E2B Py sandbox`, {
+      logger.info('E2B Py sandbox', {
+        requestId,
         sandboxId,
         succeeded: !e2bError,
         executionTime,
@@ -3153,7 +3169,7 @@ export async function executeFunctionRequest(
 
       if (e2bError) {
         const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
-        const { formattedError, cleanedOutput } = formatE2BError(
+        const { formattedError, cleanedOutput, errorMessage } = formatE2BError(
           scrubInternalIdentifiers(
             getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
             compilerInternalIdentifiers
@@ -3167,6 +3183,7 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: formattedError,
+            errorMessage,
             output: {
               result: null,
               stdout: cleanedOutput,
@@ -3315,7 +3332,8 @@ export async function executeFunctionRequest(
 
       /** The author's code throwing is logged once by the tool boundary; an isolate failure is ours. */
       if (isSystemError) {
-        logger.error(`[${requestId}] Function execution failed in isolated-vm`, {
+        logger.error('Function execution failed in isolated-vm', {
+          requestId,
           executionTime,
           hasStack: Boolean(ivmError.stack),
           line: enhancedError.line,
@@ -3327,6 +3345,7 @@ export async function executeFunctionRequest(
         {
           success: false,
           error: userFriendlyErrorMessage,
+          errorMessage: enhancedError.message,
           output: {
             result: null,
             stdout: cleanStdout(isolatedResult.stdout),
@@ -3345,7 +3364,8 @@ export async function executeFunctionRequest(
       )
     }
 
-    logger.debug(`[${requestId}] Function executed successfully using ${executionMethod}`, {
+    logger.debug(`Function executed successfully using ${executionMethod}`, {
+      requestId,
       executionTime,
     })
 
@@ -3384,7 +3404,8 @@ export async function executeFunctionRequest(
           executionTime,
         },
       }
-      logger.warn(`[${requestId}] Function execution ${timedOut ? 'timed out' : 'was cancelled'}`, {
+      logger.warn(`Function execution ${timedOut ? 'timed out' : 'was cancelled'}`, {
+        requestId,
         executionTime,
       })
       return routeContext
@@ -3440,7 +3461,8 @@ export async function executeFunctionRequest(
           )
     }
     if (isExecutionResourceLimitError(error)) {
-      logger.warn(`[${requestId}] Function execution exceeded resource limits`, {
+      logger.warn('Function execution exceeded resource limits', {
+        requestId,
         resource: error.resource,
         attemptedBytes: error.attemptedBytes,
         limitBytes: error.limitBytes,
@@ -3501,7 +3523,8 @@ export async function executeFunctionRequest(
         (error?.message || String(error)).slice(0, 300),
         compilerInternalIdentifiers
       )
-      logger.warn(`[${requestId}] Sandbox terminated before completion (likely OOM or timeout)`, {
+      logger.warn('Sandbox terminated before completion (likely OOM or timeout)', {
+        requestId,
         executionTime,
       })
       const killResponse = {
@@ -3527,7 +3550,8 @@ export async function executeFunctionRequest(
       compilerInternalIdentifiers
     )
 
-    logger.error(`[${requestId}] Function execution failed`, {
+    logger.error('Function execution failed', {
+      requestId,
       executionTime,
       hasStack: Boolean(error.stack),
       line: enhancedError.line,
@@ -3538,6 +3562,7 @@ export async function executeFunctionRequest(
     const errorResponse = {
       success: false,
       error: userFriendlyErrorMessage,
+      errorMessage: scrubInternalIdentifiers(enhancedError.message, compilerInternalIdentifiers),
       output: {
         result: null,
         stdout: cleanStdout(stdout),

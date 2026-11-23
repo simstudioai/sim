@@ -7,6 +7,7 @@ import type {
   ClerkPhoneNumber,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkCreateUser')
@@ -16,6 +17,7 @@ export const clerkCreateUserTool: ToolConfig<ClerkCreateUserParams, ClerkCreateU
   name: 'Create User in Clerk',
   description: 'Create a new user in your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

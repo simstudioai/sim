@@ -8,7 +8,6 @@ import {
 import {
   updateOrganizationDataRetentionBodySchema,
   updateOrganizationSessionPolicyBodySchema,
-  updateOrganizationWhitelabelBodySchema,
 } from '@/lib/api/contracts/organization'
 import { updateUserProfileBodySchema } from '@/lib/api/contracts/user'
 import {
@@ -52,10 +51,8 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   getOrganizationDataRetention,
   getOrganizationSessionPolicy,
-  getOrganizationWhitelabel,
   updateOrganizationDataRetention,
   updateOrganizationSessionPolicy,
-  updateOrganizationWhitelabel,
 } from '@/lib/organizations/application/configuration'
 import {
   organizationSettingsPatchSchema,
@@ -64,6 +61,7 @@ import {
 } from '@/lib/organizations/application/settings'
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
 import { type SettingsSection, settingsSections } from '@/lib/settings/sections'
+import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import {
   delegatedAccountPreferencesSchema,
   updateCurrentUserPreferences,
@@ -86,6 +84,8 @@ interface SettingAdapter {
   get(context: SettingsContext): Promise<unknown>
   schema?: z.ZodType
   update?(context: SettingsContext, changes: Record<string, unknown>): Promise<unknown>
+  /** Whether the section exists for this target at all; a section that does not is never listed. */
+  available?(context: SettingsContext): Promise<boolean>
 }
 
 function organizationInput(context: SettingsContext) {
@@ -254,26 +254,9 @@ const adapters: Record<string, SettingAdapter> = {
   },
   'organization/members': { get: readSettingsRoster },
   'organization/requests': { get: (context) => readSettingsAccessRequests(context) },
-  'organization/sim-links': { get: (context) => readSettingsSimLinks(context) },
-  'organization/whitelabeling': {
-    schema: updateOrganizationWhitelabelBodySchema.strict(),
-    get: async (context) =>
-      (
-        await getOrganizationWhitelabel.execute({
-          principal: context.principal,
-          input: organizationInput(context),
-        })
-      ).settings,
-    update: async (context, changes) =>
-      (
-        await updateOrganizationWhitelabel.execute({
-          principal: context.principal,
-          input: {
-            ...organizationInput(context),
-            settings: updateOrganizationWhitelabelBodySchema.strict().parse(changes),
-          },
-        })
-      ).data,
+  'organization/sim-links': {
+    available: (context) => isSimLinksEnabled(organizationInput(context).organizationId),
+    get: (context) => readSettingsSimLinks(context),
   },
   'organization/security': {
     schema: updateOrganizationSessionPolicyBodySchema.strict(),
@@ -314,7 +297,14 @@ const adapters: Record<string, SettingAdapter> = {
 }
 
 async function describeSection(context: SettingsContext, section: SettingsSection) {
+  if (
+    context.scope === 'organization' &&
+    section.id === 'sim-links' &&
+    !(await isSimLinksEnabled(organizationInput(context).organizationId))
+  )
+    return null
   const adapter = adapters[`${context.scope}/${section.id}`]
+  if (adapter?.available && !(await adapter.available(context))) return null
   const uiSection =
     context.scope === 'organization' &&
     section.id === 'connected-accounts' &&

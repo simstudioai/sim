@@ -775,6 +775,12 @@ describe('TinyFish block', () => {
     expect(params).toMatchObject({ goal: 'pricing' })
   })
 
+  it('keeps the goal filter the model supplied on an Agent tool call', () => {
+    const args = { apiKey: API_KEY, goal: 'checkout' }
+    const mapped = TinyFishBlock.tools.config?.params?.(args, { operation: 'tinyfish_list_runs' })
+    expect({ ...args, ...mapped }).toMatchObject({ goal: 'checkout' })
+  })
+
   it('leaves the automation goal alone on a run operation', () => {
     const params = TinyFishBlock.tools.config?.params?.({
       operation: 'tinyfish_run',

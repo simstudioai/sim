@@ -5,6 +5,7 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
@@ -83,18 +84,7 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const cleanLint = {
-  sources: [],
-  sinks: [],
-  orphanBlocks: [],
-  emptyOutgoingPorts: [],
-  invalidBranchPorts: [],
-  invalidConnectionTargets: [],
-  fieldIssues: [],
-  unresolvedReferences: [],
-  tableFieldIssues: [],
-  notes: [],
-}
+const cleanLint = createEmptyWorkflowLintReport()
 
 const adminPrincipals: Array<{ principal: Principal; actorUserId: string }> = [
   {

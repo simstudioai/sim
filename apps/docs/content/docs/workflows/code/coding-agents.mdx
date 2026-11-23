@@ -1,0 +1,49 @@
+---
+title: Use with coding agents
+description: What get gives a coding agent, how it edits and saves a workflow, and the MCP and API paths for the same operations.
+---
+
+Claude Code, Cursor, Codex and other coding agents work from a directory that `get` writes.
+
+## What get gives an agent
+
+- A **primer**, which opens `.sim/AGENTS.md`. `get` prints a short summary instead (the files written, the guide, and the `editLoop` command to run); `get --primer` also prints the primer (in JSON output, its `primer` field). It covers the edit loop, how block identity, references and renames work, failures and retries, test runs, deletes, deploy, exit codes, and the params of each builder the workflow already uses.
+- **`.sim/AGENTS.md`**: the primer followed by a reference, by task. A workspace directory also gets `.sim/GUIDE-advanced.md`.
+- **`.sim/examples/`**: one correct example of each common block to copy from.
+- **`.sim/sdk/`**: the type declarations, with `.sim/sdk/INDEX.md` listing the builders.
+
+Point the agent at `.sim/AGENTS.md` before it edits.
+
+## The loop
+
+1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
+2. Write every file the change needs.
+3. Run one chained command, then fix whatever it reports in the next step:
+
+   ```bash
+   sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes && sim workflows run <workflowId> --manual --input '{...}'
+   ```
+
+   A non-zero exit code stops the chain at the first failure. `apply` compiles the source and compares it with the saved draft again, so an agent can skip `--dry-run`. People and CI use `apply --dry-run` to review the plan, and `status` shows what changed and what to run next. Add `bunx -p typescript@7.0.2 tsc -p <dir>` after `check` to catch type errors.
+
+For a whole workspace, use `sim workspaces source` with the same steps; see [Manage a workspace as code](/workflows/code/workspace).
+
+## Look things up
+
+- `sim workflows source params <builder>` prints a builder in brief (an example call, the required params with types, the optional ones by name and the outputs) from the cached block catalog without a request. `--full` prints every param with its type, options, default and doc. A legacy builder names the one that replaces it, and a namespace such as `gmail` lists its builders.
+- `sim workflows source resources` lists the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and environment variable names the file can name.
+- `sim workflows source catalog` shows the block catalog the source is checked against.
+
+## Exit codes and retries
+
+An agent can branch on the exit code: `5` means the workflow changed and it must `get` into a fresh directory, `14` means it forgot `--yes`, and `9` means wait a minute. See [Exit codes](/workflows/code/exit-codes).
+
+## Over MCP and the API
+
+`getWorkflowSource` returns a workflow as TypeScript source files with its `lock` and `base`. Edit the files and send them back, with the same `lock` and `base`, through `applyWorkflowSource`, first with `query: {"dryRun": true}`. One call replaces a batch of graph operations. See [MCP tools](/mcp/tools#workflow-source) and [Build and run workflows](/api-reference/build-and-run-workflows).
+
+## Related docs
+
+- [Edit a workflow](/workflows/code/edit)
+- [File syntax](/workflows/code/syntax)
+- [Directory layout](/workflows/code/directory)

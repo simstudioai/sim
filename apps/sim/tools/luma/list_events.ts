@@ -1,5 +1,6 @@
 import type { LumaListEventsParams, LumaListEventsResponse } from '@/tools/luma/types'
 import { LUMA_EVENT_OUTPUT_PROPERTIES } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResponse> = {
@@ -8,6 +9,7 @@ export const listEventsTool: ToolConfig<LumaListEventsParams, LumaListEventsResp
   description:
     'List events from your Luma calendar with optional date range filtering, sorting, and pagination.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,8 +1,58 @@
 import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { MicrosoftWordInputError } from '@/lib/internal/microsoft-word/errors'
 import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import type {
+  MicrosoftWordDocumentMetadata,
+  MicrosoftWordGraphDriveItem,
+} from '@/tools/microsoft_word/types'
+import { toIdentity } from '@/tools/onedrive/utils'
+import type { OutputProperty } from '@/tools/types'
 
 export const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
+
+/** Output properties for the drive and identity fields on every Word document metadata object. */
+export const DOCUMENT_METADATA_DETAIL_PROPERTIES: Record<string, OutputProperty> = {
+  driveId: {
+    type: 'string',
+    description: 'ID of the drive holding the document (pass as driveId for SharePoint)',
+    optional: true,
+  },
+  parentFolderId: {
+    type: 'string',
+    description: 'ID of the folder containing the document',
+    optional: true,
+  },
+  createdBy: {
+    type: 'object',
+    description: 'Identity that created the document (id, displayName)',
+    optional: true,
+  },
+  lastModifiedBy: {
+    type: 'object',
+    description: 'Identity that last modified the document (id, displayName)',
+    optional: true,
+  },
+}
+
+/** Projects a Graph `driveItem` onto the metadata shape the Word tools return. */
+export function toDocumentMetadata(
+  item: MicrosoftWordGraphDriveItem,
+  fallbackId: string
+): MicrosoftWordDocumentMetadata {
+  return {
+    documentId: item.id ?? fallbackId,
+    name: item.name ?? null,
+    mimeType: item.file?.mimeType ?? null,
+    webViewLink: item.webUrl ?? null,
+    size: item.size ?? null,
+    createdTime: item.createdDateTime ?? null,
+    modifiedTime: item.lastModifiedDateTime ?? null,
+    driveId: item.parentReference?.driveId ?? null,
+    parentFolderId: item.parentReference?.id ?? null,
+    createdBy: toIdentity(item.createdBy),
+    lastModifiedBy: toIdentity(item.lastModifiedBy),
+  }
+}
 
 /**
  * Returns the Graph drive base path for a Word document.

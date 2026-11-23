@@ -27,11 +27,6 @@ export function cascadeLockKey(tableId: string, rowId: string): string {
  * task already holds the lock — `fn` is NOT invoked in that case. The
  * caller decides what to do on contention (cell-task bails; resume worker
  * still writes the resumed-group's terminal state but skips the cascade).
- *
- * NOTE: when Redis is unavailable, `acquireLock` returns `true` as a
- * single-replica fallback — concurrent cell-tasks would all "acquire" and
- * run in parallel. The cell-write SQL guard mitigates double-writes but
- * doesn't prevent duplicate workflow executions.
  */
 export async function withCascadeLock<T>(
   tableId: string,

@@ -1,9 +1,9 @@
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   CORE_CONFIGURATION_KEYS,
   EMAIL_CAPABILITY,
   EnvCapabilityConfigurationError,
+  getRedisConfigurationError,
   inspectCapability,
   inspectOAuthClientCapability,
   OAUTH_CLIENT_CAPABILITIES,
@@ -12,11 +12,13 @@ import {
   SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
 } from '@sim/deployment-config/env-capabilities'
+import { REGISTRATION_MODES, resolveRegistrationMode } from '@sim/deployment-config/registration'
 import { getSetupCommand } from './capability-config'
 import { portOpen } from './detect'
 import {
   type EnvFile,
   type EnvTarget,
+  envValueRefusal,
   generateSecret,
   isPlaceholder,
   isTruthy,
@@ -28,7 +30,36 @@ import {
   writeEnvValues,
 } from './env-files'
 import { httpHealth, pgProbe, redisPing } from './probes'
-import { FLAG_TWINS, LOGIN_PROVIDERS } from './twins'
+import { FLAG_TWINS, INERT_BROWSER_FLAGS, LOGIN_PROVIDERS } from './twins'
+
+/**
+ * Whether `key` is written with an unescaped `$`, a reference Next, Bun, and
+ * Compose expand against the file it sits in. Copied to another file it can
+ * resolve differently, and copied as a literal it stops expanding, so doctor
+ * leaves such values for the user to mirror by hand.
+ */
+function holdsReference(file: EnvFile, key: string): boolean {
+  return /(^|[^\\])\$/.test(file.verbatim.get(key) ?? '')
+}
+
+/**
+ * Whether `key` holds the same thing in both files. Parsed values hide the one
+ * difference that matters for `$`: `${VAR}` expands while `"\${VAR}"` does not.
+ */
+function sameEnvValue(a: EnvFile, b: EnvFile, key: string): boolean {
+  if (a.vars.get(key) !== b.vars.get(key)) return false
+  if (!holdsReference(a, key) && !holdsReference(b, key)) return true
+  return a.verbatim.get(key) === b.verbatim.get(key)
+}
+
+/** Why doctor cannot copy `key` out of `file` for the user, or `undefined` when it can. */
+function mirrorBlocker(file: EnvFile, key: string, value: string): string | undefined {
+  if (holdsReference(file, key)) {
+    return 'it contains a $ reference, so copy it and the variables it uses by hand'
+  }
+  const refusal = envValueRefusal(value)
+  return refusal && `${refusal}, so copy it by hand`
+}
 
 export type CheckGroup = 'files' | 'schema' | 'consistency' | 'coherence' | 'live'
 export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip'
@@ -90,6 +121,7 @@ const REQUIRED_KEYS: Partial<Record<EnvTarget, readonly string[]>> = {
     'BETTER_AUTH_SECRET',
     'INTERNAL_API_SECRET',
     'NEXT_PUBLIC_APP_URL',
+    'REDIS_URL',
   ],
   db: ['DATABASE_URL'],
   // Compose's single root .env only carries the secrets that have no safe
@@ -144,7 +176,9 @@ function checkFiles(ctx: CheckContext): Finding[] {
               const value = ctx.env.sim.vars.get(key)
               // Skip placeholders so seeding never copies an .env.example stub
               // into the new file (matches autofixForMissing).
-              if (value && !isPlaceholder(value)) values[key] = value
+              if (value && !isPlaceholder(value) && !mirrorBlocker(ctx.env.sim, key, value)) {
+                values[key] = value
+              }
             }
             writeEnvValues(target, values)
           }
@@ -166,6 +200,8 @@ function autofixForMissing(
     simValue &&
     !isPlaceholder(simValue)
   ) {
+    // A generated secret would differ from the app's, so a value doctor can't copy gets no fix.
+    if (mirrorBlocker(ctx.env.sim, key, simValue)) return undefined
     return () => writeEnvValues(target, { [key]: simValue })
   }
   if (MIN_32_KEYS.has(key)) {
@@ -195,16 +231,16 @@ function checkSchema(ctx: CheckContext): Finding[] {
         continue
       }
       if (isPlaceholder(value)) {
+        // Same fix as a missing key: a shared secret is mirrored from the app, never regenerated.
+        const autofix = MIN_32_KEYS.has(key) ? autofixForMissing(ctx, target, key) : undefined
         findings.push({
           group: 'schema',
           status: production ? 'fail' : 'warn',
           message: `${rel(file)}: ${key} still has the .env.example placeholder`,
-          fix: MIN_32_KEYS.has(key)
-            ? 'doctor --fix generates a real value'
+          fix: autofix
+            ? 'doctor --fix sets a real value'
             : `replace the placeholder in ${rel(file)}`,
-          autofix: MIN_32_KEYS.has(key)
-            ? () => writeEnvValues(target, { [key]: generateSecret() })
-            : undefined,
+          autofix,
         })
         continue
       }
@@ -226,6 +262,17 @@ function checkSchema(ctx: CheckContext): Finding[] {
             status: 'fail',
             message: `${rel(file)}: ${key} is not a valid URL (${value})`,
             fix: `correct ${key} in ${rel(file)}`,
+          })
+        }
+      }
+      if (key === 'REDIS_URL') {
+        const redisError = getRedisConfigurationError(file.vars)
+        if (redisError) {
+          findings.push({
+            group: 'schema',
+            status: 'fail',
+            message: `${rel(file)}: ${redisError}`,
+            fix: `correct the Redis settings in ${rel(file)}`,
           })
         }
       }
@@ -262,13 +309,16 @@ function checkConsistency(ctx: CheckContext): Finding[] {
       const simValue = sim.vars.get(key)
       const realtimeValue = realtime.vars.get(key)
       if (!simValue || !realtimeValue) continue
-      if (simValue !== realtimeValue) {
+      if (!sameEnvValue(sim, realtime, key)) {
+        const blocker = mirrorBlocker(sim, key, simValue)
         findings.push({
           group: 'consistency',
           status: 'fail',
           message: `${key} differs between apps/sim/.env and apps/realtime/.env`,
-          fix: 'doctor --fix mirrors the apps/sim/.env value',
-          autofix: () => writeEnvValues('realtime', { [key]: simValue }),
+          fix: blocker
+            ? `mirror the apps/sim/.env value: ${blocker}`
+            : 'doctor --fix mirrors the apps/sim/.env value',
+          autofix: blocker ? undefined : () => writeEnvValues('realtime', { [key]: simValue }),
         })
       }
     }
@@ -276,14 +326,17 @@ function checkConsistency(ctx: CheckContext): Finding[] {
   if (sim.exists && db.exists) {
     const simDsn = sim.vars.get('DATABASE_URL')
     const dbDsn = db.vars.get('DATABASE_URL')
-    if (simDsn && dbDsn && simDsn !== dbDsn) {
+    if (simDsn && dbDsn && !sameEnvValue(sim, db, 'DATABASE_URL')) {
+      const blocker = mirrorBlocker(sim, 'DATABASE_URL', simDsn)
       findings.push({
         group: 'consistency',
         status: 'fail',
         message:
           'DATABASE_URL differs between apps/sim/.env and packages/db/.env — migrations would hit a different database',
-        fix: 'doctor --fix mirrors the apps/sim/.env value',
-        autofix: () => writeEnvValues('db', { DATABASE_URL: simDsn }),
+        fix: blocker
+          ? `mirror the apps/sim/.env value: ${blocker}`
+          : 'doctor --fix mirrors the apps/sim/.env value',
+        autofix: blocker ? undefined : () => writeEnvValues('db', { DATABASE_URL: simDsn }),
       })
     }
   }
@@ -305,10 +358,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     {
       command: getSetupCommand(ASYNC_JOBS_CAPABILITY.id),
       resolve: () => requireCapability(ASYNC_JOBS_CAPABILITY, sim.vars),
-    },
-    {
-      command: getSetupCommand(CACHE_CAPABILITY.id),
-      resolve: () => requireCapability(CACHE_CAPABILITY, sim.vars),
     },
     {
       command: getSetupCommand(SANDBOX_CAPABILITY.id),
@@ -381,36 +430,18 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  /**
-   * Function sandbox visibility is not a 1:1 server/client twin. The selected
-   * provider is ready only when its credential and immutable Function base are
-   * valid, while the browser separately reads the public visibility flag.
-   */
-  const sandboxInspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
-  const sandboxProvider = sandboxInspection.providerId
-  const selectedSandboxProvider = sandboxInspection.providers.find(
-    (provider) => provider.id === sandboxProvider
-  )
-  const remoteSandboxAvailable =
-    !sandboxInspection.error && selectedSandboxProvider?.state === 'ready'
-  const publicSandboxEnabled = isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOXES_ENABLED'))
-  if (remoteSandboxAvailable && !publicSandboxEnabled) {
+  findings.push(...checkRegistrationMode(sim))
+
+  for (const { server, client } of INERT_BROWSER_FLAGS) {
+    const clientValue = sim.vars.get(client)
+    if (clientValue === undefined) continue
+    const needsServer =
+      server !== undefined && isTruthy(clientValue) && sim.vars.get(server) === undefined
     findings.push({
       group: 'coherence',
-      status: 'fail',
-      message:
-        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOXES_ENABLED is unset — the Function block will hide its language and sandbox controls',
-      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=true',
-      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'true' }),
-    })
-  } else if (!remoteSandboxAvailable && publicSandboxEnabled) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message:
-        'NEXT_PUBLIC_SANDBOXES_ENABLED is on but the selected provider lacks credentials or a valid immutable Function base — the UI exposes a runtime that will reject execution',
-      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=false; finish provider setup before enabling it',
-      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'false' }),
+      status: 'warn',
+      message: `${client} is set but no longer does anything — the browser reads this from the server`,
+      fix: needsServer ? `set ${server}=${clientValue} and remove ${client}` : `remove ${client}`,
     })
   }
 
@@ -541,6 +572,42 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   return findings
 }
 
+/**
+ * Validates `REGISTRATION_MODE` and points the variables it replaced at their
+ * equivalent, using the same resolver the app runs so doctor and the server
+ * cannot disagree about what a file means.
+ */
+function checkRegistrationMode(sim: EnvFile): Finding[] {
+  const { mode, warnings } = resolveRegistrationMode((name) => sim.vars.get(name))
+  const findings: Finding[] = []
+  for (const warning of warnings) {
+    if (warning.code === 'invalid-mode') {
+      findings.push({
+        group: 'coherence',
+        status: 'fail',
+        message: `REGISTRATION_MODE="${warning.details.value}" is not a recognized value — the app closes self-serve registration until it is corrected`,
+        fix: `set REGISTRATION_MODE to one of ${REGISTRATION_MODES.join(', ')}`,
+      })
+    } else if (warning.code === 'deprecated-variables') {
+      const names = warning.details.variables.join(', ')
+      findings.push({
+        group: 'coherence',
+        status: 'warn',
+        message: `deprecated registration variables are set (${names}) — REGISTRATION_MODE replaces them`,
+        fix: `set REGISTRATION_MODE=${mode} and remove ${names}`,
+      })
+    } else {
+      findings.push({
+        group: 'coherence',
+        status: 'warn',
+        message: `REGISTRATION_MODE=${warning.details.configured} resolves to ${mode} because deprecated registration variables are more restrictive`,
+        fix: `set REGISTRATION_MODE=${mode} and remove the deprecated variables, or remove them to keep ${warning.details.configured}`,
+      })
+    }
+  }
+  return findings
+}
+
 async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
   const findings: Finding[] = []
   const dsn = sim.vars.get('DATABASE_URL')
@@ -615,10 +682,25 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
 }
 
 async function checkRedis(sim: EnvFile): Promise<Finding[]> {
-  const inspection = inspectCapability(CACHE_CAPABILITY, sim.vars)
-  if (inspection.error || inspection.providerId !== 'redis') return []
+  // With no env file yet the files check already reports it; a Redis failure would only repeat it.
+  if (!sim.exists) {
+    return [{ group: 'live', status: 'skip', message: 'redis: no env file yet' }]
+  }
   const redisUrl = sim.vars.get('REDIS_URL')
-  if (!redisUrl) throw new Error('Redis resolved as ready without REDIS_URL')
+  // A Compose install's REDIS_URL comes from the service definition, not the root .env.
+  if (!redisUrl && sim.target === 'root') {
+    return [{ group: 'live', status: 'skip', message: 'redis: REDIS_URL is set by Compose' }]
+  }
+  if (!redisUrl || getRedisConfigurationError(sim.vars)) {
+    return [
+      {
+        group: 'live',
+        status: 'fail',
+        message: 'redis: REDIS_URL is missing or invalid',
+        fix: 'set REDIS_URL to a reachable redis:// or rediss:// URL (npx sim-setup can manage a Redis container)',
+      },
+    ]
+  }
   const ping = await redisPing(redisUrl)
   return [
     ping.ok
@@ -627,7 +709,7 @@ async function checkRedis(sim: EnvFile): Promise<Finding[]> {
           group: 'live',
           status: 'fail',
           message: `redis unreachable: ${ping.error}`,
-          fix: 'fix REDIS_URL or remove it (optional for single-replica)',
+          fix: 'start Redis (npx sim-setup can manage a Redis container) or fix REDIS_URL',
         },
   ]
 }

@@ -3,6 +3,7 @@ import type {
   LambdaListVersionsByFunctionParams,
   LambdaListVersionsByFunctionResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listVersionsByFunctionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listVersionsByFunctionTool: InternalToolConfig<
   name: 'Lambda List Function Versions',
   description: 'List the published versions of a Lambda function, plus $LATEST',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

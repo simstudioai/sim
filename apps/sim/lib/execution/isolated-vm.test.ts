@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import {
+  createMockRedis,
   getMockLogger,
   inputValidationMock,
   inputValidationMockFns,
@@ -87,6 +88,8 @@ type ControllableReadyProc = {
   spawn: SpawnFactory
   dispatched: Promise<void>
   release: (result?: unknown) => void
+  /** Every message the pool sent the worker, in order. */
+  sent: Array<{ type?: string; executionId?: number }>
 }
 
 /**
@@ -104,11 +107,13 @@ function createControllableReadyProc(): ControllableReadyProc {
   })
   let proc: MockProc | undefined
   let lastExecutionId = 0
+  const sent: ControllableReadyProc['sent'] = []
 
   const spawn: SpawnFactory = () => {
     const current = createBaseProc()
     current.send = (message: unknown) => {
       const msg = message as { type?: string; executionId?: number }
+      sent.push(msg)
       if (msg.type === 'execute') {
         lastExecutionId = msg.executionId ?? 0
         markDispatched()
@@ -128,7 +133,7 @@ function createControllableReadyProc(): ControllableReadyProc {
     })
   }
 
-  return { spawn, dispatched, release }
+  return { spawn, dispatched, release, sent }
 }
 
 function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: string }): MockProc {
@@ -236,20 +241,15 @@ async function loadExecutionModule(options: {
     IVM_MAX_FETCH_RESPONSE_CHARS: '',
     IVM_MAX_FETCH_URL_LENGTH: '',
     IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
-    REDIS_URL: '',
     IVM_REMOTE_WORKER_URL: '',
     IVM_REMOTE_WORKER_TOKEN: '',
     ...(options.envOverrides ?? {}),
   })
 
-  const redisEval = options.redisEvalImpl ? vi.fn(options.redisEvalImpl) : undefined
-  mockGetRedisClient.mockImplementation(() =>
-    redisEval
-      ? ({
-          eval: redisEval,
-        } as unknown)
-      : null
-  )
+  const redis = createMockRedis()
+  if (options.redisEvalImpl) redis.eval.mockImplementation(options.redisEvalImpl)
+  else redis.eval.mockResolvedValue(1)
+  mockGetRedisClient.mockReturnValue(redis)
 
   vi.resetModules()
 
@@ -334,6 +334,25 @@ describe('isolated-vm scheduler', () => {
     expect(result.error).toBeUndefined()
     expect(result.result).toBe('ok')
     expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('disposes the worker execution when the host timeout fires', async () => {
+    const { spawn, sent } = createControllableReadyProc()
+    const { executeInIsolatedVM } = await loadExecutionModule({ spawns: [spawn] })
+
+    const result = await executeInIsolatedVM({
+      code: 'await new Promise(() => {})',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 10,
+      requestId: 'req-hung',
+    })
+
+    expect(result.termination).toBe('timeout')
+    const executed = sent.find((message) => message.type === 'execute')
+    expect(executed?.executionId).toBeDefined()
+    expect(sent).toContainEqual({ type: 'cancel', executionId: executed?.executionId })
   })
 
   it('spawns workers with an allowlisted env, never the parent process.env', async () => {
@@ -630,11 +649,10 @@ describe('isolated-vm scheduler', () => {
     await holderPromise
   })
 
-  it('enforces distributed owner in-flight lease limit when Redis is configured', async () => {
+  it('enforces distributed owner in-flight lease limit', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
-        REDIS_URL: 'redis://localhost:6379',
       },
       spawns: [() => createReadyProc('ok')],
       redisEvalImpl: (...args: unknown[]) => {
@@ -660,33 +678,8 @@ describe('isolated-vm scheduler', () => {
     expect(result.result).toBeNull()
   })
 
-  it('falls back to local limits when no Redis client is available', async () => {
-    const { executeInIsolatedVM } = await loadExecutionModule({
-      envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
-      },
-      spawns: [() => createReadyProc('ok')],
-    })
-
-    const result = await executeInIsolatedVM({
-      code: 'return "ok"',
-      params: {},
-      envVars: {},
-      contextVariables: {},
-      timeoutMs: 100,
-      requestId: 'req-7',
-      ownerKey: 'user:redis-down',
-    })
-
-    expect(result.error).toBeUndefined()
-    expect(result.result).toBe('ok')
-  })
-
   it('falls back to local limits when the lease evaluation errors', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
-      envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
-      },
       spawns: [() => createReadyProc('ok')],
       redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')
@@ -714,7 +707,6 @@ describe('isolated-vm scheduler', () => {
   it('falls back to local limits when the lease round trip exceeds its deadline', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
         IVM_LEASE_REDIS_DEADLINE_MS: '5',
       },
       spawns: [() => createReadyProc('ok')],
@@ -750,7 +742,6 @@ describe('isolated-vm scheduler', () => {
     })
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
         IVM_LEASE_REDIS_DEADLINE_MS: '5',
       },
       spawns: [() => createReadyProc('ok')],
@@ -784,7 +775,6 @@ describe('isolated-vm scheduler', () => {
       envOverrides: {
         IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
         IVM_LEASE_REDIS_DEADLINE_MS: '-1',
-        REDIS_URL: 'redis://localhost:6379',
       },
       spawns: [() => createReadyProc('ok')],
       redisEvalImpl: async (...args: unknown[]) => {
@@ -820,7 +810,6 @@ describe('isolated-vm scheduler', () => {
     })
     const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
       envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
         IVM_LEASE_REDIS_DEADLINE_MS: '5',
       },
       spawns: [() => createReadyProc('unused')],
@@ -872,9 +861,6 @@ describe('isolated-vm scheduler', () => {
       markLeaseRequested = resolve
     })
     const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
-      envOverrides: {
-        REDIS_URL: 'redis://localhost:6379',
-      },
       spawns: [() => createReadyProc('unused')],
       redisEvalImpl: (...args: unknown[]) => {
         const script = String(args[0] ?? '')
@@ -1136,7 +1122,8 @@ describe('isolated-vm scheduler', () => {
 
     expect(JSON.parse(String(result.result)).error).toContain(secret)
     expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(secret)
-    expect(mockLogger.warn).toHaveBeenCalledWith('[req-fetch-secret] Isolated fetch failed', {
+    expect(mockLogger.warn).toHaveBeenCalledWith('Isolated fetch failed', {
+      requestId: 'req-fetch-secret',
       errorName: 'Error',
     })
   })

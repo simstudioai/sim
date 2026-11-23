@@ -1,5 +1,6 @@
 import type { DaytonaRunCodeParams, DaytonaRunCodeResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError, toOptionalNumber } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
@@ -8,6 +9,7 @@ export const daytonaRunCodeTool: ToolConfig<DaytonaRunCodeParams, DaytonaRunCode
   name: 'Daytona Run Code',
   description: 'Run Python, JavaScript, or TypeScript code inside a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

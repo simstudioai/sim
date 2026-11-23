@@ -31,7 +31,7 @@ export const GET = withRouteHandler(
     'deploy.mcp'
   )(async (_request: NextRequest, { workspaceId, requestId }) => {
     try {
-      logger.info(`[${requestId}] Listing workflow MCP servers for workspace ${workspaceId}`)
+      logger.info(`Listing workflow MCP servers for workspace ${workspaceId}`, { requestId })
 
       const servers = await db
         .select({
@@ -85,12 +85,12 @@ export const GET = withRouteHandler(
         toolNames: toolNamesByServer[server.id] || [],
       }))
 
-      logger.info(
-        `[${requestId}] Listed ${servers.length} workflow MCP servers for workspace ${workspaceId}`
-      )
+      logger.info(`Listed ${servers.length} workflow MCP servers for workspace ${workspaceId}`, {
+        requestId,
+      })
       return createMcpSuccessResponse({ servers: serversWithToolNames })
     } catch (error) {
-      logger.error(`[${requestId}] Error listing workflow MCP servers:`, error)
+      logger.error('Error listing workflow MCP servers:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to list workflow MCP servers', 500)
     }
   })
@@ -118,7 +118,8 @@ export const POST = withRouteHandler(
 
         const body = parsedBody.data
 
-        logger.info(`[${requestId}] Creating workflow MCP server:`, {
+        logger.info('Creating workflow MCP server:', {
+          requestId,
           name: body.name,
           workspaceId,
           workflowIds: body.workflowIds,
@@ -146,15 +147,15 @@ export const POST = withRouteHandler(
         const { server } = result
         const addedTools = result.addedTools || []
 
-        logger.info(
-          `[${requestId}] Successfully created workflow MCP server: ${body.name} (ID: ${server.id})`
-        )
+        logger.info(`Successfully created workflow MCP server: ${body.name} (ID: ${server.id})`, {
+          requestId,
+        })
 
         return createMcpSuccessResponse({ server, addedTools }, 201)
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
+        logger.error('Error creating workflow MCP server:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to create workflow MCP server', 500)
       }
     }

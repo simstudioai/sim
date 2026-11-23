@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFormTool: ToolConfig<JotformGetFormParams, JotformFormResponse> = {
@@ -14,6 +15,7 @@ export const getFormTool: ToolConfig<JotformGetFormParams, JotformFormResponse> 
   description:
     'Get the details of a single Jotform form, including its status, URL, and submission counts.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

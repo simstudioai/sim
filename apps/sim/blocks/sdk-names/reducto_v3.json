@@ -1,0 +1,8 @@
+{
+  "namespace": "reducto",
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

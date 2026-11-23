@@ -4,7 +4,7 @@ import type {
   SalesforceGetOpportunitiesResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, idPathSegment } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceGetOpportunities')
@@ -58,7 +58,7 @@ export const salesforceGetOpportunitiesTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.opportunityId) {
-        const opportunityId = requireId(params.opportunityId, 'Opportunity ID')
+        const opportunityId = idPathSegment(params.opportunityId, 'Opportunity ID')
         const fields = params.fields || 'Id,Name,AccountId,Amount,StageName,CloseDate,Probability'
         return `${instanceUrl}/services/data/v59.0/sobjects/Opportunity/${opportunityId}?fields=${encodeURIComponent(fields)}`
       }

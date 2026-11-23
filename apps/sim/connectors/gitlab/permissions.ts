@@ -1,7 +1,13 @@
+import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import { groupToken, sortAccessTokens, userToken } from '@/lib/knowledge/access/tokens'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  GITLAB_GROUP_MAX_PROJECTS,
+  type GitLabGroupScope,
+  gitLabProjectInGroup,
+} from '@/connectors/gitlab/group'
 import {
   getGitLabCsvContext,
   gitLabCsvGroupToken,
@@ -11,7 +17,9 @@ import {
   type GitLabSourcePolicy,
 } from '@/connectors/gitlab/permission-policy'
 import type { ConnectorDirectory, ExternalDocument } from '@/connectors/types'
-import { normalizeGitLabHost } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, normalizeGitLabHost } from '@/tools/gitlab/utils'
+
+const logger = createLogger('GitLabPermissions')
 
 const MAX_DIRECTORY_PAGES = 500
 const PAGE_SIZE = 100
@@ -39,13 +47,14 @@ export async function validateGitLabCsvToken(
   signal?: AbortSignal
 ): Promise<{ host: string; projectId: number; projectPath: string }> {
   const { base, project } = sourceAddress(sourceConfig)
-  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true, signal)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, 'account', true, signal)
   if (viewer.state !== 'active' || viewer.locked === true || !Number.isSafeInteger(viewer.id)) {
     throw new Error('An active GitLab identity with read_api access is required')
   }
   const record = await read<GitLabPermissionProject>(
     `${base}/projects/${project}`,
     token,
+    'project',
     true,
     signal
   )
@@ -56,6 +65,112 @@ export async function validateGitLabCsvToken(
     host: normalizeGitLabHost(sourceConfig.host),
     projectId: record.id,
     projectPath: record.path_with_namespace,
+  }
+}
+
+/** Validate the current token and resolve the canonical group without enumerating its projects. */
+export async function validateGitLabGroupToken(
+  token: string,
+  config: Record<string, unknown>,
+  mode: 'csv' | 'administrator',
+  signal?: AbortSignal
+): Promise<Pick<GitLabGroupScope, 'host' | 'group'>> {
+  const host = normalizeGitLabHost(config.host)
+  const requested = typeof config.group === 'string' ? config.group.trim() : ''
+  if (!requested || (config.project !== undefined && config.project !== ''))
+    throw new Error('Provide a GitLab group ID or full path without a project.')
+  if (![undefined, '', 'true', 'false'].includes(config.includeSubgroups as string | undefined))
+    throw new Error('Invalid GitLab subgroup setting')
+  const encodedGroup = encodeGitLabResourceId(requested)
+  const base = `https://${host}/api/v4`
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, 'account', true, signal)
+  if (
+    viewer.state !== 'active' ||
+    viewer.locked === true ||
+    !Number.isSafeInteger(viewer.id) ||
+    (mode === 'administrator' && viewer.is_admin !== true)
+  )
+    throw new Error(
+      mode === 'administrator'
+        ? 'Use an active GitLab administrator token, or choose non-admin CSV permissions.'
+        : 'An active GitLab identity with read_api access is required'
+    )
+  const record = await read<{ id: number; full_path: string }>(
+    `${base}/groups/${encodedGroup}`,
+    token,
+    'group',
+    true,
+    signal
+  )
+  if (
+    !Number.isSafeInteger(record.id) ||
+    record.id <= 0 ||
+    typeof record.full_path !== 'string' ||
+    !record.full_path
+  )
+    throw new Error('GitLab did not return the group identity')
+  const group = {
+    id: record.id,
+    path: record.full_path,
+    includeSubgroups: config.includeSubgroups === 'true',
+  }
+  return { host, group }
+}
+
+/** Resolve a bounded, complete group scope before any permission snapshot can be replaced. */
+export async function discoverGitLabGroup(
+  token: string,
+  config: Record<string, unknown>,
+  mode: 'csv' | 'administrator',
+  signal?: AbortSignal
+): Promise<GitLabGroupScope> {
+  const deadline = AbortSignal.timeout(5 * 60 * 1000)
+  const discoverySignal = signal ? AbortSignal.any([signal, deadline]) : deadline
+  try {
+    const { host, group } = await validateGitLabGroupToken(token, config, mode, discoverySignal)
+    const base = `https://${host}/api/v4`
+    const projects: GitLabGroupScope['projects'] = []
+    const ids = new Set<number>()
+    const paths = new Set<string>()
+    let manifestBytes = 0
+    for await (const rows of listPages<GitLabPermissionProject>(
+      `${base}/groups/${group.id}/projects?with_shared=false&include_subgroups=${group.includeSubgroups}&simple=true&order_by=id&sort=asc`,
+      token,
+      discoverySignal,
+      GITLAB_GROUP_MAX_PROJECTS
+    )) {
+      for (const row of rows) {
+        if (
+          !Number.isSafeInteger(row.id) ||
+          row.id <= 0 ||
+          typeof row.path_with_namespace !== 'string' ||
+          row.path_with_namespace.length > 1024 ||
+          !gitLabProjectInGroup(row.path_with_namespace, group) ||
+          ids.has(row.id) ||
+          paths.has(row.path_with_namespace)
+        )
+          throw new Error(
+            'GitLab returned an inconsistent group project listing. Retry the update.'
+          )
+        const project = { id: row.id, path: row.path_with_namespace }
+        manifestBytes += Buffer.byteLength(JSON.stringify(project), 'utf8') + 1
+        if (manifestBytes > 16 * 1024 * 1024)
+          throw new Error('GitLab group project paths exceed 16 MiB. Choose a narrower group.')
+        ids.add(project.id)
+        paths.add(project.path)
+        projects.push(project)
+      }
+    }
+    if (!projects.length)
+      throw new Error('The GitLab token cannot read any projects in this group.')
+    projects.sort((left, right) => left.id - right.id)
+    return { host, group, projects }
+  } catch (error) {
+    if (deadline.aborted && !signal?.aborted)
+      throw new Error(
+        'GitLab group discovery exceeded five minutes. Retry or choose a narrower group.'
+      )
+    throw error
   }
 }
 
@@ -113,6 +228,7 @@ function sourceAddress(sourceConfig: Record<string, unknown>) {
 async function read<T>(
   url: string,
   token: string,
+  operation: 'account' | 'project' | 'group',
   validating = false,
   signal?: AbortSignal
 ): Promise<T> {
@@ -125,7 +241,36 @@ async function read<T>(
     },
     { ...(validating ? VALIDATE_RETRY_OPTIONS : {}), maxResponseBytes: MAX_RESPONSE_BYTES, signal }
   )
-  if (!response.ok) throw new Error(`GitLab permission lookup failed (${response.status})`)
+  if (!response.ok) {
+    const requestId = response.headers.get('x-request-id')
+    logger.warn('GitLab permission read failed', {
+      operation,
+      status: response.status,
+      ...(requestId && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId)
+        ? { providerRequestId: requestId }
+        : {}),
+    })
+    if (response.status === 401) {
+      throw new Error('GitLab did not accept the token. Use a valid token with read_api scope.')
+    }
+    if (response.status === 403) {
+      throw new Error(
+        'GitLab denied access. Check read_api scope, token access, and IP restrictions.'
+      )
+    }
+    if (response.status === 404) {
+      throw new Error(
+        operation === 'group'
+          ? 'Could not access this GitLab group. Check the group ID or full path, token access, and IP restrictions.'
+          : operation === 'project'
+            ? 'Could not access this GitLab project. Check the project ID or full path, token access, and IP restrictions.'
+            : 'Could not verify the GitLab account. Check the host and API access.'
+      )
+    }
+    throw new Error(
+      `GitLab could not verify ${operation} access (HTTP ${response.status}). Try again.`
+    )
+  }
   return (await response.json()) as T
 }
 
@@ -136,7 +281,12 @@ export async function validateGitLabPermissionToken(
 ): Promise<void> {
   await requireAdministrator(token, sourceConfig)
   const { base, project } = sourceAddress(sourceConfig)
-  const record = await read<GitLabPermissionProject>(`${base}/projects/${project}`, token, true)
+  const record = await read<GitLabPermissionProject>(
+    `${base}/projects/${project}`,
+    token,
+    'project',
+    true
+  )
   await discoverGitLabPermissionPolicy(token, sourceConfig, record, true)
 }
 
@@ -146,7 +296,7 @@ async function requireAdministrator(
   signal?: AbortSignal
 ): Promise<void> {
   const { base } = sourceAddress(sourceConfig)
-  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true, signal)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, 'account', true, signal)
   if (viewer.is_admin !== true || viewer.state !== 'active' || viewer.locked === true) {
     throw new Error(
       'Mirror source permissions requires an active GitLab instance administrator token with read_api access'
@@ -155,14 +305,23 @@ async function requireAdministrator(
 }
 
 /** Bounded complete enumeration. Never accept a partial directory as authoritative membership. */
-async function listAll<T>(url: string, token: string, signal?: AbortSignal): Promise<T[]> {
+async function* listPages<T>(
+  url: string,
+  token: string,
+  signal?: AbortSignal,
+  maxItems?: number
+): AsyncGenerator<T[]> {
   const initial = new URL(url)
   initial.searchParams.set('per_page', String(PAGE_SIZE))
   let next: URL | null = initial
   const seen = new Set<string>()
-  const items: T[] = []
+  let itemCount = 0
   let retainedBytes = 0
-  for (let page = 0; next && page < MAX_DIRECTORY_PAGES; page += 1) {
+  let expectedTotal: number | undefined
+  const maxPages =
+    maxItems === undefined ? MAX_DIRECTORY_PAGES : Math.ceil(maxItems / PAGE_SIZE) + 1
+  for (let page = 0; next && page < maxPages; page += 1) {
+    signal?.throwIfAborted()
     if (seen.has(next.href)) throw new Error('GitLab permission pagination repeated a page')
     seen.add(next.href)
     const response = await secureFetchWithRetry(
@@ -177,11 +336,30 @@ async function listAll<T>(url: string, token: string, signal?: AbortSignal): Pro
     if (!response.ok) throw new Error(`GitLab permission listing failed (${response.status})`)
     const body = (await response.json()) as T[]
     if (!Array.isArray(body)) throw new Error('GitLab permission listing was not an array')
-    retainedBytes += Buffer.byteLength(JSON.stringify(body), 'utf8')
-    if (body.length > PAGE_SIZE || retainedBytes > MAX_DIRECTORY_BYTES) {
+    if (maxItems === undefined) retainedBytes += Buffer.byteLength(JSON.stringify(body), 'utf8')
+    if (
+      body.length > PAGE_SIZE ||
+      (maxItems === undefined && retainedBytes > MAX_DIRECTORY_BYTES)
+    ) {
       throw new Error('GitLab permission directory exceeded its response budget')
     }
-    items.push(...body)
+    itemCount += body.length
+    if (maxItems !== undefined) {
+      const totalHeader = response.headers.get('x-total')
+      if (totalHeader !== null) {
+        const total = Number(totalHeader)
+        if (!/^\d+$/.test(totalHeader) || !Number.isSafeInteger(total))
+          throw new Error('GitLab returned an invalid group project total.')
+        if (total > maxItems)
+          throw new Error('GitLab group exceeds 50,000 projects. Choose a narrower group.')
+        if (expectedTotal !== undefined && total !== expectedTotal)
+          throw new Error('GitLab group projects changed during discovery. Retry the update.')
+        expectedTotal = total
+      }
+      if (itemCount > maxItems)
+        throw new Error('GitLab group exceeds 50,000 projects. Choose a narrower group.')
+    }
+    yield body
     const link = response.headers
       .get('link')
       ?.split(',')
@@ -193,16 +371,37 @@ async function listAll<T>(url: string, token: string, signal?: AbortSignal): Pro
       if (candidate.origin !== initial.origin || candidate.pathname !== initial.pathname) {
         throw new Error('GitLab permission pagination changed its source')
       }
+      if (
+        maxItems !== undefined &&
+        [...initial.searchParams].some(
+          ([key, value]) => key !== 'page' && candidate.searchParams.get(key) !== value
+        )
+      )
+        throw new Error('GitLab group pagination changed its scope')
       next = candidate
     } else if (nextPage) {
       if (!/^\d+$/.test(nextPage)) throw new Error('Invalid GitLab permission page')
       next = new URL(initial)
       next.searchParams.set('page', nextPage)
+    } else if (
+      maxItems !== undefined &&
+      body.length === PAGE_SIZE &&
+      response.headers.get('x-next-page') === null
+    ) {
+      next = new URL(initial)
+      next.searchParams.set('page', String(page + 2))
     } else {
       next = null
     }
   }
+  if (expectedTotal !== undefined && itemCount !== expectedTotal)
+    throw new Error('GitLab group project listing was incomplete')
   if (next) throw new Error('GitLab permission directory exceeded its page limit')
+}
+
+async function listAll<T>(url: string, token: string, signal?: AbortSignal): Promise<T[]> {
+  const items: T[] = []
+  for await (const page of listPages<T>(url, token, signal)) items.push(...page)
   return items
 }
 
@@ -295,7 +494,7 @@ async function loadSnapshot(
   await requireAdministrator(token, config, signal)
   const { base, project } = sourceAddress(config)
   const [record, users, members] = await Promise.all([
-    read<GitLabPermissionProject>(`${base}/projects/${project}`, token, false, signal),
+    read<GitLabPermissionProject>(`${base}/projects/${project}`, token, 'project', false, signal),
     listAll<GitLabPermissionUser>(
       `${base}/users?pagination=keyset&order_by=id&sort=asc`,
       token,
@@ -347,7 +546,13 @@ export async function openGitLabDirectory(
     }
   }
   const { tenant, base, project } = sourceAddress(config)
-  const identity = await read<{ id: number }>(`${base}/projects/${project}`, token, false, signal)
+  const identity = await read<{ id: number }>(
+    `${base}/projects/${project}`,
+    token,
+    'project',
+    false,
+    signal
+  )
   if (!Number.isInteger(identity.id)) throw new Error('GitLab did not return a project identity')
   const groups = FEATURES.map((feature) => ({ id: groupId(identity.id, feature) }))
   let pending: Promise<PermissionSnapshot> | undefined

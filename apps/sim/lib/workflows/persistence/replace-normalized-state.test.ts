@@ -10,6 +10,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   prepare: vi.fn(),
   extractCustomTools: vi.fn(),
+  loadStoredGraph: vi.fn(),
+}))
+
+vi.mock('@sim/workflow-persistence/load', () => ({
+  loadWorkflowFromNormalizedTablesRaw: mocks.loadStoredGraph,
 }))
 
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
@@ -21,6 +26,7 @@ vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
 }))
 
 import {
+  CUSTOM_TOOLS_NOT_SAVED_WARNING,
   replaceWorkflowNormalizedState,
   WorkflowStatePersistenceError,
 } from '@/lib/workflows/persistence/replace-normalized-state'
@@ -85,6 +91,7 @@ describe('replaceWorkflowNormalizedState', () => {
     mocks.prepare.mockReturnValue({ state: PREPARED, warnings: [] })
     mockSave.mockResolvedValue({ success: true })
     mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
+    mocks.loadStoredGraph.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
   })
 
   /**
@@ -101,7 +108,7 @@ describe('replaceWorkflowNormalizedState', () => {
     const result = await replaceWorkflowNormalizedState(input())
 
     expect(mocks.prepare).toHaveBeenCalledWith({
-      blocks: { 'block-1': BLOCK },
+      blocks: { 'block-1': { ...BLOCK, locked: false } },
       edges: [],
     })
     expect(mockSave).toHaveBeenCalledWith(
@@ -119,6 +126,26 @@ describe('replaceWorkflowNormalizedState', () => {
     await replaceWorkflowNormalizedState(input())
 
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
+  })
+
+  it('reports custom tools that failed to save as a warning, after the graph committed', async () => {
+    mocks.extractCustomTools.mockResolvedValue({
+      saved: 0,
+      errors: ['Failed to persist custom tools: connection reset'],
+    })
+
+    const result = await replaceWorkflowNormalizedState(input())
+
+    expect(mockSave).toHaveBeenCalled()
+    expect(result.warnings).toEqual([CUSTOM_TOOLS_NOT_SAVED_WARNING])
+  })
+
+  it('reports a custom-tool persistence crash as a warning instead of failing the write', async () => {
+    mocks.extractCustomTools.mockRejectedValue(new Error('pool exhausted'))
+
+    const result = await replaceWorkflowNormalizedState(input())
+
+    expect(result.warnings).toEqual([CUSTOM_TOOLS_NOT_SAVED_WARNING])
   })
 
   /** Pre-existing, deliberate: a stale custom tool never fails a committed graph write. */

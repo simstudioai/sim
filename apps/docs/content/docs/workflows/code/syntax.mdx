@@ -1,0 +1,268 @@
+---
+title: File syntax
+description: The TypeScript subset a workflow file accepts, from builders, values, references, wiring, branches, loops and function code.
+---
+
+A workflow file is a declaration of blocks and connections, not a program. Sim reads it statically and never runs it, so the file holds a fixed set of forms. This page lists them. A form outside it is refused with `E_UNSUPPORTED_SYNTAX` and a hint that names the supported form. The types for every builder are in `.sim/sdk/` after a `get`, and `sim workflows source params <builder>` prints one builder's params.
+
+## An example
+
+A webhook receives a ticket, an agent classifies it, billing tickets are logged to a table, and the team hears about every ticket in Slack. This is the file `sim workflows source get` prints for it:
+
+```ts title="workflow.ts"
+// @sim-sdk 1
+import {
+  agent,
+  condition,
+  credential,
+  env,
+  js,
+  slack,
+  t,
+  table,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow(
+  'Support triage',
+  { variables: { escalations: { type: 'number', value: 0 } } },
+  () => {
+    const ticketIn = trigger.webhook('Ticket in', {
+      requireAuth: true,
+      token: env.TICKETS_WEBHOOK_TOKEN,
+      inputFormat: { subject: 'string', body: 'string', contacts: 'array' },
+      responseMode: 'custom',
+      responseStatusCode: 202,
+      responseBody: { ok: true },
+    })
+    const classify = agent('Classify', {
+      messages: [
+        { role: 'system', content: 'Classify support tickets.' },
+        {
+          role: 'user',
+          content: t`${ticketIn.subject}
+
+${ticketIn.body}`,
+        },
+      ],
+      model: 'claude-sonnet-5-5',
+      responseFormat: {
+        name: 'ticket',
+        strict: true,
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['category', 'urgent'],
+          properties: {
+            category: { type: 'string', enum: ['billing', 'bug', 'other'] },
+            urgent: { type: 'boolean' },
+          },
+        },
+      },
+    })
+    const byCategory = condition('By category', {
+      billing: js`${classify.category} === 'billing'`,
+      else: true,
+    })
+    const logTicket = table.insertRow('Log ticket', {
+      tableId: table('tickets'),
+      data: { subject: ticketIn.subject, category: classify.category },
+    })
+    const notify = slack.sendMessage('Notify', {
+      credential: credential('support-slack'),
+      channel: 'C0SUPPORT',
+      text: t`New ${classify.category} ticket (urgent: ${classify.urgent}): ${ticketIn.subject}`,
+    })
+
+    ticketIn.to(classify)
+    classify.to(byCategory)
+    byCategory.billing.to(logTicket)
+    byCategory.else.to(notify)
+    logTicket.to(notify)
+    logTicket.onError(notify)
+  }
+)
+```
+
+How to read it:
+
+- Each `const` is a block. `agent`, `condition`, `table.insertRow`, and `slack.sendMessage` are the blocks you know from the workflow builder, with the same settings.
+- `classify.category` is a typed reference to another block's output, the same as `<classify.category>` in the builder. `t` writes text with references in it; `js` writes code.
+- `table('tickets')` and `credential('support-slack')` name workspace resources by a stable key. Renaming the table in Sim keeps the key.
+- `env.TICKETS_WEBHOOK_TOKEN` reads an environment variable. Secret values are never printed: a key pasted into a password field prints as `stored()`, which keeps the saved value.
+- `.to()` connects blocks, `byCategory.billing` is one branch of the condition, and `.onError()` follows the error path. `notify` has three incoming edges and runs once, after the branch that was taken.
+- A webhook answers its caller as soon as the request is accepted and runs the workflow in the background, so the caller never sees a `response` block's output. `responseMode: 'custom'` sets that fixed answer (here `202` with `{ "ok": true }`; without it, `200` with `{ "message": "Webhook processed" }`). To answer with values the run computes, start the workflow with `trigger.start` and call it through the API; a `response` block then sets what the caller receives.
+
+## The file
+
+```ts
+// @sim-sdk 1
+import { agent, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Name', { description: '…', variables: { /* … */ } }, ({ vars }) => {
+  const start = trigger.start('Start', { inputFormat: { question: 'string' } })
+  const answer = agent('Answer', { model: 'claude-sonnet-5-5', messages: [ /* … */ ] })
+  start.to(answer)
+})
+```
+
+- Line 1 is `// @sim-sdk N`. Without it the file is refused with `E_SDK_HEADER`; a number newer or older than the server reads is `E_SDK_MAJOR` or `E_SDK_MAJOR_OLD`.
+- Imports are named imports from `'@sim/workflow-sdk'` only. Aliases are allowed.
+- The file has exactly one `export default workflow(name, options?, body)` (`E_WORKFLOW_EXPORT`). `options` is `{ description?, variables? }`. `body` is `() => { … }` or `({ vars }) => { … }`.
+- Variables are `variables: { <key>: { name?, type, value } }`. `type` is `string`, `number`, `boolean`, `object`, `array` or `plain`, and both `type` and `value` are required; `value` is plain JSON. The key is the variable's key: lowercased, with spaces and dots removed. `name` is written only when it differs, and must normalize to the key (`E_VARIABLE_NAME_MISMATCH`). Read one as `vars.<key>`.
+- The body holds block declarations and wiring statements. Helpers, loops, conditionals and imports of your own have no stored form and are refused. Use `loop`, `parallel`, `condition` and `runWorkflow` blocks instead.
+
+## Blocks
+
+- `const x = builder('Name', params?, meta?)` declares a block; a bare `builder(…)` statement does too. The builder is the block's dotted path in the catalog: `agent`, `slack.sendMessage`, `table.insertRow`, `trigger.gmail.poller`. An unknown path is `E_UNKNOWN_BUILDER`, with a did-you-mean. Builders under `legacy.` are old block versions a workflow may already hold; do not write new ones.
+- `block(type, 'Name', params?, meta?)` writes any block type, including a custom or legacy one that no builder fits. Params are checked against the catalog when it knows the type, and kept as written when it does not.
+- A name is a non-empty string literal (`E_NAME_NOT_LITERAL`, `E_EMPTY_NAME`), unique once normalized (`E_DUPLICATE_NAME`), and not `loop`, `parallel` or `variable` (`E_RESERVED_NAME`). A name with a look-alike character, such as a Cyrillic letter inside a Latin word, is `E_LOOKALIKE_NAME`, and one with a bidirectional control or zero-width character is `W_SUSPICIOUS_CHARACTER`.
+- `response(name, { body, status?, headers? })` is the Response block. Any other key is `E_UNKNOWN_PARAM`.
+
+### Params
+
+- A param is a setting of the block, named as `sim workflows source params <builder>` lists it. For a setting the builder shows as a basic or advanced pair, you write the shared name, not either member. Writing a member by its own name is `E_UNKNOWN_PARAM`, and the hint names the right one.
+- An omitted param is the default the workflow builder fills in, so a block with no params is stored like one made in the builder. `null` for a whole param stores it as absent.
+- A param the builder already fixes, such as `operation`, is `E_FIXED_PARAM`.
+- A param that is not visible under the block's other settings is `W_FIELD_NOT_APPLICABLE`. It never runs, so the apply keeps the stored value and the next `get` leaves the line out.
+- A required field left empty, or written as `todo()`, is `W_REQUIRED_MISSING`. A value of the wrong JSON type is `W_VALUE_KIND`; it is never converted.
+
+### Selecting a resource or typing an ID
+
+For a field that offers a selector in the builder, a resource helper (`credential('key')`, `table('key')` and the others in the next section) or a non-empty array of them selects the resource. Anything else, such as `channel: 'C0123'`, is the value typed into the field. The kind of value alone decides which one you mean.
+
+### `meta`
+
+The optional third argument holds what belongs to the block, not to its settings.
+
+| Key | Meaning |
+| --- | --- |
+| `disabled: true` | The block is disabled. |
+| `locked: true` | An apply refuses any change to this block. |
+| `errorPort: boolean` | Exposes the error port. A block with an `onError` edge has one without this. |
+| `retry: { enabled, maxTries, waitBetweenTriesMs }` | The block's retry policy, written whole. `maxTries` is a whole number from 2 to 5 and `waitBetweenTriesMs` from 0 to 5000; anything else is `E_UNSUPPORTED_SYNTAX`. |
+| `advancedMode: boolean` | The block's advanced toggle, which changes what it sends. |
+| `triggerMode: boolean` | Runs the block as a trigger. Trigger builders set it. |
+| `branches: { <key>: { title? } }` | The display title of a condition or router row. |
+| `key: '<key>'` | A legacy block key the name cannot produce. A `get` writes it for a stored block that needs it; any other value is `E_KEY_OVERRIDE`. |
+
+## Values
+
+- Literals, objects, arrays and negative numbers are written as in TypeScript. A number too large to store is `E_NUMBER_NOT_FINITE`, and one whose digits a number cannot hold is `W_NUMBER_PRECISION`: write it as a string.
+- A string is `'…'`, an untagged template without `${}`, or a tagged template:
+
+  | Tag | For |
+  | --- | --- |
+  | `` t`…` `` | Text with references or `env.X` in it |
+  | `` js`…` `` | JavaScript: a condition expression, or function code inline |
+  | `` py`…` ``, `` sh`…` `` | Python and shell code |
+  | `` json`…` `` | JSON text kept as written |
+  | `` md`…` `` | Markdown, such as a note's content |
+
+### Resource helpers
+
+A key is the resource's stable key in the workspace; `.sim/sdk/workspace.d.ts` lists them. A key with no live resource is `E_MAT_UNKNOWN_RESOURCE` on apply.
+
+| Form | Stands for |
+| --- | --- |
+| `credential('key')` | A saved credential |
+| `table('key')` | A workspace table |
+| `knowledgeBase('key')` | A knowledge base |
+| `file('path')` | A workspace file |
+| `folder('key')` | A workspace folder |
+| `childWorkflow('key')` | A workflow, for `runWorkflow`; `.asTool()` in a `tools` list |
+| `customTool('key')` | A custom tool, in a `tools` list |
+| `mcp('key')` | An MCP server; `.tool(name)` in a `tools` list |
+| `skill('key')` | A workspace skill |
+| `codeFile('./functions/x.js')` | Function code kept in its own file |
+| `stored()` | The value already stored for this param, which is not printed |
+| `todo()` | No value yet |
+| `env.X` | The environment variable `X`, which a block reads as `{{X}}`. The name must match `[A-Za-z_][A-Za-z0-9_]*` (`E_INVALID_ENV_NAME`) |
+
+In a workspace directory, `sim workspaces source check` reports a key the directory does not declare; see [Manage a workspace as code](/workflows/code/workspace).
+
+### Secrets and `stored()`
+
+A secret is never printed. A literal value in a password field prints as `stored()`, which compiles to the value the stored workflow already holds for the same block and param. A new block, another block type or an empty field has nothing stored: `stored()` there is `E_STORED_VALUE_MISSING`. To set a secret, write `env.NAME` and keep the value in the workspace's environment variables. A literal key in the file is `W_LITERAL_SECRET`.
+
+### References
+
+- `block.output`, `block['x-y']` and `block.items[0]` read another block's output; they are stored as `<key.output>`, `<key.x-y>` and `<key.items[0]>`. The path is typed from the block's outputs. A path no output has is `W_UNKNOWN_OUTPUT_PATH`, which the apply refuses as an error on a block the edit changed.
+- An agent's declared `responseFormat` fields and a Start, API or Input trigger's declared `inputFormat` fields count as outputs. An input the trigger does not declare, and `x.error` on a block with no error edge, are `W_OUTPUT_PATH_UNDECLARED`: a warning the apply never refuses, because a caller may still pass the input.
+- A reference to a block declared later is `W_FORWARD_REF` and still resolves. A reference into a sibling loop or parallel's child is `E_OUT_OF_SCOPE`. An identifier that names nothing is `E_UNKNOWN_IDENTIFIER`, with a did-you-mean.
+- `vars.x` reads a workflow variable; an undeclared one is `E_UNKNOWN_VARIABLE`.
+- `ref('Raw.path')` writes the reference text `<Raw.path>` as you gave it. Hand-written `<Name.path>` text whose head is not a block key is `W_REF_NOT_NORMALIZED`.
+
+### JSON fields
+
+A field that holds JSON text, such as `responseFormat`, a table row's `data` or a response body, takes an object or array literal and stores it as formatted JSON. Each bare reference inside is quoted when the output is a string and left bare otherwise, because the run splices a string raw and any other value as JSON. A Function's `result`, or a field of it, has the type its JavaScript certainly returns there (a string literal, `String(…)`, `.toISOString().slice(…)` and the like are text; arithmetic, comparisons and literals are not); a Function `result` or an API `data` whose code or response may be text is untyped unless the code says. A reference no output type is known for is stored bare with `W_JSON_REF_UNTYPED`. A template is a JSON string, which is how a value becomes text on purpose. A resource helper inside the literal is `E_UNSUPPORTED_SYNTAX`.
+
+### Input formats and tools
+
+- `inputFormat` is a record: `name: 'string'` declares a string input, and `name: { type, … }` declares one with options. An entry with no type, such as `count: 5`, is refused.
+- An agent's `tools` is an array of:
+  - `slack.tool.sendMessage(params)`: an integration operation, written as the block's namespace, `tool`, and the operation;
+  - `customTool('key')`: a workspace custom tool;
+  - `mcp('key').tool('name', { args? })`: one tool of an MCP server, with the arguments the workflow fixes;
+  - `childWorkflow('key').asTool()`: a child workflow;
+  - `raw(tool)`: any other stored tool, which a `get` writes when a tool does not fit the forms above.
+- A tool's secret prints as `params: { key: stored() }`, resolved like a block's `stored()`. A tool that no rule matches to a stored one is `E_STORED_VALUE_MISSING`, so a deleted or reordered tool never takes another tool's secret.
+
+## Function code
+
+Code that does not fit a block goes in a Function block, kept in its own file:
+
+```ts
+const score = fn('Score lead', { code: codeFile('./functions/score-lead.js') })
+```
+
+The path is `./functions/<name>.<extension>`, relative to `workflow.ts`, and the extension matches the block's `language`: `js` for JavaScript (the default), `py` for Python, `sh` for shell. Any other path is `E_CODE_FILE_PATH`, and a file that was not sent is `E_CODE_FILE_MISSING`. When code cannot be kept in a file, a `get` writes it inline as `` js`…` `` and reports `W_CODE_FILE_INLINED`.
+
+In a JavaScript file, `$ref.block.path` reads another block's output and `$env.NAME` reads an environment variable. `block` is the block's key: its name lowercased with all whitespace and every `.` removed (`$ref.triageagent.content` for "Triage Agent", `$ref.v2result.text` for "V2. Result"). Inside a loop body, `$ref.loop.currentItem` and `$ref.loop.index` read the iteration's item and position; inside a parallel body, `$ref.parallel.currentItem` and `$ref.parallel.index`. A `$ref` that names no block is refused in a file you edited, because it would not resolve when the workflow runs. Python and shell files are saved as written, so `$ref` and `$env` mean nothing there: read an output as `<block.path>` (`<triageagent.content>`) and an environment variable as `{{NAME}}`; a `$ref` in one is `W_CODE_FILE_REF_SYNTAX`.
+
+## Branches
+
+- A condition's params object lists its rows in order, each a string or template. Write `else: true` last for the empty else. Two or more rows must end with `else` (`E_BRANCH_ELSE_LAST`).
+- A router's rows are `routes: { key: text }`.
+- A branch key is unique (`E_DUPLICATE_BRANCH_KEY`) and may not be an output name, `to` or `onError` (`E_BRANCH_KEY_COLLIDES`).
+- A branch that no edge leaves ends the run on that path; `check` reports it as `W_BRANCH_UNWIRED`.
+
+## Loops and parallel blocks
+
+| Form | Runs |
+| --- | --- |
+| `loop.for('Name', { count }, body)` | `count` times; a loop with no `count` runs 5 |
+| `loop.forEach('Name', { collection }, body)` | once per item |
+| `loop.while('Name', { condition }, body)` | while the condition holds |
+| `loop.doWhile('Name', { condition, count }, body)` | until the condition stops it; with no condition, `count` times |
+| `parallel.count('Name', { count, batchSize }, body)` | `count` branches |
+| `parallel.collection('Name', { collection, batchSize }, body)` | one branch per item |
+
+- `body` is `(p) => { … }`, where `p.to(x)` connects the container's start to a block inside it, or `(p) => block(…)`, which does the same for one block.
+- `p.index`, `p.currentItem` and `p.items` read the iteration; any other property is `E_UNKNOWN_SUBFLOW_PROPERTY`. They are stored as `<loop.x>` or `<parallel.x>`.
+- A `count` that is not a whole number of at least 1, or a `batchSize` outside 1 to 20, is `W_SUBFLOW_COUNT`: the run replaces or clamps it.
+
+## Wiring
+
+| Form | Connects |
+| --- | --- |
+| `a.to(b, c)` | `a` to `b` and `a` to `c` |
+| `a.to(b).to(c)` | a chain |
+| `a.to(b, c).to(d)` | `b` to `d` and `c` to `d` |
+| `a.onError(b)` | the error path of `a` |
+| `cond.key.to(x)` | one branch of a condition or router |
+| `container.to(x)` | what runs after the loop or parallel finishes |
+
+Refused: `.to()` on a condition or router itself (`E_NO_DEFAULT_OUTPUT`; wire a branch), a branch that does not exist (`E_UNKNOWN_BRANCH`), an edge into a trigger (`E_TARGET_TRIGGER`), `onError` on a block with no error port (`E_ERROR_PORT_UNSUPPORTED`), an edge to or from a note (`E_EDGE_NOTE`), an edge across loop or parallel scopes (`E_EDGE_SCOPE`), a repeated edge (`E_DUPLICATE_EDGE`) and a cycle (`E_EDGE_CYCLE`). Repeat work with a `loop` instead.
+
+## Comments
+
+Comments you write are kept and written back where they were. One inside an expression moves to the statement it belongs to (`W_COMMENT_MOVED`). One whose block no longer exists is dropped (`W_COMMENT_DROPPED`).
+
+## Related docs
+
+- [Diagnostic codes](/workflows/code/diagnostics)
+- [Edit a workflow](/workflows/code/edit)
+- [Directory layout](/workflows/code/directory)
+- [Limits](/workflows/code/limits)

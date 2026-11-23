@@ -5,13 +5,16 @@ import {
   LINQ_API_BASE,
   linqHeaders,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMessageResult> = {
   id: 'linq_send_message',
   name: 'Send Message',
   description: 'Send a message to an existing chat, with optional media, link, effect, or reply',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -91,7 +94,8 @@ export const linqSendMessageTool: ToolConfig<LinqSendMessageParams, LinqSendMess
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/messages`,
+    url: (params) =>
+      `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/messages`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => ({ message: buildMessageContent(params) }),

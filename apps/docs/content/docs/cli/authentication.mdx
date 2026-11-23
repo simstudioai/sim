@@ -154,7 +154,7 @@ export SIM_WORKSPACE="2f6d0b1c-8a34-4d92-b7e5-31c8a0f45d67"
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"source":"nightly"}' --output json
 ```
 
-The environment key overrides stored authentication. Use a workspace key only for supported workspace-scoped operations; organization audit logs and fork administration require a personal credential. Never commit credentials. `SIM_CONFIG_DIR` relocates local state when a runner has no writable home directory.
+The environment key overrides stored authentication. Use a workspace key only for supported workspace-scoped operations; organization audit logs and fork administration require a personal credential. A job that runs workflows needs a **Full access** key; a **Read only** key suits jobs that only read, such as exporting logs. Choose an expiration your secret rotation covers: an expired key fails with `401` and `API key has expired`. See [key access and expiration](/api-reference/authentication#key-access). Never commit credentials. `SIM_CONFIG_DIR` relocates local state when a runner has no writable home directory.
 
 ### GitHub Actions
 

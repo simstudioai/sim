@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramMessage,
   TelegramSendMessageResponse,
@@ -34,6 +35,7 @@ export const telegramSendPollTool: ToolConfig<TelegramSendPollParams, TelegramSe
     name: 'Telegram Send Poll',
     description: 'Send a native poll to a Telegram chat through the Telegram Bot API.',
     version: '1.0.0',
+    oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {
@@ -59,7 +61,7 @@ export const telegramSendPollTool: ToolConfig<TelegramSendPollParams, TelegramSe
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'List of 2-10 answer options as text strings',
+        description: 'List of 1-12 answer options as text strings',
       },
       isAnonymous: {
         type: 'boolean',
@@ -83,8 +85,8 @@ export const telegramSendPollTool: ToolConfig<TelegramSendPollParams, TelegramSe
       }),
       body: (params) => {
         const optionList = normalizePollOptions(params.options)
-        if (optionList.length < 2) {
-          throw new Error('A poll requires at least 2 options')
+        if (optionList.length === 0) {
+          throw new Error('A poll requires at least 1 option')
         }
         const body: Record<string, unknown> = {
           chat_id: params.chatId,

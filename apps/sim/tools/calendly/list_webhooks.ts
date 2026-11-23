@@ -3,6 +3,7 @@ import type {
   CalendlyListWebhooksResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWebhooksTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listWebhooksTool: ToolConfig<
   name: 'Calendly List Webhooks',
   description: 'Retrieve a list of webhook subscriptions for an organization',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

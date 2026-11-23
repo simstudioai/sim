@@ -19,6 +19,7 @@ import type {
   ReviewThreadComment,
   SubmittedReviewSummary,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CONTEXT = 'GitHub review threads response'
@@ -149,6 +150,7 @@ export const listReviewThreadsTool: ToolConfig<ListReviewThreadsParams, ListRevi
     description:
       "List one page of a pull request's review threads with their comments, plus the newest submitted review.",
     version: '1.0.0',
+    oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {
       owner: {

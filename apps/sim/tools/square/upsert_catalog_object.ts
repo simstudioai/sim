@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineSquareKeyedSite,
   type SquareDeliveryContextParams,
@@ -6,9 +7,10 @@ import {
 } from '@/tools/square/idempotency'
 import type { CatalogObjectResponse, UpsertCatalogObjectParams } from '@/tools/square/types'
 import {
+  CATALOG_ID_MAPPING_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
   CATALOG_OBJECT_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -31,9 +33,11 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
   name: 'Square Upsert Catalog Object',
   description: 'Create or update a catalog object such as an item, variation, or category',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -56,7 +60,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/catalog/object`,
+    url: (params) => `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/catalog/object`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => withSquareIdempotencyKey(DELIVERY, params, { object: params.object }),
@@ -69,6 +73,7 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
       success: true,
       output: {
         object,
+        id_mappings: data.id_mappings ?? [],
         metadata: {
           id: object.id,
           type: object.type ?? null,
@@ -80,6 +85,12 @@ export const squareUpsertCatalogObjectTool: ToolConfig<
 
   outputs: {
     object: { ...CATALOG_OBJECT_OUTPUT, description: 'The created or updated catalog object' },
+    id_mappings: {
+      type: 'array',
+      description: 'Mapping from each temporary #-prefixed client ID to its permanent Square ID',
+      optional: true,
+      items: { type: 'object', properties: CATALOG_ID_MAPPING_OUTPUT_PROPERTIES },
+    },
     metadata: {
       type: 'json',
       description: 'Catalog object summary metadata',

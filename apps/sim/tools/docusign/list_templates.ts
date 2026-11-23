@@ -2,7 +2,8 @@ import type {
   DocuSignListTemplatesParams,
   DocuSignListTemplatesResponse,
 } from '@/tools/docusign/types'
-import { TEMPLATES_ARRAY_OUTPUT } from '@/tools/docusign/types'
+import { LIST_PAGINATION_OUTPUTS, TEMPLATES_ARRAY_OUTPUT } from '@/tools/docusign/types'
+import { listPagination } from '@/tools/docusign/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const docusignListTemplatesTool: InternalToolConfig<
@@ -17,6 +18,7 @@ export const docusignListTemplatesTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -25,6 +27,12 @@ export const docusignListTemplatesTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     searchText: {
       type: 'string',
@@ -36,15 +44,25 @@ export const docusignListTemplatesTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of templates to return',
+      description:
+        'Maximum number of templates to return (DocuSign returns up to 2000 when omitted)',
+    },
+    startPosition: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Zero-based index of the first result to return, for paging through templates (default: 0)',
     },
   },
 
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       searchText: params.searchText,
       count: params.count,
+      startPosition: params.startPosition,
     }),
   },
 
@@ -67,6 +85,7 @@ export const docusignListTemplatesTool: InternalToolConfig<
         templates,
         totalSetSize: Number(data.totalSetSize) || 0,
         resultSetSize: Number(data.resultSetSize) || templates.length,
+        ...listPagination(data),
       },
     }
   },
@@ -75,5 +94,6 @@ export const docusignListTemplatesTool: InternalToolConfig<
     templates: TEMPLATES_ARRAY_OUTPUT,
     totalSetSize: { type: 'number', description: 'Total number of matching templates' },
     resultSetSize: { type: 'number', description: 'Number of templates returned in this response' },
+    ...LIST_PAGINATION_OUTPUTS,
   },
 }

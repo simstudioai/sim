@@ -3,7 +3,9 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -73,15 +75,19 @@ export const typeformHandler: WebhookProviderHandler = {
     const secret = config.secret as string | undefined
 
     if (!formId) {
-      logger.warn(`[${ctx.requestId}] Missing formId for Typeform webhook ${ctx.webhook.id}`)
-      throw new Error(
+      logger.warn(`Missing formId for Typeform webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
+      throw new WebhookDeploymentConfigurationError(
         'Form ID is required to create a Typeform webhook. Please provide a valid form ID.'
       )
     }
 
     if (!apiKey) {
-      logger.warn(`[${ctx.requestId}] Missing apiKey for Typeform webhook ${ctx.webhook.id}`)
-      throw new Error(
+      logger.warn(`Missing apiKey for Typeform webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
+      throw new WebhookDeploymentConfigurationError(
         'Personal Access Token is required to create a Typeform webhook. Please provide your Typeform API key.'
       )
     }
@@ -105,7 +111,7 @@ export const typeformHandler: WebhookProviderHandler = {
         requestBody.secret = secret
       }
 
-      const typeformResponse = await fetch(typeformApiUrl, {
+      const typeformResponse = await outboundFetch(typeformApiUrl, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -121,7 +127,8 @@ export const typeformHandler: WebhookProviderHandler = {
           (responseBody as Record<string, string>).message ||
           'Unknown error'
 
-        logger.error(`[${ctx.requestId}] Typeform API error: ${errorMessage}`, {
+        logger.error(`Typeform API error: ${errorMessage}`, {
+          requestId: ctx.requestId,
           status: typeformResponse.status,
           response: responseBody,
         })
@@ -147,8 +154,8 @@ export const typeformHandler: WebhookProviderHandler = {
 
       const responseBody = await typeformResponse.json()
       logger.info(
-        `[${ctx.requestId}] Successfully created Typeform webhook for webhook ${ctx.webhook.id} with tag ${tag}`,
-        { webhookId: (responseBody as Record<string, unknown>).id }
+        `Successfully created Typeform webhook for webhook ${ctx.webhook.id} with tag ${tag}`,
+        { requestId: ctx.requestId, webhookId: (responseBody as Record<string, unknown>).id }
       )
 
       if (!webhookTag && tag) {
@@ -165,10 +172,9 @@ export const typeformHandler: WebhookProviderHandler = {
         throw error
       }
 
-      logger.error(
-        `[${ctx.requestId}] Error creating Typeform webhook for webhook ${ctx.webhook.id}`,
-        error
-      )
+      logger.error(`Error creating Typeform webhook for webhook ${ctx.webhook.id}`, error, {
+        requestId: ctx.requestId,
+      })
       throw new Error(
         getErrorMessage(error, 'Failed to create Typeform webhook. Please try again.')
       )
@@ -184,7 +190,8 @@ export const typeformHandler: WebhookProviderHandler = {
 
       if (!formId || !apiKey) {
         logger.warn(
-          `[${ctx.requestId}] Missing formId or apiKey for Typeform webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing formId or apiKey for Typeform webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Typeform webhook deletion credentials')
         return
@@ -193,7 +200,7 @@ export const typeformHandler: WebhookProviderHandler = {
       const tag = webhookTag || `sim-${(ctx.webhook.id as string).substring(0, 8)}`
       const typeformApiUrl = `https://api.typeform.com/forms/${formId}/webhooks/${tag}`
 
-      const typeformResponse = await fetch(typeformApiUrl, {
+      const typeformResponse = await outboundFetch(typeformApiUrl, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -201,17 +208,21 @@ export const typeformHandler: WebhookProviderHandler = {
       })
 
       if (!typeformResponse.ok && typeformResponse.status !== 404) {
-        logger.warn(
-          `[${ctx.requestId}] Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`
-        )
+        logger.warn(`Failed to delete Typeform webhook (non-fatal): ${typeformResponse.status}`, {
+          requestId: ctx.requestId,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete Typeform webhook: ${typeformResponse.status}`)
         }
       } else {
-        logger.info(`[${ctx.requestId}] Successfully deleted Typeform webhook with tag ${tag}`)
+        logger.info(`Successfully deleted Typeform webhook with tag ${tag}`, {
+          requestId: ctx.requestId,
+        })
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Typeform webhook (non-fatal)`, error)
+      logger.warn('Error deleting Typeform webhook (non-fatal)', error, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraListProjectsParams, JiraListProjectsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -101,7 +102,7 @@ export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListPr
 
   transformResponse: async (response: Response, params?: JiraListProjectsParams) => {
     const fetchProjects = async (cloudId: string) => {
-      const projectsResponse = await fetch(buildSearchUrl(cloudId, params!), {
+      const projectsResponse = await outboundFetch(buildSearchUrl(cloudId, params!), {
         method: 'GET',
         headers: {
           Accept: 'application/json',

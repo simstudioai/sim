@@ -7,6 +7,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaRedactAccountTool: ToolConfig<
@@ -18,6 +19,7 @@ export const personaRedactAccountTool: ToolConfig<
   description:
     'Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

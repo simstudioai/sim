@@ -1,4 +1,5 @@
 import type { AlgoliaClearRecordsParams, AlgoliaClearRecordsResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const clearRecordsTool: ToolConfig<AlgoliaClearRecordsParams, AlgoliaClearRecordsResponse> =
@@ -8,6 +9,7 @@ export const clearRecordsTool: ToolConfig<AlgoliaClearRecordsParams, AlgoliaClea
     description:
       'Clear all records from an Algolia index while keeping settings, synonyms, and rules',
     version: '1.0',
+    oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
     params: {
       applicationId: {

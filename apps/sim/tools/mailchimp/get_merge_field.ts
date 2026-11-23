@@ -1,5 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetMergeFieldParams {
   apiKey: string
@@ -23,6 +25,7 @@ export const mailchimpGetMergeFieldTool: ToolConfig<
   name: 'Get Merge Field from Mailchimp Audience',
   description: 'Retrieve details of a specific merge field from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -47,7 +50,10 @@ export const mailchimpGetMergeFieldTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/merge-fields/${params.mergeId}`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/merge-fields/${safeUrlPathSegment(params.mergeId, 'mergeId')}`
+      ),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

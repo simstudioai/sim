@@ -105,7 +105,7 @@ export function groupTriggersByPath<
     groups.push(group)
   }
 
-  logger.info('Grouped triggers by path', {
+  logger.debug('Grouped triggers by path', {
     groupCount: groups.length,
     groups: groups.map((g) => ({
       count: g.length,
@@ -175,7 +175,7 @@ function selectBestFromGroup<T extends { type: string; subBlocks?: Record<string
   })
 
   const selected = sorted[0]
-  logger.info('Selected best trigger from group', {
+  logger.debug('Selected best trigger from group', {
     selectedId: selected.blockId,
     selectedType: selected.block.type,
     selectedPath: selected.path,

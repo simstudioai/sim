@@ -63,6 +63,17 @@ describe('import', () => {
       )
       expect(columns.map((c) => c.name)).toEqual(['a_b', 'a_b_2', 'a_b_3'])
     })
+
+    it('keeps codes with a leading zero as text so the zero survives', () => {
+      const { columns } = inferSchemaFromCsv(
+        ['zip', 'ratio'],
+        [
+          { zip: '02134', ratio: '0.5' },
+          { zip: '10001', ratio: '0' },
+        ]
+      )
+      expect(columns.map((c) => c.type)).toEqual(['string', 'number'])
+    })
   })
 
   describe('coerceValue', () => {

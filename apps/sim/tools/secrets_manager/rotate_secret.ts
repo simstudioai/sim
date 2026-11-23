@@ -2,6 +2,7 @@ import type {
   SecretsManagerRotateSecretParams,
   SecretsManagerRotateSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const rotateSecretTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const rotateSecretTool: InternalToolConfig<
   name: 'Secrets Manager Rotate Secret',
   description: 'Start or reconfigure rotation for a secret in AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

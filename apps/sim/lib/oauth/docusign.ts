@@ -45,3 +45,35 @@ export function getDocusignWebBase(): string {
     ? 'https://app.docusign.com'
     : 'https://appdemo.docusign.com'
 }
+
+/**
+ * The eSignature REST base a JWT Grant credential is bound to
+ * (`https://{host}.docusign.net/restapi/v2.1/accounts/{accountId}`), resolved
+ * by the minter from the credential's own environment.
+ */
+const DOCUSIGN_ACCOUNT_API_BASE_REGEX =
+  /^(https:\/\/([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.docusign\.net)\/restapi\/v2\.1\/accounts\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
+
+export interface DocuSignBoundAccount {
+  /** eSignature host origin, e.g. `https://na3.docusign.net`. */
+  baseUri: string
+  accountId: string
+  /** Web app origin for envelope links in the same environment as {@link baseUri}. */
+  webBase: string
+}
+
+/**
+ * Parses a credential-bound account base, or `undefined` when the value is not
+ * exactly that shape, so a value that did not come from the minter is never
+ * sent a token.
+ */
+export function parseDocuSignAccountApiBase(value: unknown): DocuSignBoundAccount | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = DOCUSIGN_ACCOUNT_API_BASE_REGEX.exec(value)
+  if (!match) return undefined
+  return {
+    baseUri: match[1],
+    accountId: match[3],
+    webBase: match[2] === 'demo' ? 'https://appdemo.docusign.com' : 'https://app.docusign.com',
+  }
+}

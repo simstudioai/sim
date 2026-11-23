@@ -767,6 +767,9 @@ export async function commitFileCreateInTx(
   return inserted
 }
 
+/** Writes that commit with a new workspace file: run in its create transaction, given its id. */
+export type WorkspaceFileCreateHook = (tx: DbTransaction, fileId: string) => Promise<void>
+
 /**
  * Upload a file to workspace-scoped storage
  */
@@ -782,6 +785,11 @@ export async function uploadWorkspaceFile(
     exactName?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
+    /**
+     * Runs inside the create's transaction once the file row is inserted, so what it writes
+     * commits or rolls back with the file.
+     */
+    withinCreate?: WorkspaceFileCreateHook
   }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
@@ -859,6 +867,7 @@ export async function uploadWorkspaceFile(
           secretProvenance: options?.secretProvenance,
         })
         const usage = await accounting.mutation.applyDelta(effectiveBuffer.length)
+        await options?.withinCreate?.(tx, inserted.id)
         return { inserted, updatedUsage: usage, billing: accounting.billing }
       })
 
@@ -3369,9 +3378,15 @@ export async function renameFileInTx(
 }
 
 /**
- * Soft delete a workspace file.
+ * Soft delete a workspace file. With `expectedContentUpdatedAt`, refuses with
+ * {@link ContentVersionConflictError} when its content was written since, checked under the row lock
+ * the delete takes, so an edit that lands after the caller's read is never deleted with it.
  */
-export async function deleteWorkspaceFile(workspaceId: string, fileId: string): Promise<void> {
+export async function deleteWorkspaceFile(
+  workspaceId: string,
+  fileId: string,
+  options: { expectedContentUpdatedAt?: Date } = {}
+): Promise<void> {
   logger.info(`Deleting workspace file: ${fileId}`)
 
   try {
@@ -3381,26 +3396,39 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     }
     if (fileRecord.deletedAt) return
 
+    const live = and(
+      eq(workspaceFiles.id, fileId),
+      eq(workspaceFiles.workspaceId, workspaceId),
+      eq(workspaceFiles.context, 'workspace'),
+      isNull(workspaceFiles.deletedAt)
+    )
     const [archived] = await db.transaction(async (tx) => {
       await lockWorkspaceProject(tx, workspaceId)
+      const expected = options.expectedContentUpdatedAt
+      if (expected) {
+        const [current] = await tx
+          .select({ contentUpdatedAt: workspaceFiles.contentUpdatedAt })
+          .from(workspaceFiles)
+          .where(live)
+          .for('update')
+          .limit(1)
+        if (current && current.contentUpdatedAt.getTime() !== expected.getTime()) {
+          throw new ContentVersionConflictError(fileId)
+        }
+      }
       return tx
         .update(workspaceFiles)
         .set({ deletedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(workspaceFiles.id, fileId),
-            eq(workspaceFiles.workspaceId, workspaceId),
-            eq(workspaceFiles.context, 'workspace'),
-            isNull(workspaceFiles.deletedAt)
-          )
-        )
+        .where(live)
         .returning()
     })
     if (!archived) return
 
     logger.info(`Successfully archived workspace file: ${archived.originalName}`)
   } catch (error) {
-    logger.error(`Failed to delete workspace file ${fileId}:`, error)
+    if (!(error instanceof ContentVersionConflictError)) {
+      logger.error(`Failed to delete workspace file ${fileId}:`, error)
+    }
     throw error
   }
 }

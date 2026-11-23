@@ -16,6 +16,7 @@ export const docusignDownloadDocumentTool: InternalToolConfig<
   oauth: {
     required: true,
     provider: 'docusign',
+    authoritativeParams: ['instanceUrl'],
   },
 
   params: {
@@ -24,6 +25,12 @@ export const docusignDownloadDocumentTool: InternalToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'DocuSign OAuth access token',
+    },
+    instanceUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'DocuSign account API base bound to a JWT Grant credential',
     },
     envelopeId: {
       type: 'string',
@@ -43,6 +50,7 @@ export const docusignDownloadDocumentTool: InternalToolConfig<
   operation: {
     input: (params) => ({
       accessToken: params.accessToken,
+      instanceUrl: params.instanceUrl,
       envelopeId: params.envelopeId,
       documentId: params.documentId,
     }),

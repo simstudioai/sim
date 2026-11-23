@@ -375,11 +375,8 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
 interface SidebarProps {
   organizationHref: string | null
-  /**
-   * Whether this install runs the desktop background executor, and whether the user has a desktop
-   * registered to run their turns, so chats show desktop activity.
-   */
-  desktopExecutor: { available: boolean; registered: boolean }
+  /** Whether the user has a desktop registered to run their turns, so chats show desktop activity. */
+  desktopExecutorRegistered: boolean
 }
 
 /**
@@ -398,7 +395,10 @@ interface SidebarProps {
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({
+  organizationHref,
+  desktopExecutorRegistered,
+}: SidebarProps) {
   const { isCollapsed: isCollapsedProp, isPeeking, onToggle: toggleCollapsed } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
@@ -923,7 +923,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref, desktopExecutor
     { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
-  const desktopActivityWatched = watchesDesktopActivity(desktopExecutor)
+  const desktopActivityWatched = watchesDesktopActivity(desktopExecutorRegistered)
   useMothershipChatEvents(
     workspaceId,
     chatEnabled && !permissionConfig.hideCopilot,

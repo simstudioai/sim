@@ -1,7 +1,9 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraAddWatcherParams, JiraAddWatcherResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcherResponse> = {
   id: 'jira_add_watcher',
@@ -51,7 +53,7 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
   request: {
     url: (params: JiraAddWatcherParams) => {
       if (params.cloudId) {
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/watchers`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/watchers`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -78,8 +80,8 @@ export const jiraAddWatcherTool: ToolConfig<JiraAddWatcherParams, JiraAddWatcher
     }
     if (!params?.cloudId) {
       const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-      const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/watchers`
-      const watcherResponse = await fetch(watcherUrl, {
+      const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/watchers`
+      const watcherResponse = await outboundFetch(watcherUrl, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

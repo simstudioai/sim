@@ -1,3 +1,4 @@
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface SearchCodeParams {
@@ -36,6 +37,7 @@ export const searchCodeTool: ToolConfig<SearchCodeParams, SearchCodeResponse> = 
   description:
     'Search for code across GitHub repositories. Use qualifiers like repo:owner/name, language:js, path:src, extension:py',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     q: {
@@ -49,13 +51,15 @@ export const searchCodeTool: ToolConfig<SearchCodeParams, SearchCodeResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort by indexed date (default: best match)',
+      description:
+        'Sort by "indexed" (how recently GitHub indexed the file); default is best match. GitHub has deprecated this parameter and is closing it down.',
     },
     order: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sort order: asc or desc (default: desc)',
+      description:
+        'Sort order: asc or desc (default: desc). Ignored unless sort is set; GitHub has deprecated this parameter and is closing it down.',
     },
     per_page: {
       type: 'number',
@@ -91,7 +95,7 @@ export const searchCodeTool: ToolConfig<SearchCodeParams, SearchCodeResponse> = 
     },
     method: 'GET',
     headers: (params) => ({
-      Accept: 'application/vnd.github.v3+json',
+      Accept: 'application/vnd.github.text-match+json',
       Authorization: `Bearer ${params.apiKey}`,
       'X-GitHub-Api-Version': '2022-11-28',
     }),
@@ -172,6 +176,7 @@ export const searchCodeV2Tool: ToolConfig<SearchCodeParams, any> = {
   name: searchCodeTool.name,
   description: searchCodeTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: searchCodeTool.params,
   request: searchCodeTool.request,
 

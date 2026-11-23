@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { getWorkflowInvocationTarget } from '@/lib/workflows/streaming/nested-output-options'
 import {
@@ -42,13 +43,9 @@ function resolveCurrentBlockId(
   }
 }
 
-/** Resolves current-workflow names and leaves child names for its authorized loader. */
-export function resolveOutputSelectors({
-  selectedOutputs,
-  currentBlocks,
-}: ResolveOutputSelectorsOptions): string[] | undefined {
-  if (!selectedOutputs || selectedOutputs.length === 0) return selectedOutputs?.slice()
-
+function createSelectorResolver(
+  currentBlocks: Record<string, BlockState>
+): (selector: string) => string {
   const currentBlockRefs = new Set<string>()
   const childWorkflowIds = new Set<string>()
   for (const block of Object.values(currentBlocks)) {
@@ -58,11 +55,51 @@ export function resolveOutputSelectors({
     if (childWorkflowId) childWorkflowIds.add(childWorkflowId)
   }
 
-  return selectedOutputs.map((selector) => {
+  return (selector) => {
     const parsed = parseStoredOutputSelector(selector, { currentBlockRefs, childWorkflowIds })
     const blockId = parsed.workflowId
       ? parsed.blockId
       : resolveCurrentBlockId(parsed.blockId, selector, currentBlocks)
     return formatInternalOutputSelector(blockId, parsed.path, parsed.workflowId)
-  })
+  }
+}
+
+/**
+ * Resolves current-workflow names and leaves child names for its authorized loader. Throws on
+ * the first selector that names no block, so a caller can refuse the request before running.
+ */
+export function resolveOutputSelectors({
+  selectedOutputs,
+  currentBlocks,
+}: ResolveOutputSelectorsOptions): string[] | undefined {
+  if (!selectedOutputs || selectedOutputs.length === 0) return selectedOutputs?.slice()
+  return selectedOutputs.map(createSelectorResolver(currentBlocks))
+}
+
+export interface LenientOutputSelectorResolution {
+  /** Resolved internal selectors, in caller order, without the rejected ones. */
+  selectedOutputs: string[]
+  rejected: Array<{ selector: string; reason: string }>
+}
+
+/**
+ * Resolves like {@link resolveOutputSelectors} but drops a selector that names no block
+ * instead of throwing. For surfaces whose contract has always tolerated a stale selector,
+ * where refusing it now would break callers that worked before.
+ */
+export function resolveOutputSelectorsLeniently({
+  selectedOutputs,
+  currentBlocks,
+}: ResolveOutputSelectorsOptions): LenientOutputSelectorResolution {
+  const resolution: LenientOutputSelectorResolution = { selectedOutputs: [], rejected: [] }
+  if (!selectedOutputs || selectedOutputs.length === 0) return resolution
+  const resolve = createSelectorResolver(currentBlocks)
+  for (const selector of selectedOutputs) {
+    try {
+      resolution.selectedOutputs.push(resolve(selector))
+    } catch (error) {
+      resolution.rejected.push({ selector, reason: getErrorMessage(error) })
+    }
+  }
+  return resolution
 }

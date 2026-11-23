@@ -57,20 +57,24 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
-    name: build
-    runs-on: macos-26
-    timeout-minutes: 60
+  source:
+    name: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      name: ${{ steps.channel.outputs.name }}
+      app_id: ${{ steps.channel.outputs.app_id }}
+      origin: ${{ steps.channel.outputs.origin }}
+      release_repository: ${{ steps.channel.outputs.release_repository }}
+      token_kind: ${{ steps.channel.outputs.token_kind }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
-          fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
 
       # Prerelease versions carry their environment in the tag: -dev.N is a
       # dev build, -staging.N a staging build. Legacy -alpha/-beta tags remain
@@ -115,11 +119,16 @@ jobs:
             echo "::error::Manual desktop releases must use a stable source-repository tag."
             exit 1
           fi
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != "refs/tags/$VERSION" ]; then
+            echo "::error::Run this workflow from the $VERSION tag, so it executes only that tag's code and its caches stay scoped to that tag."
+            exit 1
+          fi
           if [ "$PUBLISH" = true ] && [ "$SIGN" != true ]; then
             echo "::error::Desktop releases must be signed before publication."
             exit 1
           fi
           if [ "$TOKEN_KIND" = stable ]; then
+            git fetch --depth=1 origin "refs/tags/${VERSION}:refs/tags/${VERSION}"
             TAG_COMMIT="$(git rev-parse "refs/tags/${VERSION}^{commit}")"
             HEAD_COMMIT="$(git rev-parse HEAD)"
             if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
@@ -140,28 +149,49 @@ jobs:
             exit 1
           fi
 
+  smoke:
+    name: smoke (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: source
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - &checkout-source
+        name: Checkout verified source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.4
 
-      - name: Setup Node
+      - &setup-node
+        name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: 22
 
-      - name: Cache Electron binaries
+      - name: Cache Electron and Playwright downloads
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/Library/Caches/electron
             ~/Library/Caches/electron-builder
-          key: electron-cache-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
+            ~/Library/Caches/ms-playwright
+          key: desktop-downloads-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: desktop-downloads-${{ runner.os }}-
 
-      - name: Install dependencies
+      - &install-dependencies
+        name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Inject release version
+      - &inject-version
+        name: Inject release version
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -175,27 +205,83 @@ jobs:
             exit 1
           fi
 
-      - name: Verify desktop source
-        run: |
-          bun run --cwd apps/desktop lint:check
-          bun run --cwd apps/desktop type-check
-          bun run --cwd apps/desktop test
+      - name: Restore native compilation
+        uses: ./.github/actions/desktop-native-cache
 
-      - name: Bundle main and preload
+      - &bundle-desktop
+        name: Bundle main and preload
         working-directory: apps/desktop
         env:
-          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
+          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ needs.source.outputs.origin }}
         run: bun run build
 
       - name: Install system-browser fixture
         working-directory: apps/desktop
         run: bunx playwright install chromium
 
-      - name: Run Electron smoke tests
+      - name: Install tmux
+        run: brew install tmux
+
+      - name: Run Electron smoke partition
         working-directory: apps/desktop
         env:
-          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ steps.channel.outputs.origin }}
-        run: bun run test:e2e
+          SIM_DESKTOP_DEFAULT_ORIGIN: ${{ needs.source.outputs.origin }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
+          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
+          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
+          CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
+        run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
+
+      - name: Upload smoke coverage and timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-release-smoke-${{ matrix.shard }}
+          path: |
+            apps/desktop/test-results/*.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload Electron failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-release-smoke-failure-${{ matrix.shard }}
+          path: apps/desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Restores no caches: every byte that gets signed comes from this checkout or
+  # a fresh download, never from a cache another run could have written.
+  build:
+    name: build
+    needs: source
+    outputs:
+      artifact_id: ${{ steps.artifacts.outputs.artifact-id }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - *checkout-source
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
+          no-cache: true
+
+      - *setup-node
+
+      - *install-dependencies
+
+      - *inject-version
+
+      - name: Verify desktop source
+        run: |
+          bun run --cwd apps/desktop lint:check
+          bun run --cwd apps/desktop type-check
+          bun run --cwd apps/desktop test
+
+      - *bundle-desktop
 
       - name: Write App Store Connect API key
         if: ${{ inputs.sign }}
@@ -253,8 +339,8 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
-          APP_ID: ${{ steps.channel.outputs.app_id }}
+          PRODUCT_NAME: ${{ needs.source.outputs.name }}
+          APP_ID: ${{ needs.source.outputs.app_id }}
         run: >
           bunx electron-builder --mac --publish never
           -c.productName="$PRODUCT_NAME" -c.appId="$APP_ID"
@@ -274,8 +360,8 @@ jobs:
         working-directory: apps/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
-          APP_ID: ${{ steps.channel.outputs.app_id }}
+          PRODUCT_NAME: ${{ needs.source.outputs.name }}
+          APP_ID: ${{ needs.source.outputs.app_id }}
         run: >
           bunx electron-builder --mac --publish never -c.mac.notarize=false
           -c.mac.identity=- -c.mac.hardenedRuntime=false
@@ -333,9 +419,9 @@ jobs:
       - name: Validate signature and notarization
         if: ${{ inputs.sign }}
         env:
-          APP_ID: ${{ steps.channel.outputs.app_id }}
+          APP_ID: ${{ needs.source.outputs.app_id }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          PRODUCT_NAME: ${{ steps.channel.outputs.name }}
+          PRODUCT_NAME: ${{ needs.source.outputs.name }}
           VERSION: ${{ inputs.version }}
         run: |
           SEMVER="${VERSION#v}"
@@ -403,13 +489,40 @@ jobs:
           fi
           SIM_DESKTOP_EXECUTABLE="$EXECUTABLE" bunx playwright test e2e/packaged-smoke.spec.ts
 
+      - name: Upload artifacts to the workflow run
+        id: artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sim-desktop-${{ inputs.version }}
+          compression-level: 0
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest-mac.yml
+          retention-days: 7
+
+  publish:
+    name: publish
+    needs: [source, build, smoke]
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified desktop artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: apps/desktop/release
+
       - name: Upload artifacts to the release
-        if: ${{ inputs.publish }}
         env:
           DESKTOP_RELEASE_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
-          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
+          RELEASE_REPOSITORY: ${{ needs.source.outputs.release_repository }}
           SOURCE_RELEASE_TOKEN: ${{ github.token }}
-          TOKEN_KIND: ${{ steps.channel.outputs.token_kind }}
+          TOKEN_KIND: ${{ needs.source.outputs.token_kind }}
           VERSION: ${{ inputs.version }}
         run: |
           case "$TOKEN_KIND" in
@@ -448,7 +561,7 @@ jobs:
             local ARTIFACT="$1"
             local NAME SIZE DIGEST REMOTE REMOTE_SIZE REMOTE_DIGEST
             NAME="$(basename "$ARTIFACT")"
-            SIZE="$(stat -f%z "$ARTIFACT")"
+            SIZE="$(stat -c%s "$ARTIFACT")"
             DIGEST="sha256:$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
             REMOTE="$(jq -c --arg name "$NAME" '.assets[] | select(.name == $name)' <<< "$RELEASE_JSON")"
             if [ -n "$REMOTE" ]; then
@@ -467,15 +580,3 @@ jobs:
             upload_or_verify "$ARTIFACT"
           done
           upload_or_verify "${ARTIFACTS[4]}"
-
-      - name: Upload artifacts to the workflow run
-        if: ${{ !inputs.publish }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: sim-desktop-${{ inputs.version }}
-          path: |
-            apps/desktop/release/*.dmg
-            apps/desktop/release/*.zip
-            apps/desktop/release/*.blockmap
-            apps/desktop/release/latest-mac.yml
-          retention-days: 7

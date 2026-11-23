@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramEditMessageTextParams,
   TelegramMessage,
@@ -16,6 +17,7 @@ export const telegramEditMessageTextTool: ToolConfig<
   description:
     'Edit the text of an existing message in a Telegram chat or channel through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

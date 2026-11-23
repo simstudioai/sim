@@ -1,6 +1,7 @@
 import { RocketlaneIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /**
  * Who a membership change targets, for the card sentences below. Rocketlane
@@ -218,8 +219,12 @@ function toNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-/** Returns the trimmed string, or undefined for empty/non-string values. */
+/**
+ * Returns the trimmed string, or undefined for empty values. A finite number is stringified so an
+ * id or filter a model (or a resolved reference) sends as a number is not dropped.
+ */
 function toStr(value: unknown): string | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : undefined
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
@@ -301,9 +306,16 @@ function includeList(params: BlockParams) {
   }
 }
 
-/** Builds the exact param set declared by the selected operation's tool. */
-function buildOperationParams(params: BlockParams): Record<string, unknown> {
-  switch (params.operation) {
+/**
+ * Builds the exact param set declared by the selected operation's tool. Where a block field is
+ * named differently from its tool param, a tool call (model args keyed by tool param names) falls
+ * back to the tool param via `toolCallArg`, so canvas output is unchanged.
+ */
+function buildOperationParams(
+  params: BlockParams,
+  context?: BlockToolParamsContext
+): Record<string, unknown> {
+  switch (mapperOperation(params, context)) {
     case 'create_project':
       return {
         projectName: toStr(params.projectName),
@@ -410,7 +422,7 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         projectId: toNumber(params.projectId),
         placeholderId: toNumber(params.placeholderId),
         userId: toNumber(params.userId),
-        userEmailId: toStr(params.userEmail),
+        userEmailId: toStr(params.userEmail) ?? toolCallArg(context, toStr(params.userEmailId)),
       }
     case 'unassign_placeholders':
       return {
@@ -429,7 +441,7 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         effortInMinutes: toNumber(params.effortInMinutes),
         progress: toNumber(params.progress),
         atRisk: toBool(params.atRisk),
-        type: toStr(params.taskType),
+        type: toStr(params.taskType) ?? toolCallArg(context, toStr(params.type)),
         phaseId: toNumber(params.phaseId),
         statusValue: toNumber(params.statusValue),
         assigneeUserIds: toNumberList(params.assigneeUserIds),
@@ -471,7 +483,7 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         effortInMinutes: toNumber(params.effortInMinutes),
         progress: toNumber(params.progress),
         atRisk: toBool(params.atRisk),
-        type: toStr(params.taskType),
+        type: toStr(params.taskType) ?? toolCallArg(context, toStr(params.type)),
         statusValue: toNumber(params.statusValue),
         externalReferenceId: toStr(params.externalReferenceId),
         private: toBool(params.private),
@@ -581,14 +593,27 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
 
     case 'create_time_entry': {
       const source = params.timeEntrySource ?? 'task'
-      return {
-        date: toStr(params.date),
-        minutes: toNumber(params.minutes),
-        // Exactly one time source may be sent — pass only the selected one.
+      // Exactly one time source may be sent. A saved source is used alone; only when none is
+      // saved does a tool call fall back to the sources the model passed under the tool names.
+      const savedSource = {
         activityName: source === 'activity' ? toStr(params.timeEntryActivityName) : undefined,
         taskId: source === 'task' ? toNumber(params.timeEntryTaskId) : undefined,
         projectPhaseId: source === 'phase' ? toNumber(params.timeEntryPhaseId) : undefined,
         projectId: source === 'project' ? toNumber(params.timeEntryProjectId) : undefined,
+      }
+      const hasSavedSource = Object.values(savedSource).some((value) => value !== undefined)
+      const timeSource = hasSavedSource
+        ? savedSource
+        : {
+            activityName: toolCallArg(context, toStr(params.activityName)),
+            taskId: toolCallArg(context, toNumber(params.taskId)),
+            projectPhaseId: toolCallArg(context, toNumber(params.projectPhaseId)),
+            projectId: toolCallArg(context, toNumber(params.projectId)),
+          }
+      return {
+        date: toStr(params.date),
+        minutes: toNumber(params.minutes),
+        ...timeSource,
         billable: toBool(params.billable),
         userId: toNumber(params.userId),
         userEmail: toStr(params.userEmail),
@@ -633,8 +658,8 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         dateEq: toStr(params.dateEq),
         dateGe: toStr(params.dateGe),
         dateLe: toStr(params.dateLe),
-        projectEq: toNumber(params.projectIdEq),
-        taskEq: toNumber(params.taskIdEq),
+        projectEq: toNumber(params.projectIdEq) ?? toolCallArg(context, toNumber(params.projectEq)),
+        taskEq: toNumber(params.taskIdEq) ?? toolCallArg(context, toNumber(params.taskEq)),
         projectPhaseIdEq: toNumber(params.projectPhaseIdEq),
         categoryIdEq: toNumber(params.categoryIdEq),
         userIdEq: toNumber(params.userIdEq),
@@ -665,7 +690,7 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         userEmail: toStr(params.userEmail),
         startDate: toStr(params.startDate),
         endDate: toStr(params.endDate),
-        type: toStr(params.timeOffType),
+        type: toStr(params.timeOffType) ?? toolCallArg(context, toStr(params.type)),
         durationInMinutes: toNumber(params.durationInMinutes),
         note: toStr(params.note),
         notifyProjectOwners: toBool(params.notifyProjectOwners),
@@ -684,7 +709,7 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         startDateLe: toStr(params.startDateLe),
         endDateGe: toStr(params.endDateGe),
         endDateLe: toStr(params.endDateLe),
-        typeEq: toStr(params.timeOffTypeEq),
+        typeEq: toStr(params.timeOffTypeEq) ?? toolCallArg(context, toStr(params.typeEq)),
         userIdEq: toStr(params.userIdEq),
         emailIdEq: toStr(params.emailIdEq),
       }
@@ -702,8 +727,8 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         lastNameCn: toStr(params.lastNameCn),
         emailEq: toStr(params.emailEq),
         emailCn: toStr(params.emailCn),
-        statusEq: toStr(params.userStatusEq),
-        typeEq: toStr(params.userTypeEq),
+        statusEq: toStr(params.userStatusEq) ?? toolCallArg(context, toStr(params.statusEq)),
+        typeEq: toStr(params.userTypeEq) ?? toolCallArg(context, toStr(params.typeEq)),
       }
 
     case 'create_space':
@@ -737,7 +762,8 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         spaceDocumentType: toStr(params.spaceDocumentType),
         spaceDocumentName: toStr(params.spaceDocumentName),
         url: toStr(params.url),
-        templateId: toNumber(params.documentTemplateId),
+        templateId:
+          toNumber(params.documentTemplateId) ?? toolCallArg(context, toNumber(params.templateId)),
       }
     case 'get_space_document':
       return { spaceDocumentId: toNumber(params.spaceDocumentId) }
@@ -791,8 +817,9 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
         amountOutstandingGt: toNumber(params.amountOutstandingGt),
         invoiceNumberEq: toStr(params.invoiceNumberEq),
         invoiceNumberCn: toStr(params.invoiceNumberCn),
-        statusEq: toStr(params.invoiceStatusEq),
-        statusOneOf: toStr(params.invoiceStatusOneOf),
+        statusEq: toStr(params.invoiceStatusEq) ?? toolCallArg(context, toStr(params.statusEq)),
+        statusOneOf:
+          toStr(params.invoiceStatusOneOf) ?? toolCallArg(context, toStr(params.statusOneOf)),
         companyIdEq: toStr(params.companyIdEq),
         companyIdOneOf: toStr(params.companyIdOneOf),
       }
@@ -807,6 +834,8 @@ function buildOperationParams(params: BlockParams): Record<string, unknown> {
 
 export const RocketlaneBlock: BlockConfig = {
   type: 'rocketlane',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'rocketlane_v2' },
   name: 'Rocketlane',
   description: 'Manage client onboarding projects, tasks, time tracking, and invoices',
   longDescription:
@@ -2821,8 +2850,8 @@ export const RocketlaneBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `rocketlane_${params.operation}`,
-      params: (params) => ({
-        ...buildOperationParams(params),
+      params: (params, context) => ({
+        ...buildOperationParams(params, context),
         apiKey: params.apiKey,
       }),
     },
@@ -3209,3 +3238,17 @@ export const RocketlaneBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const RocketlaneV2Block: BlockConfig = {
+  ...RocketlaneBlock,
+  type: 'rocketlane_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(RocketlaneBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'rocketlane',
+    title: 'Rocketlane Credential',
+  }),
+}

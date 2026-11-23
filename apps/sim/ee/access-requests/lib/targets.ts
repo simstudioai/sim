@@ -98,6 +98,7 @@ const FEATURE_PARENTS: Partial<
   disableKnowledgeBaseCreation: ['hideKnowledgeBaseTab'],
   disableKnowledgeBaseFileUpload: ['hideKnowledgeBaseTab'],
   disableKnowledgeBaseExport: ['hideKnowledgeBaseTab'],
+  disableComputerUse: ['hideCopilot'],
   disableTableCreation: ['hideTablesTab'],
   disableTableExport: ['hideTablesTab'],
   disableBulkFileDownload: ['hideFilesTab'],

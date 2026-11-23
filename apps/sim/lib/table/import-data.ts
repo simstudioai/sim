@@ -170,7 +170,7 @@ export async function bulkInsertImportBatch(
   if (inserted !== rowsToInsert.length) {
     throw new Error('Bulk table import inserted an unexpected row count')
   }
-  logger.info(`[${requestId}] Bulk-imported ${inserted} rows into table ${data.tableId}`)
+  logger.info(`Bulk-imported ${inserted} rows into table ${data.tableId}`, { requestId })
   return {
     inserted,
     lastOrderKey: orderKeys[orderKeys.length - 1] ?? data.afterOrderKey ?? null,

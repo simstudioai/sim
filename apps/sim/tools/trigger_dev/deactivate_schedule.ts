@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevScheduleIdParams,
   TriggerDevScheduleResponse,
@@ -18,6 +19,7 @@ export const triggerDevDeactivateScheduleTool: ToolConfig<
   name: 'Trigger.dev Deactivate Schedule',
   description: 'Deactivate an imperative Trigger.dev schedule so it stops triggering its task.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

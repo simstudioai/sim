@@ -18,6 +18,7 @@ const GetSecretSchema = z.object({
 const GetSecretResponseSchema = z.object({
   name: z.string(),
   secretValue: z.string(),
+  secretBinary: z.string().nullable(),
   arn: z.string(),
   versionId: z.string(),
   versionStages: z.array(z.string()),

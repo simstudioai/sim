@@ -185,6 +185,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       success: true,
       keyId: WORKSPACE_KEY_PRINCIPAL.keyId,
       keyType: 'workspace',
+      access: 'write',
       workspaceId: WORKSPACE_ID,
     })
     mockResolvePermission.mockResolvedValue('write')
@@ -250,6 +251,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
           success: true,
           keyId: 'personal-key',
           keyType: 'personal',
+          access: 'write',
           userId: 'read-only-member',
         }),
     },

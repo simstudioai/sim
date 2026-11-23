@@ -7,6 +7,7 @@ import {
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCandidatesTool: ToolConfig<
@@ -17,6 +18,7 @@ export const listCandidatesTool: ToolConfig<
   name: 'Ashby List Candidates',
   description: 'Lists all candidates in an Ashby organization with cursor-based pagination.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

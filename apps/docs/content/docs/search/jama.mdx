@@ -1,0 +1,38 @@
+---
+title: Jama Connect
+description: Search current Jama Connect items using your own account
+---
+
+Jama Connect Search retrieves items directly from your instance when you search. It uses **Member accounts**, with each person's own API credentials and current Jama permissions. It does not crawl projects or maintain a content index.
+
+## Connect
+
+1. An admin adds **Jama Connect** in **Settings → Sources**.
+2. In **Integrations → Jama Connect**, connect your own account with your instance URL, client ID, and client secret from your Jama profile.
+3. Use the same email address in Jama and your verified Sim account. Your Jama user must be active and permitted to use the REST API.
+
+Sim exchanges the saved client credentials for a short-lived access token. Searches and reads check the current Jama identity before retrieving content. Shared administrator credentials do not authorize other members' searches. A different instance or provider account requires a new connection.
+
+Self-hosted instance URLs may include a deployment context path. The instance must be reachable from Sim's server environment. If your organization uses dedicated outbound IPs, allowlist those addresses for HTTPS access.
+
+You can connect up to five accounts per provider. Reconnect an existing account to rotate its credentials.
+
+## Search and read
+
+Search with a short phrase or distinctive requirement text. A native query can specify a numeric project ID. Each call retrieves up to 50 items; continue with the returned cursor to request another page.
+
+Results include item keys, names, available text and scalar fields, and modification times. Reads retrieve the current item again. Date filters and newest/oldest sorting apply to the returned candidates, not the entire instance.
+
+Attachments, rich structured fields, and comment discussions are not included. Item text is bounded at 120,000 characters and reports truncation. Citations currently point to the exact REST item resource rather than a Jama application deep link; opening them may require API authentication.
+
+## Requests
+
+Search uses `GET /rest/v1/abstractitems`, reads use `GET /rest/v1/abstractitems/{id}`, and identity checks use `GET /rest/v1/users/current`. Token exchange uses `POST /rest/oauth/token`.
+
+Requests share Sim's live Search timeout, response-size limit, and per-call request budget. These safeguards are not a fixed requests-per-minute limit. Jama access and rate-limit errors are reported without widening permissions or falling back to a shared account.
+
+## Related docs
+
+- [Jama API credentials](https://help.jamasoftware.com/en/get-started/setting-up-your-work-environment/set-api-credentials.html)
+- [Jama REST API](https://rest.jamasoftware.com/)
+- [Abstract item search](https://dev.jamasoftware.com/cookbook/#abstract-items)

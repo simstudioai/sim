@@ -168,4 +168,22 @@ describe('LambdaBlock params mapping', () => {
       })
     ).toThrow('filterPatterns must be a JSON array')
   })
+
+  it('maps an agent tool call, where the operation arrives only in the context', () => {
+    const modelArgs = {
+      ...CONNECTION,
+      functionName: 'alpha',
+      eventSourceArn: 'arn:aws:sqs:us-east-1:1:queue',
+      batchSize: '10',
+      filterPatterns: [{ body: { status: ['open'] } }],
+    }
+
+    const mapped = toolConfig?.params?.(modelArgs, {
+      operation: 'create_event_source_mapping',
+    }) as Record<string, unknown>
+
+    expect(mapped.batchSize).toBe(10)
+    expect(mapped.filterPatterns).toEqual(['{"body":{"status":["open"]}}'])
+    expect(mapped.functionName).toBe('alpha')
+  })
 })

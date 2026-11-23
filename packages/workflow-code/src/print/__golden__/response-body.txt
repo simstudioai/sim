@@ -1,0 +1,17 @@
+// @sim-sdk 1
+import { response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { input: 'string', count: 'number' } })
+  const built = response('Built', {
+    builderData: [{ id: 'f1', name: 'ok', type: 'boolean', value: 'true' }],
+  })
+  const created = response('Created', {
+    body: { ok: true, subject: start.input, count: start.count },
+    status: 201,
+    headers: { 'X-Trace': start.input },
+  })
+  const echo = response('Echo', { body: start.input })
+
+  start.to(created)
+})

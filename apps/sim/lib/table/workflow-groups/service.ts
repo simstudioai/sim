@@ -99,7 +99,8 @@ export async function pruneStaleWorkflowGroupOutputs({
       if (filtered.length === group.outputs.length) return group
       if (filtered.length === 0) {
         logger.warn(
-          `[${requestId}] All outputs for workflow group "${group.name ?? group.id}" in table ${t.id} reference deleted blocks; leaving group intact for user reconfiguration.`
+          `All outputs for workflow group "${group.name ?? group.id}" in table ${t.id} reference deleted blocks; leaving group intact for user reconfiguration.`,
+          { requestId }
         )
         return group
       }
@@ -119,7 +120,7 @@ export async function pruneStaleWorkflowGroupOutputs({
         and(eq(userTableDefinitions.id, t.id), eq(userTableDefinitions.workspaceId, workspaceId))
       )
 
-    logger.info(`[${requestId}] Pruned stale workflow=${workflowId} block refs from table ${t.id}`)
+    logger.info(`Pruned stale workflow=${workflowId} block refs from table ${t.id}`, { requestId })
   }
 }
 
@@ -273,7 +274,8 @@ export async function addWorkflowGroup(
         )
 
       logger.info(
-        `[${requestId}] Added workflow group "${data.group.id}" with ${newColumns.length} new and ${attached.size} attached output column(s) to table ${data.tableId}`
+        `Added workflow group "${data.group.id}" with ${newColumns.length} new and ${attached.size} attached output column(s) to table ${data.tableId}`,
+        { requestId }
       )
 
       return {
@@ -301,7 +303,7 @@ export async function addWorkflowGroup(
       requestId,
       triggeredByUserId: data.actorUserId,
       capabilityGovernedUserId: data.capabilityGovernedUserId,
-    }).catch((err) => logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err))
+    }).catch((err) => logger.error('auto-dispatch (addWorkflowGroup) failed:', err, { requestId }))
   }
 
   return updatedTable
@@ -580,7 +582,8 @@ export async function updateWorkflowGroup(
         }
 
         logger.info(
-          `[${requestId}] Updated workflow group "${data.groupId}" in table ${data.tableId} (added=${added.length}, removed=${removed.length}, remapped=${remappedColumnIds.size})`
+          `Updated workflow group "${data.groupId}" in table ${data.tableId} (added=${added.length}, removed=${removed.length}, remapped=${remappedColumnIds.size})`,
+          { requestId }
         )
 
         const updatedTable: TableDefinition = {
@@ -624,8 +627,9 @@ export async function updateWorkflowGroup(
       })
     } catch (err) {
       logger.warn(
-        `[${requestId}] Backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
-        err
+        `Backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
+        err,
+        { requestId }
       )
     }
   }
@@ -643,8 +647,9 @@ export async function updateWorkflowGroup(
       })
     } catch (err) {
       logger.warn(
-        `[${requestId}] Remap backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
-        err
+        `Remap backfill from execution logs failed for ${data.tableId} group ${data.groupId}:`,
+        err,
+        { requestId }
       )
     }
   }
@@ -663,7 +668,7 @@ export async function updateWorkflowGroup(
       triggeredByUserId: data.actorUserId,
       capabilityGovernedUserId: data.capabilityGovernedUserId,
     }).catch((err) =>
-      logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
+      logger.error('auto-dispatch (updateWorkflowGroup autoRun=true) failed:', err, { requestId })
     )
   }
 
@@ -737,9 +742,9 @@ export async function deleteWorkflowGroup(
         expectedWorkspaceId: table.workspaceId,
       })
 
-      logger.info(
-        `[${requestId}] Deleted workflow group "${data.groupId}" from table ${data.tableId}`
-      )
+      logger.info(`Deleted workflow group "${data.groupId}" from table ${data.tableId}`, {
+        requestId,
+      })
 
       return {
         ...table,

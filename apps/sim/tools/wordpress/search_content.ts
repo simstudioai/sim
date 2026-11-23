@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressSearchContentParams,
@@ -48,13 +49,13 @@ export const searchContentTool: ToolConfig<
     type: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Filter by search index type: post, term, or post-format',
     },
     subtype: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'Filter by subtype within the selected type (e.g., post or page when type is post)',
     },
@@ -70,7 +71,7 @@ export const searchContentTool: ToolConfig<
       if (params.type) queryParams.append('type', params.type)
       if (params.subtype) queryParams.append('subtype', params.subtype)
 
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/search?${queryParams.toString()}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/search?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -112,7 +113,10 @@ export const searchContentTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Content ID' },
+          id: {
+            type: 'number',
+            description: 'Content ID (a string slug for post-format results)',
+          },
           title: { type: 'string', description: 'Content title' },
           url: { type: 'string', description: 'Content URL' },
           type: { type: 'string', description: 'Content type (post, term, or post-format)' },

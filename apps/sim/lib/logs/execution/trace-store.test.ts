@@ -28,6 +28,7 @@ const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializ
 const storeExecutionTraceArchiveMock = executionPayloadStoreMockFns.mockStoreExecutionTraceArchive
 
 const mockLogger = getMockLogger('TraceStore')
+const projectionLogger = getMockLogger('TraceSecretProjection')
 
 const decryptSecretMock = encryptionMockFns.mockDecryptSecret
 
@@ -506,6 +507,123 @@ describe('projectExecutionDataForDisplay', () => {
     )
 
     expect(displayData).not.toHaveProperty('traceSpans')
+  })
+})
+
+describe('projectExecutionDataForDisplay envelope isolation', () => {
+  const RUN_PROVENANCE = {
+    version: 1 as const,
+    complete: true,
+    entries: [{ name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' }],
+    scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+  }
+
+  function functionSpan(id: string, output: Record<string, unknown>): TraceSpan {
+    return {
+      id,
+      name: 'Function 1',
+      type: 'function',
+      duration: 1,
+      startTime: '2026-07-31T00:00:00.000Z',
+      endTime: '2026-07-31T00:00:00.001Z',
+      output,
+    }
+  }
+
+  it('withholds only the envelope value that holds a stored large value', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        error: 'Request failed with 12345678',
+        message: 'Run failed',
+        blockExecutions: [
+          {
+            blockId: 'function-1',
+            output: {
+              __simLargeValueRef: true,
+              version: 1,
+              id: 'lv_bbbbbbbbbbbb',
+              kind: 'string',
+              size: 32,
+            },
+          },
+        ],
+        traceSpans: [functionSpan('span-1', { result: 12345678 })],
+        executionState: { resolvedSecretTraceProvenance: RUN_PROVENANCE },
+      },
+      CONTEXT
+    )
+
+    expect(displayData.error).toBe('Request failed with {{OPENAI_API_KEY}}')
+    expect(displayData.message).toBe('Run failed')
+    expect(displayData).not.toHaveProperty('blockExecutions')
+    expect(projectionLogger.warn).toHaveBeenCalledWith(
+      'Omitting trace content that could not be sanitized',
+      {
+        executionId: CONTEXT.executionId,
+        workflowId: CONTEXT.workflowId,
+        workspaceId: CONTEXT.workspaceId,
+        phase: 'read',
+        displayField: 'blockExecutions',
+        failure: expect.objectContaining({ name: 'TraceSecretProjectionError' }),
+      }
+    )
+    expect(displayData.traceSpans).toEqual([
+      expect.objectContaining({ id: 'span-1', output: { result: '{{OPENAI_API_KEY}}' } }),
+    ])
+    expect(JSON.stringify(displayData)).not.toContain('12345678')
+  })
+
+  it('never mistakes a stored span for an envelope value', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        error: 'Run failed',
+        traceSpans: [
+          functionSpan('secret-safe-log-display-projection-error', { value: 'from a span' }),
+        ],
+        executionState: { resolvedSecretTraceProvenance: RUN_PROVENANCE },
+      },
+      CONTEXT
+    )
+
+    expect(displayData.error).toBe('Run failed')
+    expect(displayData.traceSpans).toEqual([
+      expect.objectContaining({
+        id: 'secret-safe-log-display-projection-error',
+        output: { value: 'from a span' },
+      }),
+    ])
+  })
+
+  it('spends the shared content budget on the trace before the block dumps', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      {
+        error: 'Request failed with 12345678',
+        blockExecutions: Array.from({ length: 70_000 }, (_, index) => `row-${index}`),
+        traceSpans: [
+          functionSpan('span-1', {
+            result: 12345678,
+            rows: Array.from({ length: 40_000 }, (_, index) => `row-${index}`),
+          }),
+        ],
+        executionState: { resolvedSecretTraceProvenance: RUN_PROVENANCE },
+      },
+      CONTEXT
+    )
+
+    expect(displayData.error).toBe('Request failed with {{OPENAI_API_KEY}}')
+    expect(displayData).not.toHaveProperty('blockExecutions')
+    expect(projectionLogger.warn).toHaveBeenCalledWith(
+      'Trace content exceeded the projection budget; withholding the remaining content',
+      expect.objectContaining({
+        retainedSpanCount: 1,
+        withheldSpanCount: 0,
+        withheldDisplayFields: ['blockExecutions'],
+      })
+    )
+    const [span] = displayData.traceSpans as TraceSpan[]
+    expect(span.output?.result).toBe('{{OPENAI_API_KEY}}')
+    expect(span).not.toHaveProperty('contentWithheld')
+    expect(JSON.stringify(displayData)).not.toContain('12345678')
   })
 })
 

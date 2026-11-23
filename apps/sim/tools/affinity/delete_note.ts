@@ -10,6 +10,7 @@ import {
   transformAcknowledgement,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityDeleteNoteTool: ToolConfig<
@@ -21,6 +22,7 @@ export const affinityDeleteNoteTool: ToolConfig<
   description:
     'Delete a note you created. Deleting a root note also deletes its replies; deleting a reply removes only that reply.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

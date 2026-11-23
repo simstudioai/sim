@@ -5,12 +5,12 @@ description: Replicas, connection pooling, autoscaling, and where the limits act
 
 import { Callout } from '@/components/ui/callout'
 
-Configure shared storage, Redis, and database capacity before adding replicas. Measure your execution workload before choosing memory limits or autoscaling targets.
+Configure shared storage and database capacity, and size Redis, before adding replicas. Measure your execution workload before choosing memory limits or autoscaling targets.
 
 ## Prerequisites before scaling past one replica
 
 <Callout type="error">
-  Verify Redis connectivity before raising `replicaCount`. If you disable or remove bundled Redis, supply a working `REDIS_URL` for app and realtime. Process-local fallbacks do not deliver cross-pod events; see [Redis](/platform/self-hosting/redis).
+  Every replica must reach the same Redis. Redis is required at any replica count, and it is what carries rate limits and live events across pods. If you disable or remove bundled Redis, supply a working `REDIS_URL` for app and realtime; see [Redis](/platform/self-hosting/redis).
 </Callout>
 
 You also need shared object storage — local-disk storage is per-pod, so a file uploaded through one replica is invisible to the others. See [Object Storage](/platform/self-hosting/object-storage).
@@ -19,8 +19,8 @@ You also need shared object storage — local-disk storage is per-pod, so a file
 
 | Component | Scaling | Notes |
 |---|---|---|
-| **app** | Horizontal | Stateless once object storage is configured. **Requires Redis** past one replica |
-| **realtime** | Horizontal | **Requires Redis** past one replica (Socket.IO adapter) |
+| **app** | Horizontal | Stateless once object storage is configured. All replicas share one Redis |
+| **realtime** | Horizontal | All replicas share one Redis (Socket.IO adapter) |
 | **postgresql** | Vertical + read replicas | The eventual bottleneck |
 | **redis** | Vertical / HA pair | Coordination only; small |
 | **cronjobs** | Fixed | One call per tick regardless of replica count |
@@ -64,7 +64,7 @@ Requires `metrics-server`. When enabled, the chart omits `spec.replicas` so the 
   Scale-down terminates pods that may be running workflows. Set a conservative `minReplicas`, and consider a `behavior` block with a long `stabilizationWindowSeconds` on scale-down so long executions are not repeatedly interrupted.
 </Callout>
 
-Realtime gets the same HPA unless you disable it — and again, only scale it past one replica with Redis configured:
+Realtime gets the same HPA unless you disable it; its replicas bridge events through the shared Redis:
 
 ```yaml
 autoscaling:

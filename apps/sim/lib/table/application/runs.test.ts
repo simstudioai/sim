@@ -272,9 +272,20 @@ describe('table run dispatch reads', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
-    mockGetTableById.mockResolvedValue(TABLE)
+    mockGetTableById.mockImplementation(async (id: string) =>
+      id === TABLE.id ? TABLE : { ...TABLE, id, name: `Table ${id}` }
+    )
     mockReadDispatch.mockResolvedValue(DISPATCH)
     mockListDispatches.mockResolvedValue([DISPATCH])
+  })
+
+  it('reads a dispatch under its table named by its name, as every table route takes it', async () => {
+    await expect(
+      readTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.name, dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+      })
+    ).resolves.toMatchObject({ dispatch: { id: DISPATCH.id } })
   })
 
   it('conceals a dispatch in another workspace as not found', async () => {

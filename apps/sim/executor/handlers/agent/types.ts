@@ -32,8 +32,6 @@ export interface AgentInputs {
   conversationId?: string // Required for all non-none memory types
   slidingWindowSize?: string // For message-based sliding window
   slidingWindowTokens?: string // For token-based sliding window
-  // Deep research multi-turn
-  previousInteractionId?: string // Interactions API previous interaction reference
   // LLM parameters
   temperature?: string | number
   maxTokens?: string | number
@@ -46,6 +44,10 @@ export interface AgentInputs {
   bedrockAccessKeyId?: string
   bedrockSecretKey?: string
   bedrockRegion?: string
+  /** A saved AWS credential ID; Bedrock signs with it instead of inline keys. */
+  bedrockCredential?: string
+  /** `'credential'` when the block signs Bedrock calls with {@link bedrockCredential}. */
+  bedrockAuthMode?: string
   reasoningEffort?: string
   verbosity?: string
   thinkingLevel?: string

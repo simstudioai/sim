@@ -1,7 +1,15 @@
 import { AffinityIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  failToolCallOnError,
+  isToolCall,
+  mapperOperation,
+  parseOptionalBooleanInput,
+  parseOptionalNumberInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /** Operations scoped to a company or person through the shared field endpoints. */
 const FIELD_ENTITY_OPERATIONS = [
@@ -305,6 +313,8 @@ function affinityToolIds(): ReadonlySet<string> {
 
 export const AffinityBlock: BlockConfig = {
   type: 'affinity',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'affinity_v2' },
   name: 'Affinity',
   description: 'Read and write companies, people, lists, notes, and relationships in Affinity',
   longDescription:
@@ -1331,176 +1341,196 @@ export const AffinityBlock: BlockConfig = {
        * omitting a key leaves the previous operation's value on the wire — an
        * advanced field is serialized on non-emptiness alone, even while the UI
        * hides it. `undefined` is what actually drops one.
+       *
+       * On a tool call the model's args arrive under the tool's own param names,
+       * so a tool param the selected operation does not fill from a block field
+       * keeps the model's value instead of being dropped.
        */
-      params: (params) => {
-        const operation = String(params.operation ?? '')
-        const isIn = (group: readonly string[]) => group.includes(operation)
+      params: (params, context) =>
+        failToolCallOnError(context, () => {
+          const operation = mapperOperation(params, context)
+          const isIn = (group: readonly string[]) => group.includes(operation)
 
-        const isKeywordSearch = isIn(KEYWORD_SEARCH_OPERATIONS)
-        const isDropdownWrite = isIn(DROPDOWN_OPTION_WRITE_OPERATIONS)
-        const isEntitySearch = isIn(ENTITY_SEARCH_OPERATIONS)
-        const isFieldValueSelection = isIn(FIELD_VALUE_SELECTION_OPERATIONS)
-        const isNoteWrite = isIn(NOTE_WRITE_OPERATIONS)
-        const isCreateNote = operation === 'create_note'
-        const isCreateList = operation === 'create_list'
-        const isCreateReminder = operation === 'create_reminder'
+          const isKeywordSearch = isIn(KEYWORD_SEARCH_OPERATIONS)
+          const isDropdownWrite = isIn(DROPDOWN_OPTION_WRITE_OPERATIONS)
+          const isEntitySearch = isIn(ENTITY_SEARCH_OPERATIONS)
+          const isFieldValueSelection = isIn(FIELD_VALUE_SELECTION_OPERATIONS)
+          const isNoteWrite = isIn(NOTE_WRITE_OPERATIONS)
+          const isCreateNote = operation === 'create_note'
+          const isCreateList = operation === 'create_list'
+          const isCreateReminder = operation === 'create_reminder'
 
-        let entityType: unknown
-        if (isIn(FIELD_ENTITY_OPERATIONS)) entityType = params.fieldEntityType
-        else if (operation === 'list_entity_notes') entityType = params.noteEntityType
-        else if (isIn(MERGE_OPERATIONS)) entityType = params.mergeEntityType
-        else if (isCreateReminder) entityType = params.reminderEntityType
+          let entityType: unknown
+          if (isIn(FIELD_ENTITY_OPERATIONS)) entityType = params.fieldEntityType
+          else if (operation === 'list_entity_notes') entityType = params.noteEntityType
+          else if (isIn(MERGE_OPERATIONS)) entityType = params.mergeEntityType
+          else if (isCreateReminder) entityType = params.reminderEntityType
 
-        let type: unknown
-        if (isCreateList) type = params.listType
-        else if (operation === 'create_list_field_dropdown_option') type = params.optionType
-        else if (isCreateNote) type = params.noteType
-        else if (isCreateReminder) type = params.reminderType
+          let type: unknown
+          if (isCreateList) type = params.listType
+          else if (operation === 'create_list_field_dropdown_option') type = params.optionType
+          else if (isCreateNote) type = params.noteType
+          else if (isCreateReminder) type = params.reminderType
 
-        let filter: unknown
-        if (isIn(CONNECTION_OPERATIONS)) filter = params.connectionFilter
-        else if (isIn(FILTER_OPERATIONS)) filter = params.filter
+          let filter: unknown
+          if (isIn(CONNECTION_OPERATIONS)) filter = params.connectionFilter
+          else if (isIn(FILTER_OPERATIONS)) filter = params.filter
 
-        let orderBy: unknown
-        if (operation === 'list_entity_relationships') orderBy = params.relationshipOrderBy
-        else if (operation === 'list_field_value_changes') orderBy = params.changeOrderBy
+          let orderBy: unknown
+          if (operation === 'list_entity_relationships') orderBy = params.relationshipOrderBy
+          else if (operation === 'list_field_value_changes') orderBy = params.changeOrderBy
 
-        let includes: unknown
-        if (isIn(NOTE_INCLUDES_OPERATIONS)) includes = params.noteIncludes
-        else if (isIn(FIELD_INCLUDES_OPERATIONS)) includes = params.fieldIncludes
+          let includes: unknown
+          if (isIn(NOTE_INCLUDES_OPERATIONS)) includes = params.noteIncludes
+          else if (isIn(FIELD_INCLUDES_OPERATIONS)) includes = params.fieldIncludes
 
-        let ids: unknown
-        if (isIn(ID_FILTER_OPERATIONS)) ids = params.entityIds
-        else if (isKeywordSearch) ids = params.searchIds
-        else if (isFieldValueSelection) ids = params.valueFieldIds
+          let ids: unknown
+          if (isIn(ID_FILTER_OPERATIONS)) ids = params.entityIds
+          else if (isKeywordSearch) ids = params.searchIds
+          else if (isFieldValueSelection) ids = params.valueFieldIds
 
-        return {
-          apiKey: params.apiKey,
-          entityType,
-          type,
-          filter,
-          orderBy,
-          includes,
-          ids,
-          entityId: isIn(ENTITY_ID_OPERATIONS) ? params.entityId : undefined,
-          companyId:
-            operation === 'get_company'
-              ? params.companyId
-              : isKeywordSearch
-                ? params.scopeCompanyId
+          /** A blank block field falls through to the model's value, which is validated too. */
+          const parseOptionRank = (value: unknown) =>
+            parseOptionalNumberInput(value, 'Option Rank', { integer: true, min: 0 })
+          const parseWinRate = (value: unknown) =>
+            parseOptionalNumberInput(value, 'Win Rate', { integer: true, min: 0, max: 100 })
+
+          const toolParams: Record<string, unknown> = {
+            apiKey: params.apiKey,
+            entityType,
+            type,
+            filter,
+            orderBy,
+            includes,
+            ids,
+            entityId: isIn(ENTITY_ID_OPERATIONS) ? params.entityId : undefined,
+            companyId:
+              operation === 'get_company'
+                ? params.companyId
+                : isKeywordSearch
+                  ? params.scopeCompanyId
+                  : undefined,
+            personId: operation === 'get_person' ? params.personId : undefined,
+            opportunityId: operation === 'get_opportunity' ? params.opportunityId : undefined,
+            listId: isIn(LIST_ID_OPERATIONS) ? params.listId : undefined,
+            listEntryId: isIn(LIST_ENTRY_ID_OPERATIONS) ? params.listEntryId : undefined,
+            viewId:
+              operation === 'get_saved_view' || operation === 'list_saved_view_entries'
+                ? params.viewId
                 : undefined,
-          personId: operation === 'get_person' ? params.personId : undefined,
-          opportunityId: operation === 'get_opportunity' ? params.opportunityId : undefined,
-          listId: isIn(LIST_ID_OPERATIONS) ? params.listId : undefined,
-          listEntryId: isIn(LIST_ENTRY_ID_OPERATIONS) ? params.listEntryId : undefined,
-          viewId:
-            operation === 'get_saved_view' || operation === 'list_saved_view_entries'
-              ? params.viewId
+            fieldId: isIn(FIELD_ID_OPERATIONS) ? params.fieldId : undefined,
+            dropdownOptionId: isIn(DROPDOWN_OPTION_ID_OPERATIONS)
+              ? params.dropdownOptionId
               : undefined,
-          fieldId: isIn(FIELD_ID_OPERATIONS) ? params.fieldId : undefined,
-          dropdownOptionId: isIn(DROPDOWN_OPTION_ID_OPERATIONS)
-            ? params.dropdownOptionId
-            : undefined,
-          noteId: isIn(NOTE_ID_OPERATIONS) ? params.noteId : undefined,
-          transcriptId:
-            operation === 'get_transcript' || operation === 'list_transcript_fragments'
-              ? params.transcriptId
+            noteId: isIn(NOTE_ID_OPERATIONS) ? params.noteId : undefined,
+            transcriptId:
+              operation === 'get_transcript' || operation === 'list_transcript_fragments'
+                ? params.transcriptId
+                : undefined,
+            userId: operation === 'get_user' ? params.userId : undefined,
+            mergeId: operation === 'get_merge' ? params.mergeId : undefined,
+            taskId: operation === 'get_merge_task' ? params.taskId : undefined,
+            types: isFieldValueSelection ? params.valueFieldTypes : undefined,
+            fieldIds: isIn(FIELD_SELECTION_OPERATIONS) ? params.fieldIds : undefined,
+            fieldTypes: isIn(FIELD_SELECTION_OPERATIONS) ? params.fieldTypes : undefined,
+            filters: isEntitySearch ? params.searchFilters : undefined,
+            sorts: isEntitySearch ? params.searchSorts : undefined,
+            searchTerm: isEntitySearch ? params.searchTerm : undefined,
+            searchFieldIds: isEntitySearch ? params.searchTermFieldIds : undefined,
+            prompt: isIn(PROMPT_OPERATIONS) ? params.prompt : undefined,
+            listIds: operation === 'semantic_search' ? params.listIds : undefined,
+            term:
+              operation === 'list_lists' || operation === 'list_users' ? params.term : undefined,
+            name: isCreateList ? params.listName : undefined,
+            isPublic: isCreateList ? parseOptionalBooleanInput(params.isPublic) : undefined,
+            text: isDropdownWrite ? params.optionText : undefined,
+            rank: isDropdownWrite
+              ? (parseOptionRank(params.optionRank) ??
+                parseOptionRank(toolCallArg(context, params.rank)))
               : undefined,
-          userId: operation === 'get_user' ? params.userId : undefined,
-          mergeId: operation === 'get_merge' ? params.mergeId : undefined,
-          taskId: operation === 'get_merge_task' ? params.taskId : undefined,
-          types: isFieldValueSelection ? params.valueFieldTypes : undefined,
-          fieldIds: isIn(FIELD_SELECTION_OPERATIONS) ? params.fieldIds : undefined,
-          fieldTypes: isIn(FIELD_SELECTION_OPERATIONS) ? params.fieldTypes : undefined,
-          filters: isEntitySearch ? params.searchFilters : undefined,
-          sorts: isEntitySearch ? params.searchSorts : undefined,
-          searchTerm: isEntitySearch ? params.searchTerm : undefined,
-          searchFieldIds: isEntitySearch ? params.searchTermFieldIds : undefined,
-          prompt: isIn(PROMPT_OPERATIONS) ? params.prompt : undefined,
-          listIds: operation === 'semantic_search' ? params.listIds : undefined,
-          term: operation === 'list_lists' || operation === 'list_users' ? params.term : undefined,
-          name: isCreateList ? params.listName : undefined,
-          isPublic: isCreateList ? parseOptionalBooleanInput(params.isPublic) : undefined,
-          text: isDropdownWrite ? params.optionText : undefined,
-          rank: isDropdownWrite
-            ? parseOptionalNumberInput(params.optionRank, 'Option Rank', { integer: true, min: 0 })
-            : undefined,
-          color: isDropdownWrite ? params.optionColor : undefined,
-          statusCategory: isDropdownWrite ? params.optionStatusCategory : undefined,
-          winRate: isDropdownWrite
-            ? parseOptionalNumberInput(params.optionWinRate, 'Win Rate', {
-                integer: true,
-                min: 0,
-                max: 100,
-              })
-            : undefined,
-          value: isIn(FIELD_VALUE_WRITE_OPERATIONS) ? params.fieldValue : undefined,
-          updates: isIn(FIELD_BATCH_WRITE_OPERATIONS) ? params.fieldUpdates : undefined,
-          html: isNoteWrite ? params.noteHtml : undefined,
-          companyIds: isNoteWrite ? params.noteCompanyIds : undefined,
-          personIds: isNoteWrite ? params.notePersonIds : undefined,
-          opportunityIds: isNoteWrite ? params.noteOpportunityIds : undefined,
-          interactionId: isCreateNote ? params.interactionId : undefined,
-          interactionType: isCreateNote ? params.interactionType : undefined,
-          parentId: isCreateNote ? params.parentId : undefined,
-          creatorId: isCreateNote ? params.creatorId : undefined,
-          createdAt: isCreateNote ? params.noteCreatedAt : undefined,
-          primaryId: operation === 'create_merge' ? params.primaryId : undefined,
-          duplicateId: operation === 'create_merge' ? params.duplicateId : undefined,
-          dueDate: isCreateReminder ? params.dueDate : undefined,
-          content: isCreateReminder ? params.reminderContent : undefined,
-          ownerId: isCreateReminder ? params.ownerId : undefined,
-          resetTrigger: isCreateReminder ? params.resetTrigger : undefined,
-          periodDays: isCreateReminder
-            ? parseOptionalNumberInput(params.periodDays, 'Period In Days', {
-                integer: true,
-                min: 1,
-              })
-            : undefined,
-          cursor: isIn(CURSOR_OPERATIONS) ? params.cursor : undefined,
-          limit: isIn(LIMIT_OPERATIONS)
-            ? parseOptionalNumberInput(params.limit, 'Limit', { integer: true, min: 1 })
-            : undefined,
-          totalCount: isIn(TOTAL_COUNT_OPERATIONS)
-            ? parseOptionalBooleanInput(params.totalCount)
-            : undefined,
-          fieldEntityType: undefined,
-          noteEntityType: undefined,
-          mergeEntityType: undefined,
-          reminderEntityType: undefined,
-          listName: undefined,
-          listType: undefined,
-          optionType: undefined,
-          optionText: undefined,
-          optionRank: undefined,
-          optionColor: undefined,
-          optionStatusCategory: undefined,
-          optionWinRate: undefined,
-          fieldValue: undefined,
-          fieldUpdates: undefined,
-          searchFilters: undefined,
-          searchSorts: undefined,
-          searchTermFieldIds: undefined,
-          searchIds: undefined,
-          scopeCompanyId: undefined,
-          entityIds: undefined,
-          valueFieldIds: undefined,
-          valueFieldTypes: undefined,
-          noteType: undefined,
-          noteHtml: undefined,
-          noteCompanyIds: undefined,
-          notePersonIds: undefined,
-          noteOpportunityIds: undefined,
-          noteCreatedAt: undefined,
-          reminderType: undefined,
-          reminderContent: undefined,
-          connectionFilter: undefined,
-          relationshipOrderBy: undefined,
-          changeOrderBy: undefined,
-          noteIncludes: undefined,
-          fieldIncludes: undefined,
-        }
-      },
+            color: isDropdownWrite ? params.optionColor : undefined,
+            statusCategory: isDropdownWrite ? params.optionStatusCategory : undefined,
+            winRate: isDropdownWrite
+              ? (parseWinRate(params.optionWinRate) ??
+                parseWinRate(toolCallArg(context, params.winRate)))
+              : undefined,
+            value: isIn(FIELD_VALUE_WRITE_OPERATIONS) ? params.fieldValue : undefined,
+            updates: isIn(FIELD_BATCH_WRITE_OPERATIONS) ? params.fieldUpdates : undefined,
+            html: isNoteWrite ? params.noteHtml : undefined,
+            companyIds: isNoteWrite ? params.noteCompanyIds : undefined,
+            personIds: isNoteWrite ? params.notePersonIds : undefined,
+            opportunityIds: isNoteWrite ? params.noteOpportunityIds : undefined,
+            interactionId: isCreateNote ? params.interactionId : undefined,
+            interactionType: isCreateNote ? params.interactionType : undefined,
+            parentId: isCreateNote ? params.parentId : undefined,
+            creatorId: isCreateNote ? params.creatorId : undefined,
+            createdAt: isCreateNote ? params.noteCreatedAt : undefined,
+            primaryId: operation === 'create_merge' ? params.primaryId : undefined,
+            duplicateId: operation === 'create_merge' ? params.duplicateId : undefined,
+            dueDate: isCreateReminder ? params.dueDate : undefined,
+            content: isCreateReminder ? params.reminderContent : undefined,
+            ownerId: isCreateReminder ? params.ownerId : undefined,
+            resetTrigger: isCreateReminder ? params.resetTrigger : undefined,
+            periodDays: isCreateReminder
+              ? parseOptionalNumberInput(params.periodDays, 'Period In Days', {
+                  integer: true,
+                  min: 1,
+                })
+              : undefined,
+            cursor: isIn(CURSOR_OPERATIONS) ? params.cursor : undefined,
+            limit: isIn(LIMIT_OPERATIONS)
+              ? parseOptionalNumberInput(params.limit, 'Limit', { integer: true, min: 1 })
+              : undefined,
+            totalCount: isIn(TOTAL_COUNT_OPERATIONS)
+              ? parseOptionalBooleanInput(params.totalCount)
+              : undefined,
+          }
+
+          if (isToolCall(context)) {
+            for (const [key, value] of Object.entries(toolParams)) {
+              if (value === undefined) toolParams[key] = params[key]
+            }
+          }
+
+          return {
+            ...toolParams,
+            fieldEntityType: undefined,
+            noteEntityType: undefined,
+            mergeEntityType: undefined,
+            reminderEntityType: undefined,
+            listName: undefined,
+            listType: undefined,
+            optionType: undefined,
+            optionText: undefined,
+            optionRank: undefined,
+            optionColor: undefined,
+            optionStatusCategory: undefined,
+            optionWinRate: undefined,
+            fieldValue: undefined,
+            fieldUpdates: undefined,
+            searchFilters: undefined,
+            searchSorts: undefined,
+            searchTermFieldIds: undefined,
+            searchIds: undefined,
+            scopeCompanyId: undefined,
+            entityIds: undefined,
+            valueFieldIds: undefined,
+            valueFieldTypes: undefined,
+            noteType: undefined,
+            noteHtml: undefined,
+            noteCompanyIds: undefined,
+            notePersonIds: undefined,
+            noteOpportunityIds: undefined,
+            noteCreatedAt: undefined,
+            reminderType: undefined,
+            reminderContent: undefined,
+            connectionFilter: undefined,
+            relationshipOrderBy: undefined,
+            changeOrderBy: undefined,
+            noteIncludes: undefined,
+            fieldIncludes: undefined,
+          }
+        }),
     },
   },
 
@@ -1765,3 +1795,17 @@ export const AffinityBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AffinityV2Block: BlockConfig = {
+  ...AffinityBlock,
+  type: 'affinity_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(AffinityBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'affinity',
+    title: 'Affinity Credential',
+  }),
+}

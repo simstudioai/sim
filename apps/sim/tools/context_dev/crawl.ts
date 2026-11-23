@@ -7,6 +7,7 @@ import {
   contextDevJsonHeaders,
   extractCreditMetadata,
   parseContextDevResponse,
+  timeoutOpts,
 } from '@/tools/context_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -115,7 +116,7 @@ export const contextDevCrawlTool: ToolConfig<ContextDevCrawlParams, ContextDevCr
       if (params.maxAgeMs != null) body.maxAgeMs = params.maxAgeMs
       if (params.waitForMs != null) body.waitForMs = params.waitForMs
       if (params.stopAfterMs != null) body.stopAfterMs = params.stopAfterMs
-      if (params.timeoutMS != null) body.timeoutMS = params.timeoutMS
+      body.timeoutOpts = timeoutOpts(params.timeoutMS)
       return body
     },
   },

@@ -1,3 +1,5 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -95,6 +97,35 @@ describe('buildWorkflowLintReport notes', () => {
     }
   )
 
+  it('a complete diagnostic whose reference and child workflow lookups both fail rejects once, leaving no rejection unhandled', async () => {
+    resetDbChainMock()
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const call = block('call', 'workflow_input')
+      call.subBlocks = { workflowId: { id: 'workflowId', type: 'short-input', value: 'child-1' } }
+      mocks.collectUnresolvedReferences.mockRejectedValueOnce(new Error('lookup down'))
+      dbChainMockFns.where.mockImplementationOnce(() => {
+        throw new Error('child lookup down')
+      })
+
+      await expect(
+        buildWorkflowLintReport(
+          { blocks: { start: block('start', 'starter'), call }, edges: [edge('start', 'call')] },
+          scope,
+          { requireComplete: true }
+        )
+      ).rejects.toThrow('Workflow reference checks could not complete')
+      await flushMacrotask()
+
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+      resetDbChainMock()
+    }
+  })
+
   /**
    * `--blocks '{}' --edges '[]'` used to lint perfectly clean, so a dry run gave
    * no hint that applying it would erase the workflow.
@@ -140,6 +171,93 @@ describe('buildWorkflowLintReport notes', () => {
 
     expect(report.notes).toEqual([REFERENCES_UNCHECKED_NOTE, EMPTY_GRAPH_NOTE])
     expect(mocks.collectUnresolvedReferences).not.toHaveBeenCalled()
+  })
+})
+
+/** Graphs the editor's Run button refuses before they start surface as `manualRunIssue`. */
+describe('buildWorkflowLintReport manual run', () => {
+  async function manualRunIssue(blocks: Record<string, unknown>, edges: unknown[]) {
+    return (await buildWorkflowLintReport({ blocks, edges } as never, scope)).manualRunIssue
+  }
+
+  it('reports a trigger with no outgoing connection, naming it', async () => {
+    expect(
+      await manualRunIssue(
+        { start: block('start', 'start_trigger'), agent: block('agent', 'agent') },
+        []
+      )
+    ).toEqual({
+      reason: 'trigger-not-connected',
+      message: 'start must be connected to other blocks to execute',
+      blockId: 'start',
+      blockName: 'start',
+      blockType: 'start_trigger',
+    })
+  })
+
+  it('reports a graph with no trigger a manual run can start from', async () => {
+    expect(
+      await manualRunIssue({ a: block('a', 'function'), b: block('b', 'function') }, [
+        edge('a', 'b'),
+      ])
+    ).toMatchObject({
+      reason: 'no-trigger',
+      message: 'Workflow requires at least one trigger block to execute',
+    })
+  })
+
+  it('reports a disabled trigger as no trigger', async () => {
+    expect(
+      await manualRunIssue(
+        {
+          start: { ...block('start', 'start_trigger'), enabled: false },
+          fn: block('fn', 'function'),
+        },
+        [edge('start', 'fn')]
+      )
+    ).toMatchObject({ reason: 'no-trigger' })
+  })
+
+  it('reports more than one API trigger', async () => {
+    expect(
+      await manualRunIssue(
+        {
+          api1: block('api1', 'api_trigger'),
+          api2: block('api2', 'api_trigger'),
+          fn: block('fn', 'function'),
+        },
+        [edge('api1', 'fn'), edge('api2', 'fn')]
+      )
+    ).toMatchObject({
+      reason: 'multiple-api-triggers',
+      message: 'Multiple API Trigger blocks found. Keep only one.',
+    })
+  })
+
+  it.each([
+    ['a connected Start block', 'start_trigger'],
+    ['a connected webhook trigger', 'webhook'],
+    ['a connected schedule trigger', 'schedule'],
+  ])('passes %s', async (_label, type) => {
+    expect(
+      await manualRunIssue({ t: block('t', type), fn: block('fn', 'function') }, [edge('t', 'fn')])
+    ).toBeNull()
+  })
+
+  it('passes a legacy starter without connections, which a manual run accepts', async () => {
+    expect(await manualRunIssue({ start: block('start', 'starter') }, [])).toBeNull()
+  })
+
+  it('passes a chat-only workflow, which runs from chat rather than the Run button', async () => {
+    expect(
+      await manualRunIssue({ chat: block('chat', 'chat_trigger'), fn: block('fn', 'function') }, [
+        edge('chat', 'fn'),
+      ])
+    ).toBeNull()
+  })
+
+  it('leaves an empty graph to its own note', async () => {
+    expect(await manualRunIssue({}, [])).toBeNull()
   })
 })
 
@@ -196,6 +314,69 @@ describe('buildWorkflowLintReport table fields', () => {
         field: 'score',
         tableName: 'Leads',
       },
+    ])
+  })
+
+  it('reports row-write keys that name no column, judging only the literal keys', async () => {
+    const rowWrite = (id: string, values: Record<string, unknown>) =>
+      tableBlock(id, { manualTableId: 'tbl_leads', ...values })
+    const report = await buildWorkflowLintReport(
+      {
+        blocks: {
+          insert: rowWrite('insert', {
+            operation: 'insert_row',
+            data: '{"names": "<start.name>", "score": <start.score>, "<start.key>": 1, "name": "x"}',
+          }),
+          batch: rowWrite('batch', {
+            operation: 'batch_insert_rows',
+            rows: '[{"name": "a"}, {"email": "b"}]',
+          }),
+          dynamic: rowWrite('dynamic', { operation: 'insert_row', data: '<start.row>' }),
+          query: rowWrite('query', { operation: 'query_rows', data: '{"stale": 1}' }),
+        },
+        edges: [],
+      } as never,
+      { ...scope, subjectUserId: null }
+    )
+
+    expect(
+      report.tableFieldIssues.map(({ blockId, field, rowWrite, hint }) => ({
+        blockId,
+        field,
+        rowWrite,
+        hint,
+      }))
+    ).toEqual([
+      { blockId: 'insert', field: 'names', rowWrite: 'data', hint: 'Did you mean name?' },
+      {
+        blockId: 'insert',
+        field: 'score',
+        rowWrite: 'data',
+        hint: "The table's columns are name.",
+      },
+      { blockId: 'batch', field: 'email', rowWrite: 'rows', hint: "The table's columns are name." },
+    ])
+  })
+
+  it('checks row writes against a declared schema instead of the stored one', async () => {
+    const report = await buildWorkflowLintReport(
+      {
+        blocks: {
+          insert: tableBlock('insert', {
+            manualTableId: 'tbl_pending',
+            operation: 'insert_row',
+            data: '{"name": "a", "email": "b"}',
+          }),
+        },
+        edges: [],
+      } as never,
+      { ...scope, subjectUserId: null },
+      { declaredTables: new Map([['tbl_pending', { name: 'Pending', columnNames: ['email'] }]]) }
+    )
+
+    expect(mockGetTableById).not.toHaveBeenCalledWith('tbl_pending')
+    expect(report.tableFieldIssues.map(({ field, tableName }) => [field, tableName])).toEqual([
+      ['name', 'Pending'],
     ])
   })
 

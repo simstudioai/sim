@@ -2,6 +2,7 @@ import type {
   CloudFormationUpdateStackParams,
   CloudFormationUpdateStackResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateStackTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const updateStackTool: InternalToolConfig<
   name: 'CloudFormation Update Stack',
   description: 'Update an existing CloudFormation stack with a new or previous template',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -73,6 +75,13 @@ export const updateStackTool: InternalToolConfig<
       description:
         'Tags to apply to the stack and its resources (e.g., [{"key": "env", "value": "prod"}])',
     },
+    roleArn: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ARN of an IAM service role CloudFormation assumes for stack operations (defaults to the caller credentials or the role previously used for the stack)',
+    },
   },
 
   operation: {
@@ -88,6 +97,7 @@ export const updateStackTool: InternalToolConfig<
       ...(params.parameters && { parameters: params.parameters }),
       ...(params.capabilities && { capabilities: params.capabilities }),
       ...(params.tags && { tags: params.tags }),
+      ...(params.roleArn && { roleArn: params.roleArn }),
     }),
   },
 

@@ -2,6 +2,7 @@ import type {
   AhrefsOrganicKeywordsParams,
   AhrefsOrganicKeywordsResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -16,6 +17,7 @@ export const organicKeywordsTool: ToolConfig<
   description:
     'Get organic keywords that a target domain or URL ranks for in Google search results. Returns keyword details including search volume, ranking position, and estimated traffic.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

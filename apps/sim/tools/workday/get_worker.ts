@@ -37,7 +37,7 @@ export const getWorkerTool: InternalToolConfig<WorkdayGetWorkerParams, WorkdayGe
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Worker ID to retrieve (e.g., 3aa5550b7fe348b98d7b5741afc65534)',
+      description: 'Employee ID of the worker to retrieve (e.g., 21001)',
     },
   },
 

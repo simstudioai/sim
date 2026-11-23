@@ -54,6 +54,7 @@ export function useEditorToolbar({
   })
 
   useEffect(() => {
+    if (editor.isDestroyed) return
     let frame: number | undefined
     const enterToolbar = (event: globalThis.KeyboardEvent) => {
       if (

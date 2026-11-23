@@ -1,0 +1,13 @@
+{
+  "namespace": "qdrant",
+  "methods": {
+    "fetch": "fetch",
+    "search": "search",
+    "upsert": "upsert"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryGetQueryResultsResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryGetQueryResultsTool: ToolConfig<
   GoogleBigQueryGetQueryResultsParams,
@@ -73,7 +74,7 @@ export const googleBigQueryGetQueryResultsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/queries/${encodeURIComponent(params.jobId.trim())}`
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/queries/${safeUrlPathSegment(params.jobId, 'jobId')}`
       )
       if (params.pageToken) url.searchParams.set('pageToken', params.pageToken)
       if (params.maxResults !== undefined && params.maxResults !== null) {

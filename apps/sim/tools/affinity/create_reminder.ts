@@ -9,6 +9,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** A reminder either fires once or resets on a signal. */
@@ -29,6 +30,7 @@ export const affinityCreateReminderTool: ToolConfig<
   description:
     'Create a reminder on one company, person, or opportunity. A recurring reminder resets whenever the chosen signal happens instead of firing once.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

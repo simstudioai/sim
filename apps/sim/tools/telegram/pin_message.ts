@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TelegramBooleanResponse, TelegramPinMessageParams } from '@/tools/telegram/types'
 import { telegramApiUrl } from '@/tools/telegram/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const telegramPinMessageTool: ToolConfig<TelegramPinMessageParams, Telegr
     name: 'Telegram Pin Message',
     description: 'Pin a message in a Telegram chat through the Telegram Bot API.',
     version: '1.0.0',
+    oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {

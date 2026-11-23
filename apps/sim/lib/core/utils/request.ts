@@ -10,8 +10,8 @@ export const trustedProxies = clientIpResolver.trustedProxies
 /**
  * Generate a short request ID for correlation. If called inside a request
  * context (see `withRouteHandler` and `runWithRequestContext`), returns the
- * active request's ID so inline `[${requestId}]` log prefixes align with
- * the auto-attached `{requestId=...}` logger metadata.
+ * active request's ID, the same one the logger stamps on every line, so work
+ * handed this id correlates with the request that started it.
  */
 export function generateRequestId(): string {
   return getRequestContext()?.requestId ?? generateId().slice(0, 8)

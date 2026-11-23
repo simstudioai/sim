@@ -177,7 +177,22 @@ const descriptionSchema = z
 export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
-  tableId: z.string().min(1).describe('Unique table identifier.'),
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).'
+    ),
+})
+
+/** A restore's address: the id alone, since archived tables' names need not be unique. */
+export const archivedTableIdParamsSchema = z.object({
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names.'
+    ),
 })
 
 export const tableRowParamsSchema = tableIdParamsSchema.extend({
@@ -783,6 +798,23 @@ const jsonQueryValue = <S extends z.ZodType>(schema: S) =>
     }
   }, schema)
 
+/** Columns to keep in each returned row's data, by stable id or name; omitted or empty means all. */
+const rowColumnSelectionSchema = z
+  .array(
+    requiredFieldSchema('Column reference must not be empty').max(
+      MAX_ID_LENGTH,
+      'Column reference is too long'
+    )
+  )
+  .max(
+    TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+    `Cannot select more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+  )
+  .optional()
+  .describe(
+    "Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored, and if none match, each row's data is empty."
+  )
+
 /** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
 export const tableRowsQueryBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
@@ -849,7 +881,10 @@ const unboundedTableRowsLimitSchema = z.preprocess(
 )
 
 export const tableRowsQuerySchema = tableRowsQueryBaseSchema
-  .extend({ limit: unboundedTableRowsLimitSchema })
+  .extend({
+    limit: unboundedTableRowsLimitSchema,
+    columns: jsonQueryValue(rowColumnSelectionSchema).optional(),
+  })
   .refine((data) => !(data.after && data.sort), {
     message: 'after cursor cannot be combined with sort — cursors paginate the default order',
   })
@@ -865,6 +900,12 @@ export const updateRowsByFilterBodySchema = z.object({
     .optional()
     .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
+
+/**
+ * The keys of a row write that name no column, which a lax name-keyed write drops instead of
+ * refusing. Only the workflow Table tools' writes report it; the grid's routes never do.
+ */
+const ignoredColumnsSchema = z.array(z.string()).optional()
 
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
@@ -991,7 +1032,7 @@ export const deleteTableContract = defineRouteContract({
 export const restoreTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/table/[tableId]/restore',
-  params: tableIdParamsSchema,
+  params: archivedTableIdParamsSchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
@@ -1074,21 +1115,7 @@ export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
-  columns: z
-    .array(
-      requiredFieldSchema('Column reference must not be empty').max(
-        MAX_ID_LENGTH,
-        'Column reference is too long'
-      )
-    )
-    .max(
-      TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
-      `Cannot select more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
-    )
-    .optional()
-    .describe(
-      'Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored.'
-    ),
+  columns: rowColumnSelectionSchema,
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
   // count; the byte budget may still end a page early with nextCursor set.
@@ -1204,6 +1231,7 @@ export const insertTableRowsContract = defineRouteContract({
         z.object({
           row: tableRowSchema,
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
       successResponseSchema(
@@ -1211,6 +1239,7 @@ export const insertTableRowsContract = defineRouteContract({
           rows: z.array(tableRowSchema),
           insertedCount: z.number(),
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
     ]),
@@ -1402,6 +1431,7 @@ export const upsertTableRowContract = defineRouteContract({
         row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1434,6 +1464,7 @@ export const updateTableRowContract = defineRouteContract({
       z.object({
         row: tableRowWireSchema,
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1468,6 +1499,7 @@ export const updateTableRowsByFilterContract = defineRouteContract({
         message: z.string(),
         updatedCount: z.number(),
         updatedRowIds: z.array(z.string()).optional(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },

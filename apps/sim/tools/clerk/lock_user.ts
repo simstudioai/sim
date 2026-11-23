@@ -5,7 +5,9 @@ import type {
   ClerkLockUserResponse,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkLockUser')
 
@@ -14,6 +16,7 @@ export const clerkLockUserTool: ToolConfig<ClerkLockUserParams, ClerkLockUserRes
   name: 'Lock User in Clerk',
   description: 'Lock a user account, blocking sign-in attempts',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -31,7 +34,8 @@ export const clerkLockUserTool: ToolConfig<ClerkLockUserParams, ClerkLockUserRes
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/users/${params.userId?.trim()}/lock`,
+    url: (params) =>
+      `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lock`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

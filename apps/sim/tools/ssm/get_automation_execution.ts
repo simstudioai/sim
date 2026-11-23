@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmGetAutomationExecutionParams,
   SsmGetAutomationExecutionResponse,
@@ -12,6 +13,7 @@ export const getAutomationExecutionTool: InternalToolConfig<
   name: 'SSM Get Automation Execution',
   description: 'Read the status, outputs, and step results of one Automation execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

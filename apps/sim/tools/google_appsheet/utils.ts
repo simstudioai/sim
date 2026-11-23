@@ -34,3 +34,17 @@ export async function readAppsheetResponseBody(response: Response): Promise<Reco
     return { message: text }
   }
 }
+
+/**
+ * The rows in an AppSheet Action response. The docs show `{ "Rows": [...] }`, but a body that is
+ * the bare row array is accepted too rather than read as an empty result.
+ */
+export function appsheetResponseRows(body: unknown): Record<string, unknown>[] {
+  if (Array.isArray(body)) return body
+  if (body && typeof body === 'object') {
+    const { Rows, rows } = body as { Rows?: unknown; rows?: unknown }
+    if (Array.isArray(Rows)) return Rows
+    if (Array.isArray(rows)) return rows
+  }
+  return []
+}

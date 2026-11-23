@@ -1,0 +1,47 @@
+{
+  "namespace": "reddit",
+  "methods": {
+    "delete": "delete_",
+    "edit": "edit",
+    "get_comments": "getComments",
+    "get_controversial": "getControversialPosts",
+    "get_info": "getInfoById",
+    "get_me": "getMyProfile",
+    "get_messages": "getMessages",
+    "get_posts": "getPosts",
+    "get_saved": "getSavedItems",
+    "get_subreddit_info": "getSubredditInfo",
+    "get_subreddit_rules": "getSubredditRules",
+    "get_user": "getUserProfile",
+    "get_user_comments": "getUserComments",
+    "get_user_posts": "getUserPosts",
+    "hide": "hide",
+    "list_my_subreddits": "listMySubreddits",
+    "lock": "lockMod",
+    "mark_all_read": "markAllMessagesRead",
+    "mark_read": "markMessagesRead",
+    "marknsfw": "markNsfw",
+    "mod_approve": "approveMod",
+    "mod_distinguish": "distinguishMod",
+    "mod_remove": "removeMod",
+    "mod_sticky": "stickyMod",
+    "reply": "reply",
+    "report": "report",
+    "save": "save",
+    "search": "searchSubreddit",
+    "search_subreddits": "searchSubreddits",
+    "send_message": "sendMessage",
+    "submit_post": "submitPost",
+    "subscribe": "subscribe",
+    "unhide": "unhide",
+    "unlock": "unlockMod",
+    "unmarknsfw": "unmarkNsfw",
+    "unsave": "unsave",
+    "vote": "vote"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

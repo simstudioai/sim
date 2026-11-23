@@ -1,4 +1,5 @@
 import type { GrainListRecordingsParams, GrainListRecordingsResponse } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainListRecordingsTool: ToolConfig<
@@ -9,6 +10,7 @@ export const grainListRecordingsTool: ToolConfig<
   name: 'Grain List Recordings',
   description: 'List recordings from Grain with optional filters and pagination',
   version: '1.0.0',
+  oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

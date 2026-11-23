@@ -12,6 +12,7 @@ import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { runDeclaredContentOperation } from '@/lib/core/application/content-delivery'
+import { requireOperationFeature } from '@/lib/core/application/feature-availability'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeWorkspaceOperation,
@@ -246,7 +247,8 @@ export function defineAuthorizedWorkspaceUseCase<
   /**
    * Everything that runs before the business transaction: allowed-principal
    * check, canonical load, asserted-scope comparison, current workspace and
-   * resource access checks.
+   * resource access checks, then the operation's rollout flag, last so a
+   * caller who cannot reach the workspace never learns whether it is on.
    *
    * `execute` and `authorize` share it rather than each spelling it out, so a
    * `HEAD` probe cannot answer a different question from the `GET` it stands
@@ -281,6 +283,9 @@ export function defineAuthorizedWorkspaceUseCase<
       authorizationOptions
     )
     await resourceAuthorization?.(executionContext)
+    if (definition.operation.feature) {
+      await requireOperationFeature(definition.operation.feature, principal, context)
+    }
     return executionContext
   }
 

@@ -57,7 +57,12 @@ export function isLikelyWorkflowReferenceSegment(segment: string): boolean {
   return !INVALID_REFERENCE_CHARS.test(inner) && !/^\d+$/.test(inner) && !/\s\d/.test(inner)
 }
 
-/** Finds non-overlapping `{{ENV}}` and `<workflow.reference>` tokens in source order. */
+/**
+ * Finds non-overlapping `{{ENV}}` and `<workflow.reference>` tokens in source order. A workflow
+ * reference overlapping an env token is dropped. Linear: env tokens are sorted and disjoint, and
+ * reference candidates start ever later (each `>` ends one), so one forward cursor over the env
+ * tokens finds the only one a candidate can overlap. Reference tokens never overlap each other.
+ */
 export function findWorkflowReferenceTokens(source: string): WorkflowReferenceToken[] {
   const tokens: WorkflowReferenceToken[] = []
 
@@ -65,6 +70,8 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
     const start = match.index
     tokens.push({ kind: 'environment', value: match[0], start, end: start + match[0].length })
   }
+  const environmentCount = tokens.length
+  let environmentCursor = 0
 
   let candidateStart = -1
   for (let index = 0; index < source.length; index += 1) {
@@ -84,7 +91,12 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
     if (split && isLikelyWorkflowReferenceSegment(candidate)) {
       const start = candidateStart + split.leading.length
       const end = start + split.reference.length
-      if (!tokens.some((token) => start < token.end && end > token.start)) {
+      while (environmentCursor < environmentCount && tokens[environmentCursor].end <= start) {
+        environmentCursor += 1
+      }
+      const overlapsEnvironment =
+        environmentCursor < environmentCount && tokens[environmentCursor].start < end
+      if (!overlapsEnvironment) {
         tokens.push({ kind: 'workflow', value: split.reference, start, end })
       }
     }
@@ -92,4 +104,15 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
   }
 
   return tokens.sort((left, right) => left.start - right.start)
+}
+
+/**
+ * Collects every string leaf in a nested value: the walk the reference and env-token audits over
+ * block inputs share.
+ */
+export function collectStringLeaves(value: unknown, out: string[]): void {
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) for (const item of value) collectStringLeaves(item, out)
+  else if (typeof value === 'object' && value !== null)
+    for (const item of Object.values(value)) collectStringLeaves(item, out)
 }

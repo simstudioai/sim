@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -50,19 +54,12 @@ function sse(...frames: unknown[]): ReadableStream<Uint8Array> {
   return bodyOf(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`))
 }
 
-function _streamResponse(body: ReadableStream<Uint8Array>): Response {
+function streamResponse(body: ReadableStream<Uint8Array>): Response {
   return {
     body,
     status: 200,
     headers: new Headers({ 'content-type': 'text/event-stream' }),
   } as unknown as Response
-}
-
-function jsonResponse(data: Record<string, unknown>): Response {
-  return new Response(JSON.stringify({ data }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
 }
 
 function ndjsonResponse(...events: Array<Record<string, unknown>>): Response {
@@ -82,11 +79,13 @@ beforeEach(() => {
   requestRaw.mockReset()
   requestRaw.mockImplementation(async () =>
     jsonResponse({
-      runId: 'run-1',
-      workflowId: WORKFLOW_ID,
-      status: 'completed',
-      output: {},
-      error: null,
+      data: {
+        runId: 'run-1',
+        workflowId: WORKFLOW_ID,
+        status: 'completed',
+        output: {},
+        error: null,
+      },
     })
   )
 })
@@ -349,6 +348,7 @@ describe('sim workflows run --follow', () => {
         entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
         stopAfterBlockId: 'agent-1',
       },
+      selectedOutputs: ['agent-1'],
     })
   })
 
@@ -360,6 +360,7 @@ describe('sim workflows run --follow', () => {
 
     expect(requestRaw.mock.calls[0][1].body).toEqual({
       run: { source: 'manual', stopAfterBlockId: 'agent-1' },
+      selectedOutputs: ['agent-1'],
     })
     expect(requestRaw.mock.calls[1][1].body).toEqual({
       run: {
@@ -367,12 +368,50 @@ describe('sim workflows run --follow', () => {
         entry: { type: 'trigger', blockId: 'start' },
         stopAfterBlockId: 'agent-1',
       },
+      selectedOutputs: ['agent-1'],
     })
+  })
+
+  it('selects the output of the block a --stop-after run stops after, by its key or id', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const blockId = '3f2b7c1e-9a4d-4e8b-8c2a-1d5e6f7a8b9c'
+
+    await run(WORKFLOW_ID, '--stop-after', 'Log v1.2 Total')
+    await run(WORKFLOW_ID, '--stop-after', blockId)
+
+    expect(requestRaw.mock.calls[0][1].body).toMatchObject({
+      run: { stopAfterBlockId: 'Log v1.2 Total' },
+      selectedOutputs: ['logv12total'],
+    })
+    expect(requestRaw.mock.calls[1][1].body.selectedOutputs).toEqual([blockId])
+  })
+
+  it('selects the stop block of a --stop-after run it follows, so the final frame holds its output', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockResolvedValue(
+      streamResponse(sse({ event: 'final', data: { success: true, output: {} } }))
+    )
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--follow')
+
+    expect(requestRaw.mock.calls[0][1].body).toMatchObject({
+      run: { stopAfterBlockId: 'agent-1' },
+      selectedOutputs: ['agent-1'],
+      stream: true,
+    })
+  })
+
+  it('keeps the outputs a --stop-after run selects itself', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await run(WORKFLOW_ID, '--stop-after', 'agent-1', '--select-output', 'start.input')
+
+    expect(requestRaw.mock.calls[0][1].body.selectedOutputs).toEqual(['start.input'])
   })
 
   it('refuses an empty --stop-after rather than running the whole draft', async () => {
     await expect(run(WORKFLOW_ID, '--stop-after', '')).rejects.toThrow(
-      '--stop-after requires a block ID'
+      '--stop-after requires a block id, name or key'
     )
     expect(requestRaw).not.toHaveBeenCalled()
   })
@@ -402,6 +441,134 @@ describe('sim workflows run --follow', () => {
 
     await expect(run(WORKFLOW_ID)).rejects.toThrow('Agent failed')
     expect(stdout).toHaveBeenCalled()
+  })
+
+  it('with --dir, names the source file and line of the block that failed, through the lock', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sim-run-site-'))
+    try {
+      mkdirSync(join(dir, '.sim'), { recursive: true })
+      writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ workflowId: WORKFLOW_ID }))
+      writeFileSync(
+        join(dir, '.sim/lock.json'),
+        JSON.stringify({
+          version: 1,
+          blocks: {
+            normalize: {
+              id: 'b-fn',
+              parent: null,
+              ident: 'clean',
+              order: 0,
+              codeFile: 'functions/normalize.js',
+            },
+          },
+          variables: {},
+        })
+      )
+      writeFileSync(
+        join(dir, 'workflow.ts'),
+        "export default workflow('W', () => {\n  const start = trigger.start('Start', {})\n  const clean = fn('Normalize', { code: codeFile('./functions/normalize.js') })\n})\n"
+      )
+      const failed = (blockId: string) =>
+        ndjsonResponse({
+          type: 'final',
+          data: {
+            runId: 'run-1',
+            workflowId: WORKFLOW_ID,
+            status: 'failed',
+            output: {},
+            error: {
+              message:
+                "Type Error: Line 3: `raw.email.split('@')` - Cannot read properties of undefined",
+              code: 'BLOCK_EXECUTION_FAILED',
+              blockId,
+            },
+          },
+        })
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      requestRaw.mockResolvedValue(failed('b-fn'))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Type Error')
+      const lines = stderr.mock.calls.map((call) => call.join(' '))
+      expect(lines).toContain(
+        `${join(dir, 'functions/normalize.js')}:3: Type Error: Line 3: \`raw.email.split('@')\` - Cannot read properties of undefined (block normalize (clean), declared at ${join(dir, 'workflow.ts')}:3)`
+      )
+
+      stderr.mockClear()
+      requestRaw.mockResolvedValue(failed('b-unbound'))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Type Error')
+      expect(stderr.mock.calls.map((call) => call.join(' ')).join('\n')).toContain(
+        'is not mapped to a source line'
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('with --dir, maps only a block failure, reads a line only from the executor prefix, and keeps the run failure when the directory cannot be read', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sim-run-site-'))
+    try {
+      mkdirSync(join(dir, '.sim'), { recursive: true })
+      writeFileSync(join(dir, '.sim/base.json'), JSON.stringify({ workflowId: WORKFLOW_ID }))
+      writeFileSync(
+        join(dir, '.sim/lock.json'),
+        JSON.stringify({
+          version: 1,
+          blocks: {
+            normalize: {
+              id: 'b-fn',
+              parent: null,
+              ident: 'normalize',
+              order: 0,
+              codeFile: 'functions/normalize.js',
+            },
+          },
+          variables: {},
+        })
+      )
+      const failed = (error: Record<string, unknown>) =>
+        ndjsonResponse({
+          type: 'final',
+          data: { runId: 'run-1', workflowId: WORKFLOW_ID, status: 'failed', output: {}, error },
+        })
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const printed = () => stderr.mock.calls.map((call) => call.join(' ')).join('\n')
+
+      requestRaw.mockResolvedValue(failed({ message: 'The run timed out', code: 'TIMEOUT' }))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('The run timed out')
+      expect(printed()).not.toContain(dir)
+
+      stderr.mockClear()
+      writeFileSync(join(dir, 'workflow.ts'), "export default workflow('W', () => {})\n")
+      requestRaw.mockResolvedValue(
+        failed({ message: 'Error: Line 3 of the CSV is bad', blockId: 'b-fn' })
+      )
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('Line 3 of the CSV')
+      expect(printed()).toContain(
+        `${join(dir, 'functions/normalize.js')}: Error: Line 3 of the CSV is bad (block normalize)`
+      )
+
+      stderr.mockClear()
+      rmSync(join(dir, 'workflow.ts'))
+      symlinkSync(join(dir, '.sim/base.json'), join(dir, 'workflow.ts'))
+      requestRaw.mockResolvedValue(failed({ message: 'Line 2 - boom', blockId: 'b-fn' }))
+      await expect(run(WORKFLOW_ID, '--dir', dir)).rejects.toThrow('boom')
+      expect(printed()).toContain('could not be read')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses --dir with --follow or --async before sending anything', async () => {
+    await expect(run(WORKFLOW_ID, '--dir', '.', '--follow')).rejects.toThrow(
+      '--follow and --async do not report the block that failed'
+    )
+    await expect(run(WORKFLOW_ID, '--dir', '.', '--async')).rejects.toThrow(
+      '--follow and --async do not report the block that failed'
+    )
+    expect(request).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
   })
 
   it('explains a deployment that answers JSON instead of an event stream', async () => {

@@ -132,6 +132,7 @@ export const credentialGroupEnrollmentMcpConnectionSchema = z.object({
   mcpServerId: z.string().min(1).max(128),
   name: z.string().min(1).max(255),
   status: z.enum(['active', 'needs_reauth', 'revoked']),
+  count: z.number().int().positive(),
 })
 
 export const credentialGroupEnrollmentDetailSchema = credentialGroupEnrollmentSchema.extend({
@@ -140,7 +141,7 @@ export const credentialGroupEnrollmentDetailSchema = credentialGroupEnrollmentSc
     .max((CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3),
   mcpConnections: z
     .array(credentialGroupEnrollmentMcpConnectionSchema)
-    .max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT),
+    .max(CREDENTIAL_GROUP_MCP_SERVER_LIMIT * 3),
 })
 
 export type CredentialGroupEnrollmentConnection = z.output<
@@ -369,6 +370,7 @@ export type UpdateCredentialGroupBody = z.input<typeof updateCredentialGroupBody
 export const createCredentialGroupMcpConnectorBodySchema = z.discriminatedUnion('connectorId', [
   z.object({ connectorId: z.literal('fireflies') }).strict(),
   z.object({ connectorId: z.literal('granola') }).strict(),
+  z.object({ connectorId: z.literal('hex') }).strict(),
   z.object({ connectorId: z.literal('notion') }).strict(),
   z.object({ connectorId: z.literal('coda') }).strict(),
   z.object({ connectorId: z.literal('hubspot') }).strict(),

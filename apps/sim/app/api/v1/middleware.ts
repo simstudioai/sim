@@ -5,7 +5,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { getValidationErrorMessage, isZodError, validationErrorResponse } from '@/lib/api/server'
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
-import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
+import {
+  PERSONAL_KEY_DENIED,
+  READ_ONLY_API_KEY_DENIED,
+  WORKSPACE_KEY_SCOPE_DENIED,
+} from '@/lib/api-key/policy-messages'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
@@ -82,6 +86,24 @@ export interface RateLimitResult {
   keyType?: 'personal' | 'workspace' | 'oauth_access_token'
   principal?: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
   error?: string
+  /** An authenticated caller refused before the bucket, rendered as its own 403. */
+  refusal?: WorkspaceAccessError
+}
+
+/**
+ * The one v1 route that reads through `POST`: a search sends its query as a body
+ * and changes nothing, so a read-only key may call it.
+ */
+const V1_READ_ONLY_POST_PATHS: ReadonlySet<string> = new Set(['/api/v1/knowledge/search'])
+
+/**
+ * v1 authorizes in its handlers rather than through the operation funnel, so a
+ * read-only key is held to reads here, by method: every v1 `POST`, `PUT`,
+ * `PATCH`, and `DELETE` but search creates, changes, deploys, or deletes.
+ */
+function isV1ReadRequest(request: NextRequest): boolean {
+  if (request.method === 'GET' || request.method === 'HEAD') return true
+  return request.method === 'POST' && V1_READ_ONLY_POST_PATHS.has(request.nextUrl.pathname)
 }
 
 interface AuthorizedRequest {
@@ -163,6 +185,21 @@ export async function checkRateLimit(
       }
     }
 
+    if (auth.principal?.access === 'read' && !isV1ReadRequest(request)) {
+      return {
+        allowed: false,
+        remaining: 0,
+        limit: 0,
+        resetAt: new Date(),
+        refusal: {
+          status: 403,
+          code: 'FORBIDDEN',
+          message: READ_ONLY_API_KEY_DENIED,
+          details: { code: 'READ_ONLY_API_KEY' },
+        },
+      }
+    }
+
     const userId = auth.userId!
     const subscription = await getHighestPrioritySubscription(userId)
 
@@ -240,6 +277,7 @@ export async function authenticateRequest(
 }
 
 export function createRateLimitResponse(result: RateLimitResult): NextResponse {
+  if (result.refusal) return workspaceAccessErrorResponse(result.refusal)
   /**
    * An authentication failure never reaches the token bucket, so there is no
    * limit to report. Publishing a placeholder told unauthenticated callers they

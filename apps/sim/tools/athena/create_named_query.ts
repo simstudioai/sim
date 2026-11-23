@@ -2,6 +2,7 @@ import type {
   AthenaCreateNamedQueryParams,
   AthenaCreateNamedQueryResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createNamedQueryTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createNamedQueryTool: InternalToolConfig<
   name: 'Athena Create Named Query',
   description: 'Create a saved/named query in AWS Athena',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

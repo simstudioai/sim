@@ -7,6 +7,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -16,6 +17,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
   description:
     'Reads a single Cloudflare Tunnel (cloudflared), including its health status and active connector connections. Requires an API token with Account Cloudflare Tunnel Read.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

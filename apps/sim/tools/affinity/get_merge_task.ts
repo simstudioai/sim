@@ -10,6 +10,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetMergeTaskTool: ToolConfig<
@@ -21,6 +22,7 @@ export const affinityGetMergeTaskTool: ToolConfig<
   description:
     'Read one merge task and how its merges are progressing. Poll this after starting a merge.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

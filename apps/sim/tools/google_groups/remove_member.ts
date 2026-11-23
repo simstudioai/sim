@@ -3,6 +3,7 @@ import type {
   GoogleGroupsResponse,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, GoogleGroupsResponse> = {
   id: 'google_groups_remove_member',
@@ -40,8 +41,12 @@ export const removeMemberTool: ToolConfig<GoogleGroupsRemoveMemberParams, Google
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey)
-      const encodedMemberKey = encodeURIComponent(params.memberKey)
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
+      const encodedMemberKey = safeUrlPathSegment(params.memberKey, 'memberKey', {
+        allowSeparators: true,
+      })
       return `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}/members/${encodedMemberKey}`
     },
     method: 'DELETE',

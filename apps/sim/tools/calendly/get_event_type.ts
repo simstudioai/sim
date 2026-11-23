@@ -3,6 +3,7 @@ import type {
   CalendlyGetEventTypeResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEventTypeTool: ToolConfig<
@@ -13,6 +14,7 @@ export const getEventTypeTool: ToolConfig<
   name: 'Calendly Get Event Type',
   description: 'Get detailed information about a specific event type',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,7 +34,7 @@ export const getEventTypeTool: ToolConfig<
 
   request: {
     url: (params: CalendlyGetEventTypeParams) => {
-      const uuid = toUuid(params.eventTypeUuid)
+      const uuid = toUuid(params.eventTypeUuid, 'eventTypeUuid')
       return `https://api.calendly.com/event_types/${uuid}`
     },
     method: 'GET',

@@ -1,5 +1,6 @@
+import { NextResponse } from 'next/server'
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 
 interface JsonRouteDefinitionMetadata {
   successStatus: number
@@ -91,4 +92,51 @@ function declaredSuccessStatuses(contract: AnyApiRouteContract): JsonRouteDefini
 export function methodMatchesContract(requestMethod: string, contractMethod: string): boolean {
   if (requestMethod === contractMethod) return true
   return requestMethod === 'HEAD' && contractMethod === 'GET'
+}
+
+/**
+ * Refuses at module load to build a `headSafe: false` route whose use case
+ * cannot answer the authorization question on its own — see the `headSafe`
+ * option on the v2 and internal route builders. A use case with no `authorize`
+ * leaves the builder nothing but admission to answer a `HEAD` from, so the gap
+ * is a boot failure rather than a silent 200.
+ */
+export function requireHeadAuthorizableUseCase(
+  contract: { method: string; path: string },
+  headSafe: boolean | undefined,
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
+): void {
+  if (headSafe !== false) return
+  if (typeof useCase.authorize === 'function') return
+  throw new Error(
+    `Route ${contract.method} ${contract.path} declares headSafe: false but its use case has no authorize(); a HEAD would have to answer from authentication alone and would leak the resource's existence.`
+  )
+}
+
+/**
+ * `Cache-Control` for a response carrying an `ETag`: a private cache may keep it but must
+ * revalidate it on every use, which is what the tag is for (`no-store` would forbid keeping it,
+ * so the tag could never be sent back).
+ */
+export const REVALIDATE_CACHE_CONTROL = 'private, no-cache'
+
+/**
+ * Whether the request's `If-None-Match` names `entityTag` (quoted) or `*`. Comparison is weak
+ * (RFC 9110 §13.1.2), so `W/` prefixes are ignored.
+ */
+export function entityTagMatches(request: Request, entityTag: string): boolean {
+  const header = request.headers.get('if-none-match')
+  if (!header) return false
+  return header
+    .split(',')
+    .map((candidate) => candidate.trim().replace(/^W\//, ''))
+    .some((candidate) => candidate === '*' || candidate === entityTag)
+}
+
+/** The bodiless `304` for a request whose `If-None-Match` matched `entityTag`. */
+export function notModifiedResponse(entityTag: string): NextResponse {
+  return new NextResponse(null, {
+    status: 304,
+    headers: { 'Cache-Control': REVALIDATE_CACHE_CONTROL, ETag: entityTag },
+  })
 }

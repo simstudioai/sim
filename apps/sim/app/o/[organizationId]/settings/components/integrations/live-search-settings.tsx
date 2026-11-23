@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/search-integrations'
+import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
 import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -21,7 +22,6 @@ import {
   liveSearchMemberAccountProvider,
 } from '@/lib/sim-search/live/source-catalog'
 import { AssistantAccountIntegrations } from '@/app/o/[organizationId]/integrations/assistant-account-integrations'
-import { assistantAccountOptions } from '@/app/o/[organizationId]/integrations/utils'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AddOrganizationSourceModal } from '@/app/o/[organizationId]/settings/components/integrations/add-organization-source-modal'
 import {
@@ -203,7 +203,7 @@ export function LiveSearchSettings() {
                       )))
               const scope = serviceAccount
                 ? type === 'gitlab'
-                  ? 'Projects and permissions'
+                  ? 'Connections and permissions'
                   : type === 'github'
                     ? 'GitHub App repositories'
                     : integration.policy?.sourceId
@@ -227,11 +227,7 @@ export function LiveSearchSettings() {
                     <div className='flex gap-2'>
                       {serviceAccount && (
                         <ChipLink href={routes.searchProvider(type)}>
-                          {type === 'gitlab'
-                            ? 'Projects'
-                            : type === 'github'
-                              ? 'Repositories'
-                              : 'Connections'}
+                          {type === 'github' ? 'Repositories' : 'Connections'}
                         </ChipLink>
                       )}
                       {type === 'slack' && (
@@ -339,7 +335,7 @@ export function LiveSearchSettings() {
                 : type === 'github'
                   ? 'GitHub App repositories'
                   : type === 'gitlab'
-                    ? 'Projects and permissions'
+                    ? 'Connections and permissions'
                     : access.admin
                       ? 'Service account or member accounts'
                       : 'Member accounts',

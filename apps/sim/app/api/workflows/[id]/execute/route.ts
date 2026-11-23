@@ -1,4 +1,4 @@
-import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import { isReadOnlyApiKeyPrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -16,7 +16,11 @@ import {
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
 import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
-import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
+import {
+  PERSONAL_KEY_DENIED,
+  READ_ONLY_API_KEY_DENIED,
+  WORKSPACE_KEY_SCOPE_DENIED,
+} from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
@@ -94,7 +98,7 @@ import {
   settleClientWorkflowToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import {
   reportQueuedClientWorkflowTool,
@@ -147,7 +151,10 @@ import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
-import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
+import {
+  resolveOutputSelectors,
+  resolveOutputSelectorsLeniently,
+} from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
@@ -550,6 +557,14 @@ async function handleExecutePost(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    /** Running a workflow changes state, and this route authorizes outside the operation funnel. */
+    if (auth.success && auth.principal && isReadOnlyApiKeyPrincipal(auth.principal)) {
+      return NextResponse.json(
+        { error: READ_ONLY_API_KEY_DENIED, details: { code: 'READ_ONLY_API_KEY' } },
+        { status: 403 }
+      )
+    }
+
     const executionModeHeader = req.headers.get('X-Execution-Mode')
     const isAsyncMode = executionModeHeader === 'async'
     const trustedDeadlineHeader =
@@ -945,7 +960,7 @@ async function handleExecutePost(
         ? false
         : (useDraftState ?? auth.authType === AuthType.SESSION)
     const requiresWriteExecutionAccess = Boolean(
-      useDraftState || workflowStateOverride || rawRunFromBlock
+      shouldUseDraftState || workflowStateOverride || rawRunFromBlock
     )
 
     if (req.signal.aborted) {
@@ -987,11 +1002,12 @@ async function handleExecutePost(
     }
 
     /**
-     * Interactive sessions and personal keys preserve the authenticated human
-     * as actor. Preprocessing resolves the workspace payer independently.
+     * Sessions and personal keys act as the authenticated human. Keyed on auth
+     * type, not the body's `isClientSession`, so a session cannot opt out and
+     * run its editable draft on the billing account's credentials.
      */
     const useAuthenticatedUserAsActor =
-      isClientSession ||
+      auth.authType === AuthType.SESSION ||
       (auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal') ||
       useMcpBridgeAuthenticatedUserAsActor
 
@@ -1447,6 +1463,20 @@ async function handleExecutePost(
       }
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
+      /**
+       * The executor reads only the internal selector form; a public `block.path` reaching
+       * a child-workflow block would read as `workflow.block`. The sync response has never
+       * refused a stale selector, so one that names no block is dropped, not answered with 400.
+       */
+      const syncSelection = resolveOutputSelectorsLeniently({
+        selectedOutputs,
+        currentBlocks: effectiveWorkflowStateOverride?.blocks ?? {},
+      })
+      if (syncSelection.rejected.length > 0) {
+        reqLogger.warn('Ignoring selected outputs that name no block', {
+          rejected: syncSelection.rejected,
+        })
+      }
 
       const timeoutController = createTimeoutAbortController(getEffectiveSyncTimeoutMs())
       const didExecutionTimeOut = (error?: unknown) =>
@@ -1471,7 +1501,7 @@ async function handleExecutePost(
           workflow,
           processedInput,
           executionVariables,
-          selectedOutputs
+          syncSelection.selectedOutputs
         )
 
         const result = await executeWorkflowCore({

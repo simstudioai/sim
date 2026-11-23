@@ -1,11 +1,14 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { EventResponse, RetrieveEventParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventResponse> = {
   id: 'stripe_retrieve_event',
   name: 'Stripe Retrieve Event',
   description: 'Retrieve an existing Event by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -23,7 +26,7 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/events/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/events/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

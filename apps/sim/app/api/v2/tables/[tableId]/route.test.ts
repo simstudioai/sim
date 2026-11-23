@@ -26,6 +26,7 @@ vi.mock('@/lib/table/billing', () => tableBillingMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { TABLE_NOT_FOUND_MESSAGE } from '@/lib/table/constants'
 import { DELETE, GET, PATCH } from '@/app/api/v2/tables/[tableId]/route'
 
 const { mockGetUserEmailsByIds } = usersQueriesMockFns
@@ -157,7 +158,7 @@ describe('/api/v2/tables/[tableId]', () => {
       expect(response.status).toBe(404)
       expect((await response.json()).error).toEqual({
         code: 'NOT_FOUND',
-        message: 'Table not found',
+        message: TABLE_NOT_FOUND_MESSAGE,
       })
     }
   })

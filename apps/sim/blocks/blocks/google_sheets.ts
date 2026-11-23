@@ -2,7 +2,13 @@ import { GoogleSheetsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  isToolCall,
+  mapperOperation,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -552,6 +558,44 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
       mode: 'advanced',
     },
     {
+      id: 'valueRenderOption',
+      title: 'Value Render Option',
+      type: 'dropdown',
+      options: [
+        { label: 'Formatted (as displayed)', id: 'FORMATTED_VALUE' },
+        { label: 'Unformatted (raw values)', id: 'UNFORMATTED_VALUE' },
+        { label: 'Formulas', id: 'FORMULA' },
+      ],
+      condition: { field: 'operation', value: ['read', 'batch_get'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'dateTimeRenderOption',
+      title: 'Date/Time Render Option',
+      type: 'dropdown',
+      options: [
+        { label: 'Serial Number', id: 'SERIAL_NUMBER' },
+        { label: 'Formatted String', id: 'FORMATTED_STRING' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['read', 'batch_get'],
+        and: { field: 'valueRenderOption', value: ['UNFORMATTED_VALUE', 'FORMULA'] },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'majorDimension',
+      title: 'Major Dimension',
+      type: 'dropdown',
+      options: [
+        { label: 'Rows', id: 'ROWS' },
+        { label: 'Columns', id: 'COLUMNS' },
+      ],
+      condition: { field: 'operation', value: 'batch_get' },
+      mode: 'advanced',
+    },
+    {
       id: 'values',
       title: 'Values',
       type: 'long-input',
@@ -585,6 +629,23 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         { label: "Raw (Don't parse formulas)", id: 'RAW' },
       ],
       condition: { field: 'operation', value: ['write', 'update', 'batch_update'] },
+    },
+    {
+      id: 'appendValueInputOption',
+      title: 'Value Input Option',
+      type: 'dropdown',
+      options: [
+        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
+        { label: "Raw (Don't parse formulas)", id: 'RAW' },
+      ],
+      condition: { field: 'operation', value: 'append' },
+    },
+    {
+      id: 'includeValuesInResponse',
+      title: 'Return Updated Values',
+      type: 'switch',
+      condition: { field: 'operation', value: ['write', 'update', 'append', 'batch_update'] },
+      mode: 'advanced',
     },
     {
       id: 'values',
@@ -872,7 +933,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         suffix: '_v2',
         fallbackToolId: 'google_sheets_read_v2',
       }),
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
           values,
@@ -891,15 +952,24 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           filterColumn,
           filterValue,
           filterMatchType,
+          majorDimension,
+          appendValueInputOption,
           ...rest
         } = params
 
-        const operation = params.operation as string
+        const operation = mapperOperation(params, context)
+
+        /** A model sends JSON-typed tool params already parsed; the canvas sends JSON text. */
+        const parseJsonInput = (value: unknown) =>
+          typeof value !== 'string' && isToolCall(context) ? value : JSON.parse(value as string)
 
         if (operation === 'create') {
-          const sheetTitlesArray = sheetTitles
-            ? (sheetTitles as string).split(',').map((s: string) => s.trim())
-            : undefined
+          const sheetTitlesArray =
+            Array.isArray(sheetTitles) && isToolCall(context)
+              ? sheetTitles
+              : sheetTitles
+                ? (sheetTitles as string).split(',').map((s: string) => s.trim())
+                : undefined
           return {
             title: (title as string)?.trim(),
             sheetTitles: sheetTitlesArray,
@@ -907,7 +977,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           }
         }
 
-        const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
+        const rawSpreadsheetId =
+          spreadsheetId ||
+          (operation === 'copy_sheet' ? toolCallArg(context, rest.sourceSpreadsheetId) : undefined)
+        const effectiveSpreadsheetId = rawSpreadsheetId ? String(rawSpreadsheetId).trim() : ''
 
         if (!effectiveSpreadsheetId) {
           throw new Error('Spreadsheet ID is required.')
@@ -921,16 +994,23 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'batch_get') {
-          const parsedRanges = ranges ? JSON.parse(ranges as string) : []
+          const parsedRanges = ranges ? parseJsonInput(ranges) : []
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
             oauthCredential,
+            ...(majorDimension ? { majorDimension } : {}),
+            ...(rest.valueRenderOption ? { valueRenderOption: rest.valueRenderOption } : {}),
+            ...(rest.dateTimeRenderOption
+              ? { dateTimeRenderOption: rest.dateTimeRenderOption }
+              : {}),
           }
         }
 
         if (operation === 'batch_update') {
-          const parsedData = batchData ? JSON.parse(batchData as string) : []
+          const parsedData = batchData
+            ? JSON.parse(batchData as string)
+            : (toolCallArg(context, rest.data) ?? [])
           return {
             ...rest,
             spreadsheetId: effectiveSpreadsheetId,
@@ -940,7 +1020,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'batch_clear') {
-          const parsedRanges = ranges ? JSON.parse(ranges as string) : []
+          const parsedRanges = ranges ? parseJsonInput(ranges) : []
           return {
             spreadsheetId: effectiveSpreadsheetId,
             ranges: parsedRanges,
@@ -965,7 +1045,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'delete_sheet') {
-          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          const parsedSheetId = Number.parseInt(
+            (deleteSheetId ?? toolCallArg(context, sheetId)) as string,
+            10
+          )
           if (Number.isNaN(parsedSheetId)) {
             throw new Error('Sheet ID must be a valid number')
           }
@@ -977,7 +1060,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         if (operation === 'delete_rows') {
-          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          const parsedSheetId = Number.parseInt(
+            (deleteSheetId ?? toolCallArg(context, sheetId)) as string,
+            10
+          )
           const parsedStartIndex = Number.parseInt(startIndex as string, 10)
           const parsedEndIndex = Number.parseInt(endIndex as string, 10)
           if (
@@ -1002,7 +1088,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           throw new Error('Sheet name is required. Please select or enter a sheet name.')
         }
 
-        const parsedValues = values ? JSON.parse(values as string) : undefined
+        const parsedValues = values ? parseJsonInput(values) : undefined
 
         return {
           ...rest,
@@ -1016,6 +1102,15 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             ? { filterValue: filterValue as string }
             : {}),
           ...(filterMatchType ? { filterMatchType: filterMatchType as string } : {}),
+          ...(operation === 'append'
+            ? {
+                valueInputOption:
+                  appendValueInputOption ||
+                  toolCallArg(context, rest.valueInputOption) ||
+                  undefined,
+              }
+            : {}),
+          majorDimension: operation === 'read' ? toolCallArg(context, majorDimension) : undefined,
         }
       },
     },
@@ -1028,7 +1123,24 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
     valueInputOption: { type: 'string', description: 'Value input option' },
+    appendValueInputOption: { type: 'string', description: 'Value input option for Append' },
     insertDataOption: { type: 'string', description: 'Data insertion option' },
+    includeValuesInResponse: {
+      type: 'boolean',
+      description: 'Return the values of the updated cells in updatedData',
+    },
+    valueRenderOption: {
+      type: 'string',
+      description: 'How read values are rendered: FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA',
+    },
+    dateTimeRenderOption: {
+      type: 'string',
+      description: 'How read dates are rendered: SERIAL_NUMBER or FORMATTED_STRING',
+    },
+    majorDimension: {
+      type: 'string',
+      description: 'Major dimension of batch read values: ROWS or COLUMNS',
+    },
     title: { type: 'string', description: 'Title for new spreadsheet' },
     sheetTitles: { type: 'string', description: 'Comma-separated sheet names for new spreadsheet' },
     ranges: { type: 'string', description: 'JSON array of ranges for batch operations' },
@@ -1082,6 +1194,17 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       description:
         'Filter summary (present only when a filter was requested): applied, column, matchType, columnFound, matchedRows, totalRows',
       condition: { field: 'operation', value: 'read' },
+    },
+    majorDimension: {
+      type: 'string',
+      description: 'Major dimension of the returned values (ROWS or COLUMNS)',
+      condition: { field: 'operation', value: 'read' },
+    },
+    updatedData: {
+      type: 'json',
+      description:
+        'Values of the updated cells (range, majorDimension, values), present only when Return Updated Values is on',
+      condition: { field: 'operation', value: ['write', 'update', 'append'] },
     },
     updatedRange: {
       type: 'string',

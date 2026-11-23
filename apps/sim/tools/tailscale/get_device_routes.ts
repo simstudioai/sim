@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleDeviceParams,
   TailscaleGetDeviceRoutesResponse,
@@ -14,6 +15,7 @@ export const tailscaleGetDeviceRoutesTool: ToolConfig<
   name: 'Tailscale Get Device Routes',
   description: 'Get the advertised and approved subnet routes for a device',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

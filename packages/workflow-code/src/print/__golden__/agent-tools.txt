@@ -1,0 +1,57 @@
+// @sim-sdk 1
+import {
+  agent,
+  childWorkflow,
+  customTool,
+  mcp,
+  raw,
+  slack,
+  t,
+  trigger,
+  workflow,
+} from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { input: 'string' } })
+  const assistant = agent('Assistant', {
+    model: 'claude-sonnet-5-5',
+    tools: [
+      slack.tool.sendMessage(
+        { channel: 'C0OPS', text: t`Approve: ${start.input}` },
+        { usageControl: 'auto' }
+      ),
+      customTool('lookup-vendor', { usageControl: 'auto' }),
+      raw({
+        type: 'custom-tool',
+        title: 'Drifted copy',
+        toolId: 'custom-drifted',
+        params: {},
+        modes: {},
+        customTool: {
+          ref: { $sim: 'resource', kind: 'custom-tool', key: 'lookup-vendor' },
+          snapshot: { schema: { type: 'function' }, code: 'return 1' },
+        },
+      }),
+      mcp('docs').tool('search_docs', {
+        args: { limit: '5' },
+        usageControl: 'auto',
+        snapshot: {
+          serverName: 'Docs',
+          schema: { type: 'object', properties: { query: { type: 'string' } } },
+        },
+      }),
+      raw({
+        type: 'mcp',
+        title: 'Renamed search',
+        params: {
+          serverId: { $sim: 'resource', kind: 'mcp-server', key: 'docs' },
+          toolName: 'search_docs',
+        },
+        modes: { server: 'basic', tool: 'basic' },
+      }),
+      childWorkflow('enrich-lead').asTool({ usageControl: 'auto' }),
+    ],
+  })
+
+  start.to(assistant)
+})

@@ -11,6 +11,7 @@ import {
   jsonBody,
   mapCampaign,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createCampaignTool: ToolConfig<
@@ -21,6 +22,7 @@ export const createCampaignTool: ToolConfig<
   name: 'Email Bison Create Campaign',
   description: 'Creates a new Email Bison campaign.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     name: {

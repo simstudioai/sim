@@ -2,6 +2,7 @@ import type {
   CloudTrailGetEventDataStoreParams,
   CloudTrailGetEventDataStoreResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getEventDataStoreTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getEventDataStoreTool: InternalToolConfig<
   name: 'CloudTrail Get Event Data Store',
   description: 'Retrieve the configuration of a single CloudTrail Lake event data store',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

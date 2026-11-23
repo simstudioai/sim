@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createSlackWebApiTool, slackId, slackJson } from '@/tools/slack/web-api'
+import { createSlackWebApiTool, slackId, slackIdList } from '@/tools/slack/web-api'
 
 /** https://docs.slack.dev/reference/methods/canvases.access.set/ */
 export const slackShareCanvasTool = createSlackWebApiTool({
@@ -23,20 +23,27 @@ export const slackShareCanvasTool = createSlackWebApiTool({
       visibility: 'user-or-llm',
       description: 'Access Level Options: read, write, owner.',
     },
-    user_ids: { type: 'json', required: false, visibility: 'user-or-llm', description: 'User IDs' },
+    user_ids: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Up to 20 Slack user IDs, as a JSON array or a comma-separated string. Omit channel_ids.',
+    },
     channel_ids: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Channel IDs',
+      description:
+        'Up to 20 Slack channel IDs, as a JSON array or a comma-separated string. Omit user_ids.',
     },
   },
   input: z
     .object({
       canvas_id: z.string().trim().min(1),
       access_level: z.enum(['read', 'write', 'owner']),
-      user_ids: slackJson(z.array(slackId).min(1)).optional(),
-      channel_ids: slackJson(z.array(slackId).min(1)).optional(),
+      user_ids: slackIdList(z.array(slackId).min(1).max(20)).optional(),
+      channel_ids: slackIdList(z.array(slackId).min(1).max(20)).optional(),
     })
     .refine(
       (p) => (p.user_ids !== undefined) !== (p.channel_ids !== undefined),

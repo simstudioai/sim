@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogGetSessionRecordingParams {
@@ -87,7 +87,7 @@ export const getSessionRecordingTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/session_recordings/${params.recordingId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/session_recordings/${postHogPathSegment(params.recordingId, 'recordingId')}/`
     },
     method: 'GET',
     headers: (params) => ({

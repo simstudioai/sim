@@ -1,4 +1,10 @@
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import {
+  createMockWorkspaceApplicationContext,
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +18,8 @@ vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: mocks.cancel,
 }))
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   setSlackAgentSessionStatus: mocks.setStatus,
 }))
@@ -22,6 +30,7 @@ vi.mock('@/lib/webhooks/slack-stream-sessions', () => ({
   unregisterSlackStreamSession: mocks.unregister,
 }))
 
+import { resolveCurrentOutboundRoute } from '@/lib/core/network/context.server'
 import {
   getLegacySlackCustomBotCredentialId,
   handleSlackAgentSessionStopped,
@@ -51,6 +60,7 @@ describe('getLegacySlackCustomBotCredentialId', () => {
 
 describe('handleSlackAgentSessionStopped', () => {
   beforeEach(() => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(false)
     mocks.listSessions.mockResolvedValue([])
     authOAuthUtilsMockFns.mockGetSlackBotCredential.mockResolvedValue({ botToken: 'xoxb-test' })
   })
@@ -110,5 +120,35 @@ describe('handleSlackAgentSessionStopped', () => {
     )
     expect(mocks.unregister).not.toHaveBeenCalled()
     expect(mocks.setStatus).not.toHaveBeenCalled()
+  })
+
+  it("returns the session to active through the bot credential's organization egress route", async () => {
+    networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
+    mocks.listSessions.mockResolvedValue([
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mocks.cancel.mockResolvedValue(undefined)
+    authOAuthUtilsMockFns.mockGetSlackBotCredential.mockResolvedValue({
+      botToken: 'xoxb-test',
+      workspaceId: 'workspace-1',
+    })
+    workspaceContextMockFns.mockLoadWorkspaceApplicationContext.mockResolvedValue(
+      createMockWorkspaceApplicationContext({
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: 'org-1',
+      })
+    )
+    mocks.setStatus.mockImplementation(async () => {
+      await resolveCurrentOutboundRoute()
+    })
+
+    await handleSlackAgentSessionStopped('credential-1', { kind: 'stop' })
+
+    expect(networkConfigMockFns.mockResolveOutboundRoute).toHaveBeenCalledWith('org-1')
   })
 })

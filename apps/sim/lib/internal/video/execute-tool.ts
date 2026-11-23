@@ -7,9 +7,11 @@ import type { InternalToolOperationHandler } from '@/lib/internal/tool-operation
 import type { VideoProvider } from '@/lib/internal/video/client'
 import { VideoOperationError } from '@/lib/internal/video/errors'
 import { executeVideoOperation } from '@/lib/internal/video/operations'
+import { FalAIResultError } from '@/lib/media/falai-result'
 
 const VIDEO_TOOL_IDS = new Set([
   'video_falai',
+  'video_higgsfield',
   'video_luma',
   'video_minimax',
   'video_runway',
@@ -79,7 +81,14 @@ export const executeVideoTool: InternalToolOperationHandler = async (request) =>
     }
     return Response.json(
       { error: getErrorMessage(error, 'Video generation failed') },
-      { status: isPayloadSizeLimitError(error) ? 413 : 500 }
+      {
+        status:
+          error instanceof FalAIResultError
+            ? error.status
+            : isPayloadSizeLimitError(error)
+              ? 413
+              : 500,
+      }
     )
   }
 }

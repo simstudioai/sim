@@ -1,9 +1,8 @@
 'use client'
 
 import { AuthTextLink } from '@sim/auth-ui'
-import { useBrandConfig } from '@/ee/whitelabeling'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 
 export function SupportFooter() {
-  const brand = useBrandConfig()
-  return <AuthTextLink href={`mailto:${brand.supportEmail}`}>Contact support</AuthTextLink>
+  return <AuthTextLink href={`mailto:${SIM_SUPPORT_EMAIL}`}>Contact support</AuthTextLink>
 }

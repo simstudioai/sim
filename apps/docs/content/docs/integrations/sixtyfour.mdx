@@ -2,7 +2,7 @@
 title: Sixtyfour AI
 description: Enrich leads and companies with AI-powered research
 integration:
-  type: "sixtyfour"
+  type: "sixtyfour_v2"
   color: "#000000"
 ---
 
@@ -23,11 +23,12 @@ Find emails, phone numbers, and enrich lead or company data with contact informa
 
 Find phone numbers for a lead using Sixtyfour AI.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `name` | string | Yes | Full name of the person |
 | `company` | string | No | Company name |
 | `linkedinUrl` | string | No | LinkedIn profile URL |
@@ -43,6 +44,8 @@ Find phone numbers for a lead using Sixtyfour AI.
 | `phone` | string | Phone number\(s\) found |
 | `linkedinUrl` | string | LinkedIn profile URL |
 
+</ReferenceDetails>
+
 ### Sixtyfour Find Email
 
 Find email addresses for a lead using Sixtyfour AI.
@@ -53,7 +56,6 @@ Find email addresses for a lead using Sixtyfour AI.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `name` | string | Yes | Full name of the person |
 | `company` | string | No | Company name |
 | `linkedinUrl` | string | No | LinkedIn profile URL |
@@ -86,11 +88,12 @@ Find email addresses for a lead using Sixtyfour AI.
 
 Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `leadInfo` | string | Yes | Lead information as JSON object with key-value pairs \(e.g. name, company, title, linkedin\) |
 | `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual's email address", "phone": "Phone number"\}\) |
 | `researchPlan` | string | No | Optional research plan to guide enrichment strategy |
@@ -104,15 +107,18 @@ Enrich lead information with contact details, social profiles, and company data 
 | `references` | json | Source URLs and descriptions used for enrichment |
 | `confidenceScore` | number | Quality score for the returned data \(0-10\) |
 
+</ReferenceDetails>
+
 ### Sixtyfour Enrich Company
 
 Enrich company data with additional information and find associated people using Sixtyfour AI.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sixtyfour API key |
 | `targetCompany` | string | Yes | Company data as JSON object \(e.g. \{"name": "Acme Inc", "domain": "acme.com"\}\) |
 | `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"website": "Company website URL", "num_employees": "Employee count"\}\) |
 | `findPeople` | boolean | No | Whether to find people associated with the company |
@@ -130,5 +136,7 @@ Enrich company data with additional information and find associated people using
 | `references` | json | Source URLs and descriptions used for enrichment |
 | `confidenceScore` | number | Quality score for the returned data \(0-10\) |
 | `orgChart` | json | Org chart returned when fullOrgChart is enabled |
+
+</ReferenceDetails>
 
 

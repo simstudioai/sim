@@ -113,7 +113,6 @@ vi.mock('@/lib/mcp/resolve-config', () => ({
 }))
 vi.mock('@/lib/mcp/storage', () => ({
   createMcpCacheAdapter: () => mockCacheAdapter,
-  getMcpCacheType: () => 'memory',
 }))
 
 import { withMcpOauthRefreshLock } from '@/lib/mcp/oauth'

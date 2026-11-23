@@ -31,7 +31,14 @@ export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTa
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Asana workspace GID (numeric string) to filter tasks (required when not using taskGid)',
+        'Asana workspace GID (numeric string) to filter tasks. Asana requires an assignee alongside a workspace filter; use project instead to list a project',
+    },
+    assignee: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Assignee to filter tasks on (user GID, email, or "me"). Required by Asana when filtering by workspace; ignored when filtering by project',
     },
     project: {
       type: 'string',
@@ -43,7 +50,13 @@ export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTa
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of tasks to return (default: 50)',
+      description: 'Maximum number of tasks to return, 1-100 (default: 50)',
+    },
+    offset: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination offset token from a previous response next_page.offset',
     },
   },
 
@@ -53,7 +66,9 @@ export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTa
       taskGid: params.taskGid,
       workspace: params.workspace,
       project: params.project,
+      assignee: params.assignee,
       limit: params.limit,
+      offset: params.offset,
     }),
   },
 
@@ -115,6 +130,17 @@ export const asanaGetTaskTool: InternalToolConfig<AsanaGetTaskParams, AsanaGetTa
           name: { type: 'string', description: 'Task name' },
           completed: { type: 'boolean', description: 'Completion status' },
         },
+      },
+    },
+    next_page: {
+      type: 'object',
+      nullable: true,
+      description: 'Pagination info when fetching multiple tasks; null on the last page',
+      optional: true,
+      properties: {
+        offset: { type: 'string', description: 'Offset token for the next page' },
+        path: { type: 'string', description: 'API path' },
+        uri: { type: 'string', description: 'Full URI' },
       },
     },
   },

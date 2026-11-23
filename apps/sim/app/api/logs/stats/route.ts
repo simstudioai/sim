@@ -5,7 +5,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { type DashboardStatsResponse, statsQueryParamsSchema } from '@/lib/api/contracts/logs'
 import { isZodError } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
@@ -31,12 +30,10 @@ export const revalidate = 0
  * check and consumes only the surface-neutral halves.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized logs stats access attempt`)
+      logger.warn('Unauthorized logs stats access attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -105,7 +102,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(stats, { status: 200 })
     } catch (validationError) {
       if (isZodError(validationError)) {
-        logger.warn(`[${requestId}] Invalid logs stats request parameters`, {
+        logger.warn('Invalid logs stats request parameters', {
           errors: validationError.issues,
         })
         return NextResponse.json(
@@ -119,7 +116,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       throw validationError
     }
   } catch (error: any) {
-    logger.error(`[${requestId}] logs stats fetch error`, error)
+    logger.error('logs stats fetch error', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 })

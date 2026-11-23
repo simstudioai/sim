@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelListProjectsParams, VercelListProjectsResponse } from '@/tools/vercel/types'
 
@@ -9,6 +10,7 @@ export const vercelListProjectsTool: ToolConfig<
   name: 'Vercel List Projects',
   description: 'List all projects in a Vercel team or account',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

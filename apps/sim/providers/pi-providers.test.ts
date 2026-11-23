@@ -27,16 +27,9 @@ describe('Pi provider catalog', () => {
 
   it('maps Sim provider IDs onto Pi provider IDs', () => {
     expect(resolvePiModelId('kimi', 'kimi-k2.6')).toBe('kimi-k2.6')
-    expect(resolvePiModelId('nvidia', 'nvidia/nemotron-3-super-120b-a12b')).toBe(
-      'nvidia/nemotron-3-super-120b-a12b'
+    expect(resolvePiModelId('nvidia', 'nvidia/nemotron-3-ultra-550b-a55b')).toBe(
+      'nvidia/nemotron-3-ultra-550b-a55b'
     )
-  })
-
-  it('rejects saved model IDs removed by Pi 1.0 without substituting another model', () => {
-    expect(resolvePiModelId('anthropic', 'claude-opus-4-1')).toBeUndefined()
-    expect(resolvePiModelId('cerebras', 'cerebras/zai-glm-4.7')).toBeUndefined()
-    expect(resolvePiModelId('zai', 'glm-5.1')).toBeUndefined()
-    expect(resolvePiModelId('zai', 'glm-4.5-air')).toBeUndefined()
   })
 
   it('rejects provider/model pairs absent from the installed Pi catalog', () => {

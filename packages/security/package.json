@@ -26,6 +26,10 @@
       "types": "./src/encryption.ts",
       "default": "./src/encryption.ts"
     },
+    "./environment-proxy": {
+      "types": "./src/environment-proxy.ts",
+      "default": "./src/environment-proxy.ts"
+    },
     "./hash": {
       "types": "./src/hash.ts",
       "default": "./src/hash.ts"
@@ -69,12 +73,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "ipaddr.js": "2.3.0"
+    "ipaddr.js": "2.5.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.19.2",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

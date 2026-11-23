@@ -3,6 +3,7 @@ import type {
   GoogleSheetsV2ClearResponse,
 } from '@/tools/google_sheets/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const clearV2Tool: ToolConfig<GoogleSheetsV2ClearParams, GoogleSheetsV2ClearResponse> = {
   id: 'google_sheets_clear_v2',
@@ -57,7 +58,7 @@ export const clearV2Tool: ToolConfig<GoogleSheetsV2ClearParams, GoogleSheetsV2Cl
       const cellRange = params.cellRange?.trim()
       const fullRange = cellRange ? `${sheetName}!${cellRange}` : sheetName
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(fullRange)}:clear`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values/${encodeURIComponent(fullRange)}:clear`
     },
     method: 'POST',
     headers: (params) => {

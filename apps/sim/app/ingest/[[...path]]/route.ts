@@ -61,7 +61,7 @@ async function handler(request: NextRequest) {
       logger.info('Client closed PostHog proxy request', { method: request.method })
       return new NextResponse(null, { status: 499 })
     }
-    logger.error('PostHog proxy error', {
+    logger.warn('PostHog proxy error', {
       url,
       method: request.method,
       error: toError(error).message,

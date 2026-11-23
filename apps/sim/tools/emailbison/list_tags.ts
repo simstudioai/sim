@@ -7,6 +7,7 @@ import {
   listTagsOutputs,
   mapTag,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTagsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListTagsResponse> = {
@@ -14,6 +15,7 @@ export const listTagsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListTagsRe
   name: 'Email Bison List Tags',
   description: 'Retrieves all Email Bison tags for the authenticated workspace.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
   },

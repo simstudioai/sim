@@ -1,5 +1,6 @@
 import type { GitLabGetProjectParams, GitLabGetProjectResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetProjectResponse> = {
@@ -8,6 +9,7 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
   name: 'GitLab Get Project',
   description: 'Get details of a specific GitLab project',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -32,7 +34,7 @@ export const gitlabGetProjectTool: ToolConfig<GitLabGetProjectParams, GitLabGetP
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}`
     },
     method: 'GET',

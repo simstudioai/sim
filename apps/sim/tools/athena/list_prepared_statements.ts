@@ -2,6 +2,7 @@ import type {
   AthenaListPreparedStatementsParams,
   AthenaListPreparedStatementsResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listPreparedStatementsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listPreparedStatementsTool: InternalToolConfig<
   name: 'Athena List Prepared Statements',
   description: 'List the prepared statements saved in an Athena workgroup',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

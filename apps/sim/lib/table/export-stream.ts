@@ -74,12 +74,9 @@ export function createTableExportStream(
         if (format === 'json') controller.enqueue(encoder.encode(']'))
         controller.close()
 
-        logger.info(`[${requestId}] Exported table ${table.id}`, {
-          format,
-          rowCount: table.rowCount,
-        })
+        logger.info(`Exported table ${table.id}`, { requestId, format, rowCount: table.rowCount })
       } catch (err) {
-        logger.error(`[${requestId}] Export failed for table ${table.id}`, err)
+        logger.error(`Export failed for table ${table.id}`, err, { requestId })
         controller.error(err)
       }
     },

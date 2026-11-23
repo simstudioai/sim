@@ -1,6 +1,7 @@
 import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ContentDeliveryDeclaration } from '@/lib/core/application/content-delivery'
+import type { OperationFeature } from '@/lib/core/application/feature-availability'
 import type {
   ApplicationOperation,
   OAuthOperationPolicy,
@@ -53,6 +54,11 @@ export interface WorkspaceOperation<
   readonly workspaceApiKey: WorkspaceApiKeyPolicy<Role>
   readonly principalKinds: PrincipalKinds
   readonly delegatedServices?: DelegatedServices
+  /**
+   * The rollout flag the operation is available behind, checked after
+   * authorization so an unreachable workspace stays concealed while it is off.
+   */
+  readonly feature?: OperationFeature
 }
 
 type WorkspaceApiKeyPrincipalConsistency<

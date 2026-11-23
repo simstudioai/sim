@@ -1,10 +1,24 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { TypeformIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
+
+/** Parses a JSON block input typed as text; a value a model already sent as JSON passes through. */
+function parseJsonInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(`Invalid JSON input: ${getErrorMessage(error)}`)
+  }
+}
 
 export const TypeformBlock: BlockConfig = {
   type: 'typeform',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'typeform_v2' },
   name: 'Typeform',
   description: 'Interact with Typeform',
   authMode: AuthMode.ApiKey,
@@ -122,7 +136,7 @@ export const TypeformBlock: BlockConfig = {
       id: 'since',
       title: 'Since',
       type: 'short-input',
-      placeholder: 'Retrieve responses after this date (ISO format)',
+      placeholder: 'Retrieve responses on or after this date (ISO format)',
       condition: { field: 'operation', value: 'typeform_responses' },
       wandConfig: {
         enabled: true,
@@ -144,7 +158,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'until',
       title: 'Until',
       type: 'short-input',
-      placeholder: 'Retrieve responses before this date (ISO format)',
+      placeholder: 'Retrieve responses on or before this date (ISO format)',
       condition: { field: 'operation', value: 'typeform_responses' },
       wandConfig: {
         enabled: true,
@@ -173,6 +187,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
       condition: { field: 'operation', value: 'typeform_responses' },
     },
+    {
+      id: 'responseType',
+      title: 'Response Types',
+      type: 'short-input',
+      placeholder: 'e.g., partial,completed (overrides Completed)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'typeform_responses' },
+    },
     // File operation fields
     {
       id: 'responseId',
@@ -180,6 +202,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Enter response ID (token)',
       condition: { field: 'operation', value: 'typeform_files' },
+      required: true,
     },
     {
       id: 'fieldId',
@@ -187,6 +210,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Enter file upload field ID',
       condition: { field: 'operation', value: 'typeform_files' },
+      required: true,
     },
     {
       id: 'filename',
@@ -194,6 +218,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'short-input',
       placeholder: 'Enter exact filename of the file',
       condition: { field: 'operation', value: 'typeform_files' },
+      required: true,
     },
     {
       id: 'inline',
@@ -246,6 +271,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       options: [
         { label: 'Form', id: 'form' },
         { label: 'Quiz', id: 'quiz' },
+        { label: 'Classification', id: 'classification' },
+        { label: 'Score', id: 'score' },
+        { label: 'Branching', id: 'branching' },
+        { label: 'Classification Branching', id: 'classification_branching' },
+        { label: 'Score Branching', id: 'score_branching' },
       ],
       condition: { field: 'operation', value: 'typeform_create_form' },
     },
@@ -297,54 +327,39 @@ Current operations: {context}
 
 ### JSON PATCH OPERATIONS
 Each operation is an object with:
-- "op": The operation type ("add", "remove", "replace", "move", "copy", "test")
-- "path": JSON pointer to the target location (e.g., "/title", "/fields/0", "/settings/language")
-- "value": The new value (required for "add", "replace", "copy", "test")
-- "from": Source path (required for "move" and "copy")
+- "op": The operation type (usually "replace")
+- "path": One of the paths Typeform accepts (listed below)
+- "value": The new value
 
-### COMMON TYPEFORM PATHS
-- /title - Form title
-- /settings/language - Form language (e.g., "en", "es", "fr")
-- /settings/is_public - Whether form is public (true/false)
-- /settings/show_progress_bar - Show progress bar (true/false)
-- /fields - Array of form fields
-- /fields/- - Add to end of fields array
-- /fields/0 - First field
-- /welcome_screens - Array of welcome screens
-- /thankyou_screens - Array of thank you screens
-- /theme/href - Theme URL reference
+### PATHS TYPEFORM ACCEPTS (no others are allowed)
+- /title - Form title (string)
+- /settings/is_public - Whether the form is public (true/false)
+- /settings/meta - Sharing metadata object: { "title", "description", "allow_indexing", "image": { "href" } }
+- /settings/google_analytics - Google Analytics tracking ID
+- /settings/google_tag_manager - Google Tag Manager ID
+- /settings/facebook_pixel - Facebook Pixel ID
+- /settings/enrichment_in_renderer - Enrichment setting
+- /settings/email_consent_notifications_config - Email consent notification settings
+- /theme - Theme reference: { "href": "https://api.typeform.com/themes/{theme_id}" }
+- /workspace - Workspace reference: { "href": "https://api.typeform.com/workspaces/{workspace_id}" }
 
-### FIELD OBJECT STRUCTURE
-{
-  "type": "short_text" | "long_text" | "email" | "number" | "multiple_choice" | "yes_no" | "rating" | "date" | "dropdown" | "file_upload",
-  "title": "Question text",
-  "ref": "unique_reference_id",
-  "properties": { ... },
-  "validations": { "required": true/false }
-}
+Fields, welcome screens, thank-you screens, and language cannot be changed with these operations. If the user asks for one of those, return only the operations for the paths above.
 
 ### EXAMPLES
 
 **Change form title:**
 [{"op": "replace", "path": "/title", "value": "My Updated Form"}]
 
-**Add a new text field:**
-[{"op": "add", "path": "/fields/-", "value": {"type": "short_text", "title": "What is your name?", "ref": "name_field", "validations": {"required": true}}}]
+**Make the form private:**
+[{"op": "replace", "path": "/settings/is_public", "value": false}]
 
-**Add multiple choice field:**
-[{"op": "add", "path": "/fields/-", "value": {"type": "multiple_choice", "title": "Select your favorite color", "ref": "color_field", "properties": {"choices": [{"label": "Red"}, {"label": "Blue"}, {"label": "Green"}]}}}]
+**Update sharing metadata:**
+[{"op": "replace", "path": "/settings/meta", "value": {"title": "Customer Feedback", "description": "Tell us how we did", "allow_indexing": false}}]
 
-**Remove first field:**
-[{"op": "remove", "path": "/fields/0"}]
-
-**Update form settings:**
-[{"op": "replace", "path": "/settings/language", "value": "es"}, {"op": "replace", "path": "/settings/is_public", "value": false}]
-
-**Multiple operations:**
+**Move the form to another workspace and apply a theme:**
 [
-  {"op": "replace", "path": "/title", "value": "Customer Feedback Form"},
-  {"op": "add", "path": "/fields/-", "value": {"type": "rating", "title": "Rate your experience", "ref": "rating_field", "properties": {"steps": 5}}},
-  {"op": "replace", "path": "/settings/show_progress_bar", "value": true}
+  {"op": "replace", "path": "/workspace", "value": {"href": "https://api.typeform.com/workspaces/abc123"}},
+  {"op": "replace", "path": "/theme", "value": {"href": "https://api.typeform.com/themes/xyz789"}}
 ]
 
 Do not include any explanations, markdown formatting, or other text outside the JSON array.`,
@@ -399,17 +414,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
           ...rest
         } = params
 
-        let parsedFields: any | undefined
-        let parsedSettings: any | undefined
-        let parsedOperations: any | undefined
-
-        try {
-          if (fields) parsedFields = JSON.parse(fields)
-          if (settings) parsedSettings = JSON.parse(settings)
-          if (operations) parsedOperations = JSON.parse(operations)
-        } catch (error: any) {
-          throw new Error(`Invalid JSON input: ${error.message}`)
-        }
+        const parsedFields = fields ? parseJsonInput(fields) : undefined
+        const parsedSettings = settings ? parseJsonInput(settings) : undefined
+        const parsedOperations = operations ? parseJsonInput(operations) : undefined
 
         const pageSize = listPageSize !== undefined ? listPageSize : params.pageSize
 
@@ -419,9 +426,9 @@ Do not include any explanations, markdown formatting, or other text outside the 
           ...rest,
           ...(pageSize && { pageSize }),
           ...(workspaceId && { workspaceId }),
-          ...(parsedFields && { fields: parsedFields }),
-          ...(parsedSettings && { settings: parsedSettings }),
-          ...(parsedOperations && { operations: parsedOperations }),
+          ...(parsedFields ? { fields: parsedFields } : {}),
+          ...(parsedSettings ? { settings: parsedSettings } : {}),
+          ...(parsedOperations ? { operations: parsedOperations } : {}),
         }
       },
     },
@@ -437,6 +444,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     since: { type: 'string', description: 'Start date filter' },
     until: { type: 'string', description: 'End date filter' },
     completed: { type: 'string', description: 'Completion status filter' },
+    responseType: { type: 'string', description: 'Comma-separated response types to return' },
     // File operation params
     responseId: { type: 'string', description: 'Response identifier' },
     fieldId: { type: 'string', description: 'Field identifier' },
@@ -449,7 +457,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     listPageSize: { type: 'number', description: 'Forms per page' },
     // Create form operation params
     title: { type: 'string', description: 'Form title' },
-    type: { type: 'string', description: 'Form type (form or quiz)' },
+    type: { type: 'string', description: 'Form type (e.g., quiz, score, branching)' },
     workspaceIdCreate: { type: 'string', description: 'Workspace ID for creation' },
     fields: { type: 'json', description: 'Form fields array' },
     settings: { type: 'json', description: 'Form settings object' },
@@ -594,3 +602,19 @@ export const TypeformBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TypeformV2Block: BlockConfig = {
+  ...TypeformBlock,
+  type: 'typeform_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Retrieve responses, download files, and get form insights. Use trigger mode to start a workflow when a form is submitted.',
+  ...withSavedCredential(TypeformBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'typeform',
+    title: 'Typeform Credential',
+  }),
+}

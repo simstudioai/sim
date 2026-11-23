@@ -1,5 +1,10 @@
 import type { GoogleTasksResponse, GoogleTasksUpdateParams } from '@/tools/google_tasks/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import {
+  mapTaskOutput,
+  TASK_EXTRA_OUTPUTS,
+  TASKS_API_BASE,
+  taskPath,
+} from '@/tools/google_tasks/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateTool: ToolConfig<GoogleTasksUpdateParams, GoogleTasksResponse> = {
@@ -48,7 +53,8 @@ export const updateTool: ToolConfig<GoogleTasksUpdateParams, GoogleTasksResponse
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New due date in RFC 3339 format',
+      description:
+        'New due date in RFC 3339 format. Google Tasks stores only the date; the time is discarded',
     },
     status: {
       type: 'string',
@@ -59,10 +65,7 @@ export const updateTool: ToolConfig<GoogleTasksUpdateParams, GoogleTasksResponse
   },
 
   request: {
-    url: (params) => {
-      const taskListId = params.taskListId || '@default'
-      return `${TASKS_API_BASE}/lists/${encodeURIComponent(taskListId)}/tasks/${encodeURIComponent(params.taskId)}`
-    },
+    url: (params) => `${TASKS_API_BASE}/${taskPath(params.taskListId, params.taskId)}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -87,20 +90,7 @@ export const updateTool: ToolConfig<GoogleTasksUpdateParams, GoogleTasksResponse
 
     return {
       success: true,
-      output: {
-        id: data.id ?? null,
-        title: data.title ?? null,
-        notes: data.notes ?? null,
-        status: data.status ?? null,
-        due: data.due ?? null,
-        updated: data.updated ?? null,
-        selfLink: data.selfLink ?? null,
-        webViewLink: data.webViewLink ?? null,
-        parent: data.parent ?? null,
-        position: data.position ?? null,
-        completed: data.completed ?? null,
-        deleted: data.deleted ?? null,
-      },
+      output: mapTaskOutput(data),
     }
   },
 
@@ -117,5 +107,6 @@ export const updateTool: ToolConfig<GoogleTasksUpdateParams, GoogleTasksResponse
     position: { type: 'string', description: 'Position among sibling tasks' },
     completed: { type: 'string', description: 'Completion date', optional: true },
     deleted: { type: 'boolean', description: 'Whether the task is deleted', optional: true },
+    ...TASK_EXTRA_OUTPUTS,
   },
 }

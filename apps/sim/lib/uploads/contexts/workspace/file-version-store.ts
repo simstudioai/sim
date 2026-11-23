@@ -7,7 +7,17 @@ import {
   workspaceFileVersion,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, inArray, isNotNull, lt, notInArray, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  lt,
+  notInArray,
+  type SQLWrapper,
+  sql,
+} from 'drizzle-orm'
 import {
   type CursorKey,
   type KeysetKey,
@@ -105,14 +115,14 @@ export async function loadWorkspaceFileVersionHead(
 
 /**
  * Batched {@link loadWorkspaceFileVersionHead}: each file's highest version, keyed by file id.
- * The max is resolved from the `(file_id, version)` index first, so only head rows are fetched
- * rather than every retained version.
+ * `fileIds` is a subquery, so the file set never becomes a bind-parameter list. The max is
+ * resolved from the `(file_id, version)` index first, so only head rows are fetched rather than
+ * every retained version.
  */
 export async function loadWorkspaceFileVersionHeads(
-  fileIds: string[],
+  fileIds: SQLWrapper,
   executor: DbOrTx = db
 ): Promise<Map<string, WorkspaceFileVersionSummaryRow>> {
-  if (!fileIds.length) return new Map()
   const heads = await executor
     .select(versionSummaryColumns)
     .from(workspaceFileVersion)
@@ -714,26 +724,35 @@ export function getCurrentWorkspaceFileVersion(
 }
 
 /**
+ * Correlated columns for subqueries over the enclosing query's `workspace_files` row. Both sides
+ * are table-qualified because Drizzle renders single-table columns bare, which would bind the outer
+ * columns to the subquery's own table.
+ */
+function correlatedVersionColumns() {
+  const qualified = (table: typeof workspaceFileVersion | typeof workspaceFiles, name: string) =>
+    sql`${table}.${sql.identifier(name)}`
+  return {
+    head: {
+      fileId: qualified(workspaceFileVersion, workspaceFileVersion.fileId.name),
+      version: qualified(workspaceFileVersion, workspaceFileVersion.version.name),
+      key: qualified(workspaceFileVersion, workspaceFileVersion.key.name),
+      supersededAt: qualified(workspaceFileVersion, workspaceFileVersion.supersededAt.name),
+    },
+    file: {
+      id: qualified(workspaceFiles, workspaceFiles.id.name),
+      key: qualified(workspaceFiles, workspaceFiles.key.name),
+    },
+  }
+}
+
+/**
  * The current version number of the enclosing query's `workspace_files` row, as a correlated
  * subquery so the row and its number come from one statement's snapshot. The newest row numbers
  * the file's bytes while it still holds them; otherwise the bytes are on the implicit version after
  * it, and a file with no rows is on version 1 — the numbering {@link implicitCurrentVersion} gives.
- * Both sides of the correlation are table-qualified because Drizzle renders single-table columns
- * bare, which would bind the outer columns to this subquery's own table.
  */
 export function currentWorkspaceFileVersionNumberSql() {
-  const qualified = (table: typeof workspaceFileVersion | typeof workspaceFiles, name: string) =>
-    sql`${table}.${sql.identifier(name)}`
-  const head = {
-    fileId: qualified(workspaceFileVersion, workspaceFileVersion.fileId.name),
-    version: qualified(workspaceFileVersion, workspaceFileVersion.version.name),
-    key: qualified(workspaceFileVersion, workspaceFileVersion.key.name),
-    supersededAt: qualified(workspaceFileVersion, workspaceFileVersion.supersededAt.name),
-  }
-  const file = {
-    id: qualified(workspaceFiles, workspaceFiles.id.name),
-    key: qualified(workspaceFiles, workspaceFiles.key.name),
-  }
+  const { head, file } = correlatedVersionColumns()
   const number = sql`case when ${head.supersededAt} is null and ${head.key} = ${file.key} then ${head.version} else ${head.version} + 1 end`
   return sql<number>`coalesce((
     select ${number} from ${workspaceFileVersion}
@@ -741,6 +760,17 @@ export function currentWorkspaceFileVersionNumberSql() {
     order by ${head.version} desc
     limit 1
   ), ${INITIAL_WORKSPACE_FILE_VERSION})`.mapWith(Number)
+}
+
+/** {@link isVersionHeadCurrent} for the enclosing query's `workspace_files` row. */
+export function workspaceFileVersionHeadCurrentSql() {
+  const { head, file } = correlatedVersionColumns()
+  return sql<boolean>`coalesce((
+    select ${head.supersededAt} is null and ${head.key} = ${file.key} from ${workspaceFileVersion}
+    where ${head.fileId} = ${file.id}
+    order by ${head.version} desc
+    limit 1
+  ), false)`
 }
 
 /** One version of a file, or null when it never existed or retention removed it. */

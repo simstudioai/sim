@@ -1,12 +1,15 @@
 import type { LinqDeleteAttachmentParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqDeleteAttachmentTool: ToolConfig<LinqDeleteAttachmentParams, LinqSuccessResult> = {
   id: 'linq_delete_attachment',
   name: 'Delete Attachment',
   description: 'Permanently delete an attachment owned by your account',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -25,7 +28,7 @@ export const linqDeleteAttachmentTool: ToolConfig<LinqDeleteAttachmentParams, Li
 
   request: {
     url: (params) =>
-      `${LINQ_API_BASE}/attachments/${encodeURIComponent(params.attachmentId.trim())}`,
+      `${LINQ_API_BASE}/attachments/${safeUrlPathSegment(params.attachmentId, 'attachmentId')}`,
     method: 'DELETE',
     headers: (params) => linqHeaders(params.apiKey),
   },

@@ -12,7 +12,10 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import {
+  type PersistedStreamEventEnvelope,
+  subagentSpanData,
+} from '@/lib/mothership/request/session/contract'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
 import { readFrameActivity } from '@/lib/mothership/tools/activity'
 import {
@@ -24,13 +27,13 @@ import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the
- * Go wire stream. Every tool and subagent is a {@link LifecycleNode} with one
+ * worker wire stream. Every tool and subagent is a {@link LifecycleNode} with one
  * explicit terminal source, so rendering reads node status instead of inferring
  * it from transport, preview sessions, or a turn-complete sweep. Parallel
  * subagents are independent span lanes; nested subagents nest by `parentSpanId`.
  */
 
-/** The root span lane id Go stamps on main-agent (non-subagent) events. */
+/** The root span lane id the worker stamps on main-agent (non-subagent) events. */
 export const MAIN_SPAN = 'main'
 
 /**
@@ -227,7 +230,7 @@ function asString(value: unknown): string | undefined {
 
 /**
  * The integration gateway intentionally emits a second authoritative call frame
- * under the SAME provider call id once Go resolves the exact server-owned
+ * under the SAME provider call id once the worker resolves the exact server-owned
  * operation (call_integration_tool -> e.g. gmail_read_v2). Rebind the node to
  * that operation so the row brands from the real integration (name -> block
  * registry) and keep only the model-authored `description` for presentation —
@@ -427,7 +430,7 @@ function applyToolResult(
  * parallel bursts (many subagents streaming into one ordered channel); without
  * the owning `AgentNode` the serializer can't attribute the content, so it leaks
  * into the main lane and the subagent's thinking is dropped until the start
- * lands. The wire scope already carries the lane identity (Go tags every
+ * lands. The wire scope already carries the lane identity (the worker tags every
  * forwarded subagent event with its agent id/span), so the lane is rebuilt
  * deterministically from the content event itself — the symmetric counterpart to
  * buffering a result before its call. The later `subagent_start` finds this node
@@ -591,11 +594,10 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
     case MothershipStreamV1EventType.span: {
       const payload = envelope.payload
       if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) break
-      const data = isRecordLike(payload.data) ? payload.data : undefined
-      const triggerToolCallId =
-        scope?.parentToolCallId ?? asString(data?.tool_call_id) ?? asString(data?.toolCallId)
+      const data = subagentSpanData(payload.data)
+      const triggerToolCallId = scope?.parentToolCallId
       const agentId = asString(payload.agent) ?? scope?.agentId ?? ''
-      const displayName = asString(data?.name)
+      const displayName = data.name
       const resolvedSpanId =
         scope?.spanId ?? (triggerToolCallId ? `span:${triggerToolCallId}` : `span:${seq}`)
       const parentSpanId = scope?.parentSpanId ?? MAIN_SPAN
@@ -642,11 +644,9 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         model.order.push(node.id)
         model.agentBySpanId.set(resolvedSpanId, node.id)
       } else if (payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
-        // A pending pause is not a terminal — the run resumes later.
-        if (data?.pending === true) break
         breakLane(model, resolvedSpanId, tsMs)
         const node = model.nodes.get(resolvedSpanId)
-        const error = data && asString(data.error)
+        const error = data.error
         const spanErrored = Boolean(error)
         if (node && node.kind === 'agent' && !isNodeTerminal(node.status)) {
           node.status = spanErrored ? 'error' : 'success'

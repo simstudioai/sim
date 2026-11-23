@@ -2058,6 +2058,11 @@ function userOwnsPageDialogs(tab: AgentTab): boolean {
 function holdPageDialogForUser(tab: AgentTab, respond: (accept: boolean) => void): void {
   if (tab.pageDialog) answerPageDialog(tab, false)
   tab.pageDialog = { request: { requestId: generateId(), kind: 'beforeunload' }, respond }
+  // The renderer's modal now holds the decision. A reload pressed from the page keeps keyboard
+  // focus in the native view the modal hides, where Escape and Enter would never reach it;
+  // answering returns focus to the page (focusAfterPageDialog).
+  const win = panelWindow()
+  if (win && !win.isDestroyed()) win.webContents.focus()
   events?.onPageStateChanged(tab.view.webContents)
 }
 

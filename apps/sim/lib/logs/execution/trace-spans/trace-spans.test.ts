@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildTraceSpans, hasUnhandledError } from '@/lib/logs/execution/trace-spans/trace-spans'
+import {
+  buildTraceSpans,
+  findFailedTraceBlock,
+  hasUnhandledError,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -1479,5 +1483,159 @@ describe('child span trees that were compacted into references', () => {
 
     expect(traceSpans[0].children?.map((span) => span.id)).toEqual(['loop-1'])
     expect(traceSpans[0].children?.[0].output).toEqual({ result: 'done' })
+  })
+})
+
+describe('findFailedTraceBlock', () => {
+  const span = (overrides: Partial<TraceSpan>): TraceSpan => ({
+    id: overrides.blockId ?? 'span',
+    name: overrides.blockId ?? 'span',
+    type: 'function',
+    duration: 1,
+    startTime: '2024-01-01T10:00:00.000Z',
+    endTime: '2024-01-01T10:00:01.000Z',
+    ...overrides,
+  })
+  const root = (children: TraceSpan[]): TraceSpan[] => [
+    span({
+      id: 'workflow-execution',
+      name: 'Workflow Execution',
+      type: 'workflow',
+      status: 'error',
+      children,
+    }),
+  ]
+
+  it('skips a failure an error path handled', () => {
+    const spans = root([
+      span({ blockId: 'handled', status: 'error', errorHandled: true, executionOrder: 2 }),
+      span({ blockId: 'failed', name: 'Lookup', type: 'api', status: 'error', executionOrder: 1 }),
+    ])
+
+    expect(findFailedTraceBlock(spans)).toEqual({
+      blockId: 'failed',
+      blockName: 'Lookup',
+      blockType: 'api',
+    })
+  })
+
+  /**
+   * Parallel branches: A started first, B later, and A's failure settled first, so the run
+   * stored A's error. B, still in flight, failed after it.
+   */
+  const concurrentFailures = () =>
+    root([
+      span({
+        blockId: 'a',
+        name: 'Agent A',
+        status: 'error',
+        executionOrder: 2,
+        endTime: '2024-01-01T10:00:01.000Z',
+      }),
+      span({
+        blockId: 'b',
+        name: 'Agent B',
+        status: 'error',
+        executionOrder: 3,
+        endTime: '2024-01-01T10:00:02.000Z',
+      }),
+    ])
+
+  it('names the failure the stored run error belongs to', () => {
+    expect(findFailedTraceBlock(concurrentFailures(), 'Agent A: 429')?.blockId).toBe('a')
+    expect(findFailedTraceBlock(concurrentFailures(), 'Agent B: timeout')?.blockId).toBe('b')
+  })
+
+  it('names no block when concurrent failures cannot be told apart', () => {
+    const output = { error: 'upstream returned 500' }
+    const spans = root([
+      span({ blockId: 'a', name: 'Agent A', status: 'error', output }),
+      span({ blockId: 'b', name: 'Agent B', status: 'error', output }),
+    ])
+
+    expect(findFailedTraceBlock(spans, 'upstream returned 500')).toBeNull()
+  })
+
+  it('names the block inside a loop rather than the loop container', () => {
+    const spans = root([
+      span({
+        blockId: 'loop-1',
+        type: 'loop',
+        status: 'error',
+        children: [span({ blockId: 'inner', status: 'error', executionOrder: 4 })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)?.blockId).toBe('inner')
+  })
+
+  it('finds an unhandled failure nested under a block that succeeded', () => {
+    const spans = root([
+      span({
+        blockId: 'loop-1',
+        type: 'loop',
+        status: 'success',
+        children: [span({ blockId: 'inner', status: 'error', executionOrder: 4 })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)?.blockId).toBe('inner')
+  })
+
+  it("does not attribute a successful boundary block's children", () => {
+    const spans = root([
+      span({
+        blockId: 'agent-run',
+        type: 'mothership',
+        status: 'success',
+        children: [span({ blockId: 'inner', status: 'error' })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)).toBeNull()
+  })
+
+  it("attributes a child workflow's failure to the workflow block that ran it", () => {
+    const spans = root([
+      span({
+        blockId: 'child-runner',
+        type: 'workflow',
+        status: 'error',
+        executionOrder: 1,
+        children: [span({ blockId: 'child-block', status: 'error', executionOrder: 7 })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)).toEqual({
+      blockId: 'child-runner',
+      blockName: 'child-runner',
+      blockType: 'workflow',
+    })
+  })
+
+  it("never names a block from a custom block's source workflow", () => {
+    const spans = root([
+      span({
+        blockId: 'custom-1',
+        name: 'Enrich lead',
+        type: 'custom_block_abc123',
+        status: 'error',
+        executionOrder: 1,
+        childExecutionId: 'source-run',
+        children: [span({ blockId: 'source-block', status: 'error', executionOrder: 9 })],
+      }),
+    ])
+
+    expect(findFailedTraceBlock(spans)).toEqual({
+      blockId: 'custom-1',
+      blockName: 'Enrich lead',
+      blockType: 'custom_block_abc123',
+    })
+  })
+
+  it('names no block when the trace is absent or unreadable', () => {
+    expect(findFailedTraceBlock(undefined)).toBeNull()
+    expect(findFailedTraceBlock({ ref: 'externalized' })).toBeNull()
+    expect(findFailedTraceBlock(root([span({ blockId: 'ok', status: 'success' })]))).toBeNull()
   })
 })

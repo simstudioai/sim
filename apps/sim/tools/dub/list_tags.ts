@@ -1,4 +1,5 @@
 import type { DubListTagsParams, DubListTagsResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTagsTool: ToolConfig<DubListTagsParams, DubListTagsResponse> = {
@@ -7,6 +8,7 @@ export const listTagsTool: ToolConfig<DubListTagsParams, DubListTagsResponse> = 
   description:
     'Retrieve the tags defined in the workspace, so the right tag IDs can be assigned to links.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

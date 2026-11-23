@@ -48,10 +48,12 @@ import {
   LIVE_ONLY_EXECUTION_EVENT_TYPES,
 } from '@/lib/workflows/executor/execution-events'
 import { getWorkflowExecutionCopilotToolCallId } from '@/lib/workflows/executor/execution-state'
+import { namePausePoints } from '@/lib/workflows/executor/pause-block-names'
 import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
 } from '@/lib/workflows/executor/paused-execution-metadata'
+import { reopenExecutionLogForNextPause } from '@/lib/workflows/executor/reopen-execution-log'
 import {
   type AutomaticResumeWaitingMetadata,
   normalizeAutomaticResumeWaitingReason,
@@ -80,6 +82,7 @@ import type {
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import { stripLoopDigest } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedConnection } from '@/serializer/types'
 
 /**
@@ -266,6 +269,21 @@ function getSnapshotWorkspaceId(snapshotValue: unknown): string | undefined {
   return typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined
 }
 
+/**
+ * The pause display fields of a point captured with scrubbing. A point persisted before
+ * scrubbing existed stored its response unscrubbed, so it carries none of them.
+ */
+function scrubbedPauseDisplay(
+  point: Pick<PausePoint, 'displayScrubbed' | 'display' | 'inputFields'>
+): Pick<PausePoint, 'displayScrubbed' | 'display' | 'inputFields'> {
+  if (point.displayScrubbed !== true) return {}
+  return {
+    displayScrubbed: true,
+    display: point.display ?? null,
+    inputFields: point.inputFields ?? null,
+  }
+}
+
 function isResumablePausedStatus(status: string): boolean {
   return RESUMABLE_PAUSED_STATUSES.includes(status as (typeof RESUMABLE_PAUSED_STATUSES)[number])
 }
@@ -315,32 +333,6 @@ function clearAutomaticResumeWaitingMetadataSql(contextId: string): SQL {
       THEN ${pausedExecutions.metadata} - 'automaticResumeWaiting'
     ELSE ${pausedExecutions.metadata}
   END`
-}
-
-/**
- * The terminal columns a `workflow_execution_logs` row keeps when a partial
- * resume moves it back to `pending`.
- *
- * The revival claim excludes only `cancelled`, so it also matches a row
- * `markResumeFailed` already ended: one context's resume fails, a sibling
- * context resumes successfully afterwards, and the run becomes live again
- * carrying the end timestamp and duration of the attempt that failed. A live row
- * must not carry a terminal stamp — and because `elapsedDurationMsSql` preserves
- * a `pending` row's `total_duration_ms` as its pause checkpoint, leaving it
- * there also hands the next terminal write a duration frozen at the failed
- * resume rather than one it recomputes.
- *
- * A row revived from a non-terminal status is the opposite case: its columns are
- * the checkpoint `completeWithPause` banked, which is precisely what that
- * preservation rule exists to keep, so they survive untouched. The row's own
- * status decides, read — like every expression in the same `SET` — against the
- * pre-update row.
- */
-const revivedExecutionLogStamp = {
-  endedAt: sql<Date | null>`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.endedAt} END`,
-  totalDurationMs: sql<
-    number | null
-  >`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.totalDurationMs} END`,
 }
 
 function withoutAutomaticResumeWaitingReason(
@@ -411,9 +403,46 @@ type PausedExecutionSummaryRow = Pick<
   | 'expiresAt'
 > & { triggerIds: string[] | null | undefined }
 
-interface PausedExecutionDetail extends PausedExecutionSummary {
-  executionSnapshot: SerializedSnapshot
+/**
+ * The columns a paused execution is read for display with. The execution snapshot can
+ * run to many megabytes per row and Postgres detoasts all of it to read one key, so
+ * `triggerIds` come from the metadata a pause records them in, and the snapshot is
+ * touched only for a row persisted before metadata carried them.
+ */
+const pausedExecutionViewColumns = {
+  id: pausedExecutions.id,
+  workflowId: pausedExecutions.workflowId,
+  executionId: pausedExecutions.executionId,
+  status: pausedExecutions.status,
+  pausePoints: pausedExecutions.pausePoints,
+  metadata: pausedExecutions.metadata,
+  pausedAt: pausedExecutions.pausedAt,
+  updatedAt: pausedExecutions.updatedAt,
+  expiresAt: pausedExecutions.expiresAt,
+  triggerIds: sql<
+    string[] | null
+  >`coalesce(${pausedExecutions.metadata}->'triggerIds', ${pausedExecutions.executionSnapshot}->'triggerIds')`,
+}
+
+interface PausedExecutionKey {
+  workflowId: string
+  executionId: string
+}
+
+function pausedExecutionKeyFilter({ workflowId, executionId }: PausedExecutionKey) {
+  return and(
+    eq(pausedExecutions.workflowId, workflowId),
+    eq(pausedExecutions.executionId, executionId)
+  )
+}
+
+/** A paused execution with its resume queue, read without the execution snapshot. */
+interface PausedExecutionView extends PausedExecutionSummary {
   queue: ResumeQueueEntrySummary[]
+}
+
+interface PausedExecutionDetail extends PausedExecutionView {
+  executionSnapshot: SerializedSnapshot
 }
 
 interface PauseContextDetail {
@@ -596,6 +625,7 @@ export class PauseResumeManager {
       acc[point.contextId] = {
         contextId: point.contextId,
         blockId: PauseResumeManager.normalizePauseBlockId(point.blockId ?? point.contextId),
+        blockName: point.blockName,
         response: point.response,
         resumeStatus: point.resumeStatus,
         snapshotReady: point.snapshotReady,
@@ -605,6 +635,7 @@ export class PauseResumeManager {
         resumeLinks: point.resumeLinks,
         pauseKind: point.pauseKind,
         resumeAt: point.resumeAt,
+        ...scrubbedPauseDisplay(point),
       }
       return acc
     }, {})
@@ -2310,20 +2341,7 @@ export class PauseResumeManager {
           })
           .where(eq(pausedExecutions.executionId, targetParentExecutionId))
       } else {
-        await tx
-          .update(workflowExecutionLogs)
-          .set({ status: 'pending', executionDeadlineAt: null, ...revivedExecutionLogStamp })
-          .where(
-            and(
-              eq(workflowExecutionLogs.executionId, targetParentExecutionId),
-              sql`${workflowExecutionLogs.status} != 'cancelled'`,
-              sql`NOT EXISTS (
-                SELECT 1 FROM ${pausedExecutions}
-                WHERE ${pausedExecutions.executionId} = ${targetParentExecutionId}
-                  AND ${pausedExecutions.status} = 'cancelling'
-              )`
-            )
-          )
+        await reopenExecutionLogForNextPause(tx, targetParentExecutionId)
       }
     })
   }
@@ -3488,24 +3506,8 @@ export class PauseResumeManager {
       }
     }
 
-    /**
-     * The summary reads only `triggerIds` from the execution snapshot, whose
-     * serialized `snapshot` string can run to megabytes per row, so that one key
-     * is projected instead of shipping and parsing the whole document.
-     */
     const rows = await execDb
-      .select({
-        id: pausedExecutions.id,
-        workflowId: pausedExecutions.workflowId,
-        executionId: pausedExecutions.executionId,
-        status: pausedExecutions.status,
-        pausePoints: pausedExecutions.pausePoints,
-        metadata: pausedExecutions.metadata,
-        pausedAt: pausedExecutions.pausedAt,
-        updatedAt: pausedExecutions.updatedAt,
-        expiresAt: pausedExecutions.expiresAt,
-        triggerIds: sql<string[] | null>`${pausedExecutions.executionSnapshot}->'triggerIds'`,
-      })
+      .select(pausedExecutionViewColumns)
       .from(pausedExecutions)
       .where(whereClause)
       .orderBy(desc(pausedExecutions.pausedAt))
@@ -3530,60 +3532,55 @@ export class PauseResumeManager {
     return rows[0] ?? null
   }
 
-  static async getPausedExecutionDetail(options: {
-    workflowId: string
-    executionId: string
-  }): Promise<PausedExecutionDetail | null> {
-    const { workflowId, executionId } = options
-
-    const row = await execDb
-      .select()
+  /** A paused execution's human pause points and resume queue, read without the execution snapshot. */
+  static async getPausedExecutionView(
+    options: PausedExecutionKey
+  ): Promise<PausedExecutionView | null> {
+    const [row] = await execDb
+      .select(pausedExecutionViewColumns)
       .from(pausedExecutions)
-      .where(
-        and(
-          eq(pausedExecutions.workflowId, workflowId),
-          eq(pausedExecutions.executionId, executionId)
-        )
-      )
+      .where(pausedExecutionKeyFilter(options))
       .limit(1)
-      .then((rows) => rows[0])
+    return row ? PauseResumeManager.buildPausedExecutionView(row) : null
+  }
 
-    if (!row) {
-      return null
-    }
+  /** {@link getPausedExecutionView} plus the execution snapshot a resume restores from. */
+  static async getPausedExecutionDetail(
+    options: PausedExecutionKey
+  ): Promise<PausedExecutionDetail | null> {
+    const [row] = await execDb
+      .select({
+        ...pausedExecutionViewColumns,
+        executionSnapshot: pausedExecutions.executionSnapshot,
+      })
+      .from(pausedExecutions)
+      .where(pausedExecutionKeyFilter(options))
+      .limit(1)
+    if (!row) return null
 
+    const view = await PauseResumeManager.buildPausedExecutionView(row)
+    return view && { ...view, executionSnapshot: row.executionSnapshot as SerializedSnapshot }
+  }
+
+  private static async buildPausedExecutionView(
+    row: PausedExecutionSummaryRow & { pausePoints: unknown }
+  ): Promise<PausedExecutionView | null> {
     const queueEntries = await execDb
       .select()
       .from(resumeQueue)
-      .where(eq(resumeQueue.parentExecutionId, executionId))
+      .where(eq(resumeQueue.parentExecutionId, row.executionId))
       .orderBy(asc(resumeQueue.queuedAt))
 
-    const normalizedQueue = queueEntries.map((entry) =>
-      PauseResumeManager.normalizeQueueEntry(entry)
-    )
-    const queuePositions = PauseResumeManager.computeQueuePositions(normalizedQueue)
-    const latestEntries = PauseResumeManager.computeLatestEntriesByContext(normalizedQueue)
-
-    const pausePoints = PauseResumeManager.mapPausePoints(
+    const queue = queueEntries.map((entry) => PauseResumeManager.normalizeQueueEntry(entry))
+    const humanPoints = PauseResumeManager.mapPausePoints(
       row.pausePoints,
-      queuePositions,
-      latestEntries
+      PauseResumeManager.computeQueuePositions(queue),
+      PauseResumeManager.computeLatestEntriesByContext(queue)
     ).filter((point) => point.pauseKind !== 'time')
+    if (humanPoints.length === 0) return null
 
-    if (pausePoints.length === 0) {
-      return null
-    }
-
-    const executionSummary = PauseResumeManager.normalizePausedExecution(
-      { ...row, triggerIds: (row.executionSnapshot as SerializedSnapshot)?.triggerIds },
-      pausePoints
-    )
-
-    return {
-      ...executionSummary,
-      executionSnapshot: row.executionSnapshot as SerializedSnapshot,
-      queue: normalizedQueue,
-    }
+    const pausePoints = await namePausePoints(row.workflowId, row.executionId, humanPoints)
+    return { ...PauseResumeManager.normalizePausedExecution(row, pausePoints), queue }
   }
 
   static async getPauseContextDetail(options: {
@@ -3592,28 +3589,24 @@ export class PauseResumeManager {
     contextId: string
   }): Promise<PauseContextDetail | null> {
     const { workflowId, executionId, contextId } = options
-    const detail = await PauseResumeManager.getPausedExecutionDetail({ workflowId, executionId })
-
-    if (!detail) {
+    const view = await PauseResumeManager.getPausedExecutionView({ workflowId, executionId })
+    const pausePoint = view?.pausePoints.find((point) => point.contextId === contextId)
+    if (!view || !pausePoint) {
       return null
     }
 
-    const pausePoint = detail.pausePoints.find((point) => point.contextId === contextId)
-    if (!pausePoint) {
-      return null
-    }
-
-    const activeResumeEntry = detail.queue.find(
+    const activeResumeEntry = view.queue.find(
       (entry) =>
         entry.contextId === contextId && (entry.status === 'claimed' || entry.status === 'pending')
     )
 
-    // The selected pause point's full `response.data` is already returned via
-    // `pausePoint` below; strip it from `execution.pausePoints` so a large
-    // HITL display payload isn't duplicated in full within the same response.
-    const execution: PausedExecutionDetail = {
-      ...detail,
-      pausePoints: detail.pausePoints.map((point) =>
+    // The selected pause point's full `response.data`, `display`, and `inputFields`
+    // are already returned via `pausePoint` below; strip them from
+    // `execution.pausePoints` so a large HITL payload isn't duplicated in full
+    // within the same response.
+    const execution: PausedExecutionSummary = {
+      ...view,
+      pausePoints: view.pausePoints.map(({ display, inputFields, ...point }) =>
         point.response ? { ...point, response: { ...point.response, data: undefined } } : point
       ),
     }
@@ -3621,7 +3614,7 @@ export class PauseResumeManager {
     return {
       execution,
       pausePoint,
-      queue: detail.queue,
+      queue: view.queue,
       activeResumeEntry,
     }
   }
@@ -3791,7 +3784,7 @@ export class PauseResumeManager {
     }
   }
 
-  private static mapPausePoints(
+  static mapPausePoints(
     pausePoints: unknown,
     queuePositions?: Map<string, number | null>,
     latestEntries?: Map<string, ResumeQueueEntrySummary>
@@ -3820,6 +3813,7 @@ export class PauseResumeManager {
       return {
         contextId: point.contextId,
         blockId,
+        blockName: typeof point.blockName === 'string' ? point.blockName : undefined,
         response: point.response,
         registeredAt: point.registeredAt,
         resumeStatus: point.resumeStatus || 'paused',
@@ -3833,14 +3827,15 @@ export class PauseResumeManager {
         resumeLinks,
         pauseKind: point.pauseKind ?? 'human',
         resumeAt: point.resumeAt,
+        ...scrubbedPauseDisplay(point),
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }
     })
   }
 
-  private static computeQueuePositions(
-    queueEntries: ResumeQueueEntrySummary[]
+  static computeQueuePositions(
+    queueEntries: Pick<ResumeQueueEntrySummary, 'contextId' | 'status' | 'queuedAt'>[]
   ): Map<string, number | null> {
     const pendingEntries = queueEntries
       .filter((entry) => entry.status === 'pending')
@@ -3888,7 +3883,7 @@ export class PauseResumeManager {
       return ''
     }
 
-    const normalized = id.replace(/_loop\d+/g, '')
+    const normalized = stripLoopDigest(id)
 
     return normalized || id
   }

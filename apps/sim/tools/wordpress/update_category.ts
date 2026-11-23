@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressUpdateCategoryParams,
@@ -48,7 +49,7 @@ export const updateCategoryTool: ToolConfig<
     parent: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Parent category ID for hierarchical categories',
     },
     slug: {
@@ -60,7 +61,8 @@ export const updateCategoryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/categories/${params.categoryId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/categories/${safeUrlPathSegment(params.categoryId, 'categoryId')}`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

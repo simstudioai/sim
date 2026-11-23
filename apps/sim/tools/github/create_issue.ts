@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreateIssueParams, IssueResponse } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -5,6 +6,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
@@ -12,6 +14,7 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
   name: 'GitHub Create Issue',
   description: 'Create a new issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -65,7 +68,8 @@ export const createIssueTool: ToolConfig<CreateIssueParams, IssueResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/issues`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -153,6 +157,7 @@ export const createIssueV2Tool: ToolConfig<CreateIssueParams, any> = {
   name: createIssueTool.name,
   description: createIssueTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createIssueTool.params,
   request: createIssueTool.request,
 

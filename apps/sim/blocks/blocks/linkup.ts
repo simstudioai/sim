@@ -49,8 +49,17 @@ export const LinkupBlock: BlockConfig = {
       options: [
         { label: 'Standard', id: 'standard' },
         { label: 'Deep', id: 'deep' },
+        { label: 'Fast', id: 'fast' },
+        { label: 'Flash', id: 'flash' },
       ],
       value: () => 'standard',
+    },
+    {
+      id: 'maxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Linkup default',
+      mode: 'advanced',
     },
     {
       id: 'includeImages',
@@ -147,6 +156,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     includeImages: { type: 'boolean', description: 'Include images in results' },
     includeInlineCitations: { type: 'boolean', description: 'Add inline citations to answers' },
     includeSources: { type: 'boolean', description: 'Include sources in response' },
+    maxResults: { type: 'number', description: 'Maximum number of results to return' },
     fromDate: { type: 'string', description: 'Start date for filtering (YYYY-MM-DD)' },
     toDate: { type: 'string', description: 'End date for filtering (YYYY-MM-DD)' },
     includeDomains: {
@@ -160,8 +170,15 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   },
 
   outputs: {
-    answer: { type: 'string', description: 'Generated answer' },
-    sources: { type: 'json', description: 'Source references' },
+    answer: { type: 'string', description: 'Generated answer (Answer output type)' },
+    sources: {
+      type: 'json',
+      description: 'Answer sources [{name, url, snippet, favicon, publishedAt}]',
+    },
+    results: {
+      type: 'json',
+      description: 'Search output type results [{type, name, url, content, favicon, publishedAt}]',
+    },
   },
 }
 

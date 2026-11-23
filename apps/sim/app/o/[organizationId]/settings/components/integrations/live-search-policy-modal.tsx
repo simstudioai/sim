@@ -146,7 +146,7 @@ export function LiveSearchPolicyModal({
             (provider === 'gitlab' || provider === 'github' ? (
               <ChipModalField
                 type='custom'
-                title={provider === 'github' ? 'Repositories' : 'Projects and permissions'}
+                title={provider === 'github' ? 'Repositories' : 'Connections and permissions'}
                 hint={
                   provider === 'gitlab'
                     ? 'Admin tokens check current permissions; other tokens use CSV mappings.'
@@ -157,7 +157,7 @@ export function LiveSearchPolicyModal({
                   <ChipLink href={organizationRoutes(organizationId).searchProvider(provider)}>
                     {provider === 'github'
                       ? 'Manage GitHub repositories'
-                      : 'Manage GitLab projects'}
+                      : 'Manage GitLab connections'}
                   </ChipLink>
                 ) : null}
               </ChipModalField>

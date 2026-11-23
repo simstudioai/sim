@@ -36,6 +36,21 @@ describe('connector-type catalog', () => {
 
   const fullPage = { detail: 'full' as const, limit: 100, offset: 0 }
 
+  it('keeps Search-only scopes out of the knowledge-base setup contract', async () => {
+    const { entries } = await listCatalogConnectorTypes.execute({
+      principal: session,
+      input: { workspaceId: WORKSPACE_ID, search: 'GitLab', ...fullPage },
+    })
+    const gitlab = entries.find((entry) => entry.connectorType === 'gitlab')
+    if (!gitlab || !('configFields' in gitlab)) throw new Error('Missing GitLab setup contract')
+    expect(gitlab.configFields.find((field) => field.id === 'project')?.required).toBe(true)
+    expect(
+      gitlab.configFields.filter((field) =>
+        ['scope', 'group', 'includeSubgroups'].includes(field.id)
+      )
+    ).toEqual([])
+  })
+
   it('publishes the multi and canonical-pair config properties a caller cannot infer', async () => {
     const { entries } = await listCatalogConnectorTypes.execute({
       principal: session,

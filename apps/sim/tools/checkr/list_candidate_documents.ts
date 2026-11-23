@@ -12,6 +12,7 @@ import {
   mapDocument,
   parseCheckrStringList,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListCandidateDocumentsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const checkrListCandidateDocumentsTool: ToolConfig<
   description:
     'List documents a candidate provided, such as driver licenses and consent forms. Download links expire after 15 minutes.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

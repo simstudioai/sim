@@ -17,6 +17,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<DynatraceListEventsParams, DynatraceListEventsResponse> = {
@@ -25,6 +26,7 @@ export const listEventsTool: ToolConfig<DynatraceListEventsParams, DynatraceList
   description:
     'List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

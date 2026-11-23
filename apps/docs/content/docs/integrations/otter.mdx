@@ -2,7 +2,7 @@
 title: Otter.ai
 description: Read Otter.ai meeting conversations, transcripts, and summaries
 integration:
-  type: "otter"
+  type: "otter_v2"
   color: "#FFFFFF"
 ---
 
@@ -31,7 +31,6 @@ List Otter conversations for the authenticated user, most recent first, optional
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 | `includeShared` | boolean | No | Include conversations shared with the user \(default false\). Automatically true when a channel ID is provided. |
 | `channelId` | string | No | Only return conversations in this channel. Overrides includeShared. |
 | `limit` | number | No | Number of conversations per page \(1-100\) |
@@ -100,7 +99,6 @@ Get an Otter conversation with its summary and details, plus any requested actio
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 | `conversationId` | string | Yes | The Otter conversation ID |
 | `include` | string | Yes | Comma-separated related data to include: action_items, insights, outline, transcript, or all \(e.g., "insights,transcript"\) |
 
@@ -190,7 +188,6 @@ Get the MP3 audio download link for an Otter conversation.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 | `conversationId` | string | Yes | The Otter conversation ID |
 
 #### Output
@@ -212,7 +209,6 @@ Import an audio or video recording into Otter as a new conversation from a publi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 | `fileUrl` | string | Yes | URL of the recording to import \(e.g., https://example.com/call.mp4) |
 | `name` | string | No | Name for the new conversation |
 
@@ -236,7 +232,6 @@ List the Otter channels available to the authenticated user, in alphabetical ord
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 
 #### Output
 
@@ -267,7 +262,6 @@ List the members of an Otter channel, in alphabetical order.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 | `channelId` | string | Yes | The Otter channel ID |
 
 #### Output
@@ -294,7 +288,6 @@ Get the Otter workspace of the authenticated user, including its ID, name, owner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key |
 
 #### Output
 
@@ -325,7 +318,6 @@ List every conversation in an Otter workspace, most recent first. Requires an Ot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Otter API key of a Super Admin |
 | `workspaceId` | string | Yes | The Otter workspace ID \(the id returned by Get Workspace\) |
 | `limit` | number | No | Number of conversations per page \(1-100\) |
 | `cursor` | string | No | Pagination cursor \(nextCursor from a previous response\) |

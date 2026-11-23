@@ -3,6 +3,7 @@ import type {
   GranolaGetTranscriptResponse,
 } from '@/tools/granola/types'
 import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getTranscriptTool: ToolConfig<
@@ -14,6 +15,7 @@ export const getTranscriptTool: ToolConfig<
   description:
     'Retrieves a meeting transcript from Granola one page at a time, including when Get Note reports the transcript is too large to return inline.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

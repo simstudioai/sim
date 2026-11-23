@@ -79,7 +79,7 @@ export function getMDXComponents(overrides: MDXComponents = {}): MDXComponents {
       <code
         {...props}
         className={cn(
-          'rounded bg-[var(--docs-surface)] px-1 py-px font-mono font-normal [font-size:0.875em]',
+          'rounded bg-[var(--docs-surface)] px-1 py-px font-mono font-normal [font-size:0.875em] [font-variant-ligatures:none]',
           className
         )}
       />

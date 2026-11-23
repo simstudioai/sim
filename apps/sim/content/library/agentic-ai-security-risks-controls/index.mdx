@@ -1,0 +1,138 @@
+---
+slug: agentic-ai-security-risks-controls
+title: 'What Are the Main Security Risks of AI Agents and How Do You Control Them?'
+description: 'Learn the main AI agent security risks and the controls for prompt injection, tool misuse, excessive permissions, data loss, approvals, and recovery.'
+seoTitle: 'AI Agent Security Risks and Controls'
+date: 2026-11-21
+updated: 2026-11-21
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, Security, Governance, Sim]
+ogImage: /library/agentic-ai-security-risks-controls/cover.jpg
+draft: false
+faq:
+  - q: "What is agentic AI security?"
+    a: "Agentic AI security is the practice of controlling the data, tools, identities, decisions, actions, and network destinations available to an AI agent. It combines model-focused protections with conventional application security, identity management, monitoring, and incident response."
+  - q: "Why are AI agents riskier than chatbots?"
+    a: "AI agents are riskier than text-only chatbots when they can call tools, access private data, maintain credentials, or change external systems. The additional risk comes from the agent’s authority and reach, not merely from its ability to generate language."
+  - q: "Is prompt injection the biggest AI agent security risk?"
+    a: "Prompt injection is a major AI agent security risk, but excessive permissions can make its consequences far worse. A compromised instruction has limited impact when the agent has narrow credentials, restricted tools, controlled egress, validated arguments, and approval gates."
+  - q: "Should AI agents use shared API keys?"
+    a: "AI agents should not use shared API keys when separate service identities or credential sets are available. Unique, least-privilege credentials improve revocation, attribution, rotation, and incident containment."
+  - q: "When should an AI agent require human approval?"
+    a: "An AI agent should require human approval before irreversible, high-value, regulated, external, or privilege-changing actions. Common examples include payments, deletions, production writes, access changes, legal commitments, and customer communications."
+  - q: "Are guardrails enough to secure an AI agent?"
+    a: "Guardrails are not enough to secure an AI agent because they do not replace least-privilege access, tool restrictions, network controls, human approval, audit logs, or rollback. Guardrail results must also drive an enforcement decision rather than exist only as a recorded signal."
+  - q: "What should AI agent audit logs capture?"
+    a: "AI agent audit logs should capture the initiating identity, workflow version, model and relevant configuration, inputs, retrieved context, tool calls, arguments, outputs, approvals, errors, timestamps, and resulting external actions. Sensitive values should be protected without removing the metadata needed for investigation."
+  - q: "How do network allowlists reduce data exfiltration?"
+    a: "Network allowlists reduce AI agent data exfiltration by limiting outbound connections to approved model providers, APIs, webhook destinations, and domains. Allowlists are strongest when paired with payload inspection, redaction, logging, and narrowly scoped credentials."
+  - q: "What are the security risks of MCP?"
+    a: "MCP security risks include untrusted servers, malicious or misleading tool descriptions, excessive tool permissions, credential exposure, unsafe tool arguments, and changes in server behavior. MCP Security: A Practical Guide to Secure MCP Server Development covers these protocol-specific trust boundaries in detail."
+  - q: "Can self-hosting make an AI agent secure?"
+    a: "Self-hosting can give an organization more control over an AI agent’s network, data, models, and infrastructure, but self-hosting does not make the agent secure automatically. The operator still owns patching, identity, secrets, segmentation, monitoring, backups, and incident response."
+  - q: "Does n8n solve agentic AI security by itself?"
+    a: "n8n does not solve agentic AI security by itself because platform selection cannot replace secure workflow configuration and operational controls. An n8n deployment should be reviewed for least privilege, tool restrictions, approval gates, egress controls, logging, version management, and recovery just like any other agent platform."
+  - q: "Does Sim support human-in-the-loop approvals?"
+    a: "Sim supports human-in-the-loop decisions with a block that pauses the run and resumes it with submitted form fields. A downstream Condition must inspect the approval field and prevent a rejected request from reaching the sensitive action."
+---
+
+## TL;DR
+
+Agentic AI security requires layered controls around what an AI agent can read, decide, call, transmit, and change. The main risks are prompt injection, tool misuse, excessive permissions, data exfiltration, unreviewed actions, weak traceability, and unsafe updates. Contain them with least-privilege credentials, guardrails, allowlists, human approval, audit logs, and rollback.
+
+## How do agentic AI risks map to security controls?
+
+An agentic AI risk map should connect every credible failure mode to a preventive control, a detection mechanism, and a recovery path rather than relying on model behavior alone. Data loss prevention (DLP) checks help prevent sensitive data from leaving approved systems.
+
+| Agentic AI security risk | How it happens | Primary control | What security teams should verify |
+|---|---|---|---|
+| Prompt injection | Untrusted text in a message, document, webpage, ticket, or tool response instructs the model to ignore its intended task. | Input guardrails, instruction-data separation, tool restrictions, and output validation | Untrusted content cannot expand the agent’s permissions, expose secrets, or bypass downstream checks. |
+| Tool misuse | The agent selects the wrong tool, supplies unsafe arguments, or chains individually valid tools into a harmful action. | Tool allowlists, schema validation, constrained parameters, and approval before sensitive calls | The agent can call only required tools, and consequential arguments are validated independently of the model. |
+| Excessive permissions | Shared API keys, broad OAuth scopes, or overprivileged service accounts let the agent access more systems and data than its task requires. | Least-privilege credentials, separate identities, narrow scopes, and credential rotation | Each agent and environment has a bounded identity whose access can be revoked without disrupting unrelated workflows. |
+| Data exfiltration | Sensitive data is placed in model prompts, returned to an unauthorized user, or sent through an external tool or network destination. | Data classification, output guardrails, domain and network allowlists, DLP checks, and redaction | Sensitive fields cannot leave through model calls, tool outputs, logs, webhooks, or unexpected domains. |
+| Unreviewed actions | The agent sends a payment, deletes data, changes access, contacts a customer, or modifies a production system without review. | Human approval before sensitive actions, explicit decision thresholds, and separation of duties | The run pauses before the action, records the reviewer’s decision, and cannot continue on an ambiguous response. |
+| Weak traceability | The organization cannot reconstruct the model input, tool call, credential context, output, reviewer decision, or workflow version behind an action. | Structured audit logs, run traces, identity attribution, and retention controls | Investigators can connect every sensitive action to a person or service identity, workflow version, and complete execution record. |
+| Unsafe updates | A prompt, model, tool, or workflow change reaches production without testing and introduces new behavior. | Versioning, staged deployment, evaluation gates, and rollback | Security teams can compare versions, test critical cases, approve changes, and restore a known-good version quickly. |
+
+No single control contains every failure mode. Prompt guardrails cannot correct an overprivileged credential, and an audit log can explain an unsafe payment without preventing it. High-impact agents therefore need preventive, detective, and recovery controls around the model.
+
+For deeper treatment of service identities and secrets, see [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide). For model response enforcement, see [AI Agent Output Controls Compared: Guardrails, Structured Outputs, and Streaming](https://www.sim.ai/library/ai-agent-output-controls-guardrails-structured-outputs-streaming).
+
+## How should security teams review an AI agent before deployment?
+
+Security teams should review an AI agent as a privileged software service whose outputs can trigger actions, not as a chatbot that only produces text.
+
+Use this checklist for each agent and each production environment:
+
+- Define the agent’s approved purpose, data classes, users, tools, destinations, and prohibited actions.
+- Assign a separate service identity or credential set instead of reusing a developer’s account or a shared administrator key.
+- Reduce OAuth scopes, API permissions, database roles, and filesystem access to the minimum required for the task.
+- Treat messages, retrieved documents, webpages, tickets, emails, and tool responses as untrusted input.
+- Restrict callable tools and validate tool arguments outside the model before execution.
+- Require human approval for payments, deletions, permission changes, external communications, production writes, and other high-impact actions.
+- Restrict outbound network access to approved providers, APIs, webhook destinations, and domains.
+- Redact or block secrets, regulated data, and sensitive identifiers before they reach unauthorized models or tools.
+- Record prompts, model responses, tool calls, tool arguments, outputs, errors, identities, approvals, timestamps, and workflow versions.
+- Test prompt injection, unauthorized tool requests, malformed arguments, approval bypasses, data leakage, and unavailable dependencies.
+- Version every production change and maintain a tested rollback path.
+- Assign an owner who can revoke credentials, disable the agent, investigate incidents, and approve restoration.
+
+A pilot should prove these controls with adversarial tests rather than screenshots or policy statements. [How to Pilot an AI Agent Platform Through Security Review](https://www.sim.ai/library/pilot-ai-agent-platform-security-review) provides a broader process for evidence collection, ownership, and go-live decisions.
+
+## How does Sim apply agentic AI security controls?
+
+Sim applies agentic AI security controls by making approval, guardrail results, credentials, and execution records explicit parts of the deployed workflow and its operating environment.
+
+- Least privilege: Sim deployments can use narrowly scoped provider credentials. Credential Groups in `apps/sim/ee` support organization-managed account pools and workspace-level integration grants in enterprise environments.
+- Human approval: Sim’s Human block pauses a run and resumes it with submitted form fields. An approve-or-reject field does not enforce the decision by itself; a downstream Condition must inspect that field and route rejected requests away from the sensitive action.
+- Guardrails: Sim’s Guardrails block reports whether its checks passed or failed. A downstream Condition must route on that result to stop, quarantine, or remediate a failed item.
+- Egress restrictions: [Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can operate inside an organization’s network boundary, where infrastructure controls can restrict outbound destinations. Security teams should still test every permitted model endpoint, API, webhook, and integration.
+- Auditability: Audit logs are part of `apps/sim/ee` under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and can support enterprise investigation and governance requirements.
+- Recovery: Security teams should pair controlled releases with version history and rollback procedures. [AI Agent Version Control and Rollback: Platforms, Process, and Enterprise Checklist](https://www.sim.ai/library/ai-agent-version-control-rollback-platforms) explains the evidence to require.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Its visual workflow structure can help reviewers identify where a sensitive tool call occurs and whether a guardrail, approval, or routing condition precedes it, but reviewers must validate the configured behavior rather than assume that the presence of a block enforces the policy.
+
+## What platform facts matter during an AI agent security review?
+
+AI agent platform security reviews should distinguish licensing, deployment boundaries, credential ownership, and usage measures because each affects control and operational risk.
+
+As of November 2026:
+
+- Sim: Sim’s core is Apache 2.0, while `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of `apps/sim/ee` requires an active Sim Enterprise subscription. Sim can be [self-hosted](https://docs.sim.ai/platform/self-hosting), and local models can run on any self-hosted Sim deployment.
+- n8n: n8n describes its Sustainable Use License and Enterprise License as [fair-code licenses](https://docs.n8n.io/n8n-community-license). n8n offers self-hosted editions, and its [published pricing](https://n8n.io/pricing/) uses monthly workflow executions as a primary usage measure.
+
+Licensing does not make either platform secure by itself. Security reviewers should test the deployed configuration, identity boundaries, network access, approval logic, logging, and recovery process regardless of whether the software is cloud-hosted or self-hosted.
+
+## Which AI agent platform is easiest to get through security review?
+
+Sim fits teams that want reviewers to inspect agent control flow visually while retaining a self-hosting option and an Apache 2.0 core, subject to the enterprise exception described above.
+
+The fit depends on the review criteria. Sim fits reviews where the security team wants to see approval steps, guardrail results, routing conditions, and sensitive tool calls in one workflow. n8n fits teams already operating n8n workflows and should be evaluated with the same risk-control map rather than excluded because it began as a broader automation product. Code-first frameworks can provide implementation flexibility, but teams may need to assemble more of the approval, audit, policy, and rollback evidence themselves.
+
+The easiest platform to approve is ultimately the one that can produce evidence for these questions:
+
+1. What identity does each agent use?
+2. Which data, tools, systems, and domains can it reach?
+3. Which actions require a person’s approval?
+4. What independent checks occur before and after model output?
+5. Can investigators reconstruct every sensitive action?
+6. Can operators disable the agent, revoke access, and roll back a change quickly?
+
+## Which security standards help teams evaluate agentic AI systems?
+
+NIST, OWASP, and MITRE provide complementary frameworks that help security teams turn agentic AI threats into test cases and governance requirements.
+
+The [NIST AI Risk Management Framework Generative AI Profile](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence) supports risk management across the AI lifecycle. The [OWASP Top 10 for Large Language Model Applications](https://genai.owasp.org/llm-top-10/) identifies technical risks including prompt injection, sensitive information disclosure, excessive agency, and improper output handling. [MITRE ATLAS](https://atlas.mitre.org/) organizes adversary tactics and techniques involving AI systems.
+
+These resources should inform the threat model, but the control owner still needs to translate each risk into an enforceable workflow, identity, network, logging, or recovery control.
+
+## Where should security teams go for identity, MCP, Slack, and approval details?
+
+Security teams should use focused guidance for identity, Slack, approval design, and the Model Context Protocol (MCP), which connects agents to tools and data, instead of treating every integration-specific risk as a general agentic AI control.
+
+- For service accounts, API keys, secret ownership, and audit evidence, read [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+- For protocol-specific server, tool, and trust-boundary risks, read [MCP Security: A Practical Guide to Secure MCP Server Development](https://www.sim.ai/library/mcp-security).
+- For Slack scopes, channel access, message data, and workspace permissions, read [Slack AI Agent Security: Permissions, Data, and Audit Guide](https://www.sim.ai/library/slack-ai-agent-security-permissions-guide).
+- For approval placement and escalation design, read [What Is Human-in-the-Loop in AI Agents?](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents).

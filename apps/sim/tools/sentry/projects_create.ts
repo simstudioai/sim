@@ -1,5 +1,8 @@
 import type { SentryCreateProjectParams, SentryCreateProjectResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCreateProjectResponse> =
   {
@@ -8,8 +11,10 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
     description:
       'Create a new Sentry project in an organization. Requires a team to associate the project with. Returns the created project details.',
     version: '1.0.0',
+    oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
+      region: SENTRY_REGIONS.param,
       apiKey: {
         type: 'string',
         required: true,
@@ -57,7 +62,7 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
 
     request: {
       url: (params) =>
-        `https://sentry.io/api/0/teams/${params.organizationSlug}/${params.teamSlug}/projects/`,
+        `${SENTRY_REGIONS.apiBase(params.region)}/teams/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.teamSlug, 'teamSlug')}/projects/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -153,7 +158,9 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
           firstEvent: { type: 'string', description: 'First event timestamp', optional: true },
           organization: {
             type: 'object',
-            description: 'Organization information',
+            description:
+              'Organization information (not returned by this endpoint; use Get Project)',
+            optional: true,
             properties: {
               id: { type: 'string', description: 'Organization ID' },
               slug: { type: 'string', description: 'Organization slug' },
@@ -181,9 +188,22 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
               },
             },
           },
-          status: { type: 'string', description: 'Project status', optional: true },
-          color: { type: 'string', description: 'Project color code', optional: true },
-          isPublic: { type: 'boolean', description: 'Whether the project is public' },
+          status: {
+            type: 'string',
+            description: 'Project status (not returned by this endpoint; use Get Project)',
+            optional: true,
+          },
+          color: {
+            type: 'string',
+            description: 'Project color code (not returned by this endpoint; use Get Project)',
+            optional: true,
+          },
+          isPublic: {
+            type: 'boolean',
+            description:
+              'Whether the project is public (not returned by this endpoint; use Get Project)',
+            optional: true,
+          },
         },
       },
     },

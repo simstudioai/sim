@@ -2048,13 +2048,12 @@
             "name": "fileId",
             "in": "path",
             "required": true,
-            "description": "File identifier.",
+            "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_-]+$",
-              "description": "File identifier."
+              "maxLength": 4096,
+              "description": "File identifier, or the VFS path of a live file: `files/<folder>/<name>`. Pass the id when two files in a folder have names that display alike."
             }
           },
           {
@@ -4714,7 +4713,9 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
-          "SCIM_MANAGED_MEMBERSHIP"
+          "READ_ONLY_API_KEY",
+          "SCIM_MANAGED_MEMBERSHIP",
+          "FEATURE_NOT_ENABLED"
         ],
         "title": "Forbidden detail code",
         "description": "Stable cause code for an actionable `403` response."
@@ -4743,6 +4744,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],

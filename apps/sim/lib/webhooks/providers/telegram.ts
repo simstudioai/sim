@@ -4,9 +4,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -48,7 +50,7 @@ export const telegramHandler: WebhookProviderHandler = {
     if (!secretToken) return null
 
     if (!verifyTokenAuth(request, secretToken, TELEGRAM_SECRET_TOKEN_HEADER)) {
-      logger.warn(`[${requestId}] Rejected Telegram webhook request with invalid secret token`)
+      logger.warn('Rejected Telegram webhook request with invalid secret token', { requestId })
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
@@ -146,8 +148,10 @@ export const telegramHandler: WebhookProviderHandler = {
     const botToken = config.botToken as string | undefined
 
     if (!botToken) {
-      logger.warn(`[${ctx.requestId}] Missing botToken for Telegram webhook ${ctx.webhook.id}`)
-      throw new Error(
+      logger.warn(`Missing botToken for Telegram webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
+      throw new WebhookDeploymentConfigurationError(
         'Bot token is required to create a Telegram webhook. Please provide a valid Telegram bot token.'
       )
     }
@@ -157,7 +161,7 @@ export const telegramHandler: WebhookProviderHandler = {
     const secretToken = await resolveSubscriptionSecretToken(ctx, config, botToken)
 
     try {
-      const telegramResponse = await fetch(telegramApiUrl, {
+      const telegramResponse = await outboundFetch(telegramApiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +175,7 @@ export const telegramHandler: WebhookProviderHandler = {
         const errorMessage =
           responseBody.description ||
           `Failed to create Telegram webhook. Status: ${telegramResponse.status}`
-        logger.error(`[${ctx.requestId}] ${errorMessage}`, { response: responseBody })
+        logger.error(errorMessage, { requestId: ctx.requestId, response: responseBody })
 
         let userFriendlyMessage = 'Failed to create Telegram webhook'
         if (telegramResponse.status === 401) {
@@ -184,9 +188,9 @@ export const telegramHandler: WebhookProviderHandler = {
         throw new Error(userFriendlyMessage)
       }
 
-      logger.info(
-        `[${ctx.requestId}] Successfully created Telegram webhook for webhook ${ctx.webhook.id}`
-      )
+      logger.info(`Successfully created Telegram webhook for webhook ${ctx.webhook.id}`, {
+        requestId: ctx.requestId,
+      })
       return { providerConfigUpdates: { secretToken } }
     } catch (error: unknown) {
       if (
@@ -196,10 +200,9 @@ export const telegramHandler: WebhookProviderHandler = {
         throw error
       }
 
-      logger.error(
-        `[${ctx.requestId}] Error creating Telegram webhook for webhook ${ctx.webhook.id}`,
-        error
-      )
+      logger.error(`Error creating Telegram webhook for webhook ${ctx.webhook.id}`, error, {
+        requestId: ctx.requestId,
+      })
       throw new Error(
         getErrorMessage(error, 'Failed to create Telegram webhook. Please try again.')
       )
@@ -212,9 +215,9 @@ export const telegramHandler: WebhookProviderHandler = {
       const botToken = config.botToken as string | undefined
 
       if (!botToken) {
-        logger.warn(
-          `[${ctx.requestId}] Missing botToken for Telegram webhook deletion ${ctx.webhook.id}`
-        )
+        logger.warn(`Missing botToken for Telegram webhook deletion ${ctx.webhook.id}`, {
+          requestId: ctx.requestId,
+        })
         if (ctx.strict) throw new Error('Missing Telegram botToken for webhook deletion')
         return
       }
@@ -227,14 +230,14 @@ export const telegramHandler: WebhookProviderHandler = {
       )
       if (activeConfigs.length > 0) {
         logger.info(
-          `[${ctx.requestId}] Skipping Telegram webhook deletion because an active deployment uses the same bot token`,
-          { webhookId: ctx.webhook.id }
+          'Skipping Telegram webhook deletion because an active deployment uses the same bot token',
+          { requestId: ctx.requestId, webhookId: ctx.webhook.id }
         )
         return
       }
 
       const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
-      const telegramResponse = await fetch(telegramApiUrl, {
+      const telegramResponse = await outboundFetch(telegramApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -244,18 +247,17 @@ export const telegramHandler: WebhookProviderHandler = {
         const errorMessage =
           responseBody.description ||
           `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
-        logger.error(`[${ctx.requestId}] ${errorMessage}`, { response: responseBody })
+        logger.error(errorMessage, { requestId: ctx.requestId, response: responseBody })
         if (ctx.strict) throw new Error(errorMessage)
       } else {
-        logger.info(
-          `[${ctx.requestId}] Successfully deleted Telegram webhook for webhook ${ctx.webhook.id}`
-        )
+        logger.info(`Successfully deleted Telegram webhook for webhook ${ctx.webhook.id}`, {
+          requestId: ctx.requestId,
+        })
       }
     } catch (error) {
-      logger.error(
-        `[${ctx.requestId}] Error deleting Telegram webhook for webhook ${ctx.webhook.id}`,
-        error
-      )
+      logger.error(`Error deleting Telegram webhook for webhook ${ctx.webhook.id}`, error, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

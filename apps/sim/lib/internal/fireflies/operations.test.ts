@@ -3,6 +3,7 @@ import {
   fileUtilsServerMockFns,
 } from '@sim/testing/mocks/file-utils-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -70,5 +71,16 @@ describe('executeFirefliesUploadAudio', () => {
         presignExpirySeconds: 3600,
       })
     )
+  })
+
+  it('surfaces an egress routing failure instead of an upload error', async () => {
+    vi.mocked(fetch).mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      executeFirefliesUploadAudio(
+        { apiKey: 'fireflies-key', audioUrl: 'https://media.example.com/audio.mp3' },
+        createContext()
+      )
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
   })
 })

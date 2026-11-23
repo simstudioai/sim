@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineSquareKeyedSite,
   type SquareDeliveryContextParams,
@@ -8,7 +9,7 @@ import type { InvoiceResponse, PublishInvoiceParams } from '@/tools/square/types
 import {
   INVOICE_METADATA_OUTPUT_PROPERTIES,
   INVOICE_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -26,9 +27,11 @@ export const squarePublishInvoiceTool: ToolConfig<
   name: 'Square Publish Invoice',
   description: 'Publish a draft invoice so it is sent to the customer and becomes payable',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -57,7 +60,7 @@ export const squarePublishInvoiceTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${SQUARE_BASE_URL}/v2/invoices/${encodeURIComponent(params.invoiceId)}/publish`,
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/invoices/${encodeURIComponent(params.invoiceId)}/publish`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => withSquareIdempotencyKey(DELIVERY, params, { version: params.version }),

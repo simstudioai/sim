@@ -1,6 +1,6 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { PiBlock } from '@/blocks/blocks/pi'
 import { getHostedModels } from '@/providers/models'
 

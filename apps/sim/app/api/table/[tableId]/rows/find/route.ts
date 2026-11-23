@@ -58,7 +58,7 @@ export const GET = withRouteHandler(
 
       if (validated.workspaceId !== table.workspaceId) {
         logger.warn(
-          `[${requestId}] Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
+          `Workspace ID mismatch for table ${tableId}. Provided: ${validated.workspaceId}, Actual: ${table.workspaceId}`
         )
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
@@ -93,7 +93,7 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      logger.error(`[${requestId}] Error finding rows:`, error)
+      logger.error('Error finding rows:', error)
       return NextResponse.json({ error: 'Failed to find rows' }, { status: 500 })
     }
   }

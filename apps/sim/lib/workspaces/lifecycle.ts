@@ -15,9 +15,9 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
@@ -101,7 +101,7 @@ export async function archiveWorkspace(
   })
   if (!outcome) return { archived: false }
 
-  logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+  logger.info(`Archived workspace ${workspaceId}`, { requestId: options.requestId })
   options.deliverStops?.(outcome.effects.stoppedRuns)
 
   await finishEnvironmentArchive(outcome.effects, options.requestId)
@@ -172,23 +172,20 @@ export async function finishEnvironmentArchive(
           cleanupErrors.push(error)
           return
         }
-        logger.warn(`[${requestId}] Post-archive notification failed for workflow ${row.id}`, {
-          error,
-        })
+        logger.warn(`Post-archive notification failed for workflow ${row.id}`, { requestId, error })
       })
     )
     if (cleanupErrors.length > 0) throw cleanupErrors[0]
   } finally {
     await mcpService.clearCache(workspaceId).catch(() => undefined)
-    if (mcpPubSub) {
-      for (const serverId of effects.serverIds) {
-        try {
-          mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
-        } catch (error) {
-          logger.warn(`[${requestId}] MCP tools-changed publish failed for server ${serverId}`, {
-            error,
-          })
-        }
+    for (const serverId of effects.serverIds) {
+      try {
+        mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      } catch (error) {
+        logger.warn(`MCP tools-changed publish failed for server ${serverId}`, {
+          requestId,
+          error,
+        })
       }
     }
   }

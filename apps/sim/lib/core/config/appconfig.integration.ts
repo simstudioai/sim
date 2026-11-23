@@ -1,7 +1,7 @@
 /**
  * The shared AppConfig snapshot against real Redis: a long-lived process publishes what it polled,
  * a fresh Trigger.dev run process adopts it without an AppConfig session, and an older snapshot
- * never replaces a newer one. Skipped without `TEST_REDIS_URL`.
+ * never replaces a newer one.
  */
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
@@ -50,7 +50,7 @@ function respondWith(revision: string) {
   )
 }
 
-describe.runIf(Boolean(redisUrl))('shared AppConfig snapshot with Redis', () => {
+describe('shared AppConfig snapshot with Redis', () => {
   let redis: Redis
   let ids: { application: string; environment: string; profile: string }
   const key = () => `appconfig:snapshot:v1:${ids.application}/${ids.environment}/${ids.profile}`
@@ -65,7 +65,6 @@ describe.runIf(Boolean(redisUrl))('shared AppConfig snapshot with Redis', () => 
   }
 
   beforeAll(async () => {
-    if (!redisUrl) throw new Error('TEST_REDIS_URL is required for this suite')
     redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
   })

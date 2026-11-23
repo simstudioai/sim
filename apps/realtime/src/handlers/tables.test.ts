@@ -58,7 +58,6 @@ function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
     updateRoomLastModified: vi.fn().mockResolvedValue(undefined),
     emitToRoom: vi.fn(),
     getUniqueUserCount: vi.fn().mockResolvedValue(1),
-    getTotalActiveConnections: vi.fn().mockResolvedValue(0),
     shutdown: vi.fn().mockResolvedValue(undefined),
     initialize: vi.fn().mockResolvedValue(undefined),
     io: {

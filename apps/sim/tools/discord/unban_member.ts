@@ -1,5 +1,7 @@
 import type { DiscordUnbanMemberParams, DiscordUnbanMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUnbanMemberTool: ToolConfig<
   DiscordUnbanMemberParams,
@@ -9,6 +11,7 @@ export const discordUnbanMemberTool: ToolConfig<
   name: 'Discord Unban Member',
   description: 'Unban a member from a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -39,7 +42,7 @@ export const discordUnbanMemberTool: ToolConfig<
 
   request: {
     url: (params: DiscordUnbanMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/bans/${params.userId.trim()}`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/bans/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'DELETE',
     headers: (params) => {

@@ -1,6 +1,6 @@
 import { jobExecutionLogs } from '@sim/db/schema'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { and, inArray, isNotNull } from 'drizzle-orm'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
   decodeTimeCursor,

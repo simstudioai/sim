@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetPhaseTool: ToolConfig<RocketlaneGetPhaseParams, RocketlanePhaseResponse> =
@@ -15,6 +16,7 @@ export const rocketlaneGetPhaseTool: ToolConfig<RocketlaneGetPhaseParams, Rocket
     name: 'Rocketlane Get Phase',
     description: 'Retrieve a single Rocketlane phase by ID',
     version: '1.0.0',
+    oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

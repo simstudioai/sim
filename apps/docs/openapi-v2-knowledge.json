@@ -3912,6 +3912,117 @@
         }
       }
     },
+    "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/content": {
+      "get": {
+        "operationId": "downloadKnowledgeDocument",
+        "summary": "Download document",
+        "description": "Download an uploaded document's original bytes, as stored. A document with no stored original, such as one a connector syncs, returns `404`. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length` and cannot determine the download size.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.documents.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "knowledgeBaseId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document as stored.",
+            "headers": {
+              "Content-Type": {
+                "$ref": "#/components/headers/Content-Type"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/Content-Disposition"
+              },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/knowledge/folders": {
       "get": {
         "operationId": "listKnowledgeFolders",
@@ -6018,7 +6129,9 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
-          "SCIM_MANAGED_MEMBERSHIP"
+          "READ_ONLY_API_KEY",
+          "SCIM_MANAGED_MEMBERSHIP",
+          "FEATURE_NOT_ENABLED"
         ],
         "title": "Forbidden detail code",
         "description": "Stable cause code for an actionable `403` response."
@@ -6047,6 +6160,10 @@
                     "description": "Other structured context defined by the specific error."
                   }
                 ]
+              },
+              "requestId": {
+                "description": "Identifier of this request, the same id as the `x-request-id` response header. Quote it when contacting support.",
+                "type": "string"
               }
             },
             "required": ["code", "message"],
@@ -6928,7 +7045,7 @@
                 "type": "null"
               }
             ],
-            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
           },
           "sourceConfig": {
             "type": "object",
@@ -7150,7 +7267,7 @@
             "description": "Registered connector type."
           },
           "credentialId": {
-            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.",
+            "description": "OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.",
             "type": "string",
             "minLength": 1,
             "maxLength": 255
@@ -7326,7 +7443,7 @@
                 "type": "null"
               }
             ],
-            "description": "OAuth credential identifier, or null for API-key and unauthenticated sources."
+            "description": "OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key."
           },
           "sourceConfig": {
             "type": "object",

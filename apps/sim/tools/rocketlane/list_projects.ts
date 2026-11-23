@@ -9,6 +9,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListProjectsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const rocketlaneListProjectsTool: ToolConfig<
   description:
     'List Rocketlane projects with optional filters, sorting, and token-based pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

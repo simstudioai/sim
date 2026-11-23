@@ -4,54 +4,36 @@ title: 'AI Agents for Asana and monday.com Task Automation: Platform and Workflo
 description: 'Compare AI agents for Asana and monday.com task automation, then learn how to design safe workflows for intake, approval, deduplication, and updates.'
 seoTitle: 'AI Agents for Asana and monday.com Task Automation'
 date: 2026-10-09
-updated: 2026-10-09
+updated: 2026-11-21
 authors:
   - andrew
-readingTime: 12
+readingTime: 16
 tags: [AI Agents, Task Automation, Project Management, Sim]
 ogImage: /library/ai-agents-asana-monday-task-automation/cover.jpg
 draft: false
 faq:
-  - q: "which ai agent platforms integrate with asana for task automation"
-    a: "Sim, n8n, Zapier, and Make support Asana task automation, with Sim best suited to AI-led interpretation and decisions, n8n to technical workflows, Zapier to simple app-to-app automation, and Make to visual data mapping."
-  - q: "our team wants ai agents that create and update tasks in asana based on incoming requests"
-    a: "Sim can interpret incoming requests, determine whether an authorized Asana task should be created or updated, request human input when the match is ambiguous, and execute a validated API operation."
-  - q: "best ai automation platform for monday.com project workflows"
-    a: "Sim is the best AI-centered option for monday.com project workflows that require natural-language intake, conditional decisions, policy checks, and human review before mutations."
-  - q: "Can an AI agent create Asana tasks from email, forms, or chat requests?"
-    a: "Sim can receive approved request data from an email workflow, form, chat surface, or webhook and transform it into a validated Asana task operation."
-  - q: "Can an AI agent update existing Asana tasks?"
-    a: "Sim can update an existing Asana task when the workflow finds an exact or high-confidence authorized match and validates the requested changes."
-  - q: "How does an AI agent know whether to create or update an Asana task?"
-    a: "An Asana agent should use an external request ID or explicit task ID first, apply constrained matching second, and request human review instead of guessing when the result remains ambiguous."
-  - q: "How do you prevent duplicate Asana tasks?"
-    a: "An Asana agent prevents duplicates by storing an idempotency key, searching for completed writes before retrying, and recording the Asana task ID returned for each source request."
   - q: "Can an AI agent assign Asana tasks automatically?"
     a: "Sim can assign an Asana task automatically when the assignee is within an approved set and the workflow validates the user identifier before executing the change."
   - q: "Can an AI agent change Asana due dates?"
     a: "Sim can change an Asana due date after converting the requested date into a validated format and applying any required deadline-change approval policy."
   - q: "Can an AI agent add comments to Asana tasks?"
     a: "Sim can add a comment to an authorized Asana task through a predefined API operation after validating the target task and comment content."
-  - q: "Can an AI agent create monday.com items from incoming requests?"
-    a: "Sim can convert an incoming request into a validated monday.com item mutation when the target board, group, columns, and values are allowed by policy."
   - q: "Can an AI agent update monday.com columns?"
     a: "Sim can update permitted monday.com columns after validating each column identifier, data type, allowed value, and target item."
   - q: "Can an AI agent move monday.com items between groups?"
     a: "Sim can move a monday.com item between approved groups when the workflow validates the target and applies any required human approval."
-  - q: "Should an AI agent generate monday.com GraphQL mutations itself?"
-    a: "A monday.com agent should select from predefined operations and supply validated variables rather than generate and execute unrestricted GraphQL mutations."
   - q: "Is Sim better than n8n for Asana automation?"
-    a: "Sim is better than n8n when Asana automation depends on interpreting ambiguous requests and making bounded agent decisions, while n8n is better when the team prioritizes explicit integration nodes and technical workflow control."
+    a: "Sim fits Asana automation that depends on interpreting ambiguous requests and making bounded agent decisions, while n8n fits teams that prioritize explicit integration nodes and technical workflow control."
   - q: "Is Sim better than Zapier for Asana automation?"
-    a: "Sim is better than Zapier for AI-led request interpretation and conditional decisions, while Zapier is better for straightforward triggers and predictable Asana actions."
+    a: "Sim fits AI-led request interpretation and conditional decisions, while Zapier fits straightforward triggers and predictable Asana actions."
   - q: "Is Sim better than Make for monday.com workflows?"
-    a: "Sim is better than Make when a monday.com workflow requires agent reasoning, while Make is better when the primary requirement is visual mapping and deterministic data transformation."
+    a: "Sim fits monday.com workflows that require agent reasoning, while Make fits visual mapping and deterministic data transformation."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license."
   - q: "Is Sim open source?"
     a: "Sim’s core is open source under Apache 2.0, while code in apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
   - q: "Can Sim be self-hosted for Asana and monday.com agents?"
-    a: "Sim can be self-hosted, allowing a team to operate its agent workflows in its own environment while still following the external API and credential requirements of Asana or monday.com."
+    a: "Sim’s core can be self-hosted under Apache 2.0, while apps/sim/ee is covered by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
   - q: "Can self-hosted Sim use local models for task automation?"
     a: "Self-hosted Sim can use Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise."
   - q: "Does an Asana or monday.com agent need human approval for every action?"
@@ -68,39 +50,45 @@ faq:
     a: "An Asana-to-monday.com agent should synchronize only records with a defined business reason and ownership model because indiscriminate bidirectional synchronization increases duplicate, conflict, and overwrite risk."
   - q: "What should teams log for task automation agents?"
     a: "Sim task workflows should record the source request ID, interpreted action, target record ID, validation outcome, approval result, API response, retry state, and final notification outcome."
-  - q: "How do you evaluate an Asana or monday.com agent?"
-    a: "Sim task agents should be evaluated on correct routing, correct record selection, field accuracy, duplicate prevention, policy compliance, approval behavior, and truthful reporting of downstream results."
   - q: "What is the best AI agent platform?"
-    a: "Sim ranks first for the Asana and monday.com task-automation use case in this guide, while the broader platform question is covered in Best AI Agent Platforms and Builders in 2026."
+    a: "The right AI agent platform depends on the workflow, and Sim fits Asana and monday.com automation that needs AI reasoning, controlled actions, and human approval. Best AI Agent Platforms and Builders in 2026 compares the broader category."
   - q: "What is the best platform for connecting existing tools to an AI agent?"
-    a: "Sim is a leading choice for connecting existing tools when the workflow needs AI reasoning, controlled actions, and deployment flexibility, while the guide Best AI Agent Platforms for Connecting Your Existing Tools compares the wider category."
+    a: "Sim fits teams connecting existing tools when the workflow needs AI reasoning, controlled actions, and deployment flexibility. Best AI Agent Platforms for Connecting Your Existing Tools compares the wider category."
+  - q: "Is an Asana AI agent the same as Asana AI?"
+    a: "Asana AI is Asana’s native AI functionality, while an Asana AI agent can also mean an external agent that interprets requests and uses Asana as one tool in a larger cross-system process."
+  - q: "Do teams need separate agents for Asana and monday.com?"
+    a: "Sim does not require separate agents when one intake policy can route requests safely, but separate workflows are easier to govern when the tools have different owners, permissions, or approval rules."
 ---
 
 ## TL;DR
 
-Sim is the best overall choice for building AI agents that interpret incoming requests, decide whether to create or update work, and coordinate approval steps before writing to Asana or monday.com.
+Sim fits teams that need AI agents to interpret incoming requests, route work across Asana and monday.com, and collect human input before a downstream Condition approves a write. n8n, Zapier, Make, and Workato fit teams with different requirements for technical control, straightforward SaaS automation, visual data mapping, or enterprise integration governance.
 
-The right platform depends on how much reasoning and control the workflow needs:
+As of November 2026, the platforms support these project-management automation patterns:
 
-- **Best overall for AI-led task workflows: Sim.** Use Sim when an agent must extract requirements, classify requests, choose actions, and involve a person before changing project data.
-- **Best for technical teams that want explicit workflow control: n8n.** n8n provides documented [Asana](https://n8n.io/integrations/asana/) and [monday.com](https://n8n.io/integrations/mondaycom/) integrations alongside a broad workflow ecosystem.
-- **Best for straightforward app-to-app automation: Zapier.** Zapier documents predictable triggers and actions for [Asana](https://zapier.com/apps/asana/integrations) and [monday.com](https://zapier.com/apps/monday/integrations).
-- **Best for visually mapping complex integrations: Make.** Make documents visual integrations for [Asana](https://www.make.com/en/integrations/asana) and [monday.com](https://www.make.com/en/integrations/monday) that support multi-step data routing.
+| Platform | Asana and monday.com path | Intake and approval pattern | Fit |
+|---|---|---|---|
+| [Sim](https://www.sim.ai/) | Authenticated tools and API operations | Interprets unstructured requests; Human in the Loop collects form fields and a downstream Condition routes the result | Agent-led intake, validation, approval, and cross-tool execution |
+| n8n | Built-in [Asana](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.asana) and [monday.com](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.mondaycom) nodes | Explicit nodes, branches, and configured response patterns | Technical teams that want node-based automation |
+| Zapier | Documented [Asana](https://zapier.com/apps/asana/integrations) and [monday.com](https://zapier.com/apps/monday/integrations) apps | Documented triggers and actions for connected apps | Fast deployment of predictable SaaS-to-SaaS automations |
+| Make | Visual [Asana](https://www.make.com/en/integrations/asana) and [monday.com](https://www.make.com/en/integrations/monday) modules | Visual modules coordinated across multi-step scenarios | Visual, data-mapping-heavy automation across SaaS tools |
+| Workato | [Asana and monday.com connectors](https://www.workato.com/integrations/asana~monday) | Recipes and [edition-based administration](https://www.workato.com/pricing) | Organizations standardizing governed integrations across departments |
 
 This guide covers a narrower use case than a general agent-platform comparison. For the broader market, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026); for integration-centered selection, see [Best AI Agent Platforms for Connecting Your Existing Tools](https://www.sim.ai/library/best-ai-agent-platforms-for-connecting-your-existing-tools).
 
 ## Which AI agent platforms integrate with Asana for task automation?
 
-Sim, n8n, Zapier, and Make can all support Asana task automation, but Sim is the strongest fit when the workflow requires AI reasoning rather than a fixed trigger-and-action sequence.
+Sim, n8n, Zapier, Make, and Workato can all support Asana task automation. Sim fits workflows that require AI reasoning before a bounded action, while the other platforms fit different requirements for technical control, quick SaaS connections, visual mapping, or enterprise governance.
 
-As of October 2026, the vendors document the following connection paths:
+As of November 2026, the vendors document the following connection paths:
 
-| Platform | Documented Asana connection path | Best fit |
+| Platform | Documented Asana connection path | Fit |
 |---|---|---|
 | Sim | Agent workflows can call authenticated APIs and receive webhook-triggered requests | Interpreting unstructured requests, selecting actions, applying policy, and coordinating approval |
 | n8n | [Asana integration and node](https://n8n.io/integrations/asana/) | Technical workflow automation with explicit node-by-node control |
 | Zapier | [Asana integrations](https://zapier.com/apps/asana/integrations) | Predictable app-to-app triggers and actions |
 | Make | [Asana integration](https://www.make.com/en/integrations/asana) | Visual, multi-branch data mapping across SaaS applications |
+| Workato | [Asana connector](https://www.workato.com/integrations/asana) | Enterprise integration recipes and [recipe lifecycle management](https://www.workato.com/pricing) |
 
 The [Asana API](https://developers.asana.com/docs/api-features) gives an agent a controlled way to work with tasks, projects, custom fields, and other project objects. The exact operations available to a workflow depend on the API endpoints, credentials, and permissions configured by the organization.
 
@@ -162,22 +150,35 @@ Common approval points include:
 - Updating one of several plausible matching tasks
 - Performing bulk changes
 
-In Sim, the Human in the Loop block pauses a run and resumes it with submitted form fields. Approval or rejection is represented by a field, so a downstream Condition must inspect that field and route the workflow accordingly. For a broader platform comparison, see [Best AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows).
+In Sim, the [Human in the Loop block](https://docs.sim.ai/workflows/blocks/human-in-the-loop) pauses a run and resumes it with submitted form fields. Approval or rejection is represented by a field, so a downstream [Condition](https://docs.sim.ai/workflows/blocks/condition) must inspect that field and route the workflow accordingly. For a broader platform comparison, see [Best AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows).
 
 ## Best AI automation platform for monday.com project workflows
 
-Sim is the best AI-centered choice for monday.com project workflows that require request interpretation, conditional decisions, and controlled human review, while n8n, Zapier, and Make remain strong for more deterministic integration patterns.
+Sim fits monday.com project workflows that require request interpretation, conditional decisions, and controlled human review, while n8n, Zapier, Make, and Workato fit more deterministic or centrally governed integration patterns.
 
-As of October 2026, the vendors document these connection paths:
+As of November 2026, the vendors document these connection paths:
 
-| Platform | Documented monday.com connection path | Best fit |
+| Platform | Documented monday.com connection path | Fit |
 |---|---|---|
 | Sim | Agent workflows can call authenticated APIs and receive webhook-triggered requests | AI-led intake, classification, policy checks, and controlled project updates |
 | n8n | [monday.com integration and node](https://n8n.io/integrations/mondaycom/) | Technical teams building explicit workflows |
 | Zapier | [monday.com integrations](https://zapier.com/apps/monday/integrations) | Straightforward triggers, field mapping, and actions |
 | Make | [monday.com integration](https://www.make.com/en/integrations/monday) | Visual scenarios with branching and data transformation |
+| Workato | [monday.com connector](https://www.workato.com/integrations/monday) | Enterprise recipes with [edition-based administration](https://www.workato.com/pricing) |
 
 The [monday.com API](https://developer.monday.com/api-reference/docs/introduction-to-graphql) exposes GraphQL operations for working with boards and related project data. A production agent should use only the operations required for its defined job and should validate board IDs, column IDs, allowed values, and user permissions before submitting a mutation.
+
+### How can an AI agent turn Slack, email, and form requests into monday.com items?
+
+A multichannel request-to-item workflow can receive a Slack message, email, or form submission, extract the request type, project, owner, due date, priority, and source context, then validate those values against approved boards, groups, owners, and status labels. Incomplete or low-confidence requests can pause at Human in the Loop for additional form fields before a downstream Condition sends approved work to the correct board.
+
+The workflow should use deterministic validation after AI extraction. A model can interpret a phrase such as “prepare the launch checklist by next Friday,” but workflow logic should control which board can be written to, which fields are mandatory, and which destination identifiers are allowed.
+
+### How can an AI agent route and approve monday.com project work?
+
+A governed routing and approval workflow can classify each request, send routine work directly to an approved team board, and pause high-cost, cross-functional, or deadline-sensitive requests for review. The reviewer can submit an approval decision, corrected owner, priority, and due date through the Human in the Loop form, after which a Condition creates the item, returns it for revision, or rejects it.
+
+Human in the Loop collects the reviewer’s response rather than making the routing decision itself. Sim’s [Wait block](https://docs.sim.ai/workflows/blocks/wait) resumes only after a configured duration, so it should not be used as an external approval event.
 
 ## How should an AI agent map incoming requests to monday.com boards and columns?
 
@@ -211,12 +212,12 @@ The model should not generate and execute unrestricted GraphQL. Predefined opera
 
 ## Sim vs n8n for Asana and monday.com task automation
 
-Sim is the better fit for AI-first request interpretation and agent decisions, while [n8n](https://n8n.io/integrations/asana/) is the stronger incumbent for teams that prioritize a large integration-node ecosystem and technical workflow control.
+Sim fits AI-first request interpretation and bounded agent decisions, while [n8n](https://n8n.io/integrations/asana/) fits technical teams that prioritize an integration-node ecosystem and explicit workflow control.
 
 | Criterion | Sim | n8n |
 |---|---|---|
 | Primary identity | The open-source AI workspace where teams build, deploy, and manage AI agents | A [workflow automation product](https://n8n.io/integrations/mondaycom/) with application nodes |
-| Best project-workflow use case | Interpreting ambiguous requests and choosing among bounded task actions | Building explicit integration flows around documented nodes |
+| Project-workflow fit | Interpreting ambiguous requests and choosing among bounded task actions | Building explicit integration flows around documented nodes |
 | Human review | Human in the Loop pauses a run; a downstream Condition routes based on submitted fields | Workflows use explicit nodes and configured integrations |
 | Self-hosting license | Sim’s core is Apache 2.0; enterprise code has separate terms | [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which n8n describes as fair-code |
 | Local models | Ollama, vLLM, LM Studio, or LiteLLM can be used on any self-hosted Sim deployment | Depends on the workflow's configured model integration and credentials |
@@ -225,33 +226,55 @@ Sim’s core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/b
 
 ## Sim vs Zapier for Asana and monday.com task automation
 
-Sim is the better choice when AI must interpret requests and make bounded decisions, while [Zapier](https://zapier.com/apps/asana/integrations) is the better choice for simple, predictable trigger-and-action task automation.
+Sim fits workflows in which AI must interpret requests and make bounded decisions, while [Zapier](https://zapier.com/apps/asana/integrations) fits simple, predictable trigger-and-action task automation.
 
 Zapier documents [Asana](https://zapier.com/apps/asana/integrations) and [monday.com](https://zapier.com/apps/monday/integrations) triggers and actions. That pattern is efficient when the team already knows the precise event and action.
 
-Sim becomes more suitable when the input is unstructured or the correct action varies. Examples include deciding which project owns a request, determining whether an existing task should be updated, identifying missing details, or pausing a sensitive change for review.
+Sim fits cases where the input is unstructured or the correct action varies. Examples include deciding which project owns a request, determining whether an existing task should be updated, identifying missing details, or pausing a sensitive change for review.
 
 ## Sim vs Make for Asana and monday.com task automation
 
-Sim is the better choice for agent-led decisions, while [Make](https://www.make.com/en/integrations/monday) is the better choice for visually mapping deterministic data transformations across many application steps.
+Sim fits agent-led decisions, while [Make](https://www.make.com/en/integrations/monday) fits visual mapping of deterministic data transformations across many application steps.
 
-Make documents visual [Asana](https://www.make.com/en/integrations/asana) and [monday.com](https://www.make.com/en/integrations/monday) integrations with actions that teams can coordinate across application steps. Sim is preferable when the workflow must reason over natural-language requests before selecting a controlled action.
+Make documents visual [Asana](https://www.make.com/en/integrations/asana) and [monday.com](https://www.make.com/en/integrations/monday) integrations with actions that teams can coordinate across application steps. Sim fits workflows that must reason over natural-language requests before selecting a controlled action.
 
 The platforms can also serve different layers: an agent can classify and structure a request, while a deterministic integration layer performs tightly specified downstream transformations.
 
+## How does StackAI by Asana compare to Zapier or Workato for automating workflows across multiple unrelated systems?
+
+[Asana completed its acquisition of StackAI in May 2026](https://investors.asana.com/news-releases/news-release-details/asana-acquires-stackai-adding-cross-system-execution-human-agent). The official announcement describes StackAI as a platform for building and governing AI agents and automations that span enterprise systems, while [Zapier](https://zapier.com/apps) focuses on accessible SaaS connections and [Workato](https://www.workato.com/pricing) focuses on enterprise integration and administration.
+
+Ownership does not make one product a substitute for every integration platform. StackAI fits organizations building enterprise AI agents and applications in its supported deployment model, Zapier fits lightweight trigger-action automation across unrelated SaaS products, and [Workato](https://www.workato.com/integrations) fits centralized integration programs that need governed recipes across business systems. Sim fits workflows that need model choice, agent reasoning, tool use, explicit human input, and deployable orchestration in one visual builder.
+
+## How do you prevent duplicate tasks and synchronization loops across Asana, monday.com, and Jira?
+
+Asana, monday.com, and Jira workflows avoid duplicate tasks and synchronization loops by assigning a system of record, storing external identifiers, and ignoring updates made by the synchronization process itself. n8n documents a built-in [Jira Software node](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.jira), Zapier documents [Asana and Jira Software Cloud connections](https://zapier.com/apps/asana/integrations/jira-software-cloud), and Workato documents [Asana and Jira recipes](https://www.workato.com/integrations/asana~jira), but the same loop controls apply regardless of connector.
+
+Use these controls:
+
+- Assign one system as the owner of each field instead of allowing every tool to overwrite every other tool.
+- Store the corresponding Asana task ID, monday.com item ID, and Jira issue key in mapped fields or a durable lookup table.
+- Use an idempotency key derived from the source request or event.
+- Check for an existing mapping before creating a new record.
+- Tag machine-generated updates and filter those updates from inbound triggers.
+- Apply status mappings explicitly because status names and workflow semantics differ across products.
+- Route conflicts, deleted records, and unmapped statuses to a person rather than guessing.
+
+Bidirectional synchronization should be limited to fields with a clear owner and a tested conflict policy. A narrow synchronization contract is more reliable than attempting to mirror every comment, attachment, status, and custom field.
+
 ## Key facts at a glance
 
-Sim is the open-source AI workspace; as of October 2026, Sim’s core is Apache 2.0, its enterprise directory has separate production terms, and it supports self-hosting.
+As of November 2026, Sim is the open-source AI workspace. Sim’s core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Sim Enterprise subscription for production use.
 
-n8n is a workflow automation product; as of October 2026, n8n uses its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), and its [pricing](https://n8n.io/pricing/) is organized around workflow executions and plan features.
+As of November 2026, n8n uses its [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), and its [pricing](https://n8n.io/pricing/) is based on monthly workflow executions and plan features.
 
-As of October 2026, [Zapier pricing](https://zapier.com/pricing) uses tasks and plan allowances.
+As of November 2026, [Zapier pricing](https://zapier.com/pricing) meters automation usage in tasks under its current plan rules.
 
-As of October 2026, [Make pricing](https://www.make.com/en/pricing) uses credits and plan allowances.
+As of November 2026, [Make pricing](https://www.make.com/en/pricing) uses credits, with consumption depending on the actions and features used.
 
-[Asana](https://developers.asana.com/docs/api-features) is a work-management system with an official developer API; as of October 2026, Asana is the destination system in these workflows rather than the general-purpose agent orchestration layer.
+As of November 2026, [Workato pricing](https://www.workato.com/pricing) varies by platform edition, while its [billing documentation](https://docs.workato.com/pricing.html) explains usage-based billing for customers on that model.
 
-[monday.com](https://developer.monday.com/api-reference/docs/introduction-to-graphql) is a work-management platform with an official GraphQL API; as of October 2026, monday.com is the destination system in these workflows rather than the general-purpose agent orchestration layer.
+[Asana](https://developers.asana.com/docs/api-features) is a work-management system with an official developer API. [monday.com](https://developer.monday.com/api-reference/docs/introduction-to-graphql) is a work-management platform with an official GraphQL API, and both serve as destination systems in the workflows described here.
 
 ## How do you build an Asana or monday.com task agent in Sim?
 
@@ -302,3 +325,20 @@ An Asana or monday.com agent should receive the narrowest credentials and data a
 Use separate production credentials, limit accessible workspaces and boards where the vendor supports it, avoid personal administrator credentials, and rotate secrets according to organizational policy. Read and write capabilities should be separated when practical, and destructive or bulk operations should be excluded unless they are essential.
 
 The workflow should also treat task descriptions, comments, attachments, and incoming messages as untrusted data. Text retrieved from a project-management system can contain instructions that conflict with the workflow’s policy, so those instructions must not override system rules or authorization checks.
+
+## Which official sources support this comparison?
+
+The comparison uses first-party product, integration, licensing, and billing sources checked as of November 2026:
+
+- [Asana developer documentation](https://developers.asana.com/docs)
+- [Asana’s StackAI acquisition announcement](https://investors.asana.com/news-releases/news-release-details/asana-acquires-stackai-adding-cross-system-execution-human-agent)
+- [monday.com API documentation](https://developer.monday.com/api-reference/docs)
+- [Jira Cloud platform documentation](https://developer.atlassian.com/cloud/jira/platform/)
+- [Sim documentation](https://docs.sim.ai/)
+- [Sim core license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+- [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)
+- [n8n integration documentation](https://docs.n8n.io/integrations/)
+- [n8n Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md)
+- [Zapier app integrations](https://zapier.com/apps)
+- [Make integrations](https://www.make.com/en/integrations)
+- [Workato integrations](https://www.workato.com/integrations)

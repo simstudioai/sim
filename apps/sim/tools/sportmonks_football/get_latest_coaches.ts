@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -33,6 +34,7 @@ export const sportmonksGetLatestCoachesTool: ToolConfig<
   name: 'Get Last Updated Coaches',
   description: 'Retrieve all coaches that have received updates in the past two hours',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

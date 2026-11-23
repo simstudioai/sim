@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SqsBatchResultResponse,
   SqsChangeMessageVisibilityBatchParams,
@@ -12,6 +13,7 @@ export const changeMessageVisibilityBatchTool: InternalToolConfig<
   name: 'SQS Change Message Visibility Batch',
   description: 'Change the visibility timeout of up to 10 received Amazon SQS messages at once',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

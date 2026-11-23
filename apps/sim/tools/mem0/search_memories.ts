@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { Mem0Response, Mem0SearchMemoriesParams } from '@/tools/mem0/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/mem0/types'
 import type { JsonRecord } from '@/tools/mem0/utils'
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getSearchResults = (data: unknown): JsonRecord[] => {
@@ -29,6 +30,7 @@ export const mem0SearchMemoriesTool: ToolConfig<Mem0SearchMemoriesParams, Mem0Re
   name: 'Search Memories',
   description: 'Search for memories in Mem0 using semantic search',
   version: '1.0.0',
+  oauth: MEM0_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

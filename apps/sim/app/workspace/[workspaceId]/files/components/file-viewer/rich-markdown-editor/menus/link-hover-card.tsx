@@ -95,6 +95,8 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
   }, [cancelHide, isEditing])
 
   useEffect(() => {
+    // Cached routes reconnect child effects before useEditor replaces the disposed editor.
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     const onOver = (event: Event) => {
       if (

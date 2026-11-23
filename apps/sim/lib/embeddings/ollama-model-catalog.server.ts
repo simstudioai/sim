@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ollamaShowUpstreamResponseSchema,
   ollamaUpstreamResponseSchema,
 } from '@/lib/api/contracts/providers'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getOllamaUrl, isOllamaUrlConfigured } from '@/lib/core/utils/urls'
 import { isOllamaEmbeddingModel, ollamaEmbeddingModelName } from '@/lib/embeddings/catalog'
@@ -70,6 +70,7 @@ export class OllamaEmbeddingWidthUnknownError extends Error {
 }
 
 async function fetchOllamaJson(path: string, init: RequestInit, signal?: AbortSignal) {
+  // egress-direct: operator-local Ollama server named by the deployment
   const response = await fetch(`${getOllamaUrl().replace(/\/+$/, '')}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     signal,

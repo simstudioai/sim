@@ -46,28 +46,28 @@ export async function dispatchSimEvent(
   subscription: SimSubscription,
   payload: SimEventPayload
 ): Promise<void> {
-  const requestId = generateShortId()
+  const dispatchId = generateShortId()
   try {
     const { processPolledWebhookEvent } = await import('@/lib/webhooks/processor')
     const result = await processPolledWebhookEvent(
       subscription.webhook,
       subscription.workflow,
       payload,
-      requestId
+      dispatchId
     )
 
     if (!result.success) {
       logger.error(
-        `[${requestId}] Failed to fire sim trigger for workflow ${subscription.workflow.id}:`,
+        `Failed to fire sim trigger for workflow ${subscription.workflow.id}:`,
         result.statusCode,
-        result.error
+        result.error,
+        { dispatchId }
       )
     }
   } catch (error) {
-    logger.error(
-      `[${requestId}] Error firing sim trigger for workflow ${subscription.workflow.id}:`,
-      error
-    )
+    logger.error(`Error firing sim trigger for workflow ${subscription.workflow.id}:`, error, {
+      dispatchId,
+    })
   }
 }
 

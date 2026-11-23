@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaRemoveUserRoleParams, OktaRemoveUserRoleResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaRemoveUserRole')
 
@@ -15,6 +17,7 @@ export const oktaRemoveUserRoleTool: ToolConfig<
   description:
     'Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -47,7 +50,7 @@ export const oktaRemoveUserRoleTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/roles/${encodeURIComponent(params.roleAssignmentId.trim())}`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/roles/${safeUrlPathSegment(params.roleAssignmentId, 'roleAssignmentId')}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

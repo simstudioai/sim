@@ -3,11 +3,13 @@ import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import {
   isMaxTier,
   isOrgPlan,
@@ -22,6 +24,7 @@ import {
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
+  formatTrialEndDate,
   hasUsableSubscriptionAccess,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
@@ -613,11 +616,11 @@ export const isOrganizationGovernanceActive = cache(resolveOrganizationGovernanc
  * When billing runs, the organization's plan decides and every feature moves
  * together. When it does not, there is no plan to read, so deployment
  * configuration decides per feature — which is what lets an operator run, say,
- * audit logs without whitelabeling.
+ * audit logs without data drains.
  *
  * Pass the matching flag from `@/lib/core/config/env-flags` as
  * `selfHostEntitlement`; those already resolve the master switch and the
- * feature's legacy default.
+ * feature's self-hosted default (`@sim/deployment-config/enterprise-features`).
  *
  * Prefer this over calling {@link isOrganizationOnEnterprisePlan} directly in a
  * feature gate. That helper is feature-agnostic and answers `true` for
@@ -771,19 +774,20 @@ const hasMaxTierWorkspaceAccess = cache(
  *
  * Always false without `COPILOT_API_KEY` — inbox tasks are executed by the
  * mothership and answered with a link to the resulting chat, so neither half
- * works without it. That check comes first because the `!isBillingEnabled`
- * shortcut below would otherwise hand every self-hosted deployment a broken
- * Inbox.
+ * works without it. That check comes first because inbox defaults on for
+ * self-hosted deployments without billing, which would otherwise hand every one
+ * of them a broken Inbox.
  *
  * Otherwise returns true if:
- * - on self-hosted deployments, INBOX_ENABLED is set or billing is disabled, OR
+ * - on self-hosted deployments, inbox resolves on (`INBOX_ENABLED`, the
+ *   enterprise switch, or the billing-off default), OR
  * - the workspace belongs to an organization on a Max/enterprise plan (org-mode), OR
  * - the billed user has an individual Max/enterprise subscription (personal workspace).
  */
 export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<boolean> {
   try {
     if (!env.COPILOT_API_KEY) return false
-    if (!isHosted && (isInboxEnabled || !isBillingEnabled)) return true
+    if (!isHosted && isInboxEnabled) return true
     return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace inbox access', { error, workspaceId })
@@ -805,6 +809,11 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
  */
 export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise<boolean> {
   try {
+    /*
+     * Billing-free deployments always retain: turning `INBOX_ENABLED` off stops
+     * use through {@link hasWorkspaceInboxAccess}, but must not let the
+     * reconcile sweep destroy provisioned AgentMail resources.
+     */
     if (!isHosted && (isInboxEnabled || !isBillingEnabled)) return true
 
     return await hasWorkspaceTierAccess(workspaceId, isMaxTier, {
@@ -898,9 +907,13 @@ export async function hasWorkspaceSandboxRetentionAccess(
 }
 
 /**
- * Send welcome email for Pro and Team plan subscriptions
+ * Send welcome email for Pro and Team plan subscriptions. `trialEnd` is passed when the plan
+ * starts with a free trial, so the email states when the card is first charged.
  */
-export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
+export async function sendPlanWelcomeEmail(
+  subscription: any,
+  options: { trialEnd?: Date | null } = {}
+): Promise<void> {
   try {
     const subPlan = subscription.plan
     if (isPlanPro(subPlan) || isPlanTeam(subPlan)) {
@@ -921,15 +934,23 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
         const displayName = getDisplayPlanName(subPlan)
 
+        const trial = options.trialEnd
+          ? {
+              endsOn: formatTrialEndDate(options.trialEnd),
+              credits: formatCredits(PRO_TRIAL_USAGE_LIMIT_DOLLARS),
+            }
+          : undefined
+
         const html = await renderPlanWelcomeEmail({
           planName: displayName,
           userName: users[0].name || undefined,
           loginLink: `${baseUrl}/login`,
+          trial,
         })
 
         await sendEmail({
           to: users[0].email,
-          subject: getPlanWelcomeSubject(displayName),
+          subject: getPlanWelcomeSubject(displayName, Boolean(trial)),
           html,
           emailType: 'updates',
         })

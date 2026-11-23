@@ -2,15 +2,15 @@
  * Tests for OAuth utility functions
  */
 
-import { redisConfigMockFns } from '@sim/testing'
+import { createMockRedis, redisConfigMockFns } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/oauth', () => ({
-  refreshOAuthToken: vi.fn(),
   OAUTH_PROVIDERS: {},
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
+vi.mock('@/lib/oauth/refresh.server', () => ({ refreshOAuthToken: vi.fn() }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -23,8 +23,8 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
 import { db } from '@sim/db'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import { ZOOM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { refreshOAuthToken } from '@/lib/oauth'
 import { refreshTokenIfNeeded, resolveServiceAccountToken } from '@/lib/oauth/credential-service'
+import { refreshOAuthToken } from '@/lib/oauth/refresh.server'
 import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 
@@ -66,7 +66,7 @@ function mockUpdateChain() {
 describe('OAuth Utils', () => {
   beforeEach(() => {
     __resetCoalesceLocallyForTests()
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(createMockRedis())
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
   })

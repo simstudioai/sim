@@ -6,7 +6,6 @@ import { parseRequest } from '@/lib/api/server'
 import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createCodedErrorResponse } from '@/app/api/workflows/utils'
 
@@ -17,12 +16,11 @@ export const GET = withRouteHandler(
     const parsed = await parseRequest(getJobStatusContract, request, context)
     if (!parsed.success) return parsed.response
     const { jobId: taskId } = parsed.data.params
-    const requestId = generateRequestId()
 
     try {
       const authResult = await checkHybridAuth(request, { requireWorkflowId: false })
       if (!authResult.success || !authResult.userId) {
-        logger.warn(`[${requestId}] Unauthorized task status request`)
+        logger.warn('Unauthorized task status request')
         return createCodedErrorResponse(authResult.error || 'Authentication required', 401)
       }
 
@@ -47,7 +45,7 @@ export const GET = withRouteHandler(
           action: 'read',
         })
         if (!accessCheck.allowed) {
-          logger.warn(`[${requestId}] Access denied to workflow ${metadataToCheck.workflowId}`)
+          logger.warn(`Access denied to workflow ${metadataToCheck.workflowId}`)
           return createCodedErrorResponse('Access denied', 403)
         }
 
@@ -59,10 +57,10 @@ export const GET = withRouteHandler(
           }
         }
       } else if (metadataToCheck?.userId && metadataToCheck.userId !== authenticatedUserId) {
-        logger.warn(`[${requestId}] Access denied to user ${metadataToCheck.userId}`)
+        logger.warn(`Access denied to user ${metadataToCheck.userId}`)
         return createCodedErrorResponse('Access denied', 403)
       } else if (!metadataToCheck?.userId && !metadataToCheck?.workflowId) {
-        logger.warn(`[${requestId}] Access denied to job ${taskId}`)
+        logger.warn(`Access denied to job ${taskId}`)
         return createCodedErrorResponse('Access denied', 403)
       }
 
@@ -79,7 +77,7 @@ export const GET = withRouteHandler(
       return NextResponse.json(response)
     } catch (error: unknown) {
       const errorMessage = toError(error).message
-      logger.error(`[${requestId}] Error fetching task status:`, error)
+      logger.error('Error fetching task status:', error)
 
       if (errorMessage?.includes('not found')) {
         return createCodedErrorResponse('Task not found', 404)

@@ -79,13 +79,14 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
   const scope = resolveCleanupOwnerScope(payload)
 
   if (scope.ids.length === 0) {
-    logger.info(`[${label}] No resource owners to process`)
+    logger.info('No resource owners to process', { label })
     return
   }
 
   const retentionDate = new Date(Date.now() - retentionHours * 60 * 60 * 1000)
   logger.info(
-    `[${label}] Processing ${scope.ids.length} ${scope.kind} owners, cutoff: ${retentionDate.toISOString()}`
+    `Processing ${scope.ids.length} ${scope.kind} owners, cutoff: ${retentionDate.toISOString()}`,
+    { label }
   )
 
   const doomedChats = await selectRowsByIdChunks(scope.ids, (chunkIds, chunkLimit) =>
@@ -109,7 +110,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
   /** Delete run children before their parent runs. Organization chats have no workspace runs. */
   const runChildResults = await cleanupRunChildren(workspaceIds, retentionDate, label)
   for (const r of runChildResults) {
-    if (r.deleted > 0) logger.info(`[${r.table}] ${r.deleted} deleted`)
+    if (r.deleted > 0) logger.info(`${r.deleted} deleted`, { table: r.table })
   }
 
   const runsResult =
@@ -146,7 +147,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
       chatsResult.deleted += deleted.length
     } catch (error) {
       chatsResult.failed += batch.length
-      logger.error(`[${label}/copilotChats] Chat retention delete failed`, { error })
+      logger.error('Chat retention delete failed', { label: `${label}/copilotChats`, error })
     }
   }
 
@@ -169,7 +170,7 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     chatsResult.deleted +
     inboxResult.deleted
 
-  logger.info(`[${label}] Complete: ${totalDeleted} total rows deleted`)
+  logger.info(`Complete: ${totalDeleted} total rows deleted`, { label })
 
   await chatCleanup.execute()
 

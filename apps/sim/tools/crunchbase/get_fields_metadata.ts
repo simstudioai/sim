@@ -7,6 +7,7 @@ import {
   parseIdListParam,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface CrunchbaseGetFieldsMetadataParams {
@@ -29,6 +30,7 @@ export const crunchbaseGetFieldsMetadataTool: ToolConfig<
   description:
     'List the field ids, types, and descriptions each Crunchbase collection publishes, which is how the field_ids and query predicates of the other operations are discovered.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

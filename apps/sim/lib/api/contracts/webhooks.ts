@@ -52,15 +52,15 @@ export const webhookIdParamsSchema = z.object({
   id: z.string().min(1),
 })
 
+/**
+ * Pauses or resumes a webhook trigger. Re-enabling always clears the failure
+ * count, so the count is not caller-settable; `failedCount: 0` is still
+ * accepted and ignored so an editor loaded before that change keeps working.
+ */
 export const webhookPatchBodySchema = z
   .object({
-    isActive: z.boolean().optional(),
-    failedCount: z
-      .number({ error: 'failedCount must be a number' })
-      .finite('failedCount must be a valid number')
-      .int('failedCount must be an integer')
-      .min(0, 'failedCount must be at least 0')
-      .optional(),
+    isActive: z.boolean({ error: 'isActive must be a boolean' }),
+    failedCount: z.literal(0).optional(),
   })
   .strict()
 export type WebhookPatchBody = z.input<typeof webhookPatchBodySchema>
@@ -110,6 +110,16 @@ const agentMailAttachmentSchema = z
   })
   .passthrough()
 
+/** Verdicts stay free-form so a result outside RFC 8601's vocabulary cannot fail the message. */
+const agentMailAuthenticationResultsSchema = z
+  .object({
+    spf: z.string().optional(),
+    dkim: z.string().optional(),
+    dmarc: z.string().optional(),
+    dkim_domain: z.string().optional(),
+  })
+  .passthrough()
+
 export const agentMailMessageSchema = z
   .object({
     message_id: z.string(),
@@ -129,6 +139,7 @@ export const agentMailMessageSchema = z
     in_reply_to: z.string().optional(),
     references: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
+    authentication_results: agentMailAuthenticationResultsSchema.optional(),
     sort_key: z.string().optional(),
     updated_at: z.string().optional(),
     created_at: z.string(),

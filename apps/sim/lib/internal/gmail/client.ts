@@ -1,4 +1,5 @@
 import { toArray, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   type ReadResponseWithLimitOptions,
   readResponseJsonWithLimit,
@@ -29,7 +30,7 @@ export class GmailClient {
 
   async fetch(path: string, init: RequestInit = {}, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(path, {
+    return outboundFetch(path, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

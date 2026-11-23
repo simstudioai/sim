@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -20,6 +21,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  gt,
   gte,
   inArray,
   isNotNull,
@@ -57,7 +59,6 @@ import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   assertKnowledgeEmbeddingCapacity,
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
@@ -336,7 +337,8 @@ async function assertKnowledgeBaseFileUrlsOwnership(
   for (const key of keys) {
     const binding = bindingByKey.get(key)
     if (!binding || binding.workspaceId !== kbWorkspaceId) {
-      logger.warn(`[${requestId}] Rejected document referencing unowned knowledge-base file`, {
+      logger.warn('Rejected document referencing unowned knowledge-base file', {
+        requestId,
         storageKey: key,
         kbWorkspaceId,
         bindingWorkspaceId: binding?.workspaceId ?? null,
@@ -651,9 +653,7 @@ function resolveDocumentTags(
       setTagValue(result, targetSlot, stringValue)
     }
 
-    logger.info(`[${requestId}] Set tag ${tagName} (${targetSlot})`, {
-      fieldType: actualFieldType,
-    })
+    logger.info(`Set tag ${tagName} (${targetSlot})`, { requestId, fieldType: actualFieldType })
   }
 
   return result
@@ -1175,7 +1175,8 @@ async function bestEffortWithdrawDocumentsQueued(
   try {
     await clearDocumentsQueued(documentIds, queueToken, queuedAt)
   } catch (error) {
-    logger.warn(`[${queueToken}] Failed to withdraw queue ownership after ${reason}`, {
+    logger.warn(`Failed to withdraw queue ownership after ${reason}`, {
+      queueToken,
       error: getErrorMessage(error),
     })
   }
@@ -1272,7 +1273,8 @@ export async function processDocumentsWithQueue(
   }
 
   if (queuedDocuments.length === 0) {
-    logger.info(`[${requestId}] No documents were eligible for a new processing dispatch`, {
+    logger.info('No documents were eligible for a new processing dispatch', {
+      requestId,
       acceptedWithoutDispatch,
       unresolved,
     })
@@ -1300,10 +1302,10 @@ export async function processDocumentsWithQueue(
   })
 
   const useTrigger = isTriggerAvailable()
-  logger.info(
-    `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
-    { backend: useTrigger ? 'trigger-dev' : 'direct' }
-  )
+  logger.info(`Dispatching background processing for ${jobPayloads.length} documents`, {
+    requestId,
+    backend: useTrigger ? 'trigger-dev' : 'direct',
+  })
 
   let dispatchedIds: Set<string>
   try {
@@ -1320,9 +1322,9 @@ export async function processDocumentsWithQueue(
     throw error
   }
 
-  logger.info(
-    `[${requestId}] Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} accepted`
-  )
+  logger.info(`Document dispatch complete: ${dispatchedIds.size}/${jobPayloads.length} accepted`, {
+    requestId,
+  })
 
   /**
    * Refund every newly owned generation that provably failed before claiming
@@ -1392,14 +1394,15 @@ async function dispatchViaBatchTrigger(
       batchIds.push(result.batchId)
       for (const payload of chunk) dispatchedIds.add(payload.documentId)
     } catch (error) {
-      logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
+      logger.error(`Failed to batchTrigger ${chunk.length} document jobs`, {
+        requestId,
         error: getErrorMessage(error),
       })
       undispatched.push(...chunk)
     }
   }
   if (batchIds.length > 0) {
-    logger.info(`[${requestId}] Trigger.dev batches dispatched`, { batchIds })
+    logger.info('Trigger.dev batches dispatched', { requestId, batchIds })
   }
 
   /**
@@ -1419,13 +1422,14 @@ async function dispatchViaBatchTrigger(
   const swept = undispatched.length - fallback.length
   if (swept > 0) {
     logger.warn(
-      `[${requestId}] Leaving ${swept} backfill documents for the stuck-document sweep after failed enqueue`
+      `Leaving ${swept} backfill documents for the stuck-document sweep after failed enqueue`,
+      { requestId }
     )
   }
   if (fallback.length > 0) {
-    logger.warn(
-      `[${requestId}] Processing ${fallback.length} documents in-process after failed enqueue`
-    )
+    logger.warn(`Processing ${fallback.length} documents in-process after failed enqueue`, {
+      requestId,
+    })
     const directlyDispatchedIds = await dispatchInProcess(fallback, requestId, executionContext)
     for (const documentId of directlyDispatchedIds) dispatchedIds.add(documentId)
   }
@@ -1574,13 +1578,15 @@ async function dispatchInProcess(
         return acceptedByLiveGeneration
       } catch (error) {
         if (isPermanentDocumentProcessingError(error) || error instanceof OcrRequestRejectedError) {
-          logger.warn(`[${requestId}] Document processing reached an expected terminal state`, {
+          logger.warn('Document processing reached an expected terminal state', {
+            requestId,
             code: error.code,
           })
           return true
         }
         if (isEmbeddingQuotaExhaustion(error)) {
-          logger.warn(`[${requestId}] Embedding quota is exhausted; continuation scheduled`, {
+          logger.warn('Embedding quota is exhausted; continuation scheduled', {
+            requestId,
             documentId: p.documentId,
             quotaRetryCount: p.quotaRetryCount ?? 0,
           })
@@ -1590,7 +1596,8 @@ async function dispatchInProcess(
           getProviderCapacityDeferral(error) ||
           error instanceof ProviderCapacityContinuationExhaustedError
         ) {
-          logger.warn(`[${requestId}] Provider capacity interrupted document processing`, {
+          logger.warn('Provider capacity interrupted document processing', {
+            requestId,
             documentId: p.documentId,
             providerRetryCount: p.providerRetryCount ?? 0,
             outcome:
@@ -1601,7 +1608,8 @@ async function dispatchInProcess(
           return true
         }
         if (isBYOKEmbeddingCredentialRejection(error)) {
-          logger.warn(`[${requestId}] Customer-managed embedding credentials were rejected`, {
+          logger.warn('Customer-managed embedding credentials were rejected', {
+            requestId,
             documentId: p.documentId,
             status: error.status,
           })
@@ -1611,7 +1619,8 @@ async function dispatchInProcess(
           ? 'In-process document processing failed'
           : 'In-process document dispatch failed before claiming the document'
         const diagnostic = getConnectorFailureDiagnostic(error)
-        logger.error(`[${requestId}] ${message}`, {
+        logger.error(message, {
+          requestId,
           documentId: p.documentId,
           error: diagnostic?.message ?? getErrorMessage(error),
           ...(diagnostic ? { diagnostic } : {}),
@@ -1689,7 +1698,8 @@ export async function processDocumentAsync(
   let processingFilename = docData.filename
   try {
     attemptContext?.signal?.throwIfAborted()
-    logger.info(`[${documentId}] Starting document processing`, {
+    logger.info('Starting document processing', {
+      documentId,
       knowledgeBaseId,
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
@@ -1777,7 +1787,8 @@ export async function processDocumentAsync(
     }
     if (contextRows.length === 0) {
       logger.warn(
-        `[${documentId}] Skipping document processing: document or knowledge base ${knowledgeBaseId} no longer exists`
+        `Skipping document processing: document or knowledge base ${knowledgeBaseId} no longer exists`,
+        { documentId }
       )
       await db
         .update(document)
@@ -1874,14 +1885,15 @@ export async function processDocumentAsync(
 
       if (claimed.length === 0) {
         logger.info(
-          `[${documentId}] Skipping document processing: superseded, already active, completed, archived, or deleted`
+          'Skipping document processing: superseded, already active, completed, archived, or deleted',
+          { documentId }
         )
         return { outcome: 'skipped', reason: 'not_claimed' }
       }
 
       attemptContext?.onClaimed?.()
 
-      logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
+      logger.info("Status updated to 'processing', starting document processor", { documentId })
 
       const rawConfig = ctx.chunkingConfig as {
         maxSize?: number
@@ -1922,7 +1934,7 @@ export async function processDocumentAsync(
 
       const usageGate = await checkIngestionUsageLimits(billingAttribution)
       if (usageGate.isExceeded) {
-        logger.warn(`[${documentId}] Usage limit reached — skipping document indexing`)
+        logger.warn('Usage limit reached — skipping document indexing', { documentId })
         throw new UsageLimitDocumentProcessingError(
           usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.'
         )
@@ -1985,7 +1997,8 @@ export async function processDocumentAsync(
             outputTokens: visionUsage.outputTokens,
           })
         } catch (billingError) {
-          logger.error(`[${documentId}] Failed to record image extraction usage`, {
+          logger.error('Failed to record image extraction usage', {
+            documentId,
             error: billingError,
           })
         }
@@ -2043,8 +2056,9 @@ export async function processDocumentAsync(
 
               logger.info(
                 prepared?.vectors
-                  ? `[${documentId}] Indexing ${processed.chunks.length} chunks with their bundled vectors`
-                  : `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+                  ? `Indexing ${processed.chunks.length} chunks with their bundled vectors`
+                  : `Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`,
+                { documentId }
               )
 
               const chunkTexts = processed.chunks.map((chunk) => chunk.text)
@@ -2074,16 +2088,16 @@ export async function processDocumentAsync(
                 const batchSize = LARGE_DOC_CONFIG.MAX_EMBEDDING_BATCH
                 const totalBatches = Math.ceil(chunkTexts.length / batchSize)
 
-                logger.info(`[${documentId}] Generating embeddings in ${totalBatches} batches`)
+                logger.info(`Generating embeddings in ${totalBatches} batches`, { documentId })
 
                 for (let i = 0; i < chunkTexts.length; i += batchSize) {
                   signal.throwIfAborted()
                   const batch = chunkTexts.slice(i, i + batchSize)
                   const batchNum = Math.floor(i / batchSize) + 1
 
-                  logger.info(
-                    `[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`
-                  )
+                  logger.info(`Processing embedding batch ${batchNum}/${totalBatches}`, {
+                    documentId,
+                  })
                   const {
                     embeddings: batchEmbeddings,
                     billableTokens: batchBillableTokens,
@@ -2122,9 +2136,9 @@ export async function processDocumentAsync(
                 )
               }
 
-              logger.info(
-                `[${documentId}] Embeddings generated, creating embedding records with tags`
-              )
+              logger.info('Embeddings generated, creating embedding records with tags', {
+                documentId,
+              })
 
               const chunkProvenances = processed.chunks.map((chunk) =>
                 documentSecretContext.tracked
@@ -2257,14 +2271,15 @@ export async function processDocumentAsync(
                       batches.push(embeddingRecords.slice(i, i + insertBatchSize))
                     }
 
-                    logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+                    logger.info(`Inserting ${embeddingRecords.length} embeddings`, { documentId })
                     for (const [batchIndex, batch] of batches.entries()) {
                       signal.throwIfAborted()
                       const insertStartedAt = Date.now()
                       try {
                         await tx.insert(embedding).values(batch)
                       } catch (error) {
-                        logger.error(`[${documentId}] Failed to insert embedding batch`, {
+                        logger.error('Failed to insert embedding batch', {
+                          documentId,
                           knowledgeBaseId,
                           operation: 'embedding.insert',
                           batchNumber: batchIndex + 1,
@@ -2353,12 +2368,12 @@ export async function processDocumentAsync(
       })
 
       if (!processingCommitted) {
-        logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+        logger.info('Discarded output from an obsolete processing attempt', { documentId })
         return { outcome: 'skipped', reason: 'superseded' }
       }
 
       const processingTime = Date.now() - startTime
-      logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
+      logger.info(`Successfully processed document in ${processingTime}ms`, { documentId })
 
       if (billableEmbeddingTokens > 0) {
         try {
@@ -2408,12 +2423,12 @@ export async function processDocumentAsync(
             })
           } else {
             logger.warn(
-              `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
-              { billableEmbeddingTokens, embeddingModelName }
+              `Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
+              { documentId, billableEmbeddingTokens, embeddingModelName }
             )
           }
         } catch (billingError) {
-          logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
+          logger.error('Failed to record embedding usage', { documentId, error: billingError })
         }
       }
 
@@ -2465,6 +2480,7 @@ export async function processDocumentAsync(
           ? failureDiagnostic.message
           : getErrorMessage(recordedError, 'Unknown error')
     const logContext = {
+      documentId,
       errorType: toError(recordedError).name,
       ...(failureDiagnostic ? { diagnostic: failureDiagnostic } : {}),
       knowledgeBaseId,
@@ -2479,8 +2495,8 @@ export async function processDocumentAsync(
         : {}),
     }
     const logMessage = deferredUntil
-      ? `[${documentId}] Deferred document processing after ${processingTime}ms:`
-      : `[${documentId}] Failed to process document after ${processingTime}ms:`
+      ? `Deferred document processing after ${processingTime}ms:`
+      : `Failed to process document after ${processingTime}ms:`
     if (
       (embeddingQuotaExhausted && !quotaContinuationFailed) ||
       deferredUntil ||
@@ -2792,7 +2808,7 @@ export async function createDocumentRecords(
           }
         } catch (error) {
           if (error instanceof SyntaxError) {
-            logger.warn(`[${requestId}] Failed to parse documentTagsData for bulk document:`, error)
+            logger.warn('Failed to parse documentTagsData for bulk document:', error, { requestId })
           } else {
             throw error
           }
@@ -2882,7 +2898,8 @@ export async function createDocumentRecords(
         )
       }
       logger.info(
-        `[${requestId}] Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`
+        `Bulk created ${documentRecords.length} document records in knowledge base ${knowledgeBaseId}`,
+        { requestId }
       )
 
       await tx
@@ -2936,6 +2953,7 @@ export async function getDocuments(
     fileUrl: string
     contentHash: string | null
     fileSize: number
+    fileSha256: string | null
     mimeType: string
     chunkCount: number
     tokenCount: number
@@ -3044,6 +3062,7 @@ export async function getDocuments(
         fileUrl: document.fileUrl,
         contentHash: document.contentHash,
         fileSize: document.fileSize,
+        fileSha256: document.fileSha256,
         mimeType: document.mimeType,
         chunkCount: document.chunkCount,
         tokenCount: document.tokenCount,
@@ -3150,7 +3169,8 @@ export async function getDocuments(
   const hasMore = offset + limit < total
 
   logger.info(
-    `[${requestId}] Retrieved ${documents.length} documents (${offset}-${offset + documents.length} of ${total}) for knowledge base ${knowledgeBaseId}`
+    `Retrieved ${documents.length} documents (${offset}-${offset + documents.length} of ${total}) for knowledge base ${knowledgeBaseId}`,
+    { requestId }
   )
 
   return {
@@ -3161,6 +3181,7 @@ export async function getDocuments(
       fileUrl: doc.fileUrl,
       contentHash: doc.contentHash,
       fileSize: doc.fileSize,
+      fileSha256: doc.fileSha256,
       mimeType: doc.mimeType,
       chunkCount: doc.chunkCount,
       tokenCount: doc.tokenCount,
@@ -3200,6 +3221,135 @@ export async function getDocuments(
       hasMore,
     },
   }
+}
+
+/** The columns {@link getDocumentsAfter} reads: identity, size, hash, indexing state and tags. */
+function documentPageColumns() {
+  return {
+    id: document.id,
+    filename: document.filename,
+    fileSize: document.fileSize,
+    fileSha256: document.fileSha256,
+    uploadedAt: document.uploadedAt,
+    connectorId: document.connectorId,
+    sourceUrl: document.sourceUrl,
+    processingStatus: document.processingStatus,
+    processingOutcome: documentProcessingOutcomeSelection(),
+    tag1: document.tag1,
+    tag2: document.tag2,
+    tag3: document.tag3,
+    tag4: document.tag4,
+    tag5: document.tag5,
+    tag6: document.tag6,
+    tag7: document.tag7,
+    number1: document.number1,
+    number2: document.number2,
+    number3: document.number3,
+    number4: document.number4,
+    number5: document.number5,
+    date1: document.date1,
+    date2: document.date2,
+    boolean1: document.boolean1,
+    boolean2: document.boolean2,
+    boolean3: document.boolean3,
+  }
+}
+
+/** One keyset page of {@link getDocumentsAfter}. */
+interface DocumentPageAfter {
+  documents: Array<{
+    id: string
+    filename: string
+    fileSize: number
+    fileSha256: string | null
+    uploadedAt: Date
+    connectorId: string | null
+    sourceUrl: string | null
+    processingStatus: string
+    processingOutcome: DocumentProcessingOutcome
+    tag1: string | null
+    tag2: string | null
+    tag3: string | null
+    tag4: string | null
+    tag5: string | null
+    tag6: string | null
+    tag7: string | null
+    number1: number | null
+    number2: number | null
+    number3: number | null
+    number4: number | null
+    number5: number | null
+    date1: Date | null
+    date2: Date | null
+    boolean1: boolean | null
+    boolean2: boolean | null
+    boolean3: boolean | null
+  }>
+  /** The id to pass as `after` for the next page; `null` once the list is exhausted. */
+  next: string | null
+}
+
+/**
+ * One page of a knowledge base's live documents the caller can read, in id order after `after`
+ * (from the start when `null`), only those of `documentIds` when given. Keyset paging never skips or repeats a document another write
+ * adds, deletes or renames between pages, and costs the same at any depth; unlike
+ * {@link getDocuments} it counts nothing. Documents the caller may not read are passed over, so a
+ * page can hold fewer than `limit` while `next` is set.
+ */
+export async function getDocumentsAfter(
+  knowledgeBaseId: string,
+  options: { after: string | null; limit: number; documentIds?: readonly string[] },
+  access: KnowledgeReadAccess
+): Promise<DocumentPageAfter> {
+  const { after, limit, documentIds } = options
+  if (documentIds?.length === 0) return { documents: [], next: null }
+  const live = [
+    eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+    ...(documentIds ? [inArray(document.id, [...documentIds])] : []),
+  ]
+  const from = (cursor: string | null) => (cursor === null ? [] : [gt(document.id, cursor)])
+  if (!('get' in access)) {
+    const rows = await db
+      .select(documentPageColumns())
+      .from(document)
+      .where(and(...live, ...from(after), knowledgeAccessCondition(access)))
+      .orderBy(asc(document.id))
+      .limit(limit + 1)
+    const documents = rows.slice(0, limit)
+    return {
+      documents,
+      next: rows.length > limit ? (documents[documents.length - 1]?.id ?? null) : null,
+    }
+  }
+  // Per-document access: walk candidate ids in order, admitting each batch before reading it.
+  const identity = await access.get()
+  const documents: DocumentPageAfter['documents'] = []
+  let cursor = after
+  while (documents.length < limit) {
+    const candidates = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(and(...live, ...from(cursor), knowledgeMetadataCandidateAccessCondition(identity)))
+      .orderBy(asc(document.id))
+      .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+    if (candidates.length === 0) return { documents, next: null }
+    const ids = candidates.map((candidate) => candidate.id)
+    const scope = await access.getForDocuments(ids)
+    const visible = await db
+      .select(documentPageColumns())
+      .from(document)
+      .where(and(...live, inArray(document.id, ids), knowledgeAccessCondition(scope)))
+      .orderBy(asc(document.id))
+      .limit(limit - documents.length)
+    documents.push(...visible)
+    if (documents.length >= limit) break
+    if (candidates.length < MAX_KNOWLEDGE_ACCESS_CANDIDATES) return { documents, next: null }
+    cursor = ids[ids.length - 1]
+  }
+  return { documents, next: documents[documents.length - 1]?.id ?? null }
 }
 
 export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
@@ -3269,12 +3419,36 @@ export async function getKnowledgeDocumentById(
   return row ? { ...row, connectorType: row.connectorType ?? null } : null
 }
 
+/**
+ * Records the SHA-256 of a document's original bytes, read from `storageKey`. Only a document
+ * that still holds that key and has none recorded is written, so a concurrent replace or an
+ * earlier record wins.
+ */
+export async function recordDocumentFileSha256(
+  documentId: string,
+  storageKey: string,
+  sha256: string
+): Promise<void> {
+  await db
+    .update(document)
+    .set({ fileSha256: sha256 })
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.storageKey, storageKey),
+        isNull(document.fileSha256)
+      )
+    )
+}
+
 export async function createSingleDocument(
   documentData: {
     filename: string
     fileUrl: string
     fileSize: number
     mimeType: string
+    /** SHA-256 of the file's bytes, when the caller holds them (`document.fileSha256`). */
+    fileSha256?: string
     documentTagsData?: string
     tag1?: string
     tag2?: string
@@ -3297,6 +3471,8 @@ export async function createSingleDocument(
     processing?: {
       processingOptions: ProcessingOptions
       billingAttribution: BillingAttributionSnapshot
+      /** The id the processing outbox event takes, for a caller that relays it after commit. */
+      eventId?: string
     }
   }
 ): Promise<{
@@ -3356,7 +3532,7 @@ export async function createSingleDocument(
       }
     } catch (error) {
       if (error instanceof SyntaxError) {
-        logger.warn(`[${requestId}] Failed to parse documentTagsData:`, error)
+        logger.warn('Failed to parse documentTagsData:', error, { requestId })
       } else {
         throw error
       }
@@ -3370,6 +3546,7 @@ export async function createSingleDocument(
     fileUrl: resolvedDocumentData.fileUrl,
     storageKey: getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl),
     fileSize: resolvedDocumentData.fileSize,
+    fileSha256: documentData.fileSha256 ?? null,
     mimeType: resolvedDocumentData.mimeType,
     chunkCount: 0,
     tokenCount: 0,
@@ -3501,18 +3678,22 @@ export async function createSingleDocument(
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
     if (options?.processing) {
-      await enqueueKnowledgeDocumentProcessing(tx, {
-        knowledgeBaseId,
-        documentId,
-        processingOptions: options.processing.processingOptions,
-        billingAttribution: options.processing.billingAttribution,
-        /**
-         * Every caller of this function is a person adding a document — an
-         * upload session, a workspace-file attach, a direct create. Connector
-         * ingestion builds its documents through the sync engine instead.
-         */
-        processingLane: 'interactive',
-      })
+      await enqueueKnowledgeDocumentProcessing(
+        tx,
+        {
+          knowledgeBaseId,
+          documentId,
+          processingOptions: options.processing.processingOptions,
+          billingAttribution: options.processing.billingAttribution,
+          /**
+           * Every caller of this function is a person adding a document — an
+           * upload session, a workspace-file attach, a direct create. Connector
+           * ingestion builds its documents through the sync engine instead.
+           */
+          processingLane: 'interactive',
+        },
+        options.processing.eventId
+      )
     }
 
     return {
@@ -3535,7 +3716,7 @@ export async function createSingleDocument(
     )
   }
 
-  logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
+  logger.info(`Document created: ${documentId} in knowledge base ${knowledgeBaseId}`, { requestId })
 
   return newDocument as {
     id: string
@@ -3627,7 +3808,8 @@ export async function bulkDocumentOperation(
   }>
 }> {
   logger.info(
-    `[${requestId}] Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`
+    `Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`,
+    { requestId }
   )
 
   const candidateConditions = [
@@ -3662,7 +3844,8 @@ export async function bulkDocumentOperation(
 
   if (documentsToUpdate.length !== documentIds.length) {
     logger.warn(
-      `[${requestId}] Some documents not found or don't belong to knowledge base. Requested: ${documentIds.length}, Found: ${documentsToUpdate.length}`
+      `Some documents not found or don't belong to knowledge base. Requested: ${documentIds.length}, Found: ${documentsToUpdate.length}`,
+      { requestId }
     )
   }
 
@@ -3703,7 +3886,8 @@ export async function bulkDocumentOperation(
   const successCount = updateResult.length
 
   logger.info(
-    `[${requestId}] Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
+    `Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`,
+    { requestId }
   )
 
   return {
@@ -3729,7 +3913,8 @@ export async function bulkDocumentOperationByFilter(
   }>
 }> {
   logger.info(
-    `[${requestId}] Starting bulk ${operation} operation on all documents (filter: ${enabledFilter || 'all'}) in knowledge base ${knowledgeBaseId}`
+    `Starting bulk ${operation} operation on all documents (filter: ${enabledFilter || 'all'}) in knowledge base ${knowledgeBaseId}`,
+    { requestId }
   )
 
   const whereConditions = [
@@ -3778,7 +3963,8 @@ export async function bulkDocumentOperationByFilter(
   const successCount = updateResult.length
 
   logger.info(
-    `[${requestId}] Bulk ${operation} by filter completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
+    `Bulk ${operation} by filter completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`,
+    { requestId }
   )
 
   return {
@@ -3802,10 +3988,11 @@ export async function markDocumentAsFailedTimeout(
 
   if (result.success) {
     logger.info(
-      `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`
+      `Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`,
+      { requestId }
     )
   } else {
-    logger.info(`[${requestId}] Did not time out document ${documentId} because its claim changed`)
+    logger.info(`Did not time out document ${documentId} because its claim changed`, { requestId })
   }
 
   return result
@@ -3932,7 +4119,7 @@ export async function retryDocumentProcessing(
         status: 'failed',
         message: 'Source content could not be downloaded. Sync the connector to retry.',
       }
-    logger.info(`[${requestId}] Document retry skipped, already queued: ${documentId}`)
+    logger.info(`Document retry skipped, already queued: ${documentId}`, { requestId })
     return {
       success: true,
       status: 'pending',
@@ -3984,7 +4171,7 @@ export async function retryDocumentProcessing(
     }
   }
 
-  logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
+  logger.info(`Document retry initiated: ${documentId}`, { requestId })
 
   return {
     success: true,
@@ -4196,7 +4383,7 @@ export async function updateDocument(
     throw new Error(`Document ${documentId} not found`)
   }
 
-  logger.info(`[${requestId}] Document updated: ${documentId}`)
+  logger.info(`Document updated: ${documentId}`, { requestId })
 
   return {
     id: doc.id,
@@ -4255,7 +4442,8 @@ async function excludeConnectorDocuments(
     .returning({ id: document.id })
 
   if (updated.length > 0) {
-    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+    logger.info(`Excluded ${updated.length} connector-backed document(s)`, {
+      requestId,
       documentIds: updated.map((doc) => doc.id),
     })
   }
@@ -4612,7 +4800,8 @@ async function hardDeleteDocumentBatch(
     })
   })
 
-  logger.info(`[${requestId}] Hard deleted ${deletedDocs.length} documents`, {
+  logger.info(`Hard deleted ${deletedDocs.length} documents`, {
+    requestId,
     documentIds: deletedDocs.map((doc) => doc.id),
   })
 
@@ -4676,7 +4865,8 @@ async function excludeConnectorKnowledgeDocuments(
     )
     .returning({ id: document.id })
   if (updated.length > 0) {
-    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+    logger.info(`Excluded ${updated.length} connector-backed document(s)`, {
+      requestId,
       documentIds: updated.map((row) => row.id),
       knowledgeBaseId,
     })

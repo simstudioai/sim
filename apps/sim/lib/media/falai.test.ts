@@ -14,6 +14,7 @@ import { generateFalAudio } from '@/lib/media/falai-audio'
 import { generateFalVideo } from '@/lib/media/falai-video'
 
 const FAL_KEY_USE = { tool: 'generate_video', envVarName: 'FALAI_API_KEY' } as const
+const HOSTED_KEY = { envVarName: FAL_KEY_USE.envVarName }
 const CANCEL_URL = 'https://queue.fal.run/fal-ai/model/requests/req-1/cancel'
 const STATUS_URL = 'https://queue.fal.run/fal-ai/model/requests/req-1/status'
 
@@ -337,7 +338,8 @@ describe('billing a fal generation', () => {
       expect(await generation).toEqual(new Error('watchdog'))
       expect(onCost).toHaveBeenCalledTimes(1)
       expect(onCost).toHaveBeenCalledWith(
-        expect.objectContaining({ source: 'billing_events', costDollars: 0.04 })
+        expect.objectContaining({ source: 'billing_events', costDollars: 0.04 }),
+        HOSTED_KEY
       )
     }
   )
@@ -353,7 +355,10 @@ describe('billing a fal generation', () => {
 
       expect(await generation).toMatch(/No (audio|video) URL/)
       expect(onCost).toHaveBeenCalledTimes(1)
-      expect(onCost).toHaveBeenCalledWith(expect.objectContaining({ source: 'billing_events' }))
+      expect(onCost).toHaveBeenCalledWith(
+        expect.objectContaining({ source: 'billing_events' }),
+        HOSTED_KEY
+      )
     }
   )
 
@@ -373,7 +378,8 @@ describe('billing a fal generation', () => {
     expect(await generation).toEqual(new Error('watchdog'))
     expect(onCost).toHaveBeenCalledTimes(1)
     expect(onCost).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'billing_events', costDollars: 0.04 })
+      expect.objectContaining({ source: 'billing_events', costDollars: 0.04 }),
+      HOSTED_KEY
     )
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
@@ -393,7 +399,10 @@ describe('billing a fal generation', () => {
 
     expect(await generation).toEqual(new Error('watchdog'))
     expect(onCost).toHaveBeenCalledTimes(1)
-    expect(onCost).toHaveBeenCalledWith(expect.objectContaining({ source: 'fallback_floor' }))
+    expect(onCost).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'fallback_floor' }),
+      HOSTED_KEY
+    )
   })
 
   it('bills a generation that completes and downloads exactly once', async () => {
@@ -407,7 +416,7 @@ describe('billing a fal generation', () => {
 
     expect(audio.buffer.toString()).toBe('audio')
     expect(onCost).toHaveBeenCalledTimes(1)
-    expect(onCost).toHaveBeenCalledWith(audio.cost)
+    expect(onCost).toHaveBeenCalledWith(audio.cost, HOSTED_KEY)
   })
 
   it('bills nothing for a generation stopped before fal completes it', async () => {

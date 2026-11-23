@@ -1,4 +1,4 @@
-import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import { createMockRedis, redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   fileUtilsServerMock,
@@ -25,22 +25,7 @@ import type { UserFile } from '@/executor/types'
 const mockCreateKnowledgeAccessProvider =
   knowledgeAccessScopeMockFns.mockCreateKnowledgeAccessProvider
 
-const { mockRedis } = vi.hoisted(() => {
-  const mockRedis = {
-    get: vi.fn(),
-    set: vi.fn(),
-    hget: vi.fn(),
-    hset: vi.fn(),
-    hgetall: vi.fn(),
-    expire: vi.fn(),
-    scan: vi.fn(),
-    del: vi.fn(),
-    eval: vi.fn(),
-  }
-  return {
-    mockRedis,
-  }
-})
+const mockRedis = createMockRedis()
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 const mockDownloadFile = storageServiceMockFns.mockDownloadFile
@@ -68,14 +53,13 @@ describe('hydrateUserFilesWithBase64', () => {
   beforeEach(() => {
     mockDownloadFile.mockReset()
     mockDownloadServableFileFromStorage.mockReset()
-    mockGetRedisClient.mockReturnValue(null)
+    mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.get.mockResolvedValue(null)
     mockRedis.set.mockResolvedValue('OK')
     mockRedis.hget.mockResolvedValue(null)
     mockRedis.hset.mockResolvedValue(1)
     mockRedis.hgetall.mockResolvedValue({})
     mockRedis.expire.mockResolvedValue(1)
-    mockRedis.scan.mockResolvedValue(['0', []])
     mockRedis.del.mockResolvedValue(1)
     mockRedis.eval.mockResolvedValue([1, 'ok', 0, 0])
     mockVerifyFileAccess.mockResolvedValue(true)
@@ -144,7 +128,6 @@ describe('hydrateUserFilesWithBase64', () => {
   })
 
   it('bypasses a byte-only cache when model hydration must verify document contributors', async () => {
-    mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.get.mockResolvedValue(Buffer.from('%PDF-cached').toString('base64'))
     const contentUpdatedAt = new Date('2026-08-06T00:00:00.000Z')
     const contributor = {
@@ -287,19 +270,20 @@ describe('hydrateUserFilesWithBase64', () => {
       type: 'text/plain',
       context: 'execution',
     }
+    const storedValue = Buffer.from(JSON.stringify({ file }), 'utf8')
     const ref = {
       __simLargeValueRef: true,
       version: 1,
       id: 'lv_ABCDEFGHIJKL',
       kind: 'object',
-      size: 256,
+      size: storedValue.length,
       key: 'execution/workspace/workflow/source-execution/large-value-lv_ABCDEFGHIJKL.json',
       executionId: 'source-execution',
     }
 
     mockDownloadFile.mockImplementation(async ({ key }) => {
       if (key.includes('large-value')) {
-        return Buffer.from(JSON.stringify({ file }), 'utf8')
+        return storedValue
       }
       return Buffer.from('hello', 'utf8')
     })
@@ -322,7 +306,6 @@ describe('hydrateUserFilesWithBase64', () => {
   })
 
   it('releases reserved Redis budget when cleaning up execution cache entries', async () => {
-    mockGetRedisClient.mockReturnValue(mockRedis)
     const rawEntry = JSON.stringify({ bytes: 12, userId: 'user-1' })
     mockRedis.hgetall.mockResolvedValueOnce({
       'key:file-1': rawEntry,
@@ -351,7 +334,6 @@ describe('hydrateUserFilesWithBase64', () => {
   })
 
   it('releases indexed budget entries even when cache keys already expired', async () => {
-    mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.hgetall.mockResolvedValueOnce({
       'key:file-1': JSON.stringify({ bytes: 7, userId: 'user-1' }),
     })

@@ -1,4 +1,6 @@
 import type { ApolloAccountSearchParams, ApolloAccountSearchResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloAccountSearchTool: ToolConfig<
@@ -10,8 +12,10 @@ export const apolloAccountSearchTool: ToolConfig<
   description:
     "Search your team's accounts in Apollo. Display limit: 50,000 records (100 records per page, 500 pages max). Use filters to narrow results. Master key required.",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -69,7 +73,7 @@ export const apolloAccountSearchTool: ToolConfig<
     headers: (params: ApolloAccountSearchParams) => ({
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
     body: (params: ApolloAccountSearchParams) => {
       const body: Record<string, unknown> = {

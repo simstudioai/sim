@@ -6,6 +6,7 @@ import {
   withCredentialsLock,
   writeCredentialsProfile,
 } from '../config/index'
+import { AUTH_REQUIRED_CODE, AUTH_REQUIRED_EXIT_CODE } from '../exit-codes'
 import { SimApiError } from '../http/client'
 import { OAuthTokenError, refreshTokens } from './oauth-flow'
 
@@ -28,7 +29,8 @@ const REFRESH_TIMEOUT_MS = 10 * 1000
  * `invalid_grant` means the server no longer honours the refresh token — it
  * was revoked from Settings → General → Authorized apps, expired, or was already rotated
  * by a process this one could not see — and the remedy is logout followed by a
- * new login.
+ * new login, so it exits as `AUTH_REQUIRED` (13). Any other failure, such as an
+ * unreachable server, keeps its own error.
  */
 export async function refreshStoredOAuth(
   profile: Pick<ResolvedProfile, 'name' | 'endpoint' | 'authProfile'>,
@@ -64,7 +66,10 @@ export async function refreshStoredOAuth(
       if (error instanceof OAuthTokenError && error.oauthError === 'invalid_grant') {
         throw new SimApiError(
           `Your Sim login expired, was revoked, or detected refresh-token reuse. Run sim logout --profile ${profile.authProfile}, then sim login --profile ${profile.authProfile}.`,
-          401
+          401,
+          AUTH_REQUIRED_CODE,
+          undefined,
+          AUTH_REQUIRED_EXIT_CODE
         )
       }
       throw error

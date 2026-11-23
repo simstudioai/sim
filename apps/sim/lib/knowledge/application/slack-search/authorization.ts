@@ -1,4 +1,7 @@
 import type { Principal, SlackInstallationPrincipal } from '@sim/auth/principal'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
+import { isOutboundRoutingEnabled } from '@/lib/core/network/config.server'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import {
@@ -23,6 +26,26 @@ export function requireSlackInstallationPrincipal(
     receivedAt < Date.now() - 24 * 60 * 60 * 1000
   )
     throw new OrchestrationError('forbidden', 'Slack delivery has expired')
+}
+
+/**
+ * Runs a Slack installation use case in the outbound scope of the organization that owns the
+ * principal's installation, so its Slack API calls leave through that organization's egress.
+ * An unknown credential runs unscoped; the use case's own authorization rejects it.
+ */
+export function withSlackSearchOutboundScope<O extends ApplicationOperation, I, R>(
+  useCase: OperationUseCase<O, I, R>
+): OperationUseCase<O, I, R> {
+  return {
+    ...useCase,
+    async execute(args) {
+      requireSlackInstallationPrincipal(args.principal)
+      if (!isOutboundRoutingEnabled()) return useCase.execute(args)
+      const installation = await findSlackSearchInstallation(args.principal.credentialId)
+      if (!installation) return useCase.execute(args)
+      return runWithOutboundOrganization(installation.organizationId, () => useCase.execute(args))
+    },
+  }
 }
 
 /** Rechecks the binding and exact authenticated secret on every lifecycle boundary. */

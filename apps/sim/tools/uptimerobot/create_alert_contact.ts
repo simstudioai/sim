@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   ALERT_CONTACT_OUTPUT_PROPERTIES,
@@ -18,6 +19,7 @@ export const uptimeRobotCreateAlertContactTool: ToolConfig<
   description:
     'Create an email alert contact in UptimeRobot. The contact must be confirmed via email before it can receive alerts.',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

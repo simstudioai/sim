@@ -2,6 +2,7 @@ import type {
   CloudTrailGetEventSelectorsParams,
   CloudTrailGetEventSelectorsResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getEventSelectorsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const getEventSelectorsTool: InternalToolConfig<
   description:
     'Read which management, data, and network activity events a CloudTrail trail is configured to log',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

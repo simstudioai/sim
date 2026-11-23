@@ -1,5 +1,6 @@
 import type { GranolaListNotesParams, GranolaListNotesResponse } from '@/tools/granola/types'
 import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesResponse> = {
@@ -7,6 +8,7 @@ export const listNotesTool: ToolConfig<GranolaListNotesParams, GranolaListNotesR
   name: 'Granola List Notes',
   description: 'Lists meeting notes from Granola with optional date filters and pagination.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

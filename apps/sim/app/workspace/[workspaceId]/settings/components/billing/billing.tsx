@@ -31,7 +31,6 @@ import {
   getDisplayPlanName,
   getPlanTierCredits,
   getPlanTierDollars,
-  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isFree,
   isPaid,
@@ -40,11 +39,14 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
+  isTrialingSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { AwsMarketplaceSubscriptionSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/aws-marketplace-subscription-section/aws-marketplace-subscription-section'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
@@ -52,6 +54,7 @@ import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
 import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
@@ -77,6 +80,12 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   open: { variant: 'amber', label: 'Open' },
   uncollectible: { variant: 'red', label: 'Uncollectible' },
   void: { variant: 'gray', label: 'Void' },
+}
+
+function getPeriodEndLabel(isCancelledAtPeriodEnd: boolean, isTrialing: boolean): string {
+  if (isCancelledAtPeriodEnd) return 'Access until'
+  if (isTrialing) return 'Free trial ends'
+  return 'Next billing date'
 }
 
 /** Resolve a Stripe invoice status to its badge presentation. */
@@ -133,6 +142,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     enabled: !isOrganizationScope,
   })
   const billingOrganizationId = isOrganizationScope ? (organizationId ?? null) : null
+  const marketplaceBilling = useAwsMarketplaceBilling(billingOrganizationId)
+  const { billedThroughMarketplace } = marketplaceBilling
 
   const {
     data: organizationBillingData,
@@ -333,7 +344,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleOpenBillingPortal = () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't manage payment method", {
         description: 'Only organization admins can manage billing.',
       })
@@ -371,7 +382,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleCancelSubscription = async () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't cancel subscription", {
         description: 'Only organization admins can cancel the subscription.',
       })
@@ -399,7 +410,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleRestoreSubscription = async () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't restore subscription", {
         description: 'Only organization admins can restore the subscription.',
       })
@@ -452,8 +463,11 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       ? `Organization ${planName} plan ended`
       : `Organization ${planName} plan`
     : `Personal ${planName} plan`
-  const priceText =
-    organizationSubscriptionState === 'free'
+  const priceText = billedThroughMarketplace
+    ? subscription.isFree
+      ? 'AWS Marketplace setup in progress'
+      : 'Billed through AWS Marketplace'
+    : organizationSubscriptionState === 'free'
       ? 'No active organization subscription'
       : organizationSubscriptionState === 'lapsed'
         ? 'Choose a new plan for this organization'
@@ -468,8 +482,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? organizationBilling?.cancelAtPeriodEnd === true
     : subscriptionData?.data?.cancelAtPeriodEnd === true
 
+  const isTrialing = isTrialingSubscription(subscription)
   const weeklyRefreshDollars =
-    getPlanWeeklyRefreshDollars(subscription.plan) *
+    getSubscriptionWeeklyRefreshDollars(subscription) *
     (isOrganizationScope ? subscription.seats || 1 : 1)
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
@@ -481,10 +496,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
 
-  const canManageBilling = permissions.canEditUsageLimit
+  const canManageBilling = permissions.canManageBilling
   const canExplorePlans = permissions.showUpgradePlans
   const showUsageLimit = subscription.isPaid && !subscription.isEnterprise
-  const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise
+  const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise && !isTrialing
 
   const usageLimitCurrent =
     subscription.isOrgScoped && organizationBilling
@@ -514,6 +529,8 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
           </div>
         </div>
         {!subscription.isEnterprise &&
+          marketplaceBilling.isResolved &&
+          !billedThroughMarketplace &&
           (canExplorePlans && upgradeHref ? (
             <ChipLink
               href={upgradeHref}
@@ -605,7 +622,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             {periodEnd && (
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
-                  {isCancelledAtPeriodEnd ? 'Access until' : 'Next billing date'}
+                  {getPeriodEndLabel(isCancelledAtPeriodEnd, isTrialing)}
                 </span>
                 <span className='text-[var(--text-muted)] text-small'>
                   {new Date(periodEnd).toLocaleDateString()}
@@ -658,6 +675,14 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             )}
           </div>
         </SettingsSection>
+      )}
+
+      <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
+      {isOrganizationScope && (
+        <AwsMarketplaceSubscriptionSection
+          organizationId={null}
+          label='AWS Marketplace subscription on your account'
+        />
       )}
 
       {!subscription.isFree && invoices.length > 0 && (

@@ -3,6 +3,7 @@ import type {
   GoogleGroupsResponse,
 } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGroupsResponse> = {
   id: 'google_groups_list_members',
@@ -47,11 +48,20 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
       visibility: 'user-or-llm',
       description: 'Filter by roles (comma-separated: OWNER, MANAGER, MEMBER)',
     },
+    includeDerivedMembership: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether to also list indirect members inherited through nested groups (default false)',
+    },
   },
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey)
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
       const url = new URL(
         `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}/members`
       )
@@ -64,6 +74,9 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
       }
       if (params.roles) {
         url.searchParams.set('roles', params.roles)
+      }
+      if (params.includeDerivedMembership !== undefined) {
+        url.searchParams.set('includeDerivedMembership', String(params.includeDerivedMembership))
       }
 
       return url.toString()
@@ -90,7 +103,10 @@ export const listMembersTool: ToolConfig<GoogleGroupsListMembersParams, GoogleGr
   },
 
   outputs: {
-    members: { type: 'json', description: 'Array of member objects' },
+    members: {
+      type: 'json',
+      description: 'Array of member objects (id, email, role, type, status, etag, kind)',
+    },
     nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

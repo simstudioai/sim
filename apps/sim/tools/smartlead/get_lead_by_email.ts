@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadLeadDetailResponse } from '@/tools/smartlead/types'
 import {
   leadDetailOutputs,
@@ -20,6 +21,7 @@ export const getLeadByEmailTool: ToolConfig<GetLeadByEmailParams, SmartleadLeadD
   description:
     'Looks up a Smartlead lead by email address and returns the lead record plus every campaign it belongs to.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

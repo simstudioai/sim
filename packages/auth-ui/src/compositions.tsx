@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { clsx } from 'clsx'
 import { AuthIcon } from './icons'
 import styles from './styles.module.css'
+import { AuthWordmark } from './wordmark'
 
 interface AuthHeaderProps {
   title: string
@@ -105,17 +106,15 @@ export function AuthNavPrompt({ prompt, href, linkLabel, onNavigate }: AuthNavPr
 
 interface AuthShellViewProps {
   children: ReactNode
-  logo: ReactNode
   homeHref: string
   navigation?: ReactNode
   footer?: ReactNode
   titlebar?: ReactNode
 }
-/** Lays out host-supplied branding, navigation, native titlebar, and footer inside AuthRoot.
+/** Lays out the wordmark and host-supplied navigation, native titlebar, and footer inside AuthRoot.
  * The shared column owns responsive sizing, while the host owns authentication and routing. */
 export function AuthShellView({
   children,
-  logo,
   homeHref,
   navigation,
   footer,
@@ -127,7 +126,7 @@ export function AuthShellView({
       <header className={styles.header}>
         <nav className={styles.nav} aria-label='Authentication'>
           <a className={styles.wordmark} href={homeHref} aria-label='Home'>
-            {logo}
+            <AuthWordmark />
           </a>
           {navigation}
         </nav>
@@ -239,19 +238,17 @@ export function AuthSection({ title, children, className, description }: AuthSec
 
 interface AuthLegalProps {
   action: string
-  termsHref: string
-  privacyHref: string
 }
-/** Uses host-supplied legal URLs, opening them separately without losing form state. */
-export function AuthLegal({ action, termsHref, privacyHref }: AuthLegalProps) {
+/** Links the host's `/terms` and `/privacy` pages, opening them separately without losing form state. */
+export function AuthLegal({ action }: AuthLegalProps) {
   return (
     <p className={styles.legal}>
       By {action}, you agree to our{' '}
-      <a href={termsHref} target='_blank' rel='noopener noreferrer'>
+      <a href='/terms' target='_blank' rel='noopener noreferrer'>
         Terms of Service
       </a>{' '}
       and{' '}
-      <a href={privacyHref} target='_blank' rel='noopener noreferrer'>
+      <a href='/privacy' target='_blank' rel='noopener noreferrer'>
         Privacy&nbsp;Policy
       </a>
       .

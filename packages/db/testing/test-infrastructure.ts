@@ -55,22 +55,19 @@ export function clearInheritedDatabaseUrls(): void {
 }
 
 /**
- * Returns the validated `TEST_REDIS_URL`, or undefined when a local run has no Redis. In CI a
- * missing value throws: every Redis-gated suite would otherwise pass by skipping.
+ * Returns the validated `TEST_REDIS_URL`, and throws when it is missing: Redis is required, so
+ * every integration run needs a disposable one.
  *
  * Any query string is rejected, not just `username`/`password` params: Redis clients read
  * connection options (credentials, TLS, sentinels) from it, so an allowlist would have to track
  * each client's option set, and a local disposable Redis never needs one.
  */
-export function readTestRedisUrl(): string | undefined {
+export function readTestRedisUrl(): string {
   const value = process.env.TEST_REDIS_URL
   if (!value) {
-    if (process.env.CI) {
-      throw new Error(
-        'Set TEST_REDIS_URL in CI: Redis-gated integration suites would silently skip'
-      )
-    }
-    return undefined
+    throw new Error(
+      'Set TEST_REDIS_URL: Redis is required. `bun run test:integration` provisions a disposable one.'
+    )
   }
   const url = new URL(value)
   if (

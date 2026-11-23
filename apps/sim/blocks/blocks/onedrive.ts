@@ -2,7 +2,7 @@ import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 import { normalizeExcelValuesForToolParams } from '@/tools/onedrive/utils'
 
 const UPLOAD_FILE_FIELD = ['file', 'fileReference'] as const
@@ -246,6 +246,20 @@ export const OneDriveBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_file', 'upload'] },
     },
     {
+      id: 'conflictBehavior',
+      title: 'If File Exists',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Replace existing file', id: 'replace' },
+        { label: 'Keep both (rename new file)', id: 'rename' },
+        { label: 'Fail', id: 'fail' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_file', 'upload'] },
+    },
+    {
       id: 'folderName',
       title: 'Folder Name',
       type: 'short-input',
@@ -314,7 +328,15 @@ export const OneDriveBlock: BlockConfig = {
       id: 'pageSize',
       title: 'Results Per Page',
       type: 'short-input',
-      placeholder: 'Number of results (default: 100, max: 1000)',
+      placeholder: 'Number of results per page (Graph default: 200)',
+      condition: { field: 'operation', value: ['list', 'search'] },
+    },
+    {
+      id: 'orderBy',
+      title: 'Sort By',
+      type: 'short-input',
+      placeholder: 'e.g., name, lastModifiedDateTime desc',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['list', 'search'] },
     },
     {
@@ -549,6 +571,21 @@ export const OneDriveBlock: BlockConfig = {
       placeholder: 'Select who can use the link',
       condition: { field: 'operation', value: 'create_share_link' },
     },
+    {
+      id: 'expirationDateTime',
+      title: 'Link Expiration',
+      type: 'short-input',
+      placeholder: '2026-12-31T23:59:59Z (leave empty for no expiration)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_share_link' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 UTC timestamp in yyyy-MM-ddTHH:mm:ssZ format for when the sharing link should expire, based on the user description. Return ONLY the timestamp string.',
+        placeholder: 'Describe when the link should expire (e.g., "in 7 days")...',
+        generationType: 'timestamp',
+      },
+    },
     // Delete File Fields - File Selector (basic mode)
     {
       id: 'deleteFileSelector',
@@ -622,7 +659,8 @@ export const OneDriveBlock: BlockConfig = {
             throw new Error(`Invalid OneDrive operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           // Folder canonical params (per-operation)
@@ -655,7 +693,7 @@ export const OneDriveBlock: BlockConfig = {
 
         // Resolve folderId based on operation
         let resolvedFolderId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'create_file':
           case 'upload':
             resolvedFolderId = uploadFolderId?.trim() || undefined
@@ -670,7 +708,7 @@ export const OneDriveBlock: BlockConfig = {
 
         // Resolve fileId based on operation
         let resolvedFileId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'download':
             resolvedFileId = downloadFileId?.trim() || undefined
             break
@@ -693,7 +731,7 @@ export const OneDriveBlock: BlockConfig = {
 
         // Resolve destinationFolderId based on operation
         let resolvedDestinationFolderId: string | undefined
-        switch (params.operation) {
+        switch (operation) {
           case 'move':
             resolvedDestinationFolderId = moveDestinationFolderId?.trim() || undefined
             break
@@ -707,11 +745,15 @@ export const OneDriveBlock: BlockConfig = {
           ...rest,
           values: normalizedValues,
           file: normalizedFile,
-          folderId: resolvedFolderId,
-          fileId: resolvedFileId,
-          destinationFolderId: resolvedDestinationFolderId,
+          folderId: resolvedFolderId ?? toolCallArg(context, rest.folderId),
+          fileId: resolvedFileId ?? toolCallArg(context, rest.fileId),
+          destinationFolderId:
+            resolvedDestinationFolderId ?? toolCallArg(context, rest.destinationFolderId),
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
+          conflictBehavior: rest.conflictBehavior || undefined,
+          orderBy: rest.orderBy?.trim() || undefined,
+          expirationDateTime: rest.expirationDateTime?.trim() || undefined,
           ...(downloadFileName && { fileName: downloadFileName }),
         }
       },
@@ -726,6 +768,10 @@ export const OneDriveBlock: BlockConfig = {
     content: { type: 'string', description: 'Text content to upload' },
     mimeType: { type: 'string', description: 'MIME type of file to create' },
     values: { type: 'json', description: 'Cell values for new Excel as JSON' },
+    conflictBehavior: {
+      type: 'string',
+      description: 'Name-conflict behavior for upload/create file: replace, rename, or fail',
+    },
     // Folder canonical params (per-operation)
     uploadFolderId: { type: 'string', description: 'Parent folder for upload/create file' },
     createFolderParentId: { type: 'string', description: 'Parent folder for create folder' },
@@ -738,6 +784,7 @@ export const OneDriveBlock: BlockConfig = {
     // List / Search operation inputs
     query: { type: 'string', description: 'Search query' },
     pageSize: { type: 'number', description: 'Results per page' },
+    orderBy: { type: 'string', description: 'OData $orderby expression for list or search' },
     pageToken: {
       type: 'string',
       description: 'Continuation URL for the next page of list or search results',
@@ -757,6 +804,10 @@ export const OneDriveBlock: BlockConfig = {
       type: 'string',
       description: 'Who can use the link: anonymous, organization, or users',
     },
+    expirationDateTime: {
+      type: 'string',
+      description: 'Sharing link expiration (yyyy-MM-ddTHH:mm:ssZ)',
+    },
     // Get item operation inputs
     getItemFileId: {
       type: 'string',
@@ -769,12 +820,13 @@ export const OneDriveBlock: BlockConfig = {
     fileId: { type: 'string', description: 'The ID of the deleted file' },
     file: {
       type: 'file',
-      description: 'The OneDrive file object, including details such as id, name, size, and more.',
+      description:
+        'The OneDrive file object (id, name, mimeType, webViewLink, size, createdTime, modifiedTime, parents, isFolder, childCount, eTag, parentReference {id, driveId, driveType, name, path, siteId}, createdBy {id, displayName}, lastModifiedBy {id, displayName})',
     },
     files: {
       type: 'json',
       description:
-        'An array of OneDrive file objects, each containing details such as id, name, size, and more.',
+        'OneDrive file objects ([{id, name, mimeType, webViewLink, webContentLink, size, createdTime, modifiedTime, parents, isFolder, childCount, description, eTag, parentReference, createdBy, lastModifiedBy}])',
     },
     nextPageToken: {
       type: 'string',
@@ -794,7 +846,8 @@ export const OneDriveBlock: BlockConfig = {
     },
     link: {
       type: 'json',
-      description: 'The created sharing link, including its type, scope, and URL',
+      description:
+        'The created sharing link (type, scope, webUrl, webHtml, permissionId, roles, hasPassword, expirationDateTime)',
     },
     driveId: { type: 'string', description: 'The ID of the drive' },
     driveType: {

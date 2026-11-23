@@ -12,10 +12,11 @@ import {
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { getPlanWeeklyRefreshDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
   getFreeTierLimit,
+  getSubscriptionWeeklyRefreshDollars,
   hasUsableSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -298,7 +299,7 @@ export async function getOrganizationBillingData(
       : 0
 
     if (isPaid(subscription.plan) && subscription.periodStart) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(subscription)
       if (weeklyRefreshDollars > 0) {
         const refreshConsumed = await computeWeeklyRefreshConsumed(
           {

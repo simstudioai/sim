@@ -35,6 +35,12 @@ function requireMcpToolSchema(inputSchema: unknown): McpToolSchema {
   return inputSchema as McpToolSchema
 }
 
+/** Names the person, plus the account once a connection knows it, so a person's two read apart. */
+function connectionName(row: { serverName: string; email: string; accountLabel: string }) {
+  const known = row.accountLabel !== row.serverName && row.accountLabel !== row.email
+  return `${row.serverName} — ${row.email}${known ? ` · ${row.accountLabel}` : ''}`
+}
+
 export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.listManagedConnections,
   resolveContext: ({ input }: { input: { workspaceId: string } }) =>
@@ -96,6 +102,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         serverDescription: mcpServers.description,
         managedConnectorId: mcpServers.managedConnectorId,
         email: credentialGroupEnrollment.email,
+        accountLabel: credential.displayName,
         toolSnapshotBytes:
           sql<number>`COALESCE(octet_length(${credential.mcpTools}::text), 0)`.mapWith(Number),
         createdAt: credential.createdAt,
@@ -177,7 +184,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
         canonicalServerId: row.serverId,
         canonicalServerName: row.serverName,
         workspaceId: context.workspaceId,
-        name: `${row.serverName} — ${row.email}`,
+        name: connectionName(row),
         ...(row.serverDescription ? { description: row.serverDescription } : {}),
         transport: 'streamable-http' as const,
         authType: 'oauth' as const,
@@ -198,7 +205,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
             ...(outputSchema ? { outputSchema } : {}),
             serverId: row.id,
             canonicalServerId: row.serverId,
-            serverName: `${row.serverName} — ${row.email}`,
+            serverName: connectionName(row),
             managedConnectorId: row.managedConnectorId,
           }
         })

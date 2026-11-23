@@ -1,9 +1,14 @@
 import { ClipboardList, Download, File, Search, Server, Trash, Upload } from '@sim/emcn/icons'
 import { omit } from '@sim/utils/object'
 import { SftpIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParamsContext } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+} from '@/blocks/utils'
 
 export const SftpBlock = {
   type: 'sftp',
@@ -227,7 +232,7 @@ export const SftpBlock = {
         if (operation === 'sftp_create') return 'sftp_upload'
         return operation
       },
-      params: (params) => {
+      params: (params, context?: BlockToolParamsContext) => {
         const connectionConfig: Record<string, unknown> = {
           host: params.host,
           port:
@@ -237,14 +242,18 @@ export const SftpBlock = {
 
         if (params.authMethod === 'privateKey') {
           connectionConfig.privateKey = params.privateKey
-          if (params.passphrase) {
-            connectionConfig.passphrase = params.passphrase
-          }
+          connectionConfig.passphrase = params.passphrase || undefined
+          connectionConfig.password = undefined
         } else {
           connectionConfig.password = params.password
+          if (params.authMethod === 'password') {
+            // A key stored before switching to password auth would otherwise win on the server.
+            connectionConfig.privateKey = undefined
+            connectionConfig.passphrase = undefined
+          }
         }
 
-        const operation = params.operation || 'sftp_upload'
+        const operation = mapperOperation(params, context) || 'sftp_upload'
 
         switch (operation) {
           case 'sftp_upload':
@@ -253,6 +262,8 @@ export const SftpBlock = {
               remotePath: params.remotePath,
               // files is the canonical param from uploadFiles (basic) or files (advanced)
               files: normalizeFileInput(params.files),
+              fileContent: toolCallArg(context, params.fileContent),
+              fileName: toolCallArg(context, params.fileName),
               overwrite: params.overwrite !== false,
               permissions: params.permissions,
             }
@@ -260,6 +271,7 @@ export const SftpBlock = {
             return {
               ...connectionConfig,
               remotePath: params.remotePath,
+              files: undefined,
               fileContent: params.fileContent,
               fileName: params.fileName,
               overwrite: params.overwrite !== false,
@@ -287,7 +299,8 @@ export const SftpBlock = {
             return {
               ...connectionConfig,
               remotePath: params.remotePath,
-              recursive: params.mkdirRecursive !== false,
+              recursive:
+                (params.mkdirRecursive ?? toolCallArg(context, params.recursive)) !== false,
             }
           default:
             return {
@@ -360,8 +373,8 @@ export const SftpV2Block: BlockConfig = {
         params.operation === 'sftp_download'
           ? selectSftpV2Tool(params)
           : SftpBlock.tools.config.tool(params),
-      params: (params) => {
-        const input: Record<string, unknown> = SftpBlock.tools.config.params(params)
+      params: (params, context) => {
+        const input: Record<string, unknown> = SftpBlock.tools.config.params(params, context)
         return omit(input, ['encoding'])
       },
     },

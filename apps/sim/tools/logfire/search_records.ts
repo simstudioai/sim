@@ -17,6 +17,7 @@ import {
   sqlContains,
   sqlLiteral,
 } from '@/tools/logfire/utils'
+import { LOGFIRE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -54,6 +55,7 @@ export const logfireSearchRecordsTool: ToolConfig<
   description:
     'Search Logfire spans and logs using structured filters for message text, service, span name, severity, environment, and exceptions. Returns the most recent matches first without writing SQL.',
   version: '1.0.0',
+  oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

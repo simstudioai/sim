@@ -34,6 +34,7 @@ const DescribeAlarmsSchema = z.object({
       .max(100, 'limit must be at most 100 (CloudWatch DescribeAlarms limit)')
       .optional()
   ),
+  nextToken: z.string().optional(),
 })
 
 const DescribeAlarmsResponseSchema = z.object({
@@ -51,8 +52,49 @@ const DescribeAlarmsResponseSchema = z.object({
         threshold: z.number().optional(),
         evaluationPeriods: z.number().optional(),
         stateUpdatedTimestamp: z.number().optional(),
+        alarmType: z.string(),
+        alarmDescription: z.string().optional(),
+        actionsEnabled: z.boolean().optional(),
+        alarmActions: z.array(z.string()),
+        okActions: z.array(z.string()),
+        insufficientDataActions: z.array(z.string()),
+        stateReasonData: z.string().optional(),
+        stateTransitionedTimestamp: z.number().optional(),
+        alarmConfigurationUpdatedTimestamp: z.number().optional(),
+        statistic: z.string().optional(),
+        extendedStatistic: z.string().optional(),
+        dimensions: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+        period: z.number().optional(),
+        unit: z.string().optional(),
+        datapointsToAlarm: z.number().optional(),
+        treatMissingData: z.string().optional(),
+        thresholdMetricId: z.string().optional(),
+        metrics: z
+          .array(
+            z.object({
+              id: z.string(),
+              expression: z.string().optional(),
+              label: z.string().optional(),
+              returnData: z.boolean().optional(),
+              period: z.number().optional(),
+              accountId: z.string().optional(),
+              metricStat: z
+                .object({
+                  namespace: z.string().optional(),
+                  metricName: z.string().optional(),
+                  dimensions: z.array(z.object({ name: z.string(), value: z.string() })),
+                  period: z.number().optional(),
+                  stat: z.string().optional(),
+                  unit: z.string().optional(),
+                })
+                .optional(),
+            })
+          )
+          .optional(),
+        alarmRule: z.string().optional(),
       })
     ),
+    nextToken: z.string().nullable(),
   }),
 })
 

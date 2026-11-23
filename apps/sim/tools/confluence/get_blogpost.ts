@@ -1,5 +1,6 @@
 import {
   CONTENT_BODY_OUTPUT_PROPERTIES,
+  CONTENT_LABELS_OUTPUT,
   TIMESTAMP_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
@@ -32,6 +33,7 @@ export interface ConfluenceGetBlogPostResponse {
       storage?: { value: string }
     } | null
     webUrl: string | null
+    labels: Array<{ id: string; name: string; prefix: string }>
   }
 }
 
@@ -72,7 +74,8 @@ export const confluenceGetBlogPostTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Format for blog post body: storage, atlas_doc_format, or view',
+      description:
+        'Format for blog post body: storage, atlas_doc_format, view, or export_view (default: storage)',
     },
     cloudId: {
       type: 'string',
@@ -108,6 +111,7 @@ export const confluenceGetBlogPostTool: InternalToolConfig<
         version: data.version ?? null,
         body: data.body ?? null,
         webUrl: data.webUrl ?? null,
+        labels: data.labels ?? [],
       },
     }
   },
@@ -133,5 +137,6 @@ export const confluenceGetBlogPostTool: InternalToolConfig<
       optional: true,
     },
     webUrl: { type: 'string', description: 'URL to view the blog post', optional: true },
+    labels: CONTENT_LABELS_OUTPUT,
   },
 }

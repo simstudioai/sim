@@ -114,7 +114,6 @@ export const POST = withRouteHandler(
 
       let entityType: 'user' | 'organization'
       let entityId: string
-      const plan = userSubscription.plan
       let seats: number | null = null
 
       // Route admin credits to the subscription's entity (org if org-scoped).
@@ -181,7 +180,7 @@ export const POST = withRouteHandler(
         newCreditBalance = Number.parseFloat(stats?.creditBalance || '0')
       }
 
-      await setUsageLimitForCredits(entityType, entityId, plan, seats, newCreditBalance)
+      await setUsageLimitForCredits(entityType, entityId, userSubscription, seats, newCreditBalance)
 
       let newUsageLimit: number
       if (entityType === 'organization') {

@@ -7,19 +7,30 @@ export function extractPageText(
   const startedAt = performance.now()
   const source = new URL(location.href)
   if (!['http:', 'https:'].includes(source.protocol) || source.username || source.password) {
-    throw new Error('This page cannot be attached.')
+    return { error: 'This page cannot be attached.' }
   }
   source.search = ''
   source.hash = ''
   if (kind === 'selection' && document.activeElement?.matches('iframe,frame'))
-    throw new Error('Open the embedded page in its own tab to attach selected text.')
+    return {
+      error: 'The selection could not be read from an embedded frame. Open it in its own tab.',
+    }
+  const active = document.activeElement
+  if (
+    kind === 'selection' &&
+    active instanceof HTMLElement &&
+    (active.isContentEditable ||
+      active.matches('input,textarea,select') ||
+      chrome.dom.openOrClosedShadowRoot(active)?.activeElement)
+  )
+    return { error: 'Select text outside an editable or embedded field.' }
   const selection = kind === 'selection' ? window.getSelection() : null
   if (kind === 'selection' && (!selection || selection.isCollapsed || selection.rangeCount !== 1)) {
-    throw new Error('Select text on the page, then choose Ask Sim from the context menu.')
+    return { error: 'Select text on the page, then attach the selection.' }
   }
   const range = selection?.getRangeAt(0)
   const root = range?.commonAncestorContainer ?? document.body
-  if (!root) throw new Error('This page has no readable text.')
+  if (!root) return { error: 'This page has no readable text.' }
 
   const excluded =
     'script,style,noscript,template,iframe,object,embed,canvas,svg,input,textarea,select,button,[contenteditable]:not([contenteditable="false"]),[hidden],[aria-hidden="true"],[data-sim-extension-ignore]'
@@ -37,12 +48,11 @@ export function extractPageText(
   let ancestor = root.nodeType === Node.ELEMENT_NODE ? (root as Element) : root.parentElement
   while (ancestor) {
     if (performance.now() - startedAt > 150)
-      throw new Error('Reading this page took too long. Select a smaller section.')
+      return { error: 'The selection could not be read in time. Select a smaller section.' }
     if (++visited > 15_000)
-      throw new Error(
-        'This selection is too deeply nested to capture safely. Select a smaller section.'
-      )
-    if (hidden(ancestor)) throw new Error('This selection is inside an editable or hidden field.')
+      return { error: 'The selection could not be read safely. Select a smaller section.' }
+    if (hidden(ancestor))
+      return { error: 'The selection could not be read from an editable or hidden field.' }
     ancestor = ancestor.parentElement
   }
 
@@ -100,8 +110,7 @@ export function extractPageText(
     }
   }
   const text = parts.join('\n')
-  if (!text)
-    throw new Error('No readable text was found. This page may use a document viewer or canvas.')
+  if (!text) return { error: 'No readable text was found on this page.' }
   return {
     url: source.href,
     title: document.title.slice(0, 512),

@@ -15,11 +15,12 @@ import {
   getAsyncToolCall,
   getClaimedWorkflowExecutionId,
 } from '@/lib/mothership/async-runs/repository'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
 import { settleClientToolCall } from '@/lib/mothership/request/tools/client-settlement.server'
 import { toolStartWindowClosed } from '@/lib/mothership/request/tools/deadline'
+import { reportPausedClientWorkflowTool } from '@/lib/mothership/request/tools/workflow-client-settlement'
 import {
   createStructuralWorkflowToolCompletionData,
   getWorkflowToolCompletionMessage,
@@ -50,6 +51,11 @@ interface RaceWorkflowToolClientPickupParams {
   /** When the call's deadline passes: past it the server does not take the call over. */
   deadlineAt?: number
   graceMs: number
+  /**
+   * Asked once when the grace ends with no result: how much longer a view that attached during
+   * the grace should get (0 for none). Bounded by `timeoutMs` like the grace itself.
+   */
+  extendGrace?: () => Promise<number>
   /**
    * How long to wait for a browser's run before settling the call still running (the frame's
    * `waitTimeoutMs`); the browser's run goes on. Undefined waits until it settles.
@@ -98,6 +104,16 @@ async function detachClientRunAfterWait(params: {
     const logged = await getWorkflowExecutionLogStatus(executionId, workflowId).catch(
       () => undefined
     )
+    // A paused run's log stays `pending`. The execute route answers a run waiting on a person;
+    // this covers that best-effort report failing.
+    if (logged === 'pending') {
+      const answered = await reportPausedClientWorkflowTool({
+        toolCallId,
+        executionId,
+        workflowId,
+      }).catch(() => false)
+      if (answered) return
+    }
     if (logged !== 'running') continue
     const status = ASYNC_TOOL_CONFIRMATION_STATUS.background
     const settled = await settleClientToolCall({
@@ -180,10 +196,29 @@ export async function raceWorkflowToolClientPickup(
   // would outlive the wait it is supposed to bound.
   const effectiveGraceMs = Math.min(graceMs, timeoutMs)
 
-  const first = await Promise.race([
-    clientWait.then((completion) => ({ kind: 'client' as const, completion })),
-    sleep(effectiveGraceMs).then(() => ({ kind: 'grace' as const })),
-  ])
+  const clientDone = clientWait.then((completion) => ({ kind: 'client' as const, completion }))
+  const raceGrace = (ms: number) =>
+    Promise.race([clientDone, sleep(ms).then(() => ({ kind: 'grace' as const }))])
+
+  let first = await raceGrace(effectiveGraceMs)
+  if (first.kind === 'grace' && params.extendGrace) {
+    // The check counts toward the extension, and a result that lands during it wins at once.
+    const checkStartedAt = Date.now()
+    const extension = await Promise.race([
+      clientDone,
+      params
+        .extendGrace()
+        .catch(() => 0)
+        .then((ms) => ({ kind: 'extend' as const, ms })),
+    ])
+    if (extension.kind === 'client') {
+      first = extension
+    } else {
+      const extraMs =
+        Math.min(extension.ms, timeoutMs - effectiveGraceMs) - (Date.now() - checkStartedAt)
+      if (extraMs > 0) first = await raceGrace(extraMs)
+    }
+  }
 
   // A non-null client result inside the grace window is the normal path.
   // A null one means the wait itself already expired (timeoutMs <= graceMs), so

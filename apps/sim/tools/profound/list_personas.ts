@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundListPersonasParams, ProfoundListPersonasResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundListPersonasTool: ToolConfig<
   name: 'Profound List Personas',
   description: 'List all organization personas across all categories in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

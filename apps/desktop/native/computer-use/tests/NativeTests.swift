@@ -26,6 +26,70 @@ import AppKit
         expectError("unsupported_key") { _ = try parseKey("F99") }
         expectError("invalid_arguments") { _ = try parseKey("Hyper+A") }
         expectError("invalid_arguments") { _ = try required(Optional<String>.none, "example") }
+        var finitePoint = CGPoint(x: 10, y: 20), infinitePoint = CGPoint(x: CGFloat.infinity, y: -CGFloat.infinity)
+        var size = CGSize(width: 30, height: 40)
+        let sizeValue = AXValueCreate(.cgSize, &size)
+        precondition(axRect(position: AXValueCreate(.cgPoint, &finitePoint), size: sizeValue) == CGRect(x: 10, y: 20, width: 30, height: 40))
+        precondition(axRect(position: AXValueCreate(.cgPoint, &infinitePoint), size: sizeValue) == nil)
+        expectError("reply_unencodable") { _ = try encodeReply(["id": "nonfinite", "result": ["x": Double.infinity]]) }
+        for bundle in ["com.apple.systempreferences", "com.apple.Terminal", "COM.GOOGLECODE.ITERM2", "net.kovidgoyal.kitty", "com.1password.1password", "com.apple.Passwords", "com.bitwarden.desktop", "ai.sim.desktop", "com.simstudio.computer-use", "com.apple.ScriptEditor2", "com.apple.Automator", "com.apple.shortcuts"] {
+            precondition(isProtectedApp(bundle), bundle)
+        }
+        for bundle in ["com.apple.TextEdit", "com.apple.finder", "com.apple.Safari"] { precondition(!isProtectedApp(bundle), bundle) }
+        let dateOnly = try dueComponents("2027-05-04")
+        precondition(dateOnly.year == 2027 && dateOnly.month == 5 && dateOnly.day == 4 && dateOnly.hour == nil)
+        let timed = try dueComponents("2027-05-04T09:30:45Z")
+        precondition(timed.hour != nil && timed.minute != nil && timed.second == 45)
+        let localDue = try dueComponents("2027-05-04T09:30")
+        precondition(localDue.hour == 9 && localDue.minute == 30)
+        for due in ["2027-02-30", "2027-05-04T25:30:00", "May 4", "2027-5-4", "2027-02-30T09:00:00Z", "2027-02-29T09:00:00.5+01:00", "2027-05-04T24:00:00Z", "2027-05-04T09:00:00+25:00", "2027-05-04T09:00:00+05:99", "2027-05-04T09:00:00+14:59", "2027-05-04T09:00:00-14:30", "2027-0٥-04", "2027-05-04T1٠:00Z"] {
+            expectError("invalid_arguments") { _ = try dueComponents(due) }
+        }
+        precondition(isoDateTime("2028-02-29T09:00Z") == Date(timeIntervalSince1970: 1_835_427_600))
+        precondition(isoDateTime("2027-05-04T09:00:00+05:30") == Date(timeIntervalSince1970: 1_809_401_400))
+        precondition(isoDateTime("2027-05-04T09:00:00+14:00") == Date(timeIntervalSince1970: 1_809_370_800))
+        expectError("unknown_command") { _ = try runAppCommand(AppCommand(name: "run_script")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "  ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_reminder", title: "Pay rent", priority: 3)) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", title: " ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", priority: 3)) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", id: "r1", clearDue: true, due: "2027-05-04")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_reminder", completed: true)) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_event", id: "e1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_contact", id: "c1")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_contact", id: "c1", emails: ["not-an-email"])) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_contact", id: "c1", phones: ["1", "2", "3", "4", "5", "6"])) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "update_event", id: "e1", title: " ")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-01")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-01", to: "2027-08-01")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "find_events", from: "2027-06-09T10:00", to: "2027-06-09T09:00")) }
+        expectError("invalid_arguments") { _ = try checkEventSpan(Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 100), allDay: false) }
+        try checkEventSpan(Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 100), allDay: true)
+        let timedStart = try eventDate("2027-06-09T07:15", "Start", allDay: false), dayStart = try eventDate("2027-06-09", "Start", allDay: true)
+        precondition(localText(timedStart, allDay: false) == "2027-06-09T07:15:00" && localText(dayStart, allDay: true) == "2027-06-09")
+        precondition(dueText(DateComponents(year: 2027, month: 5, day: 4)) == "2027-05-04")
+        let padded = String(repeating: "a", count: 7999)
+        precondition(phoneKey("+1 (555) 010-0100") == phoneKey("+15550100100") && phoneKey("5550100,123") != phoneKey("5550100;123") && phoneKey("٥٥٥٠١٠٠") == "5550100" && phoneKey("٥٥٥٠١٠٠") != phoneKey("٥٥٥٠٢٠٠") && emailKey("Ana@Example.com") == emailKey("ana@example.com"))
+        precondition(shortened(padded + "😀", 8000) && !shortened(padded, 8000) && !shortened(nil, 8000))
+        precondition(bounded(padded + "😀", 8000) == padded && bounded("👍🏽ok", 4) == "👍🏽")
+        let localDueText = dueText(try dueComponents("2027-05-04T09:30")); precondition(localDueText == "2027-05-04T09:30:00")
+        var local = Calendar(identifier: .gregorian); local.timeZone = .current
+        let floating = try eventDate("2027-06-09T07:15:00", "Start", allDay: false)
+        precondition(local.dateComponents([.hour, .minute], from: floating) == DateComponents(hour: 7, minute: 15))
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09 07:15", "Start", allDay: false) }
+        let fractional = try eventDate("2027-06-09T06:15:00.000Z", "Start", allDay: false)
+        precondition(fractional == Date(timeIntervalSince1970: 1_812_521_700))
+        let localFraction = try eventDate("2027-06-09T07:15:00.250", "Start", allDay: false)
+        precondition(local.dateComponents([.hour, .minute], from: localFraction) == DateComponents(hour: 7, minute: 15))
+        expectError("invalid_arguments") { _ = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: true) }
+        let zoned = try eventDate("2027-06-09T07:15:00+01:00", "Start", allDay: false)
+        precondition(zoned == Date(timeIntervalSince1970: 1_812_521_700))
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Flight", start: "2027-06-09T08:10:00Z", end: "2027-06-09T07:15:00Z")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_event", title: "Trip", start: "2027-06-01T00:00:00Z", end: "2027-08-01T00:00:00Z")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact", jobTitle: "Engineer")) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact", givenName: "Ana", emails: ["not-an-email"])) }
+        expectError("invalid_arguments") { _ = try runAppCommand(AppCommand(name: "create_contact_group", title: " ")) }
         var queue = AXTraversalQueue<String>(limit: 1000)
         queue.append(AXTraversalEntry(element: "menu", parent: nil, depth: 0, menu: true, priority: false))
         queue.append(AXTraversalEntry(element: "content", parent: nil, depth: 0, menu: false, priority: false))
@@ -41,13 +105,25 @@ import AppKit
         precondition(bounded.next()?.element == 1)
         precondition(bounded.next()?.element == 2)
         precondition(bounded.next() == nil)
-        try validateInputSteps([InputStep(action: "press_key", text: nil, key: "Cmd+A"), InputStep(action: "type_text", text: "hello 🌍", key: nil)])
-        try validateInputSteps((1...5).flatMap { [InputStep(action: "type_text", text: String($0), key: nil), InputStep(action: "press_key", text: nil, key: "Enter")] })
+        try validateInputSteps([Parameters(action: "press_key", key: "Cmd+A"), Parameters(action: "type_text", text: "hello 🌍")])
+        try validateInputSteps((1...5).flatMap { [Parameters(action: "type_text", text: String($0)), Parameters(action: "press_key", key: "Enter")] })
         expectError("invalid_arguments") { try validateInputSteps([]) }
-        expectError("invalid_arguments") { try validateInputSteps(Array(repeating: InputStep(action: "type_text", text: "x", key: nil), count: 33)) }
-        expectError("invalid_arguments") { try validateInputSteps([InputStep(action: "type_text", text: String(repeating: "🌍", count: 16001), key: nil)]) }
-        expectError("invalid_arguments") { try validateInputSteps([InputStep(action: "click", text: nil, key: nil)]) }
-        expectError("unsupported_key") { try validateInputSteps([InputStep(action: "press_key", text: nil, key: "F99")]) }
+        expectError("invalid_arguments") { try validateInputSteps(Array(repeating: Parameters(action: "type_text", text: "x"), count: 33)) }
+        expectError("invalid_arguments") { try validateInputSteps([Parameters(action: "type_text", text: String(repeating: "🌍", count: 16001))]) }
+        expectError("invalid_arguments") { try validateInputSteps([Parameters(action: "click")]) }
+        expectError("unsupported_key") { try validateInputSteps([Parameters(action: "press_key", key: "F99")]) }
+        try validateBatchSteps([Parameters(action: "set_value", elementId: "e1", value: "Name"), Parameters(action: "click", elementId: "e2")])
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1")]) }
+        expectError("invalid_arguments") { try validateBatchSteps(Array(repeating: Parameters(action: "press_key", key: "Tab"), count: 9)) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "drag"), Parameters(action: "press_key", key: "Enter")]) }
+        expectError("unsupported_key") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "press_key", key: "F99")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "click")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "scroll", elementId: "e2")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1"), Parameters(action: "type_text", elementId: "e2")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "set_value", value: "x"), Parameters(action: "click", elementId: "e1")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", elementId: "e1", clickCount: 4), Parameters(action: "press_key", key: "Enter")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "click", bundleId: "com.example", elementId: "e1"), Parameters(action: "press_key", key: "Enter")]) }
+        expectError("invalid_arguments") { try validateBatchSteps([Parameters(action: "set_value", elementId: "e1", value: String(repeating: "🌍", count: 8001)), Parameters(action: "type_text", elementId: "e2", text: String(repeating: "🌍", count: 8000))]) }
         let tabFocus = try keyMayChangeFocus("Tab"); precondition(tabFocus)
         let submitFocus = try keyMayChangeFocus("Enter"); precondition(!submitFocus)
         let searchFocus = try keyMayChangeFocus("Cmd+K"); precondition(searchFocus)

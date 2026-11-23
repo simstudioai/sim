@@ -9,6 +9,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFormReportsTool: ToolConfig<
@@ -19,6 +20,7 @@ export const listFormReportsTool: ToolConfig<
   name: 'Jotform List Form Reports',
   description: 'List the reports built from one form, each with its shareable URL.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

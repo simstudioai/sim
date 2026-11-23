@@ -182,14 +182,21 @@ export type GitLabResourceType = 'project' | 'group'
  * first makes both inputs converge on the same single-encoded result;
  * without it, a pre-encoded `%2F` gets re-encoded to `%252F`, GitLab decodes
  * that once server-side to the literal string `%2F`, and the lookup 404s.
+ * A `.` or `..` id is rejected: encoding leaves dot segments intact, and the
+ * URL parser would resolve them away into a different endpoint.
+ *
+ * @throws When the id is a dot segment.
  */
-function encodeGitLabResourceId(resourceId: string | number): string {
+export function encodeGitLabResourceId(resourceId: string | number): string {
   const raw = String(resourceId).trim()
   let decoded = raw
   try {
     decoded = decodeURIComponent(raw)
   } catch {
     // Not a valid percent-encoding (e.g. a bare `%`) - treat as already raw.
+  }
+  if (decoded === '.' || decoded === '..') {
+    throw new Error(`GitLab project or group ID cannot be "${decoded}"`)
   }
   return encodeURIComponent(decoded)
 }

@@ -2,6 +2,7 @@ import type {
   AppConfigGetConfigurationProfileParams,
   AppConfigGetConfigurationProfileResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getConfigurationProfileTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getConfigurationProfileTool: InternalToolConfig<
   name: 'AppConfig Get Configuration Profile',
   description: 'Get details about a single AWS AppConfig configuration profile',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

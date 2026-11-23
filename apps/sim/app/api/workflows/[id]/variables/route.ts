@@ -13,7 +13,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { workflowVariablesContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Variable } from '@/stores/variables/types'
 
@@ -21,13 +20,12 @@ const logger = createLogger('WorkflowVariablesAPI')
 
 export const POST = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workflowId = (await context.params).id
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized workflow variables update attempt`)
+        logger.warn('Unauthorized workflow variables update attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       const userId = auth.userId
@@ -40,14 +38,14 @@ export const POST = withRouteHandler(
       const workflowData = authorization.workflow
 
       if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        logger.warn(`Workflow not found: ${workflowId}`)
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
       const isAuthorized = authorization.allowed
 
       if (!isAuthorized) {
         logger.warn(
-          `[${requestId}] User ${userId} attempted to update variables for workflow ${workflowId} without permission`
+          `User ${userId} attempted to update variables for workflow ${workflowId} without permission`
         )
         return NextResponse.json(
           { error: authorization.message || 'Access denied' },
@@ -99,7 +97,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
-      logger.error(`[${requestId}] Error updating workflow variables`, error)
+      logger.error('Error updating workflow variables', error)
       return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
     }
   }
@@ -107,13 +105,12 @@ export const POST = withRouteHandler(
 
 export const GET = withRouteHandler(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workflowId = (await params).id
 
     try {
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized workflow variables access attempt`)
+        logger.warn('Unauthorized workflow variables access attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       const userId = auth.userId
@@ -126,14 +123,14 @@ export const GET = withRouteHandler(
       const workflowData = authorization.workflow
 
       if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
+        logger.warn(`Workflow not found: ${workflowId}`)
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
       const isAuthorized = authorization.allowed
 
       if (!isAuthorized) {
         logger.warn(
-          `[${requestId}] User ${userId} attempted to access variables for workflow ${workflowId} without permission`
+          `User ${userId} attempted to access variables for workflow ${workflowId} without permission`
         )
         return NextResponse.json(
           { error: authorization.message || 'Access denied' },
@@ -162,7 +159,7 @@ export const GET = withRouteHandler(
         }
       )
     } catch (error) {
-      logger.error(`[${requestId}] Workflow variables fetch error`, error)
+      logger.error('Workflow variables fetch error', error)
       const errorMessage = getErrorMessage(error, 'Unknown error')
       return NextResponse.json({ error: errorMessage }, { status: 500 })
     }

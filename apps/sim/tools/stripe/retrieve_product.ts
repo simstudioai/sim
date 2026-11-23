@@ -1,11 +1,14 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ProductResponse, RetrieveProductParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, ProductResponse> = {
   id: 'stripe_retrieve_product',
   name: 'Stripe Retrieve Product',
   description: 'Retrieve an existing product by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -23,7 +26,7 @@ export const stripeRetrieveProductTool: ToolConfig<RetrieveProductParams, Produc
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/products/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/products/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

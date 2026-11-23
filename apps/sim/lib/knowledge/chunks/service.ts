@@ -166,7 +166,7 @@ export async function queryChunks(
 
   const page = keysetPage(keys, rows as ChunkData[], limit)
 
-  logger.info(`[${requestId}] Retrieved ${page.data.length} chunks for document ${documentId}`)
+  logger.info(`Retrieved ${page.data.length} chunks for document ${documentId}`, { requestId })
 
   return {
     chunks: page.data,
@@ -189,7 +189,7 @@ export async function createChunk(
   workspaceId?: string | null,
   secretProvenance?: DurableSecretProvenance
 ): Promise<ChunkData> {
-  logger.info(`[${requestId}] Generating embedding for manual chunk`)
+  logger.info('Generating embedding for manual chunk', { requestId })
   const kbRow = await db
     .select({
       embeddingModel: knowledgeBase.embeddingModel,
@@ -347,7 +347,7 @@ export async function createChunk(
     } as ChunkData
   })
 
-  logger.info(`[${requestId}] Created chunk ${chunkId} in document ${documentId}`)
+  logger.info(`Created chunk ${chunkId} in document ${documentId}`, { requestId })
 
   return newChunk
 }
@@ -362,7 +362,8 @@ export async function batchChunkOperation(
   requestId: string
 ): Promise<BatchOperationResult> {
   logger.info(
-    `[${requestId}] Starting batch ${operation} operation on ${chunkIds.length} chunks for document ${documentId}`
+    `Starting batch ${operation} operation on ${chunkIds.length} chunks for document ${documentId}`,
+    { requestId }
   )
 
   const errors: string[] = []
@@ -435,7 +436,8 @@ export async function batchChunkOperation(
   }
 
   logger.info(
-    `[${requestId}] Batch ${operation} completed: ${successCount} chunks processed, ${errors.length} errors`
+    `Batch ${operation} completed: ${successCount} chunks processed, ${errors.length} errors`,
+    { requestId }
   )
 
   return {
@@ -503,7 +505,7 @@ export async function updateChunk(
           dimensions: toKbEmbeddingDimensions(kbEmbeddingRow.embeddingDimension),
         }
 
-        logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
+        logger.info(`Content changed, regenerating embedding for chunk ${chunkId}`, { requestId })
         const { embeddings } = await generateEmbeddings([content], chunkEmbedding, workspaceId)
         regenerated = {
           vectorValues: embeddingVectorValues(chunkEmbedding.dimensions, embeddings[0]),
@@ -604,9 +606,9 @@ export async function updateChunk(
           .where(eq(embedding.id, chunkId))
           .limit(1)
 
-        logger.info(
-          `[${requestId}] Updated chunk: ${chunkId}${regenerated ? ' (regenerated embedding)' : ''}`
-        )
+        logger.info(`Updated chunk: ${chunkId}${regenerated ? ' (regenerated embedding)' : ''}`, {
+          requestId,
+        })
 
         return updatedChunk[0] as ChunkData
       })
@@ -658,7 +660,7 @@ export async function updateChunk(
     throw new Error(`Chunk ${chunkId} not found`)
   }
 
-  logger.info(`[${requestId}] Updated chunk: ${chunkId}`)
+  logger.info(`Updated chunk: ${chunkId}`, { requestId })
 
   return updatedChunk[0] as ChunkData
 }
@@ -705,5 +707,5 @@ export async function deleteChunk(
       .where(eq(document.id, documentId))
   })
 
-  logger.info(`[${requestId}] Deleted chunk: ${chunkId}`)
+  logger.info(`Deleted chunk: ${chunkId}`, { requestId })
 }

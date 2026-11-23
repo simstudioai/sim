@@ -21,6 +21,11 @@ import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
+  useOpenSimLinkForm,
+  useSimLinkOrganizationId,
+} from '@/app/o/[organizationId]/links/sim-link-organization-provider'
+import { SimLinkMenuItem } from '@/app/o/[organizationId]/links/sim-link-shortcut'
+import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
@@ -41,7 +46,7 @@ const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
  * document matched. Terms are matched as whole words in any script,
  * case-insensitively, by the same rule the snippet was centred with.
  */
-export function highlightTerms(text: string, query: string | undefined): ReactNode {
+function highlightTerms(text: string, query: string | undefined): ReactNode {
   const matches = findTermMatches(text, queryTerms(query))
   if (matches.length === 0) return text
   const parts: ReactNode[] = []
@@ -72,6 +77,8 @@ interface SourceActionsProps {
 
 function SourceActions({ source, onSummarize }: SourceActionsProps) {
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
+  const simLinkOrganizationId = useSimLinkOrganizationId()
+  const openSimLinkForm = useOpenSimLinkForm()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -95,6 +102,13 @@ function SourceActions({ source, onSummarize }: SourceActionsProps) {
           <LinkIcon className='size-[14px]' />
           Copy link
         </DropdownMenuItem>
+        {simLinkOrganizationId && (
+          <SimLinkMenuItem
+            organizationId={simLinkOrganizationId}
+            url={source.url}
+            onCreate={() => openSimLinkForm(source.url, sourceLabel(source))}
+          />
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

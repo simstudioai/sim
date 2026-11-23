@@ -84,14 +84,34 @@ export function createSlackWebApiTool<
 
 export const slackId = z.string().trim().min(1, 'A Slack resource ID is required')
 
+function parseSlackJson(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error('Invalid JSON in Slack request')
+  }
+}
+
 /** JSON fields accept either parsed workflow data or the JSON editor's serialized value. */
 export function slackJson<Schema extends z.ZodType>(schema: Schema) {
+  return z.preprocess(
+    (value) => (typeof value === 'string' ? parseSlackJson(value) : value),
+    schema
+  )
+}
+
+/**
+ * Slack ID lists accept parsed workflow data, a JSON array string, or Slack's own comma-separated
+ * wire form (`U123,U456`).
+ */
+export function slackIdList<Schema extends z.ZodType>(schema: Schema) {
   return z.preprocess((value) => {
     if (typeof value !== 'string') return value
-    try {
-      return JSON.parse(value)
-    } catch {
-      throw new Error('Invalid JSON in Slack request')
-    }
+    const trimmed = value.trim()
+    if (!trimmed || /^[[{"]/.test(trimmed)) return parseSlackJson(value)
+    return trimmed
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
   }, schema)
 }

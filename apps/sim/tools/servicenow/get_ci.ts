@@ -8,7 +8,9 @@ import {
   readRecordArray,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiResponse> = {
   id: 'servicenow_get_ci',
@@ -16,6 +18,7 @@ export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiRespons
   description:
     'Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,
@@ -41,7 +44,7 @@ export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiRespons
       const sysId = params.sysId?.trim()
       if (!ciClass) throw new Error('A CMDB class name is required')
       if (!sysId) throw new Error('A configuration item sys_id is required')
-      return `${baseUrl}/api/now/cmdb/instance/${ciClass}/${sysId}`
+      return `${baseUrl}/api/now/cmdb/instance/${safeUrlPathSegment(ciClass, 'ciClass')}/${safeUrlPathSegment(sysId, 'sysId')}`
     },
     method: 'GET',
     headers: (params) => buildServiceNowHeaders(params),

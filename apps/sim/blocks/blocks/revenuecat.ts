@@ -1,6 +1,7 @@
 import { RevenueCatIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const RevenueCatBlock: BlockConfig = {
@@ -443,13 +444,14 @@ Return ONLY the numeric timestamp, no text.`,
     ],
     config: {
       tool: (params) => `revenuecat_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const next: Record<string, unknown> = { ...params }
-        if (params.purchasePlatform && params.operation === 'create_purchase') {
+        if (params.purchasePlatform && operation === 'create_purchase') {
           next.platform = params.purchasePlatform
         }
         next.purchasePlatform = undefined
-        if (params.productId && params.operation === 'refund_google_subscription') {
+        if (params.productId && operation === 'refund_google_subscription') {
           next.storeTransactionId = params.productId
           next.productId = undefined
         }

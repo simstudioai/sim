@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGroup, OktaListGroupsParams, OktaListGroupsResponse } from '@/tools/okta/types'
 import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListGroups')
@@ -11,6 +12,7 @@ export const oktaListGroupsTool: ToolConfig<OktaListGroupsParams, OktaListGroups
   name: 'List Groups from Okta',
   description: 'List all groups in your Okta organization with optional search and filtering',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

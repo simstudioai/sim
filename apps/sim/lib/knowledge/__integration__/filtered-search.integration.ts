@@ -33,11 +33,17 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
     const secondBaseId = generateId()
     const embeddingModel = dimensions === 384 ? 'ollama/all-minilm' : 'text-embedding-3-large'
     const alice: Principal = { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-alice' }
-    const bob: Principal = { kind: 'personal_api_key', userId: ids.bobId, keyId: 'fixture-bob' }
+    const bob: Principal = {
+      kind: 'personal_api_key',
+      userId: ids.bobId,
+      keyId: 'fixture-bob',
+      access: 'write',
+    }
     const workspaceKey: Principal = {
       kind: 'workspace_api_key',
       workspaceId: ids.workspaceId,
       keyId: 'fixture-key',
+      access: 'write',
     }
     const restrictedAcl = confluencePageAcl({
       providerId: 'google-drive',

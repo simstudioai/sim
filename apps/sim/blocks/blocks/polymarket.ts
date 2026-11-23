@@ -1,6 +1,7 @@
 import { PolymarketIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 const MARKET_REF_FIELD = ['marketId', 'marketSlug'] as const
 const EVENT_REF_FIELD = ['eventId', 'eventSlug'] as const
@@ -203,7 +204,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'sizeThreshold',
       title: 'Size Threshold',
       type: 'short-input',
-      placeholder: 'Minimum position size (default: 1)',
+      placeholder: 'Minimum current size in shares (default: 0.1)',
       condition: { field: 'operation', value: ['get_positions'] },
       mode: 'advanced',
     },
@@ -239,12 +240,15 @@ export const PolymarketBlock: BlockConfig = {
         { label: 'Default', id: '' },
         { label: 'Tokens', id: 'TOKENS' },
         { label: 'Current Value', id: 'CURRENT' },
-        { label: 'Initial Value', id: 'INITIAL' },
+        { label: 'Initial Value', id: 'INITIAL', hidden: true },
         { label: 'Cash P&L', id: 'CASHPNL' },
-        { label: 'Percent P&L', id: 'PERCENTPNL' },
-        { label: 'Title', id: 'TITLE' },
+        { label: 'Realized P&L', id: 'REALIZED_PNL' },
+        { label: 'Total P&L', id: 'TOTAL_PNL' },
+        { label: 'Percent P&L', id: 'PERCENTPNL', hidden: true },
+        { label: 'Title', id: 'TITLE', hidden: true },
         { label: 'Price', id: 'PRICE' },
-        { label: 'Avg Price', id: 'AVGPRICE' },
+        { label: 'Avg Price', id: 'AVGPRICE', hidden: true },
+        { label: 'Last Activity', id: 'TIMESTAMP' },
       ],
       condition: { field: 'operation', value: ['get_positions'] },
       mode: 'advanced',
@@ -371,8 +375,8 @@ export const PolymarketBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Timestamp', id: 'TIMESTAMP' },
-        { label: 'Tokens', id: 'TOKENS' },
-        { label: 'Cash', id: 'CASH' },
+        { label: 'Tokens', id: 'TOKENS', hidden: true },
+        { label: 'Cash', id: 'CASH', hidden: true },
       ],
       condition: { field: 'operation', value: ['get_activity'] },
       mode: 'advanced',
@@ -451,7 +455,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'leaderboardUser',
       title: 'User Address',
       type: 'short-input',
-      placeholder: 'Filter by specific user wallet',
+      placeholder: "Look up one wallet's rank",
       condition: { field: 'operation', value: ['get_leaderboard'] },
       mode: 'advanced',
     },
@@ -459,7 +463,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'leaderboardUserName',
       title: 'Username',
       type: 'short-input',
-      placeholder: 'Filter by username',
+      placeholder: 'No longer supported by Polymarket; use User Address',
       condition: { field: 'operation', value: ['get_leaderboard'] },
       mode: 'advanced',
     },
@@ -679,6 +683,17 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
       mode: 'advanced',
     },
     {
+      id: 'cursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from the previous page',
+      condition: {
+        field: 'operation',
+        value: ['get_trades', 'get_positions', 'get_activity', 'get_leaderboard', 'get_holders'],
+      },
+      mode: 'advanced',
+    },
+    {
       id: 'page',
       title: 'Page',
       type: 'short-input',
@@ -757,9 +772,8 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
             return 'polymarket_get_markets'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
-          operation,
           marketSlug,
           eventSlug,
           orderEvents,
@@ -787,6 +801,7 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           holdersMinBalance,
           ...rest
         } = params
+        const operation = mapperOperation(params, context)
         const cleanParams: Record<string, any> = {}
 
         if (operation === 'get_market' && marketSlug) {
@@ -826,8 +841,8 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
           if (activitySide) cleanParams.side = activitySide
           if (activitySortBy) cleanParams.sortBy = activitySortBy
           if (activitySortDirection) cleanParams.sortDirection = activitySortDirection
-          if (activityStart) cleanParams.start = Number(activityStart)
-          if (activityEnd) cleanParams.end = Number(activityEnd)
+          if (activityStart != null && activityStart !== '') cleanParams.start = activityStart
+          if (activityEnd != null && activityEnd !== '') cleanParams.end = activityEnd
         }
 
         if (operation === 'get_leaderboard') {
@@ -896,6 +911,10 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     tagId: { type: 'string', description: 'Filter by tag ID' },
     limit: { type: 'string', description: 'Number of results per page' },
     offset: { type: 'string', description: 'Pagination offset' },
+    cursor: {
+      type: 'string',
+      description: 'Data API v2 pagination cursor (nextCursor from the previous page)',
+    },
     page: { type: 'string', description: 'Page number for search' },
     activityUser: { type: 'string', description: 'User wallet address for activity' },
     activityType: { type: 'string', description: 'Activity type filter' },
@@ -943,6 +962,16 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     activity: { type: 'json', description: 'Array of user activity entries (get_activity)' },
     leaderboard: { type: 'json', description: 'Array of leaderboard entries (get_leaderboard)' },
     holders: { type: 'json', description: 'Array of market holder groups (get_holders)' },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page (get_trades, get_positions, get_activity, get_leaderboard, get_holders)',
+    },
+    hasMore: {
+      type: 'boolean',
+      description:
+        'Whether another page exists (get_trades, get_positions, get_activity, get_leaderboard, get_holders)',
+    },
   },
 }
 

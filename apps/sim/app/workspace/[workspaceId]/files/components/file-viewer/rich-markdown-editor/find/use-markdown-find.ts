@@ -86,9 +86,9 @@ export function useMarkdownFind({
    */
   const revealActiveMatch = useCallback(() => {
     requestAnimationFrame(() => {
-      editorRef.current?.view.dom
-        .querySelector(`.${ACTIVE_MATCH_CLASS}`)
-        ?.scrollIntoView({ block: 'center' })
+      const current = editorRef.current
+      if (!current || current.isDestroyed) return
+      current.view.dom.querySelector(`.${ACTIVE_MATCH_CLASS}`)?.scrollIntoView({ block: 'center' })
     })
   }, [])
 
@@ -99,7 +99,7 @@ export function useMarkdownFind({
    */
   const syncTally = useCallback(() => {
     const current = editorRef.current
-    if (!current) return
+    if (!current || current.isDestroyed) return
     const { matches, activeIndex, truncated } = getFindTally(current.state)
     setTally((previous) =>
       previous.count === matches.length &&
@@ -116,7 +116,7 @@ export function useMarkdownFind({
    * on each of those. Not subscribed while the bar is closed, so typing costs nothing then.
    */
   useEffect(() => {
-    if (!editor || !isOpen) return
+    if (!editor || editor.isDestroyed || !isOpen) return
     syncTally()
     editor.on('transaction', syncTally)
     return () => {
@@ -132,7 +132,7 @@ export function useMarkdownFind({
   const queryRef = useRef(query)
   queryRef.current = query
   useEffect(() => {
-    if (!editor || queryRef.current.length === 0) return
+    if (!editor || editor.isDestroyed || queryRef.current.length === 0) return
     setFindQuery(editor, queryRef.current)
   }, [editor])
 
@@ -140,7 +140,7 @@ export function useMarkdownFind({
     (next: string) => {
       setQueryState(next)
       const current = editorRef.current
-      if (!current) return
+      if (!current || current.isDestroyed) return
       setFindQuery(current, next)
       revealActiveMatch()
     },
@@ -150,7 +150,7 @@ export function useMarkdownFind({
   const step = useCallback(
     (delta: number) => {
       const current = editorRef.current
-      if (!current) return
+      if (!current || current.isDestroyed) return
       stepFindMatch(current, delta)
       revealActiveMatch()
     },
@@ -162,13 +162,18 @@ export function useMarkdownFind({
 
   const replaceCurrent = useCallback(() => {
     const current = editorRef.current
-    if (!current || !replaceActiveFindMatch(current, replacement, warnReplacementLimit)) return
+    if (
+      !current ||
+      current.isDestroyed ||
+      !replaceActiveFindMatch(current, replacement, warnReplacementLimit)
+    )
+      return
     revealActiveMatch()
   }, [replacement, revealActiveMatch])
 
   const replaceAll = useCallback(() => {
     const current = editorRef.current
-    if (!current) return
+    if (!current || current.isDestroyed) return
     replaceAllFindMatches(current, replacement, warnReplacementLimit)
   }, [replacement])
 
@@ -179,7 +184,7 @@ export function useMarkdownFind({
     setReplacement('')
     setTally(EMPTY_TALLY)
     const current = editorRef.current
-    if (current) setFindQuery(current, '')
+    if (current && !current.isDestroyed) setFindQuery(current, '')
     requestAnimationFrame(() => {
       if (current && !current.isDestroyed) current.commands.focus()
     })

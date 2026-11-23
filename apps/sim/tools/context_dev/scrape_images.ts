@@ -83,7 +83,7 @@ export const contextDevScrapeImagesTool: ToolConfig<
       appendParam(url.searchParams, 'url', params.url)
       appendParam(url.searchParams, 'maxAgeMs', params.maxAgeMs)
       appendParam(url.searchParams, 'waitForMs', params.waitForMs)
-      appendParam(url.searchParams, 'timeoutMS', params.timeoutMS)
+      appendParam(url.searchParams, 'timeoutOpts[milliseconds]', params.timeoutMS)
       appendParam(url.searchParams, 'enrichment[resolution]', params.enrichResolution)
       appendParam(url.searchParams, 'enrichment[hostedUrl]', params.enrichHostedUrl)
       appendParam(url.searchParams, 'enrichment[classification]', params.enrichClassification)

@@ -22,6 +22,10 @@ import { listPersonalSearchIntegrations } from '@/lib/knowledge/application/pers
 import { providerIdsForService } from '@/lib/oauth/utils'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import {
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchSavedMemberProvider,
+} from '@/lib/sim-search/live/source-catalog'
 
 /** Search's organization delegation can use only the member's currently available personal grant. */
 export const organizationPersonalCredentialOperation = defineOrganizationOperation({
@@ -156,6 +160,12 @@ export const prepareOrganizationPersonalConnection = {
         ...providerIdsForService(entry.providerId),
       ].some((name) => name.toLowerCase() === requested)
     )
+    const saved = LIVE_SEARCH_SOURCE_TYPES.find(([type, meta]) => {
+      const providerId = liveSearchSavedMemberProvider(type)
+      return (
+        providerId && [type, meta.name, providerId].some((name) => name.toLowerCase() === requested)
+      )
+    })
     const provider = connector
       ? findCredentialGroupProviderFromProviderId(connector.providerId)
       : CREDENTIAL_GROUP_PROVIDER_IDS.find((id) =>
@@ -163,11 +173,14 @@ export const prepareOrganizationPersonalConnection = {
             (name) => name.toLowerCase() === requested
           )
         )
-    if (!provider)
+    if (!provider && !saved)
       throw new OrchestrationError('validation', 'This integration is unavailable in Assistant.')
     const inventory = await listPersonalSearchIntegrations.execute({
       principal,
-      input: { organizationId: context.organizationId, connectorType: connector?.type ?? provider },
+      input: {
+        organizationId: context.organizationId,
+        connectorType: connector?.type ?? saved?.[0] ?? provider ?? undefined,
+      },
     })
     const target = input.credentialId
       ? inventory.connections
@@ -176,8 +189,12 @@ export const prepareOrganizationPersonalConnection = {
       : inventory.available[0]?.target
     if (target)
       return {
-        provider: connector?.meta.name ?? getCredentialGroupProviderService(provider).name,
-        providerId: connector?.providerId ?? provider,
+        provider:
+          connector?.meta.name ??
+          saved?.[1].name ??
+          (provider ? getCredentialGroupProviderService(provider).name : input.providerName),
+        providerId:
+          connector?.providerId ?? (saved ? liveSearchSavedMemberProvider(saved[0]) : provider),
         target,
       }
     throw new OrchestrationError(

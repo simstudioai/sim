@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomAttachContactToCompanyParams {
   accessToken: string
@@ -40,7 +42,7 @@ const attachContactToCompanyBase = {
 
   request: {
     url: (params: IntercomAttachContactToCompanyParams) =>
-      buildIntercomUrl(`/contacts/${params.contactId}/companies`),
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}/companies`),
     method: 'POST',
     headers: (params: IntercomAttachContactToCompanyParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -62,6 +64,7 @@ export const intercomAttachContactToCompanyV2Tool: ToolConfig<
   name: 'Attach Contact to Company in Intercom',
   description: 'Attach a contact to a company in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

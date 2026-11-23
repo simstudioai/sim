@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
@@ -20,6 +20,7 @@ import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { VoiceInputPermissionContext } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
 interface ExtensionChatProps {
@@ -42,6 +43,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     setCaptureChatId(selectedChatId)
     setComposerKey(generateId())
   }
+  const fileDropTarget = useRef<HTMLElement>(null)
   const composer = useExtensionComposer(composerKey)
   const chat = useChat(workspaceId, selectedChatId ?? undefined, {
     apiPath: '/api/mothership/chat',
@@ -104,104 +106,115 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
     void stopGeneration()
   }, [stopGeneration])
   const submit = useCallback(
-    (message: string, files?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
-      const submission = composer.prepareSubmission(message, contexts)
-      if (submission === false) return false
-      void sendMessage(submission.message, files, submission.contexts)
-      composer.onSubmitted()
-    },
+    (message: string, files?: FileAttachmentForApi[], contexts?: ChatContext[], reference = true) =>
+      composer.prepareSubmission(
+        message,
+        contexts,
+        (submission) => {
+          void sendMessage(submission.message, files, submission.contexts)
+          composer.onSubmitted()
+        },
+        reference
+      ),
     [composer.prepareSubmission, sendMessage, composer.onSubmitted]
   )
 
   return (
-    <main className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'>
-      <ExtensionHeader
-        workspaceId={workspaceId}
-        scopeName={workspaceName}
-        history={history}
-        chatId={chat.resolvedChatId}
-        onSelectChat={selectChat}
-        appHref={appHref}
-      />
-      {chat.error && (
-        <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
-          {chat.error}
-        </p>
-      )}
-      {composer.captureError && (
-        <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
-          {composer.captureError}
-        </p>
-      )}
-      {!selectedChatId && chat.messages.length === 0 && (
-        <div className='flex flex-1 items-center justify-center px-5'>
-          <h1 className='text-lg'>How can I help?</h1>
-        </div>
-      )}
-      <MothershipChat
-        onNavigateToChat={selectChat}
-        workspaceId={workspaceId}
-        userId={userId}
-        chatId={chat.resolvedChatId}
-        messages={chat.messages}
-        isSending={chat.isSending}
-        isReconnecting={chat.isReconnecting}
-        isLoading={
-          Boolean(selectedChatId) && chat.messages.length === 0 && chat.isChatHistoryPending
-        }
-        onSubmit={submit}
-        onStopGeneration={stop}
-        messageQueue={chat.messageQueue}
-        editingQueuedId={chat.editingQueuedId}
-        dispatchingHeadId={chat.dispatchingHeadId}
-        onRemoveQueuedMessage={chat.removeFromQueue}
-        onSendQueuedMessage={chat.sendNow}
-        onEditQueuedMessage={chat.editQueuedMessage}
-        onCancelQueueEdit={chat.cancelQueueEdit}
-        onViewSources={(messageId, requestId) =>
-          void setSourceParams(
-            { 'source-message': messageId, 'source-request': requestId ?? null },
-            { history: 'push' }
-          )
-        }
-        onWorkspaceResourceSelect={(resource) => void openResource(resource)}
-        composerKey={composerKey}
-        draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
-        composerAttachments={composer.attachments}
-        composerResourceActions={composer.resourceActions}
-        composerToolbarActions={composer.toolbarActions}
-        composerModelSelectorOptions={composer.modelSelectorOptions}
-        layout='copilot-view'
-        className={cn('h-auto min-h-0', (selectedChatId || chat.messages.length > 0) && 'flex-1')}
-      />
-      <ChipModal
-        open={Boolean(sourceMessage)}
-        onOpenChange={(open) => {
-          if (!open) closeSources()
-        }}
-        srTitle='Cited sources'
-        size='sm'
+    <VoiceInputPermissionContext value={composer.openMicrophoneSettings}>
+      <main
+        ref={fileDropTarget}
+        className='ph-no-capture flex h-dvh min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--text-body)]'
       >
-        <ChipModalHeader onClose={closeSources}>Cited sources</ChipModalHeader>
-        {sourceMessage && (
-          <div className='h-[60dvh] min-h-0'>
-            <SourcesResourceContent
-              chatId={chat.resolvedChatId}
-              resource={{
-                id: 'cited-sources',
-                type: 'sources',
-                title: 'Sources',
-                sources: {
-                  messageId: sourceMessage.id,
-                  ...(sourceParams['source-request']
-                    ? { requestId: sourceParams['source-request'] }
-                    : {}),
-                },
-              }}
-            />
+        <ExtensionHeader
+          workspaceId={workspaceId}
+          scopeName={workspaceName}
+          history={history}
+          chatId={chat.resolvedChatId}
+          onSelectChat={selectChat}
+          appHref={appHref}
+        />
+        {chat.error && (
+          <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
+            {chat.error}
+          </p>
+        )}
+        {composer.captureError && (
+          <p role='alert' className='px-3 py-2 text-[var(--text-error)] text-caption'>
+            {composer.captureError}
+          </p>
+        )}
+        {!selectedChatId && chat.messages.length === 0 && (
+          <div className='flex flex-1 items-center justify-center px-5'>
+            <h1 className='text-lg'>How can I help?</h1>
           </div>
         )}
-      </ChipModal>
-    </main>
+        <MothershipChat
+          onNavigateToChat={selectChat}
+          workspaceId={workspaceId}
+          userId={userId}
+          chatId={chat.resolvedChatId}
+          messages={chat.messages}
+          isSending={chat.isSending}
+          isReconnecting={chat.isReconnecting}
+          isLoading={
+            Boolean(selectedChatId) && chat.messages.length === 0 && chat.isChatHistoryPending
+          }
+          onSubmit={(message, files, contexts) => submit(message, files, contexts, false)}
+          onComposerSubmit={submit}
+          onStopGeneration={stop}
+          messageQueue={chat.messageQueue}
+          editingQueuedId={chat.editingQueuedId}
+          dispatchingHeadId={chat.dispatchingHeadId}
+          onRemoveQueuedMessage={chat.removeFromQueue}
+          onSendQueuedMessage={chat.sendNow}
+          onEditQueuedMessage={chat.editQueuedMessage}
+          onCancelQueueEdit={chat.cancelQueueEdit}
+          onViewSources={(messageId, requestId) =>
+            void setSourceParams(
+              { 'source-message': messageId, 'source-request': requestId ?? null },
+              { history: 'push' }
+            )
+          }
+          onWorkspaceResourceSelect={(resource) => void openResource(resource)}
+          composerKey={composerKey}
+          fileDropTarget={fileDropTarget}
+          draftScopeKey={`extension:${userId}:${workspaceId}:${selectedChatId ?? 'new'}`}
+          composerAttachments={composer.attachments}
+          composerResourceActions={composer.resourceActions}
+          composerToolbarActions={composer.toolbarActions}
+          composerModelSelectorOptions={composer.modelSelectorOptions}
+          layout='copilot-view'
+          className={cn('h-auto min-h-0', (selectedChatId || chat.messages.length > 0) && 'flex-1')}
+        />
+        <ChipModal
+          open={Boolean(sourceMessage)}
+          onOpenChange={(open) => {
+            if (!open) closeSources()
+          }}
+          srTitle='Cited sources'
+          size='sm'
+        >
+          <ChipModalHeader onClose={closeSources}>Cited sources</ChipModalHeader>
+          {sourceMessage && (
+            <div className='h-[60dvh] min-h-0'>
+              <SourcesResourceContent
+                chatId={chat.resolvedChatId}
+                resource={{
+                  id: 'cited-sources',
+                  type: 'sources',
+                  title: 'Sources',
+                  sources: {
+                    messageId: sourceMessage.id,
+                    ...(sourceParams['source-request']
+                      ? { requestId: sourceParams['source-request'] }
+                      : {}),
+                  },
+                }}
+              />
+            </div>
+          )}
+        </ChipModal>
+      </main>
+    </VoiceInputPermissionContext>
   )
 }

@@ -66,6 +66,7 @@ export const listWorkspaceApiKeys = defineAuthorizedWorkspaceUseCase({
       .select({
         id: apiKey.id,
         name: apiKey.name,
+        access: apiKey.access,
         key: apiKey.key,
         createdAt: apiKey.createdAt,
         lastUsed: apiKey.lastUsed,
@@ -116,6 +117,7 @@ export const renameWorkspaceApiKey = defineAuthorizedWorkspaceUseCase({
       .returning({
         id: apiKey.id,
         name: apiKey.name,
+        access: apiKey.access,
         createdAt: apiKey.createdAt,
         updatedAt: apiKey.updatedAt,
       })

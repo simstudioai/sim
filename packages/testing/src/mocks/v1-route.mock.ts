@@ -41,7 +41,7 @@ export function v1PersonalKeyCredential(userId: string, keyId = 'key-1') {
     authenticated: true,
     userId,
     keyType: 'personal' as const,
-    principal: { kind: 'personal_api_key' as const, userId, keyId },
+    principal: { kind: 'personal_api_key' as const, userId, keyId, access: 'write' as const },
   }
 }
 
@@ -68,6 +68,6 @@ export function v1WorkspaceKeyCredential(
     userId: creatorUserId,
     workspaceId,
     keyType: 'workspace' as const,
-    principal: { kind: 'workspace_api_key' as const, workspaceId, keyId },
+    principal: { kind: 'workspace_api_key' as const, workspaceId, keyId, access: 'write' as const },
   }
 }

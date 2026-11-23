@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import {
   PSP_OUTPUT_PROPERTIES,
@@ -14,6 +15,7 @@ export const uptimeRobotUpdatePspTool: InternalToolConfig<
   description:
     'Update a public status page in UptimeRobot. Only the provided fields are changed; logo and icon images can be replaced.',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

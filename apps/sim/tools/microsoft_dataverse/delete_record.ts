@@ -3,7 +3,10 @@ import type {
   DataverseDeleteRecordParams,
   DataverseDeleteRecordResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseDeleteRecord')
@@ -17,7 +20,7 @@ export const dataverseDeleteRecordTool: ToolConfig<
   description: 'Delete a record from a Microsoft Dataverse table by its ID.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -49,7 +52,7 @@ export const dataverseDeleteRecordTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}(${params.recordId.trim()})`
     },
     method: 'DELETE',

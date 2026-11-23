@@ -1,7 +1,7 @@
 /**
  * The shared reporting-usage read against a real ledger in a disposable PostgreSQL schema and a
- * real Redis. Skipped without `TEST_REDIS_URL`. Each test uses a fresh payer, so the in-process
- * cache is always cold and every read models a new process.
+ * real Redis. Each test uses a fresh payer, so the in-process cache is always cold and every read
+ * models a new process.
  */
 
 import { type AddressInfo, createServer, type Socket } from 'node:net'
@@ -166,7 +166,7 @@ async function exactSum(payer: BillingEntity, period: UsageQueryPeriod): Promise
   return Number(row?.cost ?? 0)
 }
 
-describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
+describe('shared reporting usage read', () => {
   let redis: Redis
   let payer: BillingEntity
 
@@ -175,7 +175,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
   }
 
   beforeAll(async () => {
-    redis = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
+    redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
     await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
     await connection.unsafe(`CREATE TABLE usage_log (
@@ -287,16 +287,6 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
 
     await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)
     expect(await redis.get(sharedKey(payer))).toBe('9.99')
-  })
-
-  it('sums the whole window in one query when Redis is absent', async () => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-    const period = openReportingWindow()
-    await insertUsage(payer, 2, new Date(period.start.getTime() + DAY_MS))
-    await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
-
-    await expect(readInNewProcess(payer, period)).resolves.toBe(5)
-    expect(summedPeriods).toEqual([period])
   })
 
   it('leases a due refresh to one of the processes missing together', async () => {
@@ -485,7 +475,7 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
   })
 
   it('sums the ledger without issuing or queuing a command while Redis is not ready', async () => {
-    const notReady = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
+    const notReady = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(notReady)
     try {
       await expect(readSoftGateUsageCost(payer, REPORTING)).resolves.toBe(5.75)

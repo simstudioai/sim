@@ -114,6 +114,12 @@ describe.skipIf(!connection)('computer use one-shot admission in PostgreSQL', ()
     await requireConnection()`UPDATE copilot_chats SET user_id = 'user-2'`
     expect(await claimComputerUseTool(input)).toBeNull()
   })
+  it('admits a typed app command with its canonical arguments', async () => {
+    await requireConnection()`UPDATE copilot_async_tool_calls SET args = '{"action":"app_command","command":{"name":"create_reminder","title":"Pay rent"},"activity":{"title":"Adding a reminder"}}'`
+    expect(await claimComputerUseTool(input)).toEqual({
+      args: { action: 'app_command', command: { name: 'create_reminder', title: 'Pay rent' } },
+    })
+  })
   it('rejects malformed canonical targets before consuming a claim', async () => {
     await requireConnection()`UPDATE copilot_async_tool_calls SET args = '{"action":"click","bundleId":"com.apple.Notes"}'`
     expect(await claimComputerUseTool(input)).toBeNull()

@@ -7,6 +7,7 @@ import {
   JOB_OUTPUTS,
   mapJob,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** Normalize the array schema plus legacy scalar and JSON-string status inputs. */
@@ -38,6 +39,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
   description:
     'Lists all jobs in an Ashby organization. By default returns Open, Closed, and Archived jobs. Specify status to filter.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

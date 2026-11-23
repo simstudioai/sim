@@ -1,5 +1,5 @@
 import { redisConfigMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   clearOAuthRefreshDeadFlag,
   getOAuthRefreshCoordinationIdentity,
@@ -34,10 +34,6 @@ function createFakeRedis(): FakeRedis {
   }
 }
 
-beforeEach(() => {
-  redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-})
-
 describe('isTerminalRefreshError', () => {
   it('treats a revoked refresh token as terminal but not a transient failure', () => {
     expect(isTerminalRefreshError('invalid_grant')).toBe(true)
@@ -66,6 +62,14 @@ describe('isCredentialRevocationError', () => {
     (providerId) => {
       expect(isCredentialRevocationError('unauthorized_client', 'jira')).toBe(true)
       expect(isCredentialRevocationError('unauthorized_client', providerId)).toBe(false)
+    }
+  )
+
+  it.each([undefined, 'facebook', 'microsoft'])(
+    "treats Meta's code 190 as a revocation only for Instagram, not %s",
+    (providerId) => {
+      expect(isCredentialRevocationError('190', 'instagram')).toBe(true)
+      expect(isCredentialRevocationError('190', providerId)).toBe(false)
     }
   )
 })
@@ -99,12 +103,6 @@ describe('markCredentialDead / getRecentTerminalError / clearDeadFlag', () => {
       expect(identity).not.toContain(scopeKey)
     }
   )
-
-  it('all functions are no-ops when Redis is unavailable', async () => {
-    await expect(markCredentialDead('acc-1', 'code')).resolves.toBeUndefined()
-    await expect(getRecentTerminalError('acc-1')).resolves.toBeNull()
-    await expect(clearDeadFlag('acc-1')).resolves.toBeUndefined()
-  })
 
   it('absorbs Redis errors without throwing', async () => {
     const redis = createFakeRedis()

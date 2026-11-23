@@ -113,7 +113,7 @@ function errorResponse(
       headers: projected.headers,
     })
   }
-  logger.error(`[${requestId}] ${FAILURE_MESSAGES[toolId] ?? 'Table operation failed'}:`, error)
+  logger.error(`${FAILURE_MESSAGES[toolId] ?? 'Table operation failed'}:`, error, { requestId })
   return Response.json(
     { error: FAILURE_MESSAGES[toolId] ?? 'Table operation failed' },
     { status: 500 }

@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleBaseParams,
   TailscaleListDnsNameserversResponse,
@@ -14,6 +15,7 @@ export const tailscaleListDnsNameserversTool: ToolConfig<
   name: 'Tailscale List DNS Nameservers',
   description: 'Get the global DNS nameservers configured for the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

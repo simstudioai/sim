@@ -1,0 +1,8 @@
+{{- /*
+Fail fast on values for features removed from the chart, when silently
+ignoring them would destroy data on upgrade.
+*/ -}}
+{{- $sharedStorage := .Values.sharedStorage | default dict }}
+{{- if and (dig "enabled" false $sharedStorage) (not (empty (dig "volumes" list $sharedStorage))) }}
+{{- fail (printf "sharedStorage was removed in chart 1.13.0: the chart created these PVCs but never mounted them, and upgrading would delete them. If you mount them through extraVolumes, first run: kubectl annotate pvc -n %s -l app.kubernetes.io/instance=%s,sim.ai/volume-type=shared-storage helm.sh/resource-policy=keep, then set sharedStorage.enabled=false." .Release.Namespace .Release.Name) }}
+{{- end }}

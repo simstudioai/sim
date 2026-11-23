@@ -2,7 +2,9 @@ import type {
   IncidentioSchedulesUpdateParams,
   IncidentioSchedulesUpdateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const schedulesUpdateTool: ToolConfig<
   IncidentioSchedulesUpdateParams,
@@ -12,6 +14,7 @@ export const schedulesUpdateTool: ToolConfig<
   name: 'Update Schedule',
   description: 'Update an existing schedule in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -43,12 +46,12 @@ export const schedulesUpdateTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Schedule configuration as JSON string with rotations. Example: {"rotations": [{"name": "Primary", "users": [{"id": "user_id"}], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": [{"interval": 1, "interval_type": "weekly"}]}]}',
+        'Schedule configuration as JSON with rotations. Sending it replaces the entire configuration, including any scheduled future versions of its rotations, so fetch the schedule first and include every version you want to keep. Example: {"rotations": [{"name": "Primary", "users": [{"id": "user_id"}], "handover_start_at": "2024-01-01T09:00:00Z", "handovers": [{"interval": 1, "interval_type": "weekly"}]}]}',
     },
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/schedules/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/schedules/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

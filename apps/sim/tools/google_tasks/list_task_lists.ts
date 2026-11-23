@@ -30,7 +30,7 @@ export const listTaskListsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of task lists to return (default 20, max 100)',
+      description: 'Maximum number of task lists to return (default 1000, max 1000)',
     },
     pageToken: {
       type: 'string',

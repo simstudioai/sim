@@ -2,7 +2,9 @@ import type {
   BrightDataCancelSnapshotParams,
   BrightDataCancelSnapshotResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const brightDataCancelSnapshotTool: ToolConfig<
   BrightDataCancelSnapshotParams,
@@ -13,6 +15,7 @@ export const brightDataCancelSnapshotTool: ToolConfig<
   description:
     'Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,7 +35,7 @@ export const brightDataCancelSnapshotTool: ToolConfig<
   request: {
     method: 'POST',
     url: (params) =>
-      `https://api.brightdata.com/datasets/v3/snapshot/${params.snapshotId?.trim()}/cancel`,
+      `https://api.brightdata.com/datasets/v3/snapshot/${safeUrlPathSegment(params.snapshotId, 'snapshotId')}/cancel`,
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
     }),

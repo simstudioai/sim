@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadCampaignStatisticsResponse,
@@ -33,6 +34,7 @@ export const getCampaignStatisticsTool: ToolConfig<
   description:
     'Retrieves per-email statistics rows for a Smartlead campaign, filterable by sequence step, engagement status, and sent-time range.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

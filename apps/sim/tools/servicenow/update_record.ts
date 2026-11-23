@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { SERVICENOW_CREDENTIAL_PARAMS } from '@/tools/servicenow/params'
 import type { ServiceNowUpdateParams, ServiceNowUpdateResponse } from '@/tools/servicenow/types'
 import {
   buildServiceNowHeaders,
@@ -6,7 +7,9 @@ import {
   parseServiceNowResponse,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ServiceNowUpdateRecordTool')
 
@@ -15,6 +18,7 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
   name: 'Update ServiceNow Record',
   description: 'Update an existing record in a ServiceNow table',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {
@@ -35,6 +39,7 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...SERVICENOW_CREDENTIAL_PARAMS,
     tableName: {
       type: 'string',
       required: true,
@@ -58,7 +63,7 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      return `${baseUrl}/api/now/table/${params.tableName.trim()}/${params.sysId.trim()}`
+      return `${baseUrl}/api/now/table/${safeUrlPathSegment(params.tableName, 'tableName')}/${safeUrlPathSegment(params.sysId, 'sysId')}`
     },
     method: 'PATCH',
     headers: (params) => buildServiceNowHeaders(params, { json: true }),

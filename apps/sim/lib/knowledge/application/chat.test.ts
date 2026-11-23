@@ -276,7 +276,7 @@ describe('Search Assistant citations', () => {
   it.each([
     tool({ data: citation }, { status: 'error' }),
     tool({ success: false, data: citation }),
-    tool({ data: citation }, { name: 'web_search' }),
+    tool({ data: citation }, { name: 'call_integration_tool' }),
     tool({ data: { ...citation, citationUrl: 'javascript:alert(1)' } }),
     tool({ data: { ...citation, citationUrl: 'https://user:password@docs.example' } }),
   ])('does not cite failed, unrelated, or unsafe evidence', (result) => {

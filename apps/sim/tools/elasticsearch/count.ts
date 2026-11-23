@@ -4,6 +4,7 @@ import type {
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountResponse> = {
   id: 'elasticsearch_count',
@@ -70,7 +71,7 @@ export const countTool: ToolConfig<ElasticsearchCountParams, ElasticsearchCountR
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${encodeURIComponent(params.index)}/_count`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_count`
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),

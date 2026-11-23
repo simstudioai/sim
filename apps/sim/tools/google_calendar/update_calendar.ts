@@ -3,6 +3,7 @@ import {
   type GoogleCalendarApiCalendarResponse,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface GoogleCalendarUpdateCalendarParams {
   accessToken: string
@@ -29,7 +30,7 @@ export interface GoogleCalendarUpdateCalendarResponse {
 
 const buildUpdateCalendarUrl = (params: GoogleCalendarUpdateCalendarParams) => {
   const calendarId = params.calendarId?.trim() || 'primary'
-  return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}`
+  return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}`
 }
 
 const buildUpdateCalendarBody = (params: GoogleCalendarUpdateCalendarParams) => {

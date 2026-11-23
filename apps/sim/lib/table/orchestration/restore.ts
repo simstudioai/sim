@@ -36,7 +36,7 @@ export async function performRestoreTable(
     await restoreTable(tableId, requestId)
     const table = (await getTableById(tableId)) ?? archivedTable
 
-    logger.info(`[${requestId}] Restored table ${tableId}`)
+    logger.info(`Restored table ${tableId}`, { requestId })
 
     recordAudit({
       workspaceId: archivedTable.workspaceId,
@@ -54,7 +54,7 @@ export async function performRestoreTable(
 
     return { success: true, table }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to restore table ${tableId}`, { error })
+    logger.error(`Failed to restore table ${tableId}`, { requestId, error })
     if (error instanceof TableConflictError) {
       return { success: false, error: error.message, errorCode: 'conflict' }
     }

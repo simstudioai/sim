@@ -1,0 +1,22 @@
+{
+  "namespace": "launchdarkly",
+  "methods": {
+    "create_flag": "createFlag",
+    "delete_flag": "deleteFlag",
+    "get_audit_log": "getAuditLog",
+    "get_flag": "getFlag",
+    "get_flag_status": "getFlagStatus",
+    "list_environments": "listEnvironments",
+    "list_flags": "listFlags",
+    "list_members": "listMembers",
+    "list_projects": "listProjects",
+    "list_segments": "listSegments",
+    "toggle_flag": "toggleFlag",
+    "update_flag": "updateFlag"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

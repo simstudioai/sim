@@ -55,6 +55,12 @@ describe('HarmonicBlock', () => {
     expect(direct.personUrns).toEqual(['urn:harmonic:person:44'])
   })
 
+  it('keeps model arguments on agent tool calls, where the operation arrives in context', () => {
+    const args = { oauthCredential: 'credential-id', personId: '22', companyContextUrns: ['urn:c'] }
+    const params = { ...args, ...buildParams(args, { operation: 'harmonic_get_person' }) }
+    expect(params).toMatchObject({ personId: '22', companyContextUrns: ['urn:c'] })
+  })
+
   it('does not parse malformed batch JSON before the secret-safe tool boundary', () => {
     expect(
       resolve({

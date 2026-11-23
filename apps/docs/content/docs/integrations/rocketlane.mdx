@@ -2,7 +2,7 @@
 title: Rocketlane
 description: Manage client onboarding projects, tasks, time tracking, and invoices
 integration:
-  type: "rocketlane"
+  type: "rocketlane_v2"
   color: "#000000"
 ---
 
@@ -31,7 +31,6 @@ Create a new Rocketlane project with a customer, owner, dates, team members, tem
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectName` | string | Yes | Name of the project |
 | `customerCompanyName` | string | Yes | Name of the customer company \(case-sensitive exact match; cannot be changed after creation\) |
 | `ownerUserId` | number | No | User ID of the project owner \(either ownerUserId or ownerEmailId must be provided\) |
@@ -185,7 +184,6 @@ Retrieve a Rocketlane project by its unique identifier
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project |
 | `includeFields` | string | No | Comma-separated extra fields to return in the response \(e.g. budgetedHours,progressPercentage\) |
 | `includeAllFields` | boolean | No | Return all fields in the response body |
@@ -309,7 +307,6 @@ List Rocketlane projects with optional filters, sorting, and token-based paginat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Maximum number of projects per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous response \(valid for 15 minutes\) |
 | `includeFields` | string | No | Comma-separated extra fields to return in the response \(e.g. budgetedHours,progressPercentage\) |
@@ -456,7 +453,6 @@ Update a Rocketlane project by ID, including name, dates, visibility, owner, sta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project to update |
 | `projectName` | string | No | New name of the project |
 | `startDate` | string | No | Date on which the project begins \(YYYY-MM-DD\) |
@@ -593,7 +589,6 @@ Archive a Rocketlane project by ID, making it dormant while preserving its detai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project to archive |
 
 #### Output
@@ -615,7 +610,6 @@ Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project to delete |
 
 #### Output
@@ -637,7 +631,6 @@ Add team members and customer stakeholders to a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project |
 | `memberUserIds` | array | No | User IDs of team members from your organization to add |
 | `memberEmailIds` | array | No | Emails of team members from your organization to add |
@@ -763,7 +756,6 @@ Remove team members from a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project |
 | `memberUserIds` | array | No | User IDs of team members to remove \(at least one of memberUserIds or memberEmailIds is required\) |
 | `memberEmailIds` | array | No | Emails of team members to remove \(at least one of memberUserIds or memberEmailIds is required\) |
@@ -887,7 +879,6 @@ Import a project template into an existing Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project to import the template into |
 | `templateId` | number | Yes | Unique identifier of the template to import |
 | `startDate` | string | Yes | Date on which the template goes into effect for the project \(YYYY-MM-DD\) |
@@ -1012,7 +1003,6 @@ List the placeholders of a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project |
 
 #### Output
@@ -1049,7 +1039,6 @@ Assign a placeholder in a Rocketlane project to a user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project |
 | `placeholderId` | number | Yes | Unique identifier of the placeholder to assign |
 | `userId` | number | No | User ID of the project member to assign \(either userId or userEmailId must be provided; must be a customer user for CUSTOMER placeholders\) |
@@ -1189,7 +1178,6 @@ Unassign a placeholder from its user in a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | Unique identifier of the project |
 | `placeholderId` | number | Yes | Unique identifier of the placeholder to unassign |
 
@@ -1327,7 +1315,6 @@ Create a new task in a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskName` | string | Yes | Name of the task |
 | `projectId` | number | Yes | ID of the project the task belongs to |
 | `taskDescription` | string | No | Description of the task in HTML format |
@@ -1444,7 +1431,6 @@ Retrieve detailed information about a Rocketlane task by its unique identifier
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to retrieve |
 | `includeFields` | array | No | Extra fields to include in the response \(startDateActual, dueDateActual, type, phase, assignees, followers, dependencies, billable, csatEnabled, priority, timeEntryCategory, financialsBudget, taskPrivateNote, parent, externalReferenceId\) |
 | `includeAllFields` | boolean | No | Whether all fields should be returned in the response |
@@ -1543,7 +1529,6 @@ Retrieve all Rocketlane tasks with optional filters, sorting, and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Number of tasks per page \(defaults to 100\) |
 | `pageToken` | string | No | Token pointing to the next page of results, from a previous response |
 | `includeFields` | array | No | Extra fields to include in the response \(startDateActual, dueDateActual, type, phase, assignees, followers, dependencies, billable, csatEnabled, priority, timeEntryCategory, financialsBudget, taskPrivateNote, parent, externalReferenceId\) |
@@ -1662,7 +1647,6 @@ Update the properties of an existing Rocketlane task by its unique identifier
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to update |
 | `taskName` | string | No | New name of the task |
 | `taskDescription` | string | No | Description of the task in HTML format |
@@ -1773,7 +1757,6 @@ Permanently delete a Rocketlane task by its unique identifier
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to delete |
 
 #### Output
@@ -1795,7 +1778,6 @@ Move a Rocketlane task to a given phase, associating the task with that phase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to move |
 | `phaseId` | number | Yes | Unique identifier of the phase to move the task to |
 
@@ -1893,7 +1875,6 @@ Add members as assignees to a Rocketlane task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to add assignees to |
 | `memberUserIds` | array | No | User IDs of members to add as assignees |
 | `memberEmailIds` | array | No | Email addresses of members to add as assignees |
@@ -1992,7 +1973,6 @@ Remove assignees from a Rocketlane task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to remove assignees from |
 | `memberUserIds` | array | No | User IDs of members to remove from the assignees |
 | `memberEmailIds` | array | No | Email addresses of members to remove from the assignees |
@@ -2091,7 +2071,6 @@ Add members as followers to a Rocketlane task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to add followers to |
 | `memberUserIds` | array | No | User IDs of members to add as followers |
 | `memberEmailIds` | array | No | Email addresses of members to add as followers |
@@ -2190,7 +2169,6 @@ Remove followers from a Rocketlane task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to remove followers from |
 | `memberUserIds` | array | No | User IDs of members to remove from the followers |
 | `memberEmailIds` | array | No | Email addresses of members to remove from the followers |
@@ -2289,7 +2267,6 @@ Add finish-to-start dependencies between a Rocketlane task and other tasks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to add dependencies to |
 | `dependencyTaskIds` | array | Yes | Task IDs the task should depend on |
 
@@ -2387,7 +2364,6 @@ Remove dependencies from a Rocketlane task
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `taskId` | number | Yes | Unique identifier of the task to remove dependencies from |
 | `dependencyTaskIds` | array | Yes | Task IDs to remove from the task dependencies |
 
@@ -2485,7 +2461,6 @@ Create a new phase in a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `phaseName` | string | Yes | Name of the phase |
 | `projectId` | number | Yes | ID of the project to create the phase in |
 | `startDate` | string | Yes | Planned start date of the phase \(YYYY-MM-DD\) |
@@ -2538,7 +2513,6 @@ Retrieve a single Rocketlane phase by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `phaseId` | number | Yes | ID of the phase to retrieve |
 | `includeFields` | string | No | Comma-separated extra phase properties to include in the response \(supported: startDateActual, dueDateActual\) |
 | `includeAllFields` | boolean | No | Whether to return all phase properties in the response |
@@ -2586,7 +2560,6 @@ List phases of a Rocketlane project, with optional filters, sorting, and paginat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | ID of the project to list phases for |
 | `pageSize` | number | No | Number of phases per page |
 | `pageToken` | string | No | Page token returned by a previous request \(valid for 15 minutes\) |
@@ -2645,7 +2618,6 @@ Update the name, dates, status, or privacy of an existing Rocketlane phase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `phaseId` | number | Yes | ID of the phase to update |
 | `phaseName` | string | No | New name of the phase |
 | `startDate` | string | No | New planned start date of the phase \(YYYY-MM-DD\) |
@@ -2698,7 +2670,6 @@ Permanently delete a Rocketlane phase by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `phaseId` | number | Yes | ID of the phase to delete |
 
 #### Output
@@ -2720,7 +2691,6 @@ Create a custom field in your Rocketlane account, with options for SINGLE_CHOICE
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `fieldLabel` | string | Yes | Name of the field |
 | `fieldType` | string | Yes | Type of the field \(TEXT, MULTI_LINE_TEXT, YES_OR_NO, DATE, SINGLE_CHOICE, MULTIPLE_CHOICE, SINGLE_USER, MULTIPLE_USER, NUMBER, NOTE, RATING\) |
 | `objectType` | string | Yes | Object the field is associated with \(PROJECT, TASK, or USER\) |
@@ -2774,7 +2744,6 @@ Retrieve a single Rocketlane field by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `fieldId` | number | Yes | ID of the field to retrieve |
 | `includeFields` | string | No | Comma-separated extra field properties to include in the response \(supported: options\) |
 | `includeAllFields` | boolean | No | Whether to return all field properties in the response |
@@ -2821,7 +2790,6 @@ List fields in your Rocketlane account, with optional filters, sorting, and pagi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Number of fields per page |
 | `pageToken` | string | No | Page token returned by a previous request \(valid for 15 minutes\) |
 | `includeFields` | string | No | Comma-separated extra field properties to include in the response \(supported: options\) |
@@ -2881,7 +2849,6 @@ Update the label, description, enabled state, or privacy of an existing Rocketla
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `fieldId` | number | Yes | ID of the field to update |
 | `fieldLabel` | string | No | New name of the field |
 | `fieldDescription` | string | No | New description of the field |
@@ -2932,7 +2899,6 @@ Permanently delete a Rocketlane field by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `fieldId` | number | Yes | ID of the field to delete |
 
 #### Output
@@ -2954,7 +2920,6 @@ Add a new option to an existing SINGLE_CHOICE or MULTIPLE_CHOICE Rocketlane fiel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `fieldId` | number | Yes | ID of the field to add the option to |
 | `optionLabel` | string | Yes | Display label of the new option |
 | `optionColor` | string | Yes | Color of the new option \(RED, YELLOW, GREEN, TEAL, CYAN, BLUE, PURPLE, MAGENTA, GRAY, COOL_GRAY\) |
@@ -2980,7 +2945,6 @@ Update the label or color of an existing option on a SINGLE_CHOICE or MULTIPLE_C
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `fieldId` | number | Yes | ID of the field the option belongs to |
 | `optionValue` | number | Yes | Unique identifier of the option to update |
 | `optionLabel` | string | No | New display label of the option |
@@ -3007,7 +2971,6 @@ Create a time entry in Rocketlane against an adhoc activity, task, project phase
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `date` | string | Yes | Date of the time entry in YYYY-MM-DD format |
 | `minutes` | number | Yes | Duration of the time entry in minutes \(1-1440\) |
 | `activityName` | string | No | Name of the adhoc activity to track time against. Exactly one source is required among activityName, taskId, projectPhaseId, and projectId — providing more than one results in an error |
@@ -3107,7 +3070,6 @@ Get a single Rocketlane time entry by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `timeEntryId` | number | Yes | ID of the time entry to retrieve |
 | `includeFields` | string | No | Comma-separated extra fields to include in the response \(notes, sourceType, deleted, status, submittedBy, submittedAt, approvedBy, approvedAt, rejectedBy, rejectedAt, costRate, billRate\) |
 | `includeAllFields` | boolean | No | Whether all fields should be returned in the response |
@@ -3197,7 +3159,6 @@ List Rocketlane time entries with optional filters, sorting, and cursor-based pa
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `dateEq` | string | No | Only entries on this exact date \(YYYY-MM-DD\) |
 | `dateGt` | string | No | Only entries after this date \(YYYY-MM-DD\) |
 | `dateGe` | string | No | Only entries on or after this date \(YYYY-MM-DD\) |
@@ -3320,7 +3281,6 @@ Search Rocketlane time entries with filters, sorting, and pagination (deprecated
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `dateEq` | string | No | Only entries on this exact date \(YYYY-MM-DD\) |
 | `dateGt` | string | No | Only entries after this date \(YYYY-MM-DD\) |
 | `dateGe` | string | No | Only entries on or after this date \(YYYY-MM-DD\) |
@@ -3433,7 +3393,6 @@ Update a Rocketlane time entry by ID. The activityName, notes, billable, and min
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `timeEntryId` | number | Yes | ID of the time entry to update |
 | `date` | string | Yes | Date of the time entry in YYYY-MM-DD format \(mandatory so the total time for the date does not exceed 24 hours\) |
 | `minutes` | number | Yes | Duration of the time entry in minutes \(1-1440\) |
@@ -3529,7 +3488,6 @@ Permanently delete a Rocketlane time entry by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `timeEntryId` | number | Yes | ID of the time entry to delete |
 
 #### Output
@@ -3551,7 +3509,6 @@ List the time entry categories configured in Rocketlane
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Maximum number of categories per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous response for fetching the next page |
 
@@ -3580,7 +3537,6 @@ Create a time-off for a team member in Rocketlane. Holidays and weekends within 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `userId` | number | No | User ID of the team member taking the time-off \(provide this or the user email\) |
 | `userEmail` | string | No | Email of the team member taking the time-off \(provide this or the user ID\) |
 | `startDate` | string | Yes | Time-off start date in YYYY-MM-DD format |
@@ -3636,7 +3592,6 @@ Retrieve a Rocketlane time-off by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `timeOffId` | number | Yes | Unique identifier of the time-off |
 | `includeFields` | array | No | Optional fields to include in the response: note, notifyUsers |
 | `includeAllFields` | boolean | No | Return all fields in the response |
@@ -3683,7 +3638,6 @@ List time-offs in Rocketlane with optional date, type, and user filters, sorting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Maximum number of time-offs per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous response \(valid for 15 minutes\) |
 | `includeFields` | array | No | Optional fields to include in the response: note, notifyUsers |
@@ -3758,7 +3712,6 @@ Permanently delete a Rocketlane time-off by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `timeOffId` | number | Yes | Unique identifier of the time-off to delete |
 
 #### Output
@@ -3780,7 +3733,6 @@ Retrieve a Rocketlane user by their ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `userId` | number | Yes | ID of the user to retrieve |
 | `includeFields` | string | No | Comma-separated extra fields to include: role, company, permission, holidayCalendar, capacityInMinutes, profilePictureUrl |
 | `includeAllFields` | boolean | No | Whether to include all fields in the response |
@@ -3840,7 +3792,6 @@ List users in your Rocketlane account, with optional filters, sorting, and pagin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Maximum number of users per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous request \(valid for 15 minutes\) |
 | `includeFields` | string | No | Comma-separated extra fields to include: role, company, permission, holidayCalendar, capacityInMinutes, profilePictureUrl |
@@ -3944,7 +3895,6 @@ Create a new space in a Rocketlane project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | ID of the project the space belongs to |
 | `spaceName` | string | Yes | Name of the space |
 | `private` | boolean | No | Whether the space is private or shared \(defaults to false\) |
@@ -3985,7 +3935,6 @@ Retrieve a Rocketlane space by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceId` | number | Yes | ID of the space to retrieve |
 
 #### Output
@@ -4024,7 +3973,6 @@ List spaces in a Rocketlane project, with optional filters, sorting, and paginat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | ID of the project whose spaces to list |
 | `pageSize` | number | No | Maximum number of spaces per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous request \(valid for 15 minutes\) |
@@ -4086,7 +4034,6 @@ Update a Rocketlane space by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceId` | number | Yes | ID of the space to update |
 | `spaceName` | string | No | New name of the space |
 
@@ -4126,7 +4073,6 @@ Permanently delete a Rocketlane space by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceId` | number | Yes | ID of the space to delete |
 
 #### Output
@@ -4148,7 +4094,6 @@ Create a new space document in a Rocketlane space
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceId` | number | Yes | ID of the space the document belongs to |
 | `spaceDocumentType` | string | Yes | Type of the space document: ROCKETLANE_DOCUMENT or EMBEDDED_DOCUMENT |
 | `spaceDocumentName` | string | No | Name of the space document \(defaults to Untitled\) |
@@ -4196,7 +4141,6 @@ Retrieve a Rocketlane space document by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceDocumentId` | number | Yes | ID of the space document to retrieve |
 
 #### Output
@@ -4240,7 +4184,6 @@ List space documents in a Rocketlane project, with optional filters, sorting, an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `projectId` | number | Yes | ID of the project whose space documents to list |
 | `pageSize` | number | No | Maximum number of space documents per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous request \(valid for 15 minutes\) |
@@ -4308,7 +4251,6 @@ Update a Rocketlane space document by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceDocumentId` | number | Yes | ID of the space document to update |
 | `spaceDocumentName` | string | No | New name of the space document |
 | `url` | string | No | New URL to embed in the space document \(for embedded documents\) |
@@ -4354,7 +4296,6 @@ Permanently delete a Rocketlane space document by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `spaceDocumentId` | number | Yes | ID of the space document to delete |
 
 #### Output
@@ -4376,7 +4317,6 @@ List resource allocations in Rocketlane within a date range, with optional membe
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `startDate` | string | Yes | Return allocations that start on or after this date \(YYYY-MM-DD\) |
 | `endDate` | string | Yes | Return allocations that end on or before this date \(YYYY-MM-DD\) |
 | `pageSize` | number | No | Maximum number of allocations per page \(defaults to 100\) |
@@ -4463,7 +4403,6 @@ Retrieve a Rocketlane invoice by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `invoiceId` | number | Yes | Unique identifier of the invoice |
 | `includeFields` | array | No | Optional fields to include in the response: notes, attachments |
 | `includeAllFields` | boolean | No | Return all fields in the response |
@@ -4530,7 +4469,6 @@ Search invoices in Rocketlane with date, amount, company, invoice-number, and st
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `pageSize` | number | No | Maximum number of invoices per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous response \(valid for 15 minutes\) |
 | `includeFields` | array | No | Optional fields to include in the response: notes, attachments |
@@ -4650,7 +4588,6 @@ List line items of a Rocketlane invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `invoiceId` | number | Yes | Unique identifier of the invoice |
 | `pageSize` | number | No | Maximum number of line items per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous response \(valid for 15 minutes\) |
@@ -4696,7 +4633,6 @@ List payments recorded against a Rocketlane invoice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rocketlane API key |
 | `invoiceId` | number | Yes | Unique identifier of the invoice |
 | `pageSize` | number | No | Maximum number of payments per page \(defaults to 100\) |
 | `pageToken` | string | No | Page token from a previous response \(valid for 15 minutes\) |

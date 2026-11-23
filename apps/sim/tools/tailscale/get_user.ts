@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/tailscale/outputs'
 import type {
   TailscaleGetUserResponse,
@@ -13,6 +14,7 @@ export const tailscaleGetUserTool: ToolConfig<TailscaleUserParams, TailscaleGetU
   name: 'Tailscale Get User',
   description: 'Get details of a specific user',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

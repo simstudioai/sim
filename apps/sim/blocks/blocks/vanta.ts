@@ -1,7 +1,7 @@
 import { VantaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 const LIST_OPERATIONS = [
   'list_frameworks',
@@ -893,66 +893,78 @@ export const VantaBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `vanta_${params.operation}`,
-      params: (params) => {
-        const { operation, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
 
         if (LIST_OPERATIONS.includes(operation)) {
           result.pageSize =
-            rest.pageSize !== undefined && rest.pageSize !== '' && rest.pageSize !== null
-              ? Number(rest.pageSize)
+            params.pageSize !== undefined && params.pageSize !== '' && params.pageSize !== null
+              ? Number(params.pageSize)
               : undefined
-          result.pageCursor = optionalString(rest.pageCursor)
+          result.pageCursor = optionalString(params.pageCursor)
         }
 
         switch (operation) {
           case 'list_test_entities':
-            result.entityStatus = dropdownFilter(rest.entityStatus)
+            result.entityStatus = dropdownFilter(params.entityStatus)
             break
           case 'upload_document_file': {
-            const normalizedFile = normalizeFileInput(rest.file, { single: true })
+            const normalizedFile = normalizeFileInput(params.file, { single: true })
             if (normalizedFile) result.file = normalizedFile
-            result.fileName = optionalString(rest.uploadFileName)
-            result.description = optionalString(rest.uploadDescription)
-            result.effectiveAtDate = optionalString(rest.effectiveAtDate)
+            result.fileName =
+              optionalString(params.uploadFileName) ??
+              optionalString(toolCallArg(context, params.fileName))
+            result.description =
+              optionalString(params.uploadDescription) ??
+              optionalString(toolCallArg(context, params.description))
+            result.effectiveAtDate = optionalString(params.effectiveAtDate)
             break
           }
           case 'list_documents':
-            result.statusMatchesAny = optionalString(rest.documentStatusFilter)
+            result.statusMatchesAny =
+              optionalString(params.documentStatusFilter) ??
+              optionalString(toolCallArg(context, params.statusMatchesAny))
             break
           case 'list_tests':
-            result.statusFilter = dropdownFilter(rest.statusFilter)
-            result.categoryFilter = dropdownFilter(rest.categoryFilter)
-            result.isInRollout = triStateToBoolean(rest.isInRollout)
+            result.statusFilter = dropdownFilter(params.statusFilter)
+            result.categoryFilter = dropdownFilter(params.categoryFilter)
+            result.isInRollout = triStateToBoolean(params.isInRollout)
             break
           case 'list_people':
-            result.employmentStatus = dropdownFilter(rest.employmentStatus)
+            result.employmentStatus = dropdownFilter(params.employmentStatus)
             break
           case 'list_vendors':
-            result.name = optionalString(rest.vendorName)
-            result.statusMatchesAny = optionalString(rest.vendorStatusFilter)
+            result.name =
+              optionalString(params.vendorName) ?? optionalString(toolCallArg(context, params.name))
+            result.statusMatchesAny =
+              optionalString(params.vendorStatusFilter) ??
+              optionalString(toolCallArg(context, params.statusMatchesAny))
             break
           case 'list_vulnerabilities':
-            result.q = optionalString(rest.searchQuery)
-            result.severity = dropdownFilter(rest.severity)
-            result.isFixAvailable = triStateToBoolean(rest.isFixAvailable)
-            result.isDeactivated = triStateToBoolean(rest.isDeactivated)
+            result.q =
+              optionalString(params.searchQuery) ?? optionalString(toolCallArg(context, params.q))
+            result.severity = dropdownFilter(params.severity)
+            result.isFixAvailable = triStateToBoolean(params.isFixAvailable)
+            result.isDeactivated = triStateToBoolean(params.isDeactivated)
             result.includeVulnerabilitiesWithoutSlas = triStateToBoolean(
-              rest.includeVulnerabilitiesWithoutSlas
+              params.includeVulnerabilitiesWithoutSlas
             )
             break
           case 'list_vulnerability_remediations':
-            result.severity = dropdownFilter(rest.severity)
-            result.isRemediatedOnTime = triStateToBoolean(rest.isRemediatedOnTime)
+            result.severity = dropdownFilter(params.severity)
+            result.isRemediatedOnTime = triStateToBoolean(params.isRemediatedOnTime)
             break
           case 'list_vulnerable_assets':
-            result.q = optionalString(rest.searchQuery)
-            result.assetType = dropdownFilter(rest.assetType)
+            result.q =
+              optionalString(params.searchQuery) ?? optionalString(toolCallArg(context, params.q))
+            result.assetType = dropdownFilter(params.assetType)
             break
           case 'list_risk_scenarios':
-            result.type = dropdownFilter(rest.riskType)
-            result.includeIgnored = triStateToBoolean(rest.includeIgnored)
-            result.orderBy = dropdownFilter(rest.orderBy)
+            result.type =
+              dropdownFilter(params.riskType) ?? optionalString(toolCallArg(context, params.type))
+            result.includeIgnored = triStateToBoolean(params.includeIgnored)
+            result.orderBy = dropdownFilter(params.orderBy)
             break
           default:
             break

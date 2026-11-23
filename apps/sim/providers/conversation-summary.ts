@@ -284,7 +284,6 @@ export function createAgentConversationCompactor(
           reasoningEffort: undefined,
           verbosity: undefined,
           promptCaching: false,
-          previousInteractionId: undefined,
           agentEvents: undefined,
           resolveToolInvocationId: undefined,
         })

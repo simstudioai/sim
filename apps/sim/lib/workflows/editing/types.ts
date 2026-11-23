@@ -46,6 +46,12 @@ export const WORKFLOW_SKIPPED_ITEM_TYPES = [
   'invalid_edge_scope',
   'invalid_source_handle',
   'invalid_target_handle',
+  /**
+   * A new edge would close a cycle (a self-loop included): every block on one
+   * waits on the block before it, so none of them runs. An edge the workflow
+   * already stored is never refused for this, so a stored cycle survives edits.
+   */
+  'edge_cycle',
   'invalid_subblock_field',
   'missing_required_params',
   'invalid_subflow_parent',
@@ -154,6 +160,12 @@ export interface ApplyOperationsResult {
   state: any
   validationErrors: ValidationError[]
   skippedItems: SkippedItem[]
+  /**
+   * Operations whose handler recorded at least one non-deferred skip. Counted per
+   * operation, not per skip: one `add` can drop several tools and still be one
+   * operation, so `operations - skippedItems` would go negative.
+   */
+  declinedOperationCount: number
   /**
    * Requested `block_id` -> the id the block was actually given, for every
    * `add`/`insert_into_subflow` whose requested id was not already a UUID.

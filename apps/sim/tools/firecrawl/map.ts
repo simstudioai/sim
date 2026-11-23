@@ -79,7 +79,7 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         url: params.url,
       }
 
@@ -98,13 +98,13 @@ export const mapTool: ToolConfig<MapParams, MapResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data: { success: boolean; links?: { url: string }[] } = await response.json()
 
     return {
       success: data.success,
       output: {
         success: data.success,
-        links: data.links || [],
+        links: data.links?.map((link) => link.url) ?? [],
         creditsUsed: 1,
       },
     }

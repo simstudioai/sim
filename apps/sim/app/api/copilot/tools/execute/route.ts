@@ -9,10 +9,10 @@ import { getRunSecretAuthority } from '@/lib/mothership/async-runs/repository'
 import { toolResultForModel } from '@/lib/mothership/chat/sim-key-redaction'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 import {
   describeWithholdingCause,
   inspectToolResultForCopilot,
@@ -36,7 +36,7 @@ const logger = createLogger('CopilotToolExecuteInternalAPI')
  * across a turn. Keyed by the turn (messageId) so one background lane shares
  * one registry; idle-evicted since nothing signals turn end on this route.
  *
- * The turn's secret authority, which Go's body cannot carry, is cached beside it
+ * The turn's secret authority, which the worker's body cannot carry, is cached beside it
  * (see {@link getRunSecretAuthority}).
  */
 const turnContextCache = new LRUCache<
@@ -68,23 +68,23 @@ async function getTurnToolContext(
   return entry
 }
 
-// POST /api/copilot/tools/execute — internal (Go → Sim) in-band execution of
+// POST /api/copilot/tools/execute — internal (worker → Sim) in-band execution of
 // one sim-server tool announced on a LIVE mothership turn. This is what lets
 // background (async) subagents — and the main lane while background agents are
-// running — use sim-executed tools without a checkpoint pause: Go calls here
+// running — use sim-executed tools without a checkpoint pause: the worker calls here
 // synchronously instead of parking the turn, and the tool runs through the
 // same server tool router the resume driver uses. Trusted server-to-server
-// only: Go supplies the acting user, proven by the internal API secret.
+// only: the worker supplies the acting user, proven by the internal API secret.
 //
 // Results cross a model boundary here just as they do in the resume driver, so
 // this route mirrors its provenance discipline: a per-call registry fork feeds
-// the handler, the settled result is projected before it returns to Go, and
+// the handler, the settled result is projected before it returns to the worker, and
 // the fork is merged back only when the projection was safe and the fork
 // stayed complete. Without this, every result crossed unprojected and every
 // thrown error was replaced by the opaque "could not be returned safely"
 // sentinel (the projection fails closed on a missing registry).
 export const POST = withRouteHandler((request: NextRequest) =>
-  withIncomingGoSpan(
+  withIncomingWorkerSpan(
     request.headers,
     TraceSpan.CopilotToolsExecuteInband,
     undefined,
@@ -275,7 +275,7 @@ export const POST = withRouteHandler((request: NextRequest) =>
           })
         }
         /**
-         * The response IS the model-facing channel on this lane — Go relays it straight into
+         * The response IS the model-facing channel on this lane — the worker relays it straight into
          * the turn — so it carries the same projection the resume lane's
          * `getToolCallTerminalData` produces, not the raw handler output. Without this,
          * `generate_api_key`'s freshly minted plaintext key crossed to the model here while

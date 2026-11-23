@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -32,6 +33,7 @@ const hoisted = vi.hoisted(() => ({
   createRecord: vi.fn(),
   personalAccounts: vi.fn(),
   createPersonalToken: vi.fn(),
+  updatePersonalToken: vi.fn(),
 }))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
@@ -54,7 +56,7 @@ vi.mock('@/lib/credentials/application/workspace-personal-accounts', () => ({
 }))
 vi.mock('@/lib/credentials/personal-tokens', () => ({
   createPersonalTokenCredential: hoisted.createPersonalToken,
-  updatePersonalTokenCredential: vi.fn(),
+  updatePersonalTokenCredential: hoisted.updatePersonalToken,
 }))
 vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 vi.mock('@/lib/integrations/principal-scope.server', () => ({ allowedIntegrationTypes: vi.fn() }))
@@ -153,6 +155,7 @@ describe('updateWorkspaceCredentialUseCase', () => {
       credentialId: credential.id,
       displayName: 'Zoom prod',
       credential,
+      actorUserId: requirePrincipalSubjectUserId(apiKeyPrincipal),
     })
     expect(mocks.updateRecord.mock.calls[0][0]).not.toHaveProperty('assertedWorkspaceId')
   })
@@ -236,6 +239,40 @@ describe('updateWorkspaceCredentialUseCase', () => {
       })
     ).rejects.toMatchObject({ detailCode: 'CREDENTIAL_ADMIN_ACCESS_REQUIRED' })
     expect(mocks.updateRecord).not.toHaveBeenCalled()
+  })
+
+  it('rejects provider workspace changes that a personal token cannot persist', async () => {
+    const personalToken = {
+      ...credential,
+      type: 'personal_token' as const,
+      providerId: 'gitlab',
+      workspaceId: null,
+      organizationId: 'organization-1',
+    }
+    mocks.loadWorkspace.mockResolvedValue({
+      ...workspace,
+      workspaceOrganizationId: personalToken.organizationId,
+    })
+    mocks.getWorkspaceCredential.mockResolvedValue(personalToken)
+    mocks.getActor.mockResolvedValue({
+      credential: personalToken,
+      member: { role: 'admin' },
+      hasWorkspaceAccess: true,
+      isAdmin: true,
+    })
+    mocks.updatePersonalToken.mockResolvedValue({ success: true, updatedFields: [] })
+
+    await expect(
+      updateWorkspaceCredentialUseCase.execute({
+        principal: sessionPrincipal,
+        input: {
+          credentialId: personalToken.id,
+          assertedWorkspaceId: WORKSPACE_ID,
+          providerWorkspaceId: 'another-provider-workspace',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.updatePersonalToken).not.toHaveBeenCalled()
   })
 })
 

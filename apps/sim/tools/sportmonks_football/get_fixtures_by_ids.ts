@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -29,6 +30,7 @@ export const sportmonksGetFixturesByIdsTool: ToolConfig<
   name: 'Get Fixtures by Multiple IDs',
   description: 'Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

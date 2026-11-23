@@ -21,7 +21,12 @@ export const GET = defineInternalJsonRoute({
   operation: getPerson.operation,
   useCase: getPerson,
   mapInput: ({ params }) => ({ organizationId: params.id, memberId: params.memberId }),
-  present: ({ person, chain, reports }) => ({ person: presentPerson(person), chain, reports }),
+  present: ({ person, chain, reports, totalReports }) => ({
+    person: presentPerson(person),
+    chain,
+    reports,
+    totalReports,
+  }),
 })
 
 export const PUT = defineInternalJsonRoute({

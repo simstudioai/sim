@@ -12,7 +12,11 @@ import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import {
+  entityTagMatches,
   methodMatchesContract,
+  notModifiedResponse,
+  REVALIDATE_CACHE_CONTROL,
+  requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
 import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
@@ -39,6 +43,7 @@ import {
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import {
   asOrchestrationError,
+  isUnavailableFailure,
   messageForOrchestrationError,
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
@@ -61,6 +66,16 @@ export const internalSessionAuth = {
     return { kind: 'session', userId: session.user.id, sessionId }
   },
 } as const
+
+/** The session principal when the request is signed in; returns `null` instead of throwing when unauthenticated, so the route answers with its own response. */
+export async function authenticateOptionalInternalSession(): Promise<SessionPrincipal | null> {
+  try {
+    return await internalSessionAuth.authenticate()
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError) return null
+    throw error
+  }
+}
 
 interface InternalSessionOrExecutorAuthOptions {
   audience: string
@@ -203,6 +218,19 @@ export function internalErrorResponse(
   return { body, status, headers }
 }
 
+/**
+ * Projects a failure through a route's error policy. An `unavailable` failure always answers
+ * through {@link internalOrchestrationErrorPolicy} first, so no route projector matching the
+ * domain error an outage is wrapped in can turn Sim's outage into a verdict on the caller.
+ */
+export function projectInternalError(
+  policy: InternalErrorPolicy,
+  error: unknown
+): JsonErrorResponseDescriptor | null {
+  if (isUnavailableFailure(error)) return internalOrchestrationErrorPolicy.project(error)
+  return policy.project(error)
+}
+
 export function extendInternalErrorPolicy(
   base: InternalErrorPolicy,
   project: (error: unknown) => JsonErrorResponseDescriptor | null
@@ -283,6 +311,14 @@ type InternalJsonRouteOptions<
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
+  /**
+   * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing to run it.
+   * Defaults to `true`, which is correct for a read. Set `false` when the `GET` writes a row: a
+   * `HEAD` is then authenticated, rate limited, parsed and **authorized** exactly as the `GET`
+   * would be, and answered bodiless without running the use case. Requires a use case exposing
+   * `authorize`, checked at definition time.
+   */
+  headSafe?: boolean
   parseOptions?: InternalJsonParseOptions
   beforeParse?(args: {
     request: NextRequest
@@ -291,6 +327,12 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /**
+   * A strong validator for the result's representation. When set, a success carries `ETag`, and a
+   * request whose `If-None-Match` names that tag (or `*`) is answered `304` with no body, after
+   * the use case ran, so authorization is unchanged and an unchanged result transfers nothing.
+   */
+  entityTag?(result: NoInfer<R>): string
   /** Headers applied last to every response path, including authentication and parse failures. */
   staticResponseHeaders?: HeadersInit
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
@@ -355,6 +397,8 @@ export function defineInternalJsonRoute<
     options.operation,
     options.useCase.operation
   )
+  requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
+  const headAuthorize = options.headSafe === false ? options.useCase.authorize : undefined
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -381,7 +425,7 @@ export function defineInternalJsonRoute<
         try {
           await options.beforeParse({ request, principal, params: rawParams })
         } catch (error) {
-          const response = options.errorPolicy.project(error)
+          const response = projectInternalError(options.errorPolicy, error)
           if (response) return createJsonErrorResponse(response)
           throw error
         }
@@ -396,12 +440,20 @@ export function defineInternalJsonRoute<
 
       try {
         const input = await options.mapInput(parsed.data, { principal, request })
+        if (request.method === 'HEAD' && headAuthorize) {
+          await headAuthorize({ principal, input, request })
+          return new NextResponse(null, { status: successStatus })
+        }
         const result = await options.useCase.execute({
           principal,
           input,
           request,
         })
         await options.onSuccess?.({ principal, input, result })
+        const entityTag = options.entityTag ? `"${options.entityTag(result)}"` : undefined
+        if (entityTag && entityTagMatches(request, entityTag)) {
+          return notModifiedResponse(entityTag)
+        }
         const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
@@ -428,11 +480,19 @@ export function defineInternalJsonRoute<
           appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
           {
             status: responseStatus,
-            headers: appendFinalizedHeaders(headers, finalization?.headers),
+            headers: appendFinalizedHeaders(
+              entityTag
+                ? appendFinalizedHeaders(headers, {
+                    ETag: entityTag,
+                    'Cache-Control': REVALIDATE_CACHE_CONTROL,
+                  })
+                : headers,
+              finalization?.headers
+            ),
           }
         )
       } catch (error) {
-        const response = options.errorPolicy.project(error)
+        const response = projectInternalError(options.errorPolicy, error)
         if (response) return createJsonErrorResponse(response)
         throw error
       }

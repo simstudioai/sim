@@ -1,4 +1,5 @@
 import type { EnrichIpToCompanyParams, EnrichIpToCompanyResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ipToCompanyTool: ToolConfig<EnrichIpToCompanyParams, EnrichIpToCompanyResponse> = {
@@ -6,6 +7,7 @@ export const ipToCompanyTool: ToolConfig<EnrichIpToCompanyParams, EnrichIpToComp
   name: 'Enrich IP to Company',
   description: 'Identify a company from an IP address with detailed firmographic information.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

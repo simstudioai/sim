@@ -44,13 +44,76 @@ import type { AwsSqsSetQueueAttributesBody } from '@/lib/api/contracts/tools/aws
 import type { AwsSqsStartMessageMoveTaskBody } from '@/lib/api/contracts/tools/aws/sqs-start-message-move-task'
 import type { AwsSqsTagQueueBody } from '@/lib/api/contracts/tools/aws/sqs-tag-queue'
 import type { AwsSqsUntagQueueBody } from '@/lib/api/contracts/tools/aws/sqs-untag-queue'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { createSqsClient } from '@/lib/internal/sqs/client'
 import type { SqsConnectionConfig } from '@/tools/sqs/types'
 
+/** DNS suffixes of every AWS partition, from the SDK partition table. */
+const AWS_DNS_SUFFIXES = [
+  'amazonaws.com',
+  'amazonaws.com.cn',
+  'amazonaws.eu',
+  'c2s.ic.gov',
+  'sc2s.sgov.gov',
+  'csp.hci.ic.gov',
+  'cloud.adc-e.uk',
+]
+
+/** Dual-stack DNS suffixes of every AWS partition, from the SDK partition table. */
+const AWS_DUAL_STACK_DNS_SUFFIXES = [
+  'api.aws',
+  'api.amazonwebservices.com.cn',
+  'api.amazonwebservices.eu',
+  'api.aws.ic.gov',
+  'api.aws.scloud',
+  'api.aws.hci.ic.gov',
+  'api.cloud-aws.adc-e.uk',
+]
+
+const escapeSuffix = (suffix: string) => suffix.replaceAll('.', '\\.')
+const anyOf = (suffixes: string[]) => `(${suffixes.map(escapeSuffix).join('|')})`
+
+/**
+ * Hostnames of SQS endpoints: regional and FIPS, dual-stack, VPC interface, and the
+ * legacy `queue.amazonaws.com` forms. Anchored so other AWS hosts (EC2, API
+ * Gateway, ELB) never match.
+ */
+const AWS_SQS_HOSTS = [
+  new RegExp(`^sqs(-fips)?\\.[a-z0-9-]+\\.${anyOf(AWS_DNS_SUFFIXES)}$`),
+  new RegExp(`^sqs(-fips)?\\.[a-z0-9-]+\\.${anyOf(AWS_DUAL_STACK_DNS_SUFFIXES)}$`),
+  new RegExp(`^vpce-[a-z0-9-]+\\.sqs\\.[a-z0-9-]+\\.vpce\\.${anyOf(AWS_DNS_SUFFIXES)}$`),
+  /^([a-z0-9-]+\.)?queue\.amazonaws\.com(\.cn)?$/,
+]
+
+/**
+ * The SQS client sends each request to the host of its `QueueUrl` (the SDK's
+ * `useQueueUrlAsEndpoint` default), so a queue URL on any other host would carry
+ * the signed request, including a saved credential's session token, off AWS.
+ * Enforced on the hosted deployment only: self-hosted installs may point queue
+ * URLs at SQS-compatible endpoints (LocalStack, ElasticMQ). A value that does not
+ * parse as a URL is left for SQS to reject, since the SDK only redirects when it
+ * parses.
+ */
+function assertAwsQueueUrl(queueUrl: string | undefined) {
+  if (!queueUrl || !isHosted) return
+  let parsed: URL
+  try {
+    parsed = new URL(queueUrl)
+  } catch {
+    return
+  }
+  const host = parsed.hostname.toLowerCase()
+  if (parsed.protocol === 'https:' && AWS_SQS_HOSTS.some((pattern) => pattern.test(host))) return
+  throw new Error(
+    'Queue URL must be an Amazon SQS queue URL (e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue)'
+  )
+}
+
 async function withSqsClient<T>(
-  config: SqsConnectionConfig,
+  config: SqsConnectionConfig & { queueUrl?: string },
   execute: (client: SQSClient) => Promise<T>
 ): Promise<T> {
+  assertAwsQueueUrl(config.queueUrl)
   const client = createSqsClient(config)
   try {
     return await execute(client)

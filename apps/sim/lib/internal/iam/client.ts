@@ -5,10 +5,12 @@ import type {
   Group,
   Policy,
   PolicyScopeType,
+  PolicyUsageType,
   ResourceSpecificResult,
   Role,
   Statement,
   StatusType,
+  Tag,
   User,
 } from '@aws-sdk/client-iam'
 import {
@@ -38,16 +40,27 @@ import {
   SimulatePrincipalPolicyCommand,
   UpdateAccessKeyCommand,
 } from '@aws-sdk/client-iam'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { IAMConnectionConfig, IAMSimulateContextEntry } from '@/tools/iam/types'
 
 export function createIAMClient(config: IAMConnectionConfig): IAMClient {
   return new IAMClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
+}
+
+/** Parses a JSON object string of tag key/value pairs into IAM `Tag` entries. */
+function parseTags(tags?: string | null): Tag[] | undefined {
+  if (!tags) return undefined
+  const parsed = JSON.parse(tags) as Record<string, unknown>
+  const entries = Object.entries(parsed)
+  return entries.length > 0
+    ? entries.map(([Key, Value]) => ({ Key, Value: String(Value) }))
+    : undefined
+}
+
+function mapTags(tags: Tag[] | undefined) {
+  return tags?.map((t) => ({ key: t.Key ?? '', value: t.Value ?? '' })) ?? []
 }
 
 export async function listUsers(
@@ -94,7 +107,7 @@ export async function getUser(client: IAMClient, userName?: string | null, signa
     createDate: user?.CreateDate?.toISOString() ?? null,
     passwordLastUsed: user?.PasswordLastUsed?.toISOString() ?? null,
     permissionsBoundaryArn: user?.PermissionsBoundary?.PermissionsBoundaryArn ?? null,
-    tags: user?.Tags?.map((t) => ({ key: t.Key ?? '', value: t.Value ?? '' })) ?? [],
+    tags: mapTags(user?.Tags),
   }
 }
 
@@ -102,11 +115,16 @@ export async function createUser(
   client: IAMClient,
   userName: string,
   path?: string | null,
+  permissionsBoundary?: string | null,
+  tags?: string | null,
   signal?: AbortSignal
 ) {
+  const userTags = parseTags(tags)
   const command = new CreateUserCommand({
     UserName: userName,
     ...(path ? { Path: path } : {}),
+    ...(permissionsBoundary ? { PermissionsBoundary: permissionsBoundary } : {}),
+    ...(userTags ? { Tags: userTags } : {}),
   })
 
   const response = await client.send(command, { abortSignal: signal })
@@ -118,6 +136,8 @@ export async function createUser(
     arn: user?.Arn ?? '',
     path: user?.Path ?? '',
     createDate: user?.CreateDate?.toISOString() ?? null,
+    permissionsBoundaryArn: user?.PermissionsBoundary?.PermissionsBoundaryArn ?? null,
+    tags: mapTags(user?.Tags),
   }
 }
 
@@ -183,6 +203,8 @@ export async function getRole(client: IAMClient, roleName: string, signal?: Abor
     assumeRolePolicyDocument: policyDocument,
     roleLastUsedDate: role?.RoleLastUsed?.LastUsedDate?.toISOString() ?? null,
     roleLastUsedRegion: role?.RoleLastUsed?.Region ?? null,
+    permissionsBoundaryArn: role?.PermissionsBoundary?.PermissionsBoundaryArn ?? null,
+    tags: mapTags(role?.Tags),
   }
 }
 
@@ -193,14 +215,19 @@ export async function createRole(
   description?: string | null,
   path?: string | null,
   maxSessionDuration?: number | null,
+  permissionsBoundary?: string | null,
+  tags?: string | null,
   signal?: AbortSignal
 ) {
+  const roleTags = parseTags(tags)
   const command = new CreateRoleCommand({
     RoleName: roleName,
     AssumeRolePolicyDocument: assumeRolePolicyDocument,
     ...(description ? { Description: description } : {}),
     ...(path ? { Path: path } : {}),
     ...(maxSessionDuration ? { MaxSessionDuration: maxSessionDuration } : {}),
+    ...(permissionsBoundary ? { PermissionsBoundary: permissionsBoundary } : {}),
+    ...(roleTags ? { Tags: roleTags } : {}),
   })
 
   const response = await client.send(command, { abortSignal: signal })
@@ -212,6 +239,8 @@ export async function createRole(
     arn: role?.Arn ?? '',
     path: role?.Path ?? '',
     createDate: role?.CreateDate?.toISOString() ?? null,
+    permissionsBoundaryArn: role?.PermissionsBoundary?.PermissionsBoundaryArn ?? null,
+    tags: mapTags(role?.Tags),
   }
 }
 
@@ -279,10 +308,12 @@ export async function listPolicies(
   pathPrefix?: string | null,
   maxItems?: number | null,
   marker?: string | null,
+  policyUsageFilter?: PolicyUsageType | null,
   signal?: AbortSignal
 ) {
   const command = new ListPoliciesCommand({
     ...(scope ? { Scope: scope } : {}),
+    ...(policyUsageFilter ? { PolicyUsageFilter: policyUsageFilter } : {}),
     ...(onlyAttached != null ? { OnlyAttached: onlyAttached } : {}),
     ...(pathPrefix ? { PathPrefix: pathPrefix } : {}),
     ...(maxItems ? { MaxItems: maxItems } : {}),
@@ -561,7 +592,7 @@ export async function getPolicy(client: IAMClient, policyArn: string, signal?: A
     description: policy?.Description ?? null,
     defaultVersionId: policy?.DefaultVersionId ?? null,
     permissionsBoundaryUsageCount: policy?.PermissionsBoundaryUsageCount ?? 0,
-    tags: policy?.Tags?.map((t) => ({ key: t.Key ?? '', value: t.Value ?? '' })) ?? [],
+    tags: mapTags(policy?.Tags),
   }
 }
 

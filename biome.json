@@ -32,7 +32,13 @@
       "!**/public/fallback-*.js",
       "!**/apps/sim/tools/generated",
       "!**/apps/sim/lib/mothership/generated/**",
+      "!**/apps/sim/blocks/sdk-names.generated.ts",
       "!**/packages/desktop-bridge/src/computer-use.generated.ts",
+      "!**/packages/workflow-sdk/src/codegen/core-text.generated.ts",
+      "!**/packages/workflow-sdk/src/codegen/cookbook-text.generated.ts",
+      "!**/packages/workflow-sdk/src/codegen/workspace-cookbook-text.generated.ts",
+      "!**/packages/workflow-sdk/src/codegen/workspace-text.generated.ts",
+      "!**/packages/workflow-sdk/cookbook/workspace/tools/*.js",
       "!**/apps/docs/.content",
       "!**/apps/desktop/release",
       "!**/venv",
@@ -167,12 +173,10 @@
         "**/*.spec.ts",
         "apps/desktop/e2e/**",
         "apps/sim/vitest.setup.ts",
-        "packages/cli/**",
         "packages/sim-cli/**",
         "packages/sim-setup/**",
         "packages/db/script-migrations/**",
-        "packages/logger/src/**",
-        "packages/ts-sdk/examples/**"
+        "packages/logger/src/**"
       ],
       "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     }

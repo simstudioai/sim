@@ -1,5 +1,6 @@
 import { JotformIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -53,6 +54,8 @@ const LABEL_RESOURCE_OPERATIONS = ['add_label_resources', 'remove_label_resource
 
 export const JotformBlock: BlockConfig = {
   type: 'jotform',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'jotform_v2' },
   name: 'Jotform',
   description: 'Read submissions, manage forms, and wire up webhooks in Jotform',
   longDescription:
@@ -727,10 +730,10 @@ export const JotformBlock: BlockConfig = {
        * Everything else — formId, submissionId, answers, the pagination fields — is
        * named after its param and reaches the tool unchanged.
        */
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'create_form':
             if (params.newFormQuestions) result.questions = params.newFormQuestions
             if (params.newFormProperties) result.properties = params.newFormProperties
@@ -1095,3 +1098,16 @@ export const JotformBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const JotformV2Block: BlockConfig = {
+  ...JotformBlock,
+  type: 'jotform_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    JotformBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'jotform', title: 'Jotform Credential' },
+    { required: true }
+  ),
+}

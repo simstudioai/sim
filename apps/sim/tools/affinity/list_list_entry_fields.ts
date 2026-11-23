@@ -11,6 +11,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListListEntryFieldsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const affinityListListEntryFieldsTool: ToolConfig<
   description:
     'Page through every field value on one list row, including the list-specific columns. All fields are returned unless narrowed.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

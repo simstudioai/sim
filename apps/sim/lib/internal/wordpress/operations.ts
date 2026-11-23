@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -14,6 +15,7 @@ import {
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { WordPressUploadMediaResponse } from '@/tools/wordpress/types'
 
 const logger = createLogger('WordPressOperations')
@@ -60,6 +62,12 @@ export async function uploadWordPressMedia(
   if (!input.file) {
     throw new WordPressOperationError('No file provided. Please upload a file.', 400)
   }
+  let siteSegment: string
+  try {
+    siteSegment = safeUrlPathSegment(input.siteId, 'siteId')
+  } catch (error) {
+    throw new WordPressOperationError(getErrorMessage(error, 'Invalid siteId'), 400)
+  }
   let userFile
   try {
     userFile = processSingleFileToUserFile(input.file, context.requestId, logger)
@@ -96,7 +104,7 @@ export async function uploadWordPressMedia(
   if (input.altText) formData.append('alt_text', input.altText)
   if (input.description) formData.append('description', input.description)
 
-  const response = await fetch(`${WORDPRESS_COM_API_BASE}/${input.siteId}/media`, {
+  const response = await outboundFetch(`${WORDPRESS_COM_API_BASE}/${siteSegment}/media`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     body: formData,

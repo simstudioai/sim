@@ -421,27 +421,20 @@ describe('Schedule Utilities', () => {
   })
 
   describe('parseCronToHumanReadable', () => {
-    it.concurrent('should parse common cron patterns using cronstrue', () => {
-      // cronstrue produces "Every minute" for '* * * * *'
+    it.concurrent('should describe the schedules the builder generates', () => {
       expect(parseCronToHumanReadable('* * * * *')).toBe('Every minute')
-
-      // cronstrue produces "Every 15 minutes" for '*/15 * * * *'
       expect(parseCronToHumanReadable('*/15 * * * *')).toBe('Every 15 minutes')
+      expect(parseCronToHumanReadable('1 * * * *')).toBe('At 1 minute past the hour')
+      expect(parseCronToHumanReadable('30 * * * *')).toBe('At 30 minutes past the hour')
+      expect(parseCronToHumanReadable('0 9 * * *')).toBe('At 9:00 AM')
+      expect(parseCronToHumanReadable('30 14 * * *')).toBe('At 2:30 PM')
+      expect(parseCronToHumanReadable('0 9 * * 1')).toBe('At 9:00 AM, only on Monday')
+      expect(parseCronToHumanReadable('30 14 15 * *')).toBe('At 2:30 PM, on day 15 of the month')
+    })
 
-      // cronstrue produces "At 30 minutes past the hour" for '30 * * * *'
-      expect(parseCronToHumanReadable('30 * * * *')).toContain('30 minutes past the hour')
-
-      // cronstrue produces "At 9:00 AM" for '0 9 * * *' (no leading zero on hour)
-      expect(parseCronToHumanReadable('0 9 * * *')).toContain('9:00 AM')
-
-      // cronstrue produces "At 2:30 PM" for '30 14 * * *' (no leading zero on hour)
-      expect(parseCronToHumanReadable('30 14 * * *')).toContain('2:30 PM')
-
-      // cronstrue produces "At 09:00 AM, only on Monday" for '0 9 * * 1'
-      expect(parseCronToHumanReadable('0 9 * * 1')).toContain('Monday')
-
-      // cronstrue produces "At 02:30 PM, on day 15 of the month" for '30 14 15 * *'
-      expect(parseCronToHumanReadable('30 14 15 * *')).toContain('15')
+    it.concurrent('should describe step schedules in custom cron expressions', () => {
+      expect(parseCronToHumanReadable('0 */2 * * *')).toBe('On the hour, every 2 hours')
+      expect(parseCronToHumanReadable('0 0 */2 * *')).toBe('At 12:00 AM, every 2 days in a month')
     })
 
     it.concurrent('should describe the nth weekday of the month', () => {

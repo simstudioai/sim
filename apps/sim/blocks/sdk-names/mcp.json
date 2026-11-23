@@ -1,0 +1,7 @@
+{
+  "namespace": "mcpBlock",
+  "methods": {
+    "list": "listOperations",
+    "run": "runOperation"
+  }
+}

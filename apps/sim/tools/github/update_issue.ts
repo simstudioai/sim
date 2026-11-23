@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { IssueResponse, UpdateIssueParams } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -5,6 +6,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
@@ -12,6 +14,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
   name: 'GitHub Update Issue',
   description: 'Update an existing issue in a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -72,7 +75,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/${params.issue_number}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/${githubPathSegment(params.issue_number, 'issue_number')}`,
     method: 'PATCH',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -83,7 +86,7 @@ export const updateIssueTool: ToolConfig<UpdateIssueParams, IssueResponse> = {
       const body: any = {}
       if (params.title !== undefined) body.title = params.title
       if (params.body !== undefined) body.body = params.body
-      if (params.state !== undefined) body.state = params.state
+      if (params.state) body.state = params.state
       if (params.labels !== undefined) body.labels = params.labels
       if (params.assignees !== undefined) body.assignees = params.assignees
       return body

@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevImportEnvVarsParams,
   TriggerDevImportEnvVarsResponse,
@@ -18,6 +19,7 @@ export const triggerDevImportEnvVarsTool: ToolConfig<
   description:
     'Upload multiple environment variables to a Trigger.dev project environment in one request.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

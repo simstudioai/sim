@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   BatchRetrieveInventoryCountsParams,
   InventoryCountListResponse,
@@ -6,7 +7,7 @@ import type {
 import {
   INVENTORY_COUNT_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -19,9 +20,11 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
   name: 'Square Batch Retrieve Inventory Counts',
   description: 'Retrieve current inventory counts for catalog items across locations',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -67,7 +70,8 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
   },
 
   request: {
-    url: () => `${SQUARE_BASE_URL}/v2/inventory/counts/batch-retrieve`,
+    url: (params) =>
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/inventory/counts/batch-retrieve`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
     body: (params) => {

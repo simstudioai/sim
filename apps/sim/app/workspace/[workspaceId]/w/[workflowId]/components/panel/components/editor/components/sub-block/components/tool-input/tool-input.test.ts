@@ -3,6 +3,7 @@ import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/co
 import {
   isAgentToolBlock,
   isCustomToolAlreadySelected,
+  supportsToolUsageControlForModel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 
 describe('isAgentToolBlock', () => {
@@ -45,5 +46,17 @@ describe('already-selected checks', () => {
         'custom-2'
       )
     ).toBe(false)
+  })
+})
+
+describe('supportsToolUsageControlForModel', () => {
+  it('offers the control for Auto, which falls back to a provider that supports it', () => {
+    expect(supportsToolUsageControlForModel('agent', 'sim-auto')).toBe(true)
+  })
+
+  it('offers it for a supporting provider and never without a model', () => {
+    expect(supportsToolUsageControlForModel('agent', 'claude-sonnet-5-5')).toBe(true)
+    expect(supportsToolUsageControlForModel('agent', '')).toBe(false)
+    expect(supportsToolUsageControlForModel('mothership', '')).toBe(true)
   })
 })

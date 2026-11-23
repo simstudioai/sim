@@ -2,6 +2,7 @@ import type {
   LambdaDeleteFunctionConcurrencyParams,
   LambdaDeleteFunctionConcurrencyResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteFunctionConcurrencyTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteFunctionConcurrencyTool: InternalToolConfig<
   name: 'Lambda Delete Function Concurrency',
   description: 'Remove the reserved concurrency configuration from a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

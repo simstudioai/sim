@@ -5,6 +5,7 @@ import type {
   BoxDownloadFileV2Response,
 } from '@/tools/box/types'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 async function transformDownloadResponse(response: Response) {
   if (response.status === 202) {
@@ -71,7 +72,8 @@ export const boxDownloadFileTool = {
   },
 
   request: {
-    url: (params) => `https://api.box.com/2.0/files/${params.fileId.trim()}/content`,
+    url: (params) =>
+      `https://api.box.com/2.0/files/${safeUrlPathSegment(params.fileId, 'fileId')}/content`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

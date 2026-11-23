@@ -2,7 +2,11 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
-import { getDocusignOAuthUrl, getDocusignWebBase } from '@/lib/oauth/docusign'
+import {
+  getDocusignOAuthUrl,
+  getDocusignWebBase,
+  parseDocuSignAccountApiBase,
+} from '@/lib/oauth/docusign'
 import { docusignConnectorMeta } from '@/connectors/docusign/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
@@ -34,6 +38,8 @@ interface DocuSignUserInfo {
 interface ResolvedAccount {
   accountId: string
   baseUri: string
+  /** Web app origin for envelope links; set only for a credential-bound account. */
+  webBase?: string
 }
 
 interface DocuSignSigner {
@@ -139,6 +145,22 @@ function computeLookbackDays(
 }
 
 /**
+ * The account a JWT Grant credential is bound to, seeded into the sync context
+ * from its token. Its environment and pinned account come from the credential,
+ * so the deployment's OAuth host is never asked. A seeded value of the wrong
+ * shape fails the run rather than falling back to the user's default account.
+ */
+function credentialBoundAccount(
+  syncContext: Record<string, unknown> | undefined
+): ResolvedAccount | undefined {
+  const bound = syncContext?.credentialInstanceUrl
+  if (bound === undefined) return undefined
+  const account = parseDocuSignAccountApiBase(bound)
+  if (!account) throw new Error('DocuSign credential account URL is invalid')
+  return account
+}
+
+/**
  * Resolves and caches the user's DocuSign account ID and base URI in the sync context.
  * The userinfo lookup is expensive and identical across every page of a sync run, so it is
  * cached on the shared `syncContext` (mirrors the Gmail connector's label cache pattern).
@@ -151,6 +173,11 @@ async function resolveAccount(
   const cacheKey = '_docusignAccount'
   const cached = syncContext?.[cacheKey] as ResolvedAccount | undefined
   if (cached) return cached
+  const bound = credentialBoundAccount(syncContext)
+  if (bound) {
+    if (syncContext) syncContext[cacheKey] = bound
+    return bound
+  }
 
   const response = await fetchWithRetry(
     getDocusignOAuthUrl('/oauth/userinfo'),
@@ -211,9 +238,12 @@ function buildContentHash(envelope: DocuSignEnvelope): string {
 /**
  * Builds a DocuSign web console link to the envelope, when an envelope ID is present.
  */
-function buildSourceUrl(envelopeId: string | undefined): string | undefined {
+function buildSourceUrl(
+  envelopeId: string | undefined,
+  account: ResolvedAccount
+): string | undefined {
   if (!envelopeId) return undefined
-  return `${getDocusignWebBase()}/documents/details/${envelopeId}`
+  return `${account.webBase ?? getDocusignWebBase()}/documents/details/${envelopeId}`
 }
 
 /**
@@ -286,14 +316,14 @@ function buildMetadata(envelope: DocuSignEnvelope): Record<string, unknown> {
  * Creates a lightweight document stub from an envelope list entry. No per-envelope API
  * calls are made — content is fetched lazily by getDocument for new/changed envelopes only.
  */
-function envelopeToStub(envelope: DocuSignEnvelope): ExternalDocument {
+function envelopeToStub(envelope: DocuSignEnvelope, account: ResolvedAccount): ExternalDocument {
   return {
     externalId: envelope.envelopeId ?? '',
     title: envelope.emailSubject?.trim() || 'Untitled DocuSign Envelope',
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: buildSourceUrl(envelope.envelopeId),
+    sourceUrl: buildSourceUrl(envelope.envelopeId, account),
     contentHash: buildContentHash(envelope),
     metadata: buildMetadata(envelope),
   }
@@ -505,7 +535,7 @@ export const docusignConnector: ConnectorConfig = {
      */
     let capped = envelopes.length < rawEnvelopes.length
 
-    let documents = envelopes.map(envelopeToStub)
+    let documents = envelopes.map((envelope) => envelopeToStub(envelope, account))
     if (documents.length > remaining) {
       documents = documents.slice(0, remaining)
       capped = true
@@ -597,7 +627,7 @@ export const docusignConnector: ConnectorConfig = {
         content,
         contentDeferred: false,
         mimeType: 'text/plain',
-        sourceUrl: buildSourceUrl(envelope.envelopeId),
+        sourceUrl: buildSourceUrl(envelope.envelopeId, account),
         contentHash: buildContentHash(envelope),
         metadata: buildMetadata(envelope),
       }
@@ -618,7 +648,8 @@ export const docusignConnector: ConnectorConfig = {
 
   validateConfig: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>
+    sourceConfig: Record<string, unknown>,
+    syncContext?: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const maxEnvelopes = sourceConfig.maxEnvelopes as string | undefined
     if (maxEnvelopes && (Number.isNaN(Number(maxEnvelopes)) || Number(maxEnvelopes) < 0)) {
@@ -626,7 +657,9 @@ export const docusignConnector: ConnectorConfig = {
     }
 
     try {
-      await resolveAccount(accessToken, undefined, VALIDATE_RETRY_OPTIONS)
+      if (!credentialBoundAccount(syncContext)) {
+        await resolveAccount(accessToken, undefined, VALIDATE_RETRY_OPTIONS)
+      }
       return { valid: true }
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to validate configuration')

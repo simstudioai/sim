@@ -2,6 +2,7 @@ import type {
   FirefliesListTranscriptsParams,
   FirefliesListTranscriptsResponse,
 } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesListTranscriptsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const firefliesListTranscriptsTool: ToolConfig<
   name: 'Fireflies List Transcripts',
   description: 'List meeting transcripts from Fireflies.ai with optional filtering',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

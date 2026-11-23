@@ -1,5 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 
@@ -43,7 +44,7 @@ async function callSlackAgentApi(
 ): Promise<SlackApiResponse> {
   let response: Response
   try {
-    response = await fetch(`https://slack.com/api/${method}`, {
+    response = await outboundFetch(`https://slack.com/api/${method}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

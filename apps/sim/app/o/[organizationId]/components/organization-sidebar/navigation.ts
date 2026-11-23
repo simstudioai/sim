@@ -20,7 +20,7 @@ const ORGANIZATION_NAV_ENTRIES: readonly OrganizationNavEntry[] = [
   { id: 'search', label: 'Search', icon: Search, route: 'search' },
   { id: 'people', label: 'People', icon: Users, route: 'people' },
   { id: 'integrations', label: 'Integrations', icon: Integration, route: 'integrations' },
-  { id: 'sim-links', label: 'Sim Links', icon: Link, route: 'simLinks' },
+  { id: 'sim-links', label: 'Links', icon: Link, route: 'simLinks' },
   { id: 'benchmark', label: 'Benchmark', icon: ChartColumn, route: 'benchmark' },
 ]
 

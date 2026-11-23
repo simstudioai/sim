@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { HubSpotGetContactParams, HubSpotGetContactResponse } from '@/tools/hubspot/types'
 import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotGetContact')
 
@@ -55,7 +56,7 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
 
     request: {
       url: (params) => {
-        const baseUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId.trim()}`
+        const baseUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`
         const queryParams = new URLSearchParams()
 
         if (params.idProperty) {

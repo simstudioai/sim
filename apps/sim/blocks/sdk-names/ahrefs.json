@@ -1,0 +1,28 @@
+{
+  "namespace": "legacy.ahrefs",
+  "methods": {
+    "ahrefs_anchors": "anchors",
+    "ahrefs_backlinks": "backlinks",
+    "ahrefs_backlinks_stats": "backlinksStats",
+    "ahrefs_batch_analysis": "batchAnalysis",
+    "ahrefs_broken_backlinks": "brokenBacklinks",
+    "ahrefs_domain_rating": "domainRating",
+    "ahrefs_domain_rating_history": "domainRatingHistory",
+    "ahrefs_keyword_overview": "keywordOverview",
+    "ahrefs_keywords_history": "keywordsHistory",
+    "ahrefs_metrics": "metricsOverview",
+    "ahrefs_metrics_history": "metricsHistory",
+    "ahrefs_organic_competitors": "organicCompetitors",
+    "ahrefs_organic_keywords": "organicKeywords",
+    "ahrefs_paid_pages": "paidPages",
+    "ahrefs_rank_tracker_competitors_overview": "rankTrackerCompetitorsOverview",
+    "ahrefs_rank_tracker_competitors_stats": "rankTrackerCompetitorsStats",
+    "ahrefs_rank_tracker_overview": "rankTrackerOverview",
+    "ahrefs_rank_tracker_serp_overview": "rankTrackerSerpOverview",
+    "ahrefs_refdomains_history": "referringDomainsHistory",
+    "ahrefs_referring_domains": "referringDomains",
+    "ahrefs_related_terms": "relatedTerms",
+    "ahrefs_site_audit_page_explorer": "siteAuditPageExplorer",
+    "ahrefs_top_pages": "topPages"
+  }
+}

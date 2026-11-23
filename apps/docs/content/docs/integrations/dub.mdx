@@ -2,7 +2,7 @@
 title: Dub
 description: Link management with Dub
 integration:
-  type: "dub_v2"
+  type: "dub_v3"
   color: "#181C1E"
 ---
 
@@ -31,7 +31,6 @@ Create a new short link with Dub. Supports custom domains, slugs, UTM parameters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `url` | string | Yes | The destination URL of the short link |
 | `domain` | string | No | Custom domain for the short link \(defaults to dub.sh\) |
 | `key` | string | No | Custom slug for the short link \(randomly generated if not provided\) |
@@ -97,7 +96,6 @@ Create or update a short link by its URL. If a link with the same URL already ex
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `url` | string | Yes | The destination URL of the short link |
 | `domain` | string | No | Custom domain for the short link \(defaults to dub.sh\) |
 | `key` | string | No | Custom slug for the short link \(randomly generated if not provided\) |
@@ -163,7 +161,6 @@ Retrieve information about a short link by its link ID, external ID, or domain +
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `linkId` | string | No | The unique ID of the short link |
 | `externalId` | string | No | The external ID of the link in your database |
 | `domain` | string | No | The domain of the link \(use with key\) |
@@ -213,7 +210,6 @@ Update an existing short link's destination URL, domain, slug, link-preview titl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `linkId` | string | Yes | The link ID or external ID prefixed with ext_ |
 | `url` | string | No | New destination URL |
 | `domain` | string | No | New custom domain |
@@ -280,7 +276,6 @@ Delete a short link by its link ID or external ID (prefixed with ext_).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `linkId` | string | Yes | The link ID or external ID prefixed with ext_ |
 
 #### Output
@@ -301,7 +296,6 @@ Retrieve a paginated list of short links for the authenticated workspace. Suppor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `domain` | string | No | Filter by domain |
 | `search` | string | No | Search query matched against the short link slug and destination URL |
 | `tagIds` | string | No | Comma-separated tag IDs to filter by |
@@ -332,7 +326,6 @@ Retrieve the number of short links for the authenticated workspace, optionally f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `domain` | string | No | Filter by domain |
 | `search` | string | No | Search query matched against the short link slug and destination URL |
 | `tagIds` | string | No | Comma-separated tag IDs to filter by |
@@ -360,7 +353,6 @@ Create up to 100 short links in a single request. Returns the created links alon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `links` | json | Yes | JSON array of link objects to create. Each object requires a "url" and may include domain, key, tagIds, and other link fields \(max 100\). |
 
 #### Output
@@ -383,7 +375,6 @@ Apply the same set of field updates to up to 100 links at once, selected by link
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `linkIds` | string | No | Comma-separated link IDs to update \(max 100, takes precedence over externalIds\) |
 | `externalIds` | string | No | Comma-separated external IDs to update \(max 100\) |
 | `data` | json | Yes | JSON object of fields to apply to every selected link \(e.g. \{ "archived": true, "tagIds": \["..."\] \}\) |
@@ -407,7 +398,6 @@ Delete up to 100 short links in a single request by their link IDs. Non-existing
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `linkIds` | string | Yes | Comma-separated link IDs to delete \(max 100\) |
 
 #### Output
@@ -428,7 +418,6 @@ Retrieve analytics for links including clicks, leads, and sales. Supports filter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `event` | string | No | Event type: clicks \(default\), leads, sales, or composite |
 | `groupBy` | string | No | Group results by: count \(default\), timeseries, countries, cities, devices, browsers, os, referers, top_links, top_urls |
 | `linkId` | string | No | Filter by link ID |
@@ -462,7 +451,6 @@ Retrieve a paginated stream of individual click, lead, and sale events for links
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `event` | string | No | Event type: clicks \(default\), leads, or sales |
 | `linkId` | string | No | Filter by link ID |
 | `externalId` | string | No | Filter by external ID \(prefix with ext_\) |
@@ -495,7 +483,6 @@ Generate a customizable QR code (PNG) for a short link, with control over size, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `url` | string | Yes | The short link URL to encode in the QR code |
 | `logo` | string | No | URL of a custom logo to embed in the QR code \(requires a paid Dub plan\) |
 | `size` | number | No | QR code size in pixels \(default: 600\) |
@@ -523,7 +510,6 @@ Retrieve the custom domains registered in the workspace, so links can be created
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `archived` | boolean | No | Whether to include archived domains \(defaults to false\) |
 | `search` | string | No | Search by domain name |
 | `page` | number | No | Page number \(default: 1\) |
@@ -548,7 +534,6 @@ Retrieve the tags defined in the workspace, so the right tag IDs can be assigned
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `search` | string | No | Search by tag name |
 | `sortBy` | string | No | Field to sort by: name \(default\) or createdAt |
 | `sortOrder` | string | No | Sort order: asc \(default\) or desc |
@@ -574,7 +559,6 @@ Create a new tag in the workspace for organizing and filtering short links.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `name` | string | Yes | The name of the tag to create \(1-50 characters\) |
 | `color` | string | No | Tag color: red, yellow, green, blue, purple, brown, gray, or pink \(random if omitted\) |
 
@@ -598,7 +582,6 @@ Retrieve the folders defined in the workspace, so the right folder ID can be use
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Dub API key |
 | `search` | string | No | Search by folder name |
 | `page` | number | No | Page number \(default: 1\) |
 | `pageSize` | number | No | Number of folders per page \(default: 50, max: 50\) |

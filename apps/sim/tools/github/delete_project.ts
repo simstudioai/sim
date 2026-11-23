@@ -1,4 +1,5 @@
 import type { DeleteProjectParams, ProjectResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteProjectTool: ToolConfig<DeleteProjectParams, ProjectResponse> = {
@@ -7,6 +8,7 @@ export const deleteProjectTool: ToolConfig<DeleteProjectParams, ProjectResponse>
   description:
     'Delete a GitHub Project V2. This action is permanent and cannot be undone. Requires the project Node ID.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     project_id: {
@@ -132,6 +134,7 @@ export const deleteProjectV2Tool: ToolConfig<DeleteProjectParams, any> = {
   name: deleteProjectTool.name,
   description: deleteProjectTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteProjectTool.params,
   request: deleteProjectTool.request,
 

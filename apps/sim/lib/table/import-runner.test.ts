@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import {
   tableJobsServiceMock,
@@ -18,6 +19,7 @@ const { mockBulkInsertImportBatch, mockNextImportStartPosition, mockNextImportSt
   }))
 
 vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
 vi.mock('@/lib/table/import-data', () => ({
   addImportColumns: vi.fn(),
   bulkInsertImportBatch: mockBulkInsertImportBatch,
@@ -45,6 +47,11 @@ const mockRecordImportRejections = tableJobsServiceMockFns.mockRecordImportRejec
 const mockDeleteFile = storageServiceMockFns.mockDeleteFile
 const mockDownloadFileStream = storageServiceMockFns.mockDownloadFileStream
 const mockHeadObject = storageServiceMockFns.mockHeadObject
+const mockGetMaxRowsPerTable = tableBillingMockFns.mockGetMaxRowsPerTable
+
+beforeEach(() => {
+  mockGetMaxRowsPerTable.mockResolvedValue(-1)
+})
 
 const table = {
   id: 'tbl_1',
@@ -281,5 +288,115 @@ describe('runTableImport in-flight progress', () => {
     expect(mockMarkJobFailed).toHaveBeenCalled()
     const persisted = mockUpdateJobProgress.mock.calls.map((call) => call[2])
     expect(Math.max(...persisted)).toBe(CSV_SCHEMA_SAMPLE_SIZE)
+  })
+})
+
+describe('runTableImport plan row limit', () => {
+  const limit = CSV_SCHEMA_SAMPLE_SIZE + 50
+
+  function csvOf(rowCount: number): string {
+    return `name\n${Array.from({ length: rowCount }, (_, i) => `row-${i}`).join('\n')}\n`
+  }
+
+  function insertedRowCount(): number {
+    return mockBulkInsertImportBatch.mock.calls.reduce(
+      (total, [input]) => total + input.rows.length,
+      0
+    )
+  }
+
+  beforeEach(() => {
+    mockGetMaxRowsPerTable.mockResolvedValue(limit)
+    mockGetTableById.mockResolvedValue(table)
+    mockNextImportStartPosition.mockResolvedValue(0)
+    mockNextImportStartOrderKey.mockResolvedValue(null)
+    mockUpdateJobProgress.mockResolvedValue(true)
+    mockMarkJobReady.mockResolvedValue(true)
+    mockMarkJobFailed.mockResolvedValue(undefined)
+    mockDeleteFile.mockResolvedValue(undefined)
+    mockRecordImportRejections.mockResolvedValue(undefined)
+    mockBulkInsertImportBatch.mockImplementation(async ({ rows }: { rows: unknown[] }) => ({
+      inserted: rows.length,
+      lastOrderKey: 'a1',
+    }))
+  })
+
+  function loadCsv(csv: string) {
+    mockHeadObject.mockResolvedValue({ size: Buffer.byteLength(csv) })
+    mockDownloadFileStream.mockResolvedValue(Readable.from(csv))
+  }
+
+  it('fills the table to the limit when a batch crosses it, and reports the rows imported', async () => {
+    // The sample batch fits; the next batch crosses the limit. Rejecting that whole batch
+    // left the table short of its limit while the error claimed the limit was reached.
+    loadCsv(csvOf(limit * 2))
+
+    await runTableImport(buildPayload())
+
+    expect(insertedRowCount()).toBe(limit)
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    expect(mockMarkJobFailed).toHaveBeenCalledWith(
+      'tbl_1',
+      'ws_1',
+      'job_1',
+      expect.stringContaining(`${limit} rows were imported`)
+    )
+    const persisted = mockUpdateJobProgress.mock.calls.map((call) => call[2])
+    expect(Math.max(...persisted)).toBe(limit)
+  })
+
+  it('reports the rows imported when a batch lands exactly on the limit with rows left', async () => {
+    mockGetMaxRowsPerTable.mockResolvedValue(CSV_SCHEMA_SAMPLE_SIZE)
+    loadCsv(csvOf(CSV_SCHEMA_SAMPLE_SIZE + 25))
+
+    await runTableImport(buildPayload())
+
+    expect(insertedRowCount()).toBe(CSV_SCHEMA_SAMPLE_SIZE)
+    expect(mockMarkJobFailed).toHaveBeenCalledWith(
+      'tbl_1',
+      'ws_1',
+      'job_1',
+      expect.stringContaining(`${CSV_SCHEMA_SAMPLE_SIZE} rows were imported`)
+    )
+  })
+
+  it('counts existing rows against the limit on append', async () => {
+    mockGetTableById.mockResolvedValue({ ...table, rowCount: limit - 10 })
+    loadCsv(csvOf(CSV_SCHEMA_SAMPLE_SIZE))
+
+    await runTableImport(buildPayload())
+
+    expect(insertedRowCount()).toBe(10)
+    expect(mockMarkJobFailed).toHaveBeenCalledWith(
+      'tbl_1',
+      'ws_1',
+      'job_1',
+      expect.stringContaining('10 rows were imported')
+    )
+  })
+
+  it('inserts nothing into a table that is already at its limit', async () => {
+    mockGetTableById.mockResolvedValue({ ...table, rowCount: limit })
+    loadCsv(csvOf(5))
+
+    await runTableImport(buildPayload())
+
+    expect(mockBulkInsertImportBatch).not.toHaveBeenCalled()
+    expect(mockMarkJobFailed).toHaveBeenCalledWith(
+      'tbl_1',
+      'ws_1',
+      'job_1',
+      expect.stringContaining('has reached its row limit')
+    )
+  })
+
+  it('completes a file that exactly fills the table', async () => {
+    loadCsv(csvOf(limit))
+
+    await runTableImport(buildPayload())
+
+    expect(insertedRowCount()).toBe(limit)
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
+    expect(mockMarkJobReady).toHaveBeenCalled()
   })
 })

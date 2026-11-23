@@ -1,4 +1,5 @@
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
+import { WORKFLOW_CODE_FEATURE } from '@/lib/workflows/code/feature-flag'
 
 const ALL_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: [
@@ -12,6 +13,18 @@ const ALL_WORKFLOW_PRINCIPAL_POLICY = {
 } as const
 
 const WORKFLOW_READ_PRINCIPAL_POLICY = {
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
+/** Every caller, including a workflow run's executor delegation. */
+const EXECUTOR_REACHABLE_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: [
     'session',
     'personal_api_key',
@@ -57,6 +70,58 @@ export const workflowOperations = {
     capability: 'none',
     contentDelivery: 'none',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
+  /**
+   * The draft as workflow source (TypeScript), its identity lock and freshness fingerprint. The
+   * same read as `read`, projected through the workflows-as-code canonical model.
+   */
+  // permission-group-exempt: workflow source is the workflow definition in another form, governed by workspace role like `read`
+  readSource: defineWorkspaceOperation({
+    id: 'workflows.source.read',
+    feature: WORKFLOW_CODE_FEATURE,
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
+  /**
+   * The source catalog: the per-workspace block catalog in the shape the workflow compiler reads.
+   * Same policy as `catalog.blocks.list`: a workspace read at the `read` role, reachable by
+   * a workspace API key and by Copilot delegation.
+   */
+  // permission-group-exempt: the source catalog is the block catalog in another shape; withholding it hides the product rather than restricting it
+  readSourceCatalog: defineWorkspaceOperation({
+    id: 'workflows.source.catalog.read',
+    feature: WORKFLOW_CODE_FEATURE,
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  /**
+   * The workspace resources workflow source can name, by key. A read: any member may list them,
+   * as any member may read the source that names them; a workspace API key and Copilot may too,
+   * like `workflows.source.catalog.read`. Listing allocates keys for resources that have none,
+   * which changes no resource (see `readSourceResources`). The result is names, ids, keys, table
+   * column schemas and env names, never stored content, so `contentDelivery` is `none`. Its
+   * sections (env names, credentials, skills, custom tools, MCP servers, tables, knowledge bases)
+   * are gated inside the use case, not here, so a member whose group hides one still gets the rest
+   * of the manifest.
+   */
+  // permission-group-exempt: the manifest as a whole stays readable to every member; each section is omitted in the use case when its capability is withheld (see visibleSections)
+  readSourceResources: defineWorkspaceOperation({
+    id: 'workflows.source.resources.read',
+    feature: WORKFLOW_CODE_FEATURE,
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   /** Full diagnostics retain the caller's subject for protected reference and secret reads. */
   // permission-group-exempt: lint reads workflow content under the existing workflow and secret authorization policies
@@ -154,6 +219,52 @@ export const workflowOperations = {
    */
   applyOperations: defineWorkspaceOperation({
     id: 'workflows.operations.apply',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  /**
+   * Writes workflow source (TypeScript) to the draft graph. Denied to workspace API keys for the
+   * reason `applyOperations` is: its gates (permission config, block visibility, credential
+   * reachability) take a human subject and fail open without one.
+   *
+   * permission-group-exempt: which blocks and values a member may store is judged per block by the source gates and inside replaceWorkflowNormalizedState against the principal's human subject, not by a capability the authorization funnel can apply
+   */
+  applySource: defineWorkspaceOperation({
+    id: 'workflows.source.apply',
+    feature: WORKFLOW_CODE_FEATURE,
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  /**
+   * What an apply of submitted workflow source would do, without writing: the read behind
+   * `sim workflows source status`. The apply pipeline as a dry run, so a member who may read the
+   * source may ask it (`read`, `api:read`). Denied to workspace API keys like `applySource`: the
+   * source gates it reports take a human subject and would fail open without one.
+   */
+  // permission-group-exempt: a plan stores nothing; the block and value gates it reports are judged per block against the principal's human subject, as for applySource
+  planSource: defineWorkspaceOperation({
+    id: 'workflows.source.plan',
+    feature: WORKFLOW_CODE_FEATURE,
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  /** Creating a workflow from source runs the apply pipeline with no stored draft: same policy. */
+  // permission-group-exempt: creating a workflow from source is governed by workspace role and the same block gates as apply
+  createFromSource: defineWorkspaceOperation({
+    id: 'workflows.source.create',
+    feature: WORKFLOW_CODE_FEATURE,
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
@@ -342,6 +453,34 @@ export const workflowOperations = {
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
+  // permission-group-exempt: trigger health is deployment state, governed by workspace role like the deployment read that already lists webhook URLs
+  readTriggers: defineWorkspaceOperation({
+    id: 'workflows.triggers.read',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
+  }),
+  /**
+   * Pausing or resuming one trigger of the live deployment. Not a deploy: the
+   * deployed graph and its provider registrations are untouched, so it is a
+   * write rather than an admin act, and a workspace key may perform it.
+   * A workflow run's executor delegation may too, as it could before this
+   * moved onto the use case.
+   *
+   * permission-group-exempt: `triggers.webhook` is asserted inside the use case and only for enabling a webhook-table row, because a group that withholds inbound webhooks must still let a member switch a live one off
+   */
+  setTriggerEnabled: defineWorkspaceOperation({
+    id: 'workflows.triggers.set_enabled',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
+    ...EXECUTOR_REACHABLE_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
     oauthScope: 'api:write',
@@ -443,6 +582,16 @@ export const workflowOperations = {
     contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: running a chosen deployment version is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
+  executeVersion: defineWorkspaceOperation({
+    id: 'workflows.execute_version',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'sourced',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManual: defineWorkspaceOperation({
     id: 'workflows.manual.execute',
@@ -483,6 +632,16 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     capability: 'none',
     contentDelivery: 'sourced',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  // permission-group-exempt: listing a workspace's paused runs is governed by workspace role, as reading one run is; logs.trace_spans withholds the pause points' resolved fields inside the list, not the right to read it
+  listPausedRuns: defineWorkspaceOperation({
+    id: 'workflows.runs.list_paused',
+    oauthScope: 'api:read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'none',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   // permission-group-exempt: a paused execution's detail is pause points and resume state, not the run's execution data — the fields logs.cost and logs.trace_spans withhold never appear here

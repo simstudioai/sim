@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 import { getToolParams } from '@/tools/metadata'
 import {
+  alwaysEndsAtResponseBlock,
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
+  formatWorkflowLintMessage,
   hasWorkflowLintIssues,
   lintEditedWorkflowState,
+  summarizeWorkflowLintIssues,
 } from './lint'
 
 const mockGetToolParams = getToolParams as Mock
@@ -110,6 +113,55 @@ function baseBlock(id: string, type: string, name: string, subBlocks: Record<str
     outputs: {},
   }
 }
+
+describe('alwaysEndsAtResponseBlock', () => {
+  const block = (type: string, subBlocks: Record<string, { value: unknown }> = {}) => ({
+    type,
+    subBlocks,
+  })
+  const edge = (source: string, target: string, sourceHandle = 'source') => ({
+    source,
+    target,
+    sourceHandle,
+  })
+
+  it('needs only the branches up to the first else row, the last a run can take', () => {
+    const conditions = JSON.stringify([
+      { id: 'g-if', title: 'if', value: 'true' },
+      { id: 'g-else', title: 'else', value: '' },
+      { id: 'g-after', title: 'else if', value: 'true' },
+    ])
+    const graph = {
+      blocks: {
+        start: block('start_trigger'),
+        gate: block('condition', { conditions: { value: conditions } }),
+        yes: block('response'),
+        no: block('response'),
+      },
+      edges: [
+        edge('start', 'gate'),
+        edge('gate', 'yes', 'condition-g-if'),
+        edge('gate', 'no', 'condition-g-else'),
+      ],
+    }
+
+    expect(alwaysEndsAtResponseBlock(graph)).toBe(true)
+  })
+
+  it('is false for a root cycle, whose blocks never run to the Response block', () => {
+    const graph = {
+      blocks: {
+        start: block('start_trigger'),
+        a: block('function'),
+        b: block('function'),
+        reply: block('response'),
+      },
+      edges: [edge('start', 'a'), edge('a', 'b'), edge('b', 'a')],
+    }
+
+    expect(alwaysEndsAtResponseBlock(graph)).toBe(false)
+  })
+})
 
 describe('lintEditedWorkflowState', () => {
   it('reports orphan blocks but allows unconnected condition/router branches', () => {
@@ -533,5 +585,55 @@ describe('collectWorkflowTableIds', () => {
     })
 
     expect(ids).toEqual(['tbl_1'])
+  })
+})
+
+/**
+ * The agent's own runs name their trigger and skip the Run button's checks, so
+ * a Run-button refusal is advice, never listed under "Fix these before continuing".
+ */
+describe('formatWorkflowLintMessage', () => {
+  const clean = {
+    sources: [],
+    sinks: [],
+    orphanBlocks: [],
+    emptyOutgoingPorts: [],
+    invalidBranchPorts: [],
+    invalidConnectionTargets: [],
+  }
+  const strayStart = {
+    reason: 'trigger-not-connected' as const,
+    message: 'Start must be connected to other blocks to execute',
+    blockId: 'start-1',
+    blockName: 'Start',
+    blockType: 'start_trigger',
+  }
+
+  it('reports a Run-button refusal as advice outside the blocking findings, naming both remedies', () => {
+    const message = formatWorkflowLintMessage({ ...clean, manualRunIssue: strayStart })
+    expect(message).not.toContain('Fix these before continuing')
+    expect(message).toBe(
+      'The editor\'s Run button would fail: Run starts from "Start" (start_trigger) ahead of any other trigger, and it is not connected to other blocks. Connect it, or delete it if the workflow starts from another trigger. Runs that name their trigger are not affected.'
+    )
+  })
+
+  it('points at a Run-button refusal alone without calling it a lint issue', () => {
+    expect(summarizeWorkflowLintIssues({ ...clean, manualRunIssue: strayStart })).toBe(
+      "The editor's Run button would fail. The findings are in `lint`."
+    )
+  })
+
+  it('keeps blocking findings first and the Run-button advice after them', () => {
+    const message = formatWorkflowLintMessage({
+      ...clean,
+      orphanBlocks: [{ blockId: 'fn', blockName: 'Fn', blockType: 'function' }],
+      manualRunIssue: {
+        reason: 'multiple-api-triggers',
+        message: 'Multiple API Trigger blocks found. Keep only one.',
+      },
+    })
+    expect(message).toBe(
+      'Workflow lint found issues. Fix these before continuing: Blocks with no incoming edge: "Fn" (function). The editor\'s Run button would fail: the workflow has more than one API Trigger block. Keep only one.'
+    )
   })
 })

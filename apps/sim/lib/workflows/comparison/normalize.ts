@@ -4,12 +4,13 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import type {
   BlockState,
@@ -18,7 +19,7 @@ import type {
   Variable,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
+import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /**
  * Block data fields to exclude from comparison/hashing.

@@ -8,6 +8,7 @@ import {
   datadogHeaders,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const triggerSyntheticsTestsTool: ToolConfig<
@@ -18,6 +19,7 @@ export const triggerSyntheticsTestsTool: ToolConfig<
   name: 'Datadog Trigger Synthetic Tests',
   description: 'Trigger an immediate run of one or more Synthetic tests by public ID.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     publicIds: {

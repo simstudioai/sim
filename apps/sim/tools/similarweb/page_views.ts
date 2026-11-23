@@ -1,3 +1,4 @@
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebPageViewsParams,
   SimilarwebPageViewsResponse,
@@ -12,6 +13,7 @@ export const similarwebPageViewsTool: ToolConfig<
   name: 'SimilarWeb Page Views',
   description: 'Get total page views over time (desktop and mobile combined)',
   version: '1.0.0',
+  oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

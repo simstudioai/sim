@@ -22,9 +22,9 @@ import {
   mothershipChatStatusMockFns,
 } from '@sim/testing/mocks/mothership-chat-status.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
@@ -76,7 +76,7 @@ vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock
 
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
@@ -87,7 +87,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 import { POST } from '@/app/api/mothership/chats/[chatId]/fork/route'
 
 mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
-const { mockFetchGo } = mothershipGoFetchMockFns
+const { mockFetchWorker } = mothershipWorkerFetchMockFns
 const { mockAppendCopilotChatMessages } = mothershipChatMessagesMockFns
 const { mockLoadCopilotChatMessages } = mothershipChatLifecycleMockFns
 const { mockPublishChatStatusChanged: mockPublishStatusChanged } = mothershipChatStatusMockFns
@@ -177,7 +177,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     mockPersistChatFileCopies.mockResolvedValue(undefined)
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
     mockPermissionConfig.mockResolvedValue(null)
-    mockFetchGo.mockImplementation(async (_url: string, options: { body: string }) => {
+    mockFetchWorker.mockImplementation(async (_url: string, options: { body: string }) => {
       const request = JSON.parse(options.body)
       return Response.json({ chatId: request.newChatId, sourceThroughSeq: 3 })
     })
@@ -211,7 +211,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     ])
     const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(200)
-    const request = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    const request = JSON.parse(mockFetchWorker.mock.calls[0][1].body)
     expect(request).toMatchObject({
       organizationId: 'org-1',
       userId: 'user-1',
@@ -240,7 +240,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(res.status).toBe(404)
     expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).not.toHaveBeenCalled()
-    expect(mockFetchGo.mock.calls.map(([url]) => url)).toEqual([
+    expect(mockFetchWorker.mock.calls.map(([url]) => url)).toEqual([
       'http://mothership.test/api/chats/fork',
       'http://mothership.test/api/tasks/cleanup',
     ])
@@ -257,7 +257,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       if (revocation === 'capability') mockPermissionConfig.mockResolvedValue({ hideCopilot: true })
       const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
       expect(res.status).toBe(404)
-      expect(mockFetchGo).not.toHaveBeenCalled()
+      expect(mockFetchWorker).not.toHaveBeenCalled()
       expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
       expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     }
@@ -303,12 +303,12 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
 
     expect(mockExecuteChatFileBlobCopies).toHaveBeenCalledWith(blobTasks)
 
-    const goCall = mockFetchGo.mock.calls[0]
-    expect(goCall[0]).toBe('http://mothership.test/api/chats/fork')
-    const goBody = JSON.parse(goCall[1].body)
+    const workerCall = mockFetchWorker.mock.calls[0]
+    expect(workerCall[0]).toBe('http://mothership.test/api/chats/fork')
+    const workerBody = JSON.parse(workerCall[1].body)
     // The copilot service only knows USER message ids, so the clone cut is the
     // kept slice's last user message (msg-1), not the clicked assistant (msg-2).
-    expect(goBody).toEqual({
+    expect(workerBody).toEqual({
       sourceChatId: 'chat-1',
       newChatId: body.id,
       upToMessageId: 'msg-1',
@@ -340,7 +340,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it('does not publish a chat when the worker copy fails', async () => {
-    mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
+    mockFetchWorker.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(500)
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
@@ -348,7 +348,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   })
 
   it.each([404, 409, 413])('passes a worker %i refusal through', async (status) => {
-    mockFetchGo.mockResolvedValue(Response.json({ error: 'refused' }, { status }))
+    mockFetchWorker.mockResolvedValue(Response.json({ error: 'refused' }, { status }))
     const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(status)
   })
@@ -377,7 +377,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     dbChainMockFns.transaction.mockRejectedValueOnce(new Error('connection lost'))
     const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(500)
-    const [fork, discard] = mockFetchGo.mock.calls
+    const [fork, discard] = mockFetchWorker.mock.calls
     expect(fork[0]).toBe('http://mothership.test/api/chats/fork')
     expect(discard[0]).toBe('http://mothership.test/api/tasks/cleanup')
     expect(JSON.parse(discard[1].body)).toEqual({
@@ -416,7 +416,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockAppendCopilotChatMessages.mock.calls[0][1][0].content).toBe(
       `See ![cat](/api/files/view/${OLD_FILE_ID})`
     )
-    const forkRequest = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    const forkRequest = JSON.parse(mockFetchWorker.mock.calls[0][1].body)
     expect(forkRequest.fileIds).toEqual({})
     expect(forkRequest.fileKeys).toEqual({})
   })

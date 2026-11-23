@@ -1,5 +1,6 @@
 import type { LinqListWebhookEventsParams, LinqListWebhookEventsResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqListWebhookEventsTool: ToolConfig<
@@ -10,6 +11,7 @@ export const linqListWebhookEventsTool: ToolConfig<
   name: 'List Webhook Events',
   description: 'List all webhook event types available to subscribe to',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -136,3 +136,40 @@ describe.each(PAGINATED_CASES.map((testCase) => [testCase.operation, testCase] a
     })
   }
 )
+
+/**
+ * What a tool call (agent, Pi, Human v2) hands the tool: the merged stored-row and model args,
+ * overlaid with the block mapper's output. The operation arrives only in `context`.
+ */
+function toolCallParams(operation: string, args: Record<string, unknown>) {
+  const mapper = JiraServiceManagementBlock.tools.config?.params
+  if (!mapper) throw new Error('Block is missing tools.config.params')
+  return { ...args, ...mapper({ domain: DOMAIN, ...args }, { operation }) }
+}
+
+describe('JiraServiceManagementBlock tool calls', () => {
+  it('maps fields set on the agent tool row to the tool param names', () => {
+    expect(
+      toolCallParams('add_comment', { issueIdOrKey: 'SD-1', commentBody: 'From the row' }).body
+    ).toBe('From the row')
+    expect(toolCallParams('get_queues', { serviceDeskId: '1', startIndex: '5' }).start).toBe(5)
+  })
+
+  it.each([
+    ['add_comment', { issueIdOrKey: 'SD-1', body: 'Model comment', isPublic: true }],
+    ['get_comments', { issueIdOrKey: 'SD-1', isPublic: false, start: 10, limit: 5 }],
+    ['create_organization', { name: 'Acme' }],
+    ['add_participants', { issueIdOrKey: 'SD-1', accountIds: 'a,b' }],
+    ['answer_approval', { issueIdOrKey: 'SD-1', approvalId: '2', decision: 'approve' }],
+    ['save_form_answers', { issueIdOrKey: 'SD-1', formId: 'f', answers: { '1': { text: 'x' } } }],
+    ['copy_forms', { sourceIssueIdOrKey: 'SD-1', targetIssueIdOrKey: 'SD-2', formIds: ['u1'] }],
+    [
+      'create_request',
+      { serviceDeskId: '1', requestTypeId: '2', summary: 's', requestFieldValues: { a: 1 } },
+    ],
+    ['search_objects_aql', { qlQuery: 'Name = x', page: 2, objectTypeId: '7', workspaceId: 'w' }],
+    ['create_object', { objectTypeId: '7', attributes: [{ objectTypeAttributeId: '1' }] }],
+  ])('keeps model args for %s without throwing', (operation, args) => {
+    expect(toolCallParams(operation, args)).toMatchObject(args)
+  })
+})

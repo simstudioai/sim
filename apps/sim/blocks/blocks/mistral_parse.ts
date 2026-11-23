@@ -7,7 +7,12 @@ import {
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
+import { MAX_OCR_EXTRACTED_IMAGES } from '@/tools/mistral/types'
 
 export const MistralParseBlock: BlockConfig = {
   type: 'mistral_parse',
@@ -304,7 +309,9 @@ export const MistralParseV3Block: BlockConfig = {
   sunset: undefined,
   type: 'mistral_parse_v3',
   name: 'Mistral Parser',
-  description: 'Extract text from PDF documents',
+  description: 'Extract text, tables, and images from PDF documents',
+  longDescription:
+    'Extract text, tables, and images from an uploaded PDF or a file from a previous block. Images come back as files an agent can pass on.',
   hideFromToolbar: false,
   /* v3 renamed the canonical pair's advanced member `filePath` -> `fileReference`,
      so the inherited sentence would reference a subblock this block lacks. */
@@ -357,6 +364,38 @@ export const MistralParseV3Block: BlockConfig = {
       title: 'Specific Pages',
       type: 'short-input',
       placeholder: 'e.g. 0,1,2 (leave empty for all pages)',
+    },
+    {
+      id: 'tableFormat',
+      title: 'Tables',
+      type: 'dropdown',
+      options: [
+        { id: 'inline', label: 'Inline in page markdown' },
+        { id: 'markdown', label: 'Separate (Markdown)' },
+        { id: 'html', label: 'Separate (HTML)' },
+      ],
+      value: () => 'inline',
+    },
+    {
+      id: 'includeImageBase64',
+      title: 'Extract Images',
+      type: 'switch',
+    },
+    {
+      id: 'imageLimit',
+      title: 'Max Images',
+      type: 'short-input',
+      placeholder: 'Up to 100 (default 100)',
+      condition: { field: 'includeImageBase64', value: true },
+      mode: 'advanced',
+    },
+    {
+      id: 'imageMinSize',
+      title: 'Min Image Size (px)',
+      type: 'short-input',
+      placeholder: 'Skip images smaller than this on both sides',
+      condition: { field: 'includeImageBase64', value: true },
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
@@ -416,6 +455,25 @@ export const MistralParseV3Block: BlockConfig = {
           parameters.pages = pagesArray
         }
 
+        parameters.tableFormat =
+          params.tableFormat === 'markdown' || params.tableFormat === 'html'
+            ? params.tableFormat
+            : undefined
+
+        if (params.includeImageBase64) {
+          parameters.includeImageBase64 = true
+          parameters.imageLimit = parseOptionalNumberInput(params.imageLimit, 'Max Images', {
+            integer: true,
+            min: 0,
+            max: MAX_OCR_EXTRACTED_IMAGES,
+          })
+          parameters.imageMinSize = parseOptionalNumberInput(
+            params.imageMinSize,
+            'Min Image Size',
+            { integer: true, min: 0 }
+          )
+        }
+
         return parameters
       },
     },
@@ -425,12 +483,20 @@ export const MistralParseV3Block: BlockConfig = {
     apiKey: { type: 'string', description: 'Mistral API key' },
     resultType: { type: 'string', description: 'Output format type' },
     pages: { type: 'string', description: 'Page selection' },
+    tableFormat: { type: 'string', description: 'Table output: inline, markdown, or html' },
+    includeImageBase64: { type: 'boolean', description: 'Extract document images as files' },
+    imageLimit: { type: 'number', description: 'Maximum number of images to extract' },
+    imageMinSize: { type: 'number', description: 'Minimum image size in pixels' },
   },
   outputs: {
     pages: { type: 'array', description: 'Array of page objects from Mistral OCR' },
     model: { type: 'string', description: 'Mistral OCR model identifier' },
     usage_info: { type: 'json', description: 'Usage statistics from the API' },
     document_annotation: { type: 'string', description: 'Structured annotation data' },
+    images: {
+      type: 'file[]',
+      description: 'Images extracted from the document when Extract Images is on',
+    },
   },
 }
 

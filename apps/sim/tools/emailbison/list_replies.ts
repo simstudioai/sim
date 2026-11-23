@@ -10,6 +10,7 @@ import {
   listRepliesOutputs,
   mapReply,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listRepliesTool: ToolConfig<
@@ -21,6 +22,7 @@ export const listRepliesTool: ToolConfig<
   description:
     'Retrieves Email Bison replies with optional status, folder, campaign, sender, lead, and tag filters.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     search: {

@@ -2,6 +2,15 @@ import { AzureIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, parseOptionalBooleanInput, toolCallArg } from '@/blocks/utils'
+
+/**
+ * A Yes/No dropdown value as a boolean: `'true'` is true and any other string (including a blank
+ * one) is false, while a boolean a model sent on a tool call passes through unchanged.
+ */
+function dropdownFlag(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : value === 'true'
+}
 
 /** Operations that act on a single user and therefore require the User ID field. */
 const USER_ID_OPERATIONS = [
@@ -18,6 +27,7 @@ const USER_ID_OPERATIONS = [
   'add_user_app_role_assignment',
   'remove_user_app_role_assignment',
   'list_user_devices',
+  'list_user_memberships',
 ]
 
 /**
@@ -25,7 +35,11 @@ const USER_ID_OPERATIONS = [
  * addresses the user, so these are the only per-user operations that can run without a User ID,
  * and only when continuing from a previous page.
  */
-const PAGED_USER_ID_OPERATIONS = ['list_user_app_role_assignments', 'list_user_devices']
+const PAGED_USER_ID_OPERATIONS = [
+  'list_user_app_role_assignments',
+  'list_user_devices',
+  'list_user_memberships',
+]
 
 /** Per-user operations that always require a User ID, whichever page is being fetched. */
 const ALWAYS_USER_ID_OPERATIONS = USER_ID_OPERATIONS.filter(
@@ -65,6 +79,7 @@ const PAGED_OPERATIONS = [
   'list_service_principals',
   'list_devices',
   'list_user_devices',
+  'list_user_memberships',
   'list_conditional_access_policies',
 ]
 
@@ -169,6 +184,9 @@ export const MicrosoftAdBlock: BlockConfig = {
         ],
         delete_group: [{ text: 'Delete group', field: 'groupId', core: true }],
         list_group_members: [{ text: 'List members of group', field: 'groupId', core: true }],
+        list_user_memberships: [
+          { text: 'List groups and roles for user', field: 'userId', core: true },
+        ],
         add_group_member: [
           { text: 'Add member', field: 'memberId', core: true },
           { text: 'to group', field: 'groupId', core: true },
@@ -257,6 +275,7 @@ export const MicrosoftAdBlock: BlockConfig = {
         { label: 'List Group Members', id: 'list_group_members' },
         { label: 'Add Group Member', id: 'add_group_member' },
         { label: 'Remove Group Member', id: 'remove_group_member' },
+        { label: 'List User Memberships', id: 'list_user_memberships' },
         { label: 'Assign License', id: 'assign_license' },
         { label: 'List User Licenses', id: 'list_user_licenses' },
         { label: 'List Subscribed SKUs', id: 'list_subscribed_skus' },
@@ -768,6 +787,24 @@ export const MicrosoftAdBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_user_devices' },
     },
     {
+      id: 'includeManager',
+      title: 'Include Manager',
+      type: 'switch',
+      condition: { field: 'operation', value: 'get_user' },
+      mode: 'advanced',
+    },
+    {
+      id: 'membershipScope',
+      title: 'Membership',
+      type: 'dropdown',
+      options: [
+        { label: 'Direct Memberships', id: 'direct' },
+        { label: 'Include Nested Groups', id: 'transitive' },
+      ],
+      value: () => 'direct',
+      condition: { field: 'operation', value: 'list_user_memberships' },
+    },
+    {
       id: 'policyId',
       title: 'Policy ID',
       type: 'short-input',
@@ -797,6 +834,7 @@ export const MicrosoftAdBlock: BlockConfig = {
       'microsoft_ad_update_group',
       'microsoft_ad_delete_group',
       'microsoft_ad_list_group_members',
+      'microsoft_ad_list_user_memberships',
       'microsoft_ad_add_group_member',
       'microsoft_ad_remove_group_member',
       'microsoft_ad_assign_license',
@@ -825,41 +863,56 @@ export const MicrosoftAdBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `microsoft_ad_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
         const top = Number(params.top)
         result.top = params.top && Number.isFinite(top) ? top : undefined
         if (params.nextLink) result.nextLink = params.nextLink
         const values = params as Record<string, unknown>
-        result.filter = values[FILTER_FIELD_BY_OPERATION[params.operation]] || undefined
-        result.search = values[SEARCH_FIELD_BY_OPERATION[params.operation]] || undefined
-        if (params.operation === 'set_password') {
-          result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'
-          result.forceChangePasswordNextSignInWithMfa = params.forceChangePasswordNextSignInWithMfa
-            ? params.forceChangePasswordNextSignInWithMfa === 'true'
-            : undefined
+        result.filter =
+          values[FILTER_FIELD_BY_OPERATION[operation]] ||
+          toolCallArg(context, params.filter) ||
+          undefined
+        result.search =
+          values[SEARCH_FIELD_BY_OPERATION[operation]] ||
+          toolCallArg(context, params.search) ||
+          undefined
+        if (operation === 'get_user') {
+          result.includeManager = params.includeManager === true || params.includeManager === 'true'
         }
-        if (params.operation === 'update_user') {
-          result.accountEnabled = params.accountEnabled
-            ? params.accountEnabled === 'true'
-            : undefined
-        } else if (params.operation === 'create_user') {
+        if (operation === 'list_user_memberships') {
+          result.transitive = params.membershipScope
+            ? params.membershipScope === 'transitive'
+            : (parseOptionalBooleanInput(toolCallArg(context, params.transitive)) ?? false)
+        }
+        if (operation === 'set_password') {
+          result.forceChangePasswordNextSignIn =
+            parseOptionalBooleanInput(params.forceChangePasswordNextSignIn) ?? true
+          result.forceChangePasswordNextSignInWithMfa = parseOptionalBooleanInput(
+            params.forceChangePasswordNextSignInWithMfa
+          )
+        }
+        if (operation === 'update_user') {
+          result.accountEnabled = parseOptionalBooleanInput(params.accountEnabled)
+        } else if (operation === 'create_user') {
           result.accountEnabled = params.accountEnabledCreate
             ? params.accountEnabledCreate === 'true'
-            : undefined
+            : parseOptionalBooleanInput(toolCallArg(context, params.accountEnabled))
         }
-        if (params.mailEnabled !== undefined) result.mailEnabled = params.mailEnabled === 'true'
+        if (params.mailEnabled !== undefined) result.mailEnabled = dropdownFlag(params.mailEnabled)
         if (params.securityEnabled !== undefined)
-          result.securityEnabled = params.securityEnabled === 'true'
+          result.securityEnabled = dropdownFlag(params.securityEnabled)
         // Map group-specific fields to tool param names
         if (params.groupDisplayName) result.displayName = params.groupDisplayName
         if (params.groupMailNickname) result.mailNickname = params.groupMailNickname
         if (params.groupDescription) result.description = params.groupDescription
         if (params.groupTypes !== undefined) result.groupTypes = params.groupTypes
-        if (params.operation === 'update_group') {
+        if (operation === 'update_group') {
           result.visibility = params.visibility || undefined
-        } else if (params.operation === 'create_group') {
-          result.visibility = params.visibilityCreate || undefined
+        } else if (operation === 'create_group') {
+          result.visibility =
+            params.visibilityCreate || toolCallArg(context, params.visibility) || undefined
         }
         return result
       },
@@ -914,6 +967,8 @@ export const MicrosoftAdBlock: BlockConfig = {
     deviceSearch: { type: 'string' },
     deviceFilter: { type: 'string' },
     deviceRelationship: { type: 'string' },
+    includeManager: { type: 'boolean' },
+    membershipScope: { type: 'string' },
     policyId: { type: 'string' },
     policyFilter: { type: 'string' },
   },
@@ -921,10 +976,18 @@ export const MicrosoftAdBlock: BlockConfig = {
     users: {
       type: 'array',
       description:
-        'User objects (id, displayName, givenName, surname, userPrincipalName, mail, jobTitle, department, officeLocation, mobilePhone, accountEnabled)',
+        'User objects (id, displayName, givenName, surname, userPrincipalName, mail, jobTitle, department, officeLocation, mobilePhone, accountEnabled, businessPhones, preferredLanguage, employeeId, employeeType, companyName, userType, usageLocation, city, country, createdDateTime, onPremisesSyncEnabled)',
     },
     userCount: { type: 'number', description: 'Number of users returned on this page' },
-    user: { type: 'json', description: 'The single user this operation created or read' },
+    user: {
+      type: 'json',
+      description: 'The single user this operation created or read',
+    },
+    manager: {
+      type: 'json',
+      description:
+        "Get User with Include Manager on: the user's manager (id, displayName, mail, userPrincipalName, jobTitle), or null when none is assigned",
+    },
     userId: { type: 'string', description: 'Object ID of the user the operation acted on' },
     userPrincipalName: { type: 'string', description: 'User principal name of that user' },
     displayName: { type: 'string', description: 'Display name of the user the operation acted on' },
@@ -938,10 +1001,17 @@ export const MicrosoftAdBlock: BlockConfig = {
     groupId: { type: 'string', description: 'Object ID of the group the operation acted on' },
     members: {
       type: 'array',
-      description: 'Group or directory role members (id, displayName, mail, odataType)',
+      description:
+        'Group or directory role members (id, displayName, mail, odataType, userPrincipalName)',
     },
     memberCount: { type: 'number', description: 'Number of members returned on this page' },
     memberId: { type: 'string', description: 'Object ID of the member the operation acted on' },
+    memberships: {
+      type: 'array',
+      description:
+        'Groups, directory roles, and administrative units the user belongs to (id, displayName, description, odataType, mail, mailEnabled, securityEnabled, groupTypes, roleTemplateId)',
+    },
+    membershipCount: { type: 'number', description: 'Number of memberships returned on this page' },
     roles: {
       type: 'array',
       description: 'Activated directory roles (id, displayName, description, roleTemplateId)',
@@ -1130,7 +1200,7 @@ export const MicrosoftAdBlockMeta = {
       description:
         'Disable an Azure AD account and strip its group memberships when someone leaves. Use for secure offboarding.',
       content:
-        '# Offboard User\n\nRevoke access for a departing user.\n\n## Steps\n1. Resolve the account with Get User by user principal name or id.\n2. Use Update User to set Account Enabled to No so the user can no longer sign in.\n3. Use List Group Members or the user record to enumerate the groups the user belongs to.\n4. For each group, call Remove Group Member with the user id.\n\n## Output\nReturn the disabled user id and the list of groups the user was removed from. Note any group where removal failed so it can be handled manually, and recommend writing the action to an audit record.',
+        '# Offboard User\n\nRevoke access for a departing user.\n\n## Steps\n1. Resolve the account with Get User by user principal name or id.\n2. Use Update User to set Account Enabled to No so the user can no longer sign in.\n3. Use List User Memberships with the user id to enumerate everything the user belongs to directly.\n4. For each membership whose odataType is #microsoft.graph.group, call Remove Group Member with the user id. For each one whose odataType is #microsoft.graph.directoryRole, call Remove Directory Role Member with the role id and user id. List any other types (such as administrative units) for manual follow-up.\n\n## Output\nReturn the disabled user id and the groups and directory roles the user was removed from. Note any group or role where removal failed so it can be handled manually, and recommend writing the action to an audit record.',
     },
     {
       name: 'audit-group-membership',

@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, exists, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { invalidateDeployedStateCache } from '@/lib/workflows/persistence/utils'
 import {
@@ -116,7 +117,7 @@ export async function clearFailedForkResourceReferences(params: {
   deployedTargetWorkflowIds?: string[]
   requestId?: string
 }): Promise<{ cleared: number; clearingFailed: boolean }> {
-  const { childWorkspaceId, failures, requestId = 'unknown' } = params
+  const { childWorkspaceId, failures, requestId = generateRequestId() } = params
   if (failures.length === 0) return { cleared: 0, clearingFailed: false }
 
   const failedKnowledgeBaseIds = failures.flatMap((failure) =>
@@ -158,10 +159,11 @@ export async function clearFailedForkResourceReferences(params: {
           docIds.push(docId)
         }
         if (failure.documentChildIds.length > 0) cleanupCount += 1
-        logger.warn(
-          `[${requestId}] Keeping a failed copied knowledge base that contains non-fork documents`,
-          { childWorkspaceId, childKnowledgeBaseId: failure.childId }
-        )
+        logger.warn('Keeping a failed copied knowledge base that contains non-fork documents', {
+          requestId,
+          childWorkspaceId,
+          childKnowledgeBaseId: failure.childId,
+        })
         continue
       }
       markFailed('knowledge-base', failure.childId)
@@ -183,7 +185,8 @@ export async function clearFailedForkResourceReferences(params: {
     affectedWorkflowIds = await clearFailedReferencesInWorkflows(childWorkspaceId, failedByKind)
   } catch (error) {
     clearingSucceeded = false
-    logger.error(`[${requestId}] Failed to clear references for failed fork resources`, {
+    logger.error('Failed to clear references for failed fork resources', {
+      requestId,
       childWorkspaceId,
       error: getErrorMessage(error),
     })
@@ -203,7 +206,8 @@ export async function clearFailedForkResourceReferences(params: {
     await clearFailedReferencesInDeploymentVersions(deployedSweepIds, failedByKind, requestId)
   } catch (error) {
     clearingSucceeded = false
-    logger.error(`[${requestId}] Failed to clear references in fork deployment versions`, {
+    logger.error('Failed to clear references in fork deployment versions', {
+      requestId,
       childWorkspaceId,
       error: getErrorMessage(error),
     })
@@ -215,15 +219,13 @@ export async function clearFailedForkResourceReferences(params: {
   // (now content-less) resource - and ONLY when clearing succeeded, so a clear failure never
   // turns an empty placeholder into a dangling reference to a deleted row.
   if (!clearingSucceeded) {
-    logger.warn(
-      `[${requestId}] Skipping fork resource placeholder drop after a reference-clear failure`,
-      {
-        childWorkspaceId,
-        tables: tableIds.length,
-        knowledgeBases: kbIds.length,
-        documents: docIds.length,
-      }
-    )
+    logger.warn('Skipping fork resource placeholder drop after a reference-clear failure', {
+      requestId,
+      childWorkspaceId,
+      tables: tableIds.length,
+      knowledgeBases: kbIds.length,
+      documents: docIds.length,
+    })
     return { cleared: 0, clearingFailed: true }
   }
   try {
@@ -239,7 +241,8 @@ export async function clearFailedForkResourceReferences(params: {
       await db.delete(document).where(inArray(document.id, docIds))
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to drop orphaned fork resource placeholders`, {
+    logger.error('Failed to drop orphaned fork resource placeholders', {
+      requestId,
       childWorkspaceId,
       error: getErrorMessage(error),
     })
@@ -407,7 +410,8 @@ export async function clearFailedReferencesInDeploymentVersions(
       }
     } catch (error) {
       failures.push(error)
-      logger.error(`[${requestId}] Failed to clear references in deployment versions`, {
+      logger.error('Failed to clear references in deployment versions', {
+        requestId,
         workflowId,
         error: getErrorMessage(error),
       })

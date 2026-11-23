@@ -1,5 +1,6 @@
 import type { CalendlyCancelEventParams, CalendlyCancelEventResponse } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCancelEventResponse> = {
@@ -7,6 +8,7 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
   name: 'Calendly Cancel Event',
   description: 'Cancel a scheduled event',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -25,14 +27,14 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
     reason: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Reason for cancellation (will be sent to invitees)',
     },
   },
 
   request: {
     url: (params: CalendlyCancelEventParams) => {
-      const uuid = toUuid(params.eventUuid)
+      const uuid = toUuid(params.eventUuid, 'eventUuid')
       return `https://api.calendly.com/scheduled_events/${uuid}/cancellation`
     },
     method: 'POST',
@@ -41,7 +43,7 @@ export const cancelEventTool: ToolConfig<CalendlyCancelEventParams, CalendlyCanc
       'Content-Type': 'application/json',
     }),
     body: (params: CalendlyCancelEventParams) => {
-      const body: any = {}
+      const body: { reason?: string } = {}
 
       if (params.reason) {
         body.reason = params.reason

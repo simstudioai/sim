@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getReportTool: ToolConfig<JotformGetReportParams, JotformReportResponse> = {
@@ -13,6 +14,7 @@ export const getReportTool: ToolConfig<JotformGetReportParams, JotformReportResp
   name: 'Jotform Get Report',
   description: 'Get the details and shareable URL of a single Jotform report.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

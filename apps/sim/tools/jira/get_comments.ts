@@ -1,7 +1,9 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetCommentsParams, JiraGetCommentsResponse } from '@/tools/jira/types'
 import { COMMENT_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Transforms a raw Jira comment object into typed output.
@@ -86,7 +88,7 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
         const startAt = params.startAt ?? 0
         const maxResults = params.maxResults ?? 50
         const orderBy = params.orderBy ?? '-created'
-        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
+        return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
       }
       return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
@@ -104,8 +106,8 @@ export const jiraGetCommentsTool: ToolConfig<JiraGetCommentsParams, JiraGetComme
       const startAt = params?.startAt ?? 0
       const maxResults = params?.maxResults ?? 50
       const orderBy = params?.orderBy ?? '-created'
-      const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
-      const commentsResponse = await fetch(commentsUrl, {
+      const commentsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/comment?startAt=${startAt}&maxResults=${maxResults}&orderBy=${orderBy}`
+      const commentsResponse = await outboundFetch(commentsUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

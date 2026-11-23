@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -57,7 +58,7 @@ export async function downloadCursorArtifact(
 ): Promise<LegacyCursorArtifactResult | InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const authHeader = `Basic ${Buffer.from(`${input.apiKey}:`).toString('base64')}`
-  const artifactResponse = await fetch(
+  const artifactResponse = await outboundFetch(
     `https://api.cursor.com/v0/agents/${encodeURIComponent(input.agentId)}/artifacts/download?path=${encodeURIComponent(input.path)}`,
     {
       method: 'GET',
@@ -111,7 +112,8 @@ export async function downloadCursorArtifact(
     mimeType: downloadResponse.headers.get('content-type') || 'application/octet-stream',
     buffer: fileBuffer,
   }
-  logger.info(`[${context.requestId}] Cursor artifact downloaded`, {
+  logger.info('Cursor artifact downloaded', {
+    requestId: context.requestId,
     agentId: input.agentId,
     path: input.path,
     size: fileBuffer.length,

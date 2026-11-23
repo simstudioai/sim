@@ -57,24 +57,25 @@ export function verifyTikTokSignature(
   nowSeconds: number = Math.floor(Date.now() / 1000)
 ): NextResponse | null {
   if (!clientSecret) {
-    logger.warn(`[${requestId}] TikTok webhook missing TIKTOK_CLIENT_SECRET`)
+    logger.warn('TikTok webhook missing TIKTOK_CLIENT_SECRET', { requestId })
     return new NextResponse('Unauthorized - TikTok client secret not configured', { status: 401 })
   }
 
   const parts = parseTikTokSignatureHeader(signatureHeader)
   if (!parts) {
-    logger.warn(`[${requestId}] TikTok webhook missing or malformed TikTok-Signature header`)
+    logger.warn('TikTok webhook missing or malformed TikTok-Signature header', { requestId })
     return new NextResponse('Unauthorized - Missing TikTok signature', { status: 401 })
   }
 
   const timestampSeconds = Number(parts.timestamp)
   if (!Number.isFinite(timestampSeconds)) {
-    logger.warn(`[${requestId}] TikTok webhook signature timestamp is not a number`)
+    logger.warn('TikTok webhook signature timestamp is not a number', { requestId })
     return new NextResponse('Unauthorized - Invalid TikTok signature timestamp', { status: 401 })
   }
 
   if (Math.abs(nowSeconds - timestampSeconds) > TIKTOK_WEBHOOK_TIMESTAMP_SKEW_SECONDS) {
-    logger.warn(`[${requestId}] TikTok webhook signature timestamp outside allowed skew`, {
+    logger.warn('TikTok webhook signature timestamp outside allowed skew', {
+      requestId,
       skewSeconds: TIKTOK_WEBHOOK_TIMESTAMP_SKEW_SECONDS,
       timestampSeconds,
       nowSeconds,
@@ -87,7 +88,7 @@ export function verifyTikTokSignature(
   const signedPayload = `${parts.timestamp}.${rawBody}`
   const computed = hmacSha256Hex(signedPayload, clientSecret)
   if (!safeCompare(computed, parts.signature)) {
-    logger.warn(`[${requestId}] TikTok signature verification failed`)
+    logger.warn('TikTok signature verification failed', { requestId })
     return new NextResponse('Unauthorized - Invalid TikTok signature', { status: 401 })
   }
 
@@ -139,9 +140,9 @@ export const tiktokHandler: WebhookProviderHandler = {
     const { isTikTokEventMatch } = await import('@/triggers/tiktok/utils')
     const event = stringField(toRecord(body), 'event')
     if (!isTikTokEventMatch(triggerId, event)) {
-      logger.debug(
-        `[${requestId}] TikTok event mismatch for trigger ${triggerId}. Event: ${event}. Skipping.`
-      )
+      logger.debug(`TikTok event mismatch for trigger ${triggerId}. Event: ${event}. Skipping.`, {
+        requestId,
+      })
       return false
     }
     return true

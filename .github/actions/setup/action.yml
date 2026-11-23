@@ -14,10 +14,6 @@ inputs:
     description: Node version to install. Empty keeps the runner's preinstalled Node, for jobs that only ever ran Bun.
     required: false
     default: '24'
-  registry-url:
-    description: npm registry to write an .npmrc for, so `npm publish` reads NODE_AUTH_TOKEN. Empty writes none.
-    required: false
-    default: ''
 
 # Sticky disk keys are scoped by event name, and fork PRs get their own namespace on
 # top: untrusted fork runs must never share a cache with push runs (whose caches
@@ -43,7 +39,6 @@ runs:
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
       with:
         node-version: ${{ inputs.node-version }}
-        registry-url: ${{ inputs.registry-url }}
 
     - name: Mount Bun cache
       if: inputs.provider == '' || inputs.provider == 'blacksmith'

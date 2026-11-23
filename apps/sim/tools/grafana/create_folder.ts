@@ -1,4 +1,5 @@
 import type { GrafanaCreateFolderParams, GrafanaCreateFolderResponse } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCreateFolderResponse> =
@@ -7,6 +8,7 @@ export const createFolderTool: ToolConfig<GrafanaCreateFolderParams, GrafanaCrea
     name: 'Grafana Create Folder',
     description: 'Create a new folder in Grafana',
     version: '1.0.0',
+    oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

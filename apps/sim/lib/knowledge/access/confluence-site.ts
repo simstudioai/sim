@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { normalizeAtlassianSiteUrl } from '@/lib/atlassian/discovery'
+import { scopedOutboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret } from '@/lib/core/security/encryption'
@@ -99,7 +101,7 @@ async function verifySite(
   signal: AbortSignal
 ): Promise<boolean> {
   signal.throwIfAborted()
-  const response = await fetch(
+  const response = await scopedOutboundFetch(
     `https://api.atlassian.com/ex/confluence/${binding.cloudId}/wiki/rest/api/user/current`,
     {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
@@ -200,8 +202,12 @@ export async function resolveConfluenceSiteReadGrants(input: {
       )
     )
     .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
-  const timeout = AbortSignal.timeout(CONFLUENCE_READ_TIMEOUT_MS)
-  const admissionSignal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout
+  const outage = new AbortController()
+  const admissionSignal = AbortSignal.any([
+    outage.signal,
+    AbortSignal.timeout(CONFLUENCE_READ_TIMEOUT_MS),
+    ...(input.signal ? [input.signal] : []),
+  ])
   const bindings = new Map<string, SiteBinding>()
   for (const content of credentials) {
     if (!content.key || admissionSignal.aborted) continue
@@ -309,7 +315,15 @@ export async function resolveConfluenceSiteReadGrants(input: {
             .slice(offset, offset + CONFLUENCE_READ_ALTERNATIVE_CONCURRENCY)
             .map((credentialId) => attempt(binding, identity, credentialId, cancellation.signal))
         )
-      } catch {
+      } catch (error) {
+        const unavailable =
+          error instanceof AggregateError
+            ? error.errors.find((attemptError) => isUnavailableFailure(attemptError))
+            : undefined
+        if (unavailable) {
+          outage.abort(unavailable)
+          throw unavailable
+        }
         if (requests >= MAX_KNOWLEDGE_ACCESS_CANDIDATES) return undefined
       } finally {
         cancellation.abort()

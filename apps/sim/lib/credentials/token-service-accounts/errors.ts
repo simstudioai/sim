@@ -1,5 +1,12 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 
 /**
  * Discrete validation failure codes returned to the client for token
@@ -10,16 +17,71 @@ export type TokenServiceAccountValidationCode =
   | 'invalid_credentials'
   | 'permission_conflict'
   | 'site_not_found'
+  /** The egress policy refused the typed host (a private address, or plain http). */
+  | 'host_not_allowed'
   | 'provider_unavailable'
+  /** The provider requires a one-time user consent before it issues tokens (DocuSign JWT Grant). */
+  | 'consent_required'
+  /** The credential authenticated, but the account it pins is not one its user belongs to. */
+  | 'account_not_found'
+  /**
+   * The credential works, but not for this service or option: a keyless Google Cloud credential
+   * asked for a Google Workspace service or to impersonate a Google Workspace user (domain-wide delegation).
+   */
+  | 'unsupported_use'
+  /**
+   * The credential signs in to a different cloud instance than the one this service calls: a
+   * US Government or China Microsoft app credential picked for a tool that calls the global cloud.
+   */
+  | 'cloud_mismatch'
+  /**
+   * The provider refused this grant for the account the credential names, although the client
+   * itself may be valid: Shopify answers `shop_not_permitted` when the app and the store are not
+   * in the same Shopify organization.
+   */
+  | 'grant_not_permitted'
+
+export interface TokenServiceAccountValidationErrorOptions {
+  /** See {@link TokenServiceAccountValidationError.userMessage}. */
+  message?: string
+  /** See {@link TokenServiceAccountValidationError.retryAfterMs}. */
+  retryAfterMs?: number
+  /** See {@link TokenServiceAccountValidationError.replayForMs}. */
+  replayForMs?: number
+}
 
 export class TokenServiceAccountValidationError extends Error {
+  /**
+   * The provider's `Retry-After` on a 429 or 503 answer, in milliseconds, uncapped as the provider
+   * sent it. Absent when the provider named none. Only ever set from a provider's own answer.
+   */
+  public readonly retryAfterMs?: number
+
+  /**
+   * How much longer, in milliseconds, this failure is replayed to later callers before the provider
+   * is asked again, whether it was just answered or is itself a replay. It says when the provider
+   * will next be asked, not that asking will then succeed (a refusal of the credentials carries it
+   * too).
+   */
+  public readonly replayForMs?: number
+
+  /**
+   * A message for the user naming what the credential refused and what to change. Absent when the
+   * code alone says enough; the error's `message` is then just its code.
+   */
+  public readonly userMessage?: string
+
   constructor(
     public readonly code: TokenServiceAccountValidationCode,
     public readonly status: number,
-    public readonly logDetail?: Record<string, unknown>
+    public readonly logDetail?: Record<string, unknown>,
+    options: TokenServiceAccountValidationErrorOptions = {}
   ) {
-    super(code)
+    super(options.message ?? code)
     this.name = 'TokenServiceAccountValidationError'
+    if (options.message !== undefined) this.userMessage = options.message
+    if (options.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs
+    if (options.replayForMs !== undefined) this.replayForMs = options.replayForMs
   }
 }
 
@@ -48,6 +110,29 @@ export function requireClientSecret(
   return clientSecret
 }
 
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/
+const CONTROL_CHARACTERS_OR_SPACE = /[\u0000- \u007f]/
+
+/**
+ * Refuses a credential value that is empty, longer than `maxBytes` in UTF-8, or holds a control
+ * character (and, with `forbidSpaces`, a space), any of which would corrupt or be cut from the
+ * header the value is sent in, as `invalid_credentials` naming the field.
+ */
+export function assertCredentialText(
+  value: string,
+  label: string,
+  step: string,
+  options: { maxBytes: number; forbidSpaces?: boolean }
+): void {
+  const forbidden = options.forbidSpaces ? CONTROL_CHARACTERS_OR_SPACE : CONTROL_CHARACTERS
+  if (!value || forbidden.test(value) || Buffer.byteLength(value, 'utf8') > options.maxBytes) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step,
+      reason: `${label} is invalid`,
+    })
+  }
+}
+
 /**
  * Short, stable description of a failed best-effort provider call, for callers
  * that degrade instead of throwing. `TokenServiceAccountValidationError`'s
@@ -70,6 +155,29 @@ export function isTransientProviderStatus(status: number): boolean {
   return status === 408 || status === 429
 }
 
+/**
+ * The shared split for a failed provider call: a non-transient 4xx is the
+ * caller's input being wrong; anything else (5xx, 408/429, or a reply that
+ * wasn't an error status but still failed) is the provider.
+ */
+export function providerFailureCode(
+  status: number
+): Extract<TokenServiceAccountValidationCode, 'invalid_credentials' | 'provider_unavailable'> {
+  return status >= 400 && status < 500 && !isTransientProviderStatus(status)
+    ? 'invalid_credentials'
+    : 'provider_unavailable'
+}
+
+/**
+ * The `Retry-After` of a 429 (RFC 6585) or 503 (RFC 9110 section 15.6.4) answer in milliseconds,
+ * as delay-seconds or an HTTP-date (RFC 9110 section 10.2.3); `undefined` for any other status or
+ * a missing or unparsable header. Uncapped: the caller that waits decides how long is too long.
+ */
+export function throttledRetryAfterMs(response: ProviderResponse): number | undefined {
+  if (response.status !== 429 && response.status !== 503) return undefined
+  return parseRetryAfter(response.headers.get('retry-after'), Number.POSITIVE_INFINITY) ?? undefined
+}
+
 export interface FetchProviderOptions {
   /**
    * Validation code thrown when the host does not resolve (`ENOTFOUND` only —
@@ -83,15 +191,31 @@ export interface FetchProviderOptions {
   dnsFailureReason?: string
 }
 
+const PROVIDER_FETCH_TIMEOUT_MS = 10_000
+
+/**
+ * Whether a failed request proves the host doesn't exist (`ENOTFOUND`). Node's fetch
+ * puts the resolver code on `cause`, Bun's on the error itself; the transient
+ * `EAI_AGAIN` is not a missing host.
+ */
+export function isHostNotFound(error: unknown): boolean {
+  const failure = error as { code?: unknown; cause?: { code?: unknown } } | undefined
+  return failure?.code === 'ENOTFOUND' || failure?.cause?.code === 'ENOTFOUND'
+}
+
 /**
  * Fetches a provider verification endpoint, mapping network-level failures
  * (DNS, TLS, connection reset) to `provider_unavailable` so they never escape
  * as raw undici errors — whose `cause` can carry connection details — and are
  * never blamed on the pasted token. DNS-resolution failures can optionally be
- * mapped to a different code via {@link FetchProviderOptions}.
+ * mapped to a different code via {@link FetchProviderOptions}. A blocked or unavailable
+ * organization egress route is Sim's outage, not the provider's, so it propagates unchanged.
+ *
+ * Redirects are refused (`redirect: 'error'`) unless `init` names another mode:
+ * every caller sends a secret, and fetch replays custom headers and 307/308
+ * bodies to whatever host a redirect names. A refused redirect is a network
+ * failure, so it surfaces as `provider_unavailable`.
  */
-const PROVIDER_FETCH_TIMEOUT_MS = 10_000
-
 export async function fetchProvider(
   url: string,
   init: RequestInit,
@@ -101,13 +225,13 @@ export async function fetchProvider(
   try {
     const timeout = AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS)
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout
-    return await fetch(url, { ...init, signal })
+    return await outboundFetch(url, { ...init, redirect: init.redirect ?? 'error', signal })
   } catch (error) {
     init.signal?.throwIfAborted()
-    const causeCode = (error as { cause?: { code?: unknown } })?.cause?.code
+    if (isUnavailableFailure(error)) throw error
     // Only ENOTFOUND proves the host doesn't exist; EAI_AGAIN is a transient
     // resolver failure and stays provider_unavailable.
-    if (options?.dnsFailureCode && causeCode === 'ENOTFOUND') {
+    if (options?.dnsFailureCode && isHostNotFound(error)) {
       throw new TokenServiceAccountValidationError(options.dnsFailureCode, 400, {
         step,
         reason: options.dnsFailureReason ?? 'host does not resolve',
@@ -125,7 +249,10 @@ export async function fetchProvider(
  * error pages, truncated responses) to `provider_unavailable` instead of an
  * unhandled SyntaxError that would surface as a generic 500.
  */
-export async function parseProviderJson<T>(res: Response, step: string): Promise<T> {
+export async function parseProviderJson<T>(
+  res: { json(): Promise<unknown> },
+  step: string
+): Promise<T> {
   try {
     return (await res.json()) as T
   } catch {
@@ -136,13 +263,34 @@ export async function parseProviderJson<T>(res: Response, step: string): Promise
   }
 }
 
+/** The parts of a provider response the checks read; both `fetch` and the guarded egress fetch return them. */
+export interface ProviderResponse {
+  ok: boolean
+  status: number
+  headers: { get(name: string): string | null }
+  body: ReadableStream<Uint8Array> | null
+}
+
+/** Whether a 403 is the vendor's own JSON answer; an HTML one is a firewall or CDN page. */
+export function isVendorJsonForbidden(response: ProviderResponse): boolean {
+  return (
+    response.status === 403 &&
+    (response.headers.get('content-type') ?? '').toLowerCase().includes('application/json')
+  )
+}
+
 /**
  * Reads a bounded snippet of a provider error body for server logs. Never
  * throws — an unreadable body logs as an empty string.
  */
-export async function readProviderErrorSnippet(res: Response): Promise<string> {
+export async function readProviderErrorSnippet(res: ProviderResponse): Promise<string> {
   try {
-    return truncate(await res.text(), ERROR_SNIPPET_MAX_LENGTH)
+    // Bounded: a provider or proxy can answer with an arbitrarily large error body.
+    const text = await readResponseTextWithLimit(res, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'provider error response',
+    })
+    return truncate(text, ERROR_SNIPPET_MAX_LENGTH)
   } catch {
     return ''
   }
@@ -159,7 +307,7 @@ export async function readProviderErrorSnippet(res: Response): Promise<string> {
  * classifying a permanently-wrong `domain`, `orgId`, or `clientId` as an outage
  * makes it retry forever. A 4xx that is not 408/429 is by definition something
  * the caller must change, so it is answered as a caller error and never
- * advertises a retry.
+ * advertises a retry. A 429 or 503 carries its `Retry-After` as `retryAfterMs`.
  *
  * `invalid_credentials` covers the whole non-transient 4xx range rather than
  * splitting further: telling a rejected token apart from a wrong host takes
@@ -167,17 +315,16 @@ export async function readProviderErrorSnippet(res: Response): Promise<string> {
  * Snowflake, Atlassian) already raise `site_not_found` before reaching here.
  */
 export async function throwForProviderResponse(
-  res: Response,
+  res: ProviderResponse,
   step: string,
   context: Record<string, unknown> = {}
 ): Promise<void> {
   if (res.ok) return
   const body = await readProviderErrorSnippet(res)
-  const callerError =
-    res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)
   throw new TokenServiceAccountValidationError(
-    callerError ? 'invalid_credentials' : 'provider_unavailable',
+    providerFailureCode(res.status),
     res.status,
-    { step, body, ...context }
+    { step, body, ...context },
+    { retryAfterMs: throttledRetryAfterMs(res) }
   )
 }

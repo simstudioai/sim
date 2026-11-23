@@ -409,4 +409,44 @@ describe('POST /api/credentials', () => {
     expect(body).not.toContain('exact passphrase')
     expect(body).not.toContain('encrypted-oci-blob')
   })
+
+  it('forwards a password with surrounding spaces unchanged', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
+      new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+    )
+
+    await POST(
+      createMockRequest('POST', {
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        providerId: 'servicenow-service-account',
+        apiToken: ' pass word ',
+        providerWorkspaceId: 'integration.user',
+        domain: 'acme.service-now.com',
+      })
+    )
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'servicenow-service-account',
+      expect.objectContaining({ apiToken: ' pass word ' })
+    )
+  })
+
+  it('refuses a blank token before verifying it', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockClear()
+
+    const response = await POST(
+      createMockRequest('POST', {
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        providerId: 'servicenow-service-account',
+        apiToken: '   ',
+        providerWorkspaceId: 'integration.user',
+        domain: 'acme.service-now.com',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+  })
 })

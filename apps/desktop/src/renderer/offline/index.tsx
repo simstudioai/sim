@@ -3,7 +3,6 @@ import {
   AuthRoot,
   AuthShellView,
   AuthTextLink,
-  AuthWordmark,
   AuthButton as Chip,
   AuthStatusContent as StatusPageContent,
 } from '@sim/auth-ui'
@@ -29,6 +28,11 @@ const ERROR_COPY = {
   timeout: {
     title: 'The server isn’t responding',
     message: 'The connection timed out. The server may be down or your network may be blocking it.',
+  },
+  local_network: {
+    title: 'Can’t reach the server',
+    message:
+      'If your Sim server is on a local or private network, macOS may be blocking Sim. Turn on Sim in System Settings > Privacy & Security > Local Network, then try again.',
   },
   unreachable: {
     title: 'Can’t connect to Sim',
@@ -66,7 +70,6 @@ function OfflinePage({ isSimCloud }: OfflinePageProps) {
     <AuthRoot>
       <AuthShellView
         homeHref='https://sim.ai'
-        logo={<AuthWordmark />}
         titlebar={<div data-auth-titlebar='' aria-hidden='true' />}
         footer={
           <AuthTextLink

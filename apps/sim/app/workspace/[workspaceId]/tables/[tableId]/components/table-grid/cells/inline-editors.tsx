@@ -14,10 +14,10 @@ import {
   toast,
 } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
+import { isCalendarDateString } from '@sim/table-cells/dates'
 import type { ColumnDefinition } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
-import { isCalendarDateString } from '@/lib/table/dates'
-import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-values'
+import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-picker'
 import { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
 import { useTimezoneState } from '@/hooks/queries/general-settings'
 import type { SaveReason } from '../../../types'

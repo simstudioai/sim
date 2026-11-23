@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomReplyConversationParams {
   accessToken: string
@@ -72,7 +74,9 @@ const replyConversationBase = {
   },
   request: {
     url: (params: IntercomReplyConversationParams) =>
-      buildIntercomUrl(`/conversations/${params.conversationId}/reply`),
+      buildIntercomUrl(
+        `/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/reply`
+      ),
     method: 'POST',
     headers: (params: IntercomReplyConversationParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -110,6 +114,7 @@ export const intercomReplyConversationTool: ToolConfig<
   name: 'Reply to Conversation in Intercom',
   description: 'Reply to a conversation as an admin in Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...replyConversationBase,
 
@@ -194,6 +199,7 @@ export const intercomReplyConversationV2Tool: ToolConfig<
   name: 'Reply to Conversation in Intercom',
   description: 'Reply to a conversation as an admin in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

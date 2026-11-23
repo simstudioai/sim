@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveListAudienceManagersParams,
   ThriveListAudienceManagersResponse,
@@ -5,6 +6,7 @@ import type {
 import { THRIVE_AUDIENCE_MANAGER_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAudienceManagersTool: ToolConfig<
   ThriveListAudienceManagersParams,
@@ -14,6 +16,7 @@ export const listAudienceManagersTool: ToolConfig<
   name: 'Thrive List Audience Managers',
   description: 'List the managers of a Thrive audience.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -44,7 +47,7 @@ export const listAudienceManagersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/managers`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/managers`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

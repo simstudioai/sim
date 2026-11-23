@@ -194,6 +194,16 @@ describe('Azure Blob Storage Client', () => {
     })
   })
 
+  describe('dot-segment keys', () => {
+    it('refuses a key the SDK would collapse into another blob or container', async () => {
+      for (const key of ['og-images/../workspace/ws/secret.txt', 'og-images/../../kb/doc.pdf']) {
+        await expect(downloadFromBlob(key)).rejects.toThrow('Path traversal detected')
+        await expect(headBlobObject(key)).rejects.toThrow('Path traversal detected')
+      }
+      expect(mockGetBlockBlobClient).not.toHaveBeenCalled()
+    })
+  })
+
   describe('headBlobObject', () => {
     it('reports an absent blob as null rather than raising', async () => {
       /** Azure names the class in `name` and the reason in `code`. */

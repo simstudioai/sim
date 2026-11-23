@@ -70,14 +70,14 @@ export async function saveWorkflowNormalizedState(params: {
   const workflowData = authorization.workflow
 
   if (!workflowData) {
-    logger.warn(`[${requestId}] Workflow ${workflowId} not found for state update`)
+    logger.warn(`Workflow ${workflowId} not found for state update`, { requestId })
     return { success: false, status: 404, error: 'Workflow not found' }
   }
 
   if (!authorization.allowed) {
-    logger.warn(
-      `[${requestId}] User ${userId} denied permission to update workflow state ${workflowId}`
-    )
+    logger.warn(`User ${userId} denied permission to update workflow state ${workflowId}`, {
+      requestId,
+    })
     return {
       success: false,
       status: authorization.status || 403,

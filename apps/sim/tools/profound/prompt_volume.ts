@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundPromptVolumeParams, ProfoundPromptVolumeResponse } from './types'
 
@@ -10,6 +11,7 @@ export const profoundPromptVolumeTool: ToolConfig<
   description:
     'Query prompt volume data to understand search demand across AI platforms in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -246,6 +246,19 @@ describe('Assistant retrieval tools', () => {
     )
     expect(JSON.stringify(result)).not.toContain(secret)
   })
+  it('tells the model a search no account served searched nothing, not to narrow and retry', async () => {
+    mocks.search.mockResolvedValueOnce({
+      query: 'roadmap',
+      retrieval: { status: 'partial', timedOutLegs: [] },
+      results: [],
+      live: { backend: 'live', accounts: [], guidance: 'Nothing was searched: connect one.' },
+    })
+    const result = await searchWorkspaceServerTool.execute({ query: 'roadmap' }, context)
+    expect(result).toMatchObject({
+      success: true,
+      message: expect.stringMatching(/^Nothing was searched: (?!.*more specific query)/),
+    })
+  })
   it('rejects untrusted contexts, incompatible sources and out-of-scope document reads', async () => {
     expect(
       await searchWorkspaceServerTool.execute(

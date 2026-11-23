@@ -1,15 +1,17 @@
+import {
+  evaluateSubBlockCondition,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { describe, expect, it } from 'vitest'
-import type { SubBlockConfig } from '@/blocks/types'
 import {
   buildCanonicalIndexForSurface,
-  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
   reindexRewrittenToolCanonicalModes,
   reindexToolCanonicalModes,
   resolveActiveDependencyValue,
   resolveDependencyValue,
-  scopeCanonicalModesForTool,
-} from './visibility'
+} from '@/lib/workflows/subblocks/visibility'
+import type { SubBlockConfig } from '@/blocks/types'
 
 describe('evaluateSubBlockCondition', () => {
   describe('simple value matching', () => {

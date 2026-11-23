@@ -1,5 +1,7 @@
 import type { GrainGetRecordingParams, GrainGetRecordingResponse } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGetRecordingResponse> =
   {
@@ -7,6 +9,7 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
     name: 'Grain Get Recording',
     description: 'Get details of a single recording by ID',
     version: '1.0.0',
+    oauth: GRAIN_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
@@ -61,7 +64,7 @@ export const grainGetRecordingTool: ToolConfig<GrainGetRecordingParams, GrainGet
 
     request: {
       url: (params) =>
-        `https://api.grain.com/_/public-api/v2/recordings/${params.recordingId.trim()}`,
+        `https://api.grain.com/_/public-api/v2/recordings/${safeUrlPathSegment(params.recordingId, 'recordingId')}`,
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/json',

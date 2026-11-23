@@ -384,7 +384,7 @@ export async function validateWorkflowPermissions(
 ) {
   const session = await getSession()
   if (!session?.user?.id) {
-    logger.warn(`[${requestId}] No authenticated user session for workflow ${action}`)
+    logger.warn(`No authenticated user session for workflow ${action}`, { requestId })
     return {
       error: { message: 'Unauthorized', status: 401 },
       session: null,
@@ -399,7 +399,7 @@ export async function validateWorkflowPermissions(
   })
 
   if (!authorization.workflow) {
-    logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
+    logger.warn(`Workflow ${workflowId} not found`, { requestId })
     return {
       error: { message: 'Workflow not found', status: 404 },
       session: null,
@@ -410,13 +410,11 @@ export async function validateWorkflowPermissions(
   if (!authorization.allowed) {
     const message =
       authorization.message || `Unauthorized: Access denied to ${action} this workflow`
-    logger.warn(
-      `[${requestId}] User ${session.user.id} unauthorized to ${action} workflow ${workflowId}`,
-      {
-        action,
-        workflowId,
-      }
-    )
+    logger.warn(`User ${session.user.id} unauthorized to ${action} workflow ${workflowId}`, {
+      requestId,
+      action,
+      workflowId,
+    })
     return {
       error: { message, status: authorization.status },
       session: null,

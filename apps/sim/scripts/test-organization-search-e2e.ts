@@ -412,6 +412,21 @@ try {
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
     }
   )
+  await check('Returning to Search restores the last selected view', async () => {
+    await page.goto(`${baseUrl.origin}${root}/search`)
+    const views = page.getByRole('navigation', { name: 'Search views' })
+    for (const mode of ['Assistant', 'Search'] as const) {
+      const tab = views.getByRole('button', { name: mode, exact: true })
+      await tab.click()
+      await expect(tab).toHaveAttribute('aria-current', 'page')
+      await page.getByRole('link', { name: 'Home', exact: true }).click()
+      await expect(page).toHaveURL(`${baseUrl.origin}${root}/home`)
+      await page.getByRole('link', { name: 'Search', exact: true }).click()
+      await expect(tab).toHaveAttribute('aria-current', 'page')
+      await page.goto(`${baseUrl.origin}${root}/search`)
+      await expect(tab).toHaveAttribute('aria-current', 'page')
+    }
+  })
   await check(
     'Traditional search submits the organization query and keeps results in Search',
     async () => {
@@ -430,7 +445,15 @@ try {
       const body = toRecord(response.request().postDataJSON())
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.query, 'Launch notes')
-      await expect(page.getByText('Search found no results.', { exact: true })).toBeVisible()
+      // The seeded member has connected no account, so nothing was searched.
+      await expect(
+        page.getByText('No connected apps are available for this search.', { exact: true })
+      ).toBeVisible()
+      await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
+      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
+        'href',
+        `${root}/integrations`
+      )
       await expect(page).toHaveURL(
         (url) => url.pathname === `${root}/search` && url.searchParams.get('q') === 'Launch notes'
       )
@@ -693,7 +716,9 @@ try {
               await navigation.getByRole('button', { name: 'Search', exact: true }).click()
               await expect(page).toHaveURL((url) => url.searchParams.get('mode') === 'search')
             }
-            await page.clock.pauseAt(new Date(Date.now() + 100))
+            const pausedAt = new Date()
+            await page.clock.setFixedTime(pausedAt)
+            await page.clock.pauseAt(pausedAt)
             const selected = navigation.getByRole('button', {
               name: selectedMode === 'assistant' ? 'Assistant' : 'Search',
               exact: true,
@@ -711,6 +736,7 @@ try {
           } finally {
             admission.resolve()
             heldAdmission = undefined
+            await page.clock.setSystemTime(new Date())
             await page.clock.resume()
           }
         }
@@ -750,7 +776,7 @@ try {
       await input.fill('Edited launch query')
       await expect(input).toHaveValue('Edited launch query')
       await page.getByRole('button', { name: 'New search', exact: true }).click()
-      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
+      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=search`)
       await expect(input).toHaveValue('')
       await page.goBack()
       await expect(input).toHaveValue('Edited launch query')
@@ -1001,7 +1027,7 @@ try {
       values (${generateId()}, ${organizationId}, 'Search only',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
       await page.goto(`${baseUrl.origin}${root}/home`)
-      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search`)
+      await expect(page).toHaveURL((url) => url.pathname === `${root}/search`)
       await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
       await expect(page.getByText(answer, { exact: true })).toBeVisible()
     }
@@ -1009,8 +1035,50 @@ try {
   await check('Search-only members recover legacy drafts without a remembered mode', () =>
     verifyLegacyDraft(undefined, 'assistant')
   )
-  await check('The UI completes without browser runtime errors', async () => {
-    assert.deepEqual(browserErrors, [])
+  await check('The UI completes without unexpected browser runtime errors', async () => {
+    const handledRedirectCount = () =>
+      browserErrorEvents.reduce(
+        (count, event) =>
+          event.message.startsWith('Minified React error #419;') &&
+          ((event.stage === 'Search URLs cannot change an agent conversation into an assistant' &&
+            event.url === `${baseUrl.origin}${root}/search/chat/${agentId}` &&
+            event.digest === `NEXT_REDIRECT;replace;${root}/chat/${agentId};307;`) ||
+            (event.stage ===
+              'Search-only members can reopen assistant history without access to Home chat' &&
+              event.url === `${baseUrl.origin}${root}/home` &&
+              event.digest === `NEXT_REDIRECT;replace;${root}/search;307;`))
+            ? count + event.count
+            : count,
+        0
+      )
+    await expect.poll(() => browserErrorEventCount - handledRedirectCount()).toBe(browserErrorCount)
+    const deniedRecoveries = browserErrorEvents.filter(
+      (event) =>
+        event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
+        event.url === `${baseUrl.origin}${root}/search/chat/${deniedChatId}` &&
+        [
+          'Assistant history rejects a chat from another organization',
+          'A streamed denied chat remains navigable after hydration',
+        ].includes(event.stage)
+    )
+    const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
+    assert.equal(
+      browserErrorEventCount,
+      recoveryCount + handledRedirectCount(),
+      'Unexpected browser error events'
+    )
+    assert.equal(browserErrorCount, recoveryCount, 'Unexpected browser runtime errors')
+    for (const sample of browserErrorSamples) {
+      const matchedCount = deniedRecoveries
+        .filter(
+          (event) =>
+            event.stage === sample.stage &&
+            event.url === sample.url &&
+            event.message === sample.message
+        )
+        .reduce((total, event) => total + event.count, 0)
+      assert.equal(sample.count, matchedCount, `Unexpected browser error: ${sample.message}`)
+    }
   })
 } catch (error) {
   logger.error('Organization Search E2E failed', { error: getErrorMessage(error) })

@@ -1,0 +1,13 @@
+{
+  "namespace": "legacy.youcom",
+  "methods": {
+    "youcom_answer": "answer",
+    "youcom_finance_research": "financeResearch",
+    "youcom_get_account_balance": "getAccountBalance",
+    "youcom_get_contents": "getContents",
+    "youcom_get_research_task": "getResearchTask",
+    "youcom_research": "research",
+    "youcom_search": "search",
+    "youcom_search_images": "searchImages"
+  }
+}

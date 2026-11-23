@@ -5,6 +5,7 @@ import type {
   ExtendParserOutput,
   ExtendParserV2Input,
 } from '@/tools/extend/types'
+import { EXTEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParserOutput> = {
@@ -12,6 +13,7 @@ export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParse
   name: 'Extend Document Parser',
   description: 'Parse and extract content from documents using Extend AI',
   version: '1.0.0',
+  oauth: EXTEND_CREDENTIAL_OAUTH,
 
   params: {
     filePath: {
@@ -163,7 +165,8 @@ export const extendParserTool: InternalToolConfig<ExtendParserInput, ExtendParse
     },
     blocks: {
       type: 'json',
-      description: 'Block-level document elements with type and content',
+      description:
+        'Top-level block elements; Extend returns blocks inside each chunk (chunks[].blocks), so this is usually empty',
     },
     pageCount: {
       type: 'number',

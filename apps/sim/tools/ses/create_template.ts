@@ -1,4 +1,5 @@
 import type { SESCreateTemplateParams, SESCreateTemplateResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createTemplateTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const createTemplateTool: InternalToolConfig<
   name: 'SES Create Template',
   description: 'Create a new SES email template for use with templated email sending',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

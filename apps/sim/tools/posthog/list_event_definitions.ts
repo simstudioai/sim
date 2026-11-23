@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogListEventDefinitionsParams {
   projectId: string
@@ -37,7 +37,7 @@ interface PostHogListEventDefinitionsResponse {
 
 export const listEventDefinitionsTool: ToolConfig<
   PostHogListEventDefinitionsParams,
-  PostHogListEventDefinitionsResponse
+  ToolResponse & { output: PostHogListEventDefinitionsResponse }
 > = {
   id: 'posthog_list_event_definitions',
   name: 'PostHog List Event Definitions',
@@ -102,7 +102,7 @@ export const listEventDefinitionsTool: ToolConfig<
       if (params.search) queryParams.append('search', params.search)
 
       const query = queryParams.toString()
-      return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${query ? `?${query}` : ''}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/event_definitions/${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -115,19 +115,22 @@ export const listEventDefinitionsTool: ToolConfig<
     const data = await response.json()
 
     return {
-      count: data.count,
-      next: data.next ?? null,
-      previous: data.previous ?? null,
-      results: data.results.map((event: any) => ({
-        id: event.id,
-        name: event.name,
-        description: event.description || '',
-        tags: event.tags || [],
-        created_at: event.created_at,
-        last_seen_at: event.last_seen_at ?? null,
-        updated_at: event.updated_at,
-        updated_by: event.updated_by ?? null,
-      })),
+      success: true,
+      output: {
+        count: data.count,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
+        results: data.results.map((event: any) => ({
+          id: event.id,
+          name: event.name,
+          description: event.description || '',
+          tags: event.tags || [],
+          created_at: event.created_at,
+          last_seen_at: event.last_seen_at ?? null,
+          updated_at: event.updated_at,
+          updated_by: event.updated_by ?? null,
+        })),
+      },
     }
   },
 

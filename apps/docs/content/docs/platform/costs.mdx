@@ -21,6 +21,8 @@ A billable workflow run can include:
 | Hosted tools | Operation charges when using Sim-provided provider keys |
 | Sandbox runtime | Applicable runtime charges, such as a Pi sandbox |
 
+Sim-hosted models and tools are available on paid plans. On the Free plan, add your own provider keys under **Settings → BYOK**; a run that needs a Sim-hosted key fails with an upgrade message instead.
+
 With your own provider keys, you pay the provider directly for those calls. The workflow base charge and unrelated hosted-tool or sandbox usage still apply. Local Ollama or vLLM inference avoids an external model API charge, but still needs infrastructure and any enabled Sim run charge.
 
 For a simple uncached model call, with prices in USD per million tokens:
@@ -86,7 +88,7 @@ Saved-key precedence is resolved separately for each provider:
 
 1. Use that provider's workspace key pool when one is configured.
 2. Otherwise, use its eligible organization key pool.
-3. Otherwise, use the next available configured source, including a Sim-hosted key where supported.
+3. Otherwise, use the next available configured source, including a Sim-hosted key where supported and your plan is paid.
 
 A workspace OpenAI key does not override the organization's Anthropic key. The settings page marks inherited providers so you can inspect inheritance before adding an override. A nonempty workspace pool is exclusive; a corrupt workspace key is not a reason to borrow an organization key.
 
@@ -129,6 +131,7 @@ The settings page groups keys into **Models**, **Search & web**, and **Enrichmen
     | Nebius | Model calls |
     | Ollama Cloud | Model calls |
     | Kie | Model calls |
+    | Thinking Machines | Model calls |
     | Fal.ai | Image and video generation |
   </Tab>
   <Tab>
@@ -177,6 +180,12 @@ Current monthly pricing and allocations are:
 | Enterprise | By agreement | By agreement | By agreement |
 
 Pro and Max are available for individuals or teams. Team subscriptions pool credits across internal seats. For example, Max for Teams with three seats has a 75,000-credit monthly allocation and a 12,000-credit weekly refresh allowance. External collaborators do not add seats, but their work in an organization-owned workspace is billed to that organization.
+
+### Pro free trial
+
+A new individual Pro subscriber gets a 14-day free trial. Checkout requires a card, which is charged for Pro when the trial ends unless you cancel first under **Settings → Subscription**. During the trial you get Pro features and Sim-hosted models and tools, with a fixed allowance of 2,000 credits: there is no weekly refresh, the usage limit cannot be raised, and nothing is billed past it. When the trial converts, the full Pro allowance applies.
+
+Each account and each card can start one trial. A checkout whose card already started a trial is charged right away instead. Team plans and Max don't include a trial.
 
 See [current pricing](https://www.sim.ai/pricing) and **Settings → Subscription** for the plan available to your account. Internal membership, external eligibility, and workspace migration are explained in [Roles and permissions](/platform/permissions#internal-and-external-membership).
 

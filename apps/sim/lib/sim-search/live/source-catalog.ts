@@ -7,6 +7,8 @@ import {
   findCredentialGroupProviderFromProviderId,
   isCredentialGroupStandardOAuthProvider,
 } from '@/lib/credential-groups/providers'
+import { isPersonalOrganizationServiceAccount } from '@/lib/credentials/service-account-provider-ids'
+import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import {
   isManagedSearchMcpProvider,
@@ -32,9 +34,21 @@ export const LIVE_SEARCH_SOURCE_TYPES: readonly (readonly [
   Pick<ConnectorMeta, 'id' | 'name' | 'icon' | 'description'>,
 ])[] = LIVE_SEARCH_PROVIDER_IDS.map((type) => {
   const managed = liveSearchMcpConnector(type)
+  const service = getServiceConfigByServiceId(type)
+  const nativeMeta =
+    CONNECTOR_META_REGISTRY[type] ??
+    (service
+      ? {
+          id: type,
+          name: service.name,
+          icon: service.icon,
+          description: service.description,
+        }
+      : undefined)
   const meta = managed
     ? { ...getManagedMcpConnector(managed), icon: getManagedMcpConnectorIcon(managed) }
-    : CONNECTOR_META_REGISTRY[type]
+    : nativeMeta
+  if (!meta) throw new Error(`Missing live Search metadata for ${type}`)
   return [type, meta] as const
 }).sort(([, left], [, right]) => left.name.localeCompare(right.name))
 
@@ -57,6 +71,17 @@ export function getLiveSearchAccessAvailability(
   }
 ) {
   const meta = CONNECTOR_META_REGISTRY[type]
+  const saved = liveSearchSavedMemberProvider(type)
+  const deployment = integrationAvailability.get(type)
+  if (saved)
+    return {
+      admin: false,
+      members:
+        context.isIntegrationAvailabilityReady &&
+        context.memberAccessAvailable &&
+        deployment?.state !== 'unavailable' &&
+        deployment?.state !== 'misconfigured',
+    }
   const access = meta
     ? getConnectorAccessAvailability(meta, integrationAvailability, context)
     : { admin: false, members: false }
@@ -71,4 +96,13 @@ export function getLiveSearchAccessAvailability(
             context.availableMcpConnectors?.includes(type) === true)
         : access.members),
   }
+}
+
+/** Member setup uses the existing saved-credential form for providers without browser OAuth. */
+export function liveSearchSavedMemberProvider(type: string): string | null {
+  if (liveSearchMcpConnector(type)) return null
+  const provider = LIVE_SEARCH_PROVIDER_IDS.find((id) => id === type)
+  if (!provider) return null
+  const definition = LIVE_SEARCH_PROVIDER_CATALOG[provider]
+  return definition.credentialProviderIds.find(isPersonalOrganizationServiceAccount) ?? null
 }

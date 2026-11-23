@@ -43,6 +43,7 @@ import {
 } from '@/lib/knowledge/connectors/access-modes'
 import {
   type ConnectorAccessToken,
+  connectorTokenSecrets,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { enqueueConnectorDeletion } from '@/lib/knowledge/connectors/deletion'
@@ -72,7 +73,11 @@ import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integrati
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
-import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import {
+  connectorAuthModeLabel,
+  connectorUsesCredential,
+  getConnectorApiKeyConfig,
+} from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import { findSourceSelectionError } from '@/connectors/selection'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
@@ -296,6 +301,7 @@ export async function performCreateKnowledgeConnector(
   let resolvedCredentialId: string | null = null
   let resolvedEncryptedApiKey: string | null = null
   let accessToken: string | null = null
+  let tokenSecrets: string[] = []
   let tokenContext: Record<string, unknown> = {}
   const apiKeyConfig = getConnectorApiKeyConfig(connectorConfig.auth)
   if (apiKey && (!apiKeyConfig || accessMode === 'members')) {
@@ -304,7 +310,10 @@ export async function performCreateKnowledgeConnector(
   if (apiKey && credentialId) {
     return fail('Choose either an OAuth account or an API key', 'validation')
   }
-  const usesApiKey = connectorConfig.auth.mode === 'apiKey' || Boolean(apiKeyConfig && apiKey)
+  const usesApiKey = !connectorUsesCredential(connectorConfig.auth, {
+    credentialId: credentialId ?? null,
+    encryptedApiKey: apiKey ?? null,
+  })
 
   if (membersBinding) {
     /**
@@ -331,6 +340,7 @@ export async function performCreateKnowledgeConnector(
       return fail('API key is required', 'validation')
     }
     accessToken = apiKey ?? ''
+    tokenSecrets = [accessToken]
   } else if (!membersBinding || credentialId) {
     if (!credentialId) {
       return fail('Credential is required', 'validation')
@@ -345,6 +355,7 @@ export async function performCreateKnowledgeConnector(
       return fail('Credential has no access token. Please reconnect your account.', 'validation')
     }
     accessToken = token.accessToken
+    tokenSecrets = connectorTokenSecrets(token)
     tokenContext = syncContextForToken(token)
     resolvedCredentialId = credentialId
   }
@@ -352,6 +363,7 @@ export async function performCreateKnowledgeConnector(
   if (accessToken !== null) {
     const validationContext = {
       ...tokenContext,
+      isSearchIndex: kb.isSearchIndex === true,
       mirrorsSourceAcls: accessMode === 'admin',
       ...(accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
     }
@@ -360,13 +372,13 @@ export async function performCreateKnowledgeConnector(
       .validateConfig(accessToken, sourceConfig, validationContext)
       .catch((error: unknown) => {
         const sanitized = toError(error)
-        sanitized.message = redactKnownSensitiveValues(sanitized.message, [accessToken])
+        sanitized.message = redactKnownSensitiveValues(sanitized.message, tokenSecrets)
         throw sanitized
       })
     if (!configValidation.valid) {
       return fail(
         (configValidation.error &&
-          redactKnownSensitiveValues(configValidation.error, [accessToken])) ||
+          redactKnownSensitiveValues(configValidation.error, tokenSecrets)) ||
           `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields with \`sim connector-types list --detail full\` (GET /api/v2/connector-types?detail=full) before retrying; the same config will fail again.`,
         'validation'
       )
@@ -417,7 +429,7 @@ export async function performCreateKnowledgeConnector(
     newTagSlots = mapping
 
     for (const name of skippedTags) {
-      logger.warn(`[${requestId}] No available slots for "${name}"`)
+      logger.warn(`No available slots for "${name}"`, { requestId })
     }
 
     if (skippedTags.length > 0 && Object.keys(tagSlotMapping).length === 0) {
@@ -588,7 +600,8 @@ export async function performCreateKnowledgeConnector(
         { workspaceId, credentialGroupId: membersBinding.credentialGroupId, connectorId },
         params.userId
       ).catch((revokeError) => {
-        logger.error(`[${requestId}] Failed to revoke the grant of an uncreated connector`, {
+        logger.error('Failed to revoke the grant of an uncreated connector', {
+          requestId,
           connectorId,
           error: revokeError,
         })
@@ -606,7 +619,7 @@ export async function performCreateKnowledgeConnector(
     return { success: true, connector: withoutSecret(created), reused: true }
   }
 
-  logger.info(`[${requestId}] Created connector ${connectorId} for KB ${kb.id}`)
+  logger.info(`Created connector ${connectorId} for KB ${kb.id}`, { requestId })
 
   if (params.recordProductAnalytics !== false) {
     captureServerEvent(
@@ -641,7 +654,7 @@ export async function performCreateKnowledgeConnector(
         knowledgeBaseName: kb.name,
         connectorType,
         syncIntervalMinutes,
-        authMode: usesApiKey ? 'apiKey' : 'oauth',
+        authMode: connectorAuthModeLabel(connectorConfig.auth.mode, !usesApiKey),
       },
       ...(request ? { request } : {}),
     })
@@ -669,16 +682,15 @@ export async function performCreateKnowledgeConnector(
       : await (await loadDispatchSync())(connectorId, { billingAttribution, requestId })
     if (!dispatch.queued) {
       initialSyncQueued = false
-      logger.warn(
-        `[${requestId}] Initial sync for connector ${connectorId} was not queued: ${dispatch.reason}`
-      )
+      logger.warn(`Initial sync for connector ${connectorId} was not queued: ${dispatch.reason}`, {
+        requestId,
+      })
     }
   } catch (error) {
     initialSyncQueued = false
-    logger.error(
-      `[${requestId}] Failed to dispatch initial sync for connector ${connectorId}`,
-      error
-    )
+    logger.error(`Failed to dispatch initial sync for connector ${connectorId}`, error, {
+      requestId,
+    })
   }
 
   return { success: true, connector: withoutSecret(created), initialSyncQueued }
@@ -1119,13 +1131,11 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      logger.error(
-        `[${requestId}] Saved connector; member sync remains due after dispatch failed`,
-        {
-          connectorId,
-          error,
-        }
-      )
+      logger.error('Saved connector; member sync remains due after dispatch failed', {
+        requestId,
+        connectorId,
+        error,
+      })
     }
   }
 
@@ -1138,7 +1148,8 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      logger.error(`[${requestId}] Saved connector; sync remains due after dispatch failed`, {
+      logger.error('Saved connector; sync remains due after dispatch failed', {
+        requestId,
         connectorId,
         error,
       })
@@ -1356,7 +1367,8 @@ export async function performDeleteKnowledgeConnector(
     })
   } catch (error) {
     if (['55P03', '57014', '40P01'].includes(getPostgresErrorCode(error) ?? '')) {
-      logger.warn(`[${requestId}] Connector removal could not acquire or finish its transaction`, {
+      logger.warn('Connector removal could not acquire or finish its transaction', {
+        requestId,
         connectorId,
         error,
       })
@@ -1382,7 +1394,8 @@ export async function performDeleteKnowledgeConnector(
       },
       params.userId
     ).catch((error) => {
-      logger.error(`[${requestId}] Failed to revoke the detached connector's credential access`, {
+      logger.error("Failed to revoke the detached connector's credential access", {
+        requestId,
         connectorId,
         error,
       })
@@ -1390,7 +1403,8 @@ export async function performDeleteKnowledgeConnector(
   }
 
   logger.info(
-    `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
+    `Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`,
+    { requestId }
   )
 
   if (params.recordProductAnalytics !== false) {
@@ -1512,7 +1526,8 @@ export async function performSyncKnowledgeConnector(
     )
   }
   logger.info(
-    `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
+    `Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`,
+    { requestId }
   )
 
   /**
@@ -1545,16 +1560,15 @@ export async function performSyncKnowledgeConnector(
      * with an audit and a product event behind it.
      */
     if (!dispatch.queued) {
-      logger.warn(
-        `[${requestId}] Manual sync for connector ${connectorId} was not queued: ${dispatch.reason}`
-      )
+      logger.warn(`Manual sync for connector ${connectorId} was not queued: ${dispatch.reason}`, {
+        requestId,
+      })
       return fail(dispatch.reason ?? 'Sync could not be queued', 'conflict')
     }
   } catch (error) {
-    logger.error(
-      `[${requestId}] Failed to dispatch manual sync for connector ${connectorId}`,
-      error
-    )
+    logger.error(`Failed to dispatch manual sync for connector ${connectorId}`, error, {
+      requestId,
+    })
     return classifyKnowledgeFailure(error, requestId, `Sync connector ${connectorId}`)
   }
 

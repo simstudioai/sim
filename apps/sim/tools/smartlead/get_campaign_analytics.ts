@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignAnalyticsResponse,
   SmartleadCampaignIdParams,
@@ -24,6 +25,7 @@ export const getCampaignAnalyticsTool: ToolConfig<
   description:
     'Retrieves lifetime performance totals for a Smartlead campaign — sends, opens, clicks, replies, bounces, and lead counts by state.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

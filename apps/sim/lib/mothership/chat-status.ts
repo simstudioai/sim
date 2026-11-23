@@ -1,8 +1,8 @@
 /**
  * Chat Status Pub/Sub Adapter
  *
- * Broadcasts chat status events across processes using Redis Pub/Sub.
- * Gracefully falls back to process-local EventEmitter when Redis is unavailable.
+ * Broadcasts chat status events across processes using Redis Pub/Sub. The channel connects on
+ * first use, so importing this module opens nothing.
  *
  * The Redis channel and SSE label retain the legacy `task:status_changed`
  * identifier so live status updates keep flowing across pods during a rolling
@@ -26,28 +26,24 @@ export type ChatStatusEvent = ChatStatusOwner & {
 }
 
 type ChatPubSubGlobal = typeof globalThis & {
-  _chatStatusChannel?: PubSubChannel<ChatStatusEvent> | null
+  _chatStatusChannel?: PubSubChannel<ChatStatusEvent>
 }
 
 const g = globalThis as ChatPubSubGlobal
 
-if (!('_chatStatusChannel' in g)) {
-  g._chatStatusChannel =
-    typeof window !== 'undefined'
-      ? null
-      : createPubSubChannel<ChatStatusEvent>({ channel: 'task:status_changed', label: 'task' })
-}
+g._chatStatusChannel ??= createPubSubChannel<ChatStatusEvent>({
+  channel: 'task:status_changed',
+  label: 'task',
+})
 
 const channel = g._chatStatusChannel
 
-export const chatPubSub = channel
-  ? {
-      publishStatusChanged: (event: ChatStatusEvent) => channel.publish(event),
-      onStatusChanged: (handler: (event: ChatStatusEvent) => void) => channel.subscribe(handler),
-      ready: () => channel.ready(),
-      dispose: () => channel.dispose(),
-    }
-  : null
+export const chatPubSub = {
+  publishStatusChanged: (event: ChatStatusEvent) => channel.publish(event),
+  onStatusChanged: (handler: (event: ChatStatusEvent) => void) => channel.subscribe(handler),
+  ready: () => channel.ready(),
+  dispose: () => channel.dispose(),
+}
 
 /** Projects canonical chat ownership into the same status channel for both surfaces. */
 export function publishChatStatusChanged(
@@ -56,13 +52,13 @@ export function publishChatStatusChanged(
 ): void {
   if (chat.organizationId) {
     if (!chat.userId || chat.workspaceId) throw new Error('Invalid organization chat owner')
-    chatPubSub?.publishStatusChanged({
+    chatPubSub.publishStatusChanged({
       organizationId: chat.organizationId,
       userId: chat.userId,
       ...event,
     })
   } else if (chat.workspaceId) {
-    chatPubSub?.publishStatusChanged({
+    chatPubSub.publishStatusChanged({
       workspaceId: chat.workspaceId,
       ...(chat.userId ? { userId: chat.userId } : {}),
       ...event,

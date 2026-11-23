@@ -1,0 +1,22 @@
+{
+  "namespace": "daytona",
+  "methods": {
+    "create_sandbox": "createSandbox",
+    "delete_sandbox": "deleteSandbox",
+    "download_file": "downloadFile",
+    "execute_command": "executeCommand",
+    "get_sandbox": "getSandbox",
+    "git_clone": "gitClone",
+    "list_files": "listFiles",
+    "list_sandboxes": "listSandboxes",
+    "run_code": "runCode",
+    "start_sandbox": "startSandbox",
+    "stop_sandbox": "stopSandbox",
+    "upload_file": "uploadFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

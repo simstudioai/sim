@@ -8,6 +8,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetNoteTool: ToolConfig<
@@ -18,6 +19,7 @@ export const affinityGetNoteTool: ToolConfig<
   name: 'Affinity Get Note',
   description: 'Read one note with its body, author, mentions, and attached records.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerListBucketsResponse,
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerListBuckets')
 
@@ -15,6 +17,7 @@ export const listBucketsTool: ToolConfig<
   name: 'List Microsoft Planner Buckets',
   description: 'List all buckets in a Microsoft Planner plan',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,
@@ -42,7 +45,7 @@ export const listBucketsTool: ToolConfig<
       if (!planId) {
         throw new Error('Plan ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/planner/plans/${planId}/buckets`
+      return `https://graph.microsoft.com/v1.0/planner/plans/${safeUrlPathSegment(planId, 'planId')}/buckets`
     },
     method: 'GET',
     headers: (params) => {

@@ -1,5 +1,6 @@
 import { JinaAIIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 export const JinaBlock: BlockConfig = {
   type: 'jina',
@@ -168,6 +169,19 @@ export const JinaBlock: BlockConfig = {
     config: {
       tool: (params) => {
         return params.operation || 'jina_read_url'
+      },
+      /**
+       * Search keeps its format and image settings under search-specific ids so they do not
+       * collide with Read URL's, and the tool reads them as `returnFormat` / `retainImages`.
+       */
+      params: (params, context) => {
+        if (mapperOperation(params, context) !== 'jina_search') return {}
+        return {
+          returnFormat:
+            params.searchReturnFormat || toolCallArg(context, params.returnFormat) || undefined,
+          retainImages:
+            params.searchRetainImages || toolCallArg(context, params.retainImages) || undefined,
+        }
       },
     },
   },

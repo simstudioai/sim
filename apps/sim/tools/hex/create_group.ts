@@ -1,4 +1,6 @@
 import type { HexCreateGroupParams, HexCreateGroupResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupResponse> = {
@@ -6,8 +8,10 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
   name: 'Hex Create Group',
   description: 'Create a new group in the Hex workspace, optionally with initial members.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -30,7 +34,7 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
   },
 
   request: {
-    url: 'https://app.hex.tech/api/v1/groups',
+    url: (params) => `${hexApiBase(params.host)}/groups`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -73,6 +77,10 @@ export const createGroupTool: ToolConfig<HexCreateGroupParams, HexCreateGroupRes
   outputs: {
     id: { type: 'string', description: 'Newly created group UUID' },
     name: { type: 'string', description: 'Group name' },
-    createdAt: { type: 'string', description: 'Creation timestamp' },
+    createdAt: {
+      type: 'string',
+      description: 'Creation timestamp (not returned by the create endpoint, so usually null)',
+      optional: true,
+    },
   },
 }

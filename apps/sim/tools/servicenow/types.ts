@@ -29,6 +29,10 @@ export interface ServiceNowAuthParams {
   instanceUrl: string
   username: string
   password: string
+  /** Set by the executor from a saved ServiceNow credential, never by the caller. */
+  accessToken?: string
+  /** `bearer` when the saved credential is an OAuth client; absent means a Basic login. */
+  authStyle?: string
 }
 
 interface ServiceNowBaseParams extends ServiceNowAuthParams {
@@ -519,10 +523,7 @@ export interface ServiceNowAttachment {
   [key: string]: unknown
 }
 
-export interface ServiceNowListAttachmentsParams {
-  instanceUrl: string
-  username: string
-  password: string
+export interface ServiceNowListAttachmentsParams extends ServiceNowAuthParams {
   tableName: string
   recordSysId: string
   limit?: number
@@ -537,10 +538,7 @@ export interface ServiceNowListAttachmentsResponse extends ToolResponse {
   }
 }
 
-export interface ServiceNowDownloadAttachmentParams {
-  instanceUrl: string
-  username: string
-  password: string
+export interface ServiceNowDownloadAttachmentParams extends ServiceNowAuthParams {
   attachmentSysId: string
 }
 
@@ -562,10 +560,7 @@ export interface ServiceNowDownloadAttachmentV2Response<File = UserFile> extends
   }
 }
 
-export interface ServiceNowUploadAttachmentParams {
-  instanceUrl: string
-  username: string
-  password: string
+export interface ServiceNowUploadAttachmentParams extends ServiceNowAuthParams {
   tableName: string
   recordSysId: string
   fileName: string

@@ -2,6 +2,7 @@ import type {
   AppConfigCreateApplicationParams,
   AppConfigCreateApplicationResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createApplicationTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createApplicationTool: InternalToolConfig<
   name: 'AppConfig Create Application',
   description: 'Create an application in AWS AppConfig',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

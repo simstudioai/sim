@@ -1,5 +1,8 @@
 import type { HexUpdateProjectParams, HexUpdateProjectResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProjectResponse> = {
   id: 'hex_update_project',
@@ -7,8 +10,10 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   description:
     'Update a Hex project status label (e.g., endorsement or custom workspace statuses).',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -30,7 +35,8 @@ export const updateProjectTool: ToolConfig<HexUpdateProjectParams, HexUpdateProj
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/projects/${params.projectId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/projects/${safeUrlPathSegment(params.projectId, 'projectId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

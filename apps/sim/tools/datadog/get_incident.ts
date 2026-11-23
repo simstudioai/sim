@@ -6,6 +6,7 @@ import {
   datadogPathSegment,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse> = {
@@ -14,6 +15,7 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
   description:
     'Get the details of a single incident by ID. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     incidentId: {
@@ -80,6 +82,7 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
           type: data.data?.type,
           attributes: data.data?.attributes ?? {},
         },
+        included: Array.isArray(data.included) ? data.included : [],
       },
     }
   },
@@ -111,6 +114,11 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
           },
         },
       },
+    },
+    included: {
+      type: 'array',
+      description: 'Related resources requested through include (users, attachments)',
+      optional: true,
     },
   },
 }

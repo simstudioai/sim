@@ -58,7 +58,7 @@ export const POST = withRouteHandler(
 
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized folder duplication attempt for ${sourceFolderId}`)
+      logger.warn(`Unauthorized folder duplication attempt for ${sourceFolderId}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -67,7 +67,7 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { name, workspaceId, parentId, newId: clientNewId } = parsed.data.body
 
-      logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
+      logger.info(`Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
       const sourceFolder = await db
         .select()
@@ -212,7 +212,7 @@ export const POST = withRouteHandler(
 
       const elapsed = Date.now() - startTime
       logger.info(
-        `[${requestId}] Successfully duplicated folder ${sourceFolderId} to ${newFolderId} in ${elapsed}ms`,
+        `Successfully duplicated folder ${sourceFolderId} to ${newFolderId} in ${elapsed}ms`,
         {
           foldersCount: folderMapping.size,
           workflowsCount: workflowStats.total,
@@ -252,7 +252,7 @@ export const POST = withRouteHandler(
       }
 
       if (error instanceof FolderDuplicationError) {
-        logger.warn(`[${requestId}] Folder duplication rejected: ${error.message}`, {
+        logger.warn(`Folder duplication rejected: ${error.message}`, {
           sourceFolderId,
           userId: session.user.id,
         })
@@ -267,7 +267,7 @@ export const POST = withRouteHandler(
        */
       const orchestrationError = asOrchestrationError(error)
       if (orchestrationError) {
-        logger.warn(`[${requestId}] Folder duplication rejected: ${orchestrationError.message}`, {
+        logger.warn(`Folder duplication rejected: ${orchestrationError.message}`, {
           sourceFolderId,
           userId: session.user.id,
         })
@@ -278,10 +278,7 @@ export const POST = withRouteHandler(
       }
 
       const elapsed = Date.now() - startTime
-      logger.error(
-        `[${requestId}] Error duplicating folder ${sourceFolderId} after ${elapsed}ms:`,
-        error
-      )
+      logger.error(`Error duplicating folder ${sourceFolderId} after ${elapsed}ms:`, error)
       return NextResponse.json({ error: 'Failed to duplicate folder' }, { status: 500 })
     }
   }

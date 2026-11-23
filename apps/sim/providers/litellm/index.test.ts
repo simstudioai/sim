@@ -2,6 +2,10 @@ import { resetEnvMock, setEnv } from '@sim/testing'
 import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
 import { providersMock } from '@sim/testing/mocks/providers.mock'
 import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
 import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
 import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
@@ -13,6 +17,8 @@ vi.mock('openai', () => openaiMock)
 vi.mock('@/tools', () => toolsMock)
 
 vi.mock('@/providers', () => providersMock)
+
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
 beforeAll(() => {
   setEnv({ LITELLM_BASE_URL: 'http://litellm.test', LITELLM_API_KEY: '' })
@@ -32,11 +38,13 @@ vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
+import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 import { litellmProvider } from '@/providers/litellm'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { ProviderError } from '@/providers/types'
 
 const mockCreate = openaiMockFns.mockChatCompletionsCreate
+const mockRecordUsage = providersConversationHistoryMockFns.mockRecordProviderConversationUsage
 
 const mockExecuteTool = toolsMockFns.mockExecuteTool
 providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
@@ -132,7 +140,7 @@ describe('litellmProvider.executeRequest', () => {
     expect(payload.temperature).toBe(0.5)
     expect(payload.max_completion_tokens).toBe(256)
     expect(result.content).toBe('hello')
-    expect(result.tokens).toEqual({ input: 5, output: 3, total: 8 })
+    expect(result.tokens).toEqual({ input: 5, output: 3, cacheRead: 0, total: 8 })
   })
 
   it('forwards reasoning_effort only when set to a non-default value', async () => {
@@ -235,7 +243,12 @@ describe('litellmProvider.executeRequest', () => {
 
     expect(mockCreate).toHaveBeenCalledTimes(2)
     expect(result.execution.output.content).toBe('done')
-    expect(result.execution.output.tokens).toEqual({ input: 10, output: 6, total: 16 })
+    expect(result.execution.output.tokens).toEqual({
+      input: 10,
+      output: 6,
+      cacheRead: 0,
+      total: 16,
+    })
     expect(result.execution.output.providerTiming?.iterations).toBe(2)
     expect(
       result.execution.output.providerTiming?.timeSegments?.filter(
@@ -338,6 +351,37 @@ describe('litellmProvider.executeRequest', () => {
     expect(mockExecuteTool).toHaveBeenCalledTimes(20)
     expect(lastPayload().tools).toBeUndefined()
     expect(lastPayload().tool_choice).toBeUndefined()
+  })
+
+  it('records usage for the capped turn whose tool calls are never executed', async () => {
+    mockCreate.mockImplementation((payload) =>
+      Promise.resolve(
+        payload.tools
+          ? chat({ toolCalls: [{ id: 'c1', function: { name: 'known', arguments: '{}' } }] })
+          : chat({ content: 'Tool limit reached' })
+      )
+    )
+
+    await run({ tools: [tool('known')] })
+
+    expect(mockRecordUsage).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+      input: 5,
+      output: 3,
+      cacheRead: 0,
+    })
+  })
+
+  it('uses an already-versioned base URL once', async () => {
+    clearProviderClientCacheForTests()
+    setEnv({ LITELLM_BASE_URL: 'http://litellm.test/v1/' })
+    try {
+      await run({})
+    } finally {
+      setEnv({ LITELLM_BASE_URL: 'http://litellm.test' })
+    }
+
+    const [options] = (openaiMockFns.mockOpenAI.mock.calls.at(-1) ?? []) as unknown[]
+    expect(options).toMatchObject({ baseURL: 'http://litellm.test/v1' })
   })
 
   it('returns a streaming execution when streaming without active tools', async () => {

@@ -9,8 +9,8 @@ import type { ChatContext } from '@/stores/panel'
  * highlighted passage copied with Cmd+C pastes into Chat as a reference chip.
  *
  * Attached in the BUBBLE phase so it runs after the inner editor's own copy
- * handler — Monaco and ProseMirror both `clearData()` before writing
- * `text/plain`, so the custom type must be added last to survive.
+ * handler — the code editor and ProseMirror both write `text/plain`
+ * themselves, so the custom type must be added last to survive.
  *
  * @param buildContext - Returns null when there is no non-empty selection.
  * @param workspaceId - Workspace that owns the selected resource.
@@ -28,15 +28,17 @@ export function useSelectionCopyBridge(
     const dom = containerRef.current
     if (!dom || !enabled) return
     const onCopy = (e: ClipboardEvent) => {
-      // A copy from a field nested in the editor — Monaco's find box being the
+      // A copy from a field nested in the editor — its search box being the
       // common one — bubbles here while the document still holds a highlight,
-      // so the selection would be attached to text the user never copied.
+      // so the selection would be attached to text the user never copied. The
+      // field sits inside the code editor's shadow root, where `target` is
+      // retargeted to the host, so the origin is read from the composed path.
       //
-      // Only INPUT is skipped, deliberately: Monaco's own editing surface is a
-      // hidden TEXTAREA, so excluding textareas (as the table grid does, where
-      // the cell editors really are form fields) would suppress the chip on the
-      // main copy path this hook exists for.
-      if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return
+      // Only INPUT is skipped, deliberately: an editing surface can be a
+      // TEXTAREA, so excluding textareas (as the table grid does, where the cell
+      // editors really are form fields) would suppress the chip on the main
+      // copy path this hook exists for.
+      if (e.composedPath()[0] instanceof HTMLInputElement) return
       const context = buildContext()
       if (context) attachSelectionContextToClipboard(e.clipboardData, context, workspaceId)
     }

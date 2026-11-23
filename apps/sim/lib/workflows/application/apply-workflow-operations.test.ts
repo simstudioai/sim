@@ -77,7 +77,8 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
   preValidateCredentialInputs: hoisted.preValidate,
   UNRESOLVABLE_AT_LINT_NOTE: 'lint note',
 }))
-vi.mock('@/lib/workflows/editing/lint', () => ({
+vi.mock('@/lib/workflows/editing/lint', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workflows/editing/lint')>()),
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
   collectUnquotedJsonStringReferences: () => [],
@@ -214,6 +215,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
       mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
@@ -239,6 +241,7 @@ describe('applyWorkflowOperations', () => {
       state: graph({ 'block-1': BLOCK }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
       mintedBlockIds: {},
     })
     mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
@@ -257,8 +260,39 @@ describe('applyWorkflowOperations', () => {
       fieldIssues: [],
       unresolvedReferences: [],
       tableFieldIssues: [],
+      manualRunIssue: null,
       notes: ['No entry block: nothing can start this workflow.'],
     })
+  })
+
+  /**
+   * A caller projecting the response down to `warnings` still learns lint
+   * findings exist; the findings stay in `lint`.
+   */
+  it('points at lint findings from warnings, on commit and on dry run', async () => {
+    const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
+    mocks.lintGraph.mockReturnValue({
+      ...EMPTY_GRAPH_LINT,
+      orphanBlocks: [orphan, { ...orphan, blockId: 'block-2', blockName: 'Fn' }],
+    })
+
+    for (const dryRun of [false, true]) {
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations, dryRun },
+      })
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toContain('Blocks with no incoming edge: 2')
+      expect(result.warnings[0]).toContain('in `lint`')
+    }
+  })
+
+  it('adds no lint warning when lint finds nothing', async () => {
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: { workflowId: 'workflow-1', operations },
+    })
+    expect(result.warnings).toEqual([])
   })
 
   describe('dry run', () => {
@@ -272,6 +306,7 @@ describe('applyWorkflowOperations', () => {
         state: graph(),
         validationErrors: [],
         skippedItems: [],
+        declinedOperationCount: 0,
         mintedBlockIds: { triage: 'preview-uuid' },
       })
 
@@ -361,6 +396,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Name taken',
         },
       ],
+      declinedOperationCount: 1,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -385,6 +421,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Target not created yet',
         },
       ],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -408,6 +445,7 @@ describe('applyWorkflowOperations', () => {
           reason: 'Block is locked',
         },
       ],
+      declinedOperationCount: 1,
     })
 
     const failure = await applyWorkflowOperations
@@ -423,6 +461,116 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.replace).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  describe('a concurrent edit between the base read and the write', () => {
+    /** Runs the write's reader the way the row-locked transaction does. */
+    beforeEach(() => {
+      mocks.replace.mockImplementation(
+        async ({ state }: { state: unknown | ((tx: unknown) => Promise<unknown>) }) => ({
+          warnings: [],
+          state: typeof state === 'function' ? await state({}) : state,
+        })
+      )
+    })
+
+    it('refuses the write instead of overwriting the newer stored graph', async () => {
+      mocks.normalizeState
+        .mockReturnValueOnce({ state: graph(), warnings: [] })
+        .mockReturnValueOnce({
+          state: graph({ 'block-1': BLOCK, 'block-3': { ...BLOCK, id: 'block-3', name: 'Other' } }),
+          warnings: [],
+        })
+
+      const failure = await applyWorkflowOperations
+        .execute({ principal: sessionPrincipal, input: { workflowId: 'workflow-1', operations } })
+        .catch((error: unknown) => error)
+
+      expect(failure).toBeInstanceOf(OrchestrationError)
+      expect((failure as OrchestrationError).code).toBe('conflict')
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockNotify).not.toHaveBeenCalled()
+    })
+
+    /** A refused batch must not take the workflow's row lock just to re-read the graph first. */
+    it('refuses a withheld block type before the locked write', async () => {
+      mockPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+      mocks.applyOperations.mockReturnValue({
+        state: graph({ 'block-1': BLOCK, 'block-2': { ...BLOCK, id: 'block-2', type: 'agent' } }),
+        validationErrors: [],
+        skippedItems: [],
+        declinedOperationCount: 0,
+        mintedBlockIds: {},
+      })
+
+      await expect(
+        applyWorkflowOperations.execute({
+          principal: sessionPrincipal,
+          input: { workflowId: 'workflow-1', operations },
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' })
+
+      expect(mocks.replace).not.toHaveBeenCalled()
+    })
+
+    /** Under the lock the workflow exists, so a null re-read is a failed query, not a missing graph. */
+    it('reports a failed re-read under the lock as an internal error', async () => {
+      mockLoadNormalized.mockResolvedValueOnce(graph()).mockResolvedValueOnce(null)
+
+      await expect(
+        applyWorkflowOperations.execute({
+          principal: sessionPrincipal,
+          input: { workflowId: 'workflow-1', operations },
+        })
+      ).rejects.toMatchObject({ code: 'internal' })
+    })
+
+    /** The loader orders neither rows nor record keys, so a re-read of the same rows must still match. */
+    it('commits when the re-read differs only in row order', async () => {
+      const EDGE_A = { id: 'edge-a', source: 'block-1', target: 'block-2' }
+      const EDGE_B = { id: 'edge-b', source: 'block-2', target: 'block-1' }
+      const block2 = { ...BLOCK, id: 'block-2', name: 'Second' }
+      mocks.normalizeState
+        .mockReturnValueOnce({
+          state: { ...graph({ 'block-1': BLOCK, 'block-2': block2 }), edges: [EDGE_A, EDGE_B] },
+          warnings: [],
+        })
+        .mockReturnValueOnce({
+          state: { ...graph({ 'block-2': block2, 'block-1': BLOCK }), edges: [EDGE_B, EDGE_A] },
+          warnings: [],
+        })
+
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(result.dryRun).toBe(false)
+    })
+
+    /** Container `nodes` are rebuilt from the block rows, so they inherit the read's row order. */
+    it('commits when only container child order differs on the re-read', async () => {
+      const containers = (nodes: string[]) => ({
+        loops: { 'loop-1': { id: 'loop-1', nodes, iterations: 1, loopType: 'for' } },
+        parallels: { 'parallel-1': { id: 'parallel-1', nodes, count: 2, parallelType: 'count' } },
+      })
+      mocks.normalizeState
+        .mockReturnValueOnce({
+          state: { ...graph(), ...containers(['block-1', 'block-2']) },
+          warnings: [],
+        })
+        .mockReturnValueOnce({
+          state: { ...graph(), ...containers(['block-2', 'block-1']) },
+          warnings: [],
+        })
+
+      const result = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(result.dryRun).toBe(false)
+    })
   })
 
   /**
@@ -479,6 +627,7 @@ describe('applyWorkflowOperations', () => {
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -490,7 +639,7 @@ describe('applyWorkflowOperations', () => {
       principal: sessionPrincipal,
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
-    expect(mockLoadNormalized).toHaveBeenCalledWith('workflow-1')
+    expect(mockLoadNormalized).toHaveBeenCalledWith('workflow-1', undefined)
     expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null, true)
   })
 
@@ -499,6 +648,7 @@ describe('applyWorkflowOperations', () => {
       state: graph({ 'block-1': { ...BLOCK, locked: true } }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -596,6 +746,7 @@ describe('applyWorkflowOperations', () => {
       }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({
@@ -627,6 +778,7 @@ describe('applyWorkflowOperations', () => {
       }),
       validationErrors: [],
       skippedItems: [],
+      declinedOperationCount: 0,
     })
 
     const result = await applyWorkflowOperations.execute({

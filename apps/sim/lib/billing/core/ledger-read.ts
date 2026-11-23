@@ -1,3 +1,4 @@
+import { getPostgresCancellationReason } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import { DatabaseReadDeadlineError, withDatabaseReadRetry } from '@/lib/db/read-retry'
@@ -16,16 +17,16 @@ import type { DbClient, DbTransaction } from '@/lib/db/types'
  */
 export function readLedgerBounded<T>(
   executor: DbClient,
-  read: (tx: DbTransaction) => Promise<T>
+  read: (tx: DbTransaction) => Promise<T>,
+  /** A tighter bound for a read that can do without its answer, such as a staff-only count. */
+  budgetMs: number = USAGE_LEDGER_STATEMENT_TIMEOUT_MS
 ): Promise<T> {
   return withDatabaseReadRetry(
     (remainingMs) => {
       const attemptStartedAt = Date.now()
       return executor.transaction(
         async (tx) => {
-          const timeoutMs = Math.floor(
-            (remainingMs ?? USAGE_LEDGER_STATEMENT_TIMEOUT_MS) - (Date.now() - attemptStartedAt)
-          )
+          const timeoutMs = Math.floor((remainingMs ?? budgetMs) - (Date.now() - attemptStartedAt))
           if (timeoutMs <= 0) throw new DatabaseReadDeadlineError()
           await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${timeoutMs}ms'`))
           return read(tx)
@@ -33,6 +34,20 @@ export function readLedgerBounded<T>(
         { accessMode: 'read only' }
       )
     },
-    { label: 'usage ledger', maxAttempts: 2, maxElapsedMs: USAGE_LEDGER_STATEMENT_TIMEOUT_MS }
+    { label: 'usage ledger', maxAttempts: 2, maxElapsedMs: budgetMs }
+  )
+}
+
+/**
+ * How long a staff-only workflow run count may take before it is reported as unknown. Well inside
+ * the admin proxy's request timeout, so a payer too large to count still gets its page.
+ */
+export const WORKFLOW_RUN_COUNT_BUDGET_MS = 5_000
+
+/** Whether a {@link readLedgerBounded} read failed because it ran out of its budget. */
+export function isLedgerReadOverBudget(error: unknown): boolean {
+  return (
+    error instanceof DatabaseReadDeadlineError ||
+    getPostgresCancellationReason(error) === 'statement_timeout'
   )
 }

@@ -6,6 +6,7 @@ import { desc, eq } from 'drizzle-orm'
 import type { ScimConnectionSettingsInput } from '@/lib/api/contracts/organization-scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { markScimPeopleChanged } from '@/lib/people/sync/scim-changes'
 import {
   loadConnectionView,
   requireConnection,
@@ -78,6 +79,8 @@ export const configureScimConnection = defineAuthorizedScimAdminUseCase({
           createdBy: context.actorUserId,
         })
       }
+      if (existing && nextStatus !== existing.status)
+        await markScimPeopleChanged(tx, context.organizationId)
       return { created: !existing, previousStatus: existing?.status ?? null, status: nextStatus }
     })
 

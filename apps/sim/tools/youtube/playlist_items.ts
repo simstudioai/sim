@@ -1,3 +1,4 @@
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type {
   YouTubePlaylistItemsParams,
@@ -13,6 +14,7 @@ export const youtubePlaylistItemsTool: ToolConfig<
   description:
     'Get videos from a YouTube playlist. Can be used with a channel uploads playlist to get all channel videos.',
   version: '1.1.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     playlistId: {
       type: 'string',

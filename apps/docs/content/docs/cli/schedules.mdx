@@ -1,0 +1,35 @@
+---
+title: Schedules
+description: List the schedules deployed workflows run across a workspace.
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+List the schedules deployed workflows run across a workspace.
+
+A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.
+
+`sim schedules` is also spelled `sim schedule`.
+
+These commands accept the [global options](/cli/commands#global-options).
+
+## Show the timing and health of every schedule the workspace’s deployments run
+
+```bash
+sim schedules list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. `createdAt` is when the schedule was created for the deployment version that runs it: each deploy creates new schedule rows, so a redeployed workflow's schedules move to the newest end. Defaults to "createdAt". Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+API request and response schemas: [listWorkspaceSchedules](/api-reference/workflows/listWorkspaceSchedules).

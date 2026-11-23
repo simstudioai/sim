@@ -2,6 +2,7 @@ import type {
   SecretsManagerGetSecretParams,
   SecretsManagerGetSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getSecretTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getSecretTool: InternalToolConfig<
   name: 'Secrets Manager Get Secret',
   description: 'Retrieve a secret value from AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -75,6 +77,7 @@ export const getSecretTool: InternalToolConfig<
       output: {
         name: data.name ?? '',
         secretValue: data.secretValue ?? '',
+        secretBinary: data.secretBinary ?? null,
         arn: data.arn ?? '',
         versionId: data.versionId ?? '',
         versionStages: data.versionStages ?? [],
@@ -86,7 +89,15 @@ export const getSecretTool: InternalToolConfig<
 
   outputs: {
     name: { type: 'string', description: 'Name of the secret' },
-    secretValue: { type: 'string', description: 'The decrypted secret value' },
+    secretValue: {
+      type: 'string',
+      description: 'The decrypted secret value (empty when the secret is stored as binary)',
+    },
+    secretBinary: {
+      type: 'string',
+      description: 'Base64-encoded decrypted binary secret value, when stored as SecretBinary',
+      optional: true,
+    },
     arn: { type: 'string', description: 'ARN of the secret' },
     versionId: { type: 'string', description: 'Version ID of the secret' },
     versionStages: { type: 'array', description: 'Staging labels attached to this version' },

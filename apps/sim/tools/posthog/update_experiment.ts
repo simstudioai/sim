@@ -1,6 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface UpdateExperimentParams {
   projectId: string
@@ -35,7 +35,10 @@ interface UpdateExperimentResponse {
   experiment: Experiment
 }
 
-export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExperimentResponse> = {
+export const updateExperimentTool: ToolConfig<
+  UpdateExperimentParams,
+  ToolResponse & { output: UpdateExperimentResponse }
+> = {
   id: 'posthog_update_experiment',
   name: 'PostHog Update Experiment',
   description:
@@ -123,7 +126,7 @@ export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExpe
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/experiments/${postHogPathSegment(params.experimentId, 'experimentId')}/`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -164,7 +167,10 @@ export const updateExperimentTool: ToolConfig<UpdateExperimentParams, UpdateExpe
     const data = await response.json()
 
     return {
-      experiment: data,
+      success: true,
+      output: {
+        experiment: data,
+      },
     }
   },
 

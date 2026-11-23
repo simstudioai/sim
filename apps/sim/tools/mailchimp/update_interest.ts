@@ -1,6 +1,8 @@
 import type { MailchimpInterest } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpUpdateInterestParams {
   apiKey: string
@@ -27,6 +29,7 @@ export const mailchimpUpdateInterestTool: ToolConfig<
   name: 'Update Interest in Mailchimp Interest Category',
   description: 'Update an existing interest in an interest category in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -65,7 +68,7 @@ export const mailchimpUpdateInterestTool: ToolConfig<
     url: (params) =>
       buildMailchimpUrl(
         params.apiKey,
-        `/lists/${params.listId}/interest-categories/${params.interestCategoryId}/interests/${params.interestId}`
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/interest-categories/${safeUrlPathSegment(params.interestCategoryId, 'interestCategoryId')}/interests/${safeUrlPathSegment(params.interestId, 'interestId')}`
       ),
     method: 'PATCH',
     headers: (params) => ({

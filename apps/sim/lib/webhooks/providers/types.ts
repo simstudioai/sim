@@ -222,7 +222,10 @@ export interface WebhookProviderHandler {
   /** Delete an external webhook subscription during cleanup. Strict outbox cleanup should throw. */
   deleteSubscription?(ctx: DeleteSubscriptionContext): Promise<void>
 
-  /** Configure polling after webhook creation (gmail, outlook, rss, imap). */
+  /**
+   * Configure polling after webhook creation (gmail, outlook, rss, imap). Resolves false only for a
+   * verdict on the account or configuration; an unavailable failure (egress outage) must throw.
+   */
   configurePolling?(ctx: PollingConfigContext): Promise<boolean>
 
   /** Handle verification challenges before webhook lookup (Slack url_verification, WhatsApp hub.verify_token, Teams validationToken). */

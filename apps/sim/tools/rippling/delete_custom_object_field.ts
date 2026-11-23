@@ -1,5 +1,7 @@
 import type { RipplingDeleteCustomObjectFieldParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomObjectFieldTool: ToolConfig<RipplingDeleteCustomObjectFieldParams> =
   {
@@ -7,6 +9,7 @@ export const ripplingDeleteCustomObjectFieldTool: ToolConfig<RipplingDeleteCusto
     name: 'Rippling Delete Custom Object Field',
     description: 'Delete a field from a custom object',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -29,7 +32,7 @@ export const ripplingDeleteCustomObjectFieldTool: ToolConfig<RipplingDeleteCusto
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/fields/${encodeURIComponent(params.fieldApiName.trim())}/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/fields/${safeUrlPathSegment(params.fieldApiName, 'fieldApiName')}/`,
       method: 'DELETE',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

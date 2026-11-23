@@ -5,6 +5,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneDeleteFieldTool: ToolConfig<
@@ -15,6 +16,7 @@ export const rocketlaneDeleteFieldTool: ToolConfig<
   name: 'Rocketlane Delete Field',
   description: 'Permanently delete a Rocketlane field by ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

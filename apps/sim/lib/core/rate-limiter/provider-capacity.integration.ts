@@ -1,19 +1,14 @@
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
-import { db } from '@sim/db'
-import { rateLimitBucket } from '@sim/db/schema'
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
 import Redis from 'ioredis'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { storage, redisClient } = vi.hoisted(() => ({
-  storage: { backend: 'database' },
+const { redisClient } = vi.hoisted(() => ({
   redisClient: { current: undefined as Redis | undefined },
 }))
-vi.mock('@/lib/core/storage', () => ({ getStorageMethod: () => storage.backend }))
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => redisClient.current }))
 
 import { PROVIDER_CAPACITY_SCRIPT } from '@/lib/core/rate-limiter/provider-capacity-lua'
@@ -59,24 +54,20 @@ function initial(
   }
 }
 
-describe.each(['database', 'redis'] as const)('%s weighted provider capacity', (backend) => {
-  describe.runIf(backend === 'database' || Boolean(redisUrl))('real atomic storage', () => {
+describe('weighted provider capacity', () => {
+  describe('real atomic Redis storage', () => {
     let key: string
 
     beforeAll(async () => {
-      if (backend === 'redis') {
-        redisClient.current = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
-        await redisClient.current.connect()
-      }
+      redisClient.current = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
+      await redisClient.current.connect()
     })
     beforeEach(() => {
-      storage.backend = backend
       key = `provider-capacity-test:${generateId()}`
     })
     afterEach(async () => {
       vi.unstubAllGlobals()
-      if (backend === 'redis') await redisClient.current?.del(`ratelimit:tb:${key}`)
-      else await db.delete(rateLimitBucket).where(eq(rateLimitBucket.key, key))
+      await redisClient.current?.del(`ratelimit:tb:${key}`)
     })
     afterAll(async () => {
       await redisClient.current?.quit()
@@ -84,44 +75,20 @@ describe.each(['database', 'redis'] as const)('%s weighted provider capacity', (
     })
 
     async function readClock(): Promise<number> {
-      if (backend === 'redis') {
-        const [seconds, microseconds] = await redisClient.current!.time()
-        return Number(seconds) * 1000 + Math.floor(Number(microseconds) / 1000)
-      }
-      const clock = await db.execute<{ now: string }>(
-        sql`SELECT floor(extract(epoch from clock_timestamp()) * 1000)::bigint AS now`
-      )
-      return Number(clock[0]?.now)
+      const [seconds, microseconds] = await redisClient.current!.time()
+      return Number(seconds) * 1000 + Math.floor(Number(microseconds) / 1000)
     }
 
     async function seed(state: ProviderCapacityState) {
-      if (backend === 'redis') {
-        await redisClient.current!.hset(
-          `ratelimit:tb:${key}`,
-          'capacityState',
-          JSON.stringify(state)
-        )
-      } else {
-        await db
-          .insert(rateLimitBucket)
-          .values({ key, tokens: '0', lastRefillAt: new Date(), capacityState: state })
-          .onConflictDoUpdate({ target: rateLimitBucket.key, set: { capacityState: state } })
-      }
+      await redisClient.current!.hset(`ratelimit:tb:${key}`, 'capacityState', JSON.stringify(state))
     }
     async function read(): Promise<ProviderCapacityState> {
-      if (backend === 'redis') {
-        const state: ProviderCapacityState = JSON.parse(
-          (await redisClient.current!.hget(`ratelimit:tb:${key}`, 'capacityState'))!
-        )
-        if (!Array.isArray(state.leases)) state.leases = []
-        if (!Array.isArray(state.pageWindow)) state.pageWindow = []
-        return state
-      }
-      const [row] = await db
-        .select({ state: rateLimitBucket.capacityState })
-        .from(rateLimitBucket)
-        .where(eq(rateLimitBucket.key, key))
-      return row!.state as ProviderCapacityState
+      const state: ProviderCapacityState = JSON.parse(
+        (await redisClient.current!.hget(`ratelimit:tb:${key}`, 'capacityState'))!
+      )
+      if (!Array.isArray(state.leases)) state.leases = []
+      if (!Array.isArray(state.pageWindow)) state.pageWindow = []
+      return state
     }
     const mutate = (action: ProviderCapacityAction, config = CONFIG) =>
       mutateProviderCapacity(key, config, action, Date.now() + 10_000)
@@ -439,30 +406,24 @@ describe.each(['database', 'redis'] as const)('%s weighted provider capacity', (
       }
     )
 
-    it.runIf(backend === 'redis')(
-      'rejects a stale queued Redis command before creating any reservation',
-      async () => {
-        const cutoff = (await readClock()) - 1
-        await expect(
-          redisClient.current!.eval(
-            PROVIDER_CAPACITY_SCRIPT,
-            1,
-            `ratelimit:tb:${key}`,
-            JSON.stringify(CONFIG),
-            JSON.stringify(acquire('late')),
-            String(cutoff)
-          )
-        ).rejects.toThrow('storage deadline expired')
-        expect(await redisClient.current!.exists(`ratelimit:tb:${key}`)).toBe(0)
-      }
-    )
+    it('rejects a stale queued Redis command before creating any reservation', async () => {
+      const cutoff = (await readClock()) - 1
+      await expect(
+        redisClient.current!.eval(
+          PROVIDER_CAPACITY_SCRIPT,
+          1,
+          `ratelimit:tb:${key}`,
+          JSON.stringify(CONFIG),
+          JSON.stringify(acquire('late')),
+          String(cutoff)
+        )
+      ).rejects.toThrow('storage deadline expired')
+      expect(await redisClient.current!.exists(`ratelimit:tb:${key}`)).toBe(0)
+    })
 
-    it.runIf(backend === 'redis')(
-      'retains state longer than every live lease and cooldown',
-      async () => {
-        await mutate(acquire('first'))
-        expect(await redisClient.current!.pttl(`ratelimit:tb:${key}`)).toBeGreaterThan(86_500_000)
-      }
-    )
+    it('retains state longer than every live lease and cooldown', async () => {
+      await mutate(acquire('first'))
+      expect(await redisClient.current!.pttl(`ratelimit:tb:${key}`)).toBeGreaterThan(86_500_000)
+    })
   })
 })

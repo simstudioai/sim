@@ -1,3 +1,4 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { startOrganizationAccountConnection } from '@/lib/credential-groups/application/organization-accounts'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
@@ -18,6 +19,11 @@ export const connectPersonalSearchIntegration = defineAuthorizedKnowledgeUseCase
     resolveKnowledgeOrganizationContext(input),
   async execute({ principal, input, request }) {
     const { target } = await resolvePersonalSearchConnection.execute({ principal, input })
+    if (!target.optionId)
+      throw new OrchestrationError(
+        'validation',
+        'Connect this account using the personal credentials form.'
+      )
     const result = await startOrganizationAccountConnection.execute({
       principal,
       request,

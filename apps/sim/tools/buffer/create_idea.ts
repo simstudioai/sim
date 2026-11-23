@@ -10,6 +10,7 @@ import {
   mapBufferIdea,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CREATE_IDEA_MUTATION = `
@@ -36,6 +37,7 @@ export const bufferCreateIdeaTool: ToolConfig<BufferCreateIdeaParams, BufferIdea
   name: 'Buffer Create Idea',
   description: 'Save a content idea to a Buffer organization for later drafting and scheduling',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

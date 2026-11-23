@@ -3,7 +3,7 @@ import { mothershipChatPostEnvelopeSchema } from '@/lib/api/contracts/mothership
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { handleUnifiedChatPost } from '@/lib/mothership/chat/post'
-import { validateShimEnvelope } from '@/lib/mothership/request/http'
+import { validateChatPostEnvelope } from '@/lib/mothership/request/http'
 
 /**
  * Caps this response on serverless hosts only; the Node server bounds nothing with it.
@@ -18,7 +18,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const invalid = await validateShimEnvelope(request, mothershipChatPostEnvelopeSchema)
+  const invalid = await validateChatPostEnvelope(request, mothershipChatPostEnvelopeSchema)
   if (invalid) return invalid
 
   return handleUnifiedChatPost(request)

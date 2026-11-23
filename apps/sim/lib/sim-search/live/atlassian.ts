@@ -132,6 +132,12 @@ export async function searchAtlassian(
   provider: 'jira' | 'confluence',
   input: NativeSearchInput
 ): Promise<NativePage> {
+  const text = nativeText(input)
+  const confluenceClause =
+    provider === 'confluence' && text && !input.native?.query
+      ? confluenceTextClause(text, input.textMatch)
+      : ''
+  if (confluenceClause === undefined) return { documents: [] }
   const allSites = (await sites(client)).filter(
     (site) =>
       !input.policy?.sites.length ||
@@ -166,7 +172,6 @@ export async function searchAtlassian(
       .join(' AND ') || undefined
   const direction = dateSortDirection(input.filters)
   const order = direction ? `${field} ${direction.toUpperCase()}` : undefined
-  const text = nativeText(input)
   // Jira's any-term JQL matches issues sharing two common words; like minimum-should-match,
   // keep only issues holding at least half the terms.
   const relevant = input.textMatch === 'any' && text ? holdsHalfTheTerms(text) : undefined
@@ -234,13 +239,15 @@ export async function searchAtlassian(
         }
       }
       const exact = await searchPages(
-        text ? confluenceTextClause(text, input.textMatch) : '',
+        confluenceClause,
         input.native?.cursor && single ? input.native.cursor : undefined
       )
+      const relevance = confluenceTextClause(text, 'any')
       // An all-terms match larger than a page comes back by raw term matches; rank it by relevance.
-      if (!text || input.native || order || input.textMatch === 'any' || !exact.next) return exact
+      if (!relevance || input.native || order || input.textMatch === 'any' || !exact.next)
+        return exact
       try {
-        const ranked = await searchPages(confluenceTextClause(text, 'any'))
+        const ranked = await searchPages(relevance)
         return { ...ranked, next: undefined, ranking: 'relevance' }
       } catch {
         // A cancelled search stops here; any other failure keeps the all-terms page.

@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { sanitizeForJsonb } from '@sim/utils/string'
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
@@ -23,18 +23,22 @@ const logger = createLogger('PiiMaskClient')
  * (scaled) Presidio service is expected to eventually respond; an unreachable
  * service still rejects fast (connection refused) so the caller scrubs.
  */
-const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
+const CHUNK_CONCURRENCY = envNumber(env.PII_MASK_CHUNK_CONCURRENCY, 64, { min: 1, integer: true })
 
 /**
- * Per-chunk retry budget for transient failures (network errors, 408/429/5xx).
- * A large payload fans out into many chunk requests, so a single blip — an ALB
- * 502 during a deploy, a Presidio pod restart — must not fail the whole
- * redaction (and, on the execution-altering stages, abort the run). With the
- * default 500ms→30s jittered backoff this rides out ~2 minutes of outage per
- * chunk before giving up. Deterministic failures (4xx, shape mismatches) throw
- * immediately.
+ * Attempts per chunk for transient failures (network errors, timeouts, and the
+ * statuses in {@link RETRYABLE_STATUSES}), the 3-attempt default of the AWS SDK
+ * standard retry mode and the OpenAI and Anthropic SDKs. A large payload fans out into many chunk requests, so one blip (a
+ * dropped connection, a Presidio worker restart, a request queued behind a busy
+ * fleet) must not fail the whole redaction. The budget stays small because every
+ * retry re-runs the chunk's full NER pass, so a chunk that fails on its own input (a
+ * 500 from a recognizer) only repeats that work before reaching the fail-safe.
+ * Without a `Retry-After`, the jittered backoff spans about 1.5s; an outage
+ * (502/503/504) that outlasts it falls to the caller's fail-safe, which with
+ * {@link MaskPIIBatchOptions.failedChunkPlaceholder} also scrubs chunks not yet sent.
+ * Any other status and shape mismatches throw immediately.
  */
-const MAX_CHUNK_ATTEMPTS = 8
+const MAX_CHUNK_ATTEMPTS = 3
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
@@ -83,8 +87,9 @@ function isRetryableChunkError(error: unknown): boolean {
  * Statuses that mean the service is down rather than that one request was bad:
  * the load balancer has no healthy target (502/503/504), or the mask-batch route
  * could not reach Presidio (503). A 500 is retried but never read as an outage —
- * Presidio answers 500 for deterministic per-input failures too (an over-long text
- * spaCy refuses), and one such chunk must not scrub the rest of the payload.
+ * Presidio answers 500 for deterministic per-input failures too (an input that
+ * raises inside a recognizer), and one such chunk must not scrub the rest of the
+ * payload.
  */
 const OUTAGE_STATUSES = new Set([502, 503, 504])
 
@@ -213,8 +218,7 @@ async function postChunkOnce(
   customPatterns: CustomPiiPattern[] | undefined
 ): Promise<string[]> {
   // Mint per attempt: a single token (5min TTL) can expire mid-batch when a
-  // large execution fans out into many sequential chunk requests or a chunk
-  // spends its retry budget waiting out an outage.
+  // large execution fans out into many sequential chunk requests.
   const token = await generateInternalToken()
 
   // boundary-raw-fetch: internal server-to-server call to the app container (internal JWT auth, configurable base URL)

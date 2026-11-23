@@ -2,6 +2,7 @@ import type {
   EnrichEmailToPersonLiteParams,
   EnrichEmailToPersonLiteResponse,
 } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const emailToPersonLiteTool: ToolConfig<
@@ -13,6 +14,7 @@ export const emailToPersonLiteTool: ToolConfig<
   description:
     'Retrieve basic LinkedIn profile information from an email address. A lighter version with essential data only.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

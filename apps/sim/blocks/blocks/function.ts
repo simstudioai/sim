@@ -115,7 +115,7 @@ try {
       // Refetched whenever `language` changes, so the list is always scoped to
       // sandboxes this block can actually run in.
       dependsOn: ['language'],
-      showWhenEnvSet: 'NEXT_PUBLIC_SANDBOXES_ENABLED',
+      showWhenFeature: 'sandboxes',
       placeholder: 'Default image',
       description:
         'Sim sandbox dependencies, system packages, and managed CLIs available to this block. Shell can use Sim sandboxes from either language. Manage them in Settings > Sandboxes. Leaving this empty runs on the default image.',
@@ -180,6 +180,13 @@ try {
     files: {
       type: 'file[]',
       description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, ready to attach or upload downstream`,
+    },
+  },
+  errorOutputs: {
+    errorMessage: {
+      type: 'string',
+      description:
+        'The thrown message alone, without the line and code that error leads with. Use it in a reply to a caller.',
     },
   },
 }

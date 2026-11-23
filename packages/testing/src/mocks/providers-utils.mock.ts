@@ -125,7 +125,6 @@ export const providersUtilsMockFns = {
   mockSupportsVerbosity: vi.fn((_model: string): boolean => false),
   mockSupportsThinking: vi.fn((_model: string): boolean => false),
   mockSupportsPromptCaching: vi.fn((_model: string): boolean => false),
-  mockIsDeepResearchModel: vi.fn((_model: string): boolean => false),
   mockIsGemini3OrLaterModel: vi.fn((_model: string): boolean => false),
   mockPrepareToolExecution: vi.fn(
     (
@@ -164,7 +163,6 @@ export const providersUtilsMock = {
   MODELS_WITH_VERBOSITY: [] as string[],
   MODELS_WITH_THINKING: [] as string[],
   MODELS_WITH_PROMPT_CACHING: [] as string[],
-  MODELS_WITH_DEEP_RESEARCH: [] as string[],
   MODELS_WITHOUT_MEMORY: [] as string[],
   updateOllamaProviderModels: providersUtilsMockFns.mockUpdateOllamaProviderModels,
   updateVLLMProviderModels: providersUtilsMockFns.mockUpdateVLLMProviderModels,
@@ -201,7 +199,6 @@ export const providersUtilsMock = {
   supportsVerbosity: providersUtilsMockFns.mockSupportsVerbosity,
   supportsThinking: providersUtilsMockFns.mockSupportsThinking,
   supportsPromptCaching: providersUtilsMockFns.mockSupportsPromptCaching,
-  isDeepResearchModel: providersUtilsMockFns.mockIsDeepResearchModel,
   isGemini3OrLaterModel: providersUtilsMockFns.mockIsGemini3OrLaterModel,
   prepareToolExecution: providersUtilsMockFns.mockPrepareToolExecution,
   checkForForcedToolUsageOpenAI: providersUtilsMockFns.mockCheckForForcedToolUsageOpenAI,

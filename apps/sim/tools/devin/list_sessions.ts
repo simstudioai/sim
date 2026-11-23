@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinListSessionsParams, DevinListSessionsResponse } from './types'
 import { DEVIN_SESSION_LIST_ITEM_PROPERTIES } from './types'
 
@@ -8,6 +10,7 @@ export const devinListSessionsTool: ToolConfig<DevinListSessionsParams, DevinLis
     name: 'Devin List Sessions',
     description: 'List Devin sessions in the organization. Returns up to 100 sessions by default.',
     version: '1.0.0',
+    oauth: DEVIN_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
@@ -43,7 +46,7 @@ export const devinListSessionsTool: ToolConfig<DevinListSessionsParams, DevinLis
         if (params.limit) searchParams.set('first', String(params.limit))
         if (params.after) searchParams.set('after', params.after.trim())
         const qs = searchParams.toString()
-        return `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions${qs ? `?${qs}` : ''}`
+        return `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions${qs ? `?${qs}` : ''}`
       },
       method: 'GET',
       headers: (params) => ({

@@ -58,7 +58,6 @@ export const SECTION_MODULES = {
   desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
   browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
   terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
-  whitelabeling: () => import('@/ee/whitelabeling/components/whitelabeling-settings'),
 } satisfies Partial<Record<SettingsSection, () => Promise<unknown>>>
 
 /** Each section's first-content queries. */

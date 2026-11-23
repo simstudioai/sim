@@ -1,0 +1,26 @@
+{
+  "namespace": "upstash",
+  "methods": {
+    "command": "command",
+    "delete": "delete_",
+    "exists": "exists",
+    "expire": "expire",
+    "get": "get",
+    "hget": "hget",
+    "hgetall": "hgetall",
+    "hset": "hset",
+    "incr": "incr",
+    "incrby": "incrby",
+    "keys": "listKeys",
+    "lpush": "lpush",
+    "lrange": "lrange",
+    "set": "set",
+    "setnx": "setnx",
+    "ttl": "ttl"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

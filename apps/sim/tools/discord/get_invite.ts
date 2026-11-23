@@ -1,11 +1,14 @@
 import type { DiscordGetInviteParams, DiscordGetInviteResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGetInviteResponse> = {
   id: 'discord_get_invite',
   name: 'Discord Get Invite',
   description: 'Get information about a Discord invite',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -22,7 +25,7 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -30,7 +33,7 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
 
   request: {
     url: (params: DiscordGetInviteParams) => {
-      return `https://discord.com/api/v10/invites/${params.inviteCode.trim()}?with_counts=true`
+      return `https://discord.com/api/v10/invites/${safeUrlPathSegment(params.inviteCode, 'inviteCode')}?with_counts=true`
     },
     method: 'GET',
     headers: (params) => ({
@@ -56,8 +59,8 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
       description: 'Invite data',
       properties: {
         code: { type: 'string', description: 'Invite code' },
-        guild: { type: 'object', description: 'Server information' },
-        channel: { type: 'object', description: 'Channel information' },
+        guild: { type: 'object', description: 'Server information', optional: true },
+        channel: { type: 'object', description: 'Channel information', optional: true },
         approximate_member_count: { type: 'number', description: 'Approximate member count' },
         approximate_presence_count: { type: 'number', description: 'Approximate online count' },
       },

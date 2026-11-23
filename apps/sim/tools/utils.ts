@@ -118,9 +118,17 @@ export function validateRequiredParametersAfterMerge(
     throw new Error(`Tool not found: ${toolId}`)
   }
 
+  // A selected saved credential fills these after this check, during resolution.
+  const credentialSupplied = new Set(
+    params.credential || params.oauthCredential || params.credentialId
+      ? tool.oauth?.credentialSuppliedParams
+      : []
+  )
+
   // Validate all required user-or-llm parameters after merge
   // user-only parameters should have been validated earlier during serialization
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
+    if (credentialSupplied.has(paramName)) continue
     if (
       (paramConfig as any).visibility === 'user-or-llm' &&
       paramConfig.required &&

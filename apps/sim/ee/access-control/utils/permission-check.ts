@@ -30,6 +30,7 @@ import {
   mergeEnvAllowlist,
 } from '@/lib/permission-groups/resolve.server'
 import type { ExecutionContext } from '@/executor/types'
+import { isAutoModel } from '@/providers/models'
 import { getProviderFromModel } from '@/providers/utils'
 
 /**
@@ -309,7 +310,11 @@ function assertModelAllowed(
   model: string,
   subject: PermissionSubject
 ): void {
-  if (config.allowedModelProviders !== null) {
+  /**
+   * sim-auto has no provider to allowlist: the model router gates every pool candidate
+   * through this check before it resolves to one. Naming it outright still refuses it.
+   */
+  if (config.allowedModelProviders !== null && !isAutoModel(model)) {
     const providerId = getProviderFromModel(model)
 
     if (!config.allowedModelProviders.includes(providerId)) {

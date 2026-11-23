@@ -17,9 +17,12 @@ import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { RETIRED_QUIVER_MODELS } from '@/tools/quiver/models'
 import type { QuiverSvgResponse } from '@/tools/quiver/types'
 
 const logger = createLogger('QuiverOperations')
+
+const RETIRED_QUIVER_MODEL_SET: ReadonlySet<string> = new Set(RETIRED_QUIVER_MODELS)
 
 export interface QuiverOperationContext {
   headers: Headers
@@ -31,6 +34,21 @@ export interface QuiverOperationContext {
 type ApiImage = { url: string } | { base64: string }
 
 export type QuiverSvgOutput = QuiverSvgResponse & { success: true }
+
+function resolveModel(model: string): string {
+  return RETIRED_QUIVER_MODEL_SET.has(model) ? 'arrow-2' : model
+}
+
+/** Arrow 2 Telos rejects these sampling fields with a 400 even when they hold the default. */
+function addSamplingParams(
+  body: Record<string, unknown>,
+  input: Pick<QuiverTextToSvgInput, 'temperature' | 'top_p' | 'presence_penalty'>
+): void {
+  if (body.model === 'arrow-2-telos') return
+  if (input.temperature != null) body.temperature = input.temperature
+  if (input.top_p != null) body.top_p = input.top_p
+  if (input.presence_penalty != null) body.presence_penalty = input.presence_penalty
+}
 
 function fail(message: string, status: number, body?: Record<string, unknown>): never {
   throw new QuiverOperationError(message, status, body)
@@ -222,14 +240,12 @@ export async function executeQuiverTextToSvg(
     }
   }
 
-  const body: Record<string, unknown> = { model: input.model, prompt: input.prompt }
+  const body: Record<string, unknown> = { model: resolveModel(input.model), prompt: input.prompt }
   if (input.instructions) body.instructions = input.instructions
   if (references.length > 0) body.references = references.slice(0, 4)
   if (input.n != null) body.n = input.n
-  if (input.temperature != null) body.temperature = input.temperature
-  if (input.top_p != null) body.top_p = input.top_p
+  addSamplingParams(body, input)
   if (input.max_output_tokens != null) body.max_output_tokens = input.max_output_tokens
-  if (input.presence_penalty != null) body.presence_penalty = input.presence_penalty
 
   const result = await requestQuiverSvg('generations', input.apiKey, body, context.signal)
   context.signal?.throwIfAborted()
@@ -257,11 +273,9 @@ export async function executeQuiverImageToSvg(
   context.signal?.throwIfAborted()
   validateProvenance(input, context)
   const image = await resolveImage(input.image, context)
-  const body: Record<string, unknown> = { model: input.model, image }
-  if (input.temperature != null) body.temperature = input.temperature
-  if (input.top_p != null) body.top_p = input.top_p
+  const body: Record<string, unknown> = { model: resolveModel(input.model), image }
+  addSamplingParams(body, input)
   if (input.max_output_tokens != null) body.max_output_tokens = input.max_output_tokens
-  if (input.presence_penalty != null) body.presence_penalty = input.presence_penalty
   if (input.auto_crop != null) body.auto_crop = input.auto_crop
   if (input.target_size != null) body.target_size = input.target_size
 

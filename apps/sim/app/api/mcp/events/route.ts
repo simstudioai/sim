@@ -32,11 +32,10 @@ const mcpEventsHandler = createWorkspaceSSE({
           })
         })
       },
-      ready: async () => mcpPubSub?.ready(),
+      ready: () => mcpPubSub.ready(),
     },
     {
       subscribe: (workspaceId, send) => {
-        if (!mcpPubSub) return () => {}
         return mcpPubSub.onWorkflowToolsChanged((event) => {
           if (event.workspaceId !== workspaceId) return
           send('tools_changed', {
@@ -46,7 +45,7 @@ const mcpEventsHandler = createWorkspaceSSE({
           })
         })
       },
-      ready: async () => mcpPubSub?.ready(),
+      ready: () => mcpPubSub.ready(),
     },
   ],
 })

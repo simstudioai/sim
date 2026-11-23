@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import {
   type Browser,
@@ -30,6 +31,16 @@ const canonicalOrigin = new URL(process.env.NEXT_PUBLIC_DOCS_URL ?? 'https://doc
 const engine = process.env.DOCS_NAVIGATION_BROWSER ?? 'chromium'
 if (engine !== 'chromium' && engine !== 'webkit')
   throw new Error('DOCS_NAVIGATION_BROWSER must be chromium or webkit')
+const webkitEndpoint = process.env.PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+if (webkitEndpoint !== undefined) {
+  if (engine !== 'webkit' || !/^ws:\/\/127\.0\.0\.1:[1-9]\d*\/$/.test(webkitEndpoint))
+    throw new Error('A remote endpoint requires explicit WebKit selection and a loopback URL')
+  new URL(webkitEndpoint)
+  if (
+    toRecord(createRequire(import.meta.url)('@playwright/test/package.json')).version !== '1.64.1'
+  )
+    throw new Error('The remote WebKit image requires Playwright 1.64.1')
+}
 const results: Array<{
   name: string
   status: 'passed' | 'failed' | 'unavailable'
@@ -78,6 +89,24 @@ async function selectRequestLanguage(page: Page, name: string | RegExp): Promise
   }
   await expect(tab).toHaveAttribute('aria-selected', 'true')
   return tab
+}
+
+async function searchFor(page: Page, query: string) {
+  const [request] = await Promise.all([
+    page.waitForRequest(
+      (request) => {
+        const url = new URL(request.url())
+        return (
+          url.origin === target.origin &&
+          url.pathname === '/api/search' &&
+          url.searchParams.get('query') === query
+        )
+      },
+      { timeout: 5000 }
+    ),
+    page.getByRole('combobox', { name: 'Search documentation' }).fill(query),
+  ])
+  expect((await request.response())?.ok()).toBe(true)
 }
 
 async function open(page: Page, path: string) {
@@ -162,8 +191,124 @@ async function verifyClipboard(
 
 let browser: Browser | undefined
 try {
-  browser = await (engine === 'webkit' ? webkit : chromium).launch()
+  browser =
+    webkitEndpoint === undefined
+      ? await (engine === 'webkit' ? webkit : chromium).launch()
+      : await webkit.connect(webkitEndpoint, { timeout: 180_000 })
   const feedbackBrowser = browser
+  await check(
+    'Section permalinks copy the full URL and preserve native link navigation',
+    async () => {
+      const context = await feedbackBrowser.newContext({
+        permissions: ['clipboard-read', 'clipboard-write'],
+        viewport: { width: 1440, height: 900 },
+      })
+      try {
+        const page = await context.newPage()
+        await open(page, '/files/editor?view=reference')
+        const formatting = page.locator('#formatting-text').getByRole('link')
+        await formatting.click()
+        const first = new URL('/files/editor?view=reference#formatting-text', target).href
+        await expect(page).toHaveURL(first)
+        await expect(formatting).toHaveAccessibleName('Link copied')
+        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(first)
+
+        const tables = page.locator('#tables').getByRole('link')
+        await tables.focus()
+        await page.keyboard.press('Enter')
+        const second = new URL('/files/editor?view=reference#tables', target).href
+        await expect(page).toHaveURL(second)
+        await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(second)
+        const [newTab] = await Promise.all([
+          context.waitForEvent('page', { timeout: 10_000 }),
+          page
+            .locator('#code-blocks')
+            .getByRole('link')
+            .click({ modifiers: ['ControlOrMeta'] }),
+        ])
+        await newTab.waitForLoadState('domcontentloaded')
+        await expect(newTab).toHaveURL(
+          new URL('/files/editor?view=reference#code-blocks', target).href
+        )
+        await newTab.close()
+        await page.bringToFront()
+        await expect(page).toHaveURL(second)
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(second)
+        await page.screenshot({ path: join(directory, 'section-permalink.png') })
+      } finally {
+        await context.close()
+      }
+    },
+    engine === 'webkit'
+      ? 'Playwright WebKit cannot grant clipboard read/write permissions; Chromium verifies native clipboard contents.'
+      : undefined
+  )
+  await check('Section permalink navigation survives an unavailable clipboard', async () => {
+    const context = await feedbackBrowser.newContext()
+    try {
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'clipboard', { value: undefined })
+      })
+      const page = await context.newPage()
+      await open(page, '/files/editor')
+      const link = page.locator('#formatting-text').getByRole('link')
+      await link.click()
+      await expect(page).toHaveURL(new URL('/files/editor#formatting-text', target).href)
+      await expect(link).toHaveAccessibleName('Could not copy. Copy the link from the address bar.')
+      await expect(page.getByRole('status').filter({ hasText: 'Could not copy.' })).toBeVisible()
+      await page.screenshot({ path: join(directory, 'section-permalink-copy-unavailable.png') })
+      await page
+        .getByRole('navigation', { name: 'Page navigation', exact: true })
+        .getByRole('link', { name: 'Previous Files', exact: true })
+        .click()
+      await expect(page).toHaveURL(new URL('/files', target).href)
+      await expect(
+        page.getByRole('link', { name: 'Could not copy. Copy the link from the address bar.' })
+      ).toHaveCount(0)
+    } finally {
+      await context.close()
+    }
+  })
+  await check(
+    'Compact page outline dismisses with Escape and preserves new-tab clicks',
+    async () => {
+      for (const width of [390, 1100]) {
+        const context = await feedbackBrowser.newContext({ viewport: { width, height: 900 } })
+        try {
+          const page = await context.newPage()
+          await open(page, '/files/editor')
+          const summary = page
+            .locator('summary')
+            .filter({ hasText: 'On this page' })
+            .filter({ visible: true })
+          const details = summary.locator('..')
+          await summary.click()
+          await expect(details).toHaveAttribute('open', '')
+          await details.getByRole('link', { name: 'Formatting text', exact: true }).focus()
+          await page.keyboard.press('Escape')
+          await expect(details).not.toHaveAttribute('open')
+          await expect(summary).toBeFocused()
+
+          await summary.click()
+          const link = details.getByRole('link', { name: 'Formatting text', exact: true })
+          const [newTab] = await Promise.all([
+            context.waitForEvent('page', { timeout: 10_000 }),
+            link.click({ modifiers: ['ControlOrMeta'] }),
+          ])
+          await newTab.waitForLoadState('domcontentloaded')
+          await expect(newTab).toHaveURL(new URL('/files/editor#formatting-text', target).href)
+          await expect(details).toHaveAttribute('open', '')
+          await newTab.close()
+          await link.click()
+          await expect(page).toHaveURL(new URL('/files/editor#formatting-text', target).href)
+          await expect(details).not.toHaveAttribute('open')
+          await page.screenshot({ path: join(directory, `section-outline-${width}.png`) })
+        } finally {
+          await context.close()
+        }
+      }
+    }
+  )
   await check('Feedback forwards votes and preserves unchanged retry identity', async () => {
     const cert = process.env.DOCS_FEEDBACK_TEST_CERT
     const key = process.env.DOCS_FEEDBACK_TEST_KEY
@@ -1421,6 +1566,108 @@ try {
 
   const interactive = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   try {
+    await check('Docs reference: wrapped sidebar labels stay left aligned', async () => {
+      const page = await interactive.newPage()
+      try {
+        for (const width of [1440, 390]) {
+          await page.setViewportSize({ width, height: 900 })
+          await open(page, '/integrations/zoominfo')
+          if (width < 1024) await page.getByRole('button', { name: 'Menu', exact: true }).click()
+          const guide = page.getByRole('button', { name: /Shared credential guides/ })
+          await guide.scrollIntoViewIfNeeded()
+          const lines = await guide.locator('span').evaluate((element) => {
+            const range = document.createRange()
+            range.selectNodeContents(element)
+            return [...range.getClientRects()].map((rect) => ({
+              left: rect.left,
+              labelLeft: element.getBoundingClientRect().left,
+            }))
+          })
+          expect(lines.length).toBeGreaterThan(width >= 1024 ? 1 : 0)
+          for (const line of lines) expect(Math.abs(line.left - line.labelLeft)).toBeLessThan(1)
+          await page.screenshot({ path: join(directory, `sidebar-wrapped-label-${width}.png`) })
+          if (width < 1024) await page.keyboard.press('Escape')
+        }
+      } finally {
+        await page.close()
+      }
+    })
+    for (const path of ['/integrations/zoom', '/integrations/zoominfo']) {
+      await check(`Docs reference: field tables start collapsed on ${path}`, async () => {
+        const page = await interactive.newPage()
+        try {
+          await open(page, path)
+          const tables = page.locator('article table').filter({
+            has: page.getByRole('columnheader', {
+              name: 'Parameter',
+              exact: true,
+              includeHidden: true,
+            }),
+          })
+          expect(await tables.count()).toBeGreaterThan(0)
+          for (const table of await tables.all()) await expect(table).toBeHidden()
+          const disclosures = page.locator('article details')
+          for (const disclosure of await disclosures.all()) {
+            const summary = disclosure.locator(':scope > summary')
+            await summary.click()
+            await expect(disclosure.getByRole('table').first()).toBeVisible()
+            await summary.focus()
+            await page.keyboard.press('Enter')
+            await expect(disclosure.getByRole('table').first()).toBeHidden()
+          }
+          await page.screenshot({
+            path: join(directory, `${path.split('/').at(-1)}-collapsed.png`),
+          })
+        } finally {
+          await page.close()
+        }
+      })
+    }
+    await check('Docs reference: TOC hover keeps a single active underline', async () => {
+      const page = await interactive.newPage()
+      try {
+        for (const theme of ['light', 'dark'] as const) {
+          await page.emulateMedia({ colorScheme: theme })
+          await open(page, '/getting-started')
+          const toc = page
+            .getByRole('navigation', { name: 'On this page' })
+            .filter({ visible: true })
+          const link = toc.getByRole('link', { name: 'Create a workflow', exact: true })
+          await link.click()
+          await expect(link).toHaveAttribute('aria-current', 'location')
+          await expect
+            .poll(() => link.evaluate((element) => getComputedStyle(element).textDecorationLine))
+            .toBe('underline')
+          const next = toc.getByRole('link', { name: 'Next steps', exact: true })
+          const color = await next.evaluate((element) => getComputedStyle(element).color)
+          await next.hover()
+          await next.evaluate((element) =>
+            Promise.all(element.getAnimations().map((animation) => animation.finished))
+          )
+          await expect
+            .poll(() => next.evaluate((element) => getComputedStyle(element).backgroundColor))
+            .toBe('rgba(0, 0, 0, 0)')
+          await expect(next).toHaveCSS('color', color)
+          await expect(next).toHaveCSS('text-decoration-line', 'none')
+          await expect
+            .poll(() =>
+              toc
+                .getByRole('link')
+                .filter({ visible: true })
+                .evaluateAll(
+                  (links) =>
+                    links.filter((element) =>
+                      getComputedStyle(element).textDecorationLine.includes('underline')
+                    ).length
+                )
+            )
+            .toBe(1)
+          await page.screenshot({ path: join(directory, `toc-hover-${theme}.png`) })
+        }
+      } finally {
+        await page.close()
+      }
+    })
     await check(
       'Docs polish: nested TOC anchors track the selected section across breakpoints',
       async () => {
@@ -1527,44 +1774,67 @@ try {
       'Search keyboard navigation, empty/error states and focus restoration',
       async () => {
         const page = await interactive.newPage()
+        try {
+          await open(page, '/introduction')
+          const trigger = page.getByRole('button', {
+            name: /^(Search documentation|Search docs)$/,
+            exact: true,
+          })
+          await trigger.focus()
+          await page.keyboard.press('Control+k')
+          const search = page.getByRole('combobox', { name: 'Search documentation' })
+          await expect(search).toBeFocused()
+          await searchFor(page, 'Slack')
+          await expect(page.getByRole('option').first()).toBeVisible()
+          await page.screenshot({ path: join(directory, 'search-results.png') })
+          const activeResult = await search.getAttribute('aria-activedescendant')
+          await search.dispatchEvent('keydown', { key: 'ArrowDown', isComposing: true })
+          await expect(search).toHaveAttribute('aria-activedescendant', activeResult ?? '')
+          await search.dispatchEvent('keydown', { key: 'Enter', isComposing: true })
+          await expect(page.getByRole('dialog')).toBeVisible()
+          await expect(page).toHaveURL(new URL('/introduction', target).href)
+          await search.press('ArrowDown')
+          await search.press('Enter')
+          await expect(page).not.toHaveURL(new URL('/introduction', target).href)
+          await page
+            .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+            .click()
+          await search.fill('zzzz-no-such-content-zzzz')
+          await expect(page.getByRole('status')).toContainText('No results')
+          await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
+          await search.fill('failure-case')
+          await expect(page.getByRole('status')).toContainText('Search is unavailable')
+          await page.unroute('**/api/search?*')
+          await page.getByRole('button', { name: 'Try again', exact: true }).click()
+          await expect(page.getByRole('status')).toContainText('No results')
+          await search.press('Escape')
+          await expect(
+            page.getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
+          ).toBeFocused()
+        } finally {
+          await page.close()
+        }
+      }
+    )
+    await check('A stalled search request stops searching and offers a retry', async () => {
+      const page = await interactive.newPage()
+      try {
         await open(page, '/introduction')
-        const trigger = page.getByRole('button', {
-          name: /^(Search documentation|Search docs)$/,
-          exact: true,
-        })
-        await trigger.focus()
-        await page.keyboard.press('Control+k')
-        const search = page.getByRole('combobox', { name: 'Search documentation' })
-        await expect(search).toBeFocused()
-        await search.fill('Slack')
-        await expect(page.getByRole('option').first()).toBeVisible()
-        await page.screenshot({ path: join(directory, 'search-results.png') })
-        const activeResult = await search.getAttribute('aria-activedescendant')
-        await search.dispatchEvent('keydown', { key: 'ArrowDown', isComposing: true })
-        await expect(search).toHaveAttribute('aria-activedescendant', activeResult ?? '')
-        await search.dispatchEvent('keydown', { key: 'Enter', isComposing: true })
-        await expect(page.getByRole('dialog')).toBeVisible()
-        await expect(page).toHaveURL(new URL('/introduction', target).href)
-        await search.press('ArrowDown')
-        await search.press('Enter')
-        await expect(page).not.toHaveURL(new URL('/introduction', target).href)
+        await page.route('**/api/search?query=timeout-probe', () => {})
         await page
           .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
           .click()
-        await search.fill('zzzz-no-such-content-zzzz')
-        await expect(page.getByRole('status')).toContainText('No results')
-        await page.route('**/api/search?*', (route) => route.fulfill({ status: 503, body: '{}' }))
-        await search.fill('failure-case')
+        await page.getByRole('combobox', { name: 'Search documentation' }).fill('timeout-probe')
+        await page
+          .getByRole('button', { name: 'Try again', exact: true })
+          .waitFor({ timeout: 7000 })
         await expect(page.getByRole('status')).toContainText('Search is unavailable')
-        await page.unroute('**/api/search?*')
-        await page.getByRole('button', { name: 'Try again', exact: true }).click()
-        await expect(page.getByRole('status')).toContainText('No results')
-        await search.press('Escape')
-        await expect(
-          page.getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
-        ).toBeFocused()
+        await page.screenshot({ path: join(directory, 'search-timeout-retry.png') })
+      } finally {
+        await page.unrouteAll({ behavior: 'ignoreErrors' })
+        await page.close()
       }
-    )
+    })
     await check('Closing search aborts a pending request', async () => {
       const page = await interactive.newPage()
       try {
@@ -1576,12 +1846,12 @@ try {
         const requested = page.waitForRequest((request) =>
           request.url().includes('query=cancel-request')
         )
-        const failed = page.waitForEvent('requestfailed', {
-          predicate: (request) => request.url().includes('query=cancel-request'),
-          timeout: 10000,
-        })
         await page.getByRole('combobox', { name: 'Search documentation' }).fill('cancel-request')
         await requested
+        const failed = page.waitForEvent('requestfailed', {
+          predicate: (request) => request.url().includes('query=cancel-request'),
+          timeout: 2000,
+        })
         await page.keyboard.press('Escape')
         expect((await failed).failure()?.errorText).toMatch(/abort|cancel/i)
         await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -1628,7 +1898,7 @@ try {
           .getByRole('button', { name: /^(Search documentation|Search docs)$/, exact: true })
           .click()
         const search = page.getByRole('combobox', { name: 'Search documentation' })
-        await search.fill('Slack')
+        await searchFor(page, 'Slack')
         await expect(page.getByRole('option').first()).toBeVisible()
         await page.screenshot({ path: join(directory, 'mobile-search-results.png') })
         if (interactionRecording.video) await sleep(600)
@@ -1757,7 +2027,7 @@ try {
         await page.keyboard.press('Control+k')
         const search = page.getByRole('combobox', { name: 'Search documentation' })
         await expect(search).toBeFocused()
-        await search.fill('Slack')
+        await searchFor(page, 'Slack')
         await expect(page.getByRole('option').first()).toBeVisible()
         await page.screenshot({ path: join(directory, 'cloudflare-mobile-search.png') })
         await search.press('Escape')

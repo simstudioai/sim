@@ -1,8 +1,11 @@
 import { z } from 'zod'
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, sameResourceScope } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { isHostNotFound } from '@/lib/credentials/token-service-accounts/errors'
+import { credibleTokenExpiry, gitlabTokenExpiration } from '@/lib/credentials/vendor-token-expiry'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 
 const gitLabUserSchema = z.object({
@@ -55,6 +58,20 @@ export async function verifyGitLabPersonalToken(accessToken: string, rawHost?: s
       timeout: 10_000,
       maxResponseBytes: 64 * 1024,
       maxRedirects: 0,
+    }).catch((error: unknown) => {
+      if (error instanceof EgressRefusedError) {
+        throw new OrchestrationError(
+          'validation',
+          "Sim can't connect to that address. Use your GitLab instance's public https URL."
+        )
+      }
+      if (isHostNotFound(error)) {
+        throw new OrchestrationError(
+          'validation',
+          "Sim couldn't find that GitLab host. Check the address and try again."
+        )
+      }
+      throw error
     })
     if (!response.ok) {
       throw new OrchestrationError(
@@ -83,7 +100,7 @@ export async function verifyGitLabPersonalToken(accessToken: string, rawHost?: s
     instanceUrl,
     displayName: `${user.data.name || user.data.username} (${new URL(instanceUrl).host})`,
     grantedScopes: token.data.scopes,
-    expiresAt: token.data.expires_at ? new Date(`${token.data.expires_at}T00:00:00Z`) : null,
+    expiresAt: credibleTokenExpiry(gitlabTokenExpiration(token.data.expires_at)) ?? null,
   }
 }
 

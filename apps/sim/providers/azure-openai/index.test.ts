@@ -121,14 +121,14 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect(responsesConfig().fetch).toBe(sentinelFetch)
     })
 
-    it('passes no custom fetch when the endpoint comes from trusted server env', async () => {
+    it("sends Sim's trusted env endpoint direct, not through the organization router", async () => {
       setEnv({ AZURE_OPENAI_ENDPOINT: 'https://trusted.openai.azure.com' })
 
       await azureOpenAIProvider.executeRequest(request({ azureEndpoint: undefined }))
 
       expect(mockValidate).not.toHaveBeenCalled()
       expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
-      expect(responsesConfig().fetch).toBeUndefined()
+      expect(responsesConfig().fetch).toBe(globalThis.fetch)
     })
 
     it.each([false, true])(
@@ -256,7 +256,12 @@ describe('azureOpenAIProvider — SSRF pinning', () => {
       expect('stream' in result).toBe(true)
       if (!('stream' in result)) throw new Error('Expected streaming execution')
       expect(result.execution.output.content).toBe('done')
-      expect(result.execution.output.tokens).toEqual({ input: 6, output: 3, total: 9 })
+      expect(result.execution.output.tokens).toEqual({
+        input: 6,
+        output: 3,
+        cacheRead: 0,
+        total: 9,
+      })
       expect(result.execution.output.providerTiming?.iterations).toBe(2)
       expect(
         result.execution.output.providerTiming?.timeSegments?.filter(

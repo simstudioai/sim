@@ -50,4 +50,21 @@ describe('ModalBlock', () => {
     expect(params).not.toHaveProperty('temperature')
     expect(params).not.toHaveProperty('topP')
   })
+
+  it('coerces sampling controls on an agent tool call, where the operation arrives only in the context', () => {
+    const params = buildParams(
+      { model: 'Qwen/Qwen3.5-4B', content: 'hello', maxTokens: '256', temperature: 0.2 },
+      { operation: 'chat_completion' }
+    )
+
+    expect(params).toMatchObject({ maxTokens: 256, temperature: 0.2 })
+  })
+
+  it("keeps the model's function URL on an agent tool call", () => {
+    const modelArgs = { url: 'https://ws--app-fn.modal.run', method: 'GET' }
+
+    const params = { ...modelArgs, ...buildParams(modelArgs, { operation: 'call_function' }) }
+
+    expect(params.url).toBe('https://ws--app-fn.modal.run')
+  })
 })

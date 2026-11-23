@@ -7,15 +7,18 @@ import { z } from 'zod'
 vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
 
+import { requestJsonRevalidated } from '@/lib/api/client/request'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { completeProjectFileUploadContract } from '@/lib/api/contracts/project-file-uploads'
 import {
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
+  internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes/internal-json-route'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
+import { EGRESS_UNAVAILABLE_MESSAGE, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 
 const mockGetRequestContext = vi.mocked(getRequestContext)
@@ -329,6 +332,154 @@ describe('defineInternalJsonRoute', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'Internal server error' })
+  })
+})
+
+describe('revalidation by ETag', () => {
+  beforeEach(() => {
+    mockGetRequestContext.mockReturnValue(undefined)
+  })
+
+  it('answers an unchanged result 304 with no body, and a changed one 200 with its new tag', async () => {
+    let value = 'first'
+    const execute = vi.fn(async () => ({ value }))
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: { operation, execute },
+      entityTag: (result) => `v-${result.value}`,
+    })
+    const served: Response[] = []
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      const response = await handler(
+        new NextRequest(new Request(new URL(url, 'http://localhost'), init))
+      )
+      served.push(response.clone())
+      return response
+    })
+
+    const first = await requestJsonRevalidated(contract, {})
+    expect(first).toEqual({ notModified: false, body: { value: 'first' }, etag: '"v-first"' })
+
+    const unchanged = await requestJsonRevalidated(contract, {}, first.etag)
+    expect(unchanged).toEqual({ notModified: true, etag: '"v-first"' })
+    expect(served[1].status).toBe(304)
+    expect(await served[1].text()).toBe('')
+
+    value = 'second'
+    const changed = await requestJsonRevalidated(contract, {}, first.etag)
+    expect(changed).toEqual({ notModified: false, body: { value: 'second' }, etag: '"v-second"' })
+    // The use case runs on every read, so authorization is never skipped by a matching tag.
+    expect(execute).toHaveBeenCalledTimes(3)
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('HEAD on a route whose GET is not safe', () => {
+  function headRequest() {
+    return new NextRequest('http://localhost/api/test/internal-json-route', { method: 'HEAD' })
+  }
+
+  function defineUnsafeRead(authorize: () => Promise<void>) {
+    const execute = vi.fn(async () => ({ value: 'read' }))
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      headSafe: false,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: { operation, execute, authorize },
+    })
+    return { handler, execute }
+  }
+
+  it('authorizes and answers bodiless without running the read', async () => {
+    const authorize = vi.fn(async () => {})
+    const { handler, execute } = defineUnsafeRead(authorize)
+
+    const response = await handler(headRequest())
+
+    expect(response.status).toBe(200)
+    await expect(response.text()).resolves.toBe('')
+    expect(authorize).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers the status the GET would have when authorization refuses', async () => {
+    const { handler, execute } = defineUnsafeRead(async () => {
+      throw new OrchestrationError('not_found', 'Widget not found')
+    })
+
+    const response = await handler(headRequest())
+
+    expect(response.status).toBe(404)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('refuses at definition a use case with no authorize', () => {
+    expect(() =>
+      defineInternalJsonRoute({
+        contract,
+        auth,
+        operation,
+        headSafe: false,
+        rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+        errorPolicy: internalOrchestrationErrorPolicy,
+        mapInput: () => undefined,
+        useCase: { operation, execute: async () => ({ value: 'read' }) },
+      })
+    ).toThrow(/headSafe: false/)
+  })
+})
+
+describe('internal error projection', () => {
+  class TestDomainError extends Error {}
+  const domainPolicy = {
+    project: (error: unknown) =>
+      error instanceof TestDomainError
+        ? internalErrorResponse(400, { error: error.message })
+        : null,
+  }
+  const routeThrowing = (error: Error) =>
+    defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Error projection regression' }),
+      errorPolicy: domainPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute(): Promise<{ value: string }> {
+          throw error
+        },
+      },
+    })
+
+  it('answers an egress outage wrapped in a domain error with 503, not the policy status', async () => {
+    const outage = new TestDomainError('Could not reach the provider', {
+      cause: new OutboundRoutingError('GATEWAY_UNAVAILABLE'),
+    })
+    const response = await routeThrowing(outage)(
+      new NextRequest('http://localhost/api/test/internal-json-route')
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ error: EGRESS_UNAVAILABLE_MESSAGE })
+  })
+
+  it("keeps the policy's status for a domain error that is not an outage", async () => {
+    const response = await routeThrowing(new TestDomainError('Bad input'))(
+      new NextRequest('http://localhost/api/test/internal-json-route')
+    )
+
+    expect(response.status).toBe(400)
   })
 })
 

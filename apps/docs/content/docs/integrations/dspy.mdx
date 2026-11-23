@@ -6,13 +6,14 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [DSPy](https://github.com/stanford-oval/dspy) to call a self-hosted server that exposes your DSPy programs. Configure the server URL, authentication, input fields, and context expected by that endpoint.
 
 The block supports Predict, Chain of Thought, and ReAct operations. The behavior of each call depends on the DSPy program and model you deploy; Sim does not host the program for you.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Integrate with your self-hosted DSPy programs for LLM-powered predictions. Suppo
 ### DSPy Predict
 
 Run a prediction using a self-hosted DSPy program endpoint
+
+<ReferenceDetails>
 
 #### Input
 
@@ -45,9 +48,13 @@ Run a prediction using a self-hosted DSPy program endpoint
 | `status` | string | Response status from the DSPy server \(success or error\) |
 | `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
 
+</ReferenceDetails>
+
 ### DSPy Chain of Thought
 
 Run a Chain of Thought prediction using a self-hosted DSPy ChainOfThought program endpoint
+
+<ReferenceDetails>
 
 #### Input
 
@@ -68,9 +75,13 @@ Run a Chain of Thought prediction using a self-hosted DSPy ChainOfThought progra
 | `status` | string | Response status from the DSPy server \(success or error\) |
 | `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
 
+</ReferenceDetails>
+
 ### DSPy ReAct
 
 Run a ReAct agent using a self-hosted DSPy ReAct program endpoint for multi-step reasoning and action
+
+<ReferenceDetails>
 
 #### Input
 
@@ -96,5 +107,7 @@ Run a ReAct agent using a self-hosted DSPy ReAct program endpoint for multi-step
 |   ↳ `observation` | string | The observation/result from the tool execution |
 | `status` | string | Response status from the DSPy server \(success or error\) |
 | `rawOutput` | json | The complete raw output from the DSPy program \(result.toDict\(\)\) |
+
+</ReferenceDetails>
 
 

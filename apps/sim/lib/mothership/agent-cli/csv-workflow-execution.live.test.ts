@@ -86,7 +86,12 @@ vi.unmock('@/blocks/registry')
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api/server/routes/v2-api-key-auth')>()),
   authenticateV2ApiKey: async () => ({
-    principal: { kind: 'personal_api_key', userId: fixtures.userId, keyId: 'csv-key' },
+    principal: {
+      kind: 'personal_api_key',
+      userId: fixtures.userId,
+      keyId: 'csv-key',
+      access: 'write',
+    },
     rateLimitSubjectIds: ['user:csv-user'],
     rateLimitSubscription: null,
     keyType: 'personal',

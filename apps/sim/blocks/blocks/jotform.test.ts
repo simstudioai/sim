@@ -25,4 +25,14 @@ describe('JotformBlock', () => {
 
     expect({ ...inputs, ...buildParams(inputs) }.questions).toBe(inputs.bulkQuestions)
   })
+
+  /**
+   * An agent tool call passes the operation only in `context`; a report title filled
+   * on the tool row must still reach the tool's `title` param.
+   */
+  it('maps tool-row fields on an agent tool call', () => {
+    const args: Record<string, unknown> = { apiKey: 'key', formId: '2315', reportTitle: 'Weekly' }
+
+    expect({ ...args, ...buildParams(args, { operation: 'create_report' }) }.title).toBe('Weekly')
+  })
 })

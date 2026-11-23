@@ -29,4 +29,18 @@ describe('Mem0Block', () => {
       })
     ).toThrow('Each message must have role user or assistant and non-empty content')
   })
+
+  it('maps an agent search call, whose operation arrives only in context', () => {
+    const params = buildParams(
+      { apiKey: 'test-key', userId: 'alice', query: 'favorite tools', limit: 5 },
+      { operation: 'search' }
+    )
+
+    expect(params).toEqual({
+      apiKey: 'test-key',
+      userId: 'alice',
+      query: 'favorite tools',
+      limit: 5,
+    })
+  })
 })

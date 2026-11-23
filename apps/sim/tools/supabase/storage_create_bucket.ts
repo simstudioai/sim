@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
   type SupabaseStorageCreateBucketParams,
@@ -14,6 +15,7 @@ export const storageCreateBucketTool: ToolConfig<
   name: 'Supabase Storage Create Bucket',
   description: 'Create a new storage bucket in Supabase',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

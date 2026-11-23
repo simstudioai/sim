@@ -159,7 +159,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',
   name: 'Web Search',
   description:
-    'Search Google through the Serper.dev API for web, news, places, images, videos, shopping, scholar, or patent results. Available response sections include organic results, a knowledge graph, an answer box, related questions, related searches, and top stories.',
+    'Search Google through the Serper.dev API for web, news, places, images, videos, shopping, scholar, or patent results. Returns the ranked results for the chosen search type.',
   version: '1.0.0',
 
   params: {

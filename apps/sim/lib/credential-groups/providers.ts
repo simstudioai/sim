@@ -52,6 +52,17 @@ interface CredentialGroupProviderSupport {
   serviceId: string
   description: string
   configuration: 'oauth' | 'slack_custom_bot'
+  /**
+   * One login holds a single grant that gains each site it consents to, so connecting that login
+   * again adds a site to the existing account rather than a second account.
+   */
+  grantSpansSites?: true
+  /**
+   * Sim began recording this provider's tenant after accounts were saved without one. Such an
+   * account takes on its tenant when the same person reconnects; elsewhere a missing tenant never
+   * matches another.
+   */
+  tenantRecordedLater?: true
 }
 
 const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
@@ -127,11 +138,13 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     serviceId: 'confluence',
     description: 'Let each person connect one Confluence account',
     configuration: 'oauth',
+    grantSpansSites: true,
   },
   jira: {
     serviceId: 'jira',
     description: 'Let each person connect one Jira account',
     configuration: 'oauth',
+    grantSpansSites: true,
   },
   airtable: {
     serviceId: 'airtable',
@@ -189,6 +202,7 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     configuration: 'oauth',
   },
   notion: {
+    tenantRecordedLater: true,
     serviceId: 'notion',
     description: 'Let each person connect one Notion account',
     configuration: 'oauth',
@@ -256,6 +270,16 @@ export function getCredentialGroupProviderService(
     )
   }
   return service
+}
+
+/** Whether connecting the same login again refreshes its existing account, adding sites to it. */
+export function credentialGroupGrantSpansSites(provider: CredentialGroupProvider): boolean {
+  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].grantSpansSites === true
+}
+
+/** Whether an account saved without a tenant may take one on when the same person reconnects. */
+export function credentialGroupTenantRecordedLater(provider: CredentialGroupProvider): boolean {
+  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].tenantRecordedLater === true
 }
 
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {

@@ -9,15 +9,6 @@ import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedEnv = { REDIS_URL: process.env.REDIS_URL }
-  /** The real Redis module and the confirmation channel read this at import. */
-  process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedEnv }
-})
-
 vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
@@ -123,13 +114,9 @@ afterAll(async () => {
   channels._toolConfirmationChannel?.dispose()
   channels._toolConfirmationChannel = undefined
   await closeRedisConnection()
-  for (const [key, value] of Object.entries(inheritedEnv)) {
-    if (value === undefined) delete process.env[key]
-    else process.env[key] = value
-  }
 })
 
-describe.runIf(Boolean(redisUrl))('a desktop tool call watched by a web tab', () => {
+describe('a desktop tool call watched by a web tab', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()

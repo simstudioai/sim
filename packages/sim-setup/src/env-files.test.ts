@@ -1,6 +1,7 @@
 import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { loadEnvConfig } from '@next/env'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseEnv, reconcileEnvContent, upsertEnv, writeEnvFile } from './env-files'
 
@@ -19,6 +20,38 @@ describe('upsertEnv', () => {
         'replacement'
       )
     ).toThrow('Duplicate active RESEND_API_KEY entries')
+  })
+
+  it.each(['ab #cd', 'a#b', '  padded ', "'starts-with-quote", "it's #1", "it's $5 #1"])(
+    'reads back %j exactly as it was written',
+    (value) => {
+      expect(parseEnv(upsertEnv('', 'SECRET', value)).get('SECRET')).toBe(value)
+    }
+  )
+
+  it.each(['pa$$word', 'key$HOME', `key\${HOME}suffix`, "it's $5"])(
+    'Next loads %j back exactly as it was written',
+    (value) => {
+      const root = mkdtempSync(path.join(tmpdir(), 'sim-setup-env-expand-'))
+      roots.push(root)
+      writeFileSync(path.join(root, '.env'), upsertEnv('', 'SIM_SETUP_EXPAND_PROBE', value))
+      const silent = { info: () => {}, error: () => {} }
+      try {
+        const { parsedEnv } = loadEnvConfig(root, false, silent, true)
+        expect(parsedEnv?.SIM_SETUP_EXPAND_PROBE).toBe(value)
+      } finally {
+        Reflect.deleteProperty(process.env, 'SIM_SETUP_EXPAND_PROBE')
+      }
+    }
+  )
+
+  it('writes an ordinary value without quotes', () => {
+    const dsn = 'postgresql://postgres:p%23w@127.0.0.1:5432/simstudio'
+    expect(upsertEnv('', 'DATABASE_URL', dsn)).toBe(`DATABASE_URL=${dsn}\n`)
+  })
+
+  it('refuses a value that would spill onto a second line', () => {
+    expect(() => upsertEnv('', 'SECRET', 'first\nINJECTED=1')).toThrow('line break')
   })
 })
 

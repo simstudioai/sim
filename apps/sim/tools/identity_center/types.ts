@@ -56,6 +56,7 @@ export interface IdentityCenterListAccountAssignmentsParams extends IdentityCent
   principalType: 'USER' | 'GROUP'
   maxResults?: number | null
   nextToken?: string | null
+  accountId?: string | null
 }
 
 export interface IdentityCenterListAssignmentsForAccountParams
@@ -153,6 +154,11 @@ export interface IdentityCenterGetUserResponse extends ToolResponse {
     userName: string
     displayName: string | null
     email: string | null
+    givenName: string | null
+    familyName: string | null
+    userStatus: string | null
+    title: string | null
+    externalIds: Array<{ issuer: string; id: string }>
   }
   error?: string
 }
@@ -205,6 +211,7 @@ export interface IdentityCenterGetGroupResponse extends ToolResponse {
     groupId: string
     displayName: string | null
     description: string | null
+    externalIds: Array<{ issuer: string; id: string }>
   }
   error?: string
 }
@@ -229,6 +236,8 @@ export interface IdentityCenterDescribeUserResponse extends ToolResponse {
     email: string | null
     userStatus: string | null
     title: string | null
+    givenName: string | null
+    familyName: string | null
     externalIds: Array<{ issuer: string; id: string }>
   }
   error?: string

@@ -37,10 +37,18 @@ export interface SessionPrincipal {
   sessionId: string
 }
 
+/**
+ * What an API key may do. A `read` key is held to the operations the `api:read`
+ * OAuth scope reaches and refused everything else, including any operation
+ * that declares no scope at all.
+ */
+export type ApiKeyAccess = 'read' | 'write'
+
 export interface PersonalApiKeyPrincipal {
   kind: 'personal_api_key'
   userId: string
   keyId: string
+  access: ApiKeyAccess
 }
 
 /**
@@ -65,6 +73,7 @@ export interface WorkspaceApiKeyPrincipal {
   kind: 'workspace_api_key'
   workspaceId: string
   keyId: string
+  access: ApiKeyAccess
 }
 
 /** Operations a SCIM bearer credential may perform. Mirrors `ScimScope` in the schema. */
@@ -284,6 +293,16 @@ export type CredentialGroupEnrollmentPrincipal = CredentialGroupEnrollmentIdenti
 
 export type DelegatedServiceId = DelegatedPrincipal['serviceId']
 
+/** An API key created read-only, which every surface must hold to reads. */
+export function isReadOnlyApiKeyPrincipal(
+  principal: Principal
+): principal is (PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal) & { access: 'read' } {
+  return (
+    (principal.kind === 'personal_api_key' || principal.kind === 'workspace_api_key') &&
+    principal.access === 'read'
+  )
+}
+
 /**
  * A person reaching the API through a bearer credential of their own — a
  * personal API key or an OAuth access token. The two are one authorization
@@ -349,11 +368,20 @@ export type WorkflowExecutionPrincipal =
   | SubjectDelegatedPrincipal
   | SystemPrincipal
 
+/**
+ * A write key serializes without `access`, the shape every deployed parser
+ * accepts; only a read key carries it.
+ */
+type SerializedApiKeyPrincipal<P extends PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal> = Omit<
+  P,
+  'access'
+> & { access?: 'read' }
+
 type SerializedWorkflowExecutionPrincipal =
   | SessionPrincipal
-  | PersonalApiKeyPrincipal
+  | SerializedApiKeyPrincipal<PersonalApiKeyPrincipal>
   | (Omit<OAuthAccessTokenPrincipal, 'expiresAt' | 'clientName'> & { expiresAt: string })
-  | WorkspaceApiKeyPrincipal
+  | SerializedApiKeyPrincipal<WorkspaceApiKeyPrincipal>
   | SystemPrincipal
   | (Omit<SubjectDelegatedPrincipal, 'issuedAt' | 'expiresAt'> & {
       issuedAt: string
@@ -448,13 +476,23 @@ function parseAuthenticatedEmailSubject(value: unknown): AuthenticatedEmailSubje
   }
 }
 
+/** A principal persisted before keys had an access level was a write key. */
+function parseApiKeyAccess(value: unknown): ApiKeyAccess {
+  if (value === undefined || value === 'write') return 'write'
+  if (value === 'read') return 'read'
+  throw new Error('Serialized principal access must be read or write')
+}
+
 /** Encodes a workflow caller without persisting bearer credentials or invitation proofs. */
 export function serializePrincipal(principal: WorkflowExecutionPrincipal): SerializedPrincipalV1 {
   switch (principal.kind) {
     case 'session':
-    case 'personal_api_key':
-    case 'workspace_api_key':
       return { version: 1, principal: { ...principal } }
+    case 'personal_api_key':
+    case 'workspace_api_key': {
+      const { access, ...rest } = principal
+      return { version: 1, principal: access === 'read' ? { ...rest, access } : rest }
+    }
     case 'oauth_access_token':
       return {
         version: 1,
@@ -505,18 +543,20 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
         sessionId: requireString(principal.sessionId, 'sessionId'),
       }
     case 'personal_api_key':
-      requireExactKeys(principal, ['kind', 'userId', 'keyId'])
+      requireExactKeys(principal, ['kind', 'userId', 'keyId'], ['access'])
       return {
         kind,
         userId: requireString(principal.userId, 'userId'),
         keyId: requireString(principal.keyId, 'keyId'),
+        access: parseApiKeyAccess(principal.access),
       }
     case 'workspace_api_key':
-      requireExactKeys(principal, ['kind', 'workspaceId', 'keyId'])
+      requireExactKeys(principal, ['kind', 'workspaceId', 'keyId'], ['access'])
       return {
         kind,
         workspaceId: requireString(principal.workspaceId, 'workspaceId'),
         keyId: requireString(principal.keyId, 'keyId'),
+        access: parseApiKeyAccess(principal.access),
       }
     case 'oauth_access_token': {
       requireExactKeys(principal, ['kind', 'userId', 'clientId', 'tokenId', 'scopes', 'expiresAt'])

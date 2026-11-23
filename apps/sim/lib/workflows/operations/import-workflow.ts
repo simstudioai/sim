@@ -300,7 +300,7 @@ async function executeImportWorkflowIntoWorkspace(
    */
   const { state: preparedState, warnings } = prepareWorkflowStateForPersistence(parsedState)
   if (warnings.length > 0) {
-    logger.warn(`[${requestId}] Normalized imported workflow with warnings`, { warnings })
+    logger.warn('Normalized imported workflow with warnings', { requestId, warnings })
   }
 
   const workflowState: WorkflowState = { ...parsedState, ...preparedState }
@@ -392,7 +392,8 @@ async function executeImportWorkflowIntoWorkspace(
       }
     })
   } catch (error) {
-    logger.error(`[${requestId}] Failed to persist imported workflow, rolling back`, {
+    logger.error('Failed to persist imported workflow, rolling back', {
+      requestId,
       workflowId,
       error: getErrorMessage(error, 'Unknown error'),
     })
@@ -406,8 +407,13 @@ async function executeImportWorkflowIntoWorkspace(
       await db.delete(workflow).where(eq(workflow.id, workflowId))
     } catch (rollbackError) {
       logger.error(
-        `[${requestId}] Rollback failed, workflow ${workflowId} is orphaned in workspace ${workspaceId}`,
-        { workflowId, workspaceId, error: getErrorMessage(rollbackError, 'Unknown error') }
+        `Rollback failed, workflow ${workflowId} is orphaned in workspace ${workspaceId}`,
+        {
+          requestId,
+          workflowId,
+          workspaceId,
+          error: getErrorMessage(rollbackError, 'Unknown error'),
+        }
       )
     }
     return { success: false, status: 500, error: 'Failed to save workflow state' }
@@ -426,19 +432,22 @@ async function executeImportWorkflowIntoWorkspace(
       userId
     )
     if (saved > 0 || toolErrors.length > 0) {
-      logger.info(`[${requestId}] Persisted ${saved} custom tool(s) from import`, {
+      logger.info(`Persisted ${saved} custom tool(s) from import`, {
+        requestId,
         workflowId,
         errors: toolErrors,
       })
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to persist custom tools from import`, {
+    logger.error('Failed to persist custom tools from import', {
+      requestId,
       workflowId,
       error: getErrorMessage(error, 'Unknown error'),
     })
   }
 
-  logger.info(`[${requestId}] Imported workflow ${workflowId} into workspace ${workspaceId}`, {
+  logger.info(`Imported workflow ${workflowId} into workspace ${workspaceId}`, {
+    requestId,
     name: created.workflow.name,
     blocksCount: Object.keys(workflowState.blocks).length,
   })

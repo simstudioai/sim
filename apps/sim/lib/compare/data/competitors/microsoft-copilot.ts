@@ -16,6 +16,212 @@ export const microsoftCopilotProfile: CompetitorProfile = {
   },
   oneLiner:
     'Microsoft Copilot Studio is a low-code Microsoft tool for building, testing, and publishing conversational and autonomous AI agents with topics or LLM-driven generative orchestration, connectors, agent flows, and Dataverse-grounded knowledge.',
+  leadQuestion: 'How does Sim compare to Microsoft Copilot Studio for building agents?',
+  leadAnswer: [
+    'Sim is an open-source AI workspace for building and deploying agents across different models and business systems, with managed cloud and self-hosted options. ',
+    {
+      text: 'Microsoft Copilot Studio',
+      href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-what-is-copilot-studio',
+    },
+    ' is a low-code, Microsoft-operated studio that also connects to ',
+    {
+      text: 'non-Microsoft services',
+      href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+    },
+    '. Choose Sim when direct model-provider configuration and control of the agent runtime matter; choose Copilot Studio when Power Platform governance and Microsoft publishing channels are the better fit.',
+  ],
+  questions: {
+    intro: [
+      {
+        question:
+          'Is Sim a Microsoft Copilot Studio alternative that is not locked into Microsoft 365?',
+        answer: [
+          'Yes, if the requirement is an agent-building workspace with ',
+          { text: 'direct model-provider integrations', href: 'https://docs.sim.ai/introduction' },
+          ' and a choice of ',
+          {
+            text: 'cloud or self-hosted deployment',
+            href: 'https://docs.sim.ai/platform/self-hosting/docker',
+          },
+          '. That does not mean Copilot Studio is confined to Microsoft 365: Microsoft documents ',
+          {
+            text: 'connectors for outside apps, including Salesforce and Google services',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+          },
+          ', ',
+          {
+            text: 'non-default and bring-your-own-model options',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
+          },
+          ', and ',
+          {
+            text: 'standalone Copilot Studio',
+            href: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+          },
+          ". Sim is the different product fit when control over the workspace's hosting and provider configuration is the deciding factor.",
+        ],
+      },
+    ],
+    glance: [
+      {
+        question:
+          'How do Copilot Studio, Copilot Pro, Microsoft 365 Premium, and Agent Builder differ?',
+        answer: [
+          '"Copilot Pro" is an ',
+          {
+            text: 'older consumer subscription name',
+            href: 'https://www.microsoft.com/en-us/copilot/blog/2025/10/01/meet-microsoft-365-premium-your-ai-and-productivity-powerhouse/',
+          },
+          ' that still appears in searches; Microsoft describes ',
+          {
+            text: 'Microsoft 365 Premium',
+            href: 'https://support.microsoft.com/en-us/office/introducing-microsoft-365-premium',
+          },
+          ' as a subscription for one to six people with Copilot features, not as the standalone organizational agent-building license. Microsoft calls ',
+          {
+            text: 'Agent Builder',
+            href: 'https://www.microsoft.com/en-us/copilot/pricing/copilot-studio',
+          },
+          ' the lightweight, in-context creation experience inside Copilot, while Copilot Studio is its low-code agent-building product; its pricing page distinguishes capabilities included for eligible Microsoft 365 Copilot business users from standalone Studio use. If the goal is a workspace with direct model-provider integrations and self-hosting, compare Studio with Sim, not a consumer Copilot subscription.',
+        ],
+      },
+    ],
+    closing: [
+      {
+        question:
+          'What should an IT team switch to if Copilot Studio feels too limited outside the Microsoft ecosystem?',
+        answer: [
+          'Evaluate Sim if the sticking point is where the agent workspace runs or how directly the team configures model providers and tools, rather than assuming Copilot Studio cannot reach external systems. Before switching, map the agents, connectors, access rules, and publishing channels you actually use: Microsoft documents ',
+          {
+            text: 'outside-app connectors',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+          },
+          ', ',
+          {
+            text: 'granular governance',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/sec-gov-phase3',
+          },
+          ', and ',
+          {
+            text: 'multiple publishing channels',
+            href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/publication-fundamentals-publish-channels',
+          },
+          '. Rebuild and test one representative agent in Sim first; this is a migration decision, not a one-click replacement for every Microsoft capability.',
+        ],
+      },
+    ],
+  },
+  glance: [
+    {
+      label: 'Model choice',
+      sim: [
+        {
+          text: 'Direct integrations with multiple model providers',
+          href: 'https://docs.sim.ai/introduction',
+        },
+        ', including a ',
+        {
+          text: 'bring-your-own-key path',
+          href: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+        },
+        '.',
+      ],
+      competitor: [
+        {
+          text: 'Provided models and separately billed bring-your-own-model configurations, including Azure Foundry',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
+        },
+        '.',
+      ],
+    },
+    {
+      label: 'Non-Microsoft integrations',
+      sim: [{ text: 'App integrations and tools for custom agents', href: '/integrations' }, '.'],
+      competitor: [
+        {
+          text: 'Standard, premium, and custom connectors',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-connectors',
+        },
+        ', including connections to services outside Microsoft.',
+      ],
+    },
+    {
+      label: 'Self-hosting',
+      sim: [
+        {
+          text: 'Docker or Kubernetes deployment',
+          href: 'https://docs.sim.ai/platform/self-hosting/docker',
+        },
+        '; the core is open source, while Enterprise features have ',
+        { text: 'separate licensing', href: 'https://docs.sim.ai/introduction' },
+        '.',
+      ],
+      competitor: [
+        'Microsoft documents ',
+        {
+          text: 'cloud deployments',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+        },
+        ', not a self-hosted Copilot Studio authoring or runtime deployment.',
+      ],
+    },
+    {
+      label: 'Governance and access control',
+      sim: [
+        { text: 'Workspace roles', href: 'https://docs.sim.ai/platform/permissions' },
+        ', with additional Enterprise controls separately licensed.',
+      ],
+      competitor: [
+        {
+          text: 'Entra ID access, Dataverse roles, and tenant- or environment-level data policies',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/sec-gov-phase3',
+        },
+        '.',
+      ],
+    },
+    {
+      label: 'Pricing model',
+      sim: [
+        { text: 'Credit-based cloud plans', href: '/pricing' },
+        ', with ',
+        {
+          text: 'BYOK billing distinctions',
+          href: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
+        },
+        '.',
+      ],
+      competitor: [
+        {
+          text: 'Copilot Credits',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management',
+        },
+        ' for metered standard-harness usage, with prepaid and pay-as-you-go options and different rules for eligible Microsoft 365 Copilot usage or BYO models.',
+      ],
+    },
+    {
+      label: 'Deployment options',
+      sim: [
+        {
+          text: 'Managed cloud or self-hosted workspace',
+          href: 'https://docs.sim.ai/platform/self-hosting/docker',
+        },
+        '.',
+      ],
+      competitor: [
+        {
+          text: 'Microsoft-operated commercial and government cloud environments',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
+        },
+        '; agents can be ',
+        {
+          text: 'published to supported channels',
+          href: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/publication-fundamentals-publish-channels',
+        },
+        '.',
+      ],
+    },
+  ],
+  relatedReading: ['best-microsoft-copilot-studio-power-automate-alternatives'],
   standoutFeatures: [
     {
       title: 'Broad, independently audited compliance certification list',
@@ -117,19 +323,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-gcc',
         label: 'US Government customers - Microsoft Copilot Studio | Microsoft Learn',
         asOf: '2026-07-04',
-      },
-    },
-    {
-      title: 'No native white-labeling of the core builder or default chat UI',
-      description:
-        'Agent-level branding is limited to setting a name, icon, and accent color, or hosting a fully custom canvas web app for the chat window. There is no option to remove Microsoft/Copilot Studio branding from the authoring canvas or the default published chat surface, unlike a dedicated white-label offering.',
-      shortDescription:
-        'Branding is limited to name/icon/color or a custom-built chat canvas, not full white-label.',
-      source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/customize-default-canvas',
-        label:
-          'Customize the look and feel of an agent - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
       },
     },
   ],
@@ -1028,22 +1221,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/power-platform/admin/wp-data-loss-prevention',
             label: 'Data policies - Power Platform | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      whiteLabeling: {
-        value:
-          'No: agent-level branding is limited to a custom name, icon, and accent color in Settings, or fully hosting a custom canvas web app for the chat window (via CSS/JavaScript or the Bot Framework SDK). There is no option to remove Microsoft/Copilot Studio branding from the authoring canvas or the default published chat UI itself.',
-        detail:
-          'A custom canvas gives full programmatic control over the embedded chat experience, but that is a developer-built replacement UI, not a native white-labeling setting inside the product.',
-        shortValue: 'No, only name/icon/color or a fully custom-built chat canvas',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/customize-default-canvas',
-            label:
-              'Customize the look and feel of an agent - Microsoft Copilot Studio | Microsoft Learn',
             asOf: '2026-07-02',
           },
         ],

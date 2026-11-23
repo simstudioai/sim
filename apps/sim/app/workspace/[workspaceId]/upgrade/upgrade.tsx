@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Chip, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
@@ -37,8 +38,8 @@ import {
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 
-/** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
-const SALES_CAL_URL = 'https://cal.com/team/sim/demo' as const
+/** The demo form, so a sales booking passes the same spam checks as every other. */
+const SALES_DEMO_URL = `${SIM_SITE_URL}/demo`
 
 /**
  * Props for {@link Upgrade}.
@@ -85,10 +86,15 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     return null
   }
 
-  if (!canManageBilling) {
-    const description = hostContext.hostOrganizationId
-      ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
-      : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
+  if (!canManageBilling || state.billedThroughMarketplace || state.billingLookupFailed) {
+    const description = !canManageBilling
+      ? hostContext.hostOrganizationId
+        ? `Plans for ${hostContext.workspace.name} are managed by its organization administrators. Contact an organization admin to change this workspace’s plan.`
+        : `Only the owner of ${hostContext.workspace.name} can change this workspace’s plan.`
+      : state.billedThroughMarketplace
+        ? 'Your subscription is billed through AWS Marketplace, so plans can’t be changed here.'
+        : 'We couldn’t confirm how this workspace is billed.'
+    const canRetryLookup = canManageBilling && state.billingLookupFailed
 
     return (
       <div className='flex h-full flex-col bg-[var(--bg)]'>
@@ -101,6 +107,15 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
           <div className='flex max-w-md flex-col items-center gap-3 text-center'>
             <h1 className='text-[var(--text-body)] text-lg'>Workspace plans unavailable</h1>
             <p className='text-[var(--text-muted)] text-sm'>{description}</p>
+            {canRetryLookup && (
+              <Chip
+                variant='border'
+                disabled={state.isRetryingBillingLookup}
+                onClick={state.retryBillingLookup}
+              >
+                {state.isRetryingBillingLookup ? 'Retrying…' : 'Try again'}
+              </Chip>
+            )}
           </div>
         </div>
       </div>
@@ -141,7 +156,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     const onClick = (): void => {
       switch (cta.intent) {
         case 'sales':
-          window.open(SALES_CAL_URL, '_blank', 'noopener,noreferrer')
+          window.open(SALES_DEMO_URL, '_blank', 'noopener,noreferrer')
           return
         case 'downgrade':
           void state.onUpgradeToOtherTier()

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { DB_CONTAINER, type Detection } from './detect'
+import { DB_CONTAINER, type Detection, LOOPBACK_HOST } from './detect'
 import { ensureDocker } from './docker'
 import { generateSecret } from './env-files'
 import { SetupError } from './errors'
@@ -18,7 +18,7 @@ const AUTH_FAILURE = /password authentication failed/i
  * would fail a password that is actually correct.
  */
 function buildDsn(password: string, hostPort: string | number): string {
-  return `postgresql://postgres:${encodeURIComponent(password)}@localhost:${hostPort}/simstudio`
+  return `postgresql://postgres:${encodeURIComponent(password)}@${LOOPBACK_HOST}:${hostPort}/simstudio`
 }
 
 export function docker(args: string[]): void {
@@ -266,7 +266,7 @@ async function startManagedContainer(detection: Detection): Promise<string> {
     '-e',
     'POSTGRES_DB=simstudio',
     '-p',
-    `${hostPort}:5432`,
+    `${LOOPBACK_HOST}:${hostPort}:5432`,
     'pgvector/pgvector:pg17',
   ])
   const spin = p.spinner()

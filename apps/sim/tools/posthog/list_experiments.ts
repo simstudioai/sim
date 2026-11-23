@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface ListExperimentsParams {
   projectId: string
@@ -32,7 +32,10 @@ interface ListExperimentsResponse {
   previous: string | null
 }
 
-export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperimentsResponse> = {
+export const listExperimentsTool: ToolConfig<
+  ListExperimentsParams,
+  ToolResponse & { output: ListExperimentsResponse }
+> = {
   id: 'posthog_list_experiments',
   name: 'PostHog List Experiments',
   description: 'List all experiments in a PostHog project',
@@ -82,7 +85,9 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      const url = new URL(`${baseUrl}/api/projects/${params.projectId}/experiments/`)
+      const url = new URL(
+        `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/experiments/`
+      )
 
       if (params.limit) url.searchParams.append('limit', String(params.limit))
       if (params.offset) url.searchParams.append('offset', String(params.offset))
@@ -100,10 +105,13 @@ export const listExperimentsTool: ToolConfig<ListExperimentsParams, ListExperime
     const data = await response.json()
 
     return {
-      results: data.results,
-      count: data.count,
-      next: data.next ?? null,
-      previous: data.previous ?? null,
+      success: true,
+      output: {
+        results: data.results,
+        count: data.count,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
+      },
     }
   },
 

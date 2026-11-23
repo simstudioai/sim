@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   STSAssumeRoleWithWebIdentityParams,
   STSAssumeRoleWithWebIdentityResponse,
@@ -13,6 +14,7 @@ export const assumeRoleWithWebIdentityTool: InternalToolConfig<
   description:
     'Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

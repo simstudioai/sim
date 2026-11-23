@@ -10,9 +10,12 @@ import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import {
   loadWorkflowFromNormalizedTablesRaw,
+  loadWorkflowsFromNormalizedTablesRaw,
   persistMigratedBlocks,
+  type RawNormalizedWorkflow,
 } from '@sim/workflow-persistence/load'
 import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } from '@sim/workflow-persistence/save'
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
@@ -97,6 +100,25 @@ export interface WorkflowDeploymentVersionResponse {
 export interface DeployedWorkflowData extends NormalizedWorkflowData {
   deploymentVersionId: string
   variables?: Record<string, unknown>
+  /**
+   * Whether the version's snapshot recorded its variables. Versions deployed before
+   * deployments snapshotted variables did not, and `variables` defaults to `{}` for them.
+   */
+  variablesSnapshotted?: boolean
+}
+
+/**
+ * The variables an unpinned queued deployed run (async API, schedule, webhook) executes with:
+ * the deployed version's own, or the workflow's saved variables for a version deployed before
+ * deployments snapshotted them, which is what those runs have always used for such a version.
+ * A run pinned to a version reads that version's variables directly instead.
+ */
+export function resolveDeployedRunVariables(
+  deployedState: DeployedWorkflowData,
+  savedVariables: unknown
+): Record<string, unknown> {
+  if (deployedState.variablesSnapshotted) return deployedState.variables ?? {}
+  return toRecord(savedVariables)
 }
 
 /**
@@ -230,8 +252,7 @@ export async function materializeDeploymentState(
 
   const { blocks: migratedBlocks } = await applyBlockMigrations(
     state.blocks || {},
-    workspaceId,
-    executor
+    readCredentialIdsByAccount(executor ?? db, workspaceId)
   )
   /*
    * Read straight out of the version's jsonb blob, so unlike every path that
@@ -268,6 +289,7 @@ export async function materializeDeploymentState(
     loops: state.loops || {},
     parallels: state.parallels || {},
     variables: state.variables || {},
+    variablesSnapshotted: state.variables != null,
     isFromNormalizedTables: false,
     deploymentVersionId: version.id,
   }
@@ -373,10 +395,54 @@ export async function loadWorkflowDeploymentVersionState(
   )
 }
 
+/**
+ * The credential id of each legacy account id that has one in the workflow's workspace: the one
+ * database read the block migrations make.
+ */
+type CredentialIdsByAccount = (accountIds: string[]) => Promise<Map<string, string>>
+
+/** {@link CredentialIdsByAccount} that queries `credential` on every call. */
+function readCredentialIdsByAccount(executor: DbOrTx, workspaceId: string): CredentialIdsByAccount {
+  return async (accountIds) => {
+    const rows = await executor
+      .select({ id: credential.id, accountId: credential.accountId })
+      .from(credential)
+      .where(
+        and(inArray(credential.accountId, accountIds), eq(credential.workspaceId, workspaceId))
+      )
+    const byAccount = new Map<string, string>()
+    for (const row of rows) if (row.accountId) byAccount.set(row.accountId, row.id)
+    return byAccount
+  }
+}
+
+/**
+ * {@link CredentialIdsByAccount} for many workflows of one workspace: one query for the legacy ids
+ * every workflow's stored blocks hold, then a query only for an id a migration surfaces that the
+ * prefetch did not ask about.
+ */
+async function prefetchCredentialIdsByAccount(
+  executor: DbOrTx,
+  workspaceId: string,
+  blockSets: Iterable<Record<string, BlockState>>
+): Promise<CredentialIdsByAccount> {
+  const read = readCredentialIdsByAccount(executor, workspaceId)
+  const asked = new Set<string>()
+  for (const blocks of blockSets) for (const id of legacyCredentialIds(blocks)) asked.add(id)
+  const byAccount = asked.size > 0 ? await read([...asked]) : new Map<string, string>()
+  return async (accountIds) => {
+    const missing = accountIds.filter((id) => !asked.has(id))
+    if (missing.length > 0) {
+      for (const id of missing) asked.add(id)
+      for (const [accountId, id] of await read(missing)) byAccount.set(accountId, id)
+    }
+    return byAccount
+  }
+}
+
 interface MigrationContext {
   blocks: Record<string, BlockState>
-  workspaceId: string
-  executor: DbOrTx
+  credentialIdsByAccount: CredentialIdsByAccount
   migrated: boolean
 }
 
@@ -385,10 +451,9 @@ type BlockMigration = (ctx: MigrationContext) => MigrationContext | Promise<Migr
 function createMigrationPipeline(migrations: BlockMigration[]) {
   return async (
     blocks: Record<string, BlockState>,
-    workspaceId: string,
-    executor: DbOrTx = db
+    credentialIdsByAccount: CredentialIdsByAccount
   ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> => {
-    let ctx: MigrationContext = { blocks, workspaceId, executor, migrated: false }
+    let ctx: MigrationContext = { blocks, credentialIdsByAccount, migrated: false }
     for (const migration of migrations) {
       ctx = await migration(ctx)
     }
@@ -418,11 +483,7 @@ const applyBlockMigrations = createMigrationPipeline([
   },
 
   async (ctx) => {
-    const { blocks, migrated } = await migrateCredentialIds(
-      ctx.blocks,
-      ctx.workspaceId,
-      ctx.executor
-    )
+    const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.credentialIdsByAccount)
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
@@ -506,11 +567,8 @@ export const CREDENTIAL_SUBBLOCK_IDS = new Set([
   'manualBotCredential',
 ])
 
-async function migrateCredentialIds(
-  blocks: Record<string, BlockState>,
-  workspaceId: string,
-  executor: DbOrTx
-): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> {
+/** Credential values in `blocks` that are not `cred_` ids: legacy account ids to remap. */
+function legacyCredentialIds(blocks: Record<string, BlockState>): Set<string> {
   const potentialLegacyIds = new Set<string>()
 
   for (const block of Object.values(blocks)) {
@@ -537,25 +595,22 @@ async function migrateCredentialIds(
     }
   }
 
+  return potentialLegacyIds
+}
+
+async function migrateCredentialIds(
+  blocks: Record<string, BlockState>,
+  credentialIdsByAccount: CredentialIdsByAccount
+): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> {
+  const potentialLegacyIds = legacyCredentialIds(blocks)
   if (potentialLegacyIds.size === 0) {
     return { blocks, migrated: false }
   }
 
-  const rows = await executor
-    .select({ id: credential.id, accountId: credential.accountId })
-    .from(credential)
-    .where(
-      and(
-        inArray(credential.accountId, [...potentialLegacyIds]),
-        eq(credential.workspaceId, workspaceId)
-      )
-    )
-
-  if (rows.length === 0) {
+  const accountToCredential = await credentialIdsByAccount([...potentialLegacyIds])
+  if (accountToCredential.size === 0) {
     return { blocks, migrated: false }
   }
-
-  const accountToCredential = new Map(rows.map((r) => [r.accountId!, r.id]))
 
   const migratedBlocks = Object.fromEntries(
     Object.entries(blocks).map(([blockId, block]) => {
@@ -615,11 +670,58 @@ export async function loadWorkflowFromNormalizedTables(
 ): Promise<NormalizedWorkflowData | null> {
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
+  return fromRawNormalized(workflowId, raw, externalTx ?? db)
+}
 
+/**
+ * {@link loadWorkflowFromNormalizedTables} for many workflows of one workspace, by workflow id; a
+ * workflow not in `workspaceId` is left out.
+ */
+export async function loadWorkflowsFromNormalizedTables(
+  workflowIds: readonly string[],
+  workspaceId: string,
+  externalTx?: DbOrTx
+): Promise<Map<string, NormalizedWorkflowData>> {
+  const executor = externalTx ?? db
+  const raws = await loadWorkflowsFromNormalizedTablesRaw(workflowIds, workspaceId, executor)
+  const credentialIdsByAccount = await prefetchCredentialIdsByAccount(
+    executor,
+    workspaceId,
+    [...raws.values()].map((raw) => raw.blocks)
+  )
+  const loaded = new Map<string, NormalizedWorkflowData>()
+  for (const [workflowId, raw] of raws) {
+    loaded.set(workflowId, await migrateRawNormalized(workflowId, raw, credentialIdsByAccount))
+  }
+  return loaded
+}
+
+/**
+ * A raw normalized load with every block migration applied, as
+ * {@link loadWorkflowFromNormalizedTables} returns it: for a caller that already
+ * holds the raw graph (read under a row lock) and must not read it twice. Tool
+ * sanitization rewrites agent tool values on `raw`'s blocks in place.
+ */
+export async function fromRawNormalized(
+  workflowId: string,
+  raw: RawNormalizedWorkflow,
+  executor: DbOrTx
+): Promise<NormalizedWorkflowData> {
+  return migrateRawNormalized(
+    workflowId,
+    raw,
+    readCredentialIdsByAccount(executor, raw.workspaceId)
+  )
+}
+
+async function migrateRawNormalized(
+  workflowId: string,
+  raw: RawNormalizedWorkflow,
+  credentialIdsByAccount: CredentialIdsByAccount
+): Promise<NormalizedWorkflowData> {
   const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
     raw.blocks,
-    raw.workspaceId,
-    externalTx ?? db
+    credentialIdsByAccount
   )
 
   if (migrated) {
@@ -1120,6 +1222,28 @@ export async function getWorkflowDeploymentVersion(
     .limit(1)
 
   return row ?? null
+}
+
+/**
+ * Resolves a deployment version number to its row id without reading the
+ * version's state. Returns null when the workflow has no such version.
+ */
+export async function getWorkflowDeploymentVersionId(
+  workflowId: string,
+  version: number
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.version, version)
+      )
+    )
+    .limit(1)
+
+  return row?.id ?? null
 }
 
 export interface ListWorkflowVersionsOptions {

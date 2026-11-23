@@ -9,7 +9,7 @@ interface LinkupSource {
 export interface LinkupSearchParams {
   q: string
   apiKey: string
-  depth?: 'standard' | 'deep'
+  depth?: 'flash' | 'fast' | 'standard' | 'deep'
   outputType?: 'sourcedAnswer' | 'searchResults'
   includeImages?: boolean
   fromDate?: string
@@ -18,6 +18,7 @@ export interface LinkupSearchParams {
   includeDomains?: string
   includeInlineCitations?: boolean
   includeSources?: boolean
+  maxResults?: number
 }
 
 export interface LinkupSearchResponse {

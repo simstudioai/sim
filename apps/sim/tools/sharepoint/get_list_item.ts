@@ -1,5 +1,10 @@
 import type { SharepointGetListItemResponse, SharepointToolParams } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import {
+  graphPathSegment,
+  LIST_ITEM_OUTPUT_PROPERTIES,
+  mapListItem,
+  optionalTrim,
+} from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetListItemResponse> = {
@@ -45,6 +50,13 @@ export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetList
       visibility: 'user-or-llm',
       description: 'The ID of the list item to retrieve. Example: 1, 42, or 123',
     },
+    selectFields: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Comma-separated column internal names to return in the item's fields. Example: Title,Status,DueDate",
+    },
   },
 
   request: {
@@ -54,12 +66,13 @@ export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetList
       const itemId = optionalTrim(params.itemId)
       if (!listId) throw new Error('listId must be provided')
       if (!itemId) throw new Error('itemId must be provided')
-      const listSegment = encodeURIComponent(listId)
-      const itemSegment = encodeURIComponent(itemId)
+      const listSegment = graphPathSegment(listId, 'listId')
+      const itemSegment = graphPathSegment(itemId, 'itemId')
       const url = new URL(
-        `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${itemSegment}`
+        `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/lists/${listSegment}/items/${itemSegment}`
       )
-      url.searchParams.set('$expand', 'fields')
+      const selectFields = optionalTrim(params.selectFields)
+      url.searchParams.set('$expand', selectFields ? `fields($select=${selectFields})` : 'fields')
       return url.toString()
     },
     method: 'GET',
@@ -75,10 +88,7 @@ export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetList
     return {
       success: true,
       output: {
-        item: {
-          id: data.id as string,
-          fields: data.fields as Record<string, unknown> | undefined,
-        },
+        item: mapListItem(data),
       },
     }
   },
@@ -87,10 +97,7 @@ export const getListItemTool: ToolConfig<SharepointToolParams, SharepointGetList
     item: {
       type: 'object',
       description: 'SharePoint list item with field values',
-      properties: {
-        id: { type: 'string', description: 'Item ID' },
-        fields: { type: 'object', description: 'Field values for the item' },
-      },
+      properties: LIST_ITEM_OUTPUT_PROPERTIES,
     },
   },
 }

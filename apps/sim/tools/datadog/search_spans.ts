@@ -5,6 +5,7 @@ import type {
   SpanAttributes,
 } from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchSpansTool: ToolConfig<SearchSpansParams, SearchSpansResponse> = {
@@ -12,6 +13,7 @@ export const searchSpansTool: ToolConfig<SearchSpansParams, SearchSpansResponse>
   name: 'Datadog Search Spans',
   description: 'Search indexed APM spans using the span query syntax, with cursor pagination.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     query: {

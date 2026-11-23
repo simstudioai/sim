@@ -4,6 +4,7 @@ import type {
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getDocumentTool: ToolConfig<
   ElasticsearchGetDocumentParams,
@@ -82,7 +83,14 @@ export const getDocumentTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      let url = `${baseUrl}/${encodeURIComponent(params.index)}/_doc/${encodeURIComponent(params.documentId)}`
+      let url = `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_doc/${safeUrlPathSegment(
+        params.documentId,
+        'documentId',
+        {
+          allowSeparators: true,
+          preserveWhitespace: true,
+        }
+      )}`
 
       const queryParams: string[] = []
       if (params.sourceIncludes) {

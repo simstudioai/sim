@@ -88,7 +88,8 @@ export const searchTool: ToolConfig<GoogleContactsSearchParams, GoogleContactsSe
     content: { type: 'string', description: 'Summary of search results count' },
     metadata: {
       type: 'json',
-      description: 'Search results with matching contacts',
+      description:
+        'contacts: [{resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames}]',
     },
   },
 }

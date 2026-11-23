@@ -1,0 +1,18 @@
+{
+  "namespace": "microsoftWord",
+  "methods": {
+    "append": "appendContent",
+    "create": "createDocument",
+    "create_from_template": "createFromTemplate",
+    "export_pdf": "exportAsPdf",
+    "list": "listDocuments",
+    "read": "readDocument",
+    "replace_text": "findAndReplaceText",
+    "update": "replaceContent"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

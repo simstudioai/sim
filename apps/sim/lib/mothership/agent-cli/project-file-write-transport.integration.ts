@@ -32,12 +32,6 @@ import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
 vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -563,7 +557,7 @@ describe('private native Project writes against PostgreSQL and local storage', (
   })
 })
 
-describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
+describe('Project workbench callback across requests', () => {
   check(
     'enforces live callback leases, binds uploads across requests and persists machine source history',
     async () => {
@@ -608,7 +602,6 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
         executionLeaseExpiresAt: new Date(Date.now() + 60_000),
       })
       const redis = getRedisClient()
-      if (!redis) throw new Error('Expected integration Redis')
       for (const leaseToken of [token, otherToken]) {
         const prefix = `mothership:sandbox-resources:${leaseToken}`
         callbackRedisKeys.push(`${prefix}:context`, `${prefix}:inbox`, `${prefix}:seen`)
@@ -780,7 +773,7 @@ describe.skipIf(!redisUrl)('Project workbench callback across requests', () => {
 })
 
 afterAll(async () => {
-  if (callbackRedisKeys.length) await getRedisClient()?.del(...callbackRedisKeys)
+  if (callbackRedisKeys.length) await getRedisClient().del(...callbackRedisKeys)
   for (const f of fixtures) {
     await db.delete(uploadSession).where(eq(uploadSession.userId, f.userId))
     await db

@@ -1,4 +1,5 @@
 import type { DynamoDBGetParams, DynamoDBGetResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse> = {
@@ -6,6 +7,7 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
   name: 'DynamoDB Get',
   description: 'Get an item from a DynamoDB table by primary key',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -45,6 +47,20 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
       visibility: 'user-or-llm',
       description: 'Use strongly consistent read',
     },
+    projectionExpression: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Attributes to retrieve (e.g., "pk, #name, email"). Returns all attributes if omitted',
+    },
+    expressionAttributeNames: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Attribute name mappings for reserved words used in projectionExpression (e.g., {"#name": "name"})',
+    },
   },
 
   operation: {
@@ -55,6 +71,11 @@ export const getTool: InternalToolConfig<DynamoDBGetParams, DynamoDBGetResponse>
       tableName: params.tableName,
       key: params.key,
       ...(params.consistentRead !== undefined && { consistentRead: params.consistentRead }),
+      ...(params.projectionExpression && { projectionExpression: params.projectionExpression }),
+      ...(params.projectionExpression &&
+        params.expressionAttributeNames && {
+          expressionAttributeNames: params.expressionAttributeNames,
+        }),
     }),
   },
 

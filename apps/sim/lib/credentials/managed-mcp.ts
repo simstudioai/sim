@@ -20,12 +20,16 @@ import {
   sameResourceScopeCondition,
 } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { resolveAccountWrite } from '@/lib/credential-groups/account-rules'
 import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
 import {
   getManagedMcpConnector,
+  managedMcpAccountLimit,
   requireManagedMcpConnectorUrl,
 } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { ManagedMcpAccountIdentity } from '@/lib/credential-groups/mcp-account-identity'
+import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { loadPreregisteredClient } from '@/lib/mcp/oauth/provider'
 import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
@@ -324,9 +328,12 @@ export async function persistManagedMcpCredential(params: {
   mcpServerName: string
   tokens: OAuthTokens
   tools: ManagedMcpToolSnapshot[]
+  identity?: ManagedMcpAccountIdentity | null
+  connectionIntent?: CredentialGroupConnectionIntent
 }): Promise<{
   connectionId: string
   created: boolean
+  displayName: string
   enrollmentStatus: 'in_progress' | 'completed'
 }> {
   const scope = resourceScopeFromOwner(params)
@@ -387,8 +394,15 @@ export async function persistManagedMcpCredential(params: {
     if (source.managedConnectorId === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
       throw new ManagedMcpCredentialError('Zoom Search is not available for this organization', 403)
 
-    const [existing] = await tx
-      .select({ id: credential.id })
+    const accounts = await tx
+      .select({
+        id: credential.id,
+        displayName: credential.displayName,
+        revokedAt: credential.revokedAt,
+        managedOauthStatus: credential.managedOauthStatus,
+        providerSubjectId: credential.providerSubjectId,
+        providerTenantId: credential.providerTenantId,
+      })
       .from(credential)
       .where(
         and(
@@ -397,11 +411,21 @@ export async function persistManagedMcpCredential(params: {
           eq(credential.mcpServerId, params.mcpServerId)
         )
       )
-      .limit(1)
       .for('update')
+    const identity = params.identity ?? null
+    const existing = resolveAccountWrite({
+      intent: params.connectionIntent,
+      limit: managedMcpAccountLimit(source.managedConnectorId),
+      accounts,
+      identity,
+    })
+    const displayName = identity?.label ?? existing?.displayName ?? params.mcpServerName
     const values = {
       mcpOauthConfigVersion: params.oauthConfigVersion,
-      displayName: params.mcpServerName,
+      displayName,
+      ...(identity
+        ? { providerSubjectId: identity.subject, providerTenantId: identity.tenant }
+        : {}),
       managedOauthStatus: 'active' as const,
       encryptedOauthTokenSet,
       accessTokenExpiresAt,
@@ -459,9 +483,32 @@ export async function persistManagedMcpCredential(params: {
     return {
       connectionId,
       created: !existing,
+      displayName,
       enrollmentStatus: source.enrollmentStatus === 'completed' ? 'completed' : 'in_progress',
     }
   })
+}
+
+/** Names a connection made before accounts were identified, unless it was identified meanwhile. */
+export async function recordManagedMcpAccountIdentity(
+  credentialId: string,
+  identity: ManagedMcpAccountIdentity
+) {
+  await db
+    .update(credential)
+    .set({
+      providerSubjectId: identity.subject,
+      providerTenantId: identity.tenant,
+      displayName: identity.label,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(credential.id, credentialId),
+        eq(credential.type, 'managed_mcp'),
+        isNull(credential.providerSubjectId)
+      )
+    )
 }
 
 export async function saveManagedMcpRuntimeTokens(

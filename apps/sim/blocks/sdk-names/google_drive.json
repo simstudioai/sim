@@ -1,0 +1,40 @@
+{
+  "namespace": "googleDrive",
+  "methods": {
+    "copy": "copyFile",
+    "create_comment": "createComment",
+    "create_file": "createFile",
+    "create_folder": "createFolder",
+    "delete": "deletePermanently",
+    "delete_comment": "deleteComment",
+    "download": "downloadFile",
+    "export": "exportFile",
+    "get_about": "getDriveInfo",
+    "get_content": "getFileContent",
+    "get_file": "getFileInfo",
+    "get_revision": "getRevision",
+    "list": "listFiles",
+    "list_comments": "listComments",
+    "list_permissions": "listPermissions",
+    "list_revisions": "listRevisions",
+    "move": "moveFile",
+    "search": "searchFiles",
+    "share": "shareFile",
+    "trash": "moveToTrash",
+    "unshare": "removeSharing",
+    "untrash": "restoreFromTrash",
+    "update": "updateFile",
+    "upload": "uploadFile"
+  },
+  "triggers": {
+    "google_drive_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -190,6 +190,11 @@ function throwIfAborted(signal?: AbortSignal): void {
   throw signal.reason instanceof Error ? signal.reason : new Error('Execution cancelled')
 }
 
+/** Throws for a cancellation; the run's own deadline passes so a timed-out run can report. */
+function throwIfCancelled(signal: AbortSignal): void {
+  if (!isTimeoutAbortReason(signal.reason)) throwIfAborted(signal)
+}
+
 function abortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error
     ? signal.reason
@@ -325,17 +330,24 @@ async function throwIfRunTimedOut(
   }
 ): Promise<void> {
   if (!result.timedOut) return
+  throwIfCancelled(run.signal)
   if (!run.lease.session) throw new DOMException('timeout', 'AbortError')
   const { outputSandboxDir, sandbox } = run
+  // Half of what the call has left, so the report lands before the call's deadline.
+  const listingMs = Math.min(
+    TIMED_OUT_OUTPUT_LISTING_MS,
+    (getRemainingExecutionMs(run.signal) ?? Number.POSITIVE_INFINITY) / 2
+  )
+  // withinDeadline refuses an aborted signal, so a run its own deadline stopped lists no files.
   const listed = outputSandboxDir
     ? await withinDeadline(
         () => sandbox.listFiles(outputSandboxDir, { depth: SANDBOX_OUTPUT_DIR_MAX_DEPTH }),
-        Date.now() + TIMED_OUT_OUTPUT_LISTING_MS,
+        Date.now() + listingMs,
         run.signal
       ).catch(() => [])
     : []
   // A cancellation that arrives while listing stays a cancellation.
-  throwIfAborted(run.signal)
+  throwIfCancelled(run.signal)
   throw new SandboxExecutionTimeoutError(sandboxTimeoutProgress(streams, run.timeoutMs, listed))
 }
 
@@ -909,20 +921,31 @@ function installBudgetMs(timeoutMs: number): number {
 const MIN_EXPORT_BUDGET_MS = 10_000
 
 /**
+ * Held back from a workbench run without an export reserve, capped at a quarter of its budget,
+ * so the run's own timeout answers and reports its progress before the call's deadline.
+ */
+const MAX_TIMEOUT_REPORT_BUDGET_MS = 4_000
+
+/**
  * The budget handed to user code, less an export reserve when this request will
  * read files back. Short budgets are left alone: taking the reserve out of one
- * would starve the code to buy time for an export it never reaches.
+ * would starve the code to buy time for an export it never reaches. A workbench
+ * run, whose timeout reports progress, still keeps a smaller report reserve.
  */
 function codeBudgetMs(
   req: { outputSandboxPath?: string; outputSandboxPaths?: string[]; outputSandboxDir?: string },
-  signal: AbortSignal
+  signal: AbortSignal,
+  reportsTimeout: boolean
 ): number {
   const remainingMs = remainingSandboxBudgetMs(signal)
   const exportsFiles = Boolean(
     req.outputSandboxDir || req.outputSandboxPath || req.outputSandboxPaths?.length
   )
-  if (!exportsFiles || remainingMs <= MIN_EXPORT_BUDGET_MS * 2) return remainingMs
-  return remainingMs - MIN_EXPORT_BUDGET_MS
+  if (exportsFiles && remainingMs > MIN_EXPORT_BUDGET_MS * 2) {
+    return remainingMs - MIN_EXPORT_BUDGET_MS
+  }
+  if (!reportsTimeout) return remainingMs
+  return remainingMs - Math.min(MAX_TIMEOUT_REPORT_BUDGET_MS, Math.floor(remainingMs / 4))
 }
 
 /**
@@ -1060,7 +1083,7 @@ async function executeInSandboxWithinBudget(
         signal,
         phases,
         (verifyCli) => {
-          runTimeoutMs = codeBudgetMs(req, signal)
+          runTimeoutMs = codeBudgetMs(req, signal, Boolean(lease.session))
           return sandbox.runCode(code, {
             timeoutMs: runTimeoutMs,
             javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
@@ -1076,7 +1099,6 @@ async function executeInSandboxWithinBudget(
       throwIfAborted(signal)
       throw error
     }
-    throwIfAborted(signal)
     await throwIfRunTimedOut(execution, [execution.text, execution.stdout, execution.stderr], {
       sandbox,
       lease,
@@ -1084,6 +1106,7 @@ async function executeInSandboxWithinBudget(
       timeoutMs: runTimeoutMs,
       signal,
     })
+    throwIfAborted(signal)
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
@@ -1283,7 +1306,7 @@ async function executeShellInSandboxWithinBudget(
         signal,
         phases,
         (verifyCli) => {
-          runTimeoutMs = codeBudgetMs(req, signal)
+          runTimeoutMs = codeBudgetMs(req, signal, Boolean(lease.session))
           return sandbox.runCommand(code, {
             envs: commandEnvironment,
             timeoutMs: runTimeoutMs,
@@ -1300,7 +1323,6 @@ async function executeShellInSandboxWithinBudget(
       throwIfAborted(signal)
       throw error
     }
-    throwIfAborted(signal)
     await throwIfRunTimedOut(result, [result.stdout, result.stderr], {
       sandbox,
       lease,
@@ -1308,6 +1330,7 @@ async function executeShellInSandboxWithinBudget(
       timeoutMs: runTimeoutMs,
       signal,
     })
+    throwIfAborted(signal)
 
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
 

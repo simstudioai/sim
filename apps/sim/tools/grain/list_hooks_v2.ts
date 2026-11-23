@@ -1,4 +1,5 @@
 import type { GrainListHooksV2Params, GrainListHooksV2Response } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainListHooksV2Tool: ToolConfig<GrainListHooksV2Params, GrainListHooksV2Response> = {
@@ -6,6 +7,7 @@ export const grainListHooksV2Tool: ToolConfig<GrainListHooksV2Params, GrainListH
   name: 'Grain List Webhooks',
   description: 'List webhooks for the account (v2 API)',
   version: '2.0.0',
+  oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

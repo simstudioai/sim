@@ -13,7 +13,6 @@ import {
   ListChecks,
   Lock,
   LogIn,
-  Palette,
   PanelLeft,
   Send,
   Server,
@@ -35,7 +34,13 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 
 export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
+export type AccountSettingsSection =
+  | 'general'
+  | 'desktop'
+  | 'billing'
+  | 'api-keys'
+  | 'admin'
+  | 'mothership'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -60,7 +65,6 @@ export type OrganizationSettingsSection =
   | 'security'
   | 'data-retention'
   | 'data-drains'
-  | 'whitelabeling'
 
 export type WorkspaceSettingsSection =
   | 'requests'
@@ -111,7 +115,6 @@ export type UnifiedSettingsSection =
   | 'organization'
   | 'usage'
   | 'sso'
-  | 'whitelabeling'
   | 'forks'
   | 'mcp'
   | 'custom-tools'
@@ -363,6 +366,8 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       order: 2,
       requiresDesktopSurface: 'settings',
     },
+    /** Device settings, not workspace data, so surfaces without a workspace host them too. */
+    planes: { account: { id: 'desktop', group: 'account', order: 2 } },
   },
   {
     label: 'Browser',
@@ -750,21 +755,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'White-labeling',
-    icon: Palette,
-    docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
-    unified: {
-      id: 'whitelabeling',
-      description: 'Customize your workspace branding and appearance.',
-      group: 'organization',
-      order: 6,
-      requiresHosted: true,
-      requiresEnterprise: true,
-      selfHostedOverride: 'whitelabeling',
-      organizationSection: 'whitelabeling',
-    },
-  },
-  {
     label: 'Custom blocks',
     icon: HexSimple,
     docsLink: 'https://docs.sim.ai/platform/enterprise/custom-blocks',
@@ -905,7 +895,6 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
     members: 'organization',
     'connected-accounts': 'organization',
     usage: 'organization',
-    whitelabeling: 'organization',
     'recently-deleted': 'organization',
     requests: 'organization',
     'audit-logs': 'governance',
@@ -1079,7 +1068,6 @@ export function getOrganizationSettingsFeatures(
       'data-retention': features.dataRetention,
       'data-drains': features.dataDrains,
       usage: features.usageMonitoring,
-      whitelabeling: features.whitelabeling,
     },
   }
 }

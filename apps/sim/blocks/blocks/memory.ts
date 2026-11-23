@@ -1,5 +1,6 @@
 import { BrainIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const MemoryBlock: BlockConfig = {
   type: 'memory',
@@ -121,24 +122,25 @@ export const MemoryBlock: BlockConfig = {
             return 'memory_add'
         }
       },
-      params: (params: Record<string, any>) => {
+      params: (params: Record<string, any>, context) => {
+        const operation = mapperOperation(params, context)
         const errors: string[] = []
 
-        if (!params.operation) {
+        if (!operation) {
           errors.push('Operation is required')
         }
 
         const conversationId = params.id || params.conversationId
 
-        if (params.operation === 'add') {
+        if (operation === 'add') {
           if (!conversationId) {
             errors.push('Conversation ID is required for add operation')
           }
         }
 
-        if (params.operation === 'get' || params.operation === 'delete') {
+        if (operation === 'get' || operation === 'delete') {
           if (!conversationId) {
-            errors.push(`Conversation ID is required for ${params.operation} operation`)
+            errors.push(`Conversation ID is required for ${operation} operation`)
           }
         }
 
@@ -148,7 +150,7 @@ export const MemoryBlock: BlockConfig = {
 
         const baseResult: Record<string, any> = {}
 
-        if (params.operation === 'add') {
+        if (operation === 'add') {
           return {
             ...baseResult,
             conversationId: conversationId,
@@ -157,14 +159,14 @@ export const MemoryBlock: BlockConfig = {
           }
         }
 
-        if (params.operation === 'get') {
+        if (operation === 'get') {
           return {
             ...baseResult,
             conversationId: conversationId,
           }
         }
 
-        if (params.operation === 'delete') {
+        if (operation === 'delete') {
           return {
             ...baseResult,
             conversationId: conversationId,

@@ -95,7 +95,7 @@ describe('resolvePrincipalEnvironmentVariable', () => {
   it('refuses a principal with no subject user', async () => {
     await expect(
       resolvePrincipalEnvironmentVariable(
-        { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+        { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1', access: 'write' },
         WORKSPACE_ID,
         'CHAT_PW'
       )

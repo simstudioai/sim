@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { GoogleSlidesToolParams, GoogleSlidesWriteResponse } from '@/tools/google_slides/types'
+import { batchUpdateUrl, slidesPresentationUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesWriteTool')
@@ -42,14 +44,8 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
 
   request: {
     url: (params) => {
-      // Ensure presentationId is valid
       const presentationId = params.presentationId?.trim() || params.manualPresentationId?.trim()
-      if (!presentationId) {
-        throw new Error('Presentation ID is required')
-      }
-
-      // First, we'll read the presentation to get slide information
-      return `https://slides.googleapis.com/v1/presentations/${presentationId}`
+      return slidesPresentationUrl(presentationId)
     },
     method: 'GET',
     headers: (params) => {
@@ -82,15 +78,12 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
 
     try {
       // Get the presentation data from the initial read
-      const presentationData = await fetch(
-        `https://slides.googleapis.com/v1/presentations/${presentationId}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.accessToken}`,
-          },
-        }
-      ).then((res) => res.json())
+      const presentationData = await outboundFetch(slidesPresentationUrl(presentationId), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${params.accessToken}`,
+        },
+      }).then((res) => res.json())
 
       const metadata = {
         presentationId,
@@ -166,17 +159,14 @@ export const writeTool: ToolConfig<GoogleSlidesToolParams, GoogleSlidesWriteResp
       ]
 
       // Make the batchUpdate request
-      const updateResponse = await fetch(
-        `https://slides.googleapis.com/v1/presentations/${presentationId}:batchUpdate`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${params.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ requests }),
-        }
-      )
+      const updateResponse = await outboundFetch(batchUpdateUrl(presentationId), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${params.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requests }),
+      })
 
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text()

@@ -13,6 +13,7 @@ import {
   PAGE_INFO_OUTPUT_PROPERTIES,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_IDEAS_QUERY = `
@@ -37,6 +38,7 @@ export const bufferGetIdeasTool: ToolConfig<BufferGetIdeasParams, BufferIdeasRes
   name: 'Buffer Get Ideas',
   description: 'List content ideas saved in a Buffer organization',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

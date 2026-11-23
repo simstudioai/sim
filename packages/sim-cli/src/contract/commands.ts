@@ -20,6 +20,16 @@ const ACCESS_REQUEST_COLUMNS: ColumnSpec[] = [
   { header: 'created', path: 'createdAt', format: 'timestamp' },
 ]
 
+const WORKSPACE_FIELDS: ColumnSpec[] = [
+  { header: 'id' },
+  { header: 'name' },
+  { header: 'color' },
+  { header: 'logo', path: 'logoUrl' },
+  { header: 'members', path: 'memberCount' },
+  { header: 'created', path: 'createdAt', format: 'timestamp' },
+  { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+]
+
 const FILE_SHARE_FIELDS: ColumnSpec[] = [
   { header: 'shared', path: 'isActive', format: 'bool' },
   { header: 'URL', path: 'url' },
@@ -52,7 +62,72 @@ const FILE_EDIT_HELP =
  * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
  */
 const WORKFLOW_OPERATIONS_HELP =
-  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId'
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"source":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params {"parentId":"<loop-id>"}; {"parentId":null} moves it out'
+/** How `--operations` wires and unwires edges, and what a rename rewrites. */
+const WORKFLOW_OPERATIONS_GUIDE = `
+Edges:
+  connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
+  or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
+  An add's connections create the new block's edges. An edit's connections REPLACE every
+  outgoing edge of that block, on every handle: list again each edge to keep.
+  To remove one edge, edit its source block with
+  {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
+  "source").
+Source handles:
+  source               the normal path
+  error                a failure (a block that has an error output)
+  if, else-if-0, else  a condition's branches, in order (else-if-1, … for more)
+  route-0, route-1, …  a router's routes, in order
+  loop-start-source    a loop into its body; loop-end-source after the loop
+  parallel-start-source, parallel-end-source  the same for a parallel
+Renames:
+  An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
+  other blocks' inputs and in a loop's or parallel's collection and condition.
+Inputs:
+  inputs takes the field ids \`sim blocks get <type>\` lists (inputSchema, operationInputSchema),
+  or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
+  manualTableId; a string goes to the typed field). Add the type it answers with: \`blocks get
+  table\` answers table_v2, and an add of legacy table is refused.
+  conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
+  {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
+  position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
+  inputFormat (Start): [{"name":"email","type":"string"}]; types string, number, boolean,
+  object, array, file[]; an optional default "value" as text.
+Block settings, beside inputs in an add's or edit's params:
+  "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
+  clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
+Outputs:
+  A block that fails outputs {"error":"<message>"}: connect its error handle and read
+  <name.error> there (without one, the run fails). A Function's error leads with the line and
+  code that threw; its <name.errorMessage> is the thrown message alone, the one to reply with.
+  A Workflow block's result is the child's
+  output; a child ending in a Response block gives {data, status, headers}, so read
+  <call.result.data.x>.
+References:
+  Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
+  <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
+  that did not run (a branch not taken) is null as a whole value, in a condition or in a
+  Function's code, and '' inside text.
+Order:
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
+Run logs:
+  \`sim logs list --workflow <workflowId>\` lists a workflow's runs; \`sim logs get <runId> --trace
+  --no-include-workflow-state\` shows each block's resolved inputs, outputs and errors.`
+/** How to read `sim blocks get` for a `workflows operations apply` edit. */
+const BLOCK_DETAIL_GUIDE = `
+Reading it for \`sim workflows operations apply\`:
+  id                    the type to add: \`blocks get table\` answers table_v2 (an add of legacy
+                        table is refused)
+  inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
+  inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
+                        tableSelector and manualTableId) is accepted in place of the pair
+  outputs               what it outputs on success; a failed block outputs {"error":"…"}
+                        instead, read on its error path as <name.error> (a Function also
+                        outputs <name.errorMessage>, the thrown message without line or code)
+Block settings such as retry are not fields: \`sim workflows operations apply --help\`.`
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -185,6 +260,7 @@ export const CLI_CONTRACT: CliContract = {
   // endpoint as an NDJSON stream so the reply prints as it generates.
   chat: { hidden: true },
   createCredentialConnection: { hidden: true },
+  createCredentialWorkloadIdentitySubject: { hidden: true },
   createServiceAccountCredential: { hidden: true },
   getBillingStatus: {
     command: 'billing status',
@@ -354,6 +430,33 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows deployment status',
     renamedFrom: ['workflows deployment list'],
     describe: 'Show a workflow’s current deployment',
+  },
+  listWorkflowTriggers: {
+    describe: 'Show the health of every trigger the live deployment serves',
+    columns: [
+      { header: 'block', path: 'blockId' },
+      { header: 'kind' },
+      { header: 'provider' },
+      { header: 'status' },
+      { header: 'failures', path: 'failedCount' },
+      { header: 'last failed', path: 'lastFailedAt', format: 'timestamp' },
+      { header: 'next run', path: 'nextRunAt', format: 'timestamp' },
+    ],
+  },
+  updateWorkflowTrigger: {
+    describe: 'Enable or disable one trigger of the live deployment',
+  },
+  listWorkspaceSchedules: {
+    describe: 'Show the timing and health of every schedule the workspace’s deployments run',
+    columns: [
+      { header: 'workflow', path: 'workflowName' },
+      { header: 'block', path: 'blockId' },
+      { header: 'cron', path: 'cronExpression' },
+      { header: 'timezone' },
+      { header: 'status' },
+      { header: 'failures', path: 'failedCount' },
+      { header: 'next run', path: 'nextRunAt', format: 'timestamp' },
+    ],
   },
   setSecret: { hidden: true },
 
@@ -597,13 +700,53 @@ export const CLI_CONTRACT: CliContract = {
    * Each name is the operation's own verb instead.
    */
   getWorkflowState: { command: 'workflows state get' },
+  getWorkflowOutline: {
+    command: 'workflows outline',
+    describe: 'Show a workflow’s draft as a compact read-only outline',
+    dataKeys: true,
+  },
+  getWorkflowSource: {
+    command: 'workflows source get',
+    describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
+  },
+  /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
+  applyWorkflowSource: { hidden: true },
+  /** `workflows source status --dir <dir>` reads a plan of a source directory by hand. */
+  planWorkflowSource: { hidden: true },
+  // The ETag revalidation header is for a client that caches the catalog, as `workflows source
+  // get --dir` does by hand; a one-off read has no cached hash to send.
+  getSourceCatalog: {
+    command: 'workflows source catalog',
+    describe: 'Show the block catalog workflow source is checked against',
+    profileWorkspacePath: true,
+    flags: { 'if-none-match': { omit: true } },
+  },
+  /** `workflows source create --dir <dir>` reads and writes a source directory by hand. */
+  createWorkflowFromSource: { hidden: true },
+  /** `workspaces source get|apply --dir <dir>` read and write a workspace directory by hand. */
+  getWorkspaceSource: { hidden: true },
+  applyWorkspaceSource: { hidden: true },
+  /** `workspaces source status --dir <dir>` reads a plan of a workspace directory by hand. */
+  planWorkspaceSource: { hidden: true },
+  /** The staging `workspaces source apply` runs before its one apply. */
+  findMissingWorkspaceSourceBlobs: { hidden: true },
+  stageWorkspaceSourceBlobs: { hidden: true },
+  /** One document, not a page: a source get or create writes it as `workspace.d.ts`. */
+  getSourceResources: {
+    command: 'workflows source resources',
+    profileWorkspacePath: true,
+    describe:
+      'List the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names source can name',
+  },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',
   },
+  getBlock: { helpText: BLOCK_DETAIL_GUIDE },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
     describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
+    helpText: WORKFLOW_OPERATIONS_GUIDE,
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
@@ -626,6 +769,7 @@ export const CLI_CONTRACT: CliContract = {
   revertWorkflowVersion: {
     confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
   },
+  deployWorkflow: { acceptsYes: true },
   // A rollback is the deployed counterpart of that revert, and the more
   // consequential of the two: a revert only rewrites the draft, while this
   // changes which version production serves. Gating the draft write and not the
@@ -856,6 +1000,9 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
   createWorkflow: {
+    helpText: `
+The new workflow's draft holds one Start block (start_trigger, named Start): connect the
+blocks you add from it.`,
     flags: {
       folderPath: {
         ...FOLDER_PATH_FLAG,
@@ -1238,6 +1385,62 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  prepareSearchSources: {
+    command: 'organizations search sources prepare',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  listSearchSources: {
+    command: 'organizations search sources list',
+    pathFlags: ORGANIZATION_FLAG,
+    columns: [
+      { header: 'id' },
+      { header: 'provider', path: 'connectorType' },
+      { header: 'status' },
+      { header: 'approved', format: 'bool' },
+    ],
+  },
+  getSearchSource: { command: 'organizations search sources get', pathFlags: ORGANIZATION_FLAG },
+  createSearchSource: {
+    command: 'organizations search sources create',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { apiKey: { textSource: true } },
+  },
+  updateSearchSource: {
+    command: 'organizations search sources update',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { apiKey: { textSource: true } },
+    confirm: 'This updates source settings and may replace its permission grants.',
+  },
+  deleteSearchSource: {
+    command: 'organizations search sources delete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm: 'This removes the source and its permission grants.',
+  },
+  getSearchSourcePermissions: {
+    command: 'organizations search sources permissions get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  createSourcePermissionImport: {
+    command: 'organizations search sources permissions imports create',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  putSourcePermissionImportPart: {
+    command: 'organizations search sources permissions imports put-part',
+    pathFlags: ORGANIZATION_FLAG,
+    flags: { content: { textSource: true } },
+  },
+  completeSourcePermissionImport: {
+    command: 'organizations search sources permissions imports complete',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces the source’s permission grants. Readers omitted from the new grants lose access.',
+  },
+  replaceSearchSourcePermissions: {
+    command: 'organizations search sources permissions replace',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces the source’s permission grants. Readers omitted from the new grants lose access.',
+  },
   listSsoProviders: {
     command: 'organizations sso providers list',
     pathFlags: ORGANIZATION_FLAG,
@@ -1497,27 +1700,49 @@ export const CLI_CONTRACT: CliContract = {
     // `mode` is not a field of the strict v2 workspace schema, so it rendered
     // an em-dash on every call; `color` and `logoUrl` are returned and were the
     // two the record left out.
-    fields: [
-      { header: 'id' },
-      { header: 'name' },
-      { header: 'color' },
-      { header: 'logo', path: 'logoUrl' },
-      { header: 'members', path: 'memberCount' },
-      { header: 'created', path: 'createdAt', format: 'timestamp' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-    ],
+    fields: WORKSPACE_FIELDS,
+  },
+  updateWorkspace: {
+    profileWorkspacePath: true,
+    fields: WORKSPACE_FIELDS,
+    // Body strings are sent as typed, so this flag cannot send JSON null; the
+    // literal "null" fails the path-or-HTTPS rule with a 400 rather than
+    // storing anything. Clearing stays an API and MCP capability.
+    flags: {
+      logoUrl: {
+        describe:
+          'New workspace logo: a root-relative path (starting with /) or an https:// URL. To remove the logo, send logoUrl: null through the API or MCP',
+      },
+    },
   },
   listWorkspaceMembers: {
-    command: 'workspaces members',
+    command: 'workspaces members list',
+    // `workspaces members` shipped as this list before the group gained update
+    // and remove, so naming the group still lists.
+    defaultSubcommand: true,
     describe: 'List workspace members',
     profileWorkspacePath: true,
+    // `members update` and `members remove` take the user id, and the listing
+    // is where a caller finds it. Appended last so the shipped text columns keep
+    // their positions for scripts that read them by field.
     columns: [
       { header: 'email' },
       { header: 'name' },
       { header: 'role' },
       { header: 'external', path: 'isExternal', format: 'bool' },
       { header: 'joined', path: 'joinedAt', format: 'timestamp' },
+      { header: 'user', path: 'userId' },
     ],
+  },
+  updateWorkspaceMember: {
+    command: 'workspaces members update',
+    profileWorkspacePath: true,
+  },
+  removeWorkspaceMember: {
+    command: 'workspaces members remove',
+    profileWorkspacePath: true,
+    confirm:
+      'This removes the member’s workspace access. If it was their last workspace in the organization, their organization membership is removed and their sessions end.',
   },
 
   listAuditLogs: {
@@ -2097,6 +2322,10 @@ export const CLI_CONTRACT: CliContract = {
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
+    helpText: `
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
+--include-workspace-bindings, and credentials always do: that is the export, not an unset block.
+To read what a block is set to, use \`sim workflows outline\` or \`sim workflows state get\`.`,
     flags: {
       includeReferences: {
         boolean: true,
@@ -2230,6 +2459,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'resume at', path: 'paused.resumeAt', format: 'timestamp' },
       { header: 'blocked on', path: 'paused.blockedOnBlockId' },
       { header: 'pause points', path: 'paused.pausePointCount' },
+      { header: 'next', path: 'next' },
       { header: 'error', path: 'error.message' },
     ],
   },
@@ -2243,6 +2473,16 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'trigger' },
       { header: 'duration', path: 'durationMs', format: 'duration' },
       { header: 'cost', path: 'cost.total', format: 'cost' },
+      { header: 'run', path: 'runId' },
+    ],
+  },
+  listPausedRuns: {
+    command: 'workflows runs paused',
+    describe: 'List runs waiting on human input across the workspace',
+    columns: [
+      { header: 'paused at', path: 'pausedAt', format: 'timestamp' },
+      { header: 'workflow', path: 'workflowName' },
+      { header: 'waiting points', path: 'points', format: 'count' },
       { header: 'run', path: 'runId' },
     ],
   },

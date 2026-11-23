@@ -4,6 +4,7 @@ import {
   parseJupyterContentModel,
 } from '@/lib/internal/jupyter/protocol'
 import type { JupyterCopyContentParams, JupyterCopyContentResponse } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterCopyContentTool: InternalToolConfig<
@@ -14,6 +15,7 @@ export const jupyterCopyContentTool: InternalToolConfig<
   name: 'Jupyter Copy Content',
   description: 'Duplicate a file or notebook into a directory on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

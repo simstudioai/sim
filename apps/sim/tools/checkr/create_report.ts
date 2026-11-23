@@ -15,6 +15,7 @@ import {
   parseCheckrStringList,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCreateReportTool: ToolConfig<CheckrCreateReportParams, CheckrReportResponse> = {
@@ -23,6 +24,7 @@ export const checkrCreateReportTool: ToolConfig<CheckrCreateReportParams, Checkr
   description:
     'Order a background check report for a candidate using a package. Use only when you collect the candidate’s PII and consent yourself; otherwise create an invitation. Packages with international screenings must use invitations.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

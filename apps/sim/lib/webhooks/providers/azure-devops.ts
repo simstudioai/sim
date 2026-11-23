@@ -30,15 +30,13 @@ export const azureDevOpsHandler: WebhookProviderHandler = {
     if (triggerId && triggerId !== 'azure_devops_webhook') {
       const { isAzureDevOpsEventMatch } = await import('@/triggers/azure_devops/utils')
       if (!isAzureDevOpsEventMatch(triggerId, b)) {
-        logger.debug(
-          `[${requestId}] Azure DevOps event mismatch for trigger ${triggerId}. Skipping execution.`,
-          {
-            webhookId: webhook.id,
-            workflowId: workflow.id,
-            triggerId,
-            eventType: b.eventType,
-          }
-        )
+        logger.debug(`Azure DevOps event mismatch for trigger ${triggerId}. Skipping execution.`, {
+          requestId,
+          webhookId: webhook.id,
+          workflowId: workflow.id,
+          triggerId,
+          eventType: b.eventType,
+        })
         return false
       }
     }
@@ -77,7 +75,8 @@ export const azureDevOpsHandler: WebhookProviderHandler = {
       return { input: formatWorkItemCreatedInput(b) }
     }
 
-    logger.warn(`[${requestId}] Azure DevOps: unknown eventType for specialized trigger`, {
+    logger.warn('Azure DevOps: unknown eventType for specialized trigger', {
+      requestId,
       triggerId,
       eventType,
     })

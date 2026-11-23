@@ -1,10 +1,8 @@
 /**
- * Multi-replica (store-enabled) coverage for the copilot live-merge stale-check. The main
- * `file-doc.test.ts` runs with the store DISABLED (single-replica fallback); this file mocks an ENABLED
- * store so the cross-process branch of `mergeMarkdownIntoRoom` — staleness against the SHARED synced
- * version under the merge lock, and `recordVersion` writing `setSyncedVersion` — is exercised directly.
- * The enabled merge path reads its base from the shared store (not an in-memory room), so no JOIN/seed
- * is needed: calling `applyMarkdownToLiveFileDoc` against the fake store drives the branch on its own.
+ * Multi-replica coverage for the copilot live-merge stale-check: staleness against the SHARED synced
+ * version under the merge lock, and `recordVersion` writing `setSyncedVersion`. The merge path reads its
+ * base from the shared store (not an in-memory room), so no JOIN/seed is needed: calling
+ * `applyMarkdownToLiveFileDoc` against the fake store drives it on its own.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
@@ -14,12 +12,11 @@ const { mockFetchFileDocMerge } = vi.hoisted(() => ({
 }))
 
 /**
- * A minimal ENABLED store: in-memory monotonic synced version (mirrors SET_VERSION_IF_NEWER_SCRIPT), a
- * non-null stream state so the merge has a base, and no-op locks/publish. Only the surface the
- * store-enabled merge path touches is implemented.
+ * A minimal store: in-memory monotonic synced version (mirrors SET_VERSION_IF_NEWER_SCRIPT), a
+ * non-null stream state so the merge has a base, and no-op locks/publish. Only the surface the merge
+ * path touches is implemented.
  */
 const fakeStore = {
-  enabled: true,
   versions: new Map<string, number>(),
   acquireMergeSlot: vi.fn(async () => 'token'),
   releaseMergeSlot: vi.fn(async () => {}),
@@ -53,7 +50,7 @@ import { applyMarkdownToLiveFileDoc } from '@/handlers/file-doc'
 
 const ROOM_NAME = 'workspace-file-doc:file-1'
 
-describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering', () => {
+describe('applyMarkdownToLiveFileDoc — multi-replica ordering', () => {
   beforeEach(() => {
     fakeStore.versions.clear()
     fakeStore.acquireMergeSlot.mockResolvedValue('token')
@@ -102,8 +99,7 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
   })
 
   it('defers the content merge cluster-wide when a client is streaming (records version, no diff)', async () => {
-    // The cluster-wide counterpart of the single-replica deferral: while the shared `isAgentStreaming`
-    // flag is set (a client on ANY replica is streaming this agent edit), the durable merge must record
+    // While the shared `isAgentStreaming` flag is set (a client on ANY replica is streaming this agent edit), the durable merge must record
     // the version but skip the content diff — the streaming client owns the bytes, so a whole-document
     // merge here would double-write them.
     fakeStore.isAgentStreaming.mockResolvedValue(true)

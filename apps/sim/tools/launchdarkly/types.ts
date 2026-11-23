@@ -147,6 +147,7 @@ export const MEMBER_OUTPUT_PROPERTIES = {
 
 export interface LaunchDarklyListFlagsParams {
   apiKey: string
+  instance?: string
   projectKey: string
   environmentKey?: string
   tag?: string
@@ -155,6 +156,7 @@ export interface LaunchDarklyListFlagsParams {
 
 export interface LaunchDarklyGetFlagParams {
   apiKey: string
+  instance?: string
   projectKey: string
   flagKey: string
   environmentKey?: string
@@ -162,6 +164,7 @@ export interface LaunchDarklyGetFlagParams {
 
 export interface LaunchDarklyCreateFlagParams {
   apiKey: string
+  instance?: string
   projectKey: string
   name: string
   key: string
@@ -172,6 +175,7 @@ export interface LaunchDarklyCreateFlagParams {
 
 export interface LaunchDarklyToggleFlagParams {
   apiKey: string
+  instance?: string
   projectKey: string
   flagKey: string
   environmentKey: string
@@ -180,17 +184,20 @@ export interface LaunchDarklyToggleFlagParams {
 
 export interface LaunchDarklyDeleteFlagParams {
   apiKey: string
+  instance?: string
   projectKey: string
   flagKey: string
 }
 
 export interface LaunchDarklyListProjectsParams {
   apiKey: string
+  instance?: string
   limit?: number
 }
 
 export interface LaunchDarklyListEnvironmentsParams {
   apiKey: string
+  instance?: string
   projectKey: string
   limit?: number
 }
@@ -272,6 +279,7 @@ export interface LaunchDarklyListEnvironmentsResponse extends ToolResponse {
 
 export interface LaunchDarklyUpdateFlagParams {
   apiKey: string
+  instance?: string
   projectKey: string
   flagKey: string
   updateName?: string
@@ -288,6 +296,7 @@ export interface LaunchDarklyUpdateFlagResponse extends ToolResponse {
 
 export interface LaunchDarklyGetAuditLogParams {
   apiKey: string
+  instance?: string
   limit?: number
   spec?: string
 }
@@ -313,6 +322,7 @@ export interface LaunchDarklyGetAuditLogResponse extends ToolResponse {
 
 export interface LaunchDarklyListSegmentsParams {
   apiKey: string
+  instance?: string
   projectKey: string
   environmentKey: string
   limit?: number
@@ -338,6 +348,7 @@ export interface LaunchDarklyListSegmentsResponse extends ToolResponse {
 
 export interface LaunchDarklyGetFlagStatusParams {
   apiKey: string
+  instance?: string
   projectKey: string
   flagKey: string
   environmentKey: string
@@ -353,6 +364,7 @@ export interface LaunchDarklyGetFlagStatusResponse extends ToolResponse {
 
 export interface LaunchDarklyListMembersParams {
   apiKey: string
+  instance?: string
   limit?: number
 }
 

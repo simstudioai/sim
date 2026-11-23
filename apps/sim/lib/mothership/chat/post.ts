@@ -66,10 +66,10 @@ import {
   ModelSelectionSchema,
   PROTOCOL_VERSION,
 } from '@/lib/mothership/generated/protocol'
-import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
+import { CopilotTransport } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
@@ -163,6 +163,7 @@ const ChatMessageSchema = z
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
         computerUse: z.boolean().optional(),
+        computerUseAppCommands: z.boolean().optional(),
         terminals: z
           .array(
             z.object({
@@ -254,7 +255,7 @@ type UnifiedChatBranch =
       selectedModel: string
       mode: UnifiedChatRequest['mode']
       provider?: string
-      goRoute: '/api/copilot'
+      workerRoute: '/api/copilot'
       titleModel: string
       titleProvider?: string
       notifyChatStatus: false
@@ -287,6 +288,7 @@ type UnifiedChatBranch =
         browser?: boolean
         terminalCapable?: boolean
         computerUse?: boolean
+        computerUseAppCommands?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -303,7 +305,7 @@ type UnifiedChatBranch =
     ) & {
       workspacePermission: PermissionType | null
       effectiveModel: string
-      goRoute: '/api/mothership'
+      workerRoute: '/api/mothership'
       titleModel: string
       titleProvider?: undefined
       notifyChatStatus: boolean
@@ -329,6 +331,7 @@ type UnifiedChatBranch =
         browser?: boolean
         terminalCapable?: boolean
         computerUse?: boolean
+        computerUseAppCommands?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -425,7 +428,7 @@ async function resolveAgentContexts(params: {
         requestMode
       )
     } catch (error) {
-      logger.error(`[${requestId}] Failed to process contexts`, error)
+      logger.error('Failed to process contexts', error, { requestId })
     }
   }
 
@@ -545,7 +548,7 @@ async function resolveBranch(params: {
       organizationId,
       workspacePermission: null,
       effectiveModel: DEFAULT_MODEL,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       titleModel: DEFAULT_MODEL,
       notifyChatStatus: true,
       buildPayload: async (payloadParams) =>
@@ -592,7 +595,7 @@ async function resolveBranch(params: {
       selectedModel,
       mode: mode ?? 'agent',
       provider,
-      goRoute: '/api/copilot',
+      workerRoute: '/api/copilot',
       titleModel: selectedModel,
       titleProvider: provider,
       notifyChatStatus: false,
@@ -627,6 +630,7 @@ async function resolveBranch(params: {
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
           computerUse: payloadParams.computerUse,
+          computerUseAppCommands: payloadParams.computerUseAppCommands,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
         }),
@@ -662,7 +666,7 @@ async function resolveBranch(params: {
     workspaceId: requestedWorkspaceId,
     workspacePermission,
     effectiveModel: DEFAULT_MODEL,
-    goRoute: '/api/mothership',
+    workerRoute: '/api/mothership',
     titleModel: DEFAULT_MODEL,
     notifyChatStatus: true,
     buildPayload: async (payloadParams) =>
@@ -691,6 +695,7 @@ async function resolveBranch(params: {
         browser: payloadParams.browser,
         terminalCapable: payloadParams.terminalCapable,
         computerUse: payloadParams.computerUse,
+        computerUseAppCommands: payloadParams.computerUseAppCommands,
         terminals: payloadParams.terminals,
         browserSessions: payloadParams.browserSessions,
       }),
@@ -820,9 +825,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (otelRoot.requestId) {
       requestId = otelRoot.requestId
     }
-    // Identity stamp — Go already stamps `user.id` on spans from the
-    // validated API-key path, but Sim is the only side of the wire
-    // that knows the human-facing email. Stamping both on the Sim
+    // Identity stamp — Sim is the only side of the wire that knows the
+    // human-facing email. Stamping `user.id` and the email on the Sim
     // root (so they show up on `rootAttrs` in Tempo search) saves
     // the "turn user.id into a real person" round-trip to the DB
     // for every ad-hoc investigation.
@@ -1206,6 +1210,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 computerUse: body.desktopCapabilities?.computerUse === true,
+                computerUseAppCommands: body.desktopCapabilities?.computerUseAppCommands === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1234,6 +1239,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
                 computerUse: body.desktopCapabilities?.computerUse === true,
+                computerUseAppCommands: body.desktopCapabilities?.computerUseAppCommands === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1290,7 +1296,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               kind: 'interactive_stream',
               resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
-              goRoute: branch.goRoute,
+              workerRoute: branch.workerRoute,
               clientToolPickupExpected,
               userTimezone: executionContext.userTimezone,
               requestMode: body.mode,
@@ -1328,7 +1334,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           chatId: actualChatId,
           executionId,
           runId,
-          goRoute: branch.goRoute,
+          workerRoute: branch.workerRoute,
           autoExecuteTools: true,
           interactive: true,
           // Executor routing is decided HERE, once per turn, from the caller's declared
@@ -1410,7 +1416,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (isZodError(error)) {
       // A rejected body otherwise leaves no trace: the client sees a 400 and
       // its stream reconnect 404s, which reads as the stream dying for no reason.
-      logger.warn(`[${requestId}] Rejected chat request as invalid`, {
+      logger.warn('Rejected chat request as invalid', {
+        requestId,
         issues: error.issues.map((issue) => ({
           path: issue.path.join('.'),
           message: issue.message,
@@ -1442,7 +1449,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace access denied' }, { status: 403 })
     }
 
-    logger.error(`[${requestId}] Error handling unified chat request`, {
+    logger.error('Error handling unified chat request', {
+      requestId,
       error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })

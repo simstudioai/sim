@@ -1,4 +1,6 @@
 import type { RootlyCreateIncidentParams, RootlyCreateIncidentResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyCreateIncidentTool: ToolConfig<
@@ -9,6 +11,7 @@ export const rootlyCreateIncidentTool: ToolConfig<
   name: 'Rootly Create Incident',
   description: 'Create a new incident in Rootly with optional severity, services, and teams.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -141,8 +144,7 @@ export const rootlyCreateIncidentTool: ToolConfig<
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      const errorMsg =
-        errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`
+      const errorMsg = rootlyErrorMessage(errorData, response)
       return {
         success: false,
         output: { incident: {} as RootlyCreateIncidentResponse['output']['incident'] },

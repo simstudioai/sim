@@ -1,11 +1,14 @@
 import type { CustomFieldsShowParams, CustomFieldsShowResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFieldsShowResponse> = {
   id: 'incidentio_custom_fields_show',
   name: 'incident.io Custom Fields Show',
   description: 'Get detailed information about a specific custom field from incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -23,7 +26,8 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/custom_fields/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/custom_fields/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -44,7 +48,6 @@ export const customFieldsShowTool: ToolConfig<CustomFieldsShowParams, CustomFiel
           field_type: data.custom_field.field_type,
           created_at: data.custom_field.created_at,
           updated_at: data.custom_field.updated_at,
-          options: data.custom_field.options,
         },
       },
     }

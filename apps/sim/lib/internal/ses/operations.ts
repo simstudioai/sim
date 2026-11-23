@@ -81,6 +81,8 @@ export function executeSesSendEmail(input: AwsSesSendEmailBody, signal?: AbortSi
         bccAddresses: splitEmailAddresses(input.bccAddresses),
         replyToAddresses: splitEmailAddresses(input.replyToAddresses),
         configurationSetName: input.configurationSetName,
+        fromName: input.fromName,
+        emailTags: input.emailTags,
       },
       signal
     )
@@ -101,7 +103,10 @@ export function executeSesSendTemplatedEmail(
         templateData: input.templateData,
         ccAddresses: splitEmailAddresses(input.ccAddresses),
         bccAddresses: splitEmailAddresses(input.bccAddresses),
+        replyToAddresses: splitEmailAddresses(input.replyToAddresses),
         configurationSetName: input.configurationSetName,
+        fromName: input.fromName,
+        emailTags: input.emailTags,
       },
       signal
     )
@@ -127,6 +132,9 @@ export function executeSesSendBulkEmail(input: AwsSesSendBulkEmailBody, signal?:
         destinations,
         defaultTemplateData: input.defaultTemplateData,
         configurationSetName: input.configurationSetName,
+        replyToAddresses: splitEmailAddresses(input.replyToAddresses),
+        fromName: input.fromName,
+        emailTags: input.emailTags,
       },
       signal
     )

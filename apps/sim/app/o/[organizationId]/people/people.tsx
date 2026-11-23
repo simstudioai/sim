@@ -1,99 +1,52 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Avatar, ChipCombobox } from '@sim/emcn'
-import { Users } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { ChipSwitch } from '@sim/emcn'
+import { List, RefreshCw, Users, Workflow } from '@sim/emcn/icons'
+import dynamic from 'next/dynamic'
 import { useQueryStates } from 'nuqs'
-import type { PersonSummary } from '@/lib/api/contracts/people'
-import { organizationRoutes } from '@/lib/navigation/paths'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import {
-  IMPORT_PEOPLE_ACTION,
-  PEOPLE_COLUMNS,
-  PEOPLE_SEARCH_PLACEHOLDER,
-} from '@/app/o/[organizationId]/people/columns'
-import PeopleLoading from '@/app/o/[organizationId]/people/loading'
+import { IMPORT_PEOPLE_ACTION } from '@/app/o/[organizationId]/people/columns'
+import { PeopleDirectory } from '@/app/o/[organizationId]/people/people-directory'
 import { PeopleImportModal } from '@/app/o/[organizationId]/people/people-import-modal'
 import { peopleParsers, peopleUrlKeys } from '@/app/o/[organizationId]/people/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import {
-  ResourceLoadError,
-  ResourceNoResults,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import {
-  type FilterTag,
-  ResourceFilterPanel,
-  ResourceFilterSection,
-  type SearchConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import {
-  Resource,
-  type ResourceRow,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { useDepartments, usePeople } from '@/hooks/queries/people'
-import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
-/** The filter's value for every department: stored text can't hold a NUL, so no department is this. */
-const ALL_DEPARTMENTS = '\u0000all'
-
-function personCell(person: PersonSummary) {
-  return {
-    icon: <Avatar size='xs' name={person.name} src={person.image} aria-hidden />,
-    label: person.name,
-  }
-}
+const PeopleChart = dynamic(() =>
+  import('@/app/o/[organizationId]/people/people-chart').then((module) => module.PeopleChart)
+)
+const DirectorySyncModal = dynamic(() =>
+  import('@/app/o/[organizationId]/people/directory-sync-modal').then(
+    (module) => module.DirectorySyncModal
+  )
+)
+const VIEWS = [
+  { value: 'chart', label: 'Org chart', icon: Workflow },
+  { value: 'directory', label: 'Directory', icon: List },
+] as const
 
 interface PeopleProps {
   organizationId: string
 }
 
-/** Everyone in the organization, with the profile facts an admin has recorded or imported. */
 export function People({ organizationId }: PeopleProps) {
-  const router = useRouter()
   const { viewer } = useOrganizationContext()
-  const [{ search, department }, setView] = useQueryStates(peopleParsers, peopleUrlKeys)
-  const [importing, setImporting] = useState(false)
-  const setSearch = useDebouncedSearchSetter((value, options) =>
-    setView({ search: value }, options)
+  const [{ view, search, department, departmentKey, panel }, setView] = useQueryStates(
+    peopleParsers,
+    peopleUrlKeys
   )
-  const debouncedSearch = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS)
-  const query = debouncedSearch.trim()
-  const people = usePeople(organizationId, query, department)
-  const routes = organizationRoutes(organizationId)
+  const [importOpen, setImportOpen] = useState(false)
+  const openSync = () => void setView({ panel: 'sync' }, { history: 'push' })
+  const currentView = view ?? (search || department || departmentKey ? 'directory' : 'chart')
 
-  const departments = useDepartments(organizationId).data ?? []
-
-  const rows: ResourceRow[] = useMemo(
-    () =>
-      (people.data?.pages ?? []).flatMap((page) =>
-        page.people.map((person) => ({
-          id: person.memberId,
-          cells: {
-            name: personCell(person),
-            title: { label: person.title },
-            department: { label: person.department },
-            location: { label: person.location },
-            manager: person.manager ? personCell(person.manager) : { label: null },
-          },
-        }))
-      ),
-    [people.data]
+  const viewSwitch = (
+    <ChipSwitch
+      aria-label='People view'
+      value={currentView}
+      options={VIEWS}
+      onChange={(next) => void setView({ view: next }, { history: 'push' })}
+    />
   )
-
-  const searchConfig: SearchConfig = {
-    value: search,
-    onChange: setSearch,
-    onClearAll: () => setSearch(''),
-    placeholder: PEOPLE_SEARCH_PLACEHOLDER,
-  }
-  const setDepartment = (value: string) => void setView({ department: value })
-  const filterTags: FilterTag[] = department
-    ? [{ label: `Department: ${department}`, onRemove: () => setDepartment('') }]
-    : []
-
-  if (!people.data && !people.isLoadingError) return <PeopleLoading />
 
   return (
     <Resource>
@@ -104,70 +57,42 @@ export function People({ organizationId }: PeopleProps) {
           viewer.isAdmin
             ? [
                 {
+                  id: 'sync',
+                  text: 'Directory sync',
+                  icon: RefreshCw,
+                  onSelect: openSync,
+                },
+                {
                   ...IMPORT_PEOPLE_ACTION,
                   id: 'import',
-                  onSelect: () => setImporting(true),
+                  onSelect: () => setImportOpen(true),
                 },
               ]
             : []
         }
       />
-      <Resource.Options
-        search={searchConfig}
-        filter={{
-          active: Boolean(department),
-          content: (
-            <ResourceFilterPanel>
-              <ResourceFilterSection label='Department'>
-                <ChipCombobox
-                  options={[
-                    { value: ALL_DEPARTMENTS, label: 'All' },
-                    ...departments.map(({ name, count }) => ({
-                      value: name,
-                      label: `${name} (${count})`,
-                    })),
-                  ]}
-                  value={department || ALL_DEPARTMENTS}
-                  onChange={(value) => setDepartment(value === ALL_DEPARTMENTS ? '' : value)}
-                  overlayContent={department || 'All'}
-                  searchable
-                  searchPlaceholder='Search departments...'
-                  emptyMessage='No departments match'
-                  className='w-full'
-                />
-              </ResourceFilterSection>
-            </ResourceFilterPanel>
-          ),
-        }}
-        filterTags={filterTags}
-      />
-      <Resource.Table
-        columns={PEOPLE_COLUMNS}
-        rows={rows}
-        onRowClick={(memberId) => router.push(routes.person(memberId))}
-        onLoadMore={() => void people.fetchNextPage()}
-        hasMore={people.hasNextPage}
-        isLoadingMore={people.isFetchingNextPage}
-        isFetching={people.isFetching}
-        loadMoreFailed={people.isFetchNextPageError}
-        emptyState={
-          people.isLoadingError ? (
-            <ResourceLoadError
-              message={people.error.message}
-              onRetry={() => void people.refetch()}
-            />
-          ) : (
-            <ResourceNoResults
-              search={query}
-              filterCount={department ? 1 : 0}
-              searchScope='Searched everyone in your organization.'
-              onClear={() => void setView({ search: '', department: '' })}
-            />
-          )
-        }
-      />
-      {importing && viewer.isAdmin && (
-        <PeopleImportModal organizationId={organizationId} onClose={() => setImporting(false)} />
+      {currentView === 'chart' ? (
+        <PeopleChart
+          organizationId={organizationId}
+          viewSwitch={viewSwitch}
+          onImport={viewer.isAdmin ? () => setImportOpen(true) : undefined}
+          onSync={viewer.isAdmin ? openSync : undefined}
+        />
+      ) : (
+        <>
+          <div className='flex shrink-0 px-4 py-2'>{viewSwitch}</div>
+          <PeopleDirectory organizationId={organizationId} />
+        </>
+      )}
+      {importOpen && !panel && viewer.isAdmin && (
+        <PeopleImportModal organizationId={organizationId} onClose={() => setImportOpen(false)} />
+      )}
+      {panel === 'sync' && viewer.isAdmin && (
+        <DirectorySyncModal
+          key={organizationId}
+          organizationId={organizationId}
+          onClose={() => void setView({ panel: null })}
+        />
       )}
     </Resource>
   )

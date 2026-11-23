@@ -7,7 +7,7 @@ export function normalizeSearchText(value: string): string {
 }
 
 /** Couples generated search data to exactly the catalog content it cites. */
-export function searchCatalogHash(pages: DocsPage[]): string {
+export function searchCatalogHash(pages: Pick<DocsPage, 'id' | 'url' | 'contentHash'>[]): string {
   const identities = pages
     .filter((page) => page.url !== '/')
     .map((page) => `${page.id}:${page.contentHash}`)

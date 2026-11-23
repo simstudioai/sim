@@ -24,10 +24,10 @@ import {
   isPayloadSizeLimitError,
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import { deliverableWebhookPredicate } from '@/lib/webhooks/delivery-predicate'
+import { resolveBackgroundWebhookEnv } from '@/lib/webhooks/env-resolver'
 import { createWebhookExecutionPrincipal } from '@/lib/webhooks/execution-principal'
 import {
   getPendingWebhookVerification,
@@ -143,15 +143,14 @@ export async function parseWebhookBody(
     }
   } catch (bodyError) {
     if (isPayloadSizeLimitError(bodyError)) {
-      logger.warn(`[${requestId}] Rejected oversized webhook body`, {
+      logger.warn('Rejected oversized webhook body', {
+        requestId,
         maxBytes: WEBHOOK_MAX_BODY_BYTES,
         observedBytes: bodyError.observedBytes,
       })
       return new NextResponse('Request body too large', { status: 413 })
     }
-    logger.error(`[${requestId}] Failed to read request body`, {
-      error: toError(bodyError).message,
-    })
+    logger.error('Failed to read request body', { requestId, error: toError(bodyError).message })
     return new NextResponse('Failed to read request body', { status: 400 })
   }
 
@@ -174,7 +173,8 @@ export async function parseWebhookBody(
       body = JSON.parse(rawBody)
     }
   } catch (parseError) {
-    logger.error(`[${requestId}] Failed to parse webhook body`, {
+    logger.error('Failed to parse webhook body', {
+      requestId,
       error: toError(parseError).message,
       contentType: request.headers.get('content-type'),
       bodyPreview: truncate(rawBody ?? '', 100),
@@ -237,7 +237,8 @@ export async function handlePreLookupWebhookVerification(
   }
 
   logger.info(
-    `[${requestId}] Returning 200 for pending ${pendingVerification.provider} webhook verification on path: ${path}`
+    `Returning 200 for pending ${pendingVerification.provider} webhook verification on path: ${path}`,
+    { requestId }
   )
 
   return NextResponse.json({ status: 'ok', message: 'Webhook endpoint verified' })
@@ -350,7 +351,8 @@ export function handlePreDeploymentVerification(
 ): NextResponse | null {
   if (requiresPendingWebhookVerification(webhookRecord.provider)) {
     logger.info(
-      `[${requestId}] ${webhookRecord.provider} webhook - block not in deployment, returning 200 OK for URL validation`
+      `${webhookRecord.provider} webhook - block not in deployment, returning 200 OK for URL validation`,
+      { requestId }
     )
     return NextResponse.json({
       status: 'ok',
@@ -411,7 +413,9 @@ export async function findAllWebhooksForPath(
   }
 
   if (results.length === 0) {
-    logger.debug(`[${options.requestId}] No active webhooks found for path: ${options.path}`)
+    logger.debug(`No active webhooks found for path: ${options.path}`, {
+      requestId: options.requestId,
+    })
     return results
   }
 
@@ -434,14 +438,17 @@ export async function findAllWebhooksForPath(
     const ownerResults = results.filter((result) => result.webhook.workflowId === ownerWorkflowId)
 
     logger.error(
-      `[${options.requestId}] Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} (${claimOwnerWorkflowId === ownerWorkflowId ? 'path-claim owner' : 'earliest registration'}) and dropping ${results.length - ownerResults.length} foreign webhook(s).`
+      `Cross-tenant webhook path collision for path: ${options.path}. Found ${results.length} active webhooks across ${distinctWorkflowIds.size} workflows. Dispatching only to owner workflow ${ownerWorkflowId} (${claimOwnerWorkflowId === ownerWorkflowId ? 'path-claim owner' : 'earliest registration'}) and dropping ${results.length - ownerResults.length} foreign webhook(s).`,
+      { requestId: options.requestId }
     )
 
     return ownerResults
   }
 
   if (results.length > 1) {
-    logger.info(`[${options.requestId}] Found ${results.length} webhooks for path: ${options.path}`)
+    logger.info(`Found ${results.length} webhooks for path: ${options.path}`, {
+      requestId: options.requestId,
+    })
   }
 
   return results
@@ -517,14 +524,10 @@ export async function findWebhooksByRoutingKey(
   }
 
   if (results.length === 0) {
-    logger.warn(`[${requestId}] No active ${provider} webhooks for routing key`)
+    logger.warn(`No active ${provider} webhooks for routing key`, { requestId })
   }
 
   return results
-}
-
-function resolveEnvVars(value: string, envVars: Record<string, string>): string {
-  return resolveEnvVarReferences(value, envVars) as string
 }
 
 /** True when any string value in the provider config contains an env-var reference (`{{VAR}}`). */
@@ -537,24 +540,46 @@ function providerConfigReferencesEnvVars(config: Record<string, unknown>): boole
   return false
 }
 
-function resolveProviderConfigEnvVars(
+/**
+ * Resolves the env-var references in the provider config's top-level string values for auth.
+ *
+ * A value whose reference has no variable keeps its literal `{{VAR}}` text and is exposed through
+ * a getter that records the read in `unresolvedReads`. Fields auth never reads, like a response
+ * body that legitimately contains braces, cannot affect the outcome; a handler that enumerates
+ * the config reads every field, so it errs toward rejecting.
+ */
+function resolveAuthProviderConfig(
   config: Record<string, unknown>,
   envVars: Record<string, string>
-): Record<string, unknown> {
+): { config: Record<string, unknown>; unresolvedReads: Set<string> } {
   const resolved: Record<string, unknown> = {}
+  const unresolvedReads = new Set<string>()
   for (const [key, value] of Object.entries(config)) {
-    if (typeof value === 'string') {
-      resolved[key] = resolveEnvVars(value, envVars)
-    } else {
-      resolved[key] = value
+    const missingKeys: string[] = []
+    const resolvedValue =
+      typeof value === 'string' ? resolveEnvVarReferences(value, envVars, { missingKeys }) : value
+    if (missingKeys.length === 0) {
+      resolved[key] = resolvedValue
+      continue
     }
+    Object.defineProperty(resolved, key, {
+      enumerable: true,
+      get: () => {
+        unresolvedReads.add(key)
+        return resolvedValue
+      },
+    })
   }
-  return resolved
+  return { config: resolved, unresolvedReads }
 }
 
 /**
  * Verify webhook provider authentication and signatures.
  * Delegates to the provider handler registry.
+ *
+ * Fails closed when the env vars the config references cannot be loaded, or when the handler's
+ * decision read a field whose reference did not resolve: that field still holds its literal
+ * `{{VAR}}` text, which would make a guessable placeholder the expected token or signing key.
  */
 export async function verifyProviderAuth(
   foundWebhook: WebhookRecord,
@@ -568,39 +593,57 @@ export async function verifyProviderAuth(
   }
 
   const handler = getProviderHandler(foundWebhook.provider)
+  if (!handler.verifyAuth) return null
+
   const rawProviderConfig = parseProviderConfig(foundWebhook.providerConfig)
 
   /**
-   * Only fetch + decrypt the effective env when there is auth to verify AND the
-   * provider config actually references env vars (`{{VAR}}`). This avoids a DB
-   * read and decryption on the synchronous pre-ack path for the common case.
+   * Only fetch + decrypt the env when the provider config actually references env vars
+   * (`{{VAR}}`). This avoids a DB read and decryption on the synchronous pre-ack path for the
+   * common case.
    */
-  let decryptedEnvVars: Record<string, string> = {}
-  if (handler.verifyAuth && providerConfigReferencesEnvVars(rawProviderConfig)) {
+  let envVars: Record<string, string> = {}
+  if (providerConfigReferencesEnvVars(rawProviderConfig)) {
     try {
-      decryptedEnvVars = await getEffectiveDecryptedEnv(
+      envVars = await resolveBackgroundWebhookEnv(
         foundWorkflow.userId,
         foundWorkflow.workspaceId ?? undefined
       )
     } catch (error) {
-      logger.error(`[${requestId}] Failed to fetch environment variables`, {
+      logger.error('Failed to load environment variables for webhook auth', {
+        requestId,
+        webhookId: foundWebhook.id,
         error,
       })
+      return NextResponse.json(
+        { error: 'Failed to verify webhook authentication' },
+        { status: 500 }
+      )
     }
   }
 
-  const providerConfig = resolveProviderConfigEnvVars(rawProviderConfig, decryptedEnvVars)
+  const { config: providerConfig, unresolvedReads } = resolveAuthProviderConfig(
+    rawProviderConfig,
+    envVars
+  )
 
-  if (handler.verifyAuth) {
-    const authResult = await handler.verifyAuth({
-      webhook: { ...foundWebhook },
-      workflow: { ...foundWorkflow },
-      request,
-      rawBody,
+  const authResult = await handler.verifyAuth({
+    webhook: { ...foundWebhook },
+    workflow: { ...foundWorkflow },
+    request,
+    rawBody,
+    requestId,
+    providerConfig,
+  })
+  if (authResult) return authResult
+
+  if (unresolvedReads.size > 0) {
+    logger.warn('Webhook auth rejected: it read config fields with unresolved env vars', {
       requestId,
-      providerConfig,
+      webhookId: foundWebhook.id,
+      fields: [...unresolvedReads],
     })
-    if (authResult) return authResult
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   return null
@@ -648,7 +691,8 @@ export async function checkWebhookPreprocessing(
       const error = preprocessResult.error
       const transientAdmissionFailure = classifyTransientAdmissionFailure(error)
       const admissionRejectionCode = getDeterministicAdmissionRejectionCode(error)
-      logger.warn(`[${requestId}] Webhook preprocessing failed`, {
+      logger.debug('Webhook preprocessing failed', {
+        requestId,
         provider: foundWebhook.provider,
         error: error.message,
         statusCode: error.statusCode,
@@ -674,7 +718,7 @@ export async function checkWebhookPreprocessing(
       executionTimeoutMs: preprocessResult.executionTimeout.async,
     }
   } catch (preprocessError) {
-    logger.error(`[${requestId}] Error during webhook preprocessing:`, preprocessError)
+    logger.error('Error during webhook preprocessing:', preprocessError, { requestId })
 
     return {
       error: formatProviderErrorResponse(foundWebhook, 'Internal error during preprocessing', 500),
@@ -742,7 +786,9 @@ async function queueWebhookExecutionWithResult(
     const billingAttribution = options.billingAttribution
     const workspaceId = foundWorkflow.workspaceId
     if (!actorUserId || !billingAttribution || !workspaceId) {
-      logger.error(`[${options.requestId}] Missing billing context for webhook ${foundWebhook.id}`)
+      logger.error(`Missing billing context for webhook ${foundWebhook.id}`, {
+        requestId: options.requestId,
+      })
       return {
         outcome: 'failed',
         response: NextResponse.json(
@@ -820,7 +866,8 @@ async function queueWebhookExecutionWithResult(
       })
       reservationTransferred = true
       logger.info(
-        `[${options.requestId}] Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
+        `Queued webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`,
+        { requestId: options.requestId }
       )
     } else {
       const jobQueue = await getInlineJobQueue()
@@ -836,9 +883,9 @@ async function queueWebhookExecutionWithResult(
           executeWebhookJob(payload, signal),
       })
       reservationTransferred = true
-      logger.info(
-        `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
-      )
+      logger.info(`Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`, {
+        requestId: options.requestId,
+      })
     }
 
     const successResponse = handler.formatSuccessResponse?.(providerConfig) ?? null
@@ -852,7 +899,7 @@ async function queueWebhookExecutionWithResult(
       reason: 'queued',
     }
   } catch (error: unknown) {
-    logger.error(`[${options.requestId}] Failed to queue webhook execution:`, error)
+    logger.error('Failed to queue webhook execution:', error, { requestId: options.requestId })
 
     const errorResponse = handler.formatQueueErrorResponse?.() ?? null
     if (errorResponse) {
@@ -1002,11 +1049,13 @@ export async function processPolledWebhookEvent(
     return { success: false, error: 'Webhook has no provider', statusCode: 400 }
   }
   const provider = foundWebhook.provider
+  // Concurrent polls in one tick share a request; the webhook id tells their lines apart.
+  const log = logger.withMetadata({ webhookId: foundWebhook.id })
 
   const ticket = tryAdmit()
   if (!ticket) {
     const gateFailure = ADMISSION_ERROR_DESCRIPTOR.GATE_CAPACITY
-    logger.warn(`[${requestId}] Admission gate rejected polled webhook event`)
+    log.warn('Admission gate rejected polled webhook event', { requestId })
     return {
       success: false,
       error: 'Server at capacity',
@@ -1023,8 +1072,9 @@ export async function processPolledWebhookEvent(
     if (foundWebhook.blockId) {
       const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
       if (!blockExists) {
-        logger.info(
-          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
+        log.info(
+          `Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`,
+          { requestId }
         )
         return { success: false, error: 'Trigger block not found in deployment', statusCode: 404 }
       }
@@ -1042,7 +1092,8 @@ export async function processPolledWebhookEvent(
         typeof errorBody.error === 'string'
           ? errorBody.error
           : 'Preprocessing failed'
-      logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
+      log.warn('Polled webhook preprocessing failed', {
+        requestId,
         statusCode,
         error: errorMessage,
       })
@@ -1073,7 +1124,7 @@ export async function processPolledWebhookEvent(
     const billingAttribution = preprocessResult.billingAttribution
     const workspaceId = foundWorkflow.workspaceId ?? undefined
     if (!actorUserId || !billingAttribution || !workspaceId) {
-      logger.error(`[${requestId}] Missing billing context for webhook ${foundWebhook.id}`)
+      log.error(`Missing billing context for webhook ${foundWebhook.id}`, { requestId })
       return { success: false, error: 'Unable to resolve billing account', statusCode: 500 }
     }
 
@@ -1135,8 +1186,9 @@ export async function processPolledWebhookEvent(
         maxDurationSeconds,
       })
       reservationTransferred = true
-      logger.info(
-        `[${requestId}] Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`
+      log.info(
+        `Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`,
+        { requestId }
       )
     } else {
       const jobQueue = await getInlineJobQueue()
@@ -1152,12 +1204,12 @@ export async function processPolledWebhookEvent(
           executeWebhookJob(payload, signal),
       })
       reservationTransferred = true
-      logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
+      log.info(`Queued ${provider} webhook execution ${jobId} via inline backend`, { requestId })
     }
 
     return { success: true, executionId }
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Failed to process polled webhook event:`, error)
+    log.error('Failed to process polled webhook event:', error, { requestId })
     return { success: false, error: 'Internal server error', statusCode: 500 }
   } finally {
     if (!reservationTransferred && reservedExecutionId) {

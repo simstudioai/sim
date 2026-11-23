@@ -3,6 +3,7 @@ import type {
   LambdaCreateFunctionUrlConfigParams,
   LambdaCreateFunctionUrlConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createFunctionUrlConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const createFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Create Function URL',
   description: 'Create a dedicated HTTPS endpoint for a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SPLUNK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SplunkListAppsParams, SplunkListAppsResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
@@ -24,6 +25,7 @@ export const listAppsTool: ToolConfig<SplunkListAppsParams, SplunkListAppsRespon
   description:
     'List the apps installed on the Splunk instance with their label, version, author, and enabled state.',
   version: '1.0.0',
+  oauth: SPLUNK_CREDENTIAL_OAUTH,
 
   params: {
     ...SPLUNK_CONNECTION_PARAMS,

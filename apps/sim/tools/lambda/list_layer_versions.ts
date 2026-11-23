@@ -3,6 +3,7 @@ import type {
   LambdaListLayerVersionsParams,
   LambdaListLayerVersionsResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listLayerVersionsTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listLayerVersionsTool: InternalToolConfig<
   name: 'Lambda List Layer Versions',
   description: 'List the versions of a Lambda layer',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

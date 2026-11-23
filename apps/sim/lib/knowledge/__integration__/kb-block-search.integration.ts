@@ -26,6 +26,7 @@ describe('API-key KB block fan-out', () => {
     kind: 'workspace_api_key',
     workspaceId: ids.workspaceId,
     keyId: 'fixture-key',
+    access: 'write',
   }
   const vector = [1, ...Array<number>(1535).fill(0)]
   const queryVector = {

@@ -1,5 +1,31 @@
+import { isRecordLike } from '@sim/utils/object'
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { TriggerWorkflowParams, TriggerWorkflowResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * GitHub requires `inputs` to be a JSON object, but the block's long-input
+ * stores the JSON as text, so a string is parsed here. A model's object passes
+ * through unchanged; a blank value sends no inputs.
+ */
+function toWorkflowInputs(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) return undefined
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new Error('Workflow inputs must be a JSON object, such as {"environment":"prod"}')
+    }
+  }
+  if (!isRecordLike(parsed)) {
+    throw new Error('Workflow inputs must be a JSON object, such as {"environment":"prod"}')
+  }
+  return parsed
+}
 
 export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkflowResponse> = {
   id: 'github_trigger_workflow',
@@ -7,6 +33,7 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
   description:
     'Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow must have a workflow_dispatch trigger configured. Returns 204 No Content on success.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -49,21 +76,24 @@ export const triggerWorkflowTool: ToolConfig<TriggerWorkflowParams, TriggerWorkf
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/workflows/${params.workflow_id}/dispatches`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/workflows/${githubPathSegment(params.workflow_id, 'workflow_id')}/dispatches`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
       Authorization: `Bearer ${params.apiKey}`,
       'X-GitHub-Api-Version': '2022-11-28',
     }),
-    body: (params) => ({
-      ref: params.ref,
-      ...(params.inputs && { inputs: params.inputs }),
-    }),
+    body: (params) => {
+      const inputs = toWorkflowInputs(params.inputs)
+      return {
+        ref: params.ref,
+        ...(inputs && { inputs }),
+      }
+    },
   },
 
-  transformResponse: async (response) => {
-    const content = `Workflow dispatched successfully on ref: ${response.url.includes('ref') ? 'requested ref' : 'default branch'}
+  transformResponse: async (_response, params) => {
+    const content = `Workflow dispatched successfully on ref: ${params?.ref ?? 'requested ref'}
 The workflow run should start shortly.`
 
     return {

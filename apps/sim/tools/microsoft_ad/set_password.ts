@@ -3,6 +3,7 @@ import type {
   MicrosoftAdSetPasswordResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const setPasswordTool: ToolConfig<
   MicrosoftAdSetPasswordParams,
@@ -56,7 +57,7 @@ export const setPasswordTool: ToolConfig<
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}`
     },
     method: 'PATCH',
     headers: (params) => ({

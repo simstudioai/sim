@@ -2,7 +2,7 @@
 title: Tavily
 description: Search and extract information
 integration:
-  type: "tavily"
+  type: "tavily_v2"
   color: "#FFFFFF"
 ---
 
@@ -15,7 +15,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 ## Use the block [#usage-instructions]
 
-Search the web, extract content from URLs, crawl sites, and map their URLs. Requires an API key.
+Search the web, extract content from URLs, crawl sites, and map their URLs.
 
 ## Actions
 
@@ -32,7 +32,7 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 | `query` | string | Yes | The search query to execute \(e.g., "latest AI research papers 2024"\) |
 | `max_results` | number | No | Maximum number of results \(1-20, e.g., 5\) |
 | `topic` | string | No | Category type: general, news, or finance \(e.g., "news"\) |
-| `search_depth` | string | No | Search scope: basic \(1 credit\) or advanced \(2 credits\) \(e.g., "advanced"\) |
+| `search_depth` | string | No | Search depth: basic \(1 credit\), advanced \(2 credits\), fast \(1 credit\), or ultra-fast \(1 credit\) \(e.g., "advanced"\) |
 | `include_answer` | string | No | LLM-generated response: true/basic for quick answer or advanced for detailed \(e.g., "advanced"\) |
 | `include_raw_content` | string | No | Parsed HTML content: true/markdown or text format \(e.g., "markdown"\) |
 | `include_images` | boolean | No | Include image search results |
@@ -46,7 +46,6 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 | `exclude_domains` | string | No | Comma-separated list of domains to blacklist \(e.g., "pinterest.com,reddit.com"\) |
 | `country` | string | No | Boost results from specified country \(general topic only\) |
 | `auto_parameters` | boolean | No | Automatic parameter configuration based on query intent |
-| `apiKey` | string | Yes | Tavily API Key |
 
 #### Output
 
@@ -66,12 +65,15 @@ Perform AI-powered web searches using Tavily's search API. Returns structured re
 |   ↳ `description` | string | Image description |
 | `auto_parameters` | object | Automatically selected parameters based on query intent \(if enabled\) |
 | `response_time` | number | Time taken for the search request in seconds |
+| `request_id` | string | Request identifier to share with Tavily support |
 
 </ReferenceDetails>
 
 ### Tavily Extract
 
 Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -82,7 +84,6 @@ Extract raw content from multiple web pages simultaneously using Tavily's extrac
 | `format` | string | No | Output format: markdown or text \(default: markdown\) |
 | `include_images` | boolean | No | Incorporate images in extraction output |
 | `include_favicon` | boolean | No | Add favicon URL for each result |
-| `apiKey` | string | Yes | Tavily API Key |
 
 #### Output
 
@@ -97,6 +98,9 @@ Extract raw content from multiple web pages simultaneously using Tavily's extrac
 |   ↳ `url` | string | The URL that failed extraction |
 |   ↳ `error` | string | Error message describing why extraction failed |
 | `response_time` | number | Time taken for the extraction request in seconds |
+| `request_id` | string | Request identifier to share with Tavily support |
+
+</ReferenceDetails>
 
 ### Tavily Crawl
 
@@ -122,7 +126,6 @@ Systematically crawl and extract content from websites using Tavily's crawl API.
 | `extract_depth` | string | No | Extraction depth: basic \(1 credit/5 pages\) or advanced \(2 credits/5 pages\) |
 | `format` | string | No | Output format: markdown or text \(default: markdown\) |
 | `include_favicon` | boolean | No | Add favicon URL for each result |
-| `apiKey` | string | Yes | Tavily API Key |
 
 #### Output
 
@@ -142,6 +145,8 @@ Systematically crawl and extract content from websites using Tavily's crawl API.
 
 Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -156,16 +161,16 @@ Discover and visualize website structure using Tavily's map API. Maps out all ac
 | `exclude_paths` | string | No | Comma-separated regex patterns to exclude specific URL paths |
 | `exclude_domains` | string | No | Comma-separated regex patterns to exclude domains |
 | `allow_external` | boolean | No | Include external domain links in results \(default: true\) |
-| `apiKey` | string | Yes | Tavily API Key |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `base_url` | string | The base URL that was mapped |
-| `results` | array | Array of discovered URLs during mapping |
-|   ↳ `url` | string | Discovered URL |
+| `results` | array | URLs discovered during mapping |
 | `response_time` | number | Time taken for the map request in seconds |
 | `request_id` | string | Unique identifier for support reference |
+
+</ReferenceDetails>
 
 

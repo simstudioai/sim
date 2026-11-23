@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelListAliasesParams, VercelListAliasesResponse } from '@/tools/vercel/types'
 
@@ -7,6 +8,7 @@ export const vercelListAliasesTool: ToolConfig<VercelListAliasesParams, VercelLi
     name: 'Vercel List Aliases',
     description: 'List aliases for a Vercel project or team',
     version: '1.0.0',
+    oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

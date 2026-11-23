@@ -28,7 +28,6 @@ import {
 import { workspaceByokErrorPolicy } from '@/lib/api-key/byok-error-policy'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -73,13 +72,12 @@ export const GET = defineInternalJsonRoute({
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const workspaceId = (await context.params).id
 
     try {
       const session = await getSession()
       if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized BYOK key creation attempt`)
+        logger.warn('Unauthorized BYOK key creation attempt')
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -127,7 +125,7 @@ export const POST = withRouteHandler(
           })
           .where(eq(workspaceBYOKKeys.id, existingKey.id))
 
-        logger.info(`[${requestId}] Updated BYOK key for ${providerId} in workspace ${workspaceId}`)
+        logger.info(`Updated BYOK key for ${providerId} in workspace ${workspaceId}`)
 
         recordAudit({
           workspaceId,
@@ -208,7 +206,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      logger.info(`[${requestId}] Created BYOK key for ${providerId} in workspace ${workspaceId}`)
+      logger.info(`Created BYOK key for ${providerId} in workspace ${workspaceId}`)
 
       captureServerEvent(
         userId,
@@ -242,7 +240,7 @@ export const POST = withRouteHandler(
         },
       })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] BYOK key POST error`, error)
+      logger.error('BYOK key POST error', error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to save BYOK key') },
         { status: 500 }

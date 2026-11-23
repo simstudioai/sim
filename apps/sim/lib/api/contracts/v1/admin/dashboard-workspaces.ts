@@ -128,7 +128,6 @@ const adminDashboardWorkspaceSourceImpactSchema = z.object({
       })
     )
     .max(1000),
-  brandingChanges: z.boolean(),
   /**
    * Rows omitted to keep the response inside the array bounds above. Non-null
    * means the lists are incomplete and the notice says so.

@@ -181,6 +181,7 @@ export const lambdaFunctionConfigurationSchema = z.object({
     .object({
       retentionPeriodInDays: z.number().nullable(),
       executionTimeout: z.number().nullable(),
+      kmsKeyArn: z.string().nullable(),
     })
     .nullable(),
   tenancyConfig: z.object({ tenantIsolationMode: z.string().nullable() }).nullable(),

@@ -47,10 +47,9 @@ export const getAuthorPapersTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const xmlText = await response.text()
 
-    // Parse XML response
     const papers = parseArxivXML(xmlText)
     const totalResults = extractTotalResults(xmlText)
 
@@ -59,14 +58,14 @@ export const getAuthorPapersTool: ToolConfig<
       output: {
         authorPapers: papers,
         totalResults,
-        authorName: '', // Will be filled by the calling code
+        authorName: params?.authorName ?? '',
       },
     }
   },
 
   outputs: {
     authorPapers: {
-      type: 'json',
+      type: 'array',
       description: 'Array of papers authored by the specified author',
       items: {
         type: 'object',
@@ -74,16 +73,16 @@ export const getAuthorPapersTool: ToolConfig<
           id: { type: 'string' },
           title: { type: 'string' },
           summary: { type: 'string' },
-          authors: { type: 'string' },
+          authors: { type: 'array', items: { type: 'string' } },
           published: { type: 'string' },
           updated: { type: 'string' },
           link: { type: 'string' },
           pdfLink: { type: 'string' },
-          categories: { type: 'string' },
+          categories: { type: 'array', items: { type: 'string' } },
           primaryCategory: { type: 'string' },
-          comment: { type: 'string' },
-          journalRef: { type: 'string' },
-          doi: { type: 'string' },
+          comment: { type: 'string', optional: true },
+          journalRef: { type: 'string', optional: true },
+          doi: { type: 'string', optional: true },
         },
       },
     },
@@ -91,5 +90,6 @@ export const getAuthorPapersTool: ToolConfig<
       type: 'number',
       description: 'Total number of papers found for the author',
     },
+    authorName: { type: 'string', description: 'The author name that was searched' },
   },
 }

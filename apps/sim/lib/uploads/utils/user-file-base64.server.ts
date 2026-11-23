@@ -2,8 +2,10 @@ import type { Principal } from '@sim/auth/principal'
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
+import type Redis from 'ioredis'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
 import {
@@ -179,29 +181,6 @@ export interface Base64HydrationOptions {
   ) => Promise<void>
 }
 
-class InMemoryBase64Cache implements Base64Cache {
-  private entries = new Map<string, { value: string; expiresAt: number }>()
-
-  async get(file: UserFile): Promise<string | null> {
-    const key = getFileCacheKey(file)
-    const entry = this.entries.get(key)
-    if (!entry) {
-      return null
-    }
-    if (entry.expiresAt <= Date.now()) {
-      this.entries.delete(key)
-      return null
-    }
-    return entry.value
-  }
-
-  async set(file: UserFile, value: string, ttlSeconds: number): Promise<void> {
-    const key = getFileCacheKey(file)
-    const expiresAt = Date.now() + ttlSeconds * 1000
-    this.entries.set(key, { value, expiresAt })
-  }
-}
-
 /**
  * The base64 cache only saves a repeat read from storage — the bytes it would have stored are
  * already in hand by the time it is written. Exceeding a Redis budget therefore means "do not
@@ -214,30 +193,23 @@ function logSkippedCacheWrite(
   file: UserFile,
   error: ExecutionResourceLimitError
 ): void {
-  logger.warn(
-    `[${requestId ?? 'unknown'}] Skipping base64 cache write for ${file.name}: ${error.message}`,
-    { resource: error.resource, attemptedBytes: error.attemptedBytes }
-  )
+  logger.warn(`Skipping base64 cache write for ${file.name}: ${error.message}`, {
+    requestId,
+    resource: error.resource,
+    attemptedBytes: error.attemptedBytes,
+  })
 }
 
 function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Base64Cache {
-  const redis = getRedisClient()
   const { executionId } = options
-
-  if (!redis) {
-    logger.warn(
-      `[${options.requestId}] Redis unavailable for base64 cache, using in-memory fallback`
-    )
-    return new InMemoryBase64Cache()
-  }
 
   return {
     async get(file: UserFile) {
       try {
         const key = getFullCacheKey(executionId, file)
-        return await redis.get(key)
+        return await getRedisClient().get(key)
       } catch (error) {
-        logger.warn(`[${options.requestId}] Redis get failed, skipping cache`, error)
+        logger.warn('Redis get failed, skipping cache', error, { requestId: options.requestId })
         return null
       }
     },
@@ -245,6 +217,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
       const key = getFullCacheKey(executionId, file)
       const valueBytes = Buffer.byteLength(value, 'utf8')
       try {
+        const redis = getRedisClient()
         if (!executionId) {
           await redis.set(key, value, 'EX', ttlSeconds)
           return
@@ -302,7 +275,7 @@ function createBase64Cache(options: Base64HydrationOptions, logger: Logger): Bas
           )
         }
       } catch (error) {
-        logger.warn(`[${options.requestId}] Redis set failed, skipping cache`, error)
+        logger.warn('Redis set failed, skipping cache', error, { requestId: options.requestId })
       }
     },
   }
@@ -365,7 +338,7 @@ function parseBudgetEntry(value: unknown): Base64BudgetEntry | null {
 }
 
 async function cleanupBudgetEntry(
-  redis: NonNullable<ReturnType<typeof getRedisClient>>,
+  redis: Redis,
   executionId: string,
   fileKey: string,
   rawEntry: string,
@@ -410,7 +383,8 @@ async function resolveBase64(
     const base64Bytes = Buffer.byteLength(file.base64, 'base64')
     if (base64Bytes > maxBytes) {
       logger.warn(
-        `[${options.requestId}] Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`
+        `Skipping existing base64 for ${file.name} (decoded ${base64Bytes} exceeds ${maxBytes})`,
+        { requestId: options.requestId }
       )
       return { base64: null }
     }
@@ -425,9 +399,9 @@ async function resolveBase64(
     Number.isFinite(file.size) &&
     file.size > maxBytes
   ) {
-    logger.warn(
-      `[${options.requestId}] Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`
-    )
+    logger.warn(`Skipping base64 for ${file.name} (size ${file.size} exceeds ${maxBytes})`, {
+      requestId: options.requestId,
+    })
     return { base64: null }
   }
 
@@ -436,11 +410,13 @@ async function resolveBase64(
     !allowUnknownSize &&
     !hasStableStorageKey
   ) {
-    logger.warn(`[${options.requestId}] Skipping base64 for ${file.name} (unknown file size)`)
+    logger.warn(`Skipping base64 for ${file.name} (unknown file size)`, {
+      requestId: options.requestId,
+    })
     return { base64: null }
   }
 
-  const requestId = options.requestId ?? 'unknown'
+  const requestId = options.requestId ?? generateRequestId()
   try {
     const result = await readUserFileContentWithContributors(file, {
       requestId,
@@ -463,7 +439,7 @@ async function resolveBase64(
     if (error instanceof Error && error.name === 'DocCompileUserError') {
       throw error
     }
-    logger.warn(`[${requestId}] Failed to hydrate base64 for ${file.name}`, error)
+    logger.warn(`Failed to hydrate base64 for ${file.name}`, error, { requestId })
     return { base64: null }
   }
 }
@@ -489,7 +465,7 @@ async function hydrateUserFile(
         logger,
       })
     } catch (error) {
-      logger.warn(`[${options.requestId ?? 'unknown'}] Skipping unauthorized file base64`, error)
+      logger.warn('Skipping unauthorized file base64', error, { requestId: options.requestId })
       return stripBase64(file)
     }
   }
@@ -653,14 +629,10 @@ export function containsUserFileWithMetadata(value: unknown): boolean {
  * Should be called at the end of workflow execution.
  */
 export async function cleanupExecutionBase64Cache(executionId: string): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) {
-    return
-  }
-
   const logger = createLogger('UserFileBase64')
 
   try {
+    const redis = getRedisClient()
     const budgetEntries = await redis.hgetall(getBudgetIndexKey(executionId))
     let deletedCount = 0
     for (const [fileKey, rawEntry] of Object.entries(budgetEntries ?? {})) {

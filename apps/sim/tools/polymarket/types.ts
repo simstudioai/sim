@@ -1,3 +1,5 @@
+import { isPlainRecord } from '@sim/utils/object'
+
 const POLYMARKET_GAMMA_URL = 'https://gamma-api.polymarket.com'
 export const POLYMARKET_CLOB_URL = 'https://clob.polymarket.com'
 export const POLYMARKET_DATA_URL = 'https://data-api.polymarket.com'
@@ -10,9 +12,61 @@ export function buildClobUrl(path: string): string {
   return `${POLYMARKET_CLOB_URL}${path}`
 }
 
-export function buildDataUrl(path: string): string {
-  return `${POLYMARKET_DATA_URL}${path}`
+/** Builds a Data API v2 URL; the unversioned v1 routes were retired and answer `410 Gone`. */
+export function buildDataUrl(path: string, query: URLSearchParams): string {
+  const search = query.toString()
+  return `${POLYMARKET_DATA_URL}/v2${path}${search ? `?${search}` : ''}`
 }
+
+/**
+ * Adds the Data API v2 pagination params. v2 pages by `cursor` only and rejects `offset` with a
+ * message naming the cursor, so a non-zero offset is forwarded for the API to explain.
+ */
+export function appendDataPagination(
+  query: URLSearchParams,
+  params: { limit?: string; offset?: string; cursor?: string }
+): void {
+  if (params.limit) query.append('limit', params.limit)
+  if (params.cursor?.trim()) query.append('cursor', params.cursor.trim())
+  if (params.offset && Number(params.offset) !== 0) query.append('offset', params.offset)
+}
+
+/** Next-page fields shared by every paginated Data API v2 tool output. */
+export interface PolymarketDataPage {
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+/** Reads the `{ data, pagination }` envelope of a paginated Data API v2 response. */
+export function readDataPage(body: unknown): {
+  rows: Array<Record<string, unknown>>
+  page: PolymarketDataPage
+} {
+  const envelope = isPlainRecord(body) ? body : {}
+  const pagination = isPlainRecord(envelope.pagination) ? envelope.pagination : {}
+  return {
+    rows: Array.isArray(envelope.data) ? envelope.data.filter(isPlainRecord) : [],
+    page: {
+      nextCursor: typeof pagination.next_cursor === 'string' ? pagination.next_cursor : null,
+      hasMore: pagination.has_more === true,
+    },
+  }
+}
+
+/** Tool output definitions for {@link PolymarketDataPage}. */
+export const POLYMARKET_DATA_PAGE_OUTPUTS = {
+  nextCursor: {
+    type: 'string',
+    description: 'Cursor for the next page; pass it as Cursor. Null on the last page.',
+    optional: true,
+    nullable: true,
+  },
+  hasMore: { type: 'boolean', description: 'Whether another page exists', optional: true },
+} as const
+
+/** Description shared by the Data API v2 `cursor` param. */
+export const POLYMARKET_CURSOR_DESCRIPTION =
+  "Pagination cursor: the nextCursor from the previous page's output. Resend the same filters with it."
 
 export interface PolymarketPaginationParams {
   limit?: string
@@ -184,6 +238,7 @@ export interface PolymarketPosition {
   oppositeAsset: string | null
   endDate: string | null
   negativeRisk: boolean
+  status: string | null
 }
 
 export interface PolymarketTrade {

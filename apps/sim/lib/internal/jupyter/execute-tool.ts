@@ -55,7 +55,7 @@ function unexpectedErrorResponse(
 ): Response {
   signal?.throwIfAborted()
   const logger = scope === 'proxy' ? proxyLogger : uploadLogger
-  logger.error(`[${requestId}] Unexpected error:`, error)
+  logger.error('Unexpected error:', error, { requestId })
   return Response.json(
     { success: false, error: getErrorMessage(error, 'Unknown error') },
     { status: 500 }

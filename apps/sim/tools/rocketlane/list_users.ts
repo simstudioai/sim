@@ -9,6 +9,7 @@ import {
   rocketlaneHeaders,
   USER_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListUsersTool: ToolConfig<
@@ -20,6 +21,7 @@ export const rocketlaneListUsersTool: ToolConfig<
   description:
     'List users in your Rocketlane account, with optional filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

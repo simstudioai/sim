@@ -1,4 +1,5 @@
 import type { RunActorParams, RunActorResult } from '@/tools/apify/types'
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> = {
@@ -6,6 +7,7 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
   name: 'APIFY Run Actor (Sync)',
   description: 'Run an APIFY actor synchronously and get results (max 5 minutes)',
   version: '1.0.0',
+  oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -44,7 +44,7 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'November 2, 2026',
+  lastUpdated: 'November 12, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -263,7 +263,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
             ],
             [
               'Behavioral remarketing',
-              'Cookie and pixel identifiers, ad click identifiers, browser and Device data, campaign attribution, website interaction data, and, for Freebuff sign-up conversions, a pseudonymous Sim Account identifier and the sign-up time',
+              'Cookie and pixel identifiers, ad click identifiers, browser and Device data, campaign attribution, and website interaction data',
               'Consent — Article 6(1)(a)',
               'Marketing cookies and ad personalization require Marketing consent. Google Ads may load earlier with ad storage denied and send limited cookieless consent signals. Consent may be changed or withdrawn through the cookie preferences link.',
             ],
@@ -577,7 +577,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Sim advertises through Google Ads, X, and Freebuff, and measures which ads lead to sign-ups and demo bookings. These services use non-essential Cookies, pixels, and similar technologies. Marketing Cookies and ad personalization are enabled only after You consent to the Marketing category in the cookie banner.'
+            'Sim advertises through Google Ads and X, and measures which ads lead to sign-ups and demo bookings. These services use non-essential Cookies, pixels, and similar technologies. Marketing Cookies and ad personalization are enabled only after You consent to the Marketing category in the cookie banner.'
           ),
         },
         {
@@ -590,12 +590,6 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
           kind: 'paragraph',
           content: richText(
             "**X.** The X pixel loads on Sim's marketing pages only after Marketing consent. It reports page views and demo bookings."
-          ),
-        },
-        {
-          kind: 'paragraph',
-          content: richText(
-            '**Freebuff.** After Marketing consent, the Freebuff tag stores the click identifier from a Freebuff ad. When You sign up, Sim sends Freebuff that click identifier, the event type, a pseudonymous Sim Account identifier, and the sign-up time so the sign-up can be credited to the ad. Sim does not send Your name or email address.'
           ),
         },
         {
@@ -620,9 +614,6 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
             richText('Google Ads: [Google Ads Settings](https://adssettings.google.com/)'),
             richText(
               'X: [Personalization and data settings](https://x.com/settings/privacy_and_safety)'
-            ),
-            richText(
-              'Freebuff: withdraw Marketing consent through the cookie preferences link; Sim then deletes the Freebuff click identifier cookie'
             ),
           ],
         },
@@ -806,19 +797,25 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You ask Sim to attach a page or selection, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
+            'When You click the microphone and grant browser permission, Sim streams microphone audio to ElevenLabs for transcription into Your editable message draft. Opening the panel does not start recording, and this feature does not capture tab audio. Stopping voice input ends microphone capture; sending a message or changing conversations cancels unfinished transcription. Submitted transcripts become conversation content under the retention and processing rules below.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'Capture starts only in response to Your action. The extension does not collect page content continuously or silently in the background. Optional continuing site access is requested for an individual site and can be removed through Site access or Chrome settings. Incognito capture is disabled.'
+            'When You ask Sim to attach a page or selection, or open Sim from its toolbar button or keyboard shortcut with Reference current page off, the browser extension reads the requested text from the top frame of that page and transfers it, the page title, and a normalized page address to the hosted Sim composer. URL credentials, query parameters, and fragments are removed. The extractor skips form inputs, editable fields, scripts, embedded frames, and elements it detects as hidden. Page text, including text in collapsed sections, may still contain personal or sensitive information, such as personal communications or health, financial, or authentication information.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'Attaching a page transfers the snapshot to the hosted composer before You send a message. Captured text is held in memory and is not persisted in Chrome extension storage. Short-lived extension session records contain capture intent metadata and a one-way digest of the source address, not captured text or the raw address. You can review or remove an attachment before sending it.'
+            'Reference current page is an optional setting stored in Your Chrome profile. When it is on, sending a message from the sidebar includes a snapshot of the active tab unless You have attached a page or selection Yourself. Opening the panel or switching tabs does not trigger this capture. If Chrome has not granted access, Your draft stays in the composer. You can grant browser access and send again, or turn the setting off. Page access can be granted across HTTP and HTTPS websites. You can revoke or restrict access in Chrome settings. Incognito capture is disabled.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'Manually attaching a page transfers the snapshot to the hosted composer before You send a message. Captured text is held in memory and is not persisted in Chrome extension storage. Short-lived extension session records contain capture intent metadata and a one-way digest of the source address, not captured text or the raw address. You can review or remove a manually attached snapshot before sending it. Dropping an image file onto the sidebar uploads it using the same attachment flow as Sim Chat.'
           ),
         },
         {
@@ -836,7 +833,13 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. The extension does not read Your browser history or unrelated address-bar input.'
+            'When You use the sim address-bar keyword, the extension sends the typed link name, before any path values or query, to Sim with Your authenticated session to suggest Your organization’s links. Suggestions are cached in memory and are not written to extension storage. Opening a sim/ or go/ shortcut sends its path and query to Sim to resolve the destination, then opens that destination. Sim records each link’s visit count and last-visited time. These requests also use the operational diagnostics described in this Privacy Policy. Choosing Create link in Sim from the browser menu opens a draft with the selected link’s address, omitting query parameters and fragments. The destination becomes an organization link only when You confirm creation. The extension does not read Your browser history or unrelated address-bar input.'
+          ),
+        },
+        {
+          kind: 'paragraph',
+          content: richText(
+            'When Links are available for Your organization, the extension opens sim/ and go/ about once a week in background tabs that close themselves, so Chrome recognizes these shortcuts in the address bar. Those tabs load Sim’s link page with Your session, send no browsing data, and appear in Your browser history.'
           ),
         },
         {
@@ -975,7 +978,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'We do not sell Personal Information for money. When Marketing Cookies are enabled, Sim makes identifiers and internet activity on sim.ai available to Google, X, and Freebuff for advertising and ad measurement. This includes cookie and click identifiers, pages visited, and conversion events. California law may treat this as a "sale" or "sharing" of Personal Information. You may opt out at any time through the cookie preferences link, by sending a Global Privacy Control signal, or by emailing privacy@sim.ai. Sim does not knowingly sell or share the Personal Information of consumers under 16.'
+            'We do not sell Personal Information for money. When Marketing Cookies are enabled, Sim makes identifiers and internet activity on sim.ai available to Google and X for advertising and ad measurement. This includes cookie and click identifiers, pages visited, and conversion events. California law may treat this as a "sale" or "sharing" of Personal Information. You may opt out at any time through the cookie preferences link, by sending a Global Privacy Control signal, or by emailing privacy@sim.ai. Sim does not knowingly sell or share the Personal Information of consumers under 16.'
           ),
         },
         { kind: 'subheading', text: 'Global Privacy Control' },

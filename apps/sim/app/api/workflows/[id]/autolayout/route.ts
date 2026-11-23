@@ -9,7 +9,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { workflowAutoLayoutContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { applyAutoLayout } from '@/lib/workflows/autolayout'
 import {
@@ -32,14 +31,13 @@ const logger = createLogger('AutoLayoutAPI')
  */
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
     const startTime = Date.now()
     const { id: workflowId } = await context.params
 
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized autolayout attempt for workflow ${workflowId}`)
+        logger.warn(`Unauthorized autolayout attempt for workflow ${workflowId}`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -49,7 +47,7 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const layoutOptions = parsed.data.body
 
-      logger.info(`[${requestId}] Processing autolayout request for workflow ${workflowId}`, {
+      logger.info(`Processing autolayout request for workflow ${workflowId}`, {
         userId,
       })
 
@@ -61,16 +59,14 @@ export const POST = withRouteHandler(
       const workflowData = authorization.workflow
 
       if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for autolayout`)
+        logger.warn(`Workflow ${workflowId} not found for autolayout`)
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
       const canUpdate = authorization.allowed
 
       if (!canUpdate) {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to autolayout workflow ${workflowId}`
-        )
+        logger.warn(`User ${userId} denied permission to autolayout workflow ${workflowId}`)
         return NextResponse.json(
           { error: authorization.message || 'Access denied' },
           { status: authorization.status || 403 }
@@ -82,7 +78,7 @@ export const POST = withRouteHandler(
       let currentWorkflowData: NormalizedWorkflowData | null
 
       if (layoutOptions.blocks && layoutOptions.edges) {
-        logger.info(`[${requestId}] Using provided blocks with live measurements`)
+        logger.info('Using provided blocks with live measurements')
         currentWorkflowData = {
           blocks: layoutOptions.blocks,
           edges: layoutOptions.edges,
@@ -91,12 +87,12 @@ export const POST = withRouteHandler(
           isFromNormalizedTables: false,
         }
       } else {
-        logger.info(`[${requestId}] Loading blocks from database`)
+        logger.info('Loading blocks from database')
         currentWorkflowData = await loadWorkflowFromNormalizedTables(workflowId)
       }
 
       if (!currentWorkflowData) {
-        logger.error(`[${requestId}] Could not load workflow ${workflowId} for autolayout`)
+        logger.error(`Could not load workflow ${workflowId} for autolayout`)
         return NextResponse.json({ error: 'Could not load workflow data' }, { status: 500 })
       }
 
@@ -118,7 +114,7 @@ export const POST = withRouteHandler(
       )
 
       if (!layoutResult.success || !layoutResult.blocks) {
-        logger.error(`[${requestId}] Auto layout failed:`, {
+        logger.error('Auto layout failed:', {
           error: layoutResult.error,
         })
         return NextResponse.json(
@@ -133,7 +129,7 @@ export const POST = withRouteHandler(
       const elapsed = Date.now() - startTime
       const blockCount = Object.keys(layoutResult.blocks).length
 
-      logger.info(`[${requestId}] Autolayout completed successfully in ${elapsed}ms`, {
+      logger.info(`Autolayout completed successfully in ${elapsed}ms`, {
         blockCount,
         workflowId,
       })
@@ -154,7 +150,7 @@ export const POST = withRouteHandler(
 
       const elapsed = Date.now() - startTime
 
-      logger.error(`[${requestId}] Autolayout failed after ${elapsed}ms:`, error)
+      logger.error(`Autolayout failed after ${elapsed}ms:`, error)
       return NextResponse.json(
         {
           error: 'Autolayout failed',

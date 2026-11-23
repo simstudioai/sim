@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressListPagesParams,
@@ -81,7 +82,7 @@ export const listPagesTool: ToolConfig<WordPressListPagesParams, WordPressListPa
       if (params.order) queryParams.append('order', params.order)
 
       const queryString = queryParams.toString()
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/pages${queryString ? `?${queryString}` : ''}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/pages${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

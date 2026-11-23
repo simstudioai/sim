@@ -1,4 +1,5 @@
 import { ASHBY_ON_BEHALF_OF_PARAM, ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyDeleteApplicationParams {
@@ -22,6 +23,7 @@ export const deleteApplicationTool: ToolConfig<
   description:
     'Permanently deletes an application in Ashby. Requires the candidatesDelete permission, which is a separate module permission from candidatesWrite - a read and write key returns 403 here. There is no equivalent endpoint for deleting a candidate; candidate deletion is UI-only.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

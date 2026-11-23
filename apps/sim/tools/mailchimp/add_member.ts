@@ -4,7 +4,9 @@ import {
   handleMailchimpError,
   type MailchimpMember,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MailchimpAddMember')
 
@@ -34,6 +36,7 @@ export const mailchimpAddMemberTool: ToolConfig<
   name: 'Add Member to Mailchimp Audience',
   description: 'Add a new member to a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -76,7 +79,11 @@ export const mailchimpAddMemberTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/members`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members`
+      ),
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

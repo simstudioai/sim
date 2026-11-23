@@ -9,7 +9,7 @@
  *
  * Every bundle is evaluated in a bare context before it is written: the
  * bundler can emit a reference to a runtime helper it never defines (Bun does
- * this for docx's inlined CommonJS shim), and nothing else loads these files
+ * this for an inlined CommonJS shim), and nothing else loads these files
  * before a production document generation does.
  *
  * Run via: `bun run build:sandbox-bundles`.

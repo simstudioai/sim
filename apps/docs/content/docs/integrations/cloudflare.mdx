@@ -2,7 +2,7 @@
 title: Cloudflare
 description: Manage DNS, WAF, Zero Trust access, and edge infrastructure
 integration:
-  type: "cloudflare"
+  type: "cloudflare_v2"
   color: "#F5F6FA"
 ---
 
@@ -77,7 +77,6 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 | `policies` | string | No | JSON array of policies to attach. Entries may be reusable policy IDs or inline policy objects, e.g. \["&lt;POLICY_ID&gt;"\] |
 | `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{ "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" \}; OIDC, e.g. \{ "auth_type": "oidc", "client_id": "...", "redirect_uris": \[ "https://example.com/callback" \] \} |
 | `targetCriteria` | string | No | JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. \[\{"port":22,"protocol":"SSH","target_attributes":\{"hostname":\["production"\]\}\}\] |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -476,7 +475,6 @@ Creates a new Access group.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `exclude` | json | No | JSON array. Rules evaluated with a NOT logical operator. To match a policy, a user cannot meet any of the Exclude rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. |
 | `include` | json | Yes | JSON array. Rules evaluated with an OR logical operator. A user needs to meet only one of the Include rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. |
 | `is_default` | boolean | No | Whether this is the default group |
@@ -772,7 +770,6 @@ Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who 
 | `isolationRequired` | boolean | No | Whether the session must run in a remote isolated browser |
 | `purposeJustificationRequired` | boolean | No | Whether users must state a reason for access |
 | `purposeJustificationPrompt` | string | No | Prompt shown when a justification is required |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1013,7 +1010,6 @@ Creates a Cloudflare Access (Zero Trust) service token so a machine can authenti
 | `accountId` | string | Yes | The Cloudflare account ID. Service tokens are account-scoped |
 | `name` | string | Yes | Name of the service token |
 | `duration` | string | No | How long the token stays valid before it expires, e.g. 8760h. Defaults to Cloudflare's standard lifetime |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1055,7 +1051,6 @@ Creates a new DNS record for a zone.
 | `priority` | number | No | Record priority. Cloudflare accepts this top-level field for MX and URI records only; use the data object for structured records such as SRV \(priority, weight, port, target\) |
 | `comment` | string | No | Comment for the DNS record |
 | `tags` | string | No | Comma-separated tags for the DNS record |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1143,7 +1138,6 @@ Creates an R2 object storage bucket in an account. The location hint and jurisdi
 | `locationHint` | string | No | Region hint for where the bucket should live: apac, eeur, enam, weur, wnam, or oc. Cannot be changed after creation |
 | `storageClass` | string | No | Default storage class for objects: Standard or InfrequentAccess |
 | `jurisdiction` | string | No | Data-residency jurisdiction to create the bucket in: default, eu, or fedramp. Cannot be changed after creation |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1188,7 +1182,6 @@ Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `requestsToOrigin` | boolean | No | When true, only requests that reach the origin are counted |
 | `description` | string | No | Human-readable description of the rule |
 | `enabled` | boolean | No | Whether the rule is enabled |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1453,7 +1446,6 @@ Creates a zone ruleset for a phase, optionally seeded with its first rules. Use 
 | `kind` | string | No | Ruleset kind: zone or custom. Use zone to create a phase entry point ruleset and custom for a ruleset an execute rule deploys. Defaults to zone. "root" is the account-level phase entry point and "managed" is Cloudflare-owned, so neither can be created on this zone-scoped endpoint |
 | `description` | string | No | Description of the ruleset |
 | `rules` | json | No | JSON array of rules to seed the ruleset with, in evaluation order. Each rule takes action, expression, and optionally description, enabled, action_parameters, and ratelimit |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1725,7 +1717,6 @@ Adds a rule to a zone ruleset. Use "Get Phase Entry Point Ruleset" first to find
 | `ref` | string | No | Reference tag that stays stable across rule updates |
 | `actionParameters` | string | No | JSON object of action-specific parameters. For an "execute" rule this carries the managed ruleset id and any overrides, e.g. \{"id":"&lt;MANAGED_RULESET_ID&gt;","overrides":\{"action":"log"\}\} |
 | `position` | string | No | JSON object placing the rule within the ruleset. Exactly one of \{"before":"&lt;RULE_ID&gt;"\}, \{"after":"&lt;RULE_ID&gt;"\}, or \{"index":&lt;1-based position&gt;\} |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -1984,7 +1975,6 @@ Creates a remotely or locally managed Cloudflare Tunnel in an account. After cre
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `config_src` | string | No | Indicates if this is a locally or remotely configured tunnel. If `local`, manage the tunnel using a YAML file on the origin machine. If `cloudflare`, manage the tunnel on the Zero Trust dashboard. Allowed values: local, cloudflare. |
 | `name` | string | Yes | A user-friendly name for a tunnel. |
 | `tunnel_secret` | string | No | Sets the password required to run a locally-managed tunnel. Must be at least 32 bytes and encoded as a base64 string. |
@@ -2028,7 +2018,6 @@ Creates a route that maps a URL pattern to a Worker.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `pattern` | string | Yes | Pattern to match incoming requests against. \[Learn more\]\(https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior). |
 | `script` | string | No | Name of the script to run if the route matches. |
 
@@ -2055,7 +2044,6 @@ Adds a new zone (domain) to the Cloudflare account.
 | `name` | string | Yes | The domain name to add \(e.g., "example.com"\) |
 | `accountId` | string | Yes | The Cloudflare account ID |
 | `type` | string | No | Zone type: "full" \(Cloudflare manages DNS\), "partial" \(CNAME setup\), "secondary" \(secondary DNS\), or "internal" \(internal DNS zone\) |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2124,7 +2112,6 @@ Permanently deletes a Cloudflare Access (Zero Trust) application and every polic
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
 | `appId` | string | Yes | The Access application ID to delete permanently |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2146,7 +2133,6 @@ Deletes an Access group.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `groupId` | string | Yes | Group id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -2169,7 +2155,6 @@ Permanently deletes a Cloudflare Access (Zero Trust) policy from an application.
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
 | `appId` | string | Yes | The Access application ID that owns the policy |
 | `policyId` | string | Yes | The Access policy ID to delete permanently |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2191,7 +2176,6 @@ Deletes a DNS record from a zone.
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID containing the DNS record |
 | `recordId` | string | Yes | The DNS record ID to delete |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2214,7 +2198,6 @@ Permanently deletes an R2 object storage bucket. Cloudflare only deletes an empt
 | `accountId` | string | Yes | The Cloudflare account ID. R2 buckets are account-scoped |
 | `bucketName` | string | Yes | The name of the bucket to delete permanently |
 | `jurisdiction` | string | No | Data-residency jurisdiction the bucket lives in: default, eu, or fedramp |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2236,7 +2219,6 @@ Delete the CORS policy for a bucket.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `bucketName` | string | Yes | Bucket name |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `jurisdiction` | string | No | Jurisdiction where objects in this bucket are guaranteed to be stored. |
 
 #### Output
@@ -2259,7 +2241,6 @@ Deletes all versions of an existing zone ruleset.
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
 | `rulesetId` | string | Yes | Ruleset id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `dry_run` | boolean | No | Validates the request without persisting changes when set to `true`. Responses that normally return 200 return `result: null`; endpoints that normally return 204 continue to return 204. |
 
 #### Output
@@ -2284,7 +2265,6 @@ Permanently deletes a rule from a zone ruleset. This takes effect immediately on
 | `zoneId` | string | Yes | The zone ID that owns the ruleset |
 | `rulesetId` | string | Yes | The ruleset ID containing the rule |
 | `ruleId` | string | Yes | The rule ID to delete permanently |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2544,7 +2524,6 @@ Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `tunnelId` | string | Yes | Tunnel id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -2586,7 +2565,6 @@ Deletes a Worker route.
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
 | `routeId` | string | Yes | Route id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -2608,7 +2586,6 @@ Delete your worker. This call has no response body on a successful delete.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `scriptName` | string | Yes | Script name |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `force` | boolean | No | If true, delete the Worker even when other Workers still reference it. Service bindings in those Workers may be left broken. Durable Object namespaces implemented by the deleted Worker are deleted even if other Workers reference them. |
 
 #### Output
@@ -2630,7 +2607,6 @@ Deletes a zone (domain) from the Cloudflare account.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to delete |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2658,7 +2634,6 @@ Gets DNS analytics report for a zone including query counts and trends.
 | `filters` | string | No | Filters to apply to the data \(e.g., "queryType==A"\) |
 | `sort` | string | No | Sort order for the result set. Fields must be included in metrics or dimensions \(e.g., "+queryCount" or "-responseTimeAvg"\) |
 | `limit` | number | No | Maximum number of results to return |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -2702,7 +2677,6 @@ Reads a single Cloudflare Access (Zero Trust) application, including its attache
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
 | `appId` | string | Yes | The Access application ID \(or audience tag\) to read |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -3102,7 +3076,6 @@ Fetches a single Access group.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `groupId` | string | Yes | Group id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -3380,7 +3353,6 @@ Fetches a single Access policy configured for an application. Returns both exclu
 | `accountId` | string | Yes | Account id |
 | `appId` | string | Yes | App id |
 | `policyId` | string | Yes | Policy id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -3617,7 +3589,6 @@ Fetches a single service token.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `serviceTokenId` | string | Yes | Service token id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -3650,7 +3621,6 @@ Retrieves details for a specific DNS record in the zone.
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
 | `recordId` | string | Yes | Dns record id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `include_shadow_metadata` | boolean | No | Whether to include shadow metadata in the `meta` field of each record in the response. See \[Shadowed records\]\(https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records). |
 
 #### Output
@@ -3737,7 +3707,6 @@ Reads the metadata of a single R2 object storage bucket. Requires an API token w
 | `accountId` | string | Yes | The Cloudflare account ID. R2 buckets are account-scoped |
 | `bucketName` | string | Yes | The name of the bucket to read |
 | `jurisdiction` | string | No | Data-residency jurisdiction the bucket lives in: default, eu, or fedramp |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -3763,7 +3732,6 @@ Get the CORS policy for a bucket.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `bucketName` | string | Yes | Bucket name |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `jurisdiction` | string | No | Jurisdiction where objects in this bucket are guaranteed to be stored. |
 
 #### Output
@@ -3793,7 +3761,6 @@ Get object lifecycle rules for a bucket.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `bucketName` | string | Yes | Bucket name |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `jurisdiction` | string | No | Jurisdiction where objects in this bucket are guaranteed to be stored. |
 
 #### Output
@@ -3835,7 +3802,6 @@ Reads a single zone ruleset including every rule it contains, in evaluation orde
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID that owns the ruleset |
 | `rulesetId` | string | Yes | The ruleset ID to read |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4095,7 +4061,6 @@ Reads the entry point ruleset for a phase on a zone, including all of its rules.
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to read the phase entry point for |
 | `phase` | string | Yes | The ruleset phase, e.g. http_request_firewall_custom, http_request_firewall_managed, http_ratelimit, http_request_transform, http_request_dynamic_redirect |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4355,7 +4320,6 @@ Reads a single Cloudflare Tunnel (cloudflared), including its health status and 
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Tunnels are account-scoped |
 | `tunnelId` | string | Yes | The tunnel ID to read |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4397,7 +4361,6 @@ Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress 
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Tunnels are account-scoped |
 | `tunnelId` | string | Yes | The tunnel ID to read the configuration for |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4468,7 +4431,6 @@ Gets the connector token used to run a remotely managed Cloudflare Tunnel with c
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Cloudflare account ID |
 | `tunnelId` | string | Yes | Cloudflare Tunnel ID |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -4490,7 +4452,6 @@ Returns information about a Worker route, including URL pattern and Worker.
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
 | `routeId` | string | Yes | Route id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -4514,7 +4475,6 @@ Reads the deployment settings of a single Workers script — bindings, compatibi
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Workers scripts are account-scoped |
 | `scriptName` | string | Yes | The name of the Workers script to read settings for |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4685,7 +4645,6 @@ Gets details for a specific zone (domain) by its ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to retrieve details for |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4754,7 +4713,6 @@ Reads zone settings such as SSL mode, minimum TLS version, security level, and c
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to get settings for |
 | `settingIds` | string | No | Comma-separated setting IDs to read, e.g. "ssl,min_tls_version,security_level". Leave blank to read the default set \(ssl, always_use_https, min_tls_version, tls_1_3, security_level, cache_level, browser_cache_ttl, development_mode, rocket_loader, email_obfuscation, hotlink_protection, ip_geolocation, http2, http3, websockets\). At most 40 settings per call. |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -4791,7 +4749,6 @@ Lists the Cloudflare Access (Zero Trust) applications protecting an account. Req
 | `exact` | boolean | No | Whether the name and domain filters must match exactly |
 | `page` | number | No | Page number for pagination |
 | `per_page` | number | No | Number of applications per page |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -5206,7 +5163,6 @@ Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups b
 | `search` | string | No | Free-text search across groups |
 | `page` | number | No | Page number for pagination |
 | `per_page` | number | No | Number of groups per page |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -5497,7 +5453,6 @@ Lists the identity providers configured for Cloudflare Access (Zero Trust) in an
 | `page` | number | No | Page number of results. |
 | `per_page` | number | No | Number of results per page. |
 | `accountId` | string | Yes | The Cloudflare account ID. Identity providers are account-scoped |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -5591,7 +5546,6 @@ Lists the Cloudflare Access (Zero Trust) policies attached to an application, in
 | `appId` | string | Yes | The Access application ID whose policies should be listed |
 | `page` | number | No | Page number for pagination |
 | `per_page` | number | No | Number of policies per page |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -5843,7 +5797,6 @@ Lists the Cloudflare Access (Zero Trust) service tokens in an account, which let
 | `search` | string | No | Free-text search across service tokens |
 | `page` | number | No | Page number for pagination |
 | `per_page` | number | No | Number of service tokens per page |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -5891,7 +5844,6 @@ Lists SSL/TLS certificate packs for a zone.
 | `page` | number | No | Page number of paginated results \(default: 1\) |
 | `per_page` | number | No | Number of certificate packs per page \(default: 20, min: 5, max: 50\) |
 | `deploy` | string | No | Filter by deployment environment: "staging" or "production" |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -5998,7 +5950,6 @@ Lists DNS records for a specific zone.
 | `tag` | string | No | Filter by tag name, or an exact name:value pair \(e.g., team:DNS\) |
 | `tag_match` | string | No | Tag filter match logic: any or all. Only affects results when combined with multiple tag filter conditions; has no effect with the single exact-match Tag Filter above. |
 | `commentFilter` | string | No | Filter records by comment content \(substring match\) |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6094,7 +6045,6 @@ Lists the WAF managed rulesets deployed on a zone together with the overrides ap
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to read managed ruleset deployments and overrides for |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6130,7 +6080,6 @@ Lists the R2 object storage buckets in an account. Requires an API token with Ac
 | `direction` | string | No | Sort direction by bucket name: asc or desc |
 | `per_page` | number | No | Number of buckets per page |
 | `jurisdiction` | string | No | Data-residency jurisdiction to list within: default, eu, or fedramp |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6168,7 +6117,6 @@ Lists the rate limiting rules on a zone by reading the http_ratelimit phase entr
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to list rate limiting rules for |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6429,7 +6377,6 @@ Lists every ruleset defined on a zone across all phases (WAF custom rules, manag
 | `zoneId` | string | Yes | The zone ID to list rulesets for |
 | `per_page` | number | No | Number of rulesets to return per page |
 | `cursor` | string | No | Cursor for the next page, taken from the cursor output of a previous call. This endpoint paginates by cursor, not by page number |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6480,7 +6427,6 @@ Lists the Cloudflare Tunnels (cloudflared) in an account, with their health stat
 | `was_inactive_at` | string | No | Return tunnels that were inactive at this RFC 3339 timestamp |
 | `page` | number | No | Page number for pagination |
 | `per_page` | number | No | Number of tunnels per page |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6533,7 +6479,6 @@ Lists the Workers routes on a zone, showing which URL patterns are handled by wh
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to list Workers routes for. Routes are zone-scoped, not account-scoped |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6569,7 +6514,6 @@ Lists the Workers scripts deployed in an account. Requires an API token with Acc
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Workers scripts are account-scoped |
 | `tags` | string | No | Filter scripts by tag. Cloudflare expects a comma-separated list of tag:allowed pairs where allowed is yes or no, e.g. team:core:yes,deprecated:no |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6671,7 +6615,6 @@ Lists one page of zones (domains) in the Cloudflare account.
 | `order` | string | No | Sort field \(name, status, account.id, account.name, plan.id\) |
 | `direction` | string | No | Sort direction \(asc, desc\) |
 | `match` | string | No | Match logic for filters \(any, all\). Default: all |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6756,7 +6699,6 @@ Purges cached content for a zone. Can purge everything or specific files/tags/ho
 | `tags` | string | No | Comma-separated list of cache tags to purge |
 | `hosts` | string | No | Comma-separated list of hostnames to purge |
 | `prefixes` | string | No | Comma-separated list of URL prefixes to purge |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6778,7 +6720,6 @@ Refreshes the expiration of a service token.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `serviceTokenId` | string | Yes | Service token id |
-| `apiKey` | string | Yes | Cloudflare API token |
 
 #### Output
 
@@ -6811,7 +6752,6 @@ Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Service tokens are account-scoped |
 | `serviceTokenId` | string | Yes | The service token ID to revoke permanently |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -6844,7 +6784,6 @@ Generates a new Client Secret. The previous secret expires immediately unless pr
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `serviceTokenId` | string | Yes | Service token id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `previous_client_secret_expires_at` | string | No | The expiration of the previous `client_secret`. If not provided, it defaults to the current timestamp in order to immediately expire the previous secret. If the service token was reported as leaked, this must not be in the future; the leaked secret is discarded immediately. |
 
 #### Output
@@ -6917,7 +6856,6 @@ Updates a Cloudflare Access (Zero Trust) application. Cloudflare does not docume
 | `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{ "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" \}; OIDC, e.g. \{ "auth_type": "oidc", "client_id": "...", "redirect_uris": \[ "https://example.com/callback" \] \} |
 | `targetCriteria` | string | No | JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. \[\{"port":22,"protocol":"SSH","target_attributes":\{"hostname":\["production"\]\}\}\] |
 | `policies` | string | No | JSON array of policies to attach. Entries may be reusable policy IDs or inline policy objects |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -7317,7 +7255,6 @@ Updates a configured Access group. Replaces the configuration; resend all values
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `groupId` | string | Yes | Group id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `exclude` | json | No | JSON array. Rules evaluated with a NOT logical operator. To match a policy, a user cannot meet any of the Exclude rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. |
 | `include` | json | Yes | JSON array. Rules evaluated with an OR logical operator. A user needs to meet only one of the Include rules. Fields: group, any_valid_service_token, auth_context, auth_method, azureAD, certificate, common_name, geo, device_posture, email_domain, email_list, email, everyone, external_evaluation, github-organization, gsuite, login_method, ip_list, ip, okta, saml, oidc, service_token, linked_app_token, user_risk_score, cloudflare_account_member. |
 | `is_default` | boolean | No | Whether this is the default group |
@@ -7614,7 +7551,6 @@ Updates a Cloudflare Access (Zero Trust) policy on an application. Cloudflare do
 | `isolationRequired` | boolean | No | Whether the session must run in a remote isolated browser |
 | `purposeJustificationRequired` | boolean | No | Whether users must state a reason for access |
 | `purposeJustificationPrompt` | string | No | Prompt shown when a justification is required |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -7851,7 +7787,6 @@ Updates a configured service token. Replaces the configuration; resend all value
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `serviceTokenId` | string | Yes | Service token id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `client_secret_version` | number | No | A version number identifying the current `client_secret` associated with the service token. Incrementing it triggers a rotation; the previous secret will still be accepted until the time indicated by `previous_client_secret_expires_at`. If the service token was reported as leaked, `previous_client_secret_expires_at` is not required, may not be in the future, and the previous secret is discarded immediately. |
 | `duration` | string | No | The duration for how long the service token will be valid. Must be in the format `300ms` or `2h45m`, or the special value `forever` for non-expiring tokens. Valid time units are: ns, us \(or µs\), ms, s, m, h. The default is 1 year in hours \(8760h\). |
 | `enabled` | boolean | No | Whether the service token is enabled. A disabled service token cannot be used to authenticate; both its current and previous `client_secret` stop being accepted, but the token itself is preserved and can be re-enabled. A service token reported as leaked is disabled automatically and cannot be re-enabled until its secret is rotated; attempting to do so returns a 409. Defaults to enabled when omitted on create. |
@@ -7902,7 +7837,6 @@ Updates an existing DNS record for a zone.
 | `priority` | number | No | Record priority. Cloudflare accepts this top-level field for MX and URI records only; use the data object for structured records such as SRV \(priority, weight, port, target\) |
 | `comment` | string | No | Comment for the DNS record |
 | `tags` | string | No | Comma-separated tags for the DNS record |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -7987,7 +7921,6 @@ Replaces the Cross-Origin Resource Sharing (CORS) rules for an R2 bucket. Rules 
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `bucketName` | string | Yes | Bucket name |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `rules` | json | No | JSON array. rules Fields: allowed, exposeHeaders, id, maxAgeSeconds. |
 | `jurisdiction` | string | No | Jurisdiction where objects in this bucket are guaranteed to be stored. |
 
@@ -8011,7 +7944,6 @@ Replaces the object lifecycle rules for an R2 bucket. Rules match object-key pre
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `bucketName` | string | Yes | Bucket name |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `rules` | string | Yes | Complete JSON array of lifecycle rules. Read the current rules first and include every rule to retain. Use \[\] only to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions. |
 | `jurisdiction` | string | No | Jurisdiction where objects in this bucket are guaranteed to be stored. |
 
@@ -8054,7 +7986,6 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `ref` | string | No | Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value |
 | `actionParameters` | string | No | JSON object of action-specific parameters for the mitigation action, e.g. \{"response":\{"status_code":429,"content":"\{\"error\":\"rate limited\"\}","content_type":"application/json"\}\} for a custom block response. Because the update replaces the rule, omitting it resets action_parameters to \{\} and the rule falls back to Cloudflare's default block page |
 | `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -8314,7 +8245,6 @@ Updates the description and rules of a zone ruleset, creating a new version. Rea
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
 | `rulesetId` | string | Yes | Ruleset id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `description` | string | No | An informative description of the ruleset. |
 | `rules` | json | No | JSON array replacing the complete rule list. Read "Get Ruleset" first and include every rule to retain; omitted rules are removed, and \[\] removes all rules. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version. |
 | `dry_run` | boolean | No | Validates the request without persisting changes when set to `true`. Responses that normally return 200 return `result: null`; endpoints that normally return 204 continue to return 204. |
@@ -8589,7 +8519,6 @@ Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather
 | `actionParameters` | string | No | JSON object of action-specific parameters, e.g. \{"id":"&lt;MANAGED_RULESET_ID&gt;","overrides":\{"rules":\[\{"id":"&lt;RULE_ID&gt;","action":"log","enabled":true,"score_threshold":40\}\]\}\}. Required on an execute rule and must be sent on every update: the endpoint replaces the rule, so omitting it resets action_parameters to \{\} — which unbinds the managed ruleset the rule deploys and every override under it |
 | `ratelimit` | string | No | JSON rate limiting configuration to preserve on a rule in the http_ratelimit phase, e.g. \{"characteristics":\["cf.colo.id","ip.src"\],"period":60,"requests_per_period":100\}. Because the update replaces the rule, omitting this on a rate limiting rule stops it rate limiting |
 | `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
@@ -8849,7 +8778,6 @@ Updates the name or secret of an existing Cloudflare Tunnel.
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `tunnelId` | string | Yes | Tunnel id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `name` | string | No | A user-friendly name for a tunnel. |
 | `tunnel_secret` | string | No | Sets the password required to run a locally-managed tunnel. Must be at least 32 bytes and encoded as a base64 string. |
 
@@ -8893,7 +8821,6 @@ Replaces the configuration for a remotely managed Cloudflare Tunnel, including i
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | Account id |
 | `tunnelId` | string | Yes | Tunnel id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `config` | json | No | JSON object. The tunnel configuration and ingress rules. Fields: ingress, originRequest, warp-routing. |
 
 #### Output
@@ -8965,7 +8892,6 @@ Replaces the URL pattern or Worker associated with a Worker route. Replaces the 
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
 | `routeId` | string | Yes | Route id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `pattern` | string | Yes | Pattern to match incoming requests against. \[Learn more\]\(https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior). |
 | `script` | string | No | Name of the script to run if the route matches. |
 
@@ -8990,7 +8916,6 @@ Edits a zone. Only one zone property can be changed at a time.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | Zone id |
-| `apiKey` | string | Yes | Cloudflare API token |
 | `paused` | boolean | No | Indicates whether the zone is only using Cloudflare DNS services. A true value means the zone will not receive security or performance benefits. |
 | `plan` | json | No | JSON object. \(Deprecated\) Please use the `/zones/\{zone_id\}/subscription` API to update a zone's plan. Changing this value will create/cancel associated subscriptions. To view available plans for this zone, see Zone Plans. Fields: id. |
 | `type` | string | No | A full zone implies that DNS is hosted with Cloudflare. A partial zone is typically a partner-hosted zone or a CNAME setup. This parameter is only available to Enterprise customers or if it has been explicitly enabled on a zone. Allowed values: full, partial, secondary, internal. |
@@ -9065,7 +8990,6 @@ Updates a specific zone setting such as SSL mode, security level, cache level, o
 | `zoneId` | string | Yes | The zone ID to update settings for |
 | `settingId` | string | Yes | Setting to update \(e.g., "ssl", "security_level", "cache_level", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers"\) |
 | `value` | string | No | Required except for ssl_recommender. New value as a string, or a JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \["ECDHE-RSA-AES128-GCM-SHA256"\] for ciphers\) |
-| `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 

@@ -6,6 +6,7 @@ import { changeApplicationStageTool } from '@/tools/ashby/change_application_sta
 import { deleteApplicationTool } from '@/tools/ashby/delete_application'
 import { getApplicationTool } from '@/tools/ashby/get_application'
 import { getCandidateTool } from '@/tools/ashby/get_candidate'
+import { getJobTool } from '@/tools/ashby/get_job'
 import { getJobPostingTool } from '@/tools/ashby/get_job_posting'
 import { listApplicationsTool } from '@/tools/ashby/list_applications'
 import { listCandidatesTool } from '@/tools/ashby/list_candidates'
@@ -21,16 +22,18 @@ import { setCustomFieldValuesTool } from '@/tools/ashby/set_custom_field_values'
 import { transferApplicationTool } from '@/tools/ashby/transfer_application'
 import { updateCandidateTool } from '@/tools/ashby/update_candidate'
 import { ashbyAuthHeaders } from '@/tools/ashby/utils'
-import type { ToolConfig } from '@/tools/types'
 
 const respond = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
 
-function requestBody(tool: ToolConfig<never, never>, params: unknown): Record<string, unknown> {
+function requestBody(
+  tool: { request?: { body?: unknown } },
+  params: unknown
+): Record<string, unknown> {
   const build = tool.request?.body as (p: unknown) => Record<string, unknown>
   return build(params)
 }
 
-async function transform(tool: ToolConfig<never, never>, body: unknown) {
+async function transform(tool: { transformResponse?: unknown }, body: unknown) {
   const run = tool.transformResponse as (r: Response) => Promise<{ output: Record<string, never> }>
   return run(respond(body))
 }
@@ -261,6 +264,26 @@ describe('ashby request bodies', () => {
     })
     expect(body.includeUnpublishedJobPostings).toBe(true)
     expect(body).not.toHaveProperty('includeUnpublishedJobPostingsIds')
+  })
+
+  it('get_job sends the job.info spelling of the unpublished posting IDs flag', () => {
+    // job.info rejects unknown keys (additionalProperties: false).
+    const body = requestBody(getJobTool, {
+      apiKey: 'k',
+      jobId: ' j ',
+      includeUnpublishedJobPostingIds: true,
+    })
+    expect(body).toMatchObject({ id: 'j', includeUnpublishedJobPostingsIds: true })
+    expect(body).not.toHaveProperty('includeUnpublishedJobPostingIds')
+    for (const untouched of [null, '']) {
+      expect(
+        requestBody(getJobTool, {
+          apiKey: 'k',
+          jobId: 'j',
+          includeUnpublishedJobPostingIds: untouched,
+        })
+      ).toEqual({ id: 'j', expand: ['openings', 'location', 'compensation'] })
+    }
   })
 
   it('change_application_source sends sourceId when one is provided', () => {

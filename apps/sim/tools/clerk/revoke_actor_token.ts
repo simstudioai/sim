@@ -5,7 +5,9 @@ import type {
   ClerkRevokeActorTokenParams,
   ClerkRevokeActorTokenResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkRevokeActorToken')
 
@@ -17,6 +19,7 @@ export const clerkRevokeActorTokenTool: ToolConfig<
   name: 'Revoke Actor Token in Clerk',
   description: 'Revoke an actor token before it is used or expires',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -34,7 +37,8 @@ export const clerkRevokeActorTokenTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/actor_tokens/${params.actorTokenId?.trim()}/revoke`,
+    url: (params) =>
+      `https://api.clerk.com/v1/actor_tokens/${safeUrlPathSegment(params.actorTokenId, 'actorTokenId')}/revoke`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

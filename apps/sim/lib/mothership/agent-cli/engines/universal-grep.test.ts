@@ -524,6 +524,121 @@ describe('search authority and completeness', () => {
     expect(result.stderr).toContain('broken')
   })
 
+  it('skips files with no text extractor without fetching them or failing the search', async () => {
+    const requested: string[] = []
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith(
+        {
+          '/api/v2/files': {
+            data: [
+              { id: 'notes', name: 'notes.md', type: 'text/markdown' },
+              { id: 'report', name: 'report.pdf', type: 'application/pdf' },
+              { id: 'font', name: 'brand.woff2', type: 'font/woff2' },
+              { id: 'clip', name: 'demo.mp4', type: 'video/mp4' },
+            ],
+            nextCursor: null,
+          },
+          '/api/v2/files/notes/text': { data: { text: 'needle', degraded: false } },
+          '/api/v2/files/report/text': { data: { text: 'a needle', degraded: false } },
+        },
+        requested
+      ),
+      { scope: 'files' }
+    )
+    expect(requested.filter((path) => path !== '/api/v2/files').sort()).toEqual([
+      '/api/v2/files/notes/text',
+      '/api/v2/files/report/text',
+    ])
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toBe(
+      'files/notes.md (notes):1: needle\nfiles/report.pdf (report):1: a needle'
+    )
+    expect(result.stderr).toBe(
+      'Skipped 2 files with no searchable text (images, media, archives, and other binary formats).'
+    )
+  })
+
+  it('keeps real read failures incomplete beside skipped non-text files', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': {
+          data: [
+            { id: 'broken', name: 'broken.txt', type: 'text/plain' },
+            { id: 'logo', name: 'logo.png', type: 'image/png' },
+          ],
+          nextCursor: null,
+        },
+      }),
+      { scope: 'files' }
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toMatch(/^Search incomplete \(1 issue\)/)
+    expect(result.stderr).toContain('files/broken.txt (broken): could not read text')
+    expect(result.stderr).toContain('Skipped 1 file with no searchable text')
+  })
+
+  it('names a selected non-text file as searched-and-skipped, not an unknown selector', async () => {
+    const requested: string[] = []
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith(
+        {
+          '/api/v2/files': {
+            data: [{ id: 'logo', name: 'logo.png', type: 'image/png' }],
+            nextCursor: null,
+          },
+        },
+        requested
+      ),
+      { scope: 'files', in: 'files/logo' }
+    )
+    expect(requested).toEqual(['/api/v2/files'])
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('No matches')
+    expect(result.stderr).toContain('Skipped 1 file with no searchable text')
+  })
+
+  it('spends the file-read limit only on files with text', async () => {
+    const files = [
+      ...Array.from({ length: 300 }, (_, i) => ({
+        id: `img${i}`,
+        name: `img${i}.png`,
+        type: 'image/png',
+      })),
+      { id: 'notes', name: 'notes.txt', type: 'text/plain' },
+    ]
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      {
+        ...runtimeWith({}),
+        client: {
+          request: async <T>(
+            path: string,
+            options?: { query?: Record<string, string> }
+          ): Promise<T> => {
+            if (path === '/api/v2/files') {
+              const offset = Number(options?.query?.cursor ?? 0)
+              return {
+                data: files.slice(offset, offset + 100),
+                nextCursor: offset + 100 < files.length ? String(offset + 100) : null,
+              } as T
+            }
+            if (path === '/api/v2/files/notes/text') return { data: { text: 'needle' } } as T
+            throw new Error(`Unexpected request: ${path}`)
+          },
+        },
+      },
+      { scope: 'files', count: true }
+    )
+    expect(result).toMatchObject({ exitCode: 0, stdout: '1 (files=1)' })
+  })
+
   it('reports truncated extraction even when a returned prefix has a match', async () => {
     const result = await runEngine(
       'grep',

@@ -1,0 +1,16 @@
+{
+  "namespace": "legacy.devin",
+  "methods": {
+    "append_session_tags": "appendSessionTags",
+    "archive_session": "archiveSession",
+    "create_session": "createSession",
+    "get_session": "getSession",
+    "get_session_tags": "getSessionTags",
+    "list_session_attachments": "listSessionAttachments",
+    "list_session_messages": "listSessionMessages",
+    "list_sessions": "listSessions",
+    "replace_session_tags": "replaceSessionTags",
+    "send_message": "sendMessage",
+    "terminate_session": "terminateSession"
+  }
+}

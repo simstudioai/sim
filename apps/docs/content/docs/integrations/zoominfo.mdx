@@ -2,7 +2,7 @@
 title: ZoomInfo
 description: Search and enrich B2B company and contact data with ZoomInfo.
 integration:
-  type: "zoominfo"
+  type: "zoominfo_v2"
   color: "#EA1B15"
 ---
 
@@ -16,7 +16,7 @@ Use [ZoomInfo](https://www.zoominfo.com/) to search company and contact data, en
 
 **Search Intent** returns companies researching selected topics, signal scores, and recommended contacts. **Search News** filters by category, source URL, or publication date.
 
-Supply a client ID and secret. Sim exchanges them for a short-lived OAuth bearer token on each call; you do not supply the access token yourself.
+Connect ZoomInfo once as a ZoomInfo credential: create a client credentials app in the ZoomInfo Developer Portal, choose the integration user it acts as, and add its client ID and client secret. Sim checks the credential by requesting a token, without calling a data endpoint, and requests a new token before each one expires. Every call acts as the app's integration user with the scopes configured on the app, and data calls consume credits as usual. Workflows built with the earlier ZoomInfo block keep the client ID and secret they entered in the block.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -35,8 +35,6 @@ Search the ZoomInfo company database by name, industry, location, and size.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
 | `companyName` | string | No | Company name to search for |
 | `companyWebsite` | string | No | Company website \(comma-separated for multiple\) |
 | `companyTicker` | string | No | Stock ticker symbols — JSON array, comma-separated list, or single ticker. Sent to the API as an array. |
@@ -75,8 +73,6 @@ Search ZoomInfo for contacts (people) by name, job title, company, and other fil
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
 | `firstName` | string | No | First name |
 | `lastName` | string | No | Last name |
 | `fullName` | string | No | Full name |
@@ -109,12 +105,12 @@ Search ZoomInfo for contacts (people) by name, job title, company, and other fil
 
 Enrich up to 25 companies in one request with detailed firmographics, industry, financials, and more.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
 | `matchCompanyInput` | string | Yes | JSON array \(1-25 items\) of company matching criteria, e.g. \[\{"companyName":"Acme","companyWebsite":"acme.com"\}\] |
 | `outputFields` | string | No | JSON array or comma-separated list of fields to return \(e.g. \["id","name","website","revenue","employeeCount"\]\). Defaults to a standard firmographic set if omitted. |
 
@@ -124,16 +120,18 @@ Enrich up to 25 companies in one request with detailed firmographics, industry, 
 | --------- | ---- | ----------- |
 | `results` | array | Enrichment results, one per input with match status and attributes |
 
+</ReferenceDetails>
+
 ### ZoomInfo Enrich Contacts
 
 Enrich up to 25 contacts in one request with verified emails, phone numbers, job details, and more.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
 | `matchPersonInput` | string | Yes | JSON array \(1-25 items\) of contact matching criteria, e.g. \[\{"firstName":"Jane","lastName":"Doe","companyName":"Acme"\}\] |
 | `outputFields` | string | No | JSON array or comma-separated list of fields to return \(e.g. \["id","firstName","email","phone","jobTitle"\]\). Defaults to a standard contact set if omitted. |
 | `requiredFields` | string | No | JSON array or comma-separated list of fields that must exist in results \(e.g. \["email"\]\) |
@@ -144,16 +142,18 @@ Enrich up to 25 contacts in one request with verified emails, phone numbers, job
 | --------- | ---- | ----------- |
 | `results` | array | Enrichment results, one per input with match status and attributes |
 
+</ReferenceDetails>
+
 ### ZoomInfo Search Intent
 
 Search for companies showing intent signals on specific topics.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
 | `topics` | string | Yes | Up to 50 intent topics as JSON array or comma-separated list \(e.g. \["CRM Software","Marketing Automation"\]\) |
 | `signalStartDate` | string | No | Earliest signal date \(YYYY-MM-DD\) |
 | `signalEndDate` | string | No | Latest signal date \(YYYY-MM-DD\) |
@@ -177,16 +177,18 @@ Search for companies showing intent signals on specific topics.
 | `currentPage` | number | Current page number |
 | `totalPages` | number | Total number of pages available |
 
+</ReferenceDetails>
+
 ### ZoomInfo Search News
 
 Search ZoomInfo news articles by category, URL, or date range.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | ZoomInfo OAuth client ID |
-| `clientSecret` | string | Yes | ZoomInfo OAuth client secret |
 | `categories` | string | No | News categories as JSON array or comma-separated list |
 | `url` | string | No | News source URLs as JSON array or comma-separated list |
 | `pageDateMin` | string | No | Earliest publish date \(YYYY-MM-DD\) |
@@ -202,5 +204,7 @@ Search ZoomInfo news articles by category, URL, or date range.
 | `totalResults` | number | Total number of matching results across all pages |
 | `currentPage` | number | Current page number |
 | `totalPages` | number | Total number of pages available |
+
+</ReferenceDetails>
 
 

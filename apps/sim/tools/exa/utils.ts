@@ -1,12 +1,15 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { ExaFreshnessParams } from '@/tools/exa/types'
 
-/** Splits a comma-separated user string into a trimmed, non-empty list. */
-export function parseCommaList(value: string | undefined): string[] | undefined {
-  if (!value) return undefined
-  const items = value
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
+/**
+ * Reads a list param as a trimmed, non-empty list. Block inputs send a comma-separated
+ * string; agent tool calls often send an array instead. Anything else reads as unset.
+ */
+export function parseCommaList(value: unknown): string[] | undefined {
+  const parts = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : []
+  const items = parts
+    .map((item) => toStringOrNull(item)?.trim())
+    .filter((item): item is string => Boolean(item))
   return items.length > 0 ? items : undefined
 }
 
@@ -53,7 +56,7 @@ export function applyFreshness(target: Record<string, any>, params: ExaFreshness
     target.livecrawl = params.livecrawl
   }
 
-  if (params.livecrawlTimeout !== undefined && String(params.livecrawlTimeout).trim() !== '') {
+  if (params.livecrawlTimeout != null && String(params.livecrawlTimeout).trim() !== '') {
     target.livecrawlTimeout = Number(params.livecrawlTimeout)
   }
 }

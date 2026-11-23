@@ -1,9 +1,9 @@
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import type { CanonicalFieldSpec } from '@/lib/workflows/canonical/subblock-value'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 /** The declared shape of one block type, indexed for O(1) lookup per subblock. */

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toWellFormed, truncate } from '@sim/utils/string'
-import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { env, envNumber } from '@/lib/core/config/env'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -52,7 +52,7 @@ function displayEntityType(type: string, patterns?: CustomPiiPattern[]): string 
  * raise via `PII_SERVICE_CHUNK_CONCURRENCY` for a scaled Presidio fleet (this is
  * the route → Presidio fan-out, inner to the app → route `PII_MASK_CHUNK_CONCURRENCY`).
  */
-const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
+const CHUNK_CONCURRENCY = envNumber(env.PII_SERVICE_CHUNK_CONCURRENCY, 4, { min: 1, integer: true })
 
 /** Presidio service serving /analyze, /anonymize, and combined /redact (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'
@@ -425,7 +425,8 @@ async function anonymize(
 export async function validatePII(input: PIIValidationInput): Promise<PIIValidationResult> {
   const { text, entityTypes, mode, language = 'en', customPatterns, requestId, abortSignal } = input
 
-  logger.info(`[${requestId}] Starting PII validation`, {
+  logger.info('Starting PII validation', {
+    requestId,
     textLength: text.length,
     entityTypes,
     mode,
@@ -448,7 +449,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
     }))
 
     if (spans.length === 0) {
-      logger.info(`[${requestId}] PII validation completed`, { passed: true, detectedCount: 0 })
+      logger.info('PII validation completed', { requestId, passed: true, detectedCount: 0 })
       return assertValidationResultBudget({
         passed: true,
         detectedEntities: [],
@@ -462,7 +463,8 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
       const summary = Array.from(counts.entries())
         .map(([type, count]) => `${count} ${type}`)
         .join(', ')
-      logger.info(`[${requestId}] PII validation completed`, {
+      logger.info('PII validation completed', {
+        requestId,
         passed: false,
         detectedCount: detectedEntities.length,
       })
@@ -477,7 +479,8 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
     // pattern's `replacement` for custom-pattern spans).
     const maskedText = await anonymize(text, spans, customPatterns, abortSignal)
     abortSignal?.throwIfAborted()
-    logger.info(`[${requestId}] PII validation completed`, {
+    logger.info('PII validation completed', {
+      requestId,
       passed: true,
       detectedCount: detectedEntities.length,
       hasMaskedText: true,
@@ -486,7 +489,7 @@ export async function validatePII(input: PIIValidationInput): Promise<PIIValidat
   } catch (error) {
     if (isAbortError(error) || abortSignal?.aborted) throw error
     const errorMessage = truncate(getErrorMessage(error), 950)
-    logger.error(`[${requestId}] PII validation failed`, { error: errorMessage })
+    logger.error('PII validation failed', { requestId, error: errorMessage })
     return {
       passed: false,
       error: `PII validation failed: ${errorMessage}`,

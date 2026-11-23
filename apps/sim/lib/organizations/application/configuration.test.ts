@@ -45,10 +45,8 @@ vi.mock('@sim/audit', () => auditMock)
 import {
   getOrganizationDataRetention,
   getOrganizationSessionPolicy,
-  getOrganizationWhitelabel,
   updateOrganizationDataRetention,
   updateOrganizationSessionPolicy,
-  updateOrganizationWhitelabel,
 } from '@/lib/organizations/application/configuration'
 import {
   GET as getRetentionRoute,
@@ -117,7 +115,7 @@ describe('organization configuration HTTP adapters', () => {
 })
 
 describe('organization configuration authorization', () => {
-  it.each([getOrganizationWhitelabel, getOrganizationSessionPolicy, getOrganizationDataRetention])(
+  it.each([getOrganizationSessionPolicy, getOrganizationDataRetention])(
     'preserves member reads and 403 membership refusal for $operation.id',
     async (useCase) => {
       queueTableRows(member, [])
@@ -136,7 +134,7 @@ describe('organization configuration authorization', () => {
     queueTableRows(member, [{ role: 'member' }])
     queueTableRows(organization, [])
     await expect(
-      getOrganizationWhitelabel.execute({ principal: session, input: { organizationId: 'org' } })
+      getOrganizationSessionPolicy.execute({ principal: session, input: { organizationId: 'org' } })
     ).rejects.toMatchObject({ code: 'not_found' })
   })
 
@@ -147,7 +145,7 @@ describe('organization configuration authorization', () => {
     { ...delegated(), expiresAt: new Date(0) },
   ])('rejects invalid authority before protected reads', async (principal) => {
     await expect(
-      getOrganizationWhitelabel.execute({ principal, input: { organizationId: 'org' } })
+      getOrganizationSessionPolicy.execute({ principal, input: { organizationId: 'org' } })
     ).rejects.toBeInstanceOf(Error)
     expect(dbChainMockFns.from).not.toHaveBeenCalled()
   })
@@ -155,26 +153,29 @@ describe('organization configuration authorization', () => {
   it('reauthorizes delegated current membership on every call', async () => {
     const principal = delegated()
     queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(organization, [{ settings: { brandName: 'Acme' } }])
+    queueTableRows(organization, [{ sessionPolicySettings: { maxSessionHours: 72 } }])
     await expect(
-      getOrganizationWhitelabel.execute({ principal, input: { organizationId: 'org' } })
-    ).resolves.toEqual({ isEnterprise: true, settings: { brandName: 'Acme' } })
+      getOrganizationSessionPolicy.execute({ principal, input: { organizationId: 'org' } })
+    ).resolves.toEqual({
+      isEnterprise: true,
+      configured: { maxSessionHours: 72, idleTimeoutHours: null },
+    })
     queueTableRows(member, [])
     await expect(
-      getOrganizationWhitelabel.execute({ principal, input: { organizationId: 'org' } })
+      getOrganizationSessionPolicy.execute({ principal, input: { organizationId: 'org' } })
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
   it('refuses member writes before entitlement or mutation', async () => {
     queueTableRows(member, [{ role: 'member' }])
     await expect(
-      updateOrganizationWhitelabel.execute({
+      updateOrganizationSessionPolicy.execute({
         principal: session,
-        input: { organizationId: 'org', settings: { brandName: 'New' } },
+        input: { organizationId: 'org', settings: { maxSessionHours: 72, idleTimeoutHours: null } },
       })
     ).rejects.toMatchObject({
       code: 'forbidden',
-      message: 'Forbidden - Only organization owners and admins can update whitelabel settings',
+      message: 'Forbidden - Only organization owners and admins can update the session policy',
     })
     expect(mocks.entitled).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()

@@ -1,6 +1,7 @@
 import type { WorkflowsCreateParams, WorkflowsCreateResponse } from '@/tools/incidentio/types'
 import { INCIDENTIO_WORKFLOW_OUTPUT_PROPERTIES } from '@/tools/incidentio/types'
 import { mapIncidentioWorkflow, parseIncidentioJsonParam } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCreateResponse> = {
@@ -8,6 +9,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
   name: 'incident.io Workflows Create',
   description: 'Create a new workflow in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

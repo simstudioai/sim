@@ -14,6 +14,7 @@ import {
   mapInvitation,
   mapListMeta,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListInvitationsTool: ToolConfig<
@@ -24,6 +25,7 @@ export const checkrListInvitationsTool: ToolConfig<
   name: 'Checkr List Invitations',
   description: 'List invitations, optionally filtered by candidate or status.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

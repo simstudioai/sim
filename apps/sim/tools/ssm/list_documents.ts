@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmListDocumentsParams, SsmListDocumentsResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const listDocumentsTool: InternalToolConfig<
   name: 'SSM List Documents',
   description: 'List SSM documents and runbooks available to an AWS account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

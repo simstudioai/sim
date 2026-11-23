@@ -4,9 +4,13 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
+import {
+  type CredentialGroupConnectionIntent,
+  credentialGroupConnectionIntentSchema,
+} from '@/lib/credential-groups/oauth-intent'
 
 const MCP_OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const MCP_OAUTH_ATTEMPT_VERSION = 3 as const
+const MCP_OAUTH_ATTEMPT_VERSION = 4 as const
 const MCP_OAUTH_STATE_PREFIX = 'mcp_cg_'
 
 const CONSUME_SCRIPT = `
@@ -29,6 +33,7 @@ return #keys
 
 interface StoredCredentialGroupMcpOAuthAttempt {
   completionId?: string
+  connectionIntent?: CredentialGroupConnectionIntent
   returnTo?: 'integrations'
   oauthConfigVersion: number
   configurationFingerprint?: string
@@ -47,6 +52,7 @@ interface StoredCredentialGroupMcpOAuthAttempt {
 
 export interface CredentialGroupMcpOAuthAttempt {
   completionId?: string
+  connectionIntent?: CredentialGroupConnectionIntent
   returnTo?: 'integrations'
   oauthConfigVersion: number
   configurationFingerprint?: string
@@ -61,12 +67,6 @@ export interface CredentialGroupMcpOAuthAttempt {
   codeVerifier: string
   invitationToken: string
   createdAt: number
-}
-
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Credential Group MCP OAuth requires Redis')
-  return redis
 }
 
 function attemptKey(state: string): string {
@@ -91,6 +91,8 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuth
     (candidate.completionId === undefined ||
       (typeof candidate.completionId === 'string' && isValidUuid(candidate.completionId))) &&
     (candidate.returnTo === undefined || candidate.returnTo === 'integrations') &&
+    (candidate.connectionIntent === undefined ||
+      credentialGroupConnectionIntentSchema.safeParse(candidate.connectionIntent).success) &&
     typeof candidate.userId === 'string' &&
     candidate.userId.length > 0 &&
     ((typeof candidate.workspaceId === 'string' &&
@@ -117,6 +119,7 @@ export function isCredentialGroupMcpOAuthState(state: string): boolean {
 
 export async function createCredentialGroupMcpOAuthAttempt(params: {
   completionId?: string
+  connectionIntent?: CredentialGroupConnectionIntent
   returnTo?: 'integrations'
   oauthConfigVersion: number
   configurationFingerprint?: string
@@ -137,7 +140,7 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   if (!isCredentialGroupMcpOAuthState(params.state)) {
     throw new Error('Managed MCP OAuth state has an invalid prefix')
   }
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const [codeVerifier, invitationToken] = await Promise.all([
     encryptSecret(params.codeVerifier),
     encryptSecret(params.invitationToken),
@@ -145,6 +148,7 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   const attempt: StoredCredentialGroupMcpOAuthAttempt = {
     version: MCP_OAUTH_ATTEMPT_VERSION,
     completionId: params.completionId,
+    connectionIntent: params.connectionIntent,
     returnTo: params.returnTo,
     oauthConfigVersion: params.oauthConfigVersion,
     configurationFingerprint: params.configurationFingerprint,
@@ -174,13 +178,13 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   state: string
 ): Promise<CredentialGroupMcpOAuthAttempt | null> {
   if (!isCredentialGroupMcpOAuthState(state)) return null
-  const raw = await requireRedis().eval(CONSUME_SCRIPT, 1, attemptKey(state))
+  const raw = await getRedisClient().eval(CONSUME_SCRIPT, 1, attemptKey(state))
   if (raw === null) return null
   if (typeof raw !== 'string') throw new Error('Credential Group MCP OAuth state is malformed')
   const parsed: unknown = JSON.parse(raw)
   assertCredentialGroupOAuthAttemptVersion(parsed, MCP_OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential Group MCP OAuth state is malformed')
-  await requireRedis().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
+  await getRedisClient().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
   if (Date.now() - parsed.createdAt > MCP_OAUTH_ATTEMPT_TTL_MS) return null
   const [codeVerifier, invitationToken] = await Promise.all([
     decryptSecret(parsed.encryptedCodeVerifier),
@@ -189,6 +193,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   return {
     state,
     completionId: parsed.completionId,
+    connectionIntent: parsed.connectionIntent,
     returnTo: parsed.returnTo,
     oauthConfigVersion: parsed.oauthConfigVersion,
     configurationFingerprint: parsed.configurationFingerprint,
@@ -206,7 +211,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
 
 export async function clearCredentialGroupMcpOAuthAttempts(mcpServerIds: string[]): Promise<void> {
   if (mcpServerIds.length === 0) return
-  const redis = requireRedis()
+  const redis = getRedisClient()
   await Promise.all(
     mcpServerIds.map((mcpServerId) =>
       redis.eval(CLEAR_SERVER_ATTEMPTS_SCRIPT, 1, serverAttemptsKey(mcpServerId))

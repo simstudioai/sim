@@ -1,26 +1,29 @@
 ---
 title: Greptile
-description: AI-powered codebase search and Q&A
+description: Index repositories and check indexing status with Greptile
 integration:
   type: "greptile"
   color: "#181C1E"
 ---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
 [Greptile](https://www.greptile.com/) searches and answers questions about code repositories. Index a repository and check its status before querying it, then use natural-language questions or code search to retrieve answers and relevant files.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
-Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.
+Index repositories with Greptile and check their indexing status. Greptile has retired its natural-language query and search endpoints, so the Query operation is no longer offered.
 
 ## Actions
 
 ### Greptile Query
 
-Query repositories in natural language and get answers with relevant code references. Greptile uses AI to understand your codebase and answer questions.
+Retired: Greptile removed the POST /v2/query endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -48,9 +51,13 @@ Query repositories in natural language and get answers with relevant code refere
 |   ↳ `summary` | string | Summary of the code section |
 |   ↳ `distance` | number | Similarity score \(lower = more relevant\) |
 
+</ReferenceDetails>
+
 ### Greptile Index Repository
 
 Submit a repository to be indexed by Greptile. Indexing must complete before the repository can be queried. Small repos take 3-5 minutes, larger ones can take over an hour.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -72,9 +79,13 @@ Submit a repository to be indexed by Greptile. Indexing must complete before the
 | `statusEndpoint` | string | URL endpoint to check indexing status |
 | `message` | string | Status message about the indexing operation |
 
+</ReferenceDetails>
+
 ### Greptile Repository Status
 
 Check the indexing status of a repository. Use this to verify if a repository is ready to be queried or to monitor indexing progress.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -99,5 +110,7 @@ Check the indexing status of a repository. Use this to verify if a repository is
 | `numFiles` | number | Total number of files in the repository |
 | `sampleQuestions` | array | Sample questions for the indexed repository |
 | `sha` | string | Git commit SHA of the indexed version |
+
+</ReferenceDetails>
 
 

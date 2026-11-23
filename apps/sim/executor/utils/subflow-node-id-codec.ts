@@ -248,6 +248,13 @@ export function normalizeLookupId(id: string): string {
 }
 
 /**
+ * Strips loop digests (`_loopN`) from an ID, e.g. a pause context ID scoped to a loop iteration.
+ */
+export function stripLoopDigest(id: string): string {
+  return id.replace(LOOP_DIGEST.STRIP, '')
+}
+
+/**
  * Returns the leading branch subscript (`₍N₎`) of a node ID, or '' when absent.
  */
 export function extractBranchSuffix(id: string): string {

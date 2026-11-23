@@ -1,4 +1,9 @@
+import type { ConnectorPermissionGrants } from '@/lib/api/contracts/knowledge/connector-permissions'
 import type { DbTransaction } from '@/lib/db/types'
+import type {
+  ConnectorPermissionData,
+  ConnectorPermissionSnapshot,
+} from '@/lib/knowledge/connectors/permission-store'
 import type {
   GitLabPermissionInput,
   GitLabPermissionSummary,
@@ -9,6 +14,7 @@ export type ConnectorPermissionConfig = { provider: 'gitlab' } & GitLabPermissio
 export type ConnectorPermissionSummary = { provider: 'gitlab' } & GitLabPermissionSummary
 
 export interface PrepareConnectorPermissionsInput {
+  isSearchIndex?: boolean
   accessMode: string
   sourceConfig: Record<string, unknown>
   permissionConfig?: ConnectorPermissionConfig
@@ -31,6 +37,15 @@ export interface PreparedConnectorPermissions {
 
 /** Providers own private configuration and grants; orchestration owns the surrounding transaction. */
 export interface ConnectorPermissionConfigCapability {
+  grantReplacement?: {
+    supports(metadata: unknown): boolean
+    prepare(
+      snapshot: Pick<ConnectorPermissionSnapshot, 'revision' | 'metadata'>,
+      expectedRevision: number,
+      permissions: ConnectorPermissionGrants,
+      source: { sourceConfig: unknown; encryptedApiKey: string | null }
+    ): ConnectorPermissionData | Promise<ConnectorPermissionData>
+  }
   prepare(
     input: PrepareConnectorPermissionsInput
   ): Promise<PreparedConnectorPermissions | undefined>

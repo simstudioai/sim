@@ -1,9 +1,12 @@
 import { HuggingFaceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const HuggingFaceBlock: BlockConfig = {
   type: 'huggingface',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'huggingface_v2' },
   name: 'Hugging Face',
   description: 'Use Hugging Face Inference API',
   authMode: AuthMode.ApiKey,
@@ -44,18 +47,19 @@ export const HuggingFaceBlock: BlockConfig = {
       title: 'Provider',
       type: 'dropdown',
       required: true,
+      // Hidden providers have no chat-completions route in @huggingface/inference; kept so saved workflows still validate.
       options: [
         { label: 'Novita', id: 'novita' },
         { label: 'Cerebras', id: 'cerebras' },
         { label: 'Cohere', id: 'cohere' },
-        { label: 'Fal AI', id: 'fal' },
+        { label: 'Fal AI', id: 'fal', hidden: true },
         { label: 'Fireworks', id: 'fireworks' },
-        { label: 'Hyperbolic', id: 'hyperbolic' },
+        { label: 'Hyperbolic', id: 'hyperbolic', hidden: true },
         { label: 'HF Inference', id: 'hf-inference' },
-        { label: 'Nebius', id: 'nebius' },
+        { label: 'Nebius', id: 'nebius', hidden: true },
         { label: 'Nscale', id: 'nscale' },
-        { label: 'Replicate', id: 'replicate' },
-        { label: 'SambaNova', id: 'sambanova' },
+        { label: 'Replicate', id: 'replicate', hidden: true },
+        { label: 'SambaNova', id: 'sambanova', hidden: true },
         { label: 'Together', id: 'together' },
       ],
       value: () => 'novita',
@@ -76,7 +80,7 @@ export const HuggingFaceBlock: BlockConfig = {
       type: 'slider',
       min: 0,
       max: 2,
-      value: () => '0.7',
+      value: () => 0.7,
     },
     {
       id: 'maxTokens',
@@ -104,7 +108,12 @@ export const HuggingFaceBlock: BlockConfig = {
           model: params.model,
           content: params.content,
           systemPrompt: params.systemPrompt,
-          temperature: params.temperature ? Number.parseFloat(params.temperature) : undefined,
+          temperature:
+            params.temperature === undefined ||
+            params.temperature === null ||
+            params.temperature === ''
+              ? undefined
+              : Number.parseFloat(params.temperature),
           maxTokens: params.maxTokens ? Number.parseInt(params.maxTokens) : undefined,
           stream: false, // Always false
         }
@@ -222,3 +231,17 @@ export const HuggingFaceBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const HuggingFaceV2Block: BlockConfig = {
+  ...HuggingFaceBlock,
+  type: 'huggingface_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(HuggingFaceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'huggingface',
+    title: 'Hugging Face Credential',
+  }),
+}

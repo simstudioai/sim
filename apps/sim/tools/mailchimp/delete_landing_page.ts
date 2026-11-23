@@ -1,5 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpDeleteLandingPageParams {
   apiKey: string
@@ -18,6 +20,7 @@ export const mailchimpDeleteLandingPageTool: ToolConfig<
   name: 'Delete Landing Page from Mailchimp',
   description: 'Delete a landing page from Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -35,7 +38,11 @@ export const mailchimpDeleteLandingPageTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/landing-pages/${params.pageId}`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/landing-pages/${safeUrlPathSegment(params.pageId, 'pageId')}`
+      ),
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

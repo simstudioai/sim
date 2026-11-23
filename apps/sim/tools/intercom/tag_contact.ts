@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomTagContactParams {
   accessToken: string
@@ -40,7 +42,7 @@ const tagContactBase = {
 
   request: {
     url: (params: IntercomTagContactParams) =>
-      buildIntercomUrl(`/contacts/${params.contactId}/tags`),
+      buildIntercomUrl(`/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}/tags`),
     method: 'POST',
     headers: (params: IntercomTagContactParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -62,6 +64,7 @@ export const intercomTagContactV2Tool: ToolConfig<
   name: 'Tag Contact in Intercom',
   description: 'Add a tag to a specific contact',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

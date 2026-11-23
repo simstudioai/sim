@@ -1,4 +1,5 @@
 import type { DynamoDBUpdateParams, DynamoDBUpdateResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse> = {
@@ -6,6 +7,7 @@ export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdate
   name: 'DynamoDB Update',
   description: 'Update an item in a DynamoDB table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -66,6 +68,13 @@ export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdate
       description:
         'Condition that must be met for the update to succeed (e.g., "attribute_exists(pk)" or "version = :expectedVersion")',
     },
+    returnValues: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Which attributes to return as item: "ALL_NEW" (default), "UPDATED_NEW", "ALL_OLD", "UPDATED_OLD", or "NONE"',
+    },
   },
 
   operation: {
@@ -83,6 +92,7 @@ export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdate
         expressionAttributeValues: params.expressionAttributeValues,
       }),
       ...(params.conditionExpression && { conditionExpression: params.conditionExpression }),
+      ...(params.returnValues && { returnValues: params.returnValues }),
     }),
   },
 
@@ -105,6 +115,11 @@ export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdate
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    item: { type: 'json', description: 'Updated item with all attributes', optional: true },
+    item: {
+      type: 'json',
+      description:
+        'Item attributes selected by returnValues (all attributes after the update by default)',
+      optional: true,
+    },
   },
 }

@@ -15,7 +15,7 @@ Sim is the **AI workspace** where teams build and run AI agents. Not a workflow 
 
 **Short definition:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
 
-**Full definition:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code.
+**Full definition:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 280+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code.
 
 ## Audience
 
@@ -51,7 +51,7 @@ When describing Sim, always lead with the most differentiated claim:
 1. **What it is:** "The AI workspace for teams"
 2. **What you do:** "Build, deploy, and manage AI agents"
 3. **How:** "Visually, conversationally, or with code"
-4. **Scale:** "1,000+ integrations, every major LLM"
+4. **Scale:** "280+ integrations, every major LLM" (code reads `INTEGRATION_COUNT_LABEL` from `@sim/deployment-config/integration-claims`, never a hardcoded count)
 5. **Trust:** "Open source. SOC2. Trusted by 100,000+ builders."
 
 ## Module Descriptions

@@ -2,10 +2,12 @@ import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { TracerProvider } from '@opentelemetry/sdk-trace'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
@@ -16,9 +18,9 @@ import {
 } from '@sim/testing/mocks/mothership-async-runs.mock'
 import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
@@ -26,6 +28,7 @@ import {
   MothershipStreamV1EventType,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { TitleRequest } from '@/lib/mothership/generated/protocol'
+import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
@@ -42,6 +45,7 @@ const {
   releasePendingChatStream,
   unregisterActiveStream,
   buildChatTitleContext,
+  hasStreamViewer,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   resetBuffer: vi.fn(),
@@ -56,6 +60,7 @@ const {
   releasePendingChatStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
   buildChatTitleContext: vi.fn().mockResolvedValue(undefined),
+  hasStreamViewer: vi.fn(),
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -108,8 +113,9 @@ vi.mock('@/lib/mothership/request/session', () => ({
   releasePendingChatStream,
   registerActiveStream,
   unregisterActiveStream,
+  hasStreamViewer,
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
-  isExplicitStopReason: (reason: unknown) => reason === 'user_stop:abortActiveStream',
+  isExplicitStopReason: (reason: unknown) => isExplicitStopReason(reason),
   SSE_RESPONSE_HEADERS: {},
   StreamWriter: class {
     attach = vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
@@ -145,7 +151,7 @@ vi.mock('@/lib/mothership/request/session/sse', () => ({
 
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
@@ -154,7 +160,7 @@ import { createSSEStream, requestChatTitle } from './start'
 const { mockCreateRunSegment: createRunSegment, mockUpdateRunStatus: updateRunStatus } =
   mothershipAsyncRunsMockFns
 const recordRunBillingAdmission = mothershipAsyncRunsMockFns.mockRecordRunBillingAdmission
-const fetchGo = mothershipGoFetchMockFns.mockFetchGo
+const fetchWorker = mothershipWorkerFetchMockFns.mockFetchWorker
 mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
 
 const checkTitleUsage = billingAttributionMockFns.mockCheckAttributedUsageLimits
@@ -179,7 +185,7 @@ describe('createSSEStream terminal error handling', () => {
     mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: false })
-    fetchGo.mockResolvedValue(
+    fetchWorker.mockResolvedValue(
       new Response(JSON.stringify({ title: 'Test title' }), {
         status: 200,
         headers: {
@@ -349,7 +355,7 @@ describe('createSSEStream terminal error handling', () => {
       const chatId = '11111111-1111-4111-8111-111111111111'
       const workspaceId = '22222222-2222-4222-8222-222222222222'
       dbChainMockFns.returning.mockResolvedValue(stamped ? [{ id: chatId }] : [])
-      fetchGo.mockImplementation(async (_url, request) => {
+      fetchWorker.mockImplementation(async (_url, request) => {
         TitleRequest.parse(JSON.parse(request.body))
         return Response.json({ title: 'Workflow planning' })
       })
@@ -405,6 +411,42 @@ describe('createSSEStream terminal error handling', () => {
     }
   )
 
+  it('counts the send as viewed while its response is attached, and asks for a reader once it is not', async () => {
+    const lifecycleDone = createDeferred<void>()
+    let hasClientViewer: (() => Promise<boolean>) | undefined
+    runCopilotLifecycle.mockImplementationOnce(
+      async (_payload: unknown, options: { hasClientViewer?: () => Promise<boolean> }) => {
+        hasClientViewer = options.hasClientViewer
+        await lifecycleDone.promise
+        return { success: true, content: '', contentBlocks: [], toolCalls: [] }
+      }
+    )
+    hasStreamViewer.mockResolvedValue(false)
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-viewer',
+      executionId: 'exec-viewer',
+      runId: 'run-viewer',
+      currentChat: null,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-viewer',
+      orchestrateOptions: { userId: 'user-1' },
+    })
+    await vi.waitFor(() => expect(hasClientViewer).toBeDefined())
+
+    expect(await hasClientViewer?.()).toBe(true)
+
+    await stream.cancel()
+    expect(await hasClientViewer?.()).toBe(false)
+    hasStreamViewer.mockResolvedValueOnce(true)
+    expect(await hasClientViewer?.()).toBe(true)
+    expect(hasStreamViewer).toHaveBeenCalledWith('stream-viewer')
+
+    lifecycleDone.resolve()
+  })
+
   it('starts the agent while title metadata is pending and forwards recovered inventory', async () => {
     let resolveContext!: (value: string) => void
     buildChatTitleContext.mockImplementationOnce(
@@ -413,7 +455,7 @@ describe('createSSEStream terminal error handling', () => {
           resolveContext = resolve
         })
     )
-    fetchGo.mockResolvedValueOnce(Response.json({ title: 'Finance planning' }))
+    fetchWorker.mockResolvedValueOnce(Response.json({ title: 'Finance planning' }))
     const recoveredInventory = { workflows: [{ name: 'Invoice approval' }] }
     const stream = createSSEStream({
       requestPayload: { message: 'Plan', inventory: recoveredInventory },
@@ -431,13 +473,15 @@ describe('createSSEStream terminal error handling', () => {
     })
     await vi.waitFor(() => expect(buildChatTitleContext).toHaveBeenCalled())
     expect(runCopilotLifecycle).toHaveBeenCalled()
-    expect(fetchGo).not.toHaveBeenCalled()
+    expect(fetchWorker).not.toHaveBeenCalled()
     expect(buildChatTitleContext).toHaveBeenCalledWith(
       expect.objectContaining({ inventory: recoveredInventory })
     )
     resolveContext('{"workspaceName":"Finance"}')
-    await vi.waitFor(() => expect(fetchGo).toHaveBeenCalled())
-    expect(JSON.parse(fetchGo.mock.calls[0][1].body).context).toBe('{"workspaceName":"Finance"}')
+    await vi.waitFor(() => expect(fetchWorker).toHaveBeenCalled())
+    expect(JSON.parse(fetchWorker.mock.calls[0][1].body).context).toBe(
+      '{"workspaceName":"Finance"}'
+    )
     await drainStream(stream)
   })
 
@@ -460,7 +504,7 @@ describe('createSSEStream terminal error handling', () => {
       })
     )
     expect(runCopilotLifecycle).not.toHaveBeenCalled()
-    expect(fetchGo).not.toHaveBeenCalled()
+    expect(fetchWorker).not.toHaveBeenCalled()
     expect(appendEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'complete',
@@ -497,11 +541,11 @@ describe('createSSEStream terminal error handling', () => {
     }
     createRunSegment.mockResolvedValueOnce({ status: 'cancelled' })
     await drainStream(createSSEStream(params))
-    expect(fetchGo).not.toHaveBeenCalled()
+    expect(fetchWorker).not.toHaveBeenCalled()
     expect(runCopilotLifecycle).not.toHaveBeenCalled()
 
     dbChainMockFns.returning.mockResolvedValue([{ id: chatId }])
-    fetchGo.mockImplementation(async (_url, request) => {
+    fetchWorker.mockImplementation(async (_url, request) => {
       TitleRequest.parse(JSON.parse(request.body))
       return Response.json({ title: 'Workflow planning' })
     })
@@ -527,7 +571,7 @@ describe('createSSEStream terminal error handling', () => {
       )
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ title: 'Workflow planning' })
-    expect(fetchGo).toHaveBeenCalledTimes(1)
+    expect(fetchWorker).toHaveBeenCalledTimes(1)
 
     await drainStream(
       createSSEStream({
@@ -538,7 +582,7 @@ describe('createSSEStream terminal error handling', () => {
         currentChat: { title: 'Workflow planning' },
       })
     )
-    expect(fetchGo).toHaveBeenCalledTimes(1)
+    expect(fetchWorker).toHaveBeenCalledTimes(1)
   })
 
   it('writes the thrown terminal error event before close for replay durability', async () => {
@@ -567,7 +611,9 @@ describe('createSSEStream terminal error handling', () => {
     expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
   })
 
-  it('publishes a cancelled completion (not an error) when the orchestrator reports cancelled without abortSignal aborted', async () => {
+  it('publishes a cancelled completion and classifies it as a Stop when the orchestrator reports cancelled without abortSignal aborted', async () => {
+    // Regression: the worker's cancelled terminal (live or replayed) left this node's signal
+    // unaborted, so the turn was logged as "Stream cancelled with unknown abort reason".
     runCopilotLifecycle.mockResolvedValue({
       success: false,
       cancelled: true,
@@ -603,6 +649,10 @@ describe('createSSEStream terminal error handling', () => {
           status: MothershipStreamV1CompletionStatus.cancelled,
         }),
       })
+    )
+    expect(getMockLogger('CopilotChatStreaming').error).not.toHaveBeenCalledWith(
+      'Stream cancelled with unknown abort reason',
+      expect.anything()
     )
   })
 
@@ -669,8 +719,8 @@ describe('createSSEStream terminal error handling', () => {
     })
 
     await drainStream(stream)
-    await vi.waitFor(() => expect(fetchGo).toHaveBeenCalled())
-    const [, request] = fetchGo.mock.calls.at(-1) ?? []
+    await vi.waitFor(() => expect(fetchWorker).toHaveBeenCalled())
+    const [, request] = fetchWorker.mock.calls.at(-1) ?? []
     expect(JSON.parse(request.body)).toEqual(
       expect.objectContaining({ message: 'hello secret-value' })
     )
@@ -686,7 +736,7 @@ describe('requestChatTitle billing protocol', () => {
     mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: true })
-    fetchGo.mockImplementation(async (_url, request) => {
+    fetchWorker.mockImplementation(async (_url, request) => {
       const parsed = TitleRequest.safeParse(JSON.parse(request.body))
       return new Response(
         JSON.stringify(
@@ -711,7 +761,7 @@ describe('requestChatTitle billing protocol', () => {
     })
     expect(checkTitleUsage).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
     expect(title).toBeNull()
-    expect(fetchGo).not.toHaveBeenCalled()
+    expect(fetchWorker).not.toHaveBeenCalled()
   })
 
   it('freezes and forwards a dedicated attributed identity before title work', async () => {
@@ -725,10 +775,10 @@ describe('requestChatTitle billing protocol', () => {
       signal,
     })
 
-    expect(fetchGo.mock.calls[0]?.[1]?.signal).toBe(signal)
+    expect(fetchWorker.mock.calls[0]?.[1]?.signal).toBe(signal)
     expect(title).toBe('Billing Protocol')
-    expect(fetchGo.mock.calls[0]?.[1]?.attributes).toBeUndefined()
-    const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
+    expect(fetchWorker.mock.calls[0]?.[1]?.attributes).toBeUndefined()
+    const headers = fetchWorker.mock.calls[0]?.[1]?.headers as Record<string, string>
     const billingRequestId = headers['x-sim-billing-request-id']
     expect(billingRequestId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -754,7 +804,7 @@ describe('requestChatTitle billing protocol', () => {
         billingAttribution: attribution,
       })
     ).resolves.toBe('Billing Protocol')
-    const options = fetchGo.mock.calls[0]?.[1]
+    const options = fetchWorker.mock.calls[0]?.[1]
     expect(JSON.parse(options.body)).toEqual(
       expect.objectContaining({
         organizationId: 'org-1',
@@ -777,7 +827,7 @@ describe('requestChatTitle billing protocol', () => {
         billingAttribution: { ...BILLING_ATTRIBUTION, workspaceId: null },
       })
     ).resolves.toBeNull()
-    expect(fetchGo).not.toHaveBeenCalled()
+    expect(fetchWorker).not.toHaveBeenCalled()
   })
 
   it('fails before hosted title egress without a billing workspace', async () => {
@@ -788,6 +838,6 @@ describe('requestChatTitle billing protocol', () => {
         userId: 'user-1',
       })
     ).resolves.toBeNull()
-    expect(fetchGo).not.toHaveBeenCalled()
+    expect(fetchWorker).not.toHaveBeenCalled()
   })
 })

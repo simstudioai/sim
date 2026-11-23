@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinSendMessageParams, DevinSendMessageResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
@@ -8,6 +10,7 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
   description:
     'Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -42,7 +45,7 @@ export const devinSendMessageTool: ToolConfig<DevinSendMessageParams, DevinSendM
       select: (params) => ({ message: params.message }),
     },
     url: (params) =>
-      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/messages`,
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/messages`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

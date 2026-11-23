@@ -14,6 +14,7 @@ import {
   mapListMeta,
   mapProgram,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListProgramsTool: ToolConfig<
@@ -24,6 +25,7 @@ export const checkrListProgramsTool: ToolConfig<
   name: 'Checkr List Programs',
   description: 'List programs, which group packages and geos, optionally filtered by name.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

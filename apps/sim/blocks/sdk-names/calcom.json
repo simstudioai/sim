@@ -1,0 +1,40 @@
+{
+  "namespace": "calcom",
+  "methods": {
+    "calcom_cancel_booking": "cancelBooking",
+    "calcom_confirm_booking": "confirmBooking",
+    "calcom_create_booking": "createBooking",
+    "calcom_create_event_type": "createEventType",
+    "calcom_create_schedule": "createSchedule",
+    "calcom_decline_booking": "declineBooking",
+    "calcom_delete_event_type": "deleteEventType",
+    "calcom_delete_schedule": "deleteSchedule",
+    "calcom_get_booking": "getBooking",
+    "calcom_get_default_schedule": "getDefaultSchedule",
+    "calcom_get_event_type": "getEventType",
+    "calcom_get_schedule": "getSchedule",
+    "calcom_get_slots": "getAvailableSlots",
+    "calcom_list_bookings": "listBookings",
+    "calcom_list_event_types": "listEventTypes",
+    "calcom_list_schedules": "listSchedules",
+    "calcom_reschedule_booking": "rescheduleBooking",
+    "calcom_update_event_type": "updateEventType",
+    "calcom_update_schedule": "updateSchedule"
+  },
+  "triggers": {
+    "calcom_booking_cancelled": "bookingCancelled",
+    "calcom_booking_created": "bookingCreated",
+    "calcom_booking_paid": "bookingPaid",
+    "calcom_booking_rejected": "bookingRejected",
+    "calcom_booking_requested": "bookingRequested",
+    "calcom_booking_rescheduled": "bookingRescheduled",
+    "calcom_meeting_ended": "meetingEnded",
+    "calcom_recording_ready": "recordingReady",
+    "calcom_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

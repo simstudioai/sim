@@ -10,6 +10,10 @@
     "node": ">=20.0.0"
   },
   "exports": {
+    "./source-meta": {
+      "types": "./src/source-meta.ts",
+      "default": "./src/source-meta.ts"
+    },
     "./load": {
       "types": "./src/load.ts",
       "default": "./src/load.ts"
@@ -44,14 +48,15 @@
     "@sim/db": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-code": "workspace:*",
     "@sim/workflow-types": "workspace:*",
     "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.19.2",
-    "@xyflow/react": "12.12.0",
+    "@xyflow/react": "12.12.1",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

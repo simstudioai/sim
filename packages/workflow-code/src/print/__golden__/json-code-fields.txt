@@ -1,0 +1,27 @@
+// @sim-sdk 1
+import { agent, api, t, table, todo, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { input: 'string', count: 'number' } })
+  const compact = agent('Compact', { model: 'm', responseFormat: '{"name":"ticket"}' })
+  const refsInJson = api('Refs in json', {
+    url: 'https://x.test',
+    method: todo(),
+    body: t`{
+  "q": ${start.input}
+}`,
+  })
+  const sugared = agent('Sugared', { model: 'm', responseFormat: { name: 'ticket', strict: true } })
+  const typedRefs = table.insertRow('Typed refs', {
+    tableId: table('tickets'),
+    data: {
+      subject: start.input,
+      count: start.count,
+      asText: t`${start.count}`,
+      note: t`re: ${start.input}`,
+      tags: ['a', start.count],
+    },
+  })
+
+  start.to(sugared)
+})

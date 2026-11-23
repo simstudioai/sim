@@ -5,6 +5,7 @@ import type {
 import { TRANSCRIPT_SUMMARY_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListTranscriptsTool: ToolConfig<
@@ -16,6 +17,7 @@ export const affinityListTranscriptsTool: ToolConfig<
   description:
     'Page through meeting transcript metadata. Read one transcript to get what was actually said.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

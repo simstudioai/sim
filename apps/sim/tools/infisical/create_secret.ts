@@ -2,6 +2,13 @@ import type {
   InfisicalCreateSecretParams,
   InfisicalCreateSecretResponse,
 } from '@/tools/infisical/types'
+import {
+  INFISICAL_APPROVAL_OUTPUT,
+  infisicalApiUrl,
+  infisicalSecretPath,
+  mapInfisicalApproval,
+} from '@/tools/infisical/utils'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSecretTool: ToolConfig<
@@ -12,6 +19,7 @@ export const createSecretTool: ToolConfig<
   name: 'Infisical Create Secret',
   description: 'Create a new secret in a project environment.',
   version: '1.0.0',
+  oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -23,7 +31,7 @@ export const createSecretTool: ToolConfig<
     baseUrl: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description:
         'Infisical instance URL (default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL.',
     },
@@ -79,8 +87,7 @@ export const createSecretTool: ToolConfig<
 
   request: {
     method: 'POST',
-    url: (params) =>
-      `${params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'}/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}`,
+    url: (params) => infisicalApiUrl(params.baseUrl, infisicalSecretPath(params.secretName)),
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -110,7 +117,7 @@ export const createSecretTool: ToolConfig<
         error: data.message ?? `Request failed with status ${response.status}`,
       }
     }
-    const s = data.secret ?? data
+    const s = data.secret ?? {}
     return {
       success: true,
       output: {
@@ -159,6 +166,7 @@ export const createSecretTool: ToolConfig<
           createdAt: s.createdAt ?? null,
           updatedAt: s.updatedAt ?? null,
         },
+        approval: mapInfisicalApproval(data),
       },
     }
   },
@@ -250,5 +258,6 @@ export const createSecretTool: ToolConfig<
         updatedAt: { type: 'string', description: 'Last update timestamp' },
       },
     },
+    approval: INFISICAL_APPROVAL_OUTPUT,
   },
 }

@@ -1,5 +1,9 @@
 import type { Principal } from '@sim/auth/principal'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import {
+  type CanonicalModeOverrides,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getSelectorManifestEntry,
@@ -21,10 +25,6 @@ import {
 } from '@/lib/workflows/references/remap-references'
 import { workflowSelectorValidator } from '@/lib/workflows/references/selector-values'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
-import {
-  type CanonicalModeOverrides,
-  scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
 
 export interface ImportConfigurationField {
   blockId: string

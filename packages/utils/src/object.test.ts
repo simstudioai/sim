@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getValueAtPath, isPlainRecord, toArray } from './object.js'
+import { canonicalJson, getValueAtPath, isPlainRecord, toArray } from './object.js'
 
 class Sample {
   value = 1
@@ -32,5 +32,13 @@ describe('isPlainRecord', () => {
 describe('toArray', () => {
   it('returns a fresh array on every miss, so callers cannot share one', () => {
     expect(toArray(null)).not.toBe(toArray(null))
+  })
+})
+
+describe('canonicalJson', () => {
+  it('writes an array hole as null, as JSON.stringify does', () => {
+    const sparse: unknown[] = new Array(3)
+    sparse[1] = { b: 2, a: 1 }
+    expect(canonicalJson(sparse)).toBe('[null,{"a":1,"b":2},null]')
   })
 })

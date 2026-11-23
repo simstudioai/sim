@@ -103,3 +103,71 @@ describe('Gmail attachment downloads', () => {
     expect(files[0]?.size).toBe(1)
   })
 })
+
+describe('Gmail recipient headers', () => {
+  const readTransform = gmailReadTool.transformResponse as NonNullable<
+    typeof gmailReadTool.transformResponse
+  >
+  const readV2Transform = gmailReadV2Tool.transformResponse as NonNullable<
+    typeof gmailReadV2Tool.transformResponse
+  >
+  const headers = [
+    { name: 'From', value: 'Ana <ana@example.com>' },
+    { name: 'To', value: 'bo@example.com' },
+    { name: 'CC', value: 'Dana <dana@example.com>, cy@example.com' },
+    { name: 'Reply-To', value: 'support@example.com' },
+    { name: 'Message-ID', value: '<abc@mail.example.com>' },
+    { name: 'Subject', value: 'Plan' },
+  ]
+  const ccMessage = {
+    id: 'm1',
+    threadId: 't1',
+    labelIds: ['INBOX'],
+    snippet: 'Hi team',
+    internalDate: '1700000000000',
+    payload: { headers, body: { data: Buffer.from('hello').toString('base64') } },
+  }
+
+  it('returns Cc on a single read and keeps absent headers null', async () => {
+    const legacy = await readTransform(Response.json(ccMessage), {
+      accessToken: 'token',
+      messageId: 'm1',
+      folder: '',
+    })
+    expect(legacy.output.metadata).toMatchObject({
+      cc: 'Dana <dana@example.com>, cy@example.com',
+      bcc: null,
+      replyTo: 'support@example.com',
+      rfcMessageId: '<abc@mail.example.com>',
+      inReplyTo: null,
+      to: 'bo@example.com',
+      date: '',
+    })
+
+    const v2 = await readV2Transform(Response.json(ccMessage), {
+      accessToken: 'token',
+      messageId: 'm1',
+      folder: '',
+    })
+    expect(v2.output.cc).toBe('Dana <dana@example.com>, cy@example.com')
+  })
+
+  it('returns Cc for every message in a multi-message read summary', async () => {
+    fetchMock.mockImplementation(async () => Response.json(ccMessage))
+    const result = await readTransform(
+      Response.json({
+        messages: [
+          { id: 'm1', threadId: 't1' },
+          { id: 'm1', threadId: 't1' },
+        ],
+      }),
+      { accessToken: 'token', messageId: '', folder: 'INBOX', maxResults: 2 }
+    )
+    const results = (result.output.metadata as { results: Array<{ cc?: string | null }> }).results
+    expect(results.map((r) => r.cc)).toEqual([
+      'Dana <dana@example.com>, cy@example.com',
+      'Dana <dana@example.com>, cy@example.com',
+    ])
+    expect(result.output.content).toContain('Cc: Dana <dana@example.com>, cy@example.com')
+  })
+})

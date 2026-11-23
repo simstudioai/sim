@@ -11,7 +11,9 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const pauseCampaignTool: ToolConfig<
   InstantlyPauseCampaignParams,
@@ -21,6 +23,7 @@ export const pauseCampaignTool: ToolConfig<
   name: 'Instantly Pause Campaign',
   description: 'Pauses a running Instantly V2 campaign, stopping further email sends.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {
@@ -31,7 +34,10 @@ export const pauseCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/pause`),
+    url: (params) =>
+      instantlyUrl(
+        `/api/v2/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/pause`
+      ),
     method: 'POST',
     headers: instantlyHeaders,
   },

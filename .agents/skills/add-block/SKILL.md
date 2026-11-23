@@ -83,7 +83,8 @@ export const {ServiceName}Block: BlockConfig = {
 // Multi-line input
 { id: 'field', title: 'Label', type: 'long-input', placeholder: '...', rows: 6 }
 
-// Password input
+// Password input: only for legacy blocks or a secret with no saved-credential fit
+// (model-provider keys, hosted-key pairs); a service token uses a saved credential
 { id: 'apiKey', title: 'API Key', type: 'short-input', password: true }
 ```
 
@@ -136,6 +137,32 @@ export const {ServiceName}Block: BlockConfig = {
 }
 ```
 
+A service-account-only picker (a saved token or key credential) instead sets
+`credentialKind: 'service-account'` and `mode: 'basic'` (no scopes), and pairs with an advanced
+twin; `isSavedCredentialPicker` matches only this shape:
+```typescript
+{
+  id: 'credential',
+  title: '{Service} Account',
+  type: 'oauth-input',
+  serviceId: '{service}',
+  credentialKind: 'service-account',
+  canonicalParamId: 'oauthCredential',
+  mode: 'basic',
+  placeholder: 'Select {Service} credential',
+  required: true,
+},
+{
+  id: 'manualCredential',
+  title: '{Service} Account',
+  type: 'short-input',
+  canonicalParamId: 'oauthCredential',
+  mode: 'advanced',
+  placeholder: 'Enter credential ID',
+  required: true,
+}
+```
+
 **Scopes:** Always use `getScopesForService(serviceId)` from `@/lib/oauth/utils` for `requiredScopes`. Never hardcode scope arrays — the single source of truth is `OAUTH_PROVIDERS` in `lib/oauth/oauth.ts`.
 
 **Scope descriptions:** When adding a new OAuth provider, also add human-readable descriptions for all scopes in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`.
@@ -158,6 +185,40 @@ export const {ServiceName}Block: BlockConfig = {
 - **`'any'`:** merged picker — OAuth accounts *and* service accounts in one grouped dropdown, with a connect action for each. Use when a block supports both (e.g. Slack: a personal account *or* a custom bot).
 
 Optional companions: `credentialLabels` (override the picker's section/connect-row copy) and `allowServiceAccounts: true` (trigger-mode only — list service accounts, which triggers otherwise exclude; set only when the trigger's polling path can resolve a service-account token). The connect modal, provider families (Google JSON key, Atlassian token, token-paste, client-credential, Slack bot), and the preview gate are all resolved from `serviceAccountProviderId` — you don't wire them per block.
+
+### Credential-only successor (replacing inline secrets)
+
+A block that takes a secret inline keeps running for existing workflows; the saved-credential
+version is a new block type that spreads it. Keep the successor an object literal with the picker
+written inline, because the docs generator reads the source text:
+
+```typescript
+export const ServiceV2Block: BlockConfig = {
+  ...ServiceBlock,
+  type: 'service_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ServiceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'service',
+    title: 'Service Credential',
+  }),
+}
+```
+
+- The legacy block changes only by `hideFromToolbar: true` and `sunset: { status: 'legacy',
+  replacedBy: 'service_v2' }` (an older `_v2` points at the new `_v3`). Register both types.
+- `withSavedCredential` (`blocks/utils.ts`) swaps exactly the fields its policy in
+  `SAVED_CREDENTIAL_OAUTH` supplies for the picker, places it directly under the operation
+  dropdown, inherits the replaced fields' `condition` and `required`, and leaves trigger-mode
+  fields alone. Pass `required` when the replaced fields disagree (an optional host), and `params`
+  only when the legacy params builder validates the secret: extract that builder so the legacy
+  block calls it unchanged (`blocks/legacy-builders.test.ts`) and the successor skips the check.
+- Add the pair to `serializer/saved-credentials.test.ts` (`optionalIds` for replaced fields the
+  legacy block never required), and grep for code that hard-codes the legacy type (`getBlock`,
+  `integration.type ===`, availability lookups), which now resolves to the successor.
 
 ### OAuth deployment availability (required for integration blocks)
 
@@ -661,7 +722,8 @@ outputs: {
 When creating V2 blocks (alongside legacy V1):
 
 ```typescript
-// V1 Block - mark as legacy
+// V1 Block - mark as legacy. A credential-only successor is the exception: the
+// successor keeps the legacy block's name, so neither block is renamed.
 export const ServiceBlock: BlockConfig = {
   type: 'service',
   name: 'Service (Legacy)',
@@ -956,13 +1018,15 @@ When adding or changing `sunset.replacedBy`, run `bun run generate:block-success
 map to resolve legacy and current block IDs consistently without importing the executable registry.
 Verify it with `bun run check:block-successors`.
 
+A new block type also needs `bun run generate:sdk-names` (commit the new `apps/sim/blocks/sdk-names/<type>.json` and the regenerated `apps/sim/blocks/sdk-names.generated.ts`; names are add-only, and a merge conflict in the generated module is resolved by rerunning the generator) so workflow source gets a typed builder for it; `check:sdk-names` fails CI until it runs.
+
 Adding a block on its own needs no **tool metadata** regeneration — a block references existing
 tool IDs through `tools.access` and does not change any tool's shape.
 
 But if the same change also adds, edits **or removes** a tool, run `bun run generate:tool-metadata` and commit the result, or CI fails on stale artifacts. That matters here because a block's `outputs` are authored to match its tools' outputs, and the UI reads those from the generated metadata, not the executable registry — an unregenerated tool change makes the block's outputs disagree with what the panel renders. See `.agents/skills/tool-registry-boundary/SKILL.md`.
 
 A visible integration block does require the generated integration catalog and docs to be refreshed:
-`bun run generate:tool-metadata` (only when a tool changed), `bun run scripts/generate-docs.ts`,
+`bun run generate:tool-metadata` (only when a tool changed), `bun run generate:docs`,
 `bun run generate:deployment-config`, then `bun run check:audits`. Also run
 `bun run apps/sim/scripts/check-block-registry.ts origin/staging` (CI runs it outside `check:audits`). Commit the
 full generator output. For what each check verifies, see the `validate-integration` skill →
@@ -987,7 +1051,7 @@ Regenerate Derived Artifacts.
 - [ ] Block + meta registered in registry-maps.ts (`BLOCK_REGISTRY` / `BLOCK_META_REGISTRY`)
 - [ ] If `sunset.replacedBy` changed: regenerated and committed the block successor map; `bun run check:block-successors` passes
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run generate:tool-metadata` and committed the artifacts
-- [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
+- [ ] Ran `bun run generate:docs`, reviewed the generated diff, and committed the integration catalog changes
 - [ ] `bun run check:integration-catalog` passes
 - [ ] `bun run check:docs` passes (CI gate — fails on any stale generated docs page)
 - [ ] If icon missing: asked user to provide SVG

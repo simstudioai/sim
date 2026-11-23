@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapEachWithConcurrency } from '@sim/utils/concurrency'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
@@ -18,7 +19,6 @@ import {
   sql,
 } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
@@ -428,7 +428,7 @@ export async function dispatcherStep(
 ): Promise<DispatcherStepResult> {
   const dispatch = await readDispatch(dispatchId)
   if (!dispatch) {
-    logger.warn(`[${dispatchId}] dispatch row missing — aborting`)
+    logger.warn('dispatch row missing — aborting', { dispatchId })
     return 'done'
   }
   if (dispatch.status === 'cancelled' || dispatch.status === 'complete') return 'done'
@@ -436,7 +436,7 @@ export async function dispatcherStep(
   const { getTableById } = await import('@/lib/table/service')
   const table = await getTableById(dispatch.tableId)
   if (!table) {
-    logger.warn(`[${dispatchId}] table ${dispatch.tableId} missing — completing dispatch`)
+    logger.warn(`table ${dispatch.tableId} missing — completing dispatch`, { dispatchId })
     await completeDispatchIfActive(dispatchId)
     return 'done'
   }
@@ -482,7 +482,7 @@ export async function dispatcherStep(
      * completion path and overwrite `cancelled` with `complete`.
      */
     if (claimed.length === 0) {
-      logger.info(`[${dispatchId}] dispatch was cancelled before this step claimed it`)
+      logger.info('dispatch was cancelled before this step claimed it', { dispatchId })
       return 'done'
     }
     // Announce the dispatch the moment it starts — before the first window's
@@ -710,9 +710,7 @@ export async function dispatcherStep(
     try {
       await queue.batchEnqueueAndWait('workflow-group-cell', items)
     } catch (err) {
-      logger.error(`[${dispatchId}] batch dispatch failed`, {
-        error: toError(err).message,
-      })
+      logger.error('batch dispatch failed', { dispatchId, error: toError(err).message })
       // These rows never actually ran, so they must not consume the row cap —
       // otherwise a transient failure on the only window of a `max: N` run would
       // exhaust the budget and complete the dispatch with zero rows started.
@@ -1104,7 +1102,7 @@ export async function cancelStaleDispatches(
    * over one table's dispatches, while this sweep can carry a whole tick's worth
    * across many tables, and each event is its own write.
    */
-  await mapWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
+  await mapEachWithConcurrency(dispatches, STALE_DISPATCH_EVENT_CONCURRENCY, (d) =>
     appendTableEvent({
       kind: 'dispatch',
       tableId: d.tableId,

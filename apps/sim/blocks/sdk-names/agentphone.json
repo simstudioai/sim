@@ -1,0 +1,27 @@
+{
+  "namespace": "legacy.agentphone",
+  "methods": {
+    "create_call": "createCall",
+    "create_contact": "createContact",
+    "create_number": "createNumber",
+    "delete_contact": "deleteContact",
+    "get_call": "getCall",
+    "get_call_transcript": "getCallTranscript",
+    "get_contact": "getContact",
+    "get_conversation": "getConversation",
+    "get_conversation_messages": "getConversationMessages",
+    "get_number_messages": "getNumberMessages",
+    "get_usage": "getUsage",
+    "get_usage_daily": "getDailyUsage",
+    "get_usage_monthly": "getMonthlyUsage",
+    "list_calls": "listCalls",
+    "list_contacts": "listContacts",
+    "list_conversations": "listConversations",
+    "list_numbers": "listNumbers",
+    "react_to_message": "reactToMessage",
+    "release_number": "releaseNumber",
+    "send_message": "sendMessage",
+    "update_contact": "updateContact",
+    "update_conversation": "updateConversation"
+  }
+}

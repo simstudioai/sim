@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -5,6 +6,7 @@ import {
 } from '@/tools/stripe/idempotency'
 import type { ProductResponse, UpdateProductParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_update_product',
@@ -19,6 +21,7 @@ export const stripeUpdateProductTool: ToolConfig<
   name: 'Stripe Update Product',
   description: 'Update an existing product',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -66,7 +69,7 @@ export const stripeUpdateProductTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/products/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/products/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

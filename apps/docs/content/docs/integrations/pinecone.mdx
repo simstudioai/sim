@@ -129,7 +129,7 @@ Search for similar text in a Pinecone index
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `indexHost` | string | Yes | Full Pinecone index host URL \(e.g., "https://my-index-abc123.svc.pinecone.io") |
-| `namespace` | string | No | Namespace to search in \(e.g., "documents", "embeddings"\) |
+| `namespace` | string | Yes | Namespace to search in \(e.g., "documents", "embeddings"\) |
 | `searchQuery` | string | Yes | Text to search for |
 | `topK` | string | No | Number of results to return \(e.g., "10", "25"\) |
 | `fields` | array | No | Fields to return in the results |

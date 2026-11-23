@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type { MailchimpAudience } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MailchimpCreateAudience')
@@ -11,7 +13,7 @@ export interface MailchimpCreateAudienceParams {
   contact: string
   permissionReminder: string
   campaignDefaults: string
-  emailTypeOption: string
+  emailTypeOption?: string | boolean | null
 }
 
 export interface MailchimpCreateAudienceResponse {
@@ -23,6 +25,14 @@ export interface MailchimpCreateAudienceResponse {
   }
 }
 
+/** Mailchimp requires `email_type_option` on create; an unset value keeps the default of true. */
+function resolveEmailTypeOption(value: MailchimpCreateAudienceParams['emailTypeOption']): boolean {
+  if (value === undefined || value === null || String(value).trim() === '') return true
+  const parsed = toBooleanFromInput(value)
+  if (parsed === undefined) throw new Error('emailTypeOption must be "true" or "false"')
+  return parsed
+}
+
 export const mailchimpCreateAudienceTool: ToolConfig<
   MailchimpCreateAudienceParams,
   MailchimpCreateAudienceResponse
@@ -31,6 +41,7 @@ export const mailchimpCreateAudienceTool: ToolConfig<
   name: 'Create Audience in Mailchimp',
   description: 'Create a new audience (list) in Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -68,9 +79,9 @@ export const mailchimpCreateAudienceTool: ToolConfig<
     },
     emailTypeOption: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Support multiple email formats: "true" or "false"',
+      description: 'Support multiple email formats: "true" or "false" (default "true")',
     },
   },
 
@@ -85,7 +96,7 @@ export const mailchimpCreateAudienceTool: ToolConfig<
       const body: Record<string, unknown> = {
         name: params.audienceName,
         permission_reminder: params.permissionReminder,
-        email_type_option: params.emailTypeOption === 'true',
+        email_type_option: resolveEmailTypeOption(params.emailTypeOption),
       }
 
       if (params.contact) {

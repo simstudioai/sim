@@ -492,14 +492,17 @@ describe('Search source identity and concurrent creation', () => {
         .where(eq(resourcePolicy.resourceId, searchGroupId))
     })
     await locked
-    const append = ensureWorkspaceAccountsGroup(ids.workspaceId, ids.aliceId, {
-      provider: 'jira',
-      label: 'Jira',
-      required: false,
-    })
+    /** Handled from the start: the refusal can land before the grant's commit resolves here. */
+    const refused = expect(
+      ensureWorkspaceAccountsGroup(ids.workspaceId, ids.aliceId, {
+        provider: 'jira',
+        label: 'Jira',
+        required: false,
+      })
+    ).rejects.toThrow('has workflow access')
     releaseGrant()
     await grant
-    await expect(append).rejects.toThrow('has workflow access')
+    await refused
     const existing = await ensureWorkspaceAccountsGroup(ids.workspaceId, ids.aliceId, {
       provider: 'google-drive',
       label: 'Google Drive',

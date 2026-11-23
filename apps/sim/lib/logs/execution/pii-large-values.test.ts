@@ -1,9 +1,10 @@
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import {
   executionPayloadStoreMock,
   executionPayloadStoreMockFns,
 } from '@sim/testing/mocks/execution-payload-store.mock'
 import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCompact } = vi.hoisted(() => ({
   mockCompact: vi.fn(),
@@ -289,6 +290,37 @@ describe('redactManifest — chunk-wise', () => {
   })
 })
 
+describe('encoded file bodies inside large values', () => {
+  const encodedFile = Buffer.from(
+    Array.from({ length: 48 * 1024 }, (_, i) => (i * 7919 + 13) % 256)
+  ).toString('base64')
+
+  it('replaces them in the execution log', async () => {
+    chunkData.set(REF.id, { file: encodedFile, note: 'contact bob' })
+
+    const result = await redactLargeValueRefs(
+      { finalOutput: REF },
+      { entityTypes: ['PERSON'], language: 'en', store: STORE }
+    )
+
+    expect(result.finalOutput).toEqual({
+      file: '[BINARY_CONTENT_REDACTED]',
+      note: 'MASKED(contact bob)',
+    })
+  })
+
+  it('masks them as text in live block state', async () => {
+    chunkData.set(REF.id, { file: encodedFile })
+
+    const result = await redactLargeValueRefsInValue(
+      { 'block-1': { output: REF } },
+      { entityTypes: ['PERSON'], language: 'en', store: STORE, onFailure: 'throw' }
+    )
+
+    expect(result).toEqual({ 'block-1': { output: { file: `MASKED(${encodedFile})` } } })
+  })
+})
+
 describe('redactLargeValueRefsInValue (arbitrary blockStates)', () => {
   it('hydrates + re-stores a ref nested in a non-RedactablePayload shape', async () => {
     chunkData.set(REF.id, { note: 'contact bob' })
@@ -313,5 +345,28 @@ describe('redactLargeValueRefsInValue (arbitrary blockStates)', () => {
         { entityTypes: [], language: 'en', store: STORE, onFailure: 'throw' }
       )
     ).rejects.toBeInstanceOf(PiiRedactionError)
+  })
+})
+
+describe('redactLargeValueRefs with PII_REF_CONCURRENCY set', () => {
+  afterEach(() => {
+    resetEnvMock()
+    vi.resetModules()
+  })
+
+  it('masks refs when the deployment sets the ref concurrency (env values arrive as strings)', async () => {
+    setEnv({ PII_REF_CONCURRENCY: '2' })
+    vi.resetModules()
+    const { redactLargeValueRefs: redactWithConfiguredConcurrency } = await import(
+      '@/lib/logs/execution/pii-large-values'
+    )
+    chunkData.set(REF.id, { note: 'contact bob', id: 42 })
+
+    const result = await redactWithConfiguredConcurrency(
+      { finalOutput: REF },
+      { entityTypes: ['PERSON'], language: 'en', store: STORE }
+    )
+
+    expect(result.finalOutput).toEqual({ note: 'MASKED(contact bob)', id: 42 })
   })
 })

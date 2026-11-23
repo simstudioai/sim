@@ -2,7 +2,9 @@ import type {
   DiscordCreateChannelParams,
   DiscordCreateChannelResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateChannelTool: ToolConfig<
   DiscordCreateChannelParams,
@@ -12,6 +14,7 @@ export const discordCreateChannelTool: ToolConfig<
   name: 'Discord Create Channel',
   description: 'Create a new channel in a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -36,13 +39,14 @@ export const discordCreateChannelTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Channel type (0=text, 2=voice, 4=category, 5=announcement, 13=stage)',
+      description: 'Channel type (0=text, 2=voice, 4=category, 5=announcement, 13=stage, 15=forum)',
     },
     topic: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Channel topic (0-1024 characters)',
+      description:
+        'Channel topic (up to 1024 characters for text channels, 4096 for forum channels)',
     },
     parentId: {
       type: 'string',
@@ -54,7 +58,7 @@ export const discordCreateChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateChannelParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/channels`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/channels`
     },
     method: 'POST',
     headers: (params) => ({

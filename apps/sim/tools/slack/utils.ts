@@ -1,6 +1,8 @@
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type {
   SlackAgentSessionStatus,
   SlackCanvasFile,
@@ -59,6 +61,17 @@ export function requireSlackString(value: unknown, label: string): string {
     throw new Error(`${label} is required`)
   }
   return value.trim()
+}
+
+/**
+ * The `thread_ts` body field for Agent Sessions methods, which Slack requires for thread-based
+ * sessions and rejects for session channels; omitted when no timestamp is supplied.
+ */
+export function optionalSlackThreadTs(value: unknown): { thread_ts?: string } {
+  if (value === undefined || value === null || value === '') return {}
+  if (typeof value !== 'string') throw new Error('Thread Timestamp must be a string')
+  const trimmed = value.trim()
+  return trimmed ? { thread_ts: trimmed } : {}
 }
 
 /** Validates an Agent Sessions status after workflow variables have resolved. */
@@ -186,6 +199,15 @@ export const mapSlackMessage = (msg: any) => ({
 
 /** Maximum messages to request per page. Slack caps `conversations.*` at 999. */
 const SLACK_PAGE_MAX = 999
+
+/**
+ * Ceiling on pages one paginated read follows. Every page is held in memory until the read returns,
+ * so a model-chosen page count must not be able to buffer an entire workspace's history.
+ */
+const SLACK_MAX_PAGES_CEILING = 50
+
+/** Byte cap on one `conversations.*` page (up to 999 messages with blocks and attachments). */
+const MAX_SLACK_PAGE_BYTES = 10 * 1024 * 1024
 /** Hard ceiling on retries for a single rate-limited page. */
 const SLACK_RATE_LIMIT_MAX_RETRIES = 5
 
@@ -214,12 +236,19 @@ export interface SlackPaginateOptions {
   limit: number
   /** Starting cursor; omit to begin from the first page. */
   cursor?: string
-  /** Maximum number of pages to fetch before stopping. */
+  /** Maximum number of pages to fetch before stopping, clamped to {@link SLACK_MAX_PAGES_CEILING}. */
   maxPages: number
   /** Human-readable scope hint surfaced on `missing_scope`. */
   missingScopeHint: string
   /** Cancels provider requests and rate-limit waits. */
   signal?: AbortSignal
+}
+
+interface SlackMessagesPage {
+  ok?: boolean
+  error?: string
+  messages?: unknown[]
+  response_metadata?: { next_cursor?: string }
 }
 
 export interface SlackPaginateResult {
@@ -240,13 +269,14 @@ export async function fetchSlackMessagesPaginated(
 ): Promise<SlackPaginateResult> {
   const { token, method, baseParams, limit, maxPages, missingScopeHint } = opts
   const perPage = Math.min(Math.max(Number(limit) || 0, 1), SLACK_PAGE_MAX)
+  const pageCeiling = Math.min(maxPages, SLACK_MAX_PAGES_CEILING)
 
   const messages: any[] = []
   let cursor = opts.cursor?.trim() || undefined
   let nextCursor: string | null = null
   let pages = 0
 
-  while (pages < maxPages) {
+  while (pages < pageCeiling) {
     const url = new URL(`https://slack.com/api/${method}`)
     for (const [key, value] of Object.entries(baseParams)) {
       const trimmed = typeof value === 'string' ? value.trim() : value
@@ -258,7 +288,7 @@ export async function fetchSlackMessagesPaginated(
     let response: Response
     let attempt = 0
     while (true) {
-      response = await fetch(url.toString(), {
+      response = await outboundFetch(url.toString(), {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
         signal: opts.signal,
@@ -274,7 +304,10 @@ export async function fetchSlackMessagesPaginated(
       break
     }
 
-    const data = await response.json()
+    const data = await readResponseJsonWithLimit<SlackMessagesPage>(response, {
+      maxBytes: MAX_SLACK_PAGE_BYTES,
+      label: `Slack ${method} page`,
+    })
     opts.signal?.throwIfAborted()
 
     if (!data.ok) {

@@ -2,6 +2,7 @@ import type {
   MicrosoftTeamsListChatsResponse,
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
+import { extractNextPageToken, resolvePageSize } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsListChatsResponse> =
@@ -23,6 +24,18 @@ export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
         visibility: 'hidden',
         description: 'The access token for the Microsoft Teams API',
       },
+      top: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Number of chats to return per page (1-50, default 50)',
+      },
+      pageToken: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Page token from a previous call (nextPageToken) to fetch the next page',
+      },
     },
 
     outputs: {
@@ -33,11 +46,20 @@ export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
         type: 'boolean',
         description: 'Whether Graph indicated additional pages beyond this response',
       },
+      nextPageToken: {
+        type: 'string',
+        description: 'Token to pass as pageToken to fetch the next page, or null on the last page',
+        optional: true,
+      },
     },
 
     request: {
       // $top=50 is the maximum page size Graph allows for this endpoint.
-      url: () => 'https://graph.microsoft.com/v1.0/me/chats?$top=50',
+      url: (params) => {
+        const pageToken = params.pageToken?.trim()
+        const skipToken = pageToken ? `&$skiptoken=${encodeURIComponent(pageToken)}` : ''
+        return `https://graph.microsoft.com/v1.0/me/chats?$top=${resolvePageSize(params.top)}${skipToken}`
+      },
       method: 'GET',
       headers: (params) => {
         if (!params.accessToken) {
@@ -67,6 +89,7 @@ export const listChatsTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsL
           chats,
           chatCount: chats.length,
           hasMore: Boolean(data['@odata.nextLink']),
+          nextPageToken: extractNextPageToken(data['@odata.nextLink']),
         },
       }
     },

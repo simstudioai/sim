@@ -2,7 +2,6 @@ import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { UPGRADE_REASON_COPY, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface LimitThresholdEmailProps {
   /** `warning` = approaching the limit (~80%); `reached` = at/over the limit. */
@@ -32,10 +31,9 @@ export function LimitThresholdEmail({
   percentUsed,
   upgradeLink,
 }: LimitThresholdEmailProps) {
-  const brand = getBrandConfig()
   const copy = UPGRADE_REASON_COPY[reason]
   const lead = kind === 'reached' ? copy.reachedLead : copy.warningLead
-  const previewText = `${brand.name}: ${lead}`
+  const previewText = `Sim: ${lead}`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>

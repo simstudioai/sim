@@ -1,7 +1,6 @@
 import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { copilotRuns } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import type { z } from 'zod'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -11,7 +10,10 @@ import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/a
 import { resolveOwnedWorkspaceChatContext } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
-import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
+import {
+  persistedStreamRecoveryConfig,
+  type StreamRecoveryConfigInput,
+} from '@/lib/mothership/request/lifecycle/recovery-config'
 import {
   assertChatStreamLease,
   type ChatStreamLease,
@@ -23,7 +25,7 @@ export const UNATTENDED_TURN_AUDIENCE = 'sim:copilot-jobs'
 
 interface AdmitUnattendedTurnInput {
   /** The turn's request is its identity: its message id names the run, its stream and its user message. */
-  recovery: z.input<typeof StreamRecoveryConfigSchema>
+  recovery: StreamRecoveryConfigInput
   lease: ChatStreamLease
   secretAuthority: TurnSecretAuthority
 }
@@ -76,7 +78,7 @@ export const admitUnattendedTurn = defineAuthorizedChatUseCase({
   },
   async execute({ context, input }): Promise<UnattendedAdmission> {
     const { userId, workspaceId, chatId } = context
-    const recovery = StreamRecoveryConfigSchema.parse(input.recovery)
+    const recovery = persistedStreamRecoveryConfig(input.recovery)
     const request = recovery.request
     if (
       recovery.kind !== 'unattended_stream' ||

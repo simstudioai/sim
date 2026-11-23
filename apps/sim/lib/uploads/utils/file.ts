@@ -776,7 +776,7 @@ export function inferContextFromKey(key: string): StorageContext {
  * half of them.
  */
 export function tryInferContextFromKey(key: string): StorageContext | null {
-  if (!key) return null
+  if (!key || hasDotSegment(key)) return null
 
   if (key.startsWith('kb/') || key.startsWith('knowledge-base/')) return 'knowledge-base'
   if (key.startsWith('chat/')) return 'chat'
@@ -994,7 +994,7 @@ function convertToUserFile(file: RawFileInput, requestId: string, logger: Logger
     base64: file.base64,
   }
 
-  logger.info(`[${requestId}] Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`)
+  logger.info(`Converted file to UserFile: ${userFile.name} (key: ${userFile.key})`, { requestId })
   return userFile
 }
 
@@ -1009,14 +1009,14 @@ export function processSingleFileToUserFile(
 ): UserFile {
   if (Array.isArray(file)) {
     const errorMsg = `Expected a single file but received an array with ${file.length} file(s). Use a file input that accepts multiple files, or select a specific file from the array (e.g., {{block.files[0]}}).`
-    logger.error(`[${requestId}] ${errorMsg}`)
+    logger.error(errorMsg, { requestId })
     throw new Error(errorMsg)
   }
 
   const userFile = convertToUserFile(file, requestId, logger)
   if (!userFile) {
     const errorMsg = `File has no storage key: ${file.name || 'unknown'}`
-    logger.warn(`[${requestId}] ${errorMsg}`)
+    logger.warn(errorMsg, { requestId })
     throw new Error(errorMsg)
   }
 
@@ -1036,7 +1036,7 @@ export function processFilesToUserFiles(
 
   for (const file of filesArray) {
     if (Array.isArray(file)) {
-      logger.warn(`[${requestId}] Skipping nested array in file input`)
+      logger.warn('Skipping nested array in file input', { requestId })
       continue
     }
 
@@ -1044,7 +1044,7 @@ export function processFilesToUserFiles(
     if (userFile) {
       userFiles.push(userFile)
     } else {
-      logger.warn(`[${requestId}] Skipping file without storage key: ${file.name || 'unknown'}`)
+      logger.warn(`Skipping file without storage key: ${file.name || 'unknown'}`, { requestId })
     }
   }
 
@@ -1092,6 +1092,16 @@ export function sanitizeStorageMetadata(
 }
 
 /**
+ * Whether a storage key has a `.` or `..` path segment, splitting on `\` as well as `/`. Such a
+ * key is never one the platform builds, and URL-based providers (Azure Blob) collapse the
+ * segments into a different object, so it must not reach a provider or pass a prefix-based
+ * authorization check.
+ */
+export function hasDotSegment(key: string): boolean {
+  return key.split(/[/\\]/).some((segment) => segment === '.' || segment === '..')
+}
+
+/**
  * Sanitize a file key/path for local storage
  * Removes dangerous characters and prevents path traversal
  * Preserves forward slashes for structured paths (e.g., kb/file.json, workspace/id/file.json)
@@ -1103,14 +1113,13 @@ export function sanitizeFileKey(key: string): string {
   if (!key.includes('/')) {
     throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
   }
+  if (hasDotSegment(key)) {
+    throw new Error('Path traversal detected in file key')
+  }
 
   const segments = key.split('/')
 
   const sanitizedSegments = segments.map((segment, index) => {
-    if (segment === '..' || segment === '.') {
-      throw new Error('Path traversal detected in file key')
-    }
-
     if (index === segments.length - 1) {
       return segment.replace(/[^a-zA-Z0-9.-]/g, '_')
     }

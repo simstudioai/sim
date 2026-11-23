@@ -25,6 +25,7 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'
+import { executionTimeoutSeconds } from '@/lib/core/execution-limits/types'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -40,7 +41,10 @@ import {
   executeManualWorkflowFromBlockOperation,
   executeManualWorkflowOperation,
 } from '@/lib/workflows/application/execute-manual-workflow'
-import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
+import {
+  executeWorkflowOperation,
+  executeWorkflowVersionOperation,
+} from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   type ExecuteWorkflowServiceFailure,
@@ -119,23 +123,33 @@ function encodeNdjson(value: unknown): Uint8Array {
   return ndjsonEncoder.encode(`${JSON.stringify(value)}\n`)
 }
 
+/**
+ * The run resource, its bounded fields ahead of `output` and `blockOutputs`: a reader that keeps
+ * only the head of an oversized response (an agent's output window) still sees the status, the
+ * failing block and its error, and the duration.
+ */
 function presentRun(result: ExecuteWorkflowServiceRun) {
   return {
     runId: result.executionId,
     workflowId: result.workflowId,
     status: result.status,
-    output: result.output ?? null,
-    blockOutputs: result.blockOutputs ?? null,
     error: result.error,
     startedAt: result.startedAt,
     endedAt: result.endedAt,
     durationMs: result.durationMs,
+    executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
+    output: result.output ?? null,
+    blockOutputs: result.blockOutputs ?? null,
   }
 }
 
 /** Where a run that continues past its response is followed: the v2 runs resource. */
-function runReceipt(workflowId: string, runId: string) {
-  return { runId, statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${runId}` }
+function runReceipt(workflowId: string, runId: string, executionTimeoutMs: number) {
+  return {
+    runId,
+    statusUrl: `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${runId}`,
+    executionTimeoutSeconds: executionTimeoutSeconds(executionTimeoutMs),
+  }
 }
 
 /** A run that may outlive its response: past `afterMs` (never, when null) only its receipt is sent. */
@@ -265,7 +279,8 @@ function streamPendingRun(
           send({ type: 'final', data: presentRun(result) })
         })
         .catch((error) => {
-          logger.error(`[${requestId}] v2 execute result stream failed`, {
+          logger.error('v2 execute result stream failed', {
+            requestId,
             error: getErrorMessage(error, 'Unknown error'),
           })
           send({ type: 'error', error: 'Internal server error', status: 500 })
@@ -315,6 +330,8 @@ type V2ExecuteWorkflowRouteContext = {
  *
  * - Auth: `X-API-Key` (personal/workspace) or the anonymous public-API path for
  *   workflows deployed with `isPublicApi` (actor = owner; sync/stream only).
+ * - `run: { source: 'deployment', version }` runs that deployment version under
+ *   the write-role `workflows.execute_version` operation; keyed callers only.
  * - `async: true` (body flag — v2 has no mode headers) → 202
  *   `{ data: { runId, statusUrl } }`; poll the v2 runs resource.
  * - `stream: true` → SSE passthrough (no `{data}` envelope on event frames).
@@ -354,7 +371,7 @@ export const POST = withRouteHandler(
     const incomingCallChain = parseCallChain(req.headers.get(SIM_VIA_HEADER))
     const callChainError = validateCallChain(incomingCallChain)
     if (callChainError) {
-      logger.warn(`[${requestId}] Call chain rejected`, { workflowId, error: callChainError })
+      logger.warn('Call chain rejected', { workflowId, error: callChainError })
       return v2Error('CONFLICT', callChainError, { details: { code: 'CALL_CHAIN_DEPTH_EXCEEDED' } })
     }
     const callChain = buildNextCallChain(incomingCallChain, workflowId)
@@ -421,6 +438,7 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const body = parsed.data.body
       const manualRun = body.run?.source === 'manual' ? body.run : undefined
+      const pinnedVersion = body.run?.source === 'deployment' ? body.run.version : undefined
 
       if (manualRun && !apiKeyPrincipal) {
         return v2Error(
@@ -437,6 +455,9 @@ export const POST = withRouteHandler(
         body.input !== undefined
       ) {
         return v2Error('BAD_REQUEST', 'input and run.entry.useMockPayload cannot be combined')
+      }
+      if (pinnedVersion !== undefined && isPublicApiAccess) {
+        return v2Error('BAD_REQUEST', 'run.version requires an OAuth access token or API key')
       }
 
       const detachable = body.waitTimeoutSeconds !== undefined
@@ -543,6 +564,17 @@ export const POST = withRouteHandler(
             },
             request: req,
           })
+        } else if (pinnedVersion !== undefined) {
+          result = await executeWorkflowVersionOperation.execute({
+            principal: apiKeyPrincipal,
+            input: {
+              ...commonInput,
+              input: body.input ?? {},
+              mode: body.async ? 'async' : body.stream ? 'stream' : syncMode,
+              version: pinnedVersion,
+            },
+            request: req,
+          })
         } else {
           result = await executeWorkflowOperation.execute({
             principal: apiKeyPrincipal,
@@ -612,7 +644,10 @@ export const POST = withRouteHandler(
 
       if ('pending' in result) {
         const detachment: RunDetachment | undefined = detachable
-          ? { afterMs: detachAfterMs, receipt: runReceipt(workflowId, result.executionId) }
+          ? {
+              afterMs: detachAfterMs,
+              receipt: runReceipt(workflowId, result.executionId, result.executionTimeoutMs),
+            }
           : undefined
         if (resultStream) {
           const response = streamPendingRun(result, requestId, ticket.release, detachment)
@@ -644,7 +679,7 @@ export const POST = withRouteHandler(
       }
 
       if ('queued' in result) {
-        return v2Data(runReceipt(workflowId, result.executionId), {
+        return v2Data(runReceipt(workflowId, result.executionId, result.executionTimeoutMs), {
           status: 202,
           headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId },
         })
@@ -654,7 +689,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
       if (classified) return classified
-      logger.error(`[${requestId}] v2 execute failed`, {
+      logger.error('v2 execute failed', {
         workflowId,
         error: getErrorMessage(error, 'Unknown error'),
       })

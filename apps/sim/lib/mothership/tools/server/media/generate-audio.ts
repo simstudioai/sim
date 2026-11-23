@@ -17,6 +17,10 @@ import {
   validateCopilotWorkspaceFileWriteTarget,
   writeCopilotWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
+import {
+  MOTHERSHIP_FAL_AT_COST_MULTIPLIER,
+  scheduleFalAICostSettlement,
+} from '@/lib/tools/falai-settlement'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -49,7 +53,6 @@ interface GenerateAudioResult {
   fileName?: string
   vfsPath?: string
   downloadUrl?: string
-  _serviceCost?: { service: string; cost: number }
 }
 
 function audioExtFromContentType(contentType: string): string {
@@ -142,7 +145,16 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         instrumental: params.instrumental,
         voiceSampleDataUri,
         signal: context.abortSignal,
-        onCost: (cost) => recordServiceCost('falai_audio', cost.costDollars),
+        onCost: async (cost, { envVarName }) => {
+          await recordServiceCost('falai_audio', cost.costDollars)
+          await scheduleFalAICostSettlement({
+            cost,
+            envVarName,
+            markupMultiplier: MOTHERSHIP_FAL_AT_COST_MULTIPLIER,
+            source: 'copilot',
+            billingAttribution: context.billingAttribution,
+          })
+        },
       })
 
       const ext = audioExtFromContentType(result.contentType)
@@ -182,7 +194,6 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         fileName: written.name,
         vfsPath: written.vfsPath,
         downloadUrl: written.downloadUrl,
-        _serviceCost: { service: 'falai_audio', cost: result.cost.costDollars },
       }
     } catch (error) {
       const msg = getErrorMessage(error, 'Unknown error')

@@ -29,6 +29,7 @@ const principal = {
   kind: 'personal_api_key' as const,
   userId: 'user-1',
   keyId: 'key-1',
+  access: 'write' as const,
 }
 const auth = {
   principal,
@@ -105,7 +106,6 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
         new WorkflowRunAlreadyTerminalError({
           executionId: RUN_ID,
           executionStatus,
-          redisAvailable: true,
           locallyAborted: false,
         })
       )

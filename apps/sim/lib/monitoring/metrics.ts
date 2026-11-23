@@ -32,6 +32,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getAwsCredentials } from '@/lib/core/config/aws'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 const logger = createLogger('HostedKeyMetrics')
 
@@ -63,6 +64,7 @@ function getClient(): CloudWatchClient {
     client = new CloudWatchClient({
       region: process.env.AWS_REGION || 'us-east-1',
       credentials: getAwsCredentials(),
+      requestHandler: awsRequestHandler(),
     })
   }
   return client

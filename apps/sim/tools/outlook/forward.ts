@@ -1,5 +1,7 @@
 import type { OutlookForwardParams, OutlookForwardResponse } from '@/tools/outlook/types'
+import { buildOutlookRecipientMessage } from '@/tools/outlook/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const outlookForwardTool: ToolConfig<OutlookForwardParams, OutlookForwardResponse> = {
   id: 'outlook_forward',
@@ -37,11 +39,23 @@ export const outlookForwardTool: ToolConfig<OutlookForwardParams, OutlookForward
       visibility: 'user-or-llm',
       description: 'Optional comment to include with the forwarded message',
     },
+    cc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'CC recipients for the forwarded message (comma-separated)',
+    },
+    bcc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'BCC recipients for the forwarded message (comma-separated)',
+    },
   },
 
   request: {
     url: (params) => {
-      return `https://graph.microsoft.com/v1.0/me/messages/${params.messageId}/forward`
+      return `https://graph.microsoft.com/v1.0/me/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}/forward`
     },
     method: 'POST',
     headers: (params) => {
@@ -68,9 +82,11 @@ export const outlookForwardTool: ToolConfig<OutlookForwardParams, OutlookForward
         throw new Error('At least one recipient is required to forward a message')
       }
 
+      const message = buildOutlookRecipientMessage({ cc: params.cc, bcc: params.bcc })
       return {
         comment: params.comment ?? '',
         toRecipients,
+        ...(message ? { message } : {}),
       }
     },
   },

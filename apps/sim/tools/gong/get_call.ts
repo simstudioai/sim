@@ -1,5 +1,6 @@
 import type { GongGetCallParams, GongGetCallResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
@@ -7,6 +8,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
   name: 'Gong Get Call',
   description: 'Retrieve detailed data for a specific call from Gong.',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
@@ -34,7 +36,7 @@ export const getCallTool: ToolConfig<GongGetCallParams, GongGetCallResponse> = {
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
   },
 

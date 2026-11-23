@@ -1,0 +1,32 @@
+{
+  "namespace": "googleVault",
+  "methods": {
+    "add_held_accounts": "addHeldAccounts",
+    "add_matters_permissions": "addMatterCollaborator",
+    "close_matters": "closeMatter",
+    "create_matters": "createMatter",
+    "create_matters_export": "createExport",
+    "create_matters_holds": "createHold",
+    "create_saved_query": "createSavedQuery",
+    "delete_matters": "deleteMatter",
+    "delete_matters_export": "deleteExport",
+    "delete_matters_holds": "deleteHold",
+    "delete_saved_query": "deleteSavedQuery",
+    "download_export_file": "downloadExportFile",
+    "list_matters": "listMatters",
+    "list_matters_export": "listExports",
+    "list_matters_holds": "listHolds",
+    "list_saved_queries": "listSavedQueries",
+    "remove_held_accounts": "removeHeldAccounts",
+    "remove_matters_permissions": "removeMatterCollaborator",
+    "reopen_matters": "reopenMatter",
+    "undelete_matters": "undeleteMatter",
+    "update_matters": "updateMatter",
+    "update_matters_holds": "updateHold"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

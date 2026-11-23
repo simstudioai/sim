@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteGroupParams, OktaDeleteGroupResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaDeleteGroup')
 
@@ -12,6 +14,7 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
   description:
     'Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +40,7 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+      return `https://${domain}/api/v1/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

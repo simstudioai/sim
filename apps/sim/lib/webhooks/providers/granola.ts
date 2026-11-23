@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -71,7 +73,7 @@ function granolaUserFacingError(status: number, body: string): string {
 
 /** Delete one Granola webhook endpoint. Treats an already-deleted endpoint as success. */
 async function deleteGranolaEndpoint(apiKey: string, endpointId: string): Promise<void> {
-  const response = await fetch(
+  const response = await outboundFetch(
     `${GRANOLA_WEBHOOK_ENDPOINTS_URL}/${encodeURIComponent(endpointId)}`,
     {
       method: 'DELETE',
@@ -117,11 +119,12 @@ async function cleanupOrphanedGranolaEndpoint(params: {
   const { apiKey, endpointId, requestId } = params
   try {
     await deleteGranolaEndpoint(apiKey, endpointId)
-    logger.info(`[${requestId}] Removed orphaned Granola webhook endpoint ${endpointId}`)
+    logger.info(`Removed orphaned Granola webhook endpoint ${endpointId}`, { requestId })
   } catch (error) {
     logger.error(
-      `[${requestId}] Failed to remove orphaned Granola webhook endpoint ${endpointId}; it may still be active`,
-      error
+      `Failed to remove orphaned Granola webhook endpoint ${endpointId}; it may still be active`,
+      error,
+      { requestId }
     )
   }
 }
@@ -140,7 +143,7 @@ export const granolaHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret?.trim()) {
-      logger.warn(`[${requestId}] Granola webhook missing signing secret in provider configuration`)
+      logger.warn('Granola webhook missing signing secret in provider configuration', { requestId })
       return new NextResponse('Unauthorized - Granola signing secret is required', { status: 401 })
     }
 
@@ -165,7 +168,8 @@ export const granolaHandler: WebhookProviderHandler = {
 
     if (!isGranolaEventMatch(triggerId, eventType)) {
       logger.debug(
-        `[${requestId}] Granola event mismatch for trigger ${triggerId}. event_type: ${eventType}. Skipping.`
+        `Granola event mismatch for trigger ${triggerId}. event_type: ${eventType}. Skipping.`,
+        { requestId }
       )
       return false
     }
@@ -212,10 +216,11 @@ export const granolaHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (!apiKey) {
-      logger.warn(`[${requestId}] Missing apiKey for Granola webhook creation.`, {
+      logger.warn('Missing apiKey for Granola webhook creation.', {
+        requestId,
         webhookId: webhook.id,
       })
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Granola API Key is required. Please provide your Granola API key in the trigger configuration.'
       )
     }
@@ -231,7 +236,8 @@ export const granolaHandler: WebhookProviderHandler = {
     if (events.length > 0) requestBody.events = events
     if (folderIds.length > 0) requestBody.folder_ids = folderIds
 
-    logger.info(`[${requestId}] Creating Granola webhook endpoint`, {
+    logger.info('Creating Granola webhook endpoint', {
+      requestId,
       triggerId,
       events,
       scopes: requestBody.scopes,
@@ -239,7 +245,7 @@ export const granolaHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    const response = await fetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
+    const response = await outboundFetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -252,8 +258,8 @@ export const granolaHandler: WebhookProviderHandler = {
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '')
       logger.error(
-        `[${requestId}] Failed to create Granola webhook endpoint for webhook ${webhook.id}. Status: ${response.status}`,
-        { response: errorBody }
+        `Failed to create Granola webhook endpoint for webhook ${webhook.id}. Status: ${response.status}`,
+        { requestId, response: errorBody }
       )
       throw new Error(granolaUserFacingError(response.status, errorBody))
     }
@@ -265,7 +271,8 @@ export const granolaHandler: WebhookProviderHandler = {
 
     if (!created.id || !created.signing_secret) {
       logger.error(
-        `[${requestId}] Granola webhook endpoint response missing id or signing secret for webhook ${webhook.id}.`
+        `Granola webhook endpoint response missing id or signing secret for webhook ${webhook.id}.`,
+        { requestId }
       )
       if (created.id) {
         await cleanupOrphanedGranolaEndpoint({ apiKey, endpointId: created.id, requestId })
@@ -275,10 +282,10 @@ export const granolaHandler: WebhookProviderHandler = {
       )
     }
 
-    logger.info(
-      `[${requestId}] Successfully created Granola webhook endpoint for webhook ${webhook.id}.`,
-      { externalId: created.id }
-    )
+    logger.info(`Successfully created Granola webhook endpoint for webhook ${webhook.id}.`, {
+      requestId,
+      externalId: created.id,
+    })
 
     return {
       providerConfigUpdates: {
@@ -303,7 +310,8 @@ export const granolaHandler: WebhookProviderHandler = {
 
       if (!apiKey || !externalId) {
         logger.warn(
-          `[${requestId}] Missing ${!apiKey ? 'apiKey' : 'externalId'} for Granola webhook deletion ${webhook.id}, skipping cleanup`
+          `Missing ${!apiKey ? 'apiKey' : 'externalId'} for Granola webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) {
           throw new Error(
@@ -315,9 +323,9 @@ export const granolaHandler: WebhookProviderHandler = {
 
       await deleteGranolaEndpoint(apiKey, externalId)
 
-      logger.info(`[${requestId}] Successfully deleted Granola webhook endpoint ${externalId}`)
+      logger.info(`Successfully deleted Granola webhook endpoint ${externalId}`, { requestId })
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Granola webhook endpoint (non-fatal)`, error)
+      logger.warn('Error deleting Granola webhook endpoint (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },

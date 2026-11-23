@@ -9,8 +9,7 @@ interface DropZoneProps {
   className?: string
 }
 
-/** File drop target with a dashed accent overlay while dragging. Shared by the
- * whitelabeling settings and the deploy-as-block icon upload. */
+/** File drop target with a dashed accent overlay while dragging. */
 export function DropZone({ onDrop, children, className }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
 

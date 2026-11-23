@@ -3,6 +3,7 @@ import type {
   DatabricksGetClusterResponse,
 } from '@/tools/databricks/types'
 import { databricksUrl } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGetClusterResponse> =
@@ -12,6 +13,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
     description:
       'Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID.',
     version: '1.0.0',
+    oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
     params: {
       host: {

@@ -2,7 +2,7 @@
 title: ElevenLabs
 description: Generate and transform audio with ElevenLabs
 integration:
-  type: "elevenlabs"
+  type: "elevenlabs_v2"
   color: "#181C1E"
 ---
 
@@ -34,7 +34,6 @@ Convert text to speech using ElevenLabs voices
 | `modelId` | string | No | The ID of the model to use \(e.g., "eleven_multilingual_v2", "eleven_turbo_v2"\). Defaults to eleven_monolingual_v1 |
 | `stability` | number | No | Voice stability setting from 0.0 to 1.0 \(e.g., 0.5 for balanced, 0.75 for more stable\). Higher values produce more consistent output |
 | `similarityBoost` | number | No | Similarity boost setting from 0.0 to 1.0 \(e.g., 0.75 for natural, 1.0 for maximum similarity\). Higher values make the voice more similar to the original |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 
 #### Output
 
@@ -55,7 +54,6 @@ Generate a sound effect from a text prompt using ElevenLabs
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `text` | string | Yes | The prompt describing the sound effect \(e.g., "thunder rumbling in the distance"\) |
 | `modelId` | string | No | The model to use \(defaults to eleven_text_to_sound_v2\) |
 | `durationSeconds` | number | No | Length of the sound in seconds \(0.5-30\). Omit to auto-determine |
@@ -81,7 +79,6 @@ Convert audio into a chosen ElevenLabs voice while preserving content and emotio
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `voiceId` | string | Yes | The ID of the target voice to convert the audio into |
 | `audioFile` | file | Yes | The source audio file to convert \(e.g., MP3, WAV, M4A\) |
 | `modelId` | string | No | The model to use \(defaults to eleven_english_sts_v2\) |
@@ -106,7 +103,6 @@ Remove background noise from an audio file, isolating the speech using ElevenLab
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `audioFile` | file | Yes | The audio file to isolate speech from \(e.g., MP3, WAV, M4A\) |
 
 #### Output
@@ -128,7 +124,6 @@ List the voices available in your ElevenLabs account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `search` | string | No | Search term to filter voices by name, description, labels, or category |
 | `category` | string | No | Filter by category: premade, cloned, generated, or professional |
 | `pageSize` | number | No | Number of voices to return \(1-100, default 10\) |
@@ -162,7 +157,6 @@ Get metadata and settings for a specific ElevenLabs voice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `voiceId` | string | Yes | The ID of the voice to retrieve \(e.g., "21m00Tcm4TlvDq8ikWAM"\) |
 
 #### Output
@@ -192,7 +186,6 @@ Get the configured settings for a specific ElevenLabs voice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `voiceId` | string | Yes | The ID of the voice whose settings to retrieve |
 
 #### Output
@@ -217,7 +210,6 @@ Update the settings for a specific ElevenLabs voice
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 | `voiceId` | string | Yes | The ID of the voice to update |
 | `stability` | number | No | Voice stability from 0.0 to 1.0 \(default 0.5\) |
 | `similarityBoost` | number | No | Similarity boost from 0.0 to 1.0 \(default 0.75\) |
@@ -243,7 +235,6 @@ List the models available in ElevenLabs
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 
 #### Output
 
@@ -273,7 +264,6 @@ Get account and subscription information for the ElevenLabs user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your ElevenLabs API key |
 
 #### Output
 

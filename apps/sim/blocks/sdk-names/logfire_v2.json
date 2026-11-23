@@ -1,0 +1,14 @@
+{
+  "namespace": "logfire",
+  "methods": {
+    "logfire_get_token_info": "getTokenInfo",
+    "logfire_get_trace": "getTrace",
+    "logfire_query": "runSqlQuery",
+    "logfire_search_records": "searchRecords"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

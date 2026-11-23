@@ -1,0 +1,18 @@
+{
+  "namespace": "ssh",
+  "methods": {
+    "ssh_check_command_exists": "checkCommandExists",
+    "ssh_check_file_exists": "checkFileDirectoryExists",
+    "ssh_create_directory": "createDirectory",
+    "ssh_delete_file": "deleteFileDirectory",
+    "ssh_download_file": "downloadFile",
+    "ssh_execute_command": "executeCommand",
+    "ssh_execute_script": "executeScript",
+    "ssh_get_system_info": "getSystemInfo",
+    "ssh_list_directory": "listDirectory",
+    "ssh_move_rename": "moveRename",
+    "ssh_read_file_content": "readFileContent",
+    "ssh_upload_file": "uploadFile",
+    "ssh_write_file_content": "writeFileContent"
+  }
+}

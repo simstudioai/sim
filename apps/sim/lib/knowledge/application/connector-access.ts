@@ -35,6 +35,7 @@ import {
   mirrorsSourceAcls,
   supportsConnectorAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
+import { requireConnectorCredentialService } from '@/lib/knowledge/connectors/credential-service'
 import { validateKnowledgeConnectorMembersBinding } from '@/lib/knowledge/connectors/member-access'
 import {
   provisionKnowledgeConnectorMembersBinding,
@@ -49,7 +50,7 @@ import {
 import { getKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import type { KnowledgeOperationSource } from '@/lib/knowledge/orchestration/shared'
 import { requireOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
-import { getServiceConfigByProviderId, getServiceConfigByServiceId } from '@/lib/oauth'
+import { getConnectorCredentialService } from '@/connectors/auth'
 import { getConnectorMeta } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 
@@ -282,6 +283,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         await requireUsableCredential({
           principal,
           credentialId,
+          storesApiKey: Boolean(connector.encryptedApiKey),
           connectorMeta,
           sourceConfig,
           ...owner,
@@ -290,6 +292,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
           accessMode: 'members',
         })
         const rejection = await validateConnectorSourceConfig({
+          isSearchIndex: context.knowledgeBase.isSearchIndex === true,
           principal,
           connector: { ...connector, accessMode: 'members', credentialId },
           sourceConfig,
@@ -312,6 +315,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         credentialId: await requireUsableCredential({
           principal,
           credentialId: input.credentialId,
+          storesApiKey: Boolean(connector.encryptedApiKey),
           connectorMeta,
           sourceConfig,
           ...owner,
@@ -321,6 +325,7 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
         }),
       }
       const rejection = await validateConnectorSourceConfig({
+        isSearchIndex: context.knowledgeBase.isSearchIndex === true,
         principal,
         connector: {
           ...connector,
@@ -344,7 +349,12 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
     }
 
     const outcome = await performUpdateKnowledgeConnectorAccess({
-      knowledgeBase: { id: context.knowledgeBaseId, name: context.knowledgeBase.name, ...owner },
+      knowledgeBase: {
+        id: context.knowledgeBaseId,
+        name: context.knowledgeBase.name,
+        isSearchIndex: context.knowledgeBase.isSearchIndex === true,
+        ...owner,
+      },
       connectorId: context.connectorId,
       target,
       sourceConfig: input.sourceConfig === undefined ? undefined : sourceConfig,
@@ -391,10 +401,16 @@ export const updateKnowledgeConnectorAccess = defineAuthorizedKnowledgeUseCase({
  * provider, and one that yields a token, since the connector syncs as it from
  * then on. API-key connectors keep their canonical encrypted key; the shared
  * source validation verifies it against the target mode before any mutation.
+ *
+ * A key connector that stores its key never moves onto its saved-credential
+ * alternative: the key would stay on the row and silently take over again once
+ * the credential is deleted, so switching means creating the connector anew.
  */
 async function requireUsableCredential(input: {
   principal: Principal
   credentialId: string | null | undefined
+  /** Whether the connector row stores an encrypted API key. */
+  storesApiKey: boolean
   connectorMeta: Pick<ConnectorMeta, 'name' | 'auth'>
   sourceConfig: Record<string, unknown>
   workspaceId?: string
@@ -404,26 +420,27 @@ async function requireUsableCredential(input: {
   accessMode: ConnectorAccessMode
 }): Promise<string | null> {
   const { auth } = input.connectorMeta
-  if (auth.mode !== 'oauth') {
+  const credentialService = getConnectorCredentialService(auth)
+  if (!credentialService) {
     if (input.credentialId) {
       throw new OrchestrationError('validation', 'API-key connectors use their configured API key')
     }
     return null
   }
   if (!input.credentialId) {
+    if (auth.mode === 'apiKey') return null
     throw new OrchestrationError(
       'validation',
       'credentialId is required for a mode that syncs with one credential'
     )
   }
-  const service =
-    getServiceConfigByServiceId(auth.provider) ?? getServiceConfigByProviderId(auth.provider)
-  if (!service) {
+  if (auth.mode === 'apiKey' && input.storesApiKey) {
     throw new OrchestrationError(
       'validation',
-      `${input.connectorMeta.name} has no OAuth service to validate the credential against`
+      `This ${input.connectorMeta.name} connector signs with its stored key. Create a new connector to use a saved credential.`
     )
   }
+  const service = requireConnectorCredentialService(input.connectorMeta)
   const token = await resolveConnectorCredentialAccessToken({
     principal: input.principal,
     credentialId: input.credentialId,

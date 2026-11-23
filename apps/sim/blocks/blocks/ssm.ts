@@ -1,6 +1,12 @@
 import { SSMIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  blockFieldOrToolArg,
+  mapperOperation,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /** Operations whose SSM API caps `MaxResults` at 50. */
 const STANDARD_PAGE_OPERATIONS = [
@@ -44,6 +50,8 @@ function toParsedJson(value: unknown): unknown {
 
 export const SSMBlock: BlockConfig = {
   type: 'ssm',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ssm_v2' },
   name: 'AWS Systems Manager',
   description: 'Run commands, manage parameters, and audit managed nodes',
   longDescription:
@@ -795,13 +803,12 @@ export const SSMBlock: BlockConfig = {
             throw new Error(`Invalid Systems Manager operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {
           region: params.region,
           accessKeyId: params.accessKeyId,
           secretAccessKey: params.secretAccessKey,
         }
-
         const setJson = (key: string, value: unknown) => {
           const parsed = toParsedJson(value)
           if (parsed !== undefined) result[key] = parsed
@@ -819,7 +826,7 @@ export const SSMBlock: BlockConfig = {
           result[key] = String(value)
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'send_command':
             result.documentName = params.documentName
             setJson('instanceIds', params.instanceIds)
@@ -837,14 +844,14 @@ export const SSMBlock: BlockConfig = {
           case 'list_commands':
             setString('commandId', params.commandId)
             setString('instanceId', params.instanceId)
-            setJson('filters', params.commandFilters)
+            setJson('filters', params.commandFilters ?? toolCallArg(context, params.filters))
             setNumber('maxResults', params.maxResults)
             setString('nextToken', params.nextToken)
             break
           case 'list_command_invocations':
             setString('commandId', params.commandId)
             setString('instanceId', params.instanceId)
-            setJson('filters', params.commandFilters)
+            setJson('filters', params.commandFilters ?? toolCallArg(context, params.filters))
             setBoolean('details', params.details)
             setNumber('maxResults', params.maxResults)
             setString('nextToken', params.nextToken)
@@ -859,35 +866,40 @@ export const SSMBlock: BlockConfig = {
             setJson('instanceIds', params.instanceIds)
             break
           case 'get_parameter':
-            result.name = params.parameterName
+            result.name = params.parameterName ?? toolCallArg(context, params.name)
             setBoolean('withDecryption', params.withDecryption)
             break
           case 'get_parameters':
-            setJson('names', params.parameterNames)
+            setJson('names', params.parameterNames ?? toolCallArg(context, params.names))
             setBoolean('withDecryption', params.withDecryption)
             break
           case 'get_parameters_by_path':
-            result.path = params.parameterPath
+            result.path = params.parameterPath ?? toolCallArg(context, params.path)
             setBoolean('recursive', params.recursive)
             setBoolean('withDecryption', params.withDecryption)
             setJson('parameterFilters', params.parameterFilters)
-            setNumber('maxResults', params.pathMaxResults)
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.pathMaxResults, params.maxResults)
+            )
             setString('nextToken', params.nextToken)
             break
           case 'put_parameter':
-            result.name = params.parameterName
-            result.value = params.parameterValue
-            setString('type', params.parameterType)
-            setString('description', params.parameterDescription)
-            setString('keyId', params.kmsKeyId)
+            result.name = params.parameterName ?? toolCallArg(context, params.name)
+            result.value = params.parameterValue ?? toolCallArg(context, params.value)
+            setString('type', params.parameterType ?? toolCallArg(context, params.type))
+            setString(
+              'description',
+              params.parameterDescription ?? toolCallArg(context, params.description)
+            )
+            setString('keyId', params.kmsKeyId ?? toolCallArg(context, params.keyId))
             setBoolean('overwrite', params.overwrite)
             setString('allowedPattern', params.allowedPattern)
-            setString('tier', params.parameterTier)
-            setString('dataType', params.parameterDataType)
-            setString('policies', params.parameterPolicies)
+            setString('tier', params.parameterTier ?? toolCallArg(context, params.tier))
+            setString('dataType', params.parameterDataType ?? toolCallArg(context, params.dataType))
+            setString('policies', params.parameterPolicies ?? toolCallArg(context, params.policies))
             break
           case 'delete_parameter':
-            result.name = params.parameterName
+            result.name = params.parameterName ?? toolCallArg(context, params.name)
             break
           case 'describe_parameters':
             setJson('parameterFilters', params.parameterFilters)
@@ -896,30 +908,39 @@ export const SSMBlock: BlockConfig = {
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_information':
-            setJson('filters', params.instanceInfoFilters)
-            setNumber('maxResults', params.instanceInfoMaxResults)
+            setJson(
+              'filters',
+              blockFieldOrToolArg(context, params.instanceInfoFilters, params.filters)
+            )
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.instanceInfoMaxResults, params.maxResults)
+            )
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_patches':
             result.instanceId = params.instanceId
-            setJson('filters', params.patchFilters)
-            setNumber('maxResults', params.patchMaxResults)
+            setJson('filters', blockFieldOrToolArg(context, params.patchFilters, params.filters))
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.patchMaxResults, params.maxResults)
+            )
             setString('nextToken', params.nextToken)
             break
           case 'describe_instance_patch_states':
             setJson('instanceIds', params.instanceIds)
-            setNumber('maxResults', params.patchMaxResults)
+            result.maxResults = toOptionalNumber(
+              blockFieldOrToolArg(context, params.patchMaxResults, params.maxResults)
+            )
             setString('nextToken', params.nextToken)
             break
           case 'list_compliance_items':
             setJson('resourceIds', params.resourceIds)
             setJson('resourceTypes', params.resourceTypes)
-            setJson('filters', params.complianceFilters)
+            setJson('filters', params.complianceFilters ?? toolCallArg(context, params.filters))
             setNumber('maxResults', params.maxResults)
             setString('nextToken', params.nextToken)
             break
           case 'list_compliance_summaries':
-            setJson('filters', params.complianceFilters)
+            setJson('filters', params.complianceFilters ?? toolCallArg(context, params.filters))
             setNumber('maxResults', params.maxResults)
             setString('nextToken', params.nextToken)
             break
@@ -935,7 +956,7 @@ export const SSMBlock: BlockConfig = {
             setString('clientToken', params.clientToken)
             break
           case 'describe_automation_executions':
-            setJson('filters', params.automationFilters)
+            setJson('filters', params.automationFilters ?? toolCallArg(context, params.filters))
             setNumber('maxResults', params.maxResults)
             setString('nextToken', params.nextToken)
             break
@@ -947,12 +968,12 @@ export const SSMBlock: BlockConfig = {
             setString('stopType', params.stopType)
             break
           case 'list_documents':
-            setJson('filters', params.documentFilters)
+            setJson('filters', params.documentFilters ?? toolCallArg(context, params.filters))
             setNumber('maxResults', params.maxResults)
             setString('nextToken', params.nextToken)
             break
           case 'get_document':
-            result.name = params.documentName
+            result.name = params.documentName ?? toolCallArg(context, params.name)
             setString('documentVersion', params.documentVersion)
             setString('versionName', params.versionName)
             setString('documentFormat', params.documentFormat)
@@ -1351,3 +1372,17 @@ export const SSMBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SSMV2Block: BlockConfig = {
+  ...SSMBlock,
+  type: 'ssm_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SSMBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

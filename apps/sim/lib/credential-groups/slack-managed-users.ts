@@ -16,7 +16,8 @@ import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure, OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -160,12 +161,6 @@ export class SlackManagedUsersError extends Error {
     super(message)
     this.name = 'SlackManagedUsersError'
   }
-}
-
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) throw new Error('Slack managed-user setup requires Redis')
-  return redis
 }
 
 function attemptKey(state: string): string {
@@ -333,7 +328,7 @@ function parseSlackOAuthResponse(value: unknown): SlackOAuthSuccess {
 }
 
 export async function revokeSlackToken(token: string): Promise<void> {
-  const response = await fetch('https://slack.com/api/auth.revoke', {
+  const response = await outboundFetch('https://slack.com/api/auth.revoke', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -359,7 +354,7 @@ export async function revokeSlackToken(token: string): Promise<void> {
 async function callSlackApi(method: string, accessToken: string, body?: URLSearchParams) {
   let response: Response
   try {
-    response = await fetch(`https://slack.com/api/${method}`, {
+    response = await outboundFetch(`https://slack.com/api/${method}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -369,6 +364,7 @@ async function callSlackApi(method: string, accessToken: string, body?: URLSearc
       cache: 'no-store',
     })
   } catch (error) {
+    if (isUnavailableFailure(error)) throw error
     logger.error('Slack API verification failed', { method, error: getErrorMessage(error) })
     throw new SlackManagedUsersError('Slack could not verify the authorization.', 'provider_error')
   }
@@ -475,7 +471,7 @@ export async function exchangeSlackUserAuthorization(params: {
   const body = new URLSearchParams({ code: params.code, redirect_uri: params.redirectUri })
   let response: Response
   try {
-    response = await fetch('https://slack.com/api/oauth.v2.access', {
+    response = await outboundFetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basicAuth}`,
@@ -485,6 +481,7 @@ export async function exchangeSlackUserAuthorization(params: {
       cache: 'no-store',
     })
   } catch (error) {
+    if (isUnavailableFailure(error)) throw error
     logger.error('Slack OAuth exchange failed', { error: getErrorMessage(error) })
     throw new SlackManagedUsersError('Slack could not complete authorization.', 'provider_error')
   }
@@ -722,7 +719,7 @@ export async function createSlackManagedUsersAttempt(params: {
       'The combined Slack request has too many permissions.',
       'invalid_response'
     )
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const state = generateId()
   const redirectUri = getSlackManagedUsersRedirectUri()
   const sharedApp =
@@ -770,7 +767,7 @@ export async function createSlackManagedUsersAttempt(params: {
 export async function consumeSlackManagedUsersAttempt(
   state: string
 ): Promise<SlackManagedUsersAttempt | null> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const raw = await redis.eval(CONSUME_SCRIPT, 1, attemptKey(state))
   return parseSlackManagedUsersAttempt(raw)
 }
@@ -778,7 +775,7 @@ export async function consumeSlackManagedUsersAttempt(
 export async function loadSlackManagedUsersAttempt(
   state: string
 ): Promise<SlackManagedUsersAttempt | null> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const raw = await redis.get(attemptKey(state))
   return parseSlackManagedUsersAttempt(raw)
 }

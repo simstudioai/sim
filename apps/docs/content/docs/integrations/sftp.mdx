@@ -6,13 +6,14 @@ integration:
   color: "#2D3748"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use SFTP (SSH File Transfer Protocol) to upload or download files, list directories with optional metadata, delete files or directories, and create directories on a remote server. Authenticate with a password or OpenSSH private key; provide a passphrase for an encrypted key.
 
 Uploads accept workspace files or direct text content. The current Download operation returns a stored file reference for later workflow steps. Recursive deletion removes directory contents, so check the target path before enabling it.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Upload, download, list, and manage files on remote servers via SFTP. Supports bo
 ### SFTP Upload
 
 Upload files to a remote SFTP server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -49,9 +52,13 @@ Upload files to a remote SFTP server
 | `uploadedFiles` | json | Array of uploaded file details \(name, remotePath, size\) |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SFTP Download
 
 Download a file from a remote SFTP server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -71,9 +78,13 @@ Download a file from a remote SFTP server
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
+</ReferenceDetails>
+
 ### SFTP List Directory
 
 List files and directories on a remote SFTP server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -98,9 +109,13 @@ List files and directories on a remote SFTP server
 | `count` | number | Number of entries in the directory |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SFTP Delete
 
 Delete a file or directory on a remote SFTP server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -123,9 +138,13 @@ Delete a file or directory on a remote SFTP server
 | `deletedPath` | string | Path that was deleted |
 | `message` | string | Operation status message |
 
+</ReferenceDetails>
+
 ### SFTP Create Directory
 
 Create a directory on a remote SFTP server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -147,5 +166,7 @@ Create a directory on a remote SFTP server
 | `success` | boolean | Whether the directory was created successfully |
 | `createdPath` | string | Path of the created directory |
 | `message` | string | Operation status message |
+
+</ReferenceDetails>
 
 

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveSearchUsersParams, ThriveSearchUsersResponse } from '@/tools/thrive/types'
 import {
   THRIVE_PAGINATION_OUTPUT_PROPERTIES,
@@ -16,6 +17,7 @@ export const searchUsersTool: ToolConfig<ThriveSearchUsersParams, ThriveSearchUs
   name: 'Thrive Search Users',
   description: 'Search users in Thrive and return basic user information with pagination.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

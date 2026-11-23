@@ -7,7 +7,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { oauthCredentialsQuerySchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { AuthType, type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
@@ -20,7 +19,7 @@ import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,8 +83,6 @@ async function integrationsWithheldFromSession(
  * Get credentials for a specific provider
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const { searchParams } = new URL(request.url)
     const rawQuery = {
@@ -100,11 +97,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parseResult.success) {
       const refinementError = parseResult.error.issues.find((err) => err.code === 'custom')
       if (refinementError) {
-        logger.warn(`[${requestId}] Invalid query parameters: ${refinementError.message}`)
+        logger.warn(`Invalid query parameters: ${refinementError.message}`)
         return NextResponse.json({ error: refinementError.message }, { status: 400 })
       }
 
-      logger.warn(`[${requestId}] Invalid query parameters`, {
+      logger.warn('Invalid query parameters', {
         errors: parseResult.error.issues,
       })
 
@@ -119,7 +116,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     // Authenticate requester (supports session and internal JWT)
     const authResult = await checkSessionOrInternalAuth(request)
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
+      logger.warn('Unauthenticated credentials request rejected')
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
     const requesterUserId = authResult.userId
@@ -132,7 +129,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         action: 'read',
       })
       if (!workflowAuthorization.allowed) {
-        logger.warn(`[${requestId}] Forbidden credentials request for workflow`, {
+        logger.warn('Forbidden credentials request for workflow', {
           requesterUserId,
           workflowId,
           status: workflowAuthorization.status,
@@ -145,9 +142,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       effectiveWorkspaceId = workflowAuthorization.workflow?.workspaceId || undefined
     }
 
+    let workspaceAccess: WorkspaceAccess | undefined
     let requesterCanAdmin = false
     if (effectiveWorkspaceId) {
-      const workspaceAccess = await checkWorkspaceAccess(effectiveWorkspaceId, requesterUserId)
+      workspaceAccess = await checkWorkspaceAccess(effectiveWorkspaceId, requesterUserId)
       if (!workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
@@ -197,7 +195,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
          * Integrations, and read it. Both are checked; either withholding is a
          * refusal, and the resolver memoizes the repeat when they are the same.
          *
-         * Asked after each branch's own access check, never before: a caller who
+         * Asked after the access check, never before: a caller who
          * may not reach this credential at all must not learn from the refusal
          * wording that the workspace it belongs to is one their group governs.
          */
@@ -208,21 +206,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             platformCredential.workspaceId
           )
 
+        // Before any access check, so an unsupported credential reads the same as an unknown id.
+        if (
+          platformCredential.type !== 'service_account' &&
+          (platformCredential.type !== 'oauth' || !platformCredential.accountId)
+        ) {
+          return NextResponse.json({ credentials: [] }, { status: 200 })
+        }
+
+        // A workflowId only pins the credential's workspace; membership is checked on every lookup.
+        if (
+          workflowId &&
+          (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId)
+        ) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        const access = await getCredentialActorContext(platformCredential.id, requesterUserId, {
+          workspaceAccess,
+        })
+        if (!canUseCredential(access)) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
         if (platformCredential.type === 'service_account') {
-          if (
-            workflowId &&
-            (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId)
-          ) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-          }
-
-          if (!workflowId) {
-            const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-            if (!canUseCredential(access)) {
-              return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-            }
-          }
-
           // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope
           if (await credentialScopeWithheld()) {
             return NextResponse.json(
@@ -246,21 +252,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             },
             { status: 200 }
           )
-        }
-
-        if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
-          return NextResponse.json({ credentials: [] }, { status: 200 })
-        }
-
-        if (workflowId) {
-          if (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-          }
-        } else {
-          const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-          if (!canUseCredential(access)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-          }
         }
 
         // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope
@@ -378,7 +369,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ credentials: [] }, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching OAuth credentials`, error)
+    logger.error('Error fetching OAuth credentials', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

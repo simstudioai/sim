@@ -21,6 +21,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import { env } from '@/lib/core/config/env'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { createManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-service'
@@ -493,6 +494,12 @@ describe('managed Search operation sessions', () => {
         'Second topology',
         TITLE,
       ])
+      expect(found.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ documentName: TITLE, queryIndexes: [0] }),
+          expect.objectContaining({ documentName: 'Second topology', queryIndexes: [1] }),
+        ])
+      )
       expect(found.retrieval.status).toBe('complete')
       expect(
         found.live?.accounts.map(({ queryIndex, status }) => ({ queryIndex, status }))
@@ -576,6 +583,12 @@ describe('managed Search operation sessions', () => {
       'Second topology',
       TITLE,
     ])
+    expect(parallel.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ documentName: TITLE, queryIndexes: [0] }),
+        expect.objectContaining({ documentName: 'Second topology', queryIndexes: [1] }),
+      ])
+    )
 
     for (const options of [{ project: '42' }, { topK: 5 }, { startDate: '2026-09-01T00:00:00Z' }]) {
       expect((await browse(0, options)).live?.accounts[0]?.status).not.toBe('unavailable')
@@ -633,10 +646,19 @@ describe('managed Search operation sessions', () => {
             kind: 'lucidchart',
             accountId: actor.credentialId,
           },
+          {
+            provider: 'lucid',
+            query: 'architecture',
+            kind: 'lucidchart',
+            accountId: actor.credentialId,
+          },
         ],
       },
     })
     expect(found.results).toHaveLength(1)
+    expect(workspaceKnowledgeSearchDataSchema.parse(found).results[0]).toMatchObject({
+      queryIndexes: [1, 2],
+    })
     expect(found.live?.accounts).toEqual([
       expect.objectContaining({
         queryIndex: 0,
@@ -644,6 +666,7 @@ describe('managed Search operation sessions', () => {
         nextCursor: expect.any(String),
       }),
       expect.objectContaining({ queryIndex: 1, status: 'ok' }),
+      expect.objectContaining({ queryIndex: 2, status: 'ok' }),
     ])
     expect(openTransports.size).toBe(0)
   })

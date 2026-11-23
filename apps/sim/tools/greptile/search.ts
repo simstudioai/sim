@@ -6,7 +6,7 @@ export const searchTool: ToolConfig<GreptileSearchParams, GreptileSearchResponse
   id: 'greptile_search',
   name: 'Greptile Search',
   description:
-    'Search repositories in natural language and get relevant code references without generating an answer. Useful for finding specific code locations.',
+    'Retired: Greptile removed the POST /v2/search endpoint (it returns 404) with no documented replacement, so this call fails. Kept so saved workflows still load.',
   version: '1.0.0',
 
   params: {

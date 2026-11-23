@@ -6,6 +6,7 @@ import {
   HOSTS_OUTPUT,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const declineBookingTool: ToolConfig<
   CalcomDeclineBookingParams,
@@ -44,7 +45,7 @@ export const declineBookingTool: ToolConfig<
 
   request: {
     url: (params: CalcomDeclineBookingParams) => {
-      return `https://api.cal.com/v2/bookings/${encodeURIComponent(params.bookingUid)}/decline`
+      return `https://api.cal.com/v2/bookings/${safeUrlPathSegment(params.bookingUid, 'bookingUid')}/decline`
     },
     method: 'POST',
     headers: (params) => ({

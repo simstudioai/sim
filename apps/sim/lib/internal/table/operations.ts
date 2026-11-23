@@ -192,6 +192,7 @@ export async function executeTableInsertRows(
         data: {
           row: presentNamedTableQueryRow(result.row, result.table),
           message: 'Row inserted successfully',
+          ignoredColumns: result.ignoredColumns,
         },
       },
       provenance: result.secretProvenance,
@@ -205,6 +206,7 @@ export async function executeTableInsertRows(
         rows: result.rows.map((row) => presentNamedTableQueryRow(row, result.table)),
         insertedCount: result.rows.length,
         message: `Successfully inserted ${result.rows.length} rows`,
+        ignoredColumns: result.ignoredColumns,
       },
     },
     provenance: result.secretProvenance,
@@ -233,6 +235,7 @@ export async function executeTableQueryRows(
       legacyKeying: 'names',
       limit: query.limit,
       offset: query.offset,
+      columns: query.columns,
       includeTotal: query.includeTotal,
       includeRunState: query.limit !== undefined && query.limit <= TABLE_LIMITS.MAX_QUERY_LIMIT,
       allowExpandedLimit: true,
@@ -321,6 +324,7 @@ export async function executeTableUpdateRow(
       data: {
         row: presentNamedTableRow(result.row, result.table),
         message: 'Row updated successfully',
+        ignoredColumns: result.ignoredColumns,
       },
     },
     provenance: result.secretProvenance,
@@ -355,6 +359,7 @@ export async function executeTableUpdateRowsByFilter(
         message: matched ? 'Rows updated successfully' : 'No rows matched the filter criteria',
         updatedCount: result.affectedCount,
         ...(matched ? { updatedRowIds: result.affectedRowIds } : {}),
+        ignoredColumns: result.ignoredColumns,
       },
     },
   })
@@ -469,6 +474,7 @@ export async function executeTableUpsertRow(
         row: presentNamedTableRow(result.row, result.table),
         operation: result.operation,
         message: `Row ${result.operation === 'update' ? 'updated' : 'inserted'} successfully`,
+        ignoredColumns: result.ignoredColumns,
       },
     },
     provenance: result.secretProvenance,

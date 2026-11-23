@@ -5,6 +5,7 @@ import {
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandidateResponse> = {
@@ -12,6 +13,7 @@ export const getCandidateTool: ToolConfig<AshbyGetCandidateParams, AshbyGetCandi
   name: 'Ashby Get Candidate',
   description: 'Retrieves full details about a single candidate by their ID.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

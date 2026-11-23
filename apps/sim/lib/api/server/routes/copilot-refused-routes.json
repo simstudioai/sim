@@ -5,6 +5,11 @@
     "operation": "chat.send"
   },
   {
+    "method": "POST",
+    "path": "/api/v2/credentials/workload-identity/subjects",
+    "operation": "credentials.workload_identity.prepare"
+  },
+  {
     "method": "DELETE",
     "path": "/api/v2/files/[fileId]/versions/[version]",
     "operation": "files.versions.delete"
@@ -176,6 +181,61 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources",
+    "operation": "knowledge.search.sources.manage.list"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources",
+    "operation": "knowledge.search.sources.manage.create"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]",
+    "operation": "knowledge.search.sources.manage.read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]",
+    "operation": "knowledge.search.sources.manage.update"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]",
+    "operation": "knowledge.search.sources.manage.delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions",
+    "operation": "knowledge.search.source_permissions.read"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]",
+    "operation": "knowledge.search.source_permissions.replace"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/prepare",
+    "operation": "knowledge.search.sources.prepare"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/organizations/[organizationId]/sso/policy",
     "operation": "organization.sso.read_requirement"
   },
@@ -263,5 +323,30 @@
     "method": "GET",
     "path": "/api/v2/workspaces",
     "operation": "workspaces.list_public"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workspaces/[workspaceId]/source",
+    "operation": "workspaces.source.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source",
+    "operation": "workspaces.source.apply"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/blobs",
+    "operation": "workspaces.source.blobs.stage"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/blobs/missing",
+    "operation": "workspaces.source.blobs.missing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/plan",
+    "operation": "workspaces.source.plan"
   }
 ]

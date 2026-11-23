@@ -1,0 +1,18 @@
+{
+  "namespace": "elasticsearch",
+  "methods": {
+    "elasticsearch_bulk": "bulkOperations",
+    "elasticsearch_cluster_health": "clusterHealth",
+    "elasticsearch_cluster_stats": "clusterStats",
+    "elasticsearch_count": "countDocuments",
+    "elasticsearch_create_index": "createIndex",
+    "elasticsearch_delete_document": "deleteDocument",
+    "elasticsearch_delete_index": "deleteIndex",
+    "elasticsearch_get_document": "getDocument",
+    "elasticsearch_get_index": "getIndexInfo",
+    "elasticsearch_index_document": "indexDocument",
+    "elasticsearch_list_indices": "listIndices",
+    "elasticsearch_search": "search",
+    "elasticsearch_update_document": "updateDocument"
+  }
+}

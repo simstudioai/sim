@@ -2,7 +2,7 @@
 title: Databricks
 description: Run SQL, manage jobs, and ask Genie agents on Databricks
 integration:
-  type: "databricks"
+  type: "databricks_v2"
   color: "#F9F7F4"
 ---
 
@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Databricks](https://www.databricks.com/) to execute parameterized SQL, manage jobs and runs, control compute clusters and SQL warehouses, and work with Genie spaces. Connect with a personal access token and your Databricks workspace host URL.
+Use [Databricks](https://www.databricks.com/) to execute parameterized SQL, manage jobs and runs, control compute clusters and SQL warehouses, and work with Genie spaces. Connect with a saved [Databricks connection](/integrations/databricks-credentials), which holds the workspace host and how Sim signs in.
 
 SQL operations return inline JSON rows, including SQL nulls. If a statement is still running, poll **Get Statement**. Follow `nextChunkIndex` with **Get Statement Chunk** to retrieve additional rows, or use **Cancel Statement** to stop execution. Configure `rowLimit` and `byteLimit` for predictable result sizes; external-link and Arrow/CSV downloads are outside these SQL operations.
 
@@ -21,9 +21,11 @@ Cluster operations support creating, configuring, starting, restarting, resizing
 Genie operations create and update spaces, answer natural-language questions, manage conversation history, and retrieve generated SQL, results, and charts. Reuse the conversation ID for follow-ups. Use a space's `etag` when updating it to avoid overwriting concurrent changes. Agent mode supports research reports and response cancellation; it must be enabled in your workspace.
 {/* MANUAL-CONTENT-END */}
 
+Connection guides: [Databricks connections](/integrations/databricks-credentials).
+
 ## Use the block [#usage-instructions]
 
-Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts. Connect with a personal access token and workspace host URL.
+Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts.
 
 ## Actions
 
@@ -37,8 +39,6 @@ Execute a SQL statement against a Databricks SQL warehouse and return results in
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | The ID of the SQL warehouse to execute against |
 | `statement` | string | Yes | The SQL statement to execute \(max 16 MiB\) |
 | `catalog` | string | No | Unity Catalog name \(equivalent to USE CATALOG\) |
@@ -81,8 +81,6 @@ Poll a SQL statement by its ID to retrieve status and results. Use this after Ex
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | No | SQL warehouse identifier, when required by the statement endpoint |
 | `statementId` | string | Yes | The ID of the statement to fetch \(returned by Execute SQL\) |
 
@@ -118,8 +116,6 @@ Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `statementId` | string | Yes | SQL statement identifier |
 | `chunkIndex` | number | Yes | Zero-based result chunk index |
 | `warehouseId` | string | No | SQL warehouse identifier, when required by the statement endpoint |
@@ -147,8 +143,6 @@ Request cancellation of an executing SQL statement; poll Get Statement to confir
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `statementId` | string | Yes | SQL statement identifier |
 | `warehouseId` | string | No | SQL warehouse identifier, when required by the statement endpoint |
 
@@ -170,8 +164,6 @@ List all jobs in a Databricks workspace with optional filtering by name.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `limit` | number | No | Maximum number of jobs to return \(range 1-100, default 20\) |
 | `pageToken` | string | No | Token for the next or previous page; takes precedence over legacy offset |
 | `offset` | number | No | Legacy Jobs 2.1 offset; prefer pageToken |
@@ -320,8 +312,6 @@ Get the full definition and settings of a single Databricks job by its job ID.
 | --------- | ---- | -------- | ----------- |
 | `includeTriggerState` | boolean | No | Include current job trigger state |
 | `pageToken` | string | No | Token for the next page of tasks and job clusters |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | Yes | The canonical identifier of the job to retrieve |
 
 #### Output
@@ -471,8 +461,6 @@ Create a Databricks job with tasks, scheduling, execution identity, and notifica
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `accessControlList` | json | No | Initial permissions as \[\{user_name, group_name, service_principal_name, permission_level\}\] |
 | `name` | string | No | Display name of the job |
 | `description` | string | No | Description of the job |
@@ -522,8 +510,6 @@ Merge selected settings into a Databricks job and optionally remove settings or 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | Yes | Job identifier |
 | `newSettings` | json | No | Job settings in Databricks API format; Update merges top-level fields and task keys, Reset replaces all settings |
 | `fieldsToRemove` | json | No | Settings to remove, such as \["schedule", "tasks/task_key"\] |
@@ -546,8 +532,6 @@ Replace all settings of a Databricks job.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | Yes | Job identifier |
 | `newSettings` | json | Yes | Job settings in Databricks API format; Update merges top-level fields and task keys, Reset replaces all settings |
 
@@ -569,8 +553,6 @@ Delete a Databricks job and cancel its active runs.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | Yes | Job identifier |
 
 #### Output
@@ -595,8 +577,6 @@ Trigger an existing Databricks job to run immediately with optional job-level or
 | `queue` | json | No | Run queue settings as \{enabled: true\} or \{enabled: false\} |
 | `performanceTarget` | string | No | Serverless performance: STANDARD or PERFORMANCE_OPTIMIZED |
 | `pipelineParams` | json | No | Pipeline full_refresh and selective table or flow settings |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | Yes | The ID of the job to trigger |
 | `jobParameters` | json | No | Job-level parameter overrides as a JSON object \(e.g., \{"key": "value"\}\) |
 | `notebookParams` | json | No | Notebook task parameters as a JSON object \(e.g., \{"param1": "value1"\}\) |
@@ -621,8 +601,6 @@ Submit a one-time task run without creating a saved job.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `accessControlList` | json | No | Initial permissions as \[\{user_name, group_name, service_principal_name, permission_level\}\] |
 | `queue` | json | No | Queue behavior as \{enabled: true\} or \{enabled: false\} |
 | `runAs` | json | No | Execution identity as \{user_name\} or \{service_principal_name\} |
@@ -658,8 +636,6 @@ List job runs in a Databricks workspace with optional filtering by job, status, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | No | Filter runs by job ID. Omit to list runs across all jobs |
 | `activeOnly` | boolean | No | Only include active runs \(PENDING, RUNNING, or TERMINATING\) |
 | `completedOnly` | boolean | No | Only include completed runs |
@@ -827,8 +803,6 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `pageToken` | string | No | Token for the next page of tasks and job clusters |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `runId` | number | Yes | The canonical identifier of the run |
 | `includeHistory` | boolean | No | Include repair history in the response |
 | `includeResolvedValues` | boolean | No | Include resolved parameter values in the response |
@@ -1004,8 +978,6 @@ Get the output of a completed Databricks job run, including notebook results, er
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `runId` | number | Yes | The run ID to get output for. For multi-task jobs, use the task run ID |
 
 #### Output
@@ -1043,8 +1015,6 @@ Rerun failed or selected tasks within an existing Databricks run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `runId` | number | Yes | Run identifier |
 | `latestRepairId` | number | No | Most recent repair ID; required after the first repair of a run |
 | `rerunTasks` | json | No | Task keys to repair; mutually exclusive with rerunAllFailedTasks |
@@ -1072,8 +1042,6 @@ Cancel a running or pending Databricks job run. Cancellation is asynchronous; po
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `runId` | number | Yes | The canonical identifier of the run to cancel |
 
 #### Output
@@ -1094,8 +1062,6 @@ Request cancellation of active runs of a job or queued runs in the workspace.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `jobId` | number | No | Job identifier; required unless allQueuedRuns is true |
 | `allQueuedRuns` | boolean | No | Cancel queued runs; without a job ID this applies to the workspace |
 
@@ -1117,8 +1083,6 @@ Delete a completed Databricks job run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `runId` | number | Yes | Run identifier |
 
 #### Output
@@ -1141,8 +1105,6 @@ List a page of clusters in a Databricks workspace including their state, configu
 | --------- | ---- | -------- | ----------- |
 | `pageSize` | number | No | Resources per page \(default 20\) |
 | `pageToken` | string | No | Token returned by the previous list request |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 
 #### Output
 
@@ -1185,8 +1147,6 @@ Get the state, configuration, and resource details of a single Databricks cluste
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | The ID of the cluster to retrieve |
 
 #### Output
@@ -1228,8 +1188,6 @@ Create a compute cluster with runtime, sizing, policy, and cloud-specific settin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `applyPolicyDefaultValues` | boolean | No | Fill unspecified settings from the compute policy defaults |
 | `cloneFrom` | json | No | Clone source as \{source_cluster_id, clone_source\} |
 | `numWorkers` | number | No | Fixed worker count; use this or autoscale |
@@ -1285,8 +1243,6 @@ Replace a compute cluster configuration; a running cluster restarts to apply the
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | Compute cluster identifier |
 | `applyPolicyDefaultValues` | boolean | No | Fill unspecified settings from the compute policy defaults |
 | `numWorkers` | number | No | Fixed worker count; use this or autoscale |
@@ -1342,8 +1298,6 @@ Start a terminated all-purpose compute cluster.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | Compute cluster identifier |
 
 #### Output
@@ -1364,8 +1318,6 @@ Restart a running compute cluster.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | Compute cluster identifier |
 | `restartUser` | string | No | User requesting the cluster restart |
 
@@ -1387,8 +1339,6 @@ Change the fixed worker count or autoscaling range of a running cluster.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | Compute cluster identifier |
 | `numWorkers` | number | No | Fixed worker count; use this or autoscale |
 | `autoscale` | json | No | Worker range as \{min_workers, max_workers\}; use this or numWorkers |
@@ -1411,8 +1361,6 @@ Terminate a compute cluster while retaining its configuration for a later restar
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | Compute cluster identifier |
 
 #### Output
@@ -1433,8 +1381,6 @@ Permanently delete a compute cluster and its configuration.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `clusterId` | string | Yes | Compute cluster identifier |
 
 #### Output
@@ -1457,8 +1403,6 @@ List a page of SQL warehouses in a Databricks workspace including their size, st
 | --------- | ---- | -------- | ----------- |
 | `pageSize` | number | No | Resources per page \(default 20\) |
 | `pageToken` | string | No | Token returned by the previous list request |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 
 #### Output
 
@@ -1512,8 +1456,6 @@ Get the configuration, state, and scaling settings of a SQL warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
 
 #### Output
@@ -1567,8 +1509,6 @@ Create a SQL warehouse with sizing, autoscaling, and serverless settings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `name` | string | No | Display name of the SQL warehouse |
 | `clusterSize` | string | No | SQL warehouse size, such as Small or Medium |
 | `minNumClusters` | number | No | Minimum number of SQL warehouse clusters |
@@ -1601,8 +1541,6 @@ Update a SQL warehouse configuration.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
 | `name` | string | No | Display name of the SQL warehouse |
 | `clusterSize` | string | No | SQL warehouse size, such as Small or Medium |
@@ -1636,8 +1574,6 @@ Start a stopped SQL warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
 
 #### Output
@@ -1658,8 +1594,6 @@ Stop a running SQL warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
 
 #### Output
@@ -1680,8 +1614,6 @@ Delete a SQL warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
 
 #### Output
@@ -1702,8 +1634,6 @@ List the Genie spaces (Genie agents) you can access. Use this to find the space 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `pageSize` | number | No | Maximum number of spaces to return per page \(default 20, max 100\) |
 | `pageToken` | string | No | Pagination token from a previous response |
 
@@ -1734,8 +1664,6 @@ Get a Genie space's title, description, and SQL warehouse, optionally with its f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `includeSerializedSpace` | boolean | No | Include the space's serialized configuration export \(requires CAN EDIT on the space\) |
 
@@ -1765,8 +1693,6 @@ Create a Genie space from its serialized configuration and a SQL warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
 | `parentPath` | string | No | Parent workspace folder for the Genie space |
 | `serializedSpace` | string | Yes | Serialized Genie configuration JSON, including data_sources, instructions, config, and benchmarks; get an example with Get Genie Space |
@@ -1799,8 +1725,6 @@ Update a Genie space, optionally protecting the change with its current ETag.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | Genie space identifier |
 | `serializedSpace` | string | No | Serialized Genie configuration JSON, including data_sources, instructions, config, and benchmarks; get an example with Get Genie Space |
 | `title` | string | No | Genie space title |
@@ -1835,8 +1759,6 @@ Move a Genie space to the trash.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | Genie space identifier |
 
 #### Output
@@ -1857,8 +1779,6 @@ Ask a Databricks Genie space a question in natural language and wait for the ans
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `content` | string | Yes | The question to ask Genie |
 | `conversationId` | string | No | Continue this conversation so Genie uses its earlier messages as context. Omit to start a new conversation. |
@@ -1916,8 +1836,6 @@ Get a Genie message's status and answer, including the generated SQL, visualizat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `messageId` | string | Yes | The ID of the Genie message |
@@ -1962,8 +1880,6 @@ List the messages in a Genie conversation with their answers and generated SQL, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `pageSize` | number | No | Maximum number of messages to return per page \(default 20, max 100\) |
@@ -2011,8 +1927,6 @@ Get the rows returned by the SQL query Genie generated for a message. Available 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `messageId` | string | Yes | The ID of the Genie message |
@@ -2050,8 +1964,6 @@ Re-run the SQL query Genie generated for a message. Use this when the message's 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `messageId` | string | Yes | The ID of the Genie message |
@@ -2089,8 +2001,6 @@ Download a chart Genie generated as a PNG image, for example to post it to Slack
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `messageId` | string | Yes | The ID of the Genie message |
@@ -2114,8 +2024,6 @@ Rate a Genie answer as positive or negative, with an optional comment. Space aut
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `messageId` | string | Yes | The ID of the Genie message |
@@ -2140,8 +2048,6 @@ Delete a message from a Genie conversation.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation |
 | `messageId` | string | Yes | The ID of the Genie message |
@@ -2164,8 +2070,6 @@ List conversations in a Genie space, including whether each is a chat-mode or ag
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `includeAll` | boolean | No | Include every user's conversations in the space \(requires CAN MANAGE on the space\) |
 | `pageSize` | number | No | Maximum number of conversations to return per page \(default 20, max 100\) |
@@ -2194,8 +2098,6 @@ Delete a Genie conversation you no longer need.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | The ID of the Genie conversation to delete |
 
@@ -2217,8 +2119,6 @@ Ask a Genie agent a question in agent mode, where Genie plans multi-step researc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space \(the Genie agent ID\) |
 | `content` | string | Yes | The question to ask the Genie agent |
 | `conversationId` | string | No | Continue this agent-mode conversation. Omit to start a new conversation. |
@@ -2261,8 +2161,6 @@ List an agent-mode conversation's full history in order: questions, reasoning, S
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space \(the Genie agent ID\) |
 | `conversationId` | string | Yes | The ID of the agent-mode conversation |
 | `limit` | number | No | Maximum number of items to return \(1-100, default 100\) |
@@ -2300,8 +2198,6 @@ Cancel an in-flight Genie agent response using the response ID returned by the a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
-| `apiKey` | string | Yes | Databricks Personal Access Token |
 | `spaceId` | string | Yes | The ID of the Genie space |
 | `conversationId` | string | Yes | Agent conversation identifier |
 | `responseId` | string | Yes | Response ID from the response.created stream event |

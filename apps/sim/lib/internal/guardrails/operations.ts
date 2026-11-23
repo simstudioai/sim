@@ -26,6 +26,7 @@ import {
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { isAutoModel } from '@/providers/models'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -95,7 +96,13 @@ async function authorizeVertexCredential(
   input: GuardrailsValidationInput,
   context: GuardrailsOperationContext
 ): Promise<void> {
-  if (!input.vertexCredential || !input.model || getProviderFromModel(input.model) !== 'vertex') {
+  if (
+    !input.vertexCredential ||
+    !input.model ||
+    // sim-auto has no provider to look up (the lookup throws for it), so it is never Vertex.
+    isAutoModel(input.model) ||
+    getProviderFromModel(input.model) !== 'vertex'
+  ) {
     return
   }
   const access = await authorizeCredentialUseForAuth(authenticatedCaller(context), {
@@ -104,7 +111,8 @@ async function authorizeVertexCredential(
     callerUserId: context.actorUserId,
   })
   if (!access.ok) {
-    logger.warn(`[${context.requestId}] Vertex credential access denied`, {
+    logger.warn('Vertex credential access denied', {
+      requestId: context.requestId,
       error: access.error,
       credentialId: input.vertexCredential,
     })
@@ -146,7 +154,7 @@ async function prepareHallucinationContext(
       workspaceId,
     })
   } catch (error) {
-    logger.error(`[${context.requestId}] Failed to establish billing attribution`, { error })
+    logger.error('Failed to establish billing attribution', { requestId: context.requestId, error })
     fail(400, 'Invalid billing attribution')
   }
 
@@ -299,7 +307,7 @@ async function recordHallucinationUsage(
     })
     await checkAndBillPayerOverageThreshold(hallucinationContext.billingAttribution.billingEntity)
   } catch (error) {
-    logger.error(`[${context.requestId}] Failed to record guardrail usage`, { error })
+    logger.error('Failed to record guardrail usage', { requestId: context.requestId, error })
   }
 }
 

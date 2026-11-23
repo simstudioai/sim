@@ -3,6 +3,7 @@ description: Tailwind CSS and styling conventions
 paths:
   - "apps/sim/**/*.tsx"
   - "apps/sim/**/*.css"
+  - "packages/workflow-renderer/**/*.tsx"
 ---
 
 # Styling Rules
@@ -89,6 +90,8 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 
 ## Chip Components (consumer usage)
 
+The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal`/`ChipModalField`, `ChipSelect`/`ChipCombobox`/`ChipDropdown`, `ChipSwitch` (a segmented choice; a boolean toggle stays `Switch`), `ChipDatePicker`, `Chip`/`ChipLink`, `ChipTag`; `DropdownMenu` for context/action menus. Import components, `cn`, and tokens from the `@sim/emcn` barrel and icons from `@sim/emcn/icons`; never deep-import other component subpaths. Never update global styles; keep styling local to the component.
+
 `ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `packages/emcn/src/components/chip/chrome.ts` (all tokens are re-exported from the `@sim/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
 
 ### Props over className
@@ -96,7 +99,7 @@ Draw a line with a real `border-*` utility. Never hand-roll one as `shadow-[inse
 - **Errors** → `error` prop. Never `className={cn(err && 'border-[var(--text-error)]')}`.
 - **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
 - **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
-- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `ee/whitelabeling/components/whitelabeling-settings.tsx`.
+- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only).
 - **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx`.
 
 ### What className MAY carry

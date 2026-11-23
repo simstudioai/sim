@@ -1,5 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
-import type { CanonicalMode, CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import type {
+  CanonicalMode,
+  CanonicalModeOverrides,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type { ToolUsageControl } from '@/providers/types'
 
 export const AGENT_TOOL_USAGE_CONTROL_CANONICAL_ID = 'agentToolUsageControl'

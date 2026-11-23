@@ -365,10 +365,15 @@ const HtmlPreview = memo(function HtmlPreview({
   // sandboxed (cookie-less) frame 401s every image.
   const wrappedContent = useInlinedWorkspaceImages(builtContent)
 
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
   // Receives sim-resource link clicks bridged out of the sandboxed page and
   // routes them in the app. Only workspace-internal paths are honored.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      // The sandboxed frame's origin is opaque ('null'), so bind to its window:
+      // any other window holding a handle to this tab could post the same shape.
+      if (event.source !== iframeRef.current?.contentWindow) return
       const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
       if (typeof href !== 'string') return
       if (href.startsWith('/workspace/')) {
@@ -448,6 +453,7 @@ const HtmlPreview = memo(function HtmlPreview({
     <div ref={containerRef} className='flex min-h-0 flex-1 overflow-hidden'>
       {isRenderable && (
         <iframe
+          ref={iframeRef}
           key={resumeNonce}
           srcDoc={wrappedContent}
           /* No clipboard-write delegation: this frame also renders untrusted

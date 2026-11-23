@@ -1,7 +1,7 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { toArray } from '@sim/utils/object'
 import { compareStrings, truncate } from '@sim/utils/string'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { zonedWallClockToUtc } from '@sim/utils/timezone'
 import {
   dateSortDirection,
   hasDateBounds,
@@ -124,14 +124,14 @@ export async function readDrive(
   } else if (document.kind === 'application/vnd.google-apps.spreadsheet') {
     const metadata = object(
       await client.json(`/v4/spreadsheets/${segment(id)}`, {
-        googleService: 'sheets',
+        service: 'sheets',
         query: { fields: 'sheets.properties.title' },
       })
     )
     const titles = array(metadata.sheets).map((sheet) => string(object(sheet.properties).title))
     const values = object(
       await client.json(`/v4/spreadsheets/${segment(id)}/values:batchGet`, {
-        googleService: 'sheets',
+        service: 'sheets',
         query: {
           ranges: titles.slice(0, 20).map((title) => `'${title.replace(/'/g, "''")}'!A1:AZ1000`),
           valueRenderOption: 'FORMATTED_VALUE',

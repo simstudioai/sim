@@ -15,6 +15,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { executionSignalMockFns } from '@sim/testing/mocks/execution-signal.mock'
 import {
   largeValueMetadataMock,
   largeValueMetadataMockFns,
@@ -108,13 +109,7 @@ vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
 }))
 
-const { connectExecutionSignalHubMock } = vi.hoisted(() => ({
-  connectExecutionSignalHubMock: vi.fn(),
-}))
-
-vi.mock('@/lib/execution/signal', () => ({
-  connectExecutionSignalHub: connectExecutionSignalHubMock,
-}))
+const connectExecutionSignalHubMock = executionSignalMockFns.mockConnectExecutionSignalHub
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -222,11 +217,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       enforceCredentialAccess: false,
       startTime: new Date().toISOString(),
     },
-    workflow: {
-      id: 'workflow-1',
-      userId: 'workflow-owner',
-      variables: {},
-    },
+    workflow: { version: '1.0', blocks: [], connections: [], loops: {}, parallels: {} },
     input: { hello: 'world' },
     workflowVariables: {},
     selectedOutputs: [],
@@ -914,6 +905,58 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(loadWorkflowDeploymentVersionStateMock).not.toHaveBeenCalled()
   })
 
+  function createDraftResumeSnapshot(workflow: unknown) {
+    const base = createSnapshot()
+    return new ExecutionSnapshot(
+      { ...base.metadata, resumeFromSnapshot: true, resumeTerminalNoop: true },
+      workflow,
+      {},
+      {},
+      []
+    )
+  }
+
+  it('runs a draft resume on the graph it paused on, never the live draft', async () => {
+    const pausedWorkflow = {
+      version: '1.0',
+      blocks: [{ id: 'paused-block' }],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      metadata: { duration: 1, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createDraftResumeSnapshot(pausedWorkflow),
+      callbacks: {},
+      loggingSession: loggingSession as unknown as LoggingSession,
+      skipLogCreation: true,
+    })
+
+    expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
+    expect(executorConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workflow: pausedWorkflow })
+    )
+  })
+
+  it('fails a draft resume whose snapshot lost its paused graph', async () => {
+    await expect(
+      executeWorkflowCore({
+        snapshot: createDraftResumeSnapshot(undefined),
+        callbacks: {},
+        loggingSession: loggingSession as unknown as LoggingSession,
+        skipLogCreation: true,
+      })
+    ).rejects.toThrow('Draft resume is missing the workflow graph it paused on')
+    expect(loadWorkflowFromNormalizedTablesMock).not.toHaveBeenCalled()
+  })
+
   describe('PII redaction of restored large values', () => {
     const sourceItems = [{ email: 'alice@example.com', count: 7 }]
     const maskedItems = [{ email: '<EMAIL_ADDRESS>', count: 7 }]
@@ -953,6 +996,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         decisions: { router: {}, condition: {} },
         completedLoops: [],
         activeExecutionPath: [],
+        pendingQueue: [],
         trustedLargeValueAccess: { executionIds: [], largeValueKeys: [], fileKeys: [] },
       }
     }
@@ -1038,7 +1082,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         expect(result.success).toBe(true)
         expect(executorExecuteMock).toHaveBeenCalledOnce()
         expect(downloadFileMock).toHaveBeenCalledWith(
-          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: 64 * 1024 * 1024 })
+          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: sourceBytes.length })
         )
         expect(uploadFileMock).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -1052,6 +1096,37 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
           })
       }
     )
+
+    it('logs the redacted input of a run that fails after its input stage, before it runs', async () => {
+      const state = createRestoredState(createManifest())
+      state.blockStates = {
+        previous: {
+          output: { result: 'restored alice@example.com' },
+          executed: true,
+          executionTime: 0,
+        },
+      }
+      maskBatchMock
+        .mockImplementationOnce(async (texts: string[]) => ({
+          masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
+          scrubbedCount: 0,
+        }))
+        .mockRejectedValue(new Error('PII service unavailable'))
+
+      await expect(
+        executeWorkflowCore({
+          snapshot: createPiiSnapshot(state, { email: 'alice@example.com' }),
+          callbacks: {},
+          loggingSession: loggingSession as unknown as LoggingSession,
+        })
+      ).rejects.toThrow()
+
+      expect(executorExecuteMock).not.toHaveBeenCalled()
+      expect(safeCompleteWithErrorMock).toHaveBeenCalledOnce()
+      expect(safeCompleteWithErrorMock.mock.calls[0]?.[0]?.workflowInput).toEqual({
+        email: '<EMAIL_ADDRESS>',
+      })
+    })
 
     it.each([
       ['another workspace', 'workspace-2', 'workflow-1', 'source-execution'],
@@ -1467,6 +1542,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect.objectContaining({
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        workflowInput: { hello: 'world' },
         executionState,
       })
     )
@@ -1505,6 +1581,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         error: { message: 'Execution timed out' },
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        workflowInput: { hello: 'world' },
         executionState,
       })
     )
@@ -1805,7 +1882,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
     expect(safeCompleteWithErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ executionState })
+      expect.objectContaining({ executionState, workflowInput: { hello: 'world' } })
     )
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
     expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
@@ -1942,6 +2019,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       })
     )
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(safeCompleteWithErrorMock.mock.calls[0]?.[0]?.workflowInput).toBeUndefined()
     expect(wasExecutionFinalizedByCore(envError, 'execution-1')).toBe(true)
   })
 

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignAnalyticsByDateResponse,
   SmartleadCampaignIdParams,
@@ -29,6 +30,7 @@ export const getCampaignAnalyticsByDateTool: ToolConfig<
   description:
     'Retrieves Smartlead campaign performance totals for a date range. Smartlead rejects ranges longer than roughly one month.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

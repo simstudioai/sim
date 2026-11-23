@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsDeleteQueueParams, SqsMessageResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const deleteQueueTool: InternalToolConfig<SqsDeleteQueueParams, SqsMessag
   name: 'SQS Delete Queue',
   description: 'Delete an Amazon SQS queue and every message still in it',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -23,6 +23,14 @@ const logger = createLogger('CustomToolsOperations')
 
 export type CustomToolSortBy = 'title' | 'createdAt' | 'updatedAt'
 
+/** A strict batch write found a title the workspace already holds; the caller's to fix. */
+export class CustomToolTitleConflictError extends Error {
+  constructor(title: string) {
+    super(`A tool with the title "${title}" already exists in this workspace`)
+    this.name = 'CustomToolTitleConflictError'
+  }
+}
+
 interface CustomToolWriteParams {
   tools: Array<{
     id?: string
@@ -107,7 +115,7 @@ async function writeCustomTools(
           })
           .where(eq(customTools.id, tool.id))
 
-        logger.info(`[${requestId}] Updated legacy tool ${tool.id}`)
+        logger.info(`Updated legacy tool ${tool.id}`, { requestId })
         continue
       }
     }
@@ -131,7 +139,7 @@ async function writeCustomTools(
         .onConflictDoNothing({ target: [customTools.workspaceId, customTools.title] })
         .returning({ id: customTools.id })
       if (inserted.length === 0) {
-        logger.info(`[${requestId}] Skipped custom tool "${tool.title}": title already exists`)
+        logger.info(`Skipped custom tool "${tool.title}": title already exists`, { requestId })
         skippedTitles.push(tool.title)
       }
       continue
@@ -144,7 +152,7 @@ async function writeCustomTools(
       .limit(1)
 
     if (duplicateTitle.length > 0) {
-      throw new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
+      throw new CustomToolTitleConflictError(tool.title)
     }
 
     await tx.insert(customTools).values(row)

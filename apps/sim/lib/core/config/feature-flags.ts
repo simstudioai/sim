@@ -17,7 +17,7 @@ const FEATURE_FLAGS_PROFILE = 'feature-flags'
  * `adminEnabled` for platform admins. An absent clause never matches. Shape shared with the other
  * AppConfig gating documents via {@link AppConfigGateRule}.
  */
-export type FeatureFlagRule = AppConfigGateRule
+type FeatureFlagRule = AppConfigGateRule
 
 export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 
@@ -51,16 +51,15 @@ const FEATURE_FLAGS = {
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
-  'mothership-computer-use': {
-    description:
-      'Enable native macOS computer use in Mothership. Supports global and organization rollout; ' +
-      'personal workspaces follow the global switch. Each device must also opt in.',
-    fallback: 'MSHIP_COMPUTER_USE',
-  },
   'workflow-tests': {
     description:
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
     fallback: 'WORKFLOW_TESTS',
+  },
+  'workflow-code': {
+    description:
+      'Enable workflows and workspaces as code: the block catalog and resources for the workflow SDK, workflow and workspace source read and apply, and the read-only Code tab. Supports global, organization, workspace and user rollout; disabled by default.',
+    fallback: 'WORKFLOW_CODE',
   },
   changelog: {
     description:
@@ -69,12 +68,12 @@ const FEATURE_FLAGS = {
   },
   'sim-links': {
     description:
-      'Enable organization Sim links (go links): the Sim Links page and sim/<name> redirects. Supports organization rollout; disabled by default.',
+      'Enable organization links: the Links page and sim/<name> and go/<name> redirects. Supports organization rollout; disabled by default.',
     fallback: 'SIM_LINKS',
   },
   people: {
     description:
-      'Enable the organization People page: member profiles, reporting lines, and people-data import. Supports organization rollout; disabled by default.',
+      'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
   'mothership-model-selector': {
@@ -132,6 +131,21 @@ const FEATURE_FLAGS = {
       'so a configured host is used unless this is turned on. AppConfig-only: when AppConfig is ' +
       'unreachable the host stays in use.',
     fallback: null,
+  },
+  'organization-activity-rollup-reads': {
+    description:
+      'Serve organization activity summaries and breakdowns from the hourly workflow activity ' +
+      'rollup where it covers the window, with identical results. Supports organization rollout; ' +
+      'off by default, which reads the source tables. Off-AppConfig falls back to ' +
+      'ORGANIZATION_ACTIVITY_ROLLUP_READS.',
+    fallback: 'ORGANIZATION_ACTIVITY_ROLLUP_READS',
+  },
+  'activity-rollup-maintenance': {
+    description:
+      'Run the activity rollup pass on its cron: backfill and maintain workflow_activity_hourly. ' +
+      'Global on/off only; off by default, which starts no pass. Off-AppConfig falls back to ' +
+      'ACTIVITY_ROLLUP_MAINTENANCE.',
+    fallback: 'ACTIVITY_ROLLUP_MAINTENANCE',
   },
   'mothership-abandoned-run-takeover-disabled': {
     description:

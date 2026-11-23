@@ -1,0 +1,16 @@
+{
+  "namespace": "googleTasks",
+  "methods": {
+    "create": "createTask",
+    "delete": "deleteTask",
+    "get": "getTask",
+    "list": "listTasks",
+    "list_task_lists": "listTaskLists",
+    "update": "updateTask"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

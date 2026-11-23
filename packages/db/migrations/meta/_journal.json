@@ -3144,6 +3144,160 @@
       "when": 1793468144157,
       "tag": "0449_retire_search_projection_writes",
       "breakpoints": true
+    },
+    {
+      "idx": 450,
+      "version": "7",
+      "when": 1793730322034,
+      "tag": "0450_people_directory_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 451,
+      "version": "7",
+      "when": 1793732735942,
+      "tag": "0451_people_scim_change",
+      "breakpoints": true
+    },
+    {
+      "idx": 452,
+      "version": "7",
+      "when": 1793784865754,
+      "tag": "0452_people_scim_change_due_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 453,
+      "version": "7",
+      "when": 1793920630365,
+      "tag": "0453_credential_multiple_accounts_per_provider",
+      "breakpoints": true
+    },
+    {
+      "idx": 454,
+      "version": "7",
+      "when": 1793937981518,
+      "tag": "0454_aws_marketplace_license",
+      "breakpoints": true
+    },
+    {
+      "idx": 455,
+      "version": "7",
+      "when": 1794342674732,
+      "tag": "0455_api_key_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 456,
+      "version": "7",
+      "when": 1794503347845,
+      "tag": "0456_aws_marketplace_usage_metering",
+      "breakpoints": true
+    },
+    {
+      "idx": 457,
+      "version": "7",
+      "when": 1794602584430,
+      "tag": "0457_workload_identity_pending_subject",
+      "breakpoints": true
+    },
+    {
+      "idx": 458,
+      "version": "7",
+      "when": 1794618933317,
+      "tag": "0458_workspace_files_active_updated_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 459,
+      "version": "7",
+      "when": 1794693371836,
+      "tag": "0459_inbox_task_sender_authenticated",
+      "breakpoints": true
+    },
+    {
+      "idx": 460,
+      "version": "7",
+      "when": 1795044513365,
+      "tag": "0460_permission_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 461,
+      "version": "7",
+      "when": 1795057212936,
+      "tag": "0461_permission_import_subject_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 462,
+      "version": "7",
+      "when": 1795059305210,
+      "tag": "0462_workflow_activity_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1795059338803,
+      "tag": "0463_workflow_execution_logs_late_end_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 464,
+      "version": "7",
+      "when": 1795070323624,
+      "tag": "0464_activity_rollup_maintenance_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 465,
+      "version": "7",
+      "when": 1795078639607,
+      "tag": "0465_activity_rollup_correction_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 466,
+      "version": "7",
+      "when": 1795086561892,
+      "tag": "0466_workspace_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 467,
+      "version": "7",
+      "when": 1795151802047,
+      "tag": "0467_workflow_edges_block_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 468,
+      "version": "7",
+      "when": 1795223641227,
+      "tag": "0468_retire_legacy_search_and_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 469,
+      "version": "7",
+      "when": 1795263216402,
+      "tag": "0469_staged_blob_consumed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 470,
+      "version": "7",
+      "when": 1795345308196,
+      "tag": "0470_contract_whitelabel_and_rate_limit_bucket",
+      "breakpoints": true
+    },
+    {
+      "idx": 471,
+      "version": "7",
+      "when": 1795435350407,
+      "tag": "0471_pro_trial_card",
+      "breakpoints": true
     }
   ]
 }

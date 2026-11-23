@@ -1,12 +1,15 @@
 import type { RipplingGetCustomSettingParams } from '@/tools/rippling/types'
 import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingParams> = {
   id: 'rippling_get_custom_setting',
   name: 'Rippling Get Custom Setting',
   description: 'Get a specific custom setting',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -14,11 +17,16 @@ export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingPa
       visibility: 'user-only',
       description: 'Rippling API key',
     },
-    id: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Resource ID' },
+    id: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Custom setting API name (api_name)',
+    },
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-settings/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-settings/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

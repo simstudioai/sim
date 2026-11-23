@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Contacts](https://contacts.google.com/) stores contact records for a Google account. Search or list contacts to obtain their resource names, then use those names to read, update, or delete records. Create contacts with the name, email, phone, and other fields needed by your workflow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -37,6 +38,8 @@ Create, read, update, delete, list, and search contacts.
 
 Create a new contact in Google Contacts
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -50,17 +53,22 @@ Create a new contact in Google Contacts
 | `organization` | string | No | Organization/company name |
 | `jobTitle` | string | No | Job title at the organization |
 | `notes` | string | No | Notes or biography for the contact |
+| `birthday` | string | No | Birthday as YYYY-MM-DD, or MM-DD when the year is unknown |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Contact creation confirmation message |
-| `metadata` | json | Created contact metadata including resource name and details |
+| `metadata` | json | Created contact \(resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\) |
+
+</ReferenceDetails>
 
 ### Google Contacts Get
 
 Get a specific contact from Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -73,11 +81,15 @@ Get a specific contact from Google Contacts
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Contact retrieval confirmation message |
-| `metadata` | json | Contact details including name, email, phone, and organization |
+| `metadata` | json | Contact details \(resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\) |
+
+</ReferenceDetails>
 
 ### Google Contacts List
 
 List contacts from Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -92,11 +104,15 @@ List contacts from Google Contacts
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Summary of found contacts count |
-| `metadata` | json | List of contacts with pagination tokens |
+| `metadata` | json | totalItems, nextPageToken, and contacts: \[\{resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\}\] |
+
+</ReferenceDetails>
 
 ### Google Contacts Search
 
 Search contacts in Google Contacts by name, email, phone, or organization
+
+<ReferenceDetails>
 
 #### Input
 
@@ -110,11 +126,15 @@ Search contacts in Google Contacts by name, email, phone, or organization
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Summary of search results count |
-| `metadata` | json | Search results with matching contacts |
+| `metadata` | json | contacts: \[\{resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\}\] |
+
+</ReferenceDetails>
 
 ### Google Contacts Update
 
 Update an existing contact in Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -131,17 +151,22 @@ Update an existing contact in Google Contacts
 | `organization` | string | No | Updated organization/company name |
 | `jobTitle` | string | No | Updated job title |
 | `notes` | string | No | Updated notes or biography |
+| `birthday` | string | No | Birthday as YYYY-MM-DD, or MM-DD when the year is unknown |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `content` | string | Contact update confirmation message |
-| `metadata` | json | Updated contact metadata |
+| `metadata` | json | Updated contact \(resourceName, etag, displayName, givenName, familyName, middleName, emails, phones, organizations, addresses, biographies, urls, photos, birthdays, events, nicknames, relations, userDefined, contactGroupResourceNames\) |
+
+</ReferenceDetails>
 
 ### Google Contacts Delete
 
 Delete a contact from Google Contacts
+
+<ReferenceDetails>
 
 #### Input
 
@@ -155,5 +180,7 @@ Delete a contact from Google Contacts
 | --------- | ---- | ----------- |
 | `content` | string | Contact deletion confirmation message |
 | `metadata` | json | Deletion details including resource name |
+
+</ReferenceDetails>
 
 

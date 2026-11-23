@@ -13,6 +13,7 @@ function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
     appOrigin: () => 'https://sim.ai',
     lastRoute: () => '/workspace/ws1/home',
     openMainWindow: vi.fn(),
+    openQuickChat: vi.fn(),
     ...overrides,
   }
 }

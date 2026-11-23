@@ -3,6 +3,7 @@ import type {
   MicrosoftWordCreateResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
+import { DOCUMENT_METADATA_DETAIL_PROPERTIES } from '@/tools/microsoft_word/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 type CreateToolConfig = InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordCreateResponse>
@@ -87,6 +88,7 @@ export const createTool: CreateToolConfig = {
           description: 'ISO 8601 last modification time',
           optional: true,
         },
+        ...DOCUMENT_METADATA_DETAIL_PROPERTIES,
       },
     },
   },

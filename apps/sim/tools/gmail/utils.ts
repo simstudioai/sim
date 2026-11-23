@@ -1,5 +1,6 @@
 import { generateRandomString } from '@sim/utils/random'
 import { convert } from 'html-to-text'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
@@ -7,10 +8,13 @@ import {
 } from '@/lib/uploads/utils/attachment-download-budget'
 import type {
   GmailAttachment,
+  GmailExtendedHeaders,
   GmailMessage,
+  GmailMessageSummary,
   GmailReadParams,
   GmailToolResponse,
 } from '@/tools/gmail/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
@@ -29,8 +33,8 @@ export async function fetchThreadingHeaders(
   subject?: string
 }> {
   try {
-    const messageResponse = await fetch(
-      `${GMAIL_API_BASE}/messages/${messageId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
+    const messageResponse = await outboundFetch(
+      `${GMAIL_API_BASE}/messages/${safeUrlPathSegment(messageId, 'messageId')}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -55,6 +59,32 @@ export async function fetchThreadingHeaders(
   return {}
 }
 
+/** Case-insensitive header lookup on a Gmail message payload. */
+export function getHeaderValue(
+  headers: ReadonlyArray<{ name: string; value: string }> | undefined,
+  name: string
+): string | undefined {
+  const target = name.toLowerCase()
+  return headers?.find((h) => h.name?.toLowerCase() === target)?.value
+}
+
+/**
+ * Extracts the recipient and threading headers that Gmail returns in `payload.headers`.
+ * `bcc` is only present on messages the account sent or drafted. Missing headers are `null`.
+ */
+export function extractExtendedHeaders(
+  headers: ReadonlyArray<{ name: string; value: string }> | undefined
+): GmailExtendedHeaders {
+  return {
+    cc: getHeaderValue(headers, 'Cc') ?? null,
+    bcc: getHeaderValue(headers, 'Bcc') ?? null,
+    replyTo: getHeaderValue(headers, 'Reply-To') ?? null,
+    rfcMessageId: getHeaderValue(headers, 'Message-ID') ?? null,
+    inReplyTo: getHeaderValue(headers, 'In-Reply-To') ?? null,
+    references: getHeaderValue(headers, 'References') ?? null,
+  }
+}
+
 // Helper function to process a Gmail message
 export async function processMessage(
   message: GmailMessage,
@@ -77,10 +107,10 @@ export async function processMessage(
   }
 
   const headers = message.payload.headers || []
-  const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || ''
-  const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || ''
-  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
-  const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
+  const subject = getHeaderValue(headers, 'subject') || ''
+  const from = getHeaderValue(headers, 'from') || ''
+  const to = getHeaderValue(headers, 'to') || ''
+  const date = getHeaderValue(headers, 'date') || ''
 
   // Extract the message body
   const body = extractMessageBody(message.payload)
@@ -119,6 +149,9 @@ export async function processMessage(
         date,
         hasAttachments,
         attachmentCount: attachmentInfo.length,
+        ...extractExtendedHeaders(headers),
+        snippet: message.snippet ?? null,
+        internalDate: message.internalDate ?? null,
       },
       // Always include attachments array (empty if none downloaded)
       attachments: attachments || [],
@@ -129,7 +162,7 @@ export async function processMessage(
 }
 
 // Helper function to process a message for summary (without full content)
-export function processMessageForSummary(message: GmailMessage): any {
+export function processMessageForSummary(message: GmailMessage): GmailMessageSummary {
   if (!message || !message.payload) {
     return {
       id: message?.id || '',
@@ -143,10 +176,10 @@ export function processMessageForSummary(message: GmailMessage): any {
   }
 
   const headers = message.payload.headers || []
-  const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || 'No Subject'
-  const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender'
-  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
-  const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
+  const subject = getHeaderValue(headers, 'subject') || 'No Subject'
+  const from = getHeaderValue(headers, 'from') || 'Unknown Sender'
+  const to = getHeaderValue(headers, 'to') || ''
+  const date = getHeaderValue(headers, 'date') || ''
 
   return {
     id: message.id,
@@ -156,6 +189,8 @@ export function processMessageForSummary(message: GmailMessage): any {
     to,
     date,
     snippet: message.snippet || '',
+    ...extractExtendedHeaders(headers),
+    internalDate: message.internalDate ?? null,
   }
 }
 
@@ -242,7 +277,7 @@ export async function downloadAttachments(
   for (const attachment of attachmentInfo) {
     try {
       budget.assertSize(attachment.size, 'Gmail attachments')
-      const response = await fetch(
+      const response = await outboundFetch(
         `${GMAIL_API_BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.attachmentId)}`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -286,7 +321,7 @@ export async function downloadAttachments(
 }
 
 // Helper function to create a summary of multiple messages
-export function createMessagesSummary(messages: any[]): string {
+export function createMessagesSummary(messages: GmailMessageSummary[]): string {
   if (messages.length === 0) {
     return 'No messages found.'
   }
@@ -297,6 +332,9 @@ export function createMessagesSummary(messages: any[]): string {
     summary += `${index + 1}. Subject: ${msg.subject}\n`
     summary += `   From: ${msg.from}\n`
     summary += `   To: ${msg.to}\n`
+    if (msg.cc) {
+      summary += `   Cc: ${msg.cc}\n`
+    }
     summary += `   Date: ${msg.date}\n`
     summary += `   ID: ${msg.id}\n`
     summary += `   Thread ID: ${msg.threadId}\n`
@@ -448,13 +486,14 @@ export function buildSimpleEmailMessage(params: {
   to: string
   cc?: string | null
   bcc?: string | null
+  replyTo?: string | null
   subject?: string | null
   body: string
   contentType?: 'text' | 'html'
   inReplyTo?: string
   references?: string
 }): string {
-  const { to, cc, bcc, subject, body, contentType, inReplyTo, references } = params
+  const { to, cc, bcc, replyTo, subject, body, contentType, inReplyTo, references } = params
   const boundary = generateBoundary()
   const { plain, html } = buildBodyAlternatives(body, contentType)
 
@@ -465,6 +504,9 @@ export function buildSimpleEmailMessage(params: {
   }
   if (bcc) {
     emailHeaders.push(`Bcc: ${sanitizeHeaderValue(bcc)}`)
+  }
+  if (replyTo) {
+    emailHeaders.push(`Reply-To: ${sanitizeHeaderValue(replyTo)}`)
   }
 
   emailHeaders.push(`Subject: ${encodeRfc2047(sanitizeHeaderValue(subject || ''))}`)
@@ -495,6 +537,7 @@ export interface BuildMimeMessageParams {
   to: string
   cc?: string
   bcc?: string
+  replyTo?: string
   subject?: string
   body: string
   contentType?: 'text' | 'html'
@@ -508,7 +551,8 @@ export interface BuildMimeMessageParams {
 }
 
 export function buildMimeMessage(params: BuildMimeMessageParams): string {
-  const { to, cc, bcc, subject, body, contentType, inReplyTo, references, attachments } = params
+  const { to, cc, bcc, replyTo, subject, body, contentType, inReplyTo, references, attachments } =
+    params
   const messageParts: string[] = []
   const { plain, html } = buildBodyAlternatives(body, contentType)
 
@@ -518,6 +562,9 @@ export function buildMimeMessage(params: BuildMimeMessageParams): string {
   }
   if (bcc) {
     messageParts.push(`Bcc: ${sanitizeHeaderValue(bcc)}`)
+  }
+  if (replyTo) {
+    messageParts.push(`Reply-To: ${sanitizeHeaderValue(replyTo)}`)
   }
   messageParts.push(`Subject: ${encodeRfc2047(sanitizeHeaderValue(subject || ''))}`)
 

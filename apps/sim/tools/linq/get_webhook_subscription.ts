@@ -8,7 +8,9 @@ import {
   linqHeaders,
   mapWebhookSubscription,
 } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqGetWebhookSubscriptionTool: ToolConfig<
   LinqGetWebhookSubscriptionParams,
@@ -18,6 +20,7 @@ export const linqGetWebhookSubscriptionTool: ToolConfig<
   name: 'Get Webhook Subscription',
   description: 'Retrieve a webhook subscription by ID',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -36,7 +39,7 @@ export const linqGetWebhookSubscriptionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${LINQ_API_BASE}/webhook-subscriptions/${encodeURIComponent(params.subscriptionId.trim())}`,
+      `${LINQ_API_BASE}/webhook-subscriptions/${safeUrlPathSegment(params.subscriptionId, 'subscriptionId')}`,
     method: 'GET',
     headers: (params) => linqHeaders(params.apiKey),
   },

@@ -2,6 +2,7 @@ import { tagProperties, totalCountOutput } from '@/tools/dynatrace/outputs'
 import type { DynatraceListTagsParams, DynatraceListTagsResponse } from '@/tools/dynatrace/types'
 import { buildDynatraceUrl, dynatraceHeaders, mapTags, readJsonBody } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTagsTool: ToolConfig<DynatraceListTagsParams, DynatraceListTagsResponse> = {
@@ -9,6 +10,7 @@ export const listTagsTool: ToolConfig<DynatraceListTagsParams, DynatraceListTags
   name: 'Dynatrace List Tags',
   description: 'List the custom tags applied to the monitored entities an entity selector matches.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

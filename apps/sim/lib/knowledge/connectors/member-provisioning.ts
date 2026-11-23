@@ -22,6 +22,7 @@ import {
   sameResourceScope,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { moreUsableAccount } from '@/lib/credential-groups/account-rules'
 import {
   type CredentialGroupCredentialListContext,
   loadScopedAccountsCredentialListContext,
@@ -370,7 +371,14 @@ export async function resolveViewerConnectorMemberships(input: {
       )
     )
 
-  const credentialsByOption = new Map(rows.map((row) => [row.credentialGroupOptionId, row]))
+  const credentialsByOption = new Map<string | null, (typeof rows)[number]>()
+  for (const row of rows) {
+    const current = credentialsByOption.get(row.credentialGroupOptionId)
+    credentialsByOption.set(
+      row.credentialGroupOptionId,
+      moreUsableAccount(current, row, (account) => account.managedOauthStatus)
+    )
+  }
   const enrollmentStatus = rows[0]?.enrollmentStatus ?? null
   for (const connector of memberConnectors) {
     if (!readyOptionIds.has(connector.credentialGroupOptionId)) continue

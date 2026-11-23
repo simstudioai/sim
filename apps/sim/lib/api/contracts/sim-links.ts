@@ -1,11 +1,16 @@
 import {
   SIM_LINK_SUGGESTIONS_PATH,
+  SIM_LINK_URL_MAX_LENGTH,
   simLinkSuggestionsSchema,
 } from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { SIM_LINK_SORTS, simLinkFieldsSchema } from '@/lib/sim-links/validation'
+import {
+  SIM_LINK_SEARCH_MAX_LENGTH,
+  SIM_LINK_SORTS,
+  simLinkFieldsSchema,
+} from '@/lib/sim-links/validation'
 import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 const params = z.object({ id: organizationIdSchema })
@@ -37,14 +42,16 @@ const linkResponse = z.object({ link: simLinkSchema })
 
 export const listSimLinksQuerySchema = z
   .object({
-    search: z.string().max(200).optional(),
+    search: z.string().max(SIM_LINK_SEARCH_MAX_LENGTH).optional(),
+    /** Only links whose destination is exactly this URL, such as one shown in a search result. */
+    url: z.string().min(1).max(SIM_LINK_URL_MAX_LENGTH).optional(),
     cursor: z.string().min(1).max(128).optional(),
     sort: z.enum(SIM_LINK_SORTS).optional(),
     dir: z.enum(SORT_DIRECTIONS).optional(),
   })
   .refine((query) => !(query.sort === 'popular' && query.cursor), {
     path: ['cursor'],
-    message: 'The most-used view is a single page',
+    message: 'The Opens sort is a single page',
   })
 
 export const listSimLinksContract = defineRouteContract({

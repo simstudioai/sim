@@ -83,7 +83,7 @@ function fieldError(schema: z.ZodType, value: unknown): string | null {
  * two lists are merged. Reject the collision at the write instead of resolving
  * it at every read.
  */
-function builtinNameCollision(name: string): string | null {
+export function builtinNameCollision(name: string): string | null {
   return getBuiltinSkillByName(name)
     ? `The skill name "${name}" is reserved by a built-in skill`
     : null
@@ -175,6 +175,22 @@ export interface UpsertSkillBatchParams {
   skills: SkillUpsertItem[]
 }
 
+/**
+ * The first field rule a skill write breaks, or null. Checks only the fields given, so an update
+ * never re-judges a stored value it does not change.
+ */
+export function skillFieldProblem(
+  item: Pick<SkillUpsertItem, 'name' | 'description' | 'content'>
+): string | null {
+  return (
+    (item.name !== undefined ? fieldError(skillNameSchema, item.name) : null) ??
+    (item.description !== undefined
+      ? fieldError(skillDescriptionSchema, item.description)
+      : null) ??
+    (item.content !== undefined ? fieldError(skillContentSchema, item.content) : null)
+  )
+}
+
 /** Field validation and the built-in name guard for a create item. */
 function validateCreateItem(item: SkillUpsertItem): void {
   if (item.name === undefined || item.description === undefined || item.content === undefined) {
@@ -183,11 +199,7 @@ function validateCreateItem(item: SkillUpsertItem): void {
       'Skill name, description, and content are required to create a skill'
     )
   }
-  const invalid =
-    fieldError(skillNameSchema, item.name) ??
-    fieldError(skillDescriptionSchema, item.description) ??
-    fieldError(skillContentSchema, item.content) ??
-    builtinNameCollision(item.name)
+  const invalid = skillFieldProblem(item) ?? builtinNameCollision(item.name)
   if (invalid) throw new OrchestrationError('validation', invalid)
 }
 
@@ -208,12 +220,7 @@ async function validateUpdateItem(
     )
   }
 
-  const invalid =
-    (item.name !== undefined ? fieldError(skillNameSchema, item.name) : null) ??
-    (item.description !== undefined
-      ? fieldError(skillDescriptionSchema, item.description)
-      : null) ??
-    (item.content !== undefined ? fieldError(skillContentSchema, item.content) : null)
+  const invalid = skillFieldProblem(item)
   if (invalid) throw new OrchestrationError('validation', invalid)
 
   const resolved = await resolveEditableSkill({ workspaceId, userId, skillId })

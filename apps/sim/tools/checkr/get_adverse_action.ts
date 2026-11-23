@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapAdverseAction,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetAdverseActionTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrGetAdverseActionTool: ToolConfig<
   name: 'Checkr Get Adverse Action',
   description: 'Retrieve an adverse action by ID, including its status and notice delivery state.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

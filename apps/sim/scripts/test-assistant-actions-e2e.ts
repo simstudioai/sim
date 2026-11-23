@@ -1488,7 +1488,7 @@ try {
         await reviewCards.getByRole('button', { name: 'Cancel', exact: true }).focus()
         await page.keyboard.press('Enter')
         await expect.poll(() => decisionPersisted).toBe(true)
-        await page.goto(`${baseUrl.origin}${root}/search`)
+        await page.goto(`${baseUrl.origin}${root}/search?mode=search`)
         const search = page.getByRole('textbox', { name: 'Search your sources', exact: true })
         await search.fill('Continue searching')
         releaseResponse.resolve()

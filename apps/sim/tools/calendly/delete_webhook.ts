@@ -3,6 +3,7 @@ import type {
   CalendlyDeleteWebhookResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteWebhookTool: ToolConfig<
@@ -13,6 +14,7 @@ export const deleteWebhookTool: ToolConfig<
   name: 'Calendly Delete Webhook',
   description: 'Delete a webhook subscription',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,7 +34,7 @@ export const deleteWebhookTool: ToolConfig<
 
   request: {
     url: (params: CalendlyDeleteWebhookParams) => {
-      const uuid = toUuid(params.webhookUuid)
+      const uuid = toUuid(params.webhookUuid, 'webhookUuid')
       return `https://api.calendly.com/webhook_subscriptions/${uuid}`
     },
     method: 'DELETE',

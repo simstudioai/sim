@@ -5,6 +5,7 @@ import {
   type GoogleCalendarListAclResponse,
 } from '@/tools/google_calendar/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listAclTool: ToolConfig<GoogleCalendarListAclParams, GoogleCalendarListAclResponse> = {
   id: 'google_calendar_list_acl',
@@ -59,7 +60,7 @@ export const listAclTool: ToolConfig<GoogleCalendarListAclParams, GoogleCalendar
       if (params.showDeleted !== undefined)
         queryParams.append('showDeleted', params.showDeleted.toString())
       const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/acl${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/acl${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarListAclParams) => ({

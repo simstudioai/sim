@@ -3,7 +3,12 @@ import type {
   MicrosoftAdListUsersResponse,
 } from '@/tools/microsoft_ad/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { graphCollectionHeaders, usesGraphAdvancedQuery } from '@/tools/microsoft_ad/utils'
+import {
+  graphCollectionHeaders,
+  mapUser,
+  USER_SELECT,
+  usesGraphAdvancedQuery,
+} from '@/tools/microsoft_ad/utils'
 import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -54,9 +59,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
     url: (params) => {
       if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, ['users'])
       const queryParts: string[] = []
-      queryParts.push(
-        '$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled'
-      )
+      queryParts.push(`$select=${USER_SELECT}`)
       if (params.top) queryParts.push(`$top=${params.top}`)
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
       if (params.search) {
@@ -71,19 +74,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    const users = (data.value ?? []).map((user: Record<string, unknown>) => ({
-      id: user.id ?? null,
-      displayName: user.displayName ?? null,
-      givenName: user.givenName ?? null,
-      surname: user.surname ?? null,
-      userPrincipalName: user.userPrincipalName ?? null,
-      mail: user.mail ?? null,
-      jobTitle: user.jobTitle ?? null,
-      department: user.department ?? null,
-      officeLocation: user.officeLocation ?? null,
-      mobilePhone: user.mobilePhone ?? null,
-      accountEnabled: user.accountEnabled ?? null,
-    }))
+    const users = (data.value ?? []).map(mapUser)
     return {
       success: true,
       output: {

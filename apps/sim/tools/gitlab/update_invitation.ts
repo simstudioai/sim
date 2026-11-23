@@ -3,7 +3,9 @@ import type {
   GitLabUpdateInvitationResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabUpdateInvitationTool: ToolConfig<
   GitLabUpdateInvitationParams,
@@ -14,6 +16,7 @@ export const gitlabUpdateInvitationTool: ToolConfig<
   name: 'GitLab Update Invitation',
   description: 'Update a pending invitation to a GitLab project or group',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -65,7 +68,7 @@ export const gitlabUpdateInvitationTool: ToolConfig<
   request: {
     url: (params) => {
       const resourcePath = getGitLabResourcePath(params.resourceType, params.resourceId)
-      const encodedEmail = encodeURIComponent(String(params.email).trim())
+      const encodedEmail = safeUrlPathSegment(params.email, 'email', { allowSeparators: true })
       return `${getGitLabApiBase(params.host)}/${resourcePath}/invitations/${encodedEmail}`
     },
     method: 'PUT',

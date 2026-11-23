@@ -1,3 +1,4 @@
+import { CUSTOM_BLOCK_RESERVED_PARAMS } from '@sim/workflow-types/blocks'
 import type { WorkflowInputField } from '@/lib/workflows/input-format'
 import type { BlockConfig, BlockIcon, SubBlockConfig } from '@/blocks/types'
 import {
@@ -68,19 +69,6 @@ export interface CustomBlockRow {
 }
 
 /**
- * Params that carry the block's own wiring rather than a mapped Start input.
- * Everything else on the block is collected into the child `inputMapping`. Shared
- * with the serializer so "does this custom block declare input sub-blocks?" reads
- * from one source instead of re-listing the structural ids.
- */
-export const RESERVED_PARAMS = new Set([
-  'workflowId',
-  'inputMapping',
-  'triggerMode',
-  'advancedMode',
-])
-
-/**
  * Output names the block projects itself: `success`/`error`/`errorType`/`errorRef`
  * from `buildOutputs`, plus `cost` (kept reserved for forward compatibility now
  * that the child bills its own run). A user-named exposed output must never
@@ -116,7 +104,7 @@ export function assembleCustomBlockInputMapping(
   const decoded = decodeToolParams(params, shapes)
   const mapping: Record<string, unknown> = {}
   for (const [key, val] of Object.entries(decoded)) {
-    if (RESERVED_PARAMS.has(key)) continue
+    if (CUSTOM_BLOCK_RESERVED_PARAMS.has(key)) continue
     if (val === undefined || val === '') continue
     mapping[key] = val
   }

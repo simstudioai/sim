@@ -3,7 +3,9 @@ import {
   selectCursorPromptModelInput,
 } from '@/tools/cursor/model-input'
 import type { AddFollowupParams, AddFollowupResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const addFollowupBase = {
   params: {
@@ -45,7 +47,7 @@ const addFollowupBase = {
         ),
     },
     url: (params: AddFollowupParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/followup`,
+      `https://api.cursor.com/v0/agents/${safeUrlPathSegment(params.agentId, 'agentId')}/followup`,
     method: 'POST',
     headers: (params: AddFollowupParams) => ({
       'Content-Type': 'application/json',
@@ -76,6 +78,7 @@ export const addFollowupTool: ToolConfig<AddFollowupParams, AddFollowupResponse>
   name: 'Cursor Add Follow-up',
   description: 'Add a follow-up instruction to an existing cloud agent.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...addFollowupBase,
 
@@ -121,6 +124,7 @@ export const addFollowupV2Tool: ToolConfig<AddFollowupParams, AddFollowupV2Respo
   description:
     'Add a follow-up instruction to an existing cloud agent. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

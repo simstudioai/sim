@@ -26,6 +26,9 @@ const LIVE_SOURCE_FIELDS: Record<string, readonly string[]> = {
   github: ['repository', 'pathPrefix', 'extensions'],
   gitlab: [
     'host',
+    'scope',
+    'group',
+    'includeSubgroups',
     'project',
     'contentTypes',
     'ref',
@@ -100,7 +103,10 @@ export function liveSearchSourceMeta(
       ),
     }
   }
-  if (!enabled) return meta
+  if (!enabled)
+    return meta.configFields.some((field) => field.searchOnly)
+      ? { ...meta, configFields: meta.configFields.filter((field) => !field.searchOnly) }
+      : meta
   const fields = LIVE_SOURCE_FIELDS[meta.id]
   if (!fields) return meta
   const descriptions = LIVE_FIELD_DESCRIPTIONS[meta.id] ?? {}

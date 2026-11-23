@@ -1,0 +1,26 @@
+{
+  "namespace": "sendgrid",
+  "methods": {
+    "add_contact": "addContact",
+    "add_contacts_to_list": "addContactsToList",
+    "create_list": "createList",
+    "create_template": "createTemplate",
+    "create_template_version": "createTemplateVersion",
+    "delete_contacts": "deleteContacts",
+    "delete_list": "deleteList",
+    "delete_template": "deleteTemplate",
+    "get_contact": "getContact",
+    "get_list": "getList",
+    "get_template": "getTemplate",
+    "list_all_lists": "listAllLists",
+    "list_templates": "listTemplates",
+    "remove_contacts_from_list": "removeContactsFromList",
+    "search_contacts": "searchContacts",
+    "send_mail": "sendMail"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

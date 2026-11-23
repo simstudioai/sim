@@ -23,21 +23,19 @@ import {
 import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import {
-  getPlanWeeklyRefreshDollars,
-  isEnterprise,
-  isFree,
-  isPaid,
-} from '@/lib/billing/plan-helpers'
+import { isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
+  formatTrialEndDate,
   getFreeTierAllowance,
   getFreeTierLimit,
   getPerUserMinimumLimit,
   getPlanPricing,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
+  isTrialingSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import type { UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -413,7 +411,7 @@ async function getResolvedUserUsageData(
 
     let weeklyRefreshConsumed = 0
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(subscription)
       if (weeklyRefreshDollars > 0) {
         weeklyRefreshConsumed = await computeWeeklyRefreshConsumed(
           {
@@ -538,6 +536,15 @@ export async function updateUserUsageLimit(
     // Only pro users can edit limits (free users cannot)
     if (!subscription || isFree(subscription.plan)) {
       return { success: false, error: 'Free plan users cannot edit usage limits' }
+    }
+
+    if (!canEditUsageLimit(subscription)) {
+      return {
+        success: false,
+        error: isTrialingSubscription(subscription)
+          ? 'Usage limits can be changed once your trial ends'
+          : 'An active subscription is required to edit usage limits',
+      }
     }
 
     const billingStatus = await getEffectiveBillingStatus(userId)
@@ -729,6 +736,11 @@ async function forfeitFreeTierAllowance(executor: DbOrTx, userId: string): Promi
 /**
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
+ *
+ * A paid plan only ever raises the limit to its base plus prepaid credits, keeping any higher
+ * limit the user chose. Every other pool is set exactly: the free allowance, or a trial's fixed
+ * allowance, which also lowers a limit left higher by an earlier plan. A trial that converts is
+ * raised to the plan's base on the sync that follows.
  */
 export async function syncUsageLimitsFromSubscription(
   userId: string,
@@ -746,13 +758,15 @@ export async function syncUsageLimitsFromSubscription(
   const baseLimit = toDecimal(
     getPerUserMinimumLimit(subscription, currentUserStats[0].freeTierEligible)
   ).toString()
-  const hasEntitledPersonalSubscription =
-    subscription !== null && hasPaidSubscriptionStatus(subscription.status)
+  const raisesOnly =
+    subscription !== null &&
+    hasPaidSubscriptionStatus(subscription.status) &&
+    !isTrialingSubscription(subscription)
   const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`
   await executor
     .update(userStats)
     .set({
-      currentUsageLimit: hasEntitledPersonalSubscription
+      currentUsageLimit: raisesOnly
         ? sql`greatest(coalesce(${userStats.currentUsageLimit}, 0), ${liveMinimum})`
         : liveMinimum,
       usageLimitUpdatedAt: new Date(),
@@ -760,16 +774,16 @@ export async function syncUsageLimitsFromSubscription(
     .where(
       and(
         eq(userStats.userId, userId),
-        hasEntitledPersonalSubscription
+        raisesOnly
           ? sql`coalesce(${userStats.currentUsageLimit}, 0) < ${liveMinimum}`
           : sql`${userStats.currentUsageLimit} is distinct from ${liveMinimum}`
       )
     )
 
   logger.info(
-    hasEntitledPersonalSubscription
+    raisesOnly
       ? 'Synchronized plan-plus-prepaid minimum'
-      : 'Reset limit to free-plus-prepaid minimum',
+      : 'Set limit to the free or trial allowance plus prepaid',
     { userId, baseLimit: Number(baseLimit) }
   )
 }
@@ -806,7 +820,7 @@ export async function getEffectiveCurrentPeriodCost(
     return rawCost
   }
 
-  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(subscription.plan)
+  const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(subscription)
   if (weeklyRefreshDollars <= 0) return rawCost
 
   const refreshConsumed = await computeWeeklyRefreshConsumed(
@@ -852,6 +866,8 @@ export async function maybeSendUsageThresholdEmail(params: {
   /** Cost this completion recorded; one that recorded nothing cannot move usage. */
   costDelta: number
   limit: number
+  /** Set during a free trial, whose allowance is fixed until the trial ends. */
+  trialEnd?: Date | null
 }): Promise<void> {
   try {
     if (!isBillingEnabled) return
@@ -877,6 +893,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
+    const trialEndsOn = params.trialEnd ? formatTrialEndDate(params.trialEnd) : undefined
 
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
@@ -903,11 +920,12 @@ export async function maybeSendUsageThresholdEmail(params: {
           currentUsage,
           limit: params.limit,
           ctaLink,
+          trialEndsOn,
         })
 
         await sendEmail({
           to: email,
-          subject: getEmailSubject('usage-threshold'),
+          subject: getEmailSubject(trialEndsOn ? 'trial-usage-threshold' : 'usage-threshold'),
           html,
           emailType: 'notifications',
         })
@@ -966,13 +984,16 @@ export async function maybeSendUsageThresholdEmail(params: {
               currentUsage,
               limit: params.limit,
               ctaLink: billingSettingsLink,
+              trialEndsOn,
             })
 
         await sendEmail({
           to: email,
           subject: useFreeCopy
             ? getEmailSubject('free-tier-exhausted')
-            : getLimitEmailSubject('credits', 'reached'),
+            : trialEndsOn
+              ? getEmailSubject('trial-credits-exhausted')
+              : getLimitEmailSubject('credits', 'reached'),
           html,
           emailType: 'notifications',
         })

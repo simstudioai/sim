@@ -4,7 +4,7 @@ import { MicrosoftSharepointIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { isToolCall, mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 const logger = createLogger('SharepointBlock')
 
@@ -653,7 +653,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             throw new Error(`Invalid Sharepoint operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const { oauthCredential, siteId, mimeType, ...rest } = params
 
         // siteId is the canonical param from siteSelector (basic) or manualSiteId (advanced)
@@ -696,7 +697,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           return undefined
         }
 
-        if (others.operation === 'update_list' || others.operation === 'add_list_items') {
+        if (operation === 'update_list' || operation === 'add_list_items') {
           logger.info('SharepointBlock list item param check', {
             siteId: effectiveSiteId || undefined,
             listId: listId,
@@ -729,7 +730,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           baseParams.files = normalizedFiles
         }
 
-        if (columnDefinitions && others.operation === 'create_list') {
+        if (columnDefinitions && operation === 'create_list') {
           baseParams.pageContent = columnDefinitions
         }
 
@@ -1115,6 +1116,14 @@ export const SharepointV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'searchQuery',
+      title: 'Site Search',
+      type: 'short-input',
+      placeholder: 'Keywords to search sites (ignored when Group ID or a site is set)',
+      condition: { field: 'operation', value: 'sharepoint_list_sites' },
+      mode: 'advanced',
+    },
+    {
       id: 'listSelector',
       title: 'List',
       type: 'file-selector',
@@ -1185,6 +1194,64 @@ export const SharepointV2Block: BlockConfig = {
       ],
       value: () => 'true',
       condition: { field: 'operation', value: 'sharepoint_get_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'filter',
+      title: 'Item Filter',
+      type: 'short-input',
+      placeholder: "OData filter, e.g. fields/Status eq 'Active'",
+      condition: {
+        field: 'operation',
+        value: 'sharepoint_get_list',
+        and: { field: 'includeColumns', value: 'true', not: true },
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Microsoft Graph OData $filter expression for SharePoint list items based on the user's description.
+
+Reference list columns as fields/<InternalName>. Supported operators: eq, ne, lt, gt, le, ge, and startswith(). Quote string values with single quotes.
+
+Examples:
+- fields/Status eq 'Active'
+- fields/Quantity lt 600
+- startswith(fields/Title, 'Q3')
+
+Return ONLY the filter expression - no explanations, no quotes around the whole expression, no extra text.`,
+        placeholder: 'Describe which items to return...',
+      },
+    },
+    {
+      id: 'top',
+      title: 'Items Per Page',
+      type: 'short-input',
+      placeholder: 'Maximum items per page (1-5000)',
+      condition: {
+        field: 'operation',
+        value: 'sharepoint_get_list',
+        and: { field: 'includeColumns', value: 'true', not: true },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'selectFields',
+      title: 'Fields to Return',
+      type: 'short-input',
+      placeholder: 'Comma-separated column names, e.g. Title,Status,DueDate',
+      condition: {
+        field: 'operation',
+        value: 'sharepoint_get_list',
+        and: { field: 'includeColumns', value: 'true', not: true },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'itemSelectFields',
+      title: 'Fields to Return',
+      type: 'short-input',
+      placeholder: 'Comma-separated column names, e.g. Title,Status,DueDate',
+      condition: { field: 'operation', value: 'sharepoint_get_list_item' },
       mode: 'advanced',
     },
     {
@@ -1361,7 +1428,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     access: [...SHAREPOINT_V2_TOOL_IDS],
     config: {
       tool: (params) => params.operation || 'sharepoint_create_page',
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           siteId,
@@ -1375,6 +1443,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           maxPages,
           driveId,
           driveItemId,
+          top,
           ...rest
         } = params
 
@@ -1411,9 +1480,27 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
           includeItems: coerceBoolean(includeItems),
           listItemFields: parseJsonObject(listItemFields),
           maxPages: maxPages ? Number.parseInt(String(maxPages), 10) : undefined,
+          top: cleanString(top) ? Number(cleanString(top)) : undefined,
         }
 
-        if (columnDefinitions && rest.operation === 'sharepoint_create_list') {
+        // Canvas only: a model's own filter/top/selectFields reach the tool, which rejects the mix clearly.
+        if (
+          result.includeColumns === true &&
+          operation === 'sharepoint_get_list' &&
+          !isToolCall(context)
+        ) {
+          result.filter = undefined
+          result.top = undefined
+          result.selectFields = undefined
+        }
+        if (operation === 'sharepoint_get_list_item') {
+          result.selectFields =
+            cleanString(result.itemSelectFields) ??
+            toolCallArg(context, cleanString(result.selectFields))
+        }
+        result.itemSelectFields = undefined
+
+        if (columnDefinitions && operation === 'sharepoint_create_list') {
           result.pageContent = columnDefinitions
         }
         if (normalizedFiles) {
@@ -1435,7 +1522,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     maxPages: { type: 'number', description: 'Maximum pages to return' },
     nextPageUrl: { type: 'string', description: 'Microsoft Graph @odata.nextLink URL' },
     groupId: { type: 'string', description: 'Microsoft 365 group ID' },
+    searchQuery: { type: 'string', description: 'Keywords to search sites by' },
     listId: { type: 'string', description: 'List ID' },
+    filter: { type: 'string', description: 'OData $filter for list items' },
+    top: { type: 'number', description: 'Maximum list items per page' },
+    selectFields: { type: 'string', description: 'Comma-separated item field names to return' },
+    itemSelectFields: {
+      type: 'string',
+      description: 'Comma-separated field names to return (get list item)',
+    },
     includeColumns: { type: 'boolean', description: 'Include columns in response' },
     includeItems: { type: 'boolean', description: 'Include items in response' },
     listDisplayName: { type: 'string', description: 'List display name' },
@@ -1464,7 +1559,8 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
     page: {
       type: 'json',
-      description: 'SharePoint page object (id, name, title, webUrl, pageLayout, description)',
+      description:
+        'SharePoint page object (id, name, title, webUrl, pageLayout, description, publishingState, createdBy, lastModifiedBy)',
     },
     pages: {
       type: 'json',
@@ -1484,12 +1580,21 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'json',
       description: 'Array of SharePoint lists (id, displayName, name, webUrl, list)',
     },
-    item: { type: 'json', description: 'SharePoint list item with fields' },
-    items: { type: 'json', description: 'Array of SharePoint list items with fields' },
+    item: {
+      type: 'json',
+      description:
+        'SharePoint list item (id, fields, webUrl, createdDateTime, lastModifiedDateTime, createdBy, lastModifiedBy)',
+    },
+    items: {
+      type: 'json',
+      description:
+        'Array of SharePoint list items (id, fields, webUrl, createdDateTime, lastModifiedDateTime, createdBy, lastModifiedBy)',
+    },
     deleted: { type: 'boolean', description: 'Whether the item/page/file was deleted' },
     driveItem: {
       type: 'json',
-      description: 'SharePoint drive item metadata (id, name, size, webUrl, file/folder facet)',
+      description:
+        'SharePoint drive item metadata (id, name, size, webUrl, file/folder facet, parentReference, createdBy, lastModifiedBy)',
     },
     file: {
       type: 'json',

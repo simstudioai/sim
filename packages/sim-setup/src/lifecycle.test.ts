@@ -1,15 +1,65 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
+
+const { fakeRoot, mockSpawnSync, mockConfirm } = vi.hoisted(() => {
+  const { mkdtempSync } = require('node:fs') as typeof import('node:fs')
+  const { tmpdir } = require('node:os') as typeof import('node:os')
+  const { join } = require('node:path') as typeof import('node:path')
+  return {
+    fakeRoot: mkdtempSync(join(tmpdir(), 'sim-setup-reset-')),
+    mockSpawnSync: vi.fn(),
+    mockConfirm: vi.fn(),
+  }
+})
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return { ...actual, spawnSync: mockSpawnSync }
+})
+
+vi.mock('./context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./context')>()
+  return { ...actual, SETUP_CONTEXT: { kind: 'source', root: fakeRoot } }
+})
+
+vi.mock('./prompter', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./prompter')>()
+  return { ...actual, confirm: mockConfirm }
+})
+
 import { ensureProductionComposeFile } from './compose-asset'
+import { SetupError } from './errors'
 import {
   composeInstallFromDirectory,
   composeServiceQuery,
   composeServiceState,
   type Install,
+  runLifecycle,
   serviceStatusRows,
 } from './lifecycle'
+
+afterAll(() => {
+  rmSync(fakeRoot, { recursive: true, force: true })
+})
+
+describe('reset with Docker installed but not running', () => {
+  it('refuses before archiving the env files the surviving volumes still need', async () => {
+    // The docker CLI resolves, but every daemon query fails, as with Docker Desktop stopped.
+    mockSpawnSync.mockReturnValue({ status: 1, stdout: '', stderr: 'daemon not running' })
+    mockConfirm.mockResolvedValue(true)
+    const envFile = path.join(fakeRoot, 'apps/sim/.env')
+    mkdirSync(path.dirname(envFile), { recursive: true })
+    writeFileSync(envFile, 'DATABASE_URL=postgresql://localhost/sim\n')
+
+    await expect(runLifecycle('reset')).rejects.toBeInstanceOf(SetupError)
+
+    expect(existsSync(envFile)).toBe(true)
+    expect(readdirSync(path.dirname(envFile))).toEqual(['.env'])
+    expect(mockConfirm).not.toHaveBeenCalled()
+  })
+})
 
 describe('setup lifecycle', () => {
   it('does not duplicate a running install restored from its directory', () => {

@@ -2,15 +2,18 @@
 title: Hugging Face
 description: Use Hugging Face Inference API
 integration:
-  type: "huggingface"
+  type: "huggingface_v2"
   color: "#0B0F19"
 ---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Hugging Face](https://huggingface.co/) in Sim to generate text completions with the Hugging Face Inference API. Choose a model and supply the prompt for the workflow step.
-{/* MANUAL-CONTENT-END */}
 
+The **Provider** list shows the providers that serve chat completions through the Hugging Face router: Novita, Cerebras, Cohere, Fireworks, HF Inference, Nscale and Together. Fal AI, Hyperbolic, Nebius, Replicate and SambaNova are no longer listed because Hugging Face does not route chat completions to them. A block that already uses one of them keeps its saved setting.
+{/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
@@ -22,6 +25,8 @@ Generate completions with the Hugging Face Inference API.
 
 Generate completions using Hugging Face Inference API
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -32,7 +37,6 @@ Generate completions using Hugging Face Inference API
 | `model` | string | Yes | Model to use for chat completions \(e.g., "deepseek/deepseek-v3-0324", "meta-llama/Llama-3.3-70B-Instruct"\) |
 | `maxTokens` | number | No | Maximum number of tokens to generate |
 | `temperature` | number | No | Sampling temperature \(0-2\). Higher values make output more random |
-| `apiKey` | string | Yes | Hugging Face API token |
 
 #### Output
 
@@ -46,5 +50,7 @@ Generate completions using Hugging Face Inference API
 |     ↳ `prompt_tokens` | number | Number of tokens in the prompt |
 |     ↳ `completion_tokens` | number | Number of tokens in the completion |
 |     ↳ `total_tokens` | number | Total number of tokens used |
+
+</ReferenceDetails>
 
 

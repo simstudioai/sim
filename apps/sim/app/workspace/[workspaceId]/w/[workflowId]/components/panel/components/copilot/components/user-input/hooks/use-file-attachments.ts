@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -24,6 +24,7 @@ import type {
   ChatRequestMode,
   FileAttachmentForApi,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFileDrop } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-drop'
 
 const logger = createLogger('useFileAttachments')
 
@@ -94,6 +95,7 @@ interface UseFileAttachmentsProps {
   organizationId?: string
   requestMode?: ChatRequestMode
   disabled?: boolean
+  fileDropTarget?: RefObject<HTMLElement | null>
   initialAttachments?: FileAttachmentForApi[]
 }
 
@@ -121,8 +123,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       uploading: false,
     }))
   )
-  const [dragCounter, setDragCounter] = useState(0)
-  const isDragging = dragCounter > 0
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>(attachedFiles)
   const uploadControllersRef = useRef<Map<string, AbortController> | null>(null)
@@ -335,48 +335,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     }
   }, [])
 
-  /**
-   * Handles drag enter event
-   */
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => prev + 1)
-  }, [])
-
-  /**
-   * Handles drag leave event
-   */
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => Math.max(0, prev - 1))
-  }, [])
-
-  /**
-   * Handles drag over event
-   */
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-  }, [])
-
-  /**
-   * Handles file drop event
-   */
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setDragCounter(0)
-
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        await processFiles(e.dataTransfer.files)
-      }
-    },
-    [processFiles]
-  )
+  const fileDrop = useFileDrop({ processFiles, target: props.fileDropTarget, disabled })
 
   /**
    * Clears all attached files and cleanup preview URLs
@@ -406,7 +365,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   return {
     // State
     attachedFiles,
-    isDragging,
+    ...fileDrop,
 
     // Refs
     fileInputRef,
@@ -418,10 +377,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleFileChange,
     removeFile,
     handleFileClick,
-    handleDragEnter,
-    handleDragLeave,
-    handleDragOver,
-    handleDrop,
     clearAttachedFiles,
     restoreAttachedFiles,
     processFiles,

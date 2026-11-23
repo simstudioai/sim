@@ -8,12 +8,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
+import { NoWorkspaceAccessError } from '@/lib/core/application'
+import { v2TableErrorPolicies } from '@/lib/table/api/route-policies'
 import {
   resolveActiveTableContext,
   resolveArchivedTableContext,
 } from '@/lib/table/application/context'
+import { TABLE_NOT_FOUND_MESSAGE } from '@/lib/table/constants'
 
 const getTableById = tableServiceMockFns.mockGetTableById
+const findByName = tableServiceMockFns.mockFindActiveTablesByExactName
 const loadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
 
 const WORKSPACE_ONE = {
@@ -71,6 +75,74 @@ describe('table application context', () => {
     expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
+  it('finds a table by its name within the asserted workspace, an id always first', async () => {
+    getTableById.mockImplementation(async (id: string) =>
+      id === 'table-1' ? { id: 'table-1', workspaceId: 'workspace-1', name: 'leads' } : null
+    )
+    findByName.mockImplementation(async (workspaceId: string, name: string) =>
+      workspaceId === 'workspace-1' && name === 'leads'
+        ? [{ id: 'table-1', workspaceId: 'workspace-1', name: 'leads' }]
+        : []
+    )
+
+    await expect(
+      resolveActiveTableContext({ tableId: 'leads', assertedWorkspaceId: 'workspace-1' })
+    ).resolves.toMatchObject({ tableId: 'table-1', workspaceId: 'workspace-1' })
+    expect(findByName).toHaveBeenCalledWith('workspace-1', 'leads')
+
+    findByName.mockClear()
+    await resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
+    expect(findByName).not.toHaveBeenCalled()
+
+    // A stale id is never read as a name, so it costs no second query.
+    await expect(
+      resolveActiveTableContext({
+        tableId: 'tbl_0123456789abcdef0123456789abcdef',
+        assertedWorkspaceId: 'workspace-1',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(findByName).not.toHaveBeenCalled()
+
+    // A name that only starts like an id is still a name.
+    findByName.mockResolvedValueOnce([
+      { id: 'table-2', workspaceId: 'workspace-1', name: 'tbl_sales' },
+    ])
+    await expect(
+      resolveActiveTableContext({ tableId: 'tbl_sales', assertedWorkspaceId: 'workspace-1' })
+    ).resolves.toMatchObject({ tableId: 'table-2' })
+    expect(findByName).toHaveBeenLastCalledWith('workspace-1', 'tbl_sales')
+    findByName.mockClear()
+
+    // A name never reaches past the asserted workspace, even if the lookup returned a foreign row.
+    findByName.mockResolvedValueOnce([{ id: 'table-1', workspaceId: 'workspace-1', name: 'leads' }])
+    await expect(
+      resolveActiveTableContext({ tableId: 'leads', assertedWorkspaceId: 'workspace-2' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(findByName).toHaveBeenLastCalledWith('workspace-2', 'leads')
+    findByName.mockClear()
+    await expect(resolveActiveTableContext({ tableId: 'leads' })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    expect(findByName).not.toHaveBeenCalled()
+  })
+
+  it('answers a name missing from a workspace byte for byte as a refused authorization over a name that exists there', async () => {
+    getTableById.mockResolvedValue(null)
+    findByName.mockResolvedValue([])
+    const missing = await resolveActiveTableContext({
+      tableId: 'payroll',
+      assertedWorkspaceId: 'workspace-2',
+    }).catch((error: unknown) => error)
+    const { render } = v2TableErrorPolicies.concealTableAuthorization
+
+    const [missingBody, refusedBody] = await Promise.all(
+      [missing, new NoWorkspaceAccessError()].map((error) => render(error)?.text())
+    )
+
+    expect(missingBody).toBeDefined()
+    expect(missingBody).toBe(refusedBody)
+  })
+
   it('conceals an asserted cross-workspace table as not found', async () => {
     await expect(
       resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-2' })
@@ -112,7 +184,7 @@ describe('table application context', () => {
 
     await expect(
       resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Table not found' })
+    ).rejects.toMatchObject({ code: 'not_found', message: TABLE_NOT_FOUND_MESSAGE })
   })
 
   it('fails when the canonical workspace is unavailable', async () => {

@@ -1,0 +1,23 @@
+{
+  "namespace": "cloudwatch",
+  "methods": {
+    "describe_alarm_history": "describeAlarmHistory",
+    "describe_alarms": "describeAlarms",
+    "describe_log_groups": "describeLogGroups",
+    "describe_log_streams": "describeLogStreams",
+    "filter_log_events": "filterLogEvents",
+    "get_log_events": "getLogEvents",
+    "get_metric_statistics": "getMetricStatistics",
+    "list_metrics": "listMetrics",
+    "mute_alarm": "muteAlarm",
+    "put_log_group_retention": "setLogGroupRetention",
+    "put_metric_data": "publishMetric",
+    "query_logs": "queryLogsInsights",
+    "unmute_alarm": "unmuteAlarm"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

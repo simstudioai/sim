@@ -115,8 +115,8 @@ export function SimLinksEmptyState({ onCreate }: SimLinksEmptyStateProps) {
   return (
     <EmptyState
       graphic={<SimLinksGraphic />}
-      title='Sim Links'
-      description='Create links like sim/handbook for the pages your team opens most.'
+      title='Links'
+      description='Create short links like handbook for the pages your team opens most.'
       action={
         <Chip variant='primary' onClick={onCreate}>
           New link

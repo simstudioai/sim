@@ -1,8 +1,11 @@
-import type {
-  IncidentioEscalationPathsShowParams,
-  IncidentioEscalationPathsShowResponse,
+import {
+  INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES,
+  type IncidentioEscalationPathsShowParams,
+  type IncidentioEscalationPathsShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const escalationPathsShowTool: ToolConfig<
   IncidentioEscalationPathsShowParams,
@@ -12,6 +15,7 @@ export const escalationPathsShowTool: ToolConfig<
   name: 'Show Escalation Path',
   description: 'Get details of a specific escalation path in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -29,7 +33,8 @@ export const escalationPathsShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/escalation_paths/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -52,58 +57,7 @@ export const escalationPathsShowTool: ToolConfig<
     escalation_path: {
       type: 'object',
       description: 'The escalation path details',
-      properties: {
-        id: { type: 'string', description: 'The escalation path ID' },
-        name: { type: 'string', description: 'The escalation path name' },
-        path: {
-          type: 'array',
-          description: 'Array of escalation levels',
-          items: {
-            type: 'object',
-            properties: {
-              targets: {
-                type: 'array',
-                description: 'Targets for this level',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string', description: 'Target ID' },
-                    type: { type: 'string', description: 'Target type' },
-                    schedule_id: {
-                      type: 'string',
-                      description: 'Schedule ID if type is schedule',
-                      optional: true,
-                    },
-                    user_id: {
-                      type: 'string',
-                      description: 'User ID if type is user',
-                      optional: true,
-                    },
-                    urgency: { type: 'string', description: 'Urgency level' },
-                  },
-                },
-              },
-              time_to_ack_seconds: {
-                type: 'number',
-                description: 'Time to acknowledge in seconds',
-              },
-            },
-          },
-        },
-        working_hours: {
-          type: 'array',
-          description: 'Working hours configuration',
-          optional: true,
-          items: {
-            type: 'object',
-            properties: {
-              weekday: { type: 'string', description: 'Day of week' },
-              start_time: { type: 'string', description: 'Start time' },
-              end_time: { type: 'string', description: 'End time' },
-            },
-          },
-        },
-      },
+      properties: INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES,
     },
   },
 }

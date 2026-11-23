@@ -1,4 +1,5 @@
 import type { DubGetLinkParams, DubGetLinkResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getLinkTool: ToolConfig<DubGetLinkParams, DubGetLinkResponse> = {
@@ -7,6 +8,7 @@ export const getLinkTool: ToolConfig<DubGetLinkParams, DubGetLinkResponse> = {
   description:
     'Retrieve information about a short link by its link ID, external ID, or domain + key combination.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

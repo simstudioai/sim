@@ -2,7 +2,8 @@ import type {
   GitLabCompareBranchesParams,
   GitLabCompareBranchesResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCompareBranchesTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabCompareBranchesTool: ToolConfig<
   name: 'GitLab Compare Branches',
   description: 'Compare two branches, tags, or commits in a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -68,7 +70,7 @@ export const gitlabCompareBranchesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
       const queryParams = new URLSearchParams()
       queryParams.append('from', params.from)
       queryParams.append('to', params.to)

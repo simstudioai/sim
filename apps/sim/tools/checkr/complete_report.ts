@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapReport,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCompleteReportTool: ToolConfig<CheckrReportIdParams, CheckrReportResponse> = {
@@ -19,6 +20,7 @@ export const checkrCompleteReportTool: ToolConfig<CheckrReportIdParams, CheckrRe
   description:
     'Complete a report now, canceling any pending or suspended screenings. Canceled screenings record a cancellation reason.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

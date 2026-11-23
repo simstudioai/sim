@@ -133,7 +133,15 @@ async function resolveSkillEditorListContext(input: ListSkillEditorsInput): Prom
 
 const authorizationOptions = { delegation: skillDelegationPolicy }
 
-async function requireSkillEditorAccess(userId: string, context: SkillContext): Promise<void> {
+/**
+ * Refuses a user who may not edit the skill: an explicit editor row or workspace admin is
+ * required. Workspace role alone never grants it, so a use case whose operation declares only the
+ * `read` floor (update, delete, editor grants) calls this before writing.
+ */
+export async function requireSkillEditorAccess(
+  userId: string,
+  context: { workspaceId: string; skill: { id: string } }
+): Promise<void> {
   const actor = await getSkillActorContext(context.skill.id, userId)
   if (
     !actor.skill ||

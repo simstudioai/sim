@@ -1,13 +1,34 @@
+import { isPlainRecord } from '@sim/utils/object'
 import type { ConnectorPermissionConfigCapability } from '@/lib/knowledge/connectors/permission-config'
+import { writeConnectorPermissions } from '@/lib/knowledge/connectors/permission-store'
 import { prepareGitLabPermissionChange } from '@/connectors/gitlab/permission-config/prepare'
 import {
+  gitLabPermissionData,
+  prepareGitLabPermissions,
   readGitLabPermissionSummaries,
-  seedGitLabCsvContext,
-  writeGitLabPermissions,
+  seedGitLabPermissionContext,
 } from '@/connectors/gitlab/permission-config/repository'
+import { prepareGitLabPermissionScope } from '@/connectors/gitlab/permission-config/scope'
 import { setGitLabCsvContext } from '@/connectors/gitlab/permission-config/types'
 
 export const gitLabPermissionConfig: ConnectorPermissionConfigCapability = {
+  grantReplacement: {
+    supports: (metadata) => isPlainRecord(metadata) && metadata.mode === 'csv',
+    async prepare(snapshot, expectedRevision, grants, source) {
+      const { stored, scope } = await prepareGitLabPermissionScope(
+        snapshot,
+        expectedRevision,
+        source
+      )
+      const prepared = prepareGitLabPermissions(
+        { ...grants, mode: 'csv', expectedRevision },
+        scope,
+        stored,
+        true
+      )
+      return gitLabPermissionData(prepared)
+    },
+  },
   async prepare(input) {
     const change = await prepareGitLabPermissionChange({
       ...input,
@@ -21,10 +42,20 @@ export const gitLabPermissionConfig: ConnectorPermissionConfigCapability = {
       requiresContentSync: prepared.rewriteAccess || Boolean(change.encryptedApiKey),
       encryptedApiKey: change.encryptedApiKey,
       populateSyncContext(context, connectorId) {
-        if (prepared.snapshot.mode === 'csv')
+        if ('group' in prepared.snapshot) {
+          const { host, group, projects } = prepared.snapshot
+          context.gitLabGroupScope = { host, group, projects }
+          context.gitLabPermissionMode = prepared.snapshot.mode
+        }
+        if (prepared.snapshot.mode === 'csv' && !('group' in prepared.snapshot))
           setGitLabCsvContext(context, { connectorId, ...prepared.snapshot })
       },
-      write: (tx, connectorId) => writeGitLabPermissions(tx, connectorId, prepared),
+      async write(tx, connectorId) {
+        await writeConnectorPermissions(tx, connectorId, {
+          expectedRevision: prepared.expectedRevision,
+          ...gitLabPermissionData(prepared),
+        })
+      },
     }
   },
   async readSummaries(connectorIds) {
@@ -44,5 +75,5 @@ export const gitLabPermissionConfig: ConnectorPermissionConfigCapability = {
       ])
     )
   },
-  populateSyncContext: seedGitLabCsvContext,
+  populateSyncContext: seedGitLabPermissionContext,
 }

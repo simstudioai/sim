@@ -1,7 +1,6 @@
 'use client'
 import { AuthIcon, AuthButton as Chip } from '@sim/auth-ui'
 import { useRouter } from 'next/navigation'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
 
 interface SSOLoginButtonProps {
   disabled?: boolean
@@ -17,10 +16,6 @@ export function SSOLoginButton({
   variant = 'outline',
 }: SSOLoginButtonProps) {
   const router = useRouter()
-
-  if (!isSsoEnabled) {
-    return null
-  }
 
   const handleSSOClick = () => {
     const ssoUrl = `/sso${callbackURL ? `?callbackUrl=${encodeURIComponent(callbackURL)}` : ''}`

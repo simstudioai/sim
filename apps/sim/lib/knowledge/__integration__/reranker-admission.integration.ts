@@ -1,16 +1,17 @@
-/** Real PostgreSQL admission with a synthetic provider response; no Cohere credential is used. */
+/** Real Redis admission with a synthetic provider response; no Cohere credential is used. */
 import { db } from '@sim/db'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
-import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
+import { getRedisClient } from '@/lib/core/config/redis'
+import { RedisTokenBucket } from '@/lib/core/rate-limiter/storage/redis-token-bucket'
 import { rerank } from '@/lib/knowledge/reranker'
 
-describe('reranker shared PostgreSQL admission', () => {
+describe('reranker shared Redis admission', () => {
   const keys = [generateId(), generateId()]
   const originalKey = env.COHERE_API_KEY
-  const storage = new DbTokenBucket()
+  const storage = new RedisTokenBucket(getRedisClient())
   const upstream = vi.fn()
   const options = { model: 'rerank-v4.0-fast' }
   const items = [{ id: 'fixture-chunk', text: 'Synthetic Orion release checklist' }]

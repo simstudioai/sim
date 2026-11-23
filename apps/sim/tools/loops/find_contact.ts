@@ -1,5 +1,6 @@
 import type { LoopsFindContactParams, LoopsFindContactResponse } from '@/tools/loops/types'
 import { LOOPS_CONTACT_OUTPUT_PROPERTIES } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsFindContactTool: ToolConfig<LoopsFindContactParams, LoopsFindContactResponse> = {
@@ -8,6 +9,7 @@ export const loopsFindContactTool: ToolConfig<LoopsFindContactParams, LoopsFindC
   description:
     'Find a contact in Loops by email address or userId. Returns an array of matching contacts with all their properties including name, subscription status, user group, and mailing lists.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

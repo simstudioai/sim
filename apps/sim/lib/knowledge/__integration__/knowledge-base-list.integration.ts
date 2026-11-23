@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { db } from '@sim/db'
 import { document, knowledgeBase, organization, user, workspace } from '@sim/db/schema'
+import { explainCaptured } from '@sim/db/testing/explain'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -14,12 +15,14 @@ import { getWorkspaceKnowledgeBases } from '@/lib/knowledge/service'
 
 /**
  * A small KB page must not count the rest of its workspace or other tenants before applying
- * its limit. Real query plans catch this even when warm caches hide it from a timing test.
+ * its limit, and many bases must not read the documents other tenants share a token with. Real query plans catch this even when warm caches hide it from a timing test.
  * The same read must retain ACL/lifecycle filtering, empty bases, and keyset continuity.
  */
 const ids = createKnowledgeAclFixtureIds()
 const foreign = createKnowledgeAclFixtureIds()
 const manyBases = createKnowledgeAclFixtureIds()
+const archivedBases = createKnowledgeAclFixtureIds()
+const ARCHIVED_BASE_COUNT = 600
 const offPageId = generateId()
 const emptyId = generateId()
 const archivedId = generateId()
@@ -118,6 +121,16 @@ beforeAll(async () => {
       'https://fixture.invalid/first', 1, 'text/plain', ARRAY['ws'], 13),
       (${generateId()}, ${`${manyBases.knowledgeBaseId}-10000`}, 'last.txt',
       'https://fixture.invalid/last', 1, 'text/plain', ARRAY['ws'], 17)`)
+  await seedKnowledgeAclFixture(archivedBases, { connectorType: 'google_drive' })
+  await db.execute(sql`INSERT INTO knowledge_base (id, workspace_id, user_id, name, deleted_at)
+    SELECT ${archivedBases.knowledgeBaseId} || '-' || n, ${archivedBases.workspaceId},
+      ${archivedBases.aliceId}, 'Archived fixture ' || n, now()
+    FROM generate_series(1, ${ARCHIVED_BASE_COUNT}) AS n`)
+  await db.execute(sql`INSERT INTO document
+    (id, knowledge_base_id, filename, file_url, file_size, mime_type, acl, token_count, archived_at)
+    SELECT ${archivedBases.knowledgeBaseId} || '-doc-' || n, ${archivedBases.knowledgeBaseId} || '-' || n,
+      'archived.txt', 'https://fixture.invalid/archived', 1, 'text/plain', ARRAY['ws'], 1, now()
+    FROM generate_series(1, ${ARCHIVED_BASE_COUNT}) AS n`)
   await db.execute(sql`ANALYZE knowledge_base`)
   await db.execute(sql`ANALYZE document`)
 }, 60_000)
@@ -126,7 +139,7 @@ afterAll(async () => {
   const reportPath = process.env.KNOWLEDGE_BASE_LIST_REPORT_PATH
   if (reportPath) writeFileSync(reportPath, JSON.stringify(reports, null, 2))
   try {
-    for (const fixture of [ids, foreign, manyBases]) {
+    for (const fixture of [ids, foreign, manyBases, archivedBases]) {
       await deleteWorkspaceFixture(db, eq(workspace.id, fixture.workspaceId))
       await db.delete(organization).where(eq(organization.id, fixture.organizationId))
       await db.delete(user).where(inArray(user.id, [fixture.aliceId, fixture.bobId]))
@@ -171,6 +184,34 @@ describe('knowledge base list counts on real Postgres', () => {
       expect(visits).toBeLessThan(100)
     }
   )
+
+  /**
+   * Bases whose documents are all archived, beside thousands of other tenants' live `ws`
+   * documents. No small fixture reproduces the production estimates that once turned this count
+   * into a scan of every tenant's documents (see `countDocumentsByKnowledgeBase`), so this pins
+   * the shape that rules that plan out: each index read of `document` seeks one base.
+   */
+  it('counts many archived bases one base at a time', async () => {
+    const list = await getWorkspaceKnowledgeBases(archivedBases.workspaceId, 'archived', {
+      countsFor: access,
+    })
+    expect(list.data).toHaveLength(ARCHIVED_BASE_COUNT)
+    expect(list.data.every((kb) => kb.docCount === 0 && kb.tokenCount === 0)).toBe(true)
+    const nodes = await explainCaptured(
+      db,
+      () =>
+        getWorkspaceKnowledgeBases(archivedBases.workspaceId, 'archived', { countsFor: access }),
+      { match: /"document"/ }
+    )
+    expect(
+      nodes.some((node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === 'document')
+    ).toBe(false)
+    const documentIndexReads = nodes.filter((node) => node['Index Name']?.startsWith('doc_'))
+    expect(documentIndexReads.length).toBeGreaterThan(0)
+    expect(documentIndexReads.map((node) => node['Index Cond'])).toEqual(
+      documentIndexReads.map(() => '(knowledge_base_id = knowledge_base.id)')
+    )
+  })
 
   it('keeps empty KBs and count visibility through pagination and unpaged reads', async () => {
     const first = await getWorkspaceKnowledgeBases(ids.workspaceId, 'active', {

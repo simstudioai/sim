@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   MicrosoftTeamsClient,
@@ -277,6 +278,7 @@ async function resolveMentions(
 async function sendMessage(args: {
   accessToken: string
   content: string
+  contentType: MicrosoftTeamsWriteChatInput['contentType']
   files: MicrosoftTeamsWriteChatInput['files']
   messagePath: string
   membersPath: string
@@ -285,6 +287,7 @@ async function sendMessage(args: {
   enhancedMetadata: (data: MicrosoftTeamsGraphObject) => Record<string, unknown>
 }) {
   const enhanced = Boolean(args.files?.length || MENTION_PATTERN.test(args.content))
+  const requestedContentType: 'text' | 'html' = args.contentType === 'html' ? 'html' : 'text'
   const client = new MicrosoftTeamsClient(args.accessToken)
   if (!enhanced) {
     const data = await client.json(
@@ -292,20 +295,23 @@ async function sendMessage(args: {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: { contentType: 'text', content: args.content } }),
+        body: JSON.stringify({
+          body: { contentType: requestedContentType, content: args.content },
+        }),
       },
       'Failed to send Teams message',
       args.context.signal
     )
+    const metadata = args.plainMetadata(data)
     return {
       success: true as const,
-      output: { updatedContent: true, metadata: args.plainMetadata(data) },
+      output: { updatedContent: true, metadata, ...metadata },
     }
   }
 
   const uploaded = await uploadFilesForMessage(args.files || [], client, args.context)
   let messageContent = args.content
-  let contentType: 'text' | 'html' = 'text'
+  let contentType: 'text' | 'html' = requestedContentType
   let mentionResult: MentionResult = {
     mentions: [],
     hasMentions: false,
@@ -349,13 +355,11 @@ async function sendMessage(args: {
     'Failed to send Teams message',
     args.context.signal
   )
-  const output = {
-    updatedContent: true,
-    metadata: {
-      ...args.enhancedMetadata(data),
-      attachmentCount: uploaded.attachments.length,
-    },
+  const metadata = {
+    ...args.enhancedMetadata(data),
+    attachmentCount: uploaded.attachments.length,
   }
+  const output = { updatedContent: true, metadata, ...metadata }
   if (uploaded.files.length === 0) {
     return { success: true as const, output: { ...output, files: [] } }
   }
@@ -374,6 +378,7 @@ export async function writeMicrosoftTeamsChatMessage(
   return sendMessage({
     accessToken: input.accessToken,
     content: input.content,
+    contentType: input.contentType,
     files: input.files,
     messagePath: `/chats/${encodeURIComponent(chatId)}/messages`,
     membersPath: `/chats/${encodeURIComponent(chatId)}/members`,
@@ -405,6 +410,7 @@ export async function writeMicrosoftTeamsChannelMessage(
   return sendMessage({
     accessToken: input.accessToken,
     content: input.content,
+    contentType: input.contentType,
     files: input.files,
     messagePath: `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/messages`,
     membersPath: `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channelId)}/members`,
@@ -460,7 +466,7 @@ export async function deleteMicrosoftTeamsChatMessage(
     throw new MicrosoftTeamsOperationError('Chat ID and Message ID are required', 400)
   }
 
-  const meResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+  const meResponse = await outboundFetch('https://graph.microsoft.com/v1.0/me', {
     headers: { Authorization: `Bearer ${input.accessToken}` },
     signal: context.signal,
   })
@@ -472,7 +478,7 @@ export async function deleteMicrosoftTeamsChatMessage(
     )
   }
 
-  const response = await fetch(
+  const response = await outboundFetch(
     `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(me.id)}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/softDelete`,
     {
       method: 'POST',

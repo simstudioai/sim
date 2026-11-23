@@ -1,12 +1,20 @@
+import { isRecordLike } from '@sim/utils/object'
 import { TextractIcon } from '@/components/icons'
 import {
   AuthMode,
   type BlockConfig,
   type BlockMeta,
+  type BlockToolParams,
+  type BlockToolParamsContext,
   IntegrationType,
   type SubBlockType,
 } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const LEGACY_DOCUMENT_FIELD = ['fileUpload', 'filePath', 's3Uri'] as const
 const DOCUMENT_FIELD = ['fileUpload', 'fileReference', 's3Uri'] as const
@@ -17,7 +25,7 @@ export const TextractBlock: BlockConfig = {
   name: 'AWS Textract',
   description: 'Extract text, tables, and forms from documents',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'textract_v2' },
+  sunset: { status: 'legacy', replacedBy: 'textract_v3' },
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/integrations/textract',
@@ -239,25 +247,172 @@ function resolveDocumentParam(value: unknown): { file?: object; filePath?: strin
   return {}
 }
 
-function requireAwsCredentials(params: Record<string, unknown>) {
+interface TextractQueryParam {
+  Text: string
+  Alias?: string
+  Pages?: string[]
+}
+
+/** Whether text is a JSON object, which is never a valid query list or question. */
+function parsesAsJsonObject(text: string): boolean {
+  if (!text.startsWith('{')) return false
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return isRecordLike(parsed)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Accepts a JSON array of query strings or `{Text, Alias, Pages}` objects, or
+ * one plain-text question per line.
+ */
+function parseTextractQueries(value: unknown): TextractQueryParam[] {
+  if (value === undefined || value === null) return []
+  let raw: unknown = value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    if (trimmed.startsWith('[')) {
+      try {
+        raw = JSON.parse(trimmed)
+      } catch {
+        throw new Error('Queries must be a JSON array or one question per line')
+      }
+    } else {
+      if (parsesAsJsonObject(trimmed)) {
+        throw new Error('Queries must be a JSON array or one question per line')
+      }
+      raw = trimmed.split('\n')
+    }
+  }
+  if (!Array.isArray(raw)) {
+    throw new Error('Queries must be a JSON array or one question per line')
+  }
+  return raw.flatMap((entry): TextractQueryParam[] => {
+    if (typeof entry === 'string') {
+      const text = entry.trim()
+      return text ? [{ Text: text }] : []
+    }
+    const record =
+      typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>) : {}
+    const text = typeof record.Text === 'string' ? record.Text.trim() : ''
+    if (!text) {
+      throw new Error('Each query must be a question string or an object with a non-empty "Text"')
+    }
+    return [
+      {
+        Text: text,
+        ...(typeof record.Alias === 'string' && record.Alias.trim()
+          ? { Alias: record.Alias.trim() }
+          : {}),
+        ...(Array.isArray(record.Pages) ? { Pages: record.Pages.map(String) } : {}),
+      },
+    ]
+  })
+}
+
+interface AwsAccessKeys {
+  accessKeyId: string
+  secretAccessKey: string
+}
+
+function requireAwsAccessKeys(params: Record<string, unknown>): AwsAccessKeys {
   const accessKeyId = typeof params.accessKeyId === 'string' ? params.accessKeyId.trim() : ''
   const secretAccessKey =
     typeof params.secretAccessKey === 'string' ? params.secretAccessKey.trim() : ''
-  const region = typeof params.region === 'string' ? params.region.trim() : ''
 
   if (!accessKeyId) throw new Error('AWS Access Key ID is required')
   if (!secretAccessKey) throw new Error('AWS Secret Access Key is required')
-  if (!region) throw new Error('AWS Region is required')
 
-  return { accessKeyId, secretAccessKey, region }
+  return { accessKeyId, secretAccessKey }
+}
+
+function requireAwsRegion(params: Record<string, unknown>): string {
+  const region = typeof params.region === 'string' ? params.region.trim() : ''
+  if (!region) throw new Error('AWS Region is required')
+  return region
+}
+
+/**
+ * Tool params for a Textract v2+ operation. `accessKeys` is empty when a saved
+ * AWS credential supplies them server-side.
+ */
+function textractToolParams(
+  params: BlockToolParams,
+  accessKeys: Partial<AwsAccessKeys>,
+  context?: BlockToolParamsContext
+) {
+  const region = requireAwsRegion(params)
+  const operation = mapperOperation(params, context) || 'analyze_document'
+
+  if (operation === 'analyze_id') {
+    const front = resolveDocumentParam(params.document)
+    if (!front.file && !front.filePath) throw new Error('Identity document is required')
+
+    const parameters: Record<string, unknown> = {
+      ...accessKeys,
+      region,
+      ...front,
+    }
+    const back = resolveDocumentParam(params.documentBack)
+    if (back.file) parameters.fileBack = back.file
+    else if (back.filePath) parameters.filePathBack = back.filePath
+    return parameters
+  }
+
+  const processingMode = params.processingMode || 'sync'
+  const parameters: Record<string, unknown> = {
+    ...accessKeys,
+    region,
+    processingMode,
+  }
+
+  if (processingMode === 'async') {
+    if (!params.s3Uri || params.s3Uri.trim() === '') {
+      throw new Error('S3 URI is required for multi-page processing')
+    }
+    parameters.s3Uri = params.s3Uri.trim()
+  } else if (operation === 'analyze_expense') {
+    const resolved = resolveDocumentParam(params.document)
+    if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
+    Object.assign(parameters, resolved)
+  } else {
+    const file = normalizeFileInput(params.document, { single: true })
+    if (!file) throw new Error('Document file is required')
+    parameters.file = file
+  }
+
+  if (operation === 'analyze_expense') return parameters
+
+  /** A tool call's model-chosen feature types are kept alongside the block's toggles. */
+  const modelFeatureTypes = toolCallArg(context, params.featureTypes)
+  const featureTypes = new Set<string>(
+    Array.isArray(modelFeatureTypes)
+      ? modelFeatureTypes.filter((type): type is string => typeof type === 'string')
+      : []
+  )
+  if (params.extractTables) featureTypes.add('TABLES')
+  if (params.extractForms) featureTypes.add('FORMS')
+  if (params.detectSignatures) featureTypes.add('SIGNATURES')
+  if (params.analyzeLayout) featureTypes.add('LAYOUT')
+  const queries = parseTextractQueries(params.queries)
+  if (queries.length > 0) {
+    featureTypes.add('QUERIES')
+    parameters.queries = queries
+  }
+  if (featureTypes.size > 0) parameters.featureTypes = [...featureTypes]
+
+  return parameters
 }
 
 export const TextractV2Block: BlockConfig = {
   ...TextractBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'textract_v3' },
   type: 'textract_v2',
   name: 'AWS Textract',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   canvasPresentation: {
     defaultTitle: 'AWS Textract',
     sentences: {
@@ -408,6 +563,15 @@ export const TextractV2Block: BlockConfig = {
       type: 'switch' as SubBlockType,
       condition: { field: 'operation', value: 'analyze_document' },
     },
+    {
+      id: 'queries',
+      title: 'Queries',
+      type: 'long-input' as SubBlockType,
+      placeholder:
+        'One question per line (e.g., What is the policy number?), or a JSON array of {"Text", "Alias", "Pages"}',
+      condition: { field: 'operation', value: 'analyze_document' },
+      mode: 'advanced' as const,
+    },
   ],
   tools: {
     access: ['textract_parser_v2', 'textract_analyze_expense', 'textract_analyze_id'],
@@ -418,60 +582,8 @@ export const TextractV2Block: BlockConfig = {
         if (operation === 'analyze_id') return 'textract_analyze_id'
         return 'textract_parser_v2'
       },
-      params: (params) => {
-        const { accessKeyId, secretAccessKey, region } = requireAwsCredentials(params)
-        const operation = params.operation || 'analyze_document'
-
-        if (operation === 'analyze_id') {
-          const front = resolveDocumentParam(params.document)
-          if (!front.file && !front.filePath) throw new Error('Identity document is required')
-
-          const parameters: Record<string, unknown> = {
-            accessKeyId,
-            secretAccessKey,
-            region,
-            ...front,
-          }
-          const back = resolveDocumentParam(params.documentBack)
-          if (back.file) parameters.fileBack = back.file
-          else if (back.filePath) parameters.filePathBack = back.filePath
-          return parameters
-        }
-
-        const processingMode = params.processingMode || 'sync'
-        const parameters: Record<string, unknown> = {
-          accessKeyId,
-          secretAccessKey,
-          region,
-          processingMode,
-        }
-
-        if (processingMode === 'async') {
-          if (!params.s3Uri || params.s3Uri.trim() === '') {
-            throw new Error('S3 URI is required for multi-page processing')
-          }
-          parameters.s3Uri = params.s3Uri.trim()
-        } else if (operation === 'analyze_expense') {
-          const resolved = resolveDocumentParam(params.document)
-          if (!resolved.file && !resolved.filePath) throw new Error('Document file is required')
-          Object.assign(parameters, resolved)
-        } else {
-          const file = normalizeFileInput(params.document, { single: true })
-          if (!file) throw new Error('Document file is required')
-          parameters.file = file
-        }
-
-        if (operation === 'analyze_expense') return parameters
-
-        const featureTypes: string[] = []
-        if (params.extractTables) featureTypes.push('TABLES')
-        if (params.extractForms) featureTypes.push('FORMS')
-        if (params.detectSignatures) featureTypes.push('SIGNATURES')
-        if (params.analyzeLayout) featureTypes.push('LAYOUT')
-        if (featureTypes.length > 0) parameters.featureTypes = featureTypes
-
-        return parameters
-      },
+      params: (params, context) =>
+        textractToolParams(params, requireAwsAccessKeys(params), context),
     },
   },
   inputs: {
@@ -490,6 +602,10 @@ export const TextractV2Block: BlockConfig = {
     extractForms: { type: 'boolean', description: 'Extract form key-value pairs' },
     detectSignatures: { type: 'boolean', description: 'Detect signatures' },
     analyzeLayout: { type: 'boolean', description: 'Analyze document layout' },
+    queries: {
+      type: 'string',
+      description: 'Natural-language queries (one per line or a JSON array), for analyze_document',
+    },
     region: { type: 'string', description: 'AWS region' },
     accessKeyId: { type: 'string', description: 'AWS Access Key ID' },
     secretAccessKey: { type: 'string', description: 'AWS Secret Access Key' },
@@ -497,7 +613,8 @@ export const TextractV2Block: BlockConfig = {
   outputs: {
     blocks: {
       type: 'json',
-      description: 'Array of detected blocks (PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, etc.)',
+      description:
+        'Array of detected blocks (PAGE, LINE, WORD, TABLE, CELL, KEY_VALUE_SET, QUERY, QUERY_RESULT, etc.)',
       condition: { field: 'operation', value: 'analyze_document' },
     },
     expenseDocuments: {
@@ -520,7 +637,32 @@ export const TextractV2Block: BlockConfig = {
       type: 'string',
       description: 'Version of the Textract model used for processing',
     },
+    jobStatus: {
+      type: 'string',
+      description: 'Async job status: SUCCEEDED or PARTIAL_SUCCESS (multi-page mode only)',
+    },
+    statusMessage: {
+      type: 'string',
+      description: 'Why an async job only partially succeeded (multi-page mode only)',
+    },
+    warnings: {
+      type: 'json',
+      description: 'Async job warnings: [{errorCode, pages}] (multi-page mode only)',
+    },
   },
+}
+
+export const TextractV3Block: BlockConfig = {
+  ...TextractV2Block,
+  type: 'textract_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    TextractV2Block,
+    { id: 'credential', type: 'oauth-input', serviceId: 'aws', title: 'AWS Credential' },
+    { params: (params, context) => textractToolParams(params, {}, context) }
+  ),
 }
 
 export const TextractBlockMeta = {

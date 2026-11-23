@@ -20,8 +20,40 @@ import {
   isBlankValue,
   isSentenceLike,
   toDiffText,
+  type ValueKind,
 } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/utils'
+import type { SubBlockConfig } from '@/blocks/types'
 import { formatParameterLabel } from '@/tools/params'
+
+/** Code languages blocks offer, as the highlighter names them. */
+const CODE_DIFF_LANGUAGES = new Map([
+  ['javascript', 'javascript'],
+  ['typescript', 'typescript'],
+  ['python', 'python'],
+  ['shell', 'bash'],
+  ['json', 'json'],
+])
+
+/**
+ * The syntax a text diff highlights as: JSON for structured values, plain text for prose, and
+ * for code the first language that names one the highlighter knows: the block's `language`
+ * setting after the change, then before it (a removed block has only that), then the field's
+ * own default.
+ */
+function diffLanguage(
+  config: SubBlockConfig | undefined,
+  kind: ValueKind,
+  targetValues: Record<string, unknown>,
+  baseValues: Record<string, unknown>
+): string {
+  if (kind === 'json') return 'json'
+  if (config?.type !== 'code') return 'text'
+  for (const value of [targetValues.language, baseValues.language, config.language]) {
+    const language = typeof value === 'string' ? CODE_DIFF_LANGUAGES.get(value) : undefined
+    if (language) return language
+  }
+  return 'javascript'
+}
 
 interface FieldChangeRowProps {
   blockType: string
@@ -117,7 +149,11 @@ export function FieldChangeRow({
         />
       )}
       {textual && !sameDisplayValue && !emptyTextChange && (
-        <TextDiff oldText={oldText} newText={newText} />
+        <TextDiff
+          oldText={oldText}
+          newText={newText}
+          language={diffLanguage(config, kind, targetValues, baseValues)}
+        />
       )}
       {scalar &&
         !sameDisplayValue &&

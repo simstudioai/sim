@@ -1,0 +1,110 @@
+---
+title: Edit a workflow
+description: Read a workflow into a directory, edit it, check it, and save it, including renames, deletes and deploys.
+---
+
+Result: a workflow saved from a file you edited, with the problems found before the save.
+
+## Prerequisites
+
+The Sim CLI, signed in, with [workflows as code enabled](/workflows/code). Run every command on the same `--dir`; commands that read a directory (`check`, `status`, `diff`, `params`, `apply`) default it to the current directory, while `get` and `create`, which write one, always need `--dir`.
+
+## 1. Read the workflow
+
+```bash
+sim workflows source get <workflowId> --dir ./support-triage
+```
+
+This writes `workflow.ts`, any function code under `functions/`, type declarations for the blocks the workflow uses and for your workspace's resources, and the `.sim/` folder. See [Directory layout](/workflows/code/directory) for each file. For coding agents it writes `.sim/AGENTS.md` and example workflows under `.sim/examples/`.
+
+`get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them. A workspace directory is always refused, `--force` included.
+
+To write a block the workflow does not use yet, `sim workflows source params <builder>` (for example `table.upsertRow` or `trigger.schedule`) prints an example call, its required params with their types, its optional params by name and its outputs, from the cached block catalog without a request (`--full` adds every param's options, default and doc). A namespace such as `gmail` lists its builders.
+
+## 2. Edit and check
+
+Edit `workflow.ts`, then compile it on your machine with Sim's compiler:
+
+```bash
+sim workflows source check --dir ./support-triage
+```
+
+`check` makes no request. It needs the block catalog the last `get` cached in `~/.sim/cache/source-catalog/`; with none cached it exits `1` and tells you to run `get` once. It exits `1` on an error, and on the warnings `sim workflows source check --help` lists (a missing required field, an unknown option, an unwired condition or router branch, a literal secret and more) in a block you added since the get. `--strict` fails on these in every block, except an unwired branch on a block the get printed; `--no-strict` never fails on a warning. It also adds the blocks the workflow now uses to `tsconfig.json`.
+
+Your editor type-checks the file against the generated declarations, and this checks it from the command line with the TypeScript release the declarations are built for:
+
+```bash
+bunx -p typescript@7.0.2 tsc -p ./support-triage
+```
+
+Use `-p ./support-triage/tsconfig.full.json` to type-check against every block.
+
+## 3. See what changed
+
+```bash
+sim workflows source status --dir ./support-triage
+sim workflows source diff --dir ./support-triage
+```
+
+`status` lists the files you created, edited, or deleted, asks the server (with a dry run that saves nothing) whether the workflow changed since the `get`, and ends with the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unsaved, and `12` when the workflow changed in the workflow builder since the `get` (a conflict, if you edited it too). Without a connection it shows your edits only and says so; `--offline` skips the server. `diff` prints each edit as a unified diff, and `diff --server` compares the directory with the workflow as it is saved now. Both take `--json` (or `--output json`).
+
+## 4. Dry run
+
+```bash
+sim workflows source apply --dir ./support-triage --dry-run
+```
+
+`apply` reads the workflow ID from `.sim/base.json`. Pass it as `apply <workflowId> --dir …` to have the CLI confirm the directory holds that workflow.
+
+Sim compiles the file and runs every check a save would run: unknown settings, missing required fields, broken references, permissions, and locked blocks. Each problem prints with its line, the code around it, and a hint:
+
+```
+workflow.ts:56:7 error E_UNKNOWN_PARAM: Slack has no param chanel.
+  54 |     const notify = slack.sendMessage('Notify', {
+  55 |       credential: credential('support-slack'),
+> 56 |       chanel: 'C0SUPPORT',
+     |       ^^^^^^^^^^^^^^^^^^^
+  57 |       text: t`New ${classify.category} ticket: ${ticketIn.subject}`,
+  hint: Did you mean channel?
+```
+
+Every code is in [Diagnostic codes](/workflows/code/diagnostics).
+
+## 5. Save the draft
+
+```bash
+sim workflows source apply --dir ./support-triage --yes
+```
+
+The workflow builder updates for anyone who has the workflow open. `--yes` refuses everything a dry run would, so step 4 is optional: without `--yes`, and with no terminal to ask, `apply` prints the plan, writes nothing and exits `14`. The save rewrites `workflow.ts` in canonical form, so read it again before the next edit.
+
+Editing the name or description in `workflow('…')` renames or redescribes the workflow; a name another workflow in its folder already has is refused with `E_NAME_TAKEN`. Lines starting with `note:` report something the save did beyond what the file says; read them.
+
+### Deploy
+
+Saving writes the draft. Add `--deploy` to deploy right after the save, which also prints the URL of each webhook the workflow now serves. Without it, a deployed workflow whose draft now differs prints the `sim workflows deploy` command to run.
+
+### Deletes
+
+A save that removes a block (its declaration is gone from `workflow.ts`) is refused with `E_APPLY_BLOCK_DELETE`, naming the blocks, and one that removes a workflow variable with `E_APPLY_VARIABLE_DELETE`. Pass `--allow-delete` when the deletion is intended. Removing a block that serves a live webhook, schedule, chat, or MCP tool warns you: the deployed version keeps serving it until the next deploy.
+
+### Renames
+
+Keep the `.sim/` folder the commands write. `.sim/lock.json` ties each block in the file to the stored block, so renaming a block keeps the same block, with its webhook URL, schedules and run history. Changing its name string keeps it through the lock; renaming the variable too keeps it when the block's type, parent and connections are unchanged, and the dry run reports that as `W_MAT_INFERRED_RENAME`. Renaming two blocks of the same type in the same place in one save is ambiguous, so do those one save at a time. `.sim/base.json` records the version you read.
+
+## Working with other people
+
+- If someone changes the workflow after you read it, the save (or `--dry-run`) is refused with exit code `5` and nothing is overwritten. Run `get` into a new directory, reapply your edit, and save. There is no automatic merge.
+- Locked blocks cannot be changed from the file. Unlock them in the workflow builder first.
+
+## Limits
+
+The file holds block declarations and connections only: helpers, loops that create blocks, and imports are refused. Function code is one file per block, with no imports between files. Workflows run in Sim, not locally, and `--dry-run` checks everything a save checks without running the workflow. Size caps are in [Limits](/workflows/code/limits).
+
+## Related docs
+
+- [File syntax](/workflows/code/syntax)
+- [Create a workflow](/workflows/code/create)
+- [Run in CI](/workflows/code/ci)
+- [Exit codes](/workflows/code/exit-codes)
+- [CLI workflow commands](/cli/workflows#workflows-as-code)

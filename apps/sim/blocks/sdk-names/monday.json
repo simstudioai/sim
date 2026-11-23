@@ -1,0 +1,42 @@
+{
+  "namespace": "monday",
+  "methods": {
+    "archive_item": "archiveItem",
+    "change_column_value": "changeColumnValue",
+    "create_board": "createBoard",
+    "create_column": "createColumn",
+    "create_group": "createGroup",
+    "create_item": "createItem",
+    "create_subitem": "createSubitem",
+    "create_update": "createUpdate",
+    "delete_item": "deleteItem",
+    "duplicate_item": "duplicateItem",
+    "get_board": "getBoard",
+    "get_groups": "getGroups",
+    "get_item": "getItem",
+    "get_items": "getItems",
+    "list_boards": "listBoards",
+    "move_item_to_group": "moveItemToGroup",
+    "search_items": "searchItems",
+    "update_item": "updateItem"
+  },
+  "triggers": {
+    "monday_column_changed": "columnChanged",
+    "monday_item_archived": "itemArchived",
+    "monday_item_created": "itemCreated",
+    "monday_item_deleted": "itemDeleted",
+    "monday_item_moved": "itemMoved",
+    "monday_item_name_changed": "itemNameChanged",
+    "monday_status_changed": "statusChanged",
+    "monday_subitem_created": "subitemCreated",
+    "monday_update_created": "updateCreated"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "triggerCredentials": "credential"
+    }
+  }
+}

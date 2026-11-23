@@ -127,6 +127,8 @@ const FAILURE_BLOCKS: Record<string, unknown>[] = [
 const TOOL_PROGRESS_TITLES = new Map([
   ['search_workspace', 'Searching documents…'],
   ['read_document', 'Reading documents…'],
+  ['web_search', 'Searching the web…'],
+  ['web_fetch', 'Reading web pages…'],
 ])
 
 type ToolProgress = Extract<SlackStreamChunk, { type: 'task_update' }>

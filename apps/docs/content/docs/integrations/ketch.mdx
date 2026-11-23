@@ -6,13 +6,14 @@ integration:
   color: "#9B5CFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Ketch](https://www.ketch.com/) to read or update consent and subscription preferences and submit data-subject rights requests.
 
 Add a Ketch block and provide your organization code, property code, and environment code. The Ketch Web API is a public API — no API key or OAuth credentials are required. Identity is determined by the organization and property codes along with the data subject's identity (e.g., email address).
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Retrieve and update consent preferences, manage subscription topics and controls
 ### Ketch Get Consent
 
 Retrieve consent status for a data subject. Returns the current consent preferences for each configured purpose.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -40,13 +43,17 @@ Retrieve consent status for a data subject. Returns the current consent preferen
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `purposes` | object | Map of purpose codes to consent status and legal basis |
-|   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
+|   ↳ `allowed` | string | Consent status for the purpose: "true" or "false" |
 |   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
-| `vendors` | object | Map of vendor consent statuses |
+| `vendors` | array | List of vendor IDs for which the user has opted out \(deprecated by Ketch in favor of vendorConsents\) |
+
+</ReferenceDetails>
 
 ### Ketch Set Consent
 
 Update consent preferences for a data subject. Sets the consent status for specified purposes with the appropriate legal basis.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -57,7 +64,7 @@ Update consent preferences for a data subject. Sets the consent status for speci
 | `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
 | `jurisdictionCode` | string | No | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
 | `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
-| `purposes` | json | Yes | Map of purpose codes to consent settings \(e.g., \{"analytics": \{"allowed": "granted", "legalBasisCode": "consent_optin"\}\}\) |
+| `purposes` | json | Yes | Map of purpose codes to consent settings. "allowed" is "true" or "false" \("granted"/"denied" are accepted and converted\) \(e.g., \{"analytics": \{"allowed": "true", "legalBasisCode": "consent_optin"\}\}\) |
 | `collectedAt` | number | No | UNIX timestamp when consent was collected \(defaults to current time\) |
 
 #### Output
@@ -65,12 +72,16 @@ Update consent preferences for a data subject. Sets the consent status for speci
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `purposes` | object | Updated consent status map of purpose codes to consent settings |
-|   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
+|   ↳ `allowed` | string | Consent status for the purpose: "true" or "false" |
 |   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
+
+</ReferenceDetails>
 
 ### Ketch Get Subscriptions
 
 Retrieve subscription preferences for a data subject. Returns the current subscription topic and control statuses.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -88,9 +99,13 @@ Retrieve subscription preferences for a data subject. Returns the current subscr
 | `topics` | object | Map of topic codes to contact method settings \(e.g., \{"newsletter": \{"email": \{"status": "granted"\}\}\}\) |
 | `controls` | object | Map of control codes to settings \(e.g., \{"global_unsubscribe": \{"status": "denied"\}\}\) |
 
+</ReferenceDetails>
+
 ### Ketch Set Subscriptions
 
 Update subscription preferences for a data subject. Sets topic and control statuses for email, SMS, and other contact methods.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -109,9 +124,13 @@ Update subscription preferences for a data subject. Sets topic and control statu
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the subscription preferences were updated |
 
+</ReferenceDetails>
+
 ### Ketch Invoke Right
 
 Submit a data subject rights request (e.g., access, delete, correct, restrict processing). Initiates a privacy rights workflow in Ketch.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -123,7 +142,7 @@ Submit a data subject rights request (e.g., access, delete, correct, restrict pr
 | `jurisdictionCode` | string | Yes | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
 | `rightCode` | string | Yes | Privacy right code to invoke \(e.g., "access", "delete", "correct", "restrict_processing"\) |
 | `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
-| `userData` | json | No | Optional data subject information \(e.g., \{"email": "user@example.com", "firstName": "John", "lastName": "Doe"\}\) |
+| `userData` | json | Yes | Data subject information sent as the request "user"; Ketch requires it for rights requests \(e.g., \{"email": "user@example.com", "firstName": "John", "lastName": "Doe"\}\) |
 
 #### Output
 
@@ -131,5 +150,7 @@ Submit a data subject rights request (e.g., access, delete, correct, restrict pr
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the rights request was submitted |
 | `message` | string | Response message from Ketch |
+
+</ReferenceDetails>
 
 

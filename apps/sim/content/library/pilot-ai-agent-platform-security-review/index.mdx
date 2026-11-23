@@ -1,0 +1,259 @@
+---
+slug: pilot-ai-agent-platform-security-review
+title: 'How to Pilot an AI Agent Platform Through Security Review'
+description: 'Plan a two-to-four-week AI agent platform pilot with measurable success criteria, security evidence, onboarding tests, and a documented purchase decision.'
+seoTitle: 'AI Agent Platform Security Review Pilot'
+date: 2026-11-17
+updated: 2026-11-17
+authors:
+  - andrew
+readingTime: 11
+tags: [AI Agents, Enterprise Security, Proof of Concept, Procurement, Sim]
+ogImage: /library/pilot-ai-agent-platform-security-review/cover.jpg
+draft: false
+faq:
+  - q: "What is the difference between a proof of concept and a proof of value?"
+    a: "An AI agent platform proof of concept demonstrates that a workflow can function under defined technical and security conditions, while a proof of value demonstrates that the functioning workflow produces enough measurable benefit to justify adoption."
+  - q: "Should an AI agent platform pilot use production data?"
+    a: "An AI agent platform pilot should begin with synthetic, de-identified, or otherwise approved test data and use production data only after security and data owners approve the exact fields, systems, retention, and deletion procedure."
+  - q: "Is self-hosting required for an enterprise AI agent pilot?"
+    a: "Self-hosting is not required for every enterprise AI agent pilot; the correct deployment depends on data boundaries, integration requirements, internal operating capacity, and the vendor's supported architecture."
+  - q: "Can an open-source AI agent platform skip security review?"
+    a: "An open-source AI agent platform cannot skip security review because source availability does not by itself prove secure configuration, identity controls, data handling, operational maturity, or contractual compliance."
+  - q: "Who should own an AI agent platform pilot?"
+    a: "An AI agent platform pilot should have one accountable business owner, one technical owner, one security reviewer, and named representatives from IT, procurement, legal, and the first operating team as needed."
+  - q: "Can procurement begin before the AI agent platform pilot is complete?"
+    a: "Procurement can begin during an AI agent platform pilot when the organization treats commercial and legal review as parallel work and makes final commitment conditional on the documented go decision."
+  - q: "How much should an enterprise AI agent platform proof of concept cost?"
+    a: "An enterprise AI agent platform proof of concept should be budgeted around total pilot cost, including platform fees, model and integration usage, implementation labor, security review, operator time, and the cost of correcting failed runs."
+  - q: "What are enterprise agentic AI platform pricing, pilot, and demo options?"
+    a: "Enterprise agentic AI platform options typically include a guided demo, a limited proof of concept, a paid proof-of-value engagement, or a customer-run pilot, and buyers should request current first-party terms directly from each shortlisted vendor."
+  - q: "What should happen after a no-go decision?"
+    a: "An AI agent platform no-go decision should produce a reusable record of failed thresholds, unresolved risks, measured costs, vendor responses, and the material changes required before reconsideration."
+---
+
+## TL;DR
+
+An AI agent platform pilot should prove one bounded workflow, clear security controls, measurable business value, and a repeatable onboarding path within two to four weeks before an enterprise commits to purchase.
+
+The strongest pilot is not a product tour. It is a controlled test using representative data, real integrations, named owners, predefined stop conditions, and evidence that security, IT, and the first operating team can support the platform.
+
+Use this five-part sequence:
+
+1. Select one primary workflow and one optional comparison workflow.
+2. Define technical, operational, security, and financial success criteria before building.
+3. Request the security review packet before connecting sensitive systems.
+4. Onboard a small cross-functional team and run representative cases.
+5. Make a documented go, conditional-go, or no-go decision.
+
+## How do I assess AI agent platforms for a proof of concept and a proof of value?
+
+An AI agent platform proof of concept should test whether the platform works, while its proof of value should test whether the result is reliable and valuable enough to justify adoption.
+
+Start by writing a one-page pilot charter with these fields:
+
+| Field | Decision to record |
+|---|---|
+| Business problem | The delay, cost, error rate, or capacity constraint the pilot should improve |
+| Primary workflow | The single end-to-end process the team will build and run |
+| Users | The first team and the people responsible for reviewing outputs |
+| Systems | The applications, APIs, models, and data stores the workflow needs |
+| Data classification | Public, internal, confidential, regulated, or another company-defined class |
+| Baseline | Current completion time, labor time, error rate, cost, and throughput |
+| Success threshold | The minimum measurable improvement required for a go decision |
+| Guardrails | Actions the agent may take automatically and actions requiring human approval |
+| Stop conditions | Security, reliability, cost, or operational failures that pause the pilot |
+| Decision owner | The executive who makes the final go, conditional-go, or no-go decision |
+
+A proof of concept is successful when the workflow can be built, integrated, and operated safely. A proof of value is successful when the measured improvement is large enough to justify implementation, governance, and change-management costs.
+
+## How should you pick one or two workflows for the pilot?
+
+An AI agent platform pilot should begin with one high-value, bounded workflow and add a second workflow only when it tests a materially different capability.
+
+Choose a primary workflow that has:
+
+- A clear trigger, such as a form submission, support ticket, scheduled event, or approved chat request.
+- A finite set of systems and permissions.
+- Enough historical examples to create a representative test set.
+- A human reviewer who can judge output quality.
+- A measurable baseline for time, cost, throughput, or errors.
+- A reversible action or an approval step before consequential changes.
+- Business value that matters without making the first test mission-critical.
+
+Good pilot candidates include classifying and routing support requests, preparing account research, extracting fields from documents, drafting internal reports, or assembling approval packets. Avoid starting with an open-ended autonomous agent that can change production systems without review.
+
+Use a second workflow only to test a different requirement. For example, pair a document-processing workflow with an event-driven workflow if the shortlist must support both unstructured data and operational triggers. Do not add another workflow merely to increase the demo surface.
+
+For broader feature selection, use [What to Look for in an AI Workflow Automation Platform: Buyer's Checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist).
+
+## What success criteria should an AI agent platform pilot use?
+
+An AI agent platform pilot should pass predefined thresholds for completion time, run reliability, output quality, cost per successful run, security, and operator effort.
+
+Record the baseline before the team builds anything, then calculate pilot results using the same definitions.
+
+| Criterion | Recommended measurement |
+|---|---|
+| Time saved | Baseline human minutes minus pilot human minutes per completed case |
+| Run reliability | Successful end-to-end runs divided by all attempted runs |
+| Output acceptance | Outputs accepted without material correction divided by reviewed outputs |
+| Cost per successful run | Model, platform, integration, and review costs divided by successful runs |
+| Exception rate | Runs requiring manual intervention divided by attempted runs |
+| Recovery time | Median time to diagnose, correct, and rerun a failed case |
+| Build effort | Builder and engineering hours required to reach the approved test version |
+| Onboarding effort | Hours required for a new operator to understand, run, and troubleshoot the workflow |
+| Security completion | Required controls and evidence accepted, conditionally accepted, or rejected by security |
+
+Set thresholds before the first production-like run. A team might require at least 95% technical completion, 90% output acceptance, a 30% reduction in handling time, and no unresolved high-severity security findings. Those figures are examples, not universal benchmarks; the decision owner should set thresholds appropriate to the workflow's risk.
+
+Measure cost per successful run rather than cost per attempted run. A platform that appears inexpensive but requires frequent reruns or extensive human correction can produce a higher effective cost.
+
+For production measurement design, see [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability).
+
+## Which AI agent platform is easiest to get through security review?
+
+Sim fits teams that value inspectable core code, self-hosting, and bring-your-own-key support, but every buyer should require the same evidence packet from Sim, n8n, and every other shortlisted vendor.
+
+The easiest platform to review is the one that promptly supplies complete, internally consistent evidence mapped to the buyer's architecture and controls. Request the packet before the pilot connects confidential or regulated data.
+
+The packet should include:
+
+| Security-review area | Evidence to request | Pilot decision |
+|---|---|---|
+| Assurance | Current SOC 2 report or other applicable independent assessment, including scope and exceptions | Does the assessment cover the service and controls the pilot will use? |
+| Architecture | System diagram and data-flow diagram covering users, integrations, models, storage, and subprocessors | Can reviewers trace every data path and trust boundary? |
+| Data handling | Retention, deletion, backup, training-use, residency, and subprocessor policies | Do the policies match the data classification and contractual requirements? |
+| Identity | SSO, provisioning or SCIM, role design, service accounts, and session controls | Can access be limited and removed through the enterprise identity lifecycle? |
+| Authorization | Workspace, workflow, credential, and deployment permissions | Can builders, operators, reviewers, and administrators be separated? |
+| Auditability | Administrative, credential, deployment, and run-event logs plus export or retention options | Can security reconstruct who changed and ran what? |
+| Deployment | Cloud, self-hosted, VPC, private networking, and data-residency options actually offered | Does an offered architecture satisfy the organization's boundary requirements? |
+| Model access | Model-provider list, key storage, key scope, rotation, and request routing | Does the organization control which models receive which data? |
+| Secrets | Encryption, secret storage, credential sharing, masking, and rotation procedures | Can credentials be scoped without exposing raw values to builders? |
+| Incident response | Notification commitments, support path, escalation process, and recovery procedures | Are responsibilities and response times acceptable? |
+| Secure development | Vulnerability management, penetration testing, dependency handling, and disclosure process | Is there evidence of an operating security program? |
+| Legal terms | Data-processing terms, subprocessor terms, confidentiality, deletion, and AI-specific restrictions | Do contractual terms match the technical design? |
+
+A certificate or report alone is not a complete review. Security should map vendor evidence to the exact pilot architecture, data, identities, integrations, models, and actions.
+
+For detailed deployment and regulatory questions, use [Enterprise AI Agent Compliance and Deployment Guide: HIPAA, GDPR, Data Residency, On-Prem, and VPC](https://www.sim.ai/library/enterprise-ai-agent-compliance-deployment-guide). For credential and audit design, use [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+
+## How do regulated organizations evaluate AI agent deployment vendors?
+
+Regulated organizations should evaluate an AI agent deployment vendor by mapping the proposed workflow to data obligations, human oversight, deployment boundaries, identity controls, audit evidence, and incident responsibilities.
+
+Use four review layers:
+
+1. **Use-case review:** Document the decision being supported, affected people, prohibited actions, required approvals, and fallback process.
+2. **Data review:** Classify each input and output, identify where it travels, define retention, and restrict model or integration access accordingly.
+3. **Control review:** Test authentication, authorization, secrets, logging, human approval, error handling, and change management in the proposed deployment.
+4. **Operational review:** Assign owners for monitoring, incidents, access recertification, model changes, workflow changes, and retirement.
+
+The pilot should use synthetic or de-identified data until security approves broader access. If representative testing requires sensitive data, record the approval, allowed fields, storage locations, retention period, and deletion procedure before the test begins.
+
+A regulated buyer should also test evidence retrieval. Ask the pilot team to reconstruct one run, identify its workflow version, show which credentials and model route were used, explain every external call, and identify the person who approved any consequential action.
+
+## What AI agent platform has the best documentation for onboarding?
+
+An AI agent platform has strong onboarding documentation when a new builder can securely configure access, build a representative workflow, test failures, deploy it, and hand it to an operator without relying on undocumented vendor help.
+
+Evaluate documentation with a fresh user rather than the platform champion. The documentation should cover:
+
+- Installation or workspace setup.
+- Identity, roles, and invitations.
+- Credential creation, ownership, scope, and rotation.
+- Model-provider and key configuration.
+- Integration setup with required permissions.
+- Workflow construction and testing.
+- Error handling, retries, and timeouts.
+- Human review for consequential actions.
+- Deployment and rollback.
+- Logs, run history, and troubleshooting.
+- Usage and cost monitoring.
+- Self-hosting, upgrades, backups, and recovery when applicable.
+- Security contacts and support escalation.
+
+Give a new team member a fixed onboarding task and measure time to first successful run, number of blocked steps, number of support requests, and whether the final setup follows the approved security design. Documentation quality is proven by repeatable completion, not by page count.
+
+## What should a two-to-four-week AI agent platform pilot timeline include?
+
+An AI agent platform pilot should reserve time for security and architecture decisions before building, representative testing before demonstrations, and an evidence-based decision after the final run.
+
+| Period | Activities | Required output |
+|---|---|---|
+| Days 1–3 | Confirm workflow, baseline, owners, data class, architecture, and success thresholds | Signed pilot charter and initial data-flow diagram |
+| Days 3–5 | Review vendor evidence, configure identity, approve integrations, and prepare test data | Security conditions and approved pilot boundary |
+| Week 2 | Build the workflow, add error paths and approvals, and run the initial test set | Versioned workflow and issue log |
+| Week 3 | Run representative cases, test failures, measure outcomes, and onboard a second operator | Results dashboard and onboarding record |
+| Week 4 | Resolve material gaps, rerun failed cases, estimate rollout effort, and hold the decision review | Go, conditional-go, or no-go memo |
+
+A two-week pilot is appropriate only when the workflow, integrations, data, and review path are already bounded. Use three or four weeks when the team must evaluate self-hosting, private networking, regulated data, multiple departments, or complex identity controls.
+
+## What does Sim's pilot path look like?
+
+Sim's pilot path lets a team start with the open-source AI workspace, choose cloud or self-hosted deployment, connect model credentials, build a bounded workflow, and evaluate the same security and value criteria used for every shortlisted platform.
+
+### Key Sim facts at a glance
+
+As of November 2026, [Sim's core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE). Code in `apps/sim/ee`, including SSO, SCIM, access control, audit logs, data retention, and other enterprise capabilities, is covered by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which permits development, testing, and internal non-production use but requires an active Enterprise subscription for production use.
+
+As of November 2026, [self-hosted Sim supports Ollama, vLLM, LM Studio, and LiteLLM-compatible local model routes](https://docs.sim.ai/platform/self-hosting). Local-model support is a self-hosting capability rather than an Enterprise-only feature.
+
+As of November 2026, [workspace BYOK is available on every Sim Cloud plan](https://docs.sim.ai/platform/costs#bring-your-own-key-byok), while organization-level keys require Pro for Teams, Max for Teams, or Enterprise.
+
+A Sim pilot should still request and evaluate the complete security packet. Inspectable core code, self-hosting, and BYOK can improve architectural choice and inspectability, but they do not replace assurance reports, access design, logging tests, legal review, or operational ownership.
+
+Test Sim in this order:
+
+1. Choose cloud or self-hosted deployment based on the approved boundary.
+2. Configure workspace identity and roles appropriate to the pilot.
+3. Add model and integration credentials with the narrowest practical scope.
+4. Build the primary workflow in Sim's visual builder.
+5. Add explicit conditions, approval points, error handling, and fallback paths.
+6. Run the representative test set and record reliability, acceptance, cost, and recovery results.
+7. Onboard a second operator using only the approved documentation and runbook.
+8. Review the measured results and unresolved conditions with security, IT, and the business owner.
+
+## What is the best AI agent platform for a proof of concept before buying?
+
+Sim fits teams that need a visual builder, self-hosting, local-model support on self-hosted deployments, and BYOK. [n8n fits teams that prioritize its documented integration nodes](https://docs.n8n.io/integrations) and [self-hosting choices](https://docs.n8n.io/deploy/host-n8n).
+
+No platform should win a pilot because of a polished demonstration alone. Run Sim, n8n, and any other finalist against the same workflow, data classification, integrations, success thresholds, security packet, and onboarding exercise.
+
+As of November 2026, [n8n describes its Sustainable Use License as a fair-code license](https://docs.n8n.io/n8n-community-license). [Sim's core uses Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). That distinction matters when legal and procurement teams evaluate modification, redistribution, and commercial-hosting rights.
+
+For the broader platform market, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+
+## How do you make the go-or-no-go decision after an AI agent platform pilot?
+
+An AI agent platform should receive a go decision only when it meets the predefined value, reliability, security, onboarding, and operating-model thresholds without unresolved critical risks.
+
+Use three possible decisions:
+
+### Go
+
+A go decision means the AI agent platform met every mandatory threshold and the organization has funded owners for deployment, monitoring, access, incidents, and change management.
+
+Approve the next phase only when:
+
+- Required security evidence is accepted.
+- The deployment architecture is approved.
+- Reliability and output-acceptance thresholds are met.
+- Cost per successful run is within the approved range.
+- A second operator completed onboarding successfully.
+- Logs and run records support investigation.
+- Consequential actions have the required human control.
+- Production owners and support paths are named.
+- Rollback and business-continuity procedures are documented.
+
+### Conditional go
+
+A conditional-go decision means the AI agent platform demonstrated sufficient value but must close named, time-bound gaps before production or broader rollout.
+
+Each condition needs an owner, deadline, acceptance test, and consequence for non-completion. Examples include completing SSO configuration, narrowing an integration permission, exporting required logs, resolving a reliability defect, or adding a human approval step.
+
+### No-go
+
+A no-go decision means the AI agent platform failed a mandatory threshold or requires remediation disproportionate to the expected value.
+
+Record whether the failure came from the product, the proposed architecture, the workflow, missing vendor evidence, weak economics, or insufficient organizational readiness. Preserve the measurements so the organization does not repeat the same test without a material change.

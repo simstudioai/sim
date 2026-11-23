@@ -147,7 +147,7 @@ Delete a task from ClickUp
 
 ### ClickUp Get Tasks
 
-List the tasks in a ClickUp list (100 tasks per page; increment page until an empty result to paginate)
+List the tasks in a ClickUp list (100 tasks per page; increment page until lastPage is true to paginate)
 
 <ReferenceDetails>
 
@@ -168,12 +168,17 @@ List the tasks in a ClickUp list (100 tasks per page; increment page until an em
 | `tags` | array | No | Filter tasks by tag names |
 | `dueDateGt` | number | No | Only tasks due after this Unix timestamp in milliseconds |
 | `dueDateLt` | number | No | Only tasks due before this Unix timestamp in milliseconds |
+| `dateCreatedGt` | number | No | Only tasks created after this Unix timestamp in milliseconds |
+| `dateCreatedLt` | number | No | Only tasks created before this Unix timestamp in milliseconds |
+| `dateUpdatedGt` | number | No | Only tasks updated after this Unix timestamp in milliseconds |
+| `dateUpdatedLt` | number | No | Only tasks updated before this Unix timestamp in milliseconds |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `tasks` | array | Tasks in the list |
+| `lastPage` | boolean | Whether this is the last page of results |
 
 </ReferenceDetails>
 
@@ -202,6 +207,10 @@ Search tasks across a ClickUp workspace with filters for lists, folders, spaces,
 | `tags` | array | No | Filter tasks by tag names |
 | `dueDateGt` | number | No | Only tasks due after this Unix timestamp in milliseconds |
 | `dueDateLt` | number | No | Only tasks due before this Unix timestamp in milliseconds |
+| `dateCreatedGt` | number | No | Only tasks created after this Unix timestamp in milliseconds |
+| `dateCreatedLt` | number | No | Only tasks created before this Unix timestamp in milliseconds |
+| `dateUpdatedGt` | number | No | Only tasks updated after this Unix timestamp in milliseconds |
+| `dateUpdatedLt` | number | No | Only tasks updated before this Unix timestamp in milliseconds |
 
 #### Output
 

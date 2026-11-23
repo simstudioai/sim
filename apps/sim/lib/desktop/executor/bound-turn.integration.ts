@@ -7,10 +7,9 @@
  */
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker, presence } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   /** Stands in for the agent worker, which Stop also tells to end the stream. */
   const server = createServer(async (request, response) => {
@@ -21,25 +20,17 @@ const { redisUrl, inheritedEnv, worker, presence } = await vi.hoisted(async () =
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     COPILOT_TOOL_PERMISSIONS_ENABLED: process.env.COPILOT_TOOL_PERMISSIONS_ENABLED,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  /** The real Redis module, the confirmation channel, the permission flag and worker URL read these at import. */
-  if (url) process.env.REDIS_URL = url
+  /** The permission flag and worker URL read these at import. */
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: { server }, presence: { available: true } }
+  return { inheritedEnv, worker: { server } }
 })
 
 vi.mock('@/lib/auth', () => authMock)
-/** Redis is always configured here; `presence.available` stands in for an install without it. */
-vi.mock('@/lib/desktop/executor/presence', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/desktop/executor/presence')>()),
-  isDesktopPresenceAvailable: () => presence.available,
-}))
 
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -82,7 +73,6 @@ import {
 import { abortRun } from '@/lib/mothership/request/application/controls'
 import { prePersistClientExecutableToolCall, sseHandlers } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { POST as toolPermissionPOST } from '@/app/api/copilot/tool-permission/route'
@@ -150,7 +140,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background executor", () => {
+describe("a turn bound to a desktop's background executor", () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatIds: string[] = []
@@ -257,7 +247,6 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
@@ -360,10 +349,6 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
     })
   })
 
-  beforeEach(() => {
-    presence.available = true
-  })
-
   afterAll(async () => {
     if (chatIds.length > 0) await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
     if (deviceIds.length > 0) {
@@ -374,7 +359,7 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
     await db.delete(user).where(eq(user.id, userId))
   })
 
-  it('binds a turn only to an executor registered to this very session, where Sim tracks presence', async () => {
+  it('binds a turn only to an executor registered to this very session', async () => {
     const desktop = await signedInDesktop()
     const viewer = await signedInDesktop({ executor: 0 })
     const otherSession: SessionPrincipal = { ...desktop.principal, sessionId: generateId() }
@@ -384,8 +369,6 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
     )
     expect(await resolveTurnDesktopDevice(otherSession, desktop.deviceId)).toBeNull()
     expect(await resolveTurnDesktopDevice(viewer.principal, viewer.deviceId)).toBeNull()
-    presence.available = false
-    expect(await resolveTurnDesktopDevice(desktop.principal, desktop.deviceId)).toBeNull()
   })
 
   it(
@@ -682,7 +665,6 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
       const redis = getRedisClient()
-      if (!redis) throw new Error('Redis is required')
       const writes = vi.spyOn(redis, 'set').mockRejectedValue(new Error('Redis unavailable'))
       try {
         /** The pull succeeds, but its presence write fails: the key reads as absent. */
@@ -710,7 +692,6 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
       const redis = getRedisClient()
-      if (!redis) throw new Error('Redis is required')
       const reads = vi.spyOn(redis, 'exists').mockRejectedValue(new Error('Redis unavailable'))
       try {
         const { toolCallId, answer, context } = await agentCalls(run, 'browser_click', {

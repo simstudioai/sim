@@ -1,0 +1,32 @@
+{
+  "namespace": "windchill",
+  "methods": {
+    "windchill_check_in_document": "checkInDocument",
+    "windchill_check_in_documents": "checkInDocuments",
+    "windchill_check_out_document": "checkOutDocument",
+    "windchill_check_out_documents": "checkOutDocuments",
+    "windchill_create_document": "createDocument",
+    "windchill_create_documents": "createDocuments",
+    "windchill_delete_document": "deleteDocument",
+    "windchill_delete_documents": "deleteDocuments",
+    "windchill_download_attachment": "downloadAttachment",
+    "windchill_download_primary_content": "downloadPrimaryContent",
+    "windchill_get_document": "getDocument",
+    "windchill_get_document_structure": "getDocumentStructure",
+    "windchill_get_primary_content": "getPrimaryContent",
+    "windchill_get_valid_state_transitions": "getValidStateTransitions",
+    "windchill_list_attachments": "listAttachments",
+    "windchill_list_documents": "listDocuments",
+    "windchill_revise_document": "reviseDocument",
+    "windchill_revise_documents": "reviseDocuments",
+    "windchill_set_lifecycle_state": "setLifecycleState",
+    "windchill_undo_check_out_document": "undoCheckOutDocument",
+    "windchill_undo_check_out_documents": "undoCheckOutDocuments",
+    "windchill_update_common_properties": "updateCommonProperties",
+    "windchill_update_document": "updateDocument",
+    "windchill_update_document_security_labels": "updateDocumentSecurityLabels",
+    "windchill_update_documents": "updateDocuments",
+    "windchill_upload_attachments": "uploadAttachments",
+    "windchill_upload_primary_content": "uploadPrimaryContent"
+  }
+}

@@ -41,7 +41,7 @@ export const GET = withRouteHandler(
     try {
       const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
 
-      logger.info(`[${requestId}] Getting tool ${toolId} from server ${serverId}`)
+      logger.info(`Getting tool ${toolId} from server ${serverId}`, { requestId })
 
       const [server] = await db
         .select({ id: workflowMcpServer.id })
@@ -77,7 +77,7 @@ export const GET = withRouteHandler(
 
       return createMcpSuccessResponse({ tool })
     } catch (error) {
-      logger.error(`[${requestId}] Error getting tool:`, error)
+      logger.error('Error getting tool:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to get tool', 500)
     }
   })
@@ -107,7 +107,7 @@ export const PATCH = withRouteHandler(
 
         const body = parsedBody.data
 
-        logger.info(`[${requestId}] Updating tool ${toolId} in server ${serverId}`)
+        logger.info(`Updating tool ${toolId} in server ${serverId}`, { requestId })
 
         const result = await performUpdateWorkflowMcpTool({
           serverId,
@@ -131,13 +131,13 @@ export const PATCH = withRouteHandler(
 
         const updatedTool = result.tool
 
-        logger.info(`[${requestId}] Successfully updated tool ${toolId}`)
+        logger.info(`Successfully updated tool ${toolId}`, { requestId })
 
         return createMcpSuccessResponse({ tool: updatedTool })
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error updating tool:`, error)
+        logger.error('Error updating tool:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to update tool', 500)
       }
     }
@@ -160,7 +160,7 @@ export const DELETE = withRouteHandler(
       try {
         const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
 
-        logger.info(`[${requestId}] Deleting tool ${toolId} from server ${serverId}`)
+        logger.info(`Deleting tool ${toolId} from server ${serverId}`, { requestId })
 
         const result = await performDeleteWorkflowMcpTool({
           serverId,
@@ -177,11 +177,11 @@ export const DELETE = withRouteHandler(
             mcpOrchestrationStatus(result.errorCode)
           )
         }
-        logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
+        logger.info(`Successfully deleted tool ${toolId}`, { requestId })
 
         return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
       } catch (error) {
-        logger.error(`[${requestId}] Error deleting tool:`, error)
+        logger.error('Error deleting tool:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to delete tool', 500)
       }
     }

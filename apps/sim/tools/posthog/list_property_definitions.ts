@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogListPropertyDefinitionsParams {
   projectId: string
@@ -41,7 +41,7 @@ interface PostHogListPropertyDefinitionsResponse {
 
 export const listPropertyDefinitionsTool: ToolConfig<
   PostHogListPropertyDefinitionsParams,
-  PostHogListPropertyDefinitionsResponse
+  ToolResponse & { output: PostHogListPropertyDefinitionsResponse }
 > = {
   id: 'posthog_list_property_definitions',
   name: 'PostHog List Property Definitions',
@@ -113,7 +113,7 @@ export const listPropertyDefinitionsTool: ToolConfig<
       if (params.type) queryParams.append('type', params.type)
 
       const query = queryParams.toString()
-      return `${baseUrl}/api/projects/${params.projectId}/property_definitions/${query ? `?${query}` : ''}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/property_definitions/${query ? `?${query}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -126,22 +126,25 @@ export const listPropertyDefinitionsTool: ToolConfig<
     const data = await response.json()
 
     return {
-      count: data.count,
-      next: data.next ?? null,
-      previous: data.previous ?? null,
-      results: data.results.map((property: any) => ({
-        id: property.id,
-        name: property.name,
-        description: property.description || '',
-        tags: property.tags || [],
-        is_numerical: property.is_numerical || false,
-        is_seen_on_filtered_events: property.is_seen_on_filtered_events ?? null,
-        property_type: property.property_type,
-        type: property.type,
-        created_at: property.created_at,
-        updated_at: property.updated_at,
-        updated_by: property.updated_by ?? null,
-      })),
+      success: true,
+      output: {
+        count: data.count,
+        next: data.next ?? null,
+        previous: data.previous ?? null,
+        results: data.results.map((property: any) => ({
+          id: property.id,
+          name: property.name,
+          description: property.description || '',
+          tags: property.tags || [],
+          is_numerical: property.is_numerical || false,
+          is_seen_on_filtered_events: property.is_seen_on_filtered_events ?? null,
+          property_type: property.property_type,
+          type: property.type,
+          created_at: property.created_at,
+          updated_at: property.updated_at,
+          updated_by: property.updated_by ?? null,
+        })),
+      },
     }
   },
 

@@ -1,5 +1,7 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisLRangeParams, UpstashRedisLRangeResponse } from '@/tools/upstash/types'
+import { upstashInteger, upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisLRangeTool: ToolConfig<
   UpstashRedisLRangeParams,
@@ -10,6 +12,7 @@ export const upstashRedisLRangeTool: ToolConfig<
   description:
     'Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {
@@ -46,7 +49,7 @@ export const upstashRedisLRangeTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${params.restUrl}/lrange/${encodeURIComponent(params.key)}/${params.start}/${params.stop}`,
+      `${params.restUrl}/lrange/${upstashPathSegment(params.key, 'key')}/${upstashInteger(params.start, 'start')}/${upstashInteger(params.stop, 'stop')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

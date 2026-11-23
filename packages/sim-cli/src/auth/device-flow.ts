@@ -39,8 +39,9 @@ const POLL_PATH = '/api/cli/auth/poll'
  * 429 is the poll cadence hitting the per-IP bucket, not a refusal.
  *
  * Everything else stays terminal: 400 means a malformed request id or verifier,
- * and 401/403/404 mean the server is refusing on purpose. Retrying those just
- * spins until the 15-minute timeout.
+ * or a key the server refused to create as requested, which the same poll would
+ * be refused again for; 401/403/404 mean the server is refusing on purpose.
+ * Retrying those just spins until the 15-minute timeout.
  */
 const RETRYABLE_POLL_STATUSES = new Set([409, 429, 500, 502, 503, 504])
 
@@ -71,11 +72,29 @@ export interface AuthRequest {
 export interface MintedKey {
   id: string
   apiKey: string
+  /** The name the key is listed under, or null from a server that predates it. */
+  name: string | null
   scope: CliAuthScope
   /** The workspace picked in the browser — the profile's default target. */
   workspaceId: string | null
   /** Whether the key can *only* reach that workspace. */
   workspaceBound: boolean
+  /**
+   * The access the key was minted with, or null from a server that predates
+   * read-only handoff keys — which mints full access whatever was asked.
+   */
+  access: KeyAccess | null
+  /** When the key expires; null when it never does or the server did not say. */
+  expiresAt: string | null
+}
+
+type KeyAccess = 'read' | 'write'
+
+/** What the terminal asks the minted key to be; the browser approval decides. */
+export interface KeyRequest {
+  readOnly: boolean
+  /** Whole days until the key expires; undefined for a key that never expires. */
+  expiresInDays?: number
 }
 
 /** 32 bytes of entropy, base64url — 43 characters, exactly what the contract accepts. */
@@ -104,7 +123,8 @@ export function createAuthRequest(): AuthRequest {
 export function buildApprovalUrl(
   endpoint: string,
   auth: AuthRequest,
-  workspaceId?: string
+  workspaceId?: string,
+  keyRequest: KeyRequest = { readOnly: false }
 ): string {
   return buildUrl(endpoint, APPROVAL_PATH, {
     request: auth.request,
@@ -112,15 +132,19 @@ export function buildApprovalUrl(
     pairing: auth.pairing,
     scope: 'platform',
     workspace: workspaceId,
+    access: keyRequest.readOnly ? 'read' : undefined,
+    expires: keyRequest.expiresInDays,
   })
 }
 
 interface PollResponse {
   status: 'pending' | 'complete'
-  key?: { id: string; apiKey: string }
+  key?: { id: string; apiKey: string; name?: string }
   scope?: CliAuthScope
   workspaceId?: string | null
   workspaceBound?: boolean
+  access?: KeyAccess
+  expiresAt?: string | null
 }
 
 /**
@@ -239,11 +263,14 @@ export async function pollForKey(
           return {
             id: body.key.id,
             apiKey: body.key.apiKey,
+            name: typeof body.key.name === 'string' ? body.key.name : null,
             // Older servers answer without these; a key from a server that does
             // not know about scopes is a copilot key by definition.
             scope: body.scope ?? 'copilot',
             workspaceId: body.workspaceId ?? null,
             workspaceBound: body.workspaceBound === true,
+            access: body.access === 'read' || body.access === 'write' ? body.access : null,
+            expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null,
           }
         }
       }

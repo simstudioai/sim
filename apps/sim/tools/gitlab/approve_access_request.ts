@@ -3,7 +3,9 @@ import type {
   GitLabApproveAccessRequestResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase, getGitLabResourcePath } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabApproveAccessRequestTool: ToolConfig<
   GitLabApproveAccessRequestParams,
@@ -14,6 +16,7 @@ export const gitlabApproveAccessRequestTool: ToolConfig<
   name: 'GitLab Approve Access Request',
   description: 'Approve a pending access request for a GitLab project or group',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -65,7 +68,7 @@ export const gitlabApproveAccessRequestTool: ToolConfig<
       }
 
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/${resourcePath}/access_requests/${params.userId}/approve${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/${resourcePath}/access_requests/${safeUrlPathSegment(params.userId, 'userId')}/approve${query ? `?${query}` : ''}`
     },
     method: 'PUT',
     headers: (params) => ({

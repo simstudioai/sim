@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -9,11 +10,11 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
   resolveOAuthCredential,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -104,9 +105,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(
-          `[${requestId}] First poll for webhook ${webhookId}, seeded pageToken: ${startPageToken}`
-        )
+        logger.info(`First poll for webhook ${webhookId}, seeded pageToken: ${startPageToken}`)
         return 'success'
       }
 
@@ -115,7 +114,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
       if (!changes.length) {
         await updateWebhookProviderConfig(webhookId, { pageToken: newStartPageToken }, logger)
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No changes found for webhook ${webhookId}`)
+        logger.info(`No changes found for webhook ${webhookId}`)
         return 'success'
       }
 
@@ -125,14 +124,12 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         await updateWebhookProviderConfig(webhookId, { pageToken: newStartPageToken }, logger)
         await markWebhookSuccess(webhookId, logger)
         logger.info(
-          `[${requestId}] ${changes.length} changes found but none match filters for webhook ${webhookId}`
+          `${changes.length} changes found but none match filters for webhook ${webhookId}`
         )
         return 'success'
       }
 
-      logger.info(
-        `[${requestId}] Found ${filteredChanges.length} matching changes for webhook ${webhookId}`
-      )
+      logger.info(`Found ${filteredChanges.length} matching changes for webhook ${webhookId}`)
 
       const { processedCount, failedCount, newKnownFileIds } = await processChanges(
         filteredChanges,
@@ -161,37 +158,32 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} changes failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} changes failed to process for webhook ${webhookId}`)
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} changes for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} changes for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
       )
       return 'success'
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
-      }
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
       if (error instanceof Error && error.name === 'DrivePageTokenInvalidError') {
         await updateWebhookProviderConfig(webhookId, { pageToken: undefined }, logger)
         await markWebhookSuccess(webhookId, logger)
-        logger.warn(
-          `[${requestId}] Drive page token invalid for webhook ${webhookId}, re-seeding on next poll`
-        )
+        logger.warn(`Drive page token invalid for webhook ${webhookId}, re-seeding on next poll`)
         return 'success'
       }
       if (error instanceof Error && error.name === 'DriveRateLimitError') {
         await markWebhookSuccess(webhookId, logger)
         logger.warn(
-          `[${requestId}] Drive API rate limited for webhook ${webhookId}, skipping to retry next poll cycle`
+          `Drive API rate limited for webhook ${webhookId}, skipping to retry next poll cycle`
         )
         return 'success'
       }
-      logger.error(`[${requestId}] Error processing Google Drive webhook ${webhookId}:`, error)
+      logger.error(`Error processing Google Drive webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -218,7 +210,7 @@ async function getStartPageToken(
   }
 
   const url = `${DRIVE_API_BASE}/changes/startPageToken?${params.toString()}`
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
 
@@ -265,7 +257,7 @@ async function fetchChanges(
     }
 
     const url = `${DRIVE_API_BASE}/changes?${params.toString()}`
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 
@@ -406,7 +398,7 @@ async function processChanges(
         if (!result.success) {
           throwIfAdmissionRefused(result)
           logger.error(
-            `[${requestId}] Failed to process webhook for file ${change.fileId}:`,
+            `Failed to process webhook for file ${change.fileId}:`,
             result.statusCode,
             result.error
           )
@@ -417,16 +409,13 @@ async function processChanges(
       })
 
       logger.info(
-        `[${requestId}] Successfully processed change for file ${change.fileId} for webhook ${webhookData.id}`
+        `Successfully processed change for file ${change.fileId} for webhook ${webhookData.id}`
       )
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+      if (isUncountedPollFailure(error) && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      logger.error(
-        `[${requestId}] Error processing change for file ${change.fileId}:`,
-        errorMessage
-      )
+      logger.error(`Error processing change for file ${change.fileId}:`, errorMessage)
       failedCount++
     }
   }

@@ -22,7 +22,6 @@ import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/componen
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
 import { CustomBlockDetail } from '@/ee/custom-blocks/components/custom-block-detail'
-import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCanPublishCustomBlock, useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
@@ -53,7 +52,6 @@ export function CustomBlocks() {
       workspaces.some((w) => w.organizationId === currentOrgId && w.permissions === 'admin'),
     [canAdmin, workspaces, currentOrgId]
   )
-  const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedBlockId, setSelectedBlockId] = useQueryState(customBlockIdParam.key, {
@@ -144,7 +142,7 @@ export function CustomBlocks() {
         ) : (
           <div className={RESOURCE_LIST_STACK}>
             {filtered.map((cb) => {
-              const Icon = getCustomBlockIcon(cb.iconUrl, fallbackIconUrl)
+              const Icon = getCustomBlockIcon(cb.iconUrl)
               return (
                 <SettingsResourceRow
                   key={cb.id}

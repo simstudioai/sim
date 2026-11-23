@@ -24,8 +24,8 @@
  */
 
 import { readFileSync } from 'fs'
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
 import { getOperationSubBlockId } from '@/lib/workflows/blocks/canvas-sentence'
-import { buildCanonicalIndex, isCanonicalPair } from '@/lib/workflows/subblocks/visibility'
 import { getBlockRegistry } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 

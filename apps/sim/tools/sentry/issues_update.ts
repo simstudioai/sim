@@ -1,5 +1,8 @@
 import type { SentryUpdateIssueParams, SentryUpdateIssueResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIssueResponse> = {
   id: 'sentry_issues_update',
@@ -7,8 +10,10 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
   description:
     'Update a Sentry issue by changing its status, assignment, bookmark state, or other properties. Returns the updated issue details.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -33,6 +38,12 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
       visibility: 'user-or-llm',
       description:
         'New status for the issue: resolved, unresolved, ignored, or resolvedInNextRelease',
+    },
+    priority: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'New priority for the issue: low, medium, or high',
     },
     assignedTo: {
       type: 'string',
@@ -63,7 +74,7 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
 
   request: {
     url: (params) =>
-      `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/`,
+      `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/issues/${safeUrlPathSegment(params.issueId, 'issueId')}/`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -74,6 +85,10 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
 
       if (params.status !== undefined && params.status !== null && params.status !== '') {
         body.status = params.status
+      }
+
+      if (params.priority) {
+        body.priority = params.priority
       }
 
       if (params.assignedTo !== undefined && params.assignedTo !== null) {

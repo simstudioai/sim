@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaInvokeParams, LambdaInvokeResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResponse> = {
@@ -8,6 +9,7 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
   description:
     'Invoke a Lambda function synchronously for its response payload, asynchronously to queue execution, or as a dry run to check permissions.',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -67,6 +69,13 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
       visibility: 'user-or-llm',
       description: 'Version number or alias name to act on. Omit to target the function itself',
     },
+    tenantId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tenant identifier for a function with tenant isolation enabled (required by those functions, rejected by others)',
+    },
   },
 
   operation: {
@@ -80,6 +89,7 @@ export const invokeTool: InternalToolConfig<LambdaInvokeParams, LambdaInvokeResp
       ...(isSupplied(params.logType) && { logType: params.logType }),
       ...(isSupplied(params.clientContext) && { clientContext: params.clientContext }),
       ...(isSupplied(params.qualifier) && { qualifier: params.qualifier }),
+      ...(isSupplied(params.tenantId) && { tenantId: params.tenantId }),
     }),
   },
 

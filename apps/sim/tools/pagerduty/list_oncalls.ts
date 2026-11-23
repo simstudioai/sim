@@ -1,7 +1,9 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type {
   PagerDutyListOncallsParams,
   PagerDutyListOncallsResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyListOncallsResponse> =
@@ -10,6 +12,7 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
     name: 'PagerDuty List On-Calls',
     description: 'List current on-call entries from PagerDuty.',
     version: '1.0.0',
+    oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
@@ -54,6 +57,13 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
         visibility: 'user-or-llm',
         description: 'Offset to start pagination search results',
       },
+      includeTotal: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Populate the total result count in the response (PagerDuty returns null for total unless requested; slower)',
+      },
     },
 
     request: {
@@ -73,6 +83,7 @@ export const listOncallsTool: ToolConfig<PagerDutyListOncallsParams, PagerDutyLi
         if (params.until) query.set('until', params.until)
         if (params.limit) query.set('limit', params.limit)
         if (params.offset) query.set('offset', params.offset)
+        if (toBooleanFromInput(params.includeTotal)) query.set('total', 'true')
         const qs = query.toString()
         return `https://api.pagerduty.com/oncalls${qs ? `?${qs}` : ''}`
       },

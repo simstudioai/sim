@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinGetSessionTagsParams, DevinSessionTagsResponse } from './types'
 
 export const devinGetSessionTagsTool: ToolConfig<
@@ -9,6 +11,7 @@ export const devinGetSessionTagsTool: ToolConfig<
   name: 'Devin Get Session Tags',
   description: 'Retrieve the tags currently applied to a Devin session.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -33,7 +36,7 @@ export const devinGetSessionTagsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/tags`,
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/tags`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

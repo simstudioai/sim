@@ -3,6 +3,7 @@ import {
   buildBatchUpdateMetadata,
   buildInsertLocation,
   resolveDocumentId,
+  resolveTabId,
 } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,6 +49,13 @@ export const insertTableTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertT
       description:
         'The character index (the document body starts at index 1) at which to insert the table. When omitted, the table is appended to the end of the document.',
     },
+    tabId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of the tab to insert the table into (from Read with includeTabsContent). When omitted, the first tab is used.',
+    },
   },
   request: {
     url: (params) => {
@@ -77,7 +85,7 @@ export const insertTableTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertT
         requests: [
           {
             insertTable: {
-              ...buildInsertLocation(params.index),
+              ...buildInsertLocation(params.index, resolveTabId(params.tabId)),
               rows,
               columns,
             },

@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -28,7 +30,7 @@ export const resendHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
     if (!signingSecret?.trim()) {
-      logger.warn(`[${requestId}] Resend webhook missing signing secret in provider configuration`)
+      logger.warn('Resend webhook missing signing secret in provider configuration', { requestId })
       return new NextResponse('Unauthorized - Resend signing secret is required', { status: 401 })
     }
 
@@ -53,7 +55,7 @@ export const resendHandler: WebhookProviderHandler = {
 
     const expectedType = RESEND_TRIGGER_TO_EVENT_TYPE[triggerId]
     if (!expectedType) {
-      logger.debug(`[${requestId}] Unknown Resend triggerId ${triggerId}, skipping.`)
+      logger.debug(`Unknown Resend triggerId ${triggerId}, skipping.`, { requestId })
       return false
     }
 
@@ -61,7 +63,8 @@ export const resendHandler: WebhookProviderHandler = {
 
     if (actualType !== expectedType) {
       logger.debug(
-        `[${requestId}] Resend event type mismatch: expected ${expectedType}, got ${actualType}. Skipping.`
+        `Resend event type mismatch: expected ${expectedType}, got ${actualType}. Skipping.`,
+        { requestId }
       )
       return false
     }
@@ -114,10 +117,11 @@ export const resendHandler: WebhookProviderHandler = {
       const triggerId = providerConfig.triggerId as string | undefined
 
       if (!apiKey) {
-        logger.warn(`[${requestId}] Missing apiKey for Resend webhook creation.`, {
+        logger.warn('Missing apiKey for Resend webhook creation.', {
+          requestId,
           webhookId: webhook.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Resend API Key is required. Please provide your Resend API Key in the trigger configuration.'
         )
       }
@@ -135,13 +139,14 @@ export const resendHandler: WebhookProviderHandler = {
 
       const notificationUrl = getNotificationUrl(webhook)
 
-      logger.info(`[${requestId}] Creating Resend webhook`, {
+      logger.info('Creating Resend webhook', {
+        requestId,
         triggerId,
         events,
         webhookId: webhook.id,
       })
 
-      const resendResponse = await fetch('https://api.resend.com/webhooks', {
+      const resendResponse = await outboundFetch('https://api.resend.com/webhooks', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -161,8 +166,8 @@ export const resendHandler: WebhookProviderHandler = {
           (responseBody.name as string) ||
           'Unknown Resend API error'
         logger.error(
-          `[${requestId}] Failed to create webhook in Resend for webhook ${webhook.id}. Status: ${resendResponse.status}`,
-          { message: errorMessage, response: responseBody }
+          `Failed to create webhook in Resend for webhook ${webhook.id}. Status: ${resendResponse.status}`,
+          { requestId, message: errorMessage, response: responseBody }
         )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in Resend'
@@ -189,12 +194,10 @@ export const resendHandler: WebhookProviderHandler = {
         )
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in Resend for webhook ${webhook.id}.`,
-        {
-          resendWebhookId: externalId,
-        }
-      )
+      logger.info(`Successfully created webhook in Resend for webhook ${webhook.id}.`, {
+        requestId,
+        resendWebhookId: externalId,
+      })
 
       return {
         providerConfigUpdates: {
@@ -203,14 +206,13 @@ export const resendHandler: WebhookProviderHandler = {
         },
       }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${requestId}] Exception during Resend webhook creation for webhook ${webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Resend webhook creation for webhook ${webhook.id}.`, {
+        requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -224,13 +226,14 @@ export const resendHandler: WebhookProviderHandler = {
 
       if (!apiKey || !externalId) {
         logger.warn(
-          `[${requestId}] Missing apiKey or externalId for Resend webhook deletion ${webhook.id}, skipping cleanup`
+          `Missing apiKey or externalId for Resend webhook deletion ${webhook.id}, skipping cleanup`,
+          { requestId }
         )
         if (ctx.strict) throw new Error('Missing Resend webhook deletion credentials')
         return
       }
 
-      const resendResponse = await fetch(`https://api.resend.com/webhooks/${externalId}`, {
+      const resendResponse = await outboundFetch(`https://api.resend.com/webhooks/${externalId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -239,16 +242,16 @@ export const resendHandler: WebhookProviderHandler = {
 
       if (!resendResponse.ok && resendResponse.status !== 404) {
         const responseBody = await resendResponse.json().catch(() => ({}))
-        logger.warn(
-          `[${requestId}] Failed to delete Resend webhook (non-fatal): ${resendResponse.status}`,
-          { response: responseBody }
-        )
+        logger.warn(`Failed to delete Resend webhook (non-fatal): ${resendResponse.status}`, {
+          requestId,
+          response: responseBody,
+        })
         if (ctx.strict) throw new Error(`Failed to delete Resend webhook: ${resendResponse.status}`)
       } else {
-        logger.info(`[${requestId}] Successfully deleted Resend webhook ${externalId}`)
+        logger.info(`Successfully deleted Resend webhook ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Resend webhook (non-fatal)`, error)
+      logger.warn('Error deleting Resend webhook (non-fatal)', error, { requestId })
       if (ctx.strict) throw error
     }
   },

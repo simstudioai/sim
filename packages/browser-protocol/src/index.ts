@@ -12,9 +12,11 @@
  * policy, and bridge envelopes. Individual tool parameters and results are
  * still validated by the desktop driver rather than statically mapped here.
  *
- * Current tool names mirror the mothership tool catalog
- * (`copilot/internal/tools/catalog/browser` in the mothership repo). This
- * package also retains retired names needed to replay persisted chat history.
+ * Current tool names mirror the mothership worker's tool catalog
+ * (`worker/packages/contracts/tool-catalog-v1.json`, with desktop tool
+ * definitions in `worker/apps/server/src/protocol/desktop-tools.ts`, in the
+ * mothership repo). This package also retains retired names needed to replay
+ * persisted chat history.
  * The catalog is the source of truth for what the model can call; this package
  * is the source of truth for how current and compatible legacy calls travel to
  * the desktop main process.
@@ -65,7 +67,8 @@ export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
 const BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS = 10_000
 const BROWSER_WAIT_FOR_MAX_TIMEOUT_MS = 120_000
-const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 15_000
+/** Covers the desktop's wait grace and the snapshot a wait ends with (25s), plus transport. */
+const BROWSER_WAIT_FOR_RENDERER_GRACE_MS = 30_000
 export const BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS = 8_000
 export const BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS = 60_000
 export const BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS = BROWSER_NAVIGATION_NATIVE_WATCHDOG_MS

@@ -13,40 +13,26 @@ export interface GeminiTokenSplit {
 }
 
 /**
- * Splits a cache-inclusive Gemini prompt total into the uncached remainder and
+ * Splits a generateContent usage payload into the uncached prompt remainder and
  * the cache read.
  *
- * Gemini's implicit context cache (on by default from 2.5 onward) reports cached
- * tokens as a subset of the prompt total — `cachedContentTokenCount` inside
- * `promptTokenCount` on generateContent, `total_cached_tokens` inside
- * `total_input_tokens` on the Interactions API. Charging the prompt total at the
- * base input rate therefore bills cache hits at full price; the subtraction is
- * what routes them to the model's discounted `cachedInput` rate instead.
+ * Gemini's implicit context cache (on by default from 2.5 onward) reports
+ * `cachedContentTokenCount` as a subset of `promptTokenCount`. Charging the
+ * prompt total at the base input rate therefore bills cache hits at full price;
+ * the subtraction is what routes them to the model's discounted `cachedInput`
+ * rate instead.
  */
-export function splitGeminiTokens(
-  promptTokens: number,
-  candidatesTokens: number,
-  cachedTokens: number
-): GeminiTokenSplit {
-  const prompt = Math.max(0, promptTokens)
+export function splitGeminiUsage(usage: GeminiUsage): GeminiTokenSplit {
+  const prompt = Math.max(0, usage.promptTokenCount)
   // Clamped to the prompt total: a payload reporting more cached tokens than it
   // processed would otherwise bill more input than the request contained.
-  const cacheRead = Math.min(Math.max(0, cachedTokens), prompt)
+  const cacheRead = Math.min(Math.max(0, usage.cachedContentTokenCount), prompt)
 
   return {
     input: prompt - cacheRead,
-    output: candidatesTokens,
+    output: usage.candidatesTokenCount,
     cacheRead,
   }
-}
-
-/** {@link splitGeminiTokens} for the generateContent usage shape. */
-export function splitGeminiUsage(usage: GeminiUsage): GeminiTokenSplit {
-  return splitGeminiTokens(
-    usage.promptTokenCount,
-    usage.candidatesTokenCount,
-    usage.cachedContentTokenCount
-  )
 }
 
 /**

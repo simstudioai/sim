@@ -2,9 +2,12 @@ import { CrowdStrikeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  mapperOperation,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
+  withSavedCredential,
 } from '@/blocks/utils'
 
 /**
@@ -93,6 +96,8 @@ const CLEARED_OPTIONAL_PARAMS: Record<string, undefined> = Object.freeze({
 
 export const CrowdStrikeBlock: BlockConfig = {
   type: 'crowdstrike',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'crowdstrike_v2' },
   name: 'CrowdStrike',
   description:
     'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities',
@@ -414,7 +419,7 @@ export const CrowdStrikeBlock: BlockConfig = {
       id: 'includeHidden',
       title: 'Include Hidden Alerts',
       type: 'switch',
-      value: () => 'true',
+      value: () => true,
       condition: {
         field: 'operation',
         value: [
@@ -441,15 +446,22 @@ export const CrowdStrikeBlock: BlockConfig = {
       },
     },
     {
+      /**
+       * Leads with "No change" because the editor seeds an empty dropdown with
+       * its first option: an update that only comments, tags, or assigns must
+       * not also send `update_status`.
+       */
       id: 'updateStatus',
       title: 'Status',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'New', id: 'new' },
         { label: 'In Progress', id: 'in_progress' },
         { label: 'Reopened', id: 'reopened' },
         { label: 'Closed', id: 'closed' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'crowdstrike_update_alerts' },
     },
     {
@@ -837,8 +849,8 @@ export const CrowdStrikeBlock: BlockConfig = {
     config: {
       tool: (params) =>
         typeof params.operation === 'string' ? params.operation : 'crowdstrike_query_alerts',
-      params: (params) => {
-        const operation = typeof params.operation === 'string' ? params.operation : ''
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
 
         /**
          * The executor merges this result over the raw block inputs, so a key this
@@ -925,14 +937,20 @@ export const CrowdStrikeBlock: BlockConfig = {
             setJson('actionParameters', params.actionParameters, 'action parameters')
             break
           case 'crowdstrike_perform_host_action':
-            setString('actionName', params.hostActionName)
+            setString(
+              'actionName',
+              params.hostActionName || toolCallArg(context, params.actionName)
+            )
             setJson('deviceIds', params.deviceIds, 'host agent IDs')
             break
           case 'crowdstrike_get_host_group_details':
             setJson('hostGroupIds', params.hostGroupIds, 'host group IDs')
             break
           case 'crowdstrike_perform_host_group_action':
-            setString('actionName', params.hostGroupActionName)
+            setString(
+              'actionName',
+              params.hostGroupActionName || toolCallArg(context, params.actionName)
+            )
             setString('hostGroupId', params.hostGroupId)
             setJson('deviceIds', params.deviceIds, 'host agent IDs')
             break
@@ -948,7 +966,7 @@ export const CrowdStrikeBlock: BlockConfig = {
             break
           case 'crowdstrike_delete_indicators':
             setJson('indicatorIds', params.indicatorIds, 'indicator IDs')
-            setString('filter', params.deleteFilter)
+            setString('filter', params.deleteFilter || toolCallArg(context, params.filter))
             setString('comment', params.comment)
             break
           case 'crowdstrike_get_vulnerability_details':
@@ -1296,3 +1314,17 @@ export const CrowdStrikeBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CrowdStrikeV2Block: BlockConfig = {
+  ...CrowdStrikeBlock,
+  type: 'crowdstrike_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CrowdStrikeBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'crowdstrike',
+    title: 'CrowdStrike Credential',
+  }),
+}

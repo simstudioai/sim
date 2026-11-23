@@ -111,11 +111,8 @@ DAYTONA_FUNCTION_SNAPSHOT_ID=<snapshot-uuid>
 | Variable | Effect |
 |---|---|
 | `SANDBOXES_ENABLED=true` | Grants the server-side sandbox entitlement on a billing-disabled self-hosted deployment |
-| `NEXT_PUBLIC_SANDBOXES_ENABLED=true` | Reveals the Function block's **Sandbox** selector; asserts readiness rather than checking it |
 
-On a billing-disabled deployment, `ENTERPRISE_ENABLED=true` also grants the entitlement when `SANDBOXES_ENABLED` is unset. The server must verify provider credentials and the immutable Function base before offering Shell and the sandbox list. **Settings → Sandboxes** remains in the sidebar but shows an upgrade notice until access/readiness resolves. Python remains selectable; execution still requires the remote configuration.
-
-Set the browser flag only after provider verification succeeds. On Compose or a source checkout, `bunx sim-setup doctor` compares the public flag with selected-provider readiness.
+On a billing-disabled deployment, `ENTERPRISE_ENABLED=true` also grants the entitlement when `SANDBOXES_ENABLED` is unset. The server must verify provider credentials and the immutable Function base before offering Shell, the Function block's **Sandbox** selector, and the sandbox list. **Settings → Sandboxes** remains in the sidebar but shows an upgrade notice until access/readiness resolves. Python remains selectable; execution still requires the remote configuration.
 
 ## Promote or roll back a build
 

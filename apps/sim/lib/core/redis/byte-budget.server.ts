@@ -36,15 +36,27 @@ import type { Logger } from '@sim/logger'
  */
 const REDIS_BUDGET_PREFIX = 'execution:redis-budget:'
 
-/** What a budget is charged to. One counter per owner, plus one per user across owners. */
+/** What a budget is charged to. One counter per owner, plus one per user per kind. */
 export type RedisBudgetOwnerKind = 'execution' | 'copilot_stream'
+
+/**
+ * The user counter's key segment for each kind.
+ *
+ * Each kind has its own user ceiling, so each needs its own counter: a shared one lets
+ * workflow runs, within their larger ceiling, lock the user out of Chat for the window.
+ * `user` is the execution counter's original segment, kept so in-flight counters still apply.
+ */
+const USER_KEY_SEGMENTS: Record<RedisBudgetOwnerKind, string> = {
+  execution: 'user',
+  copilot_stream: 'copilot_stream_user',
+}
 
 export interface RedisBudgetScope {
   kind: RedisBudgetOwnerKind
   /** The owner's id — an execution id, a stream id, a table id. */
   id: string
   /**
-   * Charges the write to a second, user-wide counter as well. Omitted where the
+   * Charges the write to the user's counter for this kind as well. Omitted where the
    * writer has no user in scope; the owner counter still applies.
    */
   userId?: string
@@ -64,12 +76,12 @@ export interface RedisBudgetLimits {
  * itself, so sliding its TTL on every write keeps the counter and the bytes it
  * represents in step.
  *
- * A user counter aggregates across every owner that user writes to. Sliding it on
- * each write would keep it alive indefinitely for anyone who stays active while the
- * data underneath it keeps expiring — so the counter would accrue bytes Redis has
- * already dropped and eventually pin the user at their ceiling until they went a full
- * window without writing. User counters therefore get a fixed window: set on
- * creation, never extended.
+ * A user counter aggregates across every owner of its kind that user writes to.
+ * Sliding it on each write would keep it alive indefinitely for anyone who stays
+ * active while the data underneath it keeps expiring — so the counter would accrue
+ * bytes Redis has already dropped and eventually pin the user at their ceiling until
+ * they went a full window without writing. User counters therefore get a fixed
+ * window: set on creation, never extended.
  *
  * Because a trim refunds both counters, the user counter bounds bytes HELD across a
  * user's owners, not bytes written per hour: a single long copilot stream holds at most
@@ -113,7 +125,7 @@ export function getRedisBudgetLimits(kind: RedisBudgetOwnerKind): RedisBudgetLim
 export function getRedisBudgetKeys(scope: RedisBudgetScope): string[] {
   const keys = [`${REDIS_BUDGET_PREFIX}${scope.kind}:${scope.id}`]
   if (scope.userId) {
-    keys.push(`${REDIS_BUDGET_PREFIX}user:${scope.userId}`)
+    keys.push(`${REDIS_BUDGET_PREFIX}${USER_KEY_SEGMENTS[scope.kind]}:${scope.userId}`)
   }
   return keys
 }

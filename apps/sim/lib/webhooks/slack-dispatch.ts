@@ -1,8 +1,8 @@
 import type { ExternalUserSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { mapEachWithConcurrency } from '@sim/utils/concurrency'
 import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isDroppedDispatch } from '@/lib/webhooks/dispatch-result'
 import {
   dispatchResolvedWebhookTarget,
@@ -107,7 +107,7 @@ export async function dispatchSlackWebhooks(
   const triggerTimestampMs = Number.isFinite(parsedTimestampMs) ? parsedTimestampMs : undefined
   const subject = resolveSlackExternalUserSubject(body)
 
-  return mapWithConcurrency(
+  return mapEachWithConcurrency(
     webhooks,
     SLACK_WEBHOOK_DISPATCH_CONCURRENCY,
     async ({ webhook: foundWebhook, workflow: foundWorkflow, triggerBlockDeployed }) => {
@@ -128,19 +128,17 @@ export async function dispatchSlackWebhooks(
       if (result.outcome === 'ignored' && result.reason === 'filtered') {
         const rawEvent = payload.event as Record<string, unknown> | undefined
         const providerConfig = toRecord(foundWebhook.providerConfig)
-        logger.info(
-          `[${requestId}] Event skipped by trigger filter for webhook ${foundWebhook.id}`,
-          {
-            eventKey: resolveSlackEventKey(payload),
-            configuredEvent: providerConfig.eventType,
-            channelType: rawEvent?.channel_type,
-            subtype: rawEvent?.subtype,
-            isThreadReply:
-              typeof rawEvent?.thread_ts === 'string' && rawEvent.thread_ts !== rawEvent.ts,
-            threadsSetting: providerConfig.threads,
-            botId: rawEvent?.bot_id,
-          }
-        )
+        logger.debug(`Event skipped by trigger filter for webhook ${foundWebhook.id}`, {
+          requestId,
+          eventKey: resolveSlackEventKey(payload),
+          configuredEvent: providerConfig.eventType,
+          channelType: rawEvent?.channel_type,
+          subtype: rawEvent?.subtype,
+          isThreadReply:
+            typeof rawEvent?.thread_ts === 'string' && rawEvent.thread_ts !== rawEvent.ts,
+          threadsSetting: providerConfig.threads,
+          botId: rawEvent?.bot_id,
+        })
       }
 
       return result

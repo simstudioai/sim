@@ -18,13 +18,15 @@ interface CodeBlockProps extends HTMLAttributes<HTMLElement> {
 interface CodeContentProps {
   children: ReactNode
   label?: string
+  tabIndex?: number
 }
 
-export function CodeContent({ children, label = 'Code sample' }: CodeContentProps) {
+export function CodeContent({ children, label = 'Code sample', tabIndex }: CodeContentProps) {
   return (
     <ScrollRegion
       label={label}
-      className='focus-visible:-outline-offset-2 p-4 [&_code]:block [&_code]:bg-transparent [&_code]:p-0 [&_code]:font-normal [&_code]:text-docs-code [&_pre]:m-0 [&_pre]:w-max [&_pre]:min-w-full [&_pre]:bg-transparent! [&_pre]:p-0 [&_pre]:font-mono [&_pre]:text-docs-code'
+      tabIndex={tabIndex}
+      className='focus-visible:-outline-offset-2 p-4 [&_code]:block [&_code]:bg-transparent [&_code]:p-0 [&_code]:font-normal [&_code]:text-docs-code [&_pre]:m-0 [&_pre]:w-max [&_pre]:min-w-full [&_pre]:bg-transparent! [&_pre]:p-0 [&_pre]:font-mono [&_pre]:text-docs-code [&_pre]:[font-variant-ligatures:none]'
     >
       {children}
     </ScrollRegion>

@@ -5,6 +5,7 @@ import type {
 } from '@/tools/pipedrive/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('PipedriveGetProjects')
 
@@ -46,7 +47,8 @@ export const pipedriveGetProjectsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by project status: open, completed, deleted (only for listing all)',
+      description:
+        'Filter by project status: open, completed, canceled, deleted (only for listing all)',
     },
     limit: {
       type: 'string',
@@ -67,7 +69,7 @@ export const pipedriveGetProjectsTool: ToolConfig<
     url: (params) => {
       // If project_id is provided, get specific project
       if (params.project_id) {
-        return `https://api.pipedrive.com/v1/projects/${params.project_id}`
+        return `https://api.pipedrive.com/v1/projects/${safeUrlPathSegment(params.project_id, 'project_id')}`
       }
 
       // Otherwise, get all projects with optional filters

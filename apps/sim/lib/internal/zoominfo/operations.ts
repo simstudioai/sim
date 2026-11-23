@@ -1,6 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { requestZoomInfo } from '@/lib/internal/zoominfo/client'
 import {
+  type ZoomInfoAuth,
   type ZoomInfoEnrichCompaniesInput,
   type ZoomInfoEnrichContactsInput,
   type ZoomInfoProviderRequest,
@@ -107,8 +108,12 @@ function toNumberOrUndefined(value: unknown): number | undefined {
   return Number.isFinite(number) ? number : undefined
 }
 
-function authInput(input: { clientId: string; clientSecret: string }) {
-  return { clientId: input.clientId, clientSecret: input.clientSecret }
+function authInput(input: ZoomInfoAuth) {
+  return {
+    clientId: input.clientId,
+    clientSecret: input.clientSecret,
+    accessToken: input.accessToken,
+  }
 }
 
 function paginationQuery(page: unknown, rpp: unknown): Record<string, number> | undefined {

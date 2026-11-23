@@ -5,7 +5,9 @@ import type {
   ClerkGetOrganizationResponse,
   ClerkOrganization,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetOrganization')
 
@@ -17,6 +19,7 @@ export const clerkGetOrganizationTool: ToolConfig<
   name: 'Get Organization from Clerk',
   description: 'Retrieve a single organization by ID or slug from Clerk',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -35,7 +38,8 @@ export const clerkGetOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}`,
     method: 'GET',
     headers: (params) => {
       if (!params.secretKey) {

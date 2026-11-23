@@ -1,4 +1,4 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface PostHogCreateCohortParams {
@@ -112,7 +112,7 @@ export const createCohortTool: ToolConfig<PostHogCreateCohortParams, PostHogCrea
     request: {
       url: (params) => {
         const baseUrl = getPostHogAppBaseUrl(params.region as 'us' | 'eu' | undefined, params.host)
-        return `${baseUrl}/api/projects/${params.projectId}/cohorts/`
+        return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/cohorts/`
       },
       method: 'POST',
       headers: (params) => ({

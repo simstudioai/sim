@@ -1,9 +1,10 @@
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
 import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  toolCallArg,
 } from '@/blocks/utils'
 
 interface SlackWorkflowField {
@@ -17,6 +18,8 @@ interface SlackWorkflowField {
   dependsOn?: string[]
   default?: string
   allowEmpty?: boolean
+  /** A Slack ID list: Slack's comma-separated form (`U1,U2`) is passed through for the tool to parse. */
+  idList?: boolean
   basic?: boolean
   min?: number
   max?: number
@@ -214,6 +217,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'user_ids',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -222,6 +226,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channel_ids',
         title: 'Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
     ],
@@ -245,6 +250,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'user_ids',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -253,6 +259,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channel_ids',
         title: 'Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
     ],
@@ -373,6 +380,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'users',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -945,6 +953,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channels',
         title: 'Default Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -952,6 +961,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'additional_channels',
         title: 'Additional Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1021,6 +1031,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'channels',
         title: 'Default Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1028,6 +1039,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'additional_channels',
         title: 'Additional Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1194,6 +1206,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'users',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: true,
       },
       {
@@ -1201,6 +1214,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'additional_channels',
         title: 'Additional Channel IDs',
         type: 'json',
+        idList: true,
         required: false,
       },
       {
@@ -1259,6 +1273,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         param: 'users',
         title: 'User IDs',
         type: 'json',
+        idList: true,
         required: true,
       },
       {
@@ -1420,20 +1435,36 @@ export function getSlackWorkflowSubBlocks(): SubBlockConfig[] {
   return result
 }
 
+/**
+ * Maps a workflow operation's `slack_<op>_<param>` block fields to its tool params. On a tool call
+ * those fields are absent and the model's args arrive under the tool's param names; an empty field
+ * then leaves the model's value in place instead of writing the field's default over it.
+ */
 export function mapSlackWorkflowParams(
   operation: SlackWorkflowOperation,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  context?: BlockToolParamsContext
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {
-    credential: params[operation.auth === 'bot' ? 'apiBotCredentialId' : 'apiOAuthCredentialId'],
+    credential:
+      params[operation.auth === 'bot' ? 'apiBotCredentialId' : 'apiOAuthCredentialId'] ??
+      toolCallArg(context, params.credential),
   }
   for (const field of operation.fields) {
     const raw = params[field.id]
-    const value =
-      raw === undefined || raw === null || (raw === '' && !field.allowEmpty) ? field.default : raw
+    const isEmpty = raw === undefined || raw === null || (raw === '' && !field.allowEmpty)
+    if (isEmpty && toolCallArg(context, params[field.param]) !== undefined) continue
+    const value = isEmpty ? field.default : raw
     if (value === undefined) continue
-    if (field.type === 'json') result[field.param] = parseOptionalJsonInput(value, field.title)
-    else if (field.type === 'number')
+    if (field.type === 'json') {
+      const csvIdList =
+        field.idList === true &&
+        typeof value === 'string' &&
+        value.trim() !== '' &&
+        !/^\s*[[{"]/.test(value)
+      if (csvIdList) result[field.param] = value
+      else result[field.param] = parseOptionalJsonInput(value, field.title)
+    } else if (field.type === 'number')
       result[field.param] = parseOptionalNumberInput(value, field.title, {
         integer: true,
         min: field.min,

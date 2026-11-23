@@ -3,7 +3,10 @@ import type {
   DataverseExecuteActionParams,
   DataverseExecuteActionResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseExecuteAction')
@@ -18,7 +21,7 @@ export const dataverseExecuteActionTool: ToolConfig<
     'Execute a bound or unbound Dataverse action. Actions perform operations with side effects (e.g., Merge, GrantAccess, SendEmail, QualifyLead). For bound actions, provide the entity set name and record ID.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -66,7 +69,7 @@ export const dataverseExecuteActionTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       const actionName = params.actionName.trim()
       if (params.entitySetName) {
         const entitySetName = params.entitySetName.trim()

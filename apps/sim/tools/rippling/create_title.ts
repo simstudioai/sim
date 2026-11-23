@@ -1,4 +1,5 @@
 import type { RipplingCreateTitleParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateTitleTool: ToolConfig<RipplingCreateTitleParams> = {
@@ -6,6 +7,7 @@ export const ripplingCreateTitleTool: ToolConfig<RipplingCreateTitleParams> = {
   name: 'Rippling Create Title',
   description: 'Create a new title',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

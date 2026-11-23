@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWebhooksTool: ToolConfig<JotformListWebhooksParams, JotformWebhooksResponse> = {
@@ -14,6 +15,7 @@ export const listWebhooksTool: ToolConfig<JotformListWebhooksParams, JotformWebh
   description:
     'List the webhooks registered on a form. The returned IDs are what the Delete Webhook operation takes.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

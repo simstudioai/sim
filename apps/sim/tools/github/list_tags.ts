@@ -1,4 +1,6 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { ListTagsParams, TagsListResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
@@ -7,6 +9,7 @@ export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
   description:
     'List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -45,7 +48,9 @@ export const listTagsTool: ToolConfig<ListTagsParams, TagsListResponse> = {
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/tags`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/tags`
+      )
       if (params.per_page) {
         url.searchParams.append('per_page', Number(params.per_page).toString())
       }
@@ -131,6 +136,7 @@ export const listTagsV2Tool: ToolConfig<ListTagsParams, any> = {
   name: listTagsTool.name,
   description: listTagsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listTagsTool.params,
   request: listTagsTool.request,
 

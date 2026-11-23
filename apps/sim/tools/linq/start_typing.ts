@@ -1,12 +1,15 @@
 import type { LinqChatActionParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqStartTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessResult> = {
   id: 'linq_start_typing',
   name: 'Start Typing Indicator',
   description: 'Show a typing indicator in a one-on-one chat (iMessage only, not group chats)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -24,7 +27,7 @@ export const linqStartTypingTool: ToolConfig<LinqChatActionParams, LinqSuccessRe
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/chats/${encodeURIComponent(params.chatId.trim())}/typing`,
+    url: (params) => `${LINQ_API_BASE}/chats/${safeUrlPathSegment(params.chatId, 'chatId')}/typing`,
     method: 'POST',
     headers: (params) => linqHeaders(params.apiKey),
   },

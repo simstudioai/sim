@@ -1,5 +1,6 @@
 import type { GongListWorkspacesParams, GongListWorkspacesResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWorkspacesTool: ToolConfig<GongListWorkspacesParams, GongListWorkspacesResponse> =
@@ -8,6 +9,7 @@ export const listWorkspacesTool: ToolConfig<GongListWorkspacesParams, GongListWo
     name: 'Gong List Workspaces',
     description: 'List all company workspaces in Gong.',
     version: '1.0.0',
+    oauth: GONG_CREDENTIAL_OAUTH,
 
     params: {
       accessKey: {
@@ -29,7 +31,7 @@ export const listWorkspacesTool: ToolConfig<GongListWorkspacesParams, GongListWo
       method: 'GET',
       headers: (params) => ({
         'Content-Type': 'application/json',
-        Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+        Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
       }),
     },
 

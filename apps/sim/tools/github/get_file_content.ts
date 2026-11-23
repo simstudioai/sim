@@ -1,6 +1,9 @@
 import { truncate } from '@sim/utils/string'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
+import { encodeContentPath } from '@/tools/github/content-path'
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentResponse> = {
@@ -9,6 +12,7 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
   description:
     'Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -45,8 +49,8 @@ export const getFileContentTool: ToolConfig<GetFileContentParams, FileContentRes
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`
-      return params.ref ? `${baseUrl}?ref=${params.ref}` : baseUrl
+      const baseUrl = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/contents/${encodeContentPath(params.path)}`
+      return params.ref ? `${baseUrl}?ref=${encodeURIComponent(params.ref)}` : baseUrl
     },
     method: 'GET',
     headers: (params) => ({
@@ -170,6 +174,7 @@ export const getFileContentV2Tool: ToolConfig<GetFileContentParams, any> = {
   name: getFileContentTool.name,
   description: getFileContentTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getFileContentTool.params,
   request: getFileContentTool.request,
 

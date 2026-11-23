@@ -1,3 +1,4 @@
+import { SIMILARWEB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SimilarwebTrafficVisitsParams,
   SimilarwebTrafficVisitsResponse,
@@ -12,6 +13,7 @@ export const similarwebTrafficVisitsTool: ToolConfig<
   name: 'SimilarWeb Traffic Visits',
   description: 'Get total website visits over time (desktop and mobile combined)',
   version: '1.0.0',
+  oauth: SIMILARWEB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

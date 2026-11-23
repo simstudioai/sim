@@ -1,11 +1,14 @@
 import type { UpdateMessageParams, UpdateMessageResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentmailUpdateMessageTool: ToolConfig<UpdateMessageParams, UpdateMessageResult> = {
   id: 'agentmail_update_message',
   name: 'Update Message',
   description: 'Add or remove labels on an email message in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -42,7 +45,7 @@ export const agentmailUpdateMessageTool: ToolConfig<UpdateMessageParams, UpdateM
 
   request: {
     url: (params) =>
-      `https://api.agentmail.to/v0/inboxes/${params.inboxId.trim()}/messages/${params.messageId.trim()}`,
+      `https://api.agentmail.to/v0/inboxes/${safeUrlPathSegment(params.inboxId, 'inboxId')}/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -31,7 +31,7 @@ describe('PostHog ingest proxy', () => {
     const response = await POST(createIngestRequest(controller.signal))
 
     expect(response.status).toBe(499)
-    expect(logger.error).not.toHaveBeenCalled()
+    expect(logger.warn).not.toHaveBeenCalled()
   })
 
   it('reports an upstream failure while the client is still connected', async () => {
@@ -40,7 +40,7 @@ describe('PostHog ingest proxy', () => {
     const response = await POST(createIngestRequest())
 
     expect(response.status).toBe(502)
-    expect(logger.error).toHaveBeenCalledWith(
+    expect(logger.warn).toHaveBeenCalledWith(
       'PostHog proxy error',
       expect.objectContaining({ error: 'The operation timed out.' })
     )

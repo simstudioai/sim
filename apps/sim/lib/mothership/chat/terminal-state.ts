@@ -12,9 +12,9 @@ import {
   mergeAndRedactPersistedBlocks,
   redactSensitiveContent,
 } from '@/lib/mothership/chat/sim-key-redaction'
-import { CopilotChatFinalizeOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotChatFinalizeOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { readEvents } from '@/lib/mothership/request/session/buffer'
 import { isTerminalStreamStatus } from '@/lib/mothership/request/session/contract'

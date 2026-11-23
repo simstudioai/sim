@@ -293,6 +293,25 @@ describe('ConditionBlockHandler', () => {
     expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
   })
 
+  it('routes by row id and title alone, whatever branch key a row persists', async () => {
+    mockExecuteTool.mockResolvedValueOnce(noMatch())
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'context.value < 0', key: 'else' },
+      { id: 'else1', title: 'else', value: '', key: 'isNegative' },
+    ]
+    const result = (await handler.execute(mockContext, mockBlock, {
+      conditions: JSON.stringify(conditions),
+    })) as Record<string, unknown>
+
+    expect(result).toMatchObject({
+      conditionResult: false,
+      selectedOption: 'else1',
+      selectedTitle: 'else',
+    })
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
+  })
+
   describe("conditionResult is the chosen branch's own verdict", () => {
     it('reports false when the else branch fires, so a downstream <gate.conditionResult> is not inverted', async () => {
       mockExecuteTool.mockResolvedValueOnce(noMatch())
@@ -681,6 +700,24 @@ describe('ConditionBlockHandler', () => {
     })
   })
 
+  it('reads the incoming block that ran, not the first edge drawn into the condition', async () => {
+    mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+    mockWorkflow.connections = [
+      { source: 'skipped-branch', target: mockBlock.id },
+      ...(mockWorkflow.connections ?? []),
+    ]
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'context.value > 5' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      conditions: JSON.stringify(conditions),
+    })
+
+    expect(result).toMatchObject({ value: 10, text: 'hello', selectedOption: 'cond1' })
+  })
+
   describe('Source output filtering', () => {
     it('should not propagate error field from source block output', async () => {
       mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
@@ -774,6 +811,7 @@ describe('ConditionBlockHandler', () => {
         workspaceId: 'test-workspace-id',
         workflow: parallelWorkflow,
         blockStates: parallelBlockStates,
+        executedBlocks: new Set(parallelBlockStates.keys()),
         blockLogs: [],
         completedBlocks: new Set(),
         decisions: {

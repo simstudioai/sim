@@ -89,7 +89,7 @@ curl -fsS http://localhost:3000/api/health
 | `simstudio` | 3000 | App; 8G memory limit. |
 | `realtime` | 3002 | WebSocket service; 1G memory limit. |
 | `db` | Not published | PostgreSQL 17 with pgvector. |
-| `redis` | Not published | Shared coordination, pub/sub, and caches. |
+| `redis` | Not published | Required. Rate limits, shared coordination, pub/sub, and caches. |
 | `cron` | None | Calls background job endpoints. |
 | `migrations` | None | Applies migrations once, then exits. |
 
@@ -145,29 +145,63 @@ docker compose -f docker-compose.prod.yml up -d
   Container `localhost` is the container itself. The default `http://localhost:11434` does not reach an Ollama server on the host.
 </Callout>
 
-### Development Ollama stack
+### Bundled Ollama
 
-`docker-compose.ollama.yml` builds the app, realtime, and migrations from source. It does not bundle Redis or cron. Without Redis, pub/sub is process-local and CLI pairing approval has no fallback; idempotency and execution-progress storage can fall back to PostgreSQL. Without a scheduler, background jobs do not run.
+`docker-compose.ollama.yml` is an overlay on `docker-compose.prod.yml`: it adds an Ollama server to the production stack and points the app at it, so the stack keeps the published images, the required secrets, Redis, and cron. Ollama is reachable only inside the Compose network, as `ollama:11434`.
 
-Use a server profile together with `setup`; `setup` alone starts no Ollama server and the model setup waits:
+Add the address to `.env` first. The overlay refuses to start without it, and keeping it in `.env` means a later run of `docker-compose.prod.yml` alone still reaches Ollama:
 
 ```bash
-# NVIDIA GPU
-docker compose -f docker-compose.ollama.yml --profile gpu --profile setup up -d
-
-# CPU only
-docker compose -f docker-compose.ollama.yml --profile cpu --profile setup up -d
+OLLAMA_URL=http://ollama:11434
 ```
 
-Setup pulls `gemma3:4b`. To pull another model:
+Start the stack with exactly one server profile:
+
+```bash
+# NVIDIA GPU (requires the NVIDIA Container Toolkit)
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile gpu up -d
+
+# CPU only
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu up -d
+```
+
+Pull the starter model, `gemma3:4b`, once the server is running:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile setup run --rm model-setup
+```
+
+To pull another model, exec into the server for your profile:
 
 ```bash
 # GPU profile
-docker compose -f docker-compose.ollama.yml exec ollama ollama pull llama3.2
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile gpu exec ollama ollama pull llama3.2
 
 # CPU profile
-docker compose -f docker-compose.ollama.yml exec ollama-cpu ollama pull llama3.2
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu exec ollama-cpu ollama pull llama3.2
 ```
+
+#### Migrating from the previous Ollama stack
+
+The previous `docker-compose.ollama.yml` was a standalone stack with the fixed project name `sim-with-ollama`, so its database and models live in the `sim-with-ollama_postgres_data` and `sim-with-ollama_ollama_data` volumes. The overlay takes its project name from `docker-compose.prod.yml`, and started as-is it creates empty volumes instead. To keep your data:
+
+1. From the repository directory, stop the old stack without `-v`, so its volumes are kept. The old file is gone, so name the project instead:
+
+   ```bash
+   docker compose -p sim-with-ollama down
+   ```
+
+2. Add the old project name and database password to `.env`, so the overlay and the `sim-setup` CLI both resolve the same project and volumes. The old stack's password defaulted to `postgres` unless you set one:
+
+   ```bash
+   COMPOSE_PROJECT_NAME=sim-with-ollama
+   POSTGRES_PASSWORD=postgres
+   OLLAMA_URL=http://ollama:11434
+   ```
+
+3. Start the stack with the overlay and your profile, as above.
+
+Ollama is no longer published on host port `11434`. Reach it with `docker compose exec`, as in the model pull commands above.
 
 ## LM Studio
 
@@ -184,13 +218,14 @@ Recreate the app using the file that started your installation:
 
 ```bash
 COMPOSE_FILE=docker-compose.prod.yml
-# For a source-built stack, use docker-compose.local.yml or docker-compose.ollama.yml.
+# For a source-built stack, use docker-compose.local.yml. A stack running the
+# Ollama overlay is a docker-compose.prod.yml install.
 docker compose -f "$COMPOSE_FILE" up -d --force-recreate simstudio
 ```
 
 ## The `sim-setup` CLI
 
-Invoke commands as `bunx sim-setup <command>` unless the package is installed globally. Run `doctor`, `config`, and the wizard from the configuration directory. Lifecycle commands discover running production/local Compose stacks, source checkouts, and Helm releases; Ollama-stack installs are not managed.
+Invoke commands as `bunx sim-setup <command>` unless the package is installed globally. Run `doctor`, `config`, and the wizard from the configuration directory. Lifecycle commands discover running production/local Compose stacks, source checkouts, and Helm releases. A stack started with the Ollama overlay is managed as a production install, through `docker-compose.prod.yml` alone: the CLI acts on the Sim services and leaves the Ollama container untouched.
 
 | Command | Behavior |
 | --- | --- |
@@ -203,14 +238,14 @@ Invoke commands as `bunx sim-setup <command>` unless the package is installed gl
 | `reset` | Confirms before archiving env files and removing managed Compose/dev data. On Helm it uninstalls the release; PostgreSQL StatefulSet PVCs remain and must be deleted separately to erase data. |
 | `config` | Reports configured capabilities and integrations. |
 | `doctor` | Checks env files and reachable services. `--fix` writes supported repairs; `--json` emits structured findings. |
-| `add <feature>` | Configures `email`, `storage`, `sandbox`, `jobs`, `cache`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>`. Requires one writable configuration; refuses ambiguous destinations and Helm releases. |
+| `add <feature>` | Configures `email`, `storage`, `sandbox`, `jobs`, `knowledge`, `knowledge-embeddings`, `chat`, `llm`, or `integration <slug>`. Requires one writable configuration; refuses ambiguous destinations and Helm releases. |
 | `desktop` | Prints this deployment's installer/server links. `--url <url>` skips discovery; `--no-open` skips the browser-opening prompt. |
 
 `--dir <path>` works with every command and scopes standalone lifecycle commands to that installation.
 
 For Compose, `reset` archives `.env` beside the Compose file. For dev, Kubernetes, or no detected install, it archives `apps/sim/.env`, `apps/realtime/.env`, `packages/db/.env`, and root `.env`. Preserve any backups before intentionally removing volumes.
 
-`add` writes beside the Compose file or to `apps/sim/.env` on a source checkout. Recreate containers that read the change: `cache` changes `REDIS_URL` for both app and realtime. For a source checkout, mirror shared values into `apps/realtime/.env`. `restart` alone does not apply changed container environment. Desktop discovery refuses configurations naming different origins; pass `--url` to choose.
+`add` writes beside the Compose file or to `apps/sim/.env` on a source checkout. Recreate containers that read the change. To point both app and realtime at a different Redis, set `REDIS_URL` in `.env` and recreate both containers. For a source checkout, mirror shared values into `apps/realtime/.env`. `restart` alone does not apply changed container environment. Desktop discovery refuses configurations naming different origins; pass `--url` to choose.
 
 ## Back up and update [#commands]
 

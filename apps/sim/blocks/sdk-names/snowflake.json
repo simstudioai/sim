@@ -1,0 +1,42 @@
+{
+  "namespace": "snowflake",
+  "methods": {
+    "alter_warehouse": "alterWarehouse",
+    "call_procedure": "callProcedure",
+    "cancel_statement": "cancelStatement",
+    "cancel_task_run": "cancelTaskQuery",
+    "cortex_analyst_ask": "askCortexAnalyst",
+    "cortex_analyst_feedback": "sendCortexAnalystFeedback",
+    "delete_rows": "deleteRows",
+    "execute_sql": "executeSql",
+    "get_statement": "getStatement",
+    "get_task": "getTask",
+    "get_task_run": "getTaskRun",
+    "get_task_run_output": "getTaskRunOutput",
+    "get_warehouse": "getWarehouse",
+    "insert_rows": "insertRows",
+    "introspect_schema": "introspectSchema",
+    "list_copy_history": "listCopyHistory",
+    "list_databases": "listDatabases",
+    "list_query_history": "listQueryHistory",
+    "list_schemas": "listSchemas",
+    "list_tables": "listTables",
+    "list_task_runs": "listTaskRuns",
+    "list_tasks": "listTasks",
+    "list_warehouses": "listWarehouses",
+    "load_data": "loadData",
+    "resume_task": "resumeTask",
+    "resume_warehouse": "resumeWarehouse",
+    "run_task": "runTask",
+    "suspend_task": "suspendTask",
+    "suspend_warehouse": "suspendWarehouse",
+    "unload_data": "unloadData",
+    "update_rows": "updateRows",
+    "upsert_rows": "upsertRows"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

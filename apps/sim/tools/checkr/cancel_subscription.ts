@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapSubscription,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCancelSubscriptionTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrCancelSubscriptionTool: ToolConfig<
   name: 'Checkr Cancel Subscription',
   description: 'Cancel a subscription so no further recurring checks run.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

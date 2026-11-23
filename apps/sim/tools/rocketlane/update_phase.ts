@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneUpdatePhaseTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneUpdatePhaseTool: ToolConfig<
   name: 'Rocketlane Update Phase',
   description: 'Update the name, dates, status, or privacy of an existing Rocketlane phase',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

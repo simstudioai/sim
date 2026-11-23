@@ -1,9 +1,12 @@
 import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const LangsmithBlock: BlockConfig = {
   type: 'langsmith',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'langsmith_v2' },
   name: 'LangSmith',
   description: 'Forward workflow runs to LangSmith for observability',
   longDescription:
@@ -312,7 +315,8 @@ Common patch fields: outputs, end_time, status, error`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const parseJsonValue = (value: unknown, label: string) => {
           if (value === undefined || value === null || value === '') {
             return undefined
@@ -329,7 +333,7 @@ Common patch fields: outputs, end_time, status, error`,
 
         const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value)
 
-        if (params.operation === 'langsmith_create_runs_batch') {
+        if (operation === 'langsmith_create_runs_batch') {
           const post = parseJsonValue(params.post, 'post runs')
           const patch = parseJsonValue(params.patch, 'patch runs')
 
@@ -344,7 +348,7 @@ Common patch fields: outputs, end_time, status, error`,
           }
         }
 
-        if (params.operation === 'langsmith_update_run') {
+        if (operation === 'langsmith_update_run') {
           const name = emptyToUndefined(params.name)
           const end_time = emptyToUndefined(params.end_time)
           const outputs = parseJsonValue(params.outputs, 'outputs')
@@ -376,14 +380,14 @@ Common patch fields: outputs, end_time, status, error`,
           }
         }
 
-        if (params.operation === 'langsmith_get_run') {
+        if (operation === 'langsmith_get_run') {
           return {
             apiKey: params.apiKey,
             runId: params.runId,
           }
         }
 
-        if (params.operation === 'langsmith_create_feedback') {
+        if (operation === 'langsmith_create_feedback') {
           const parseScore = (value: unknown) => {
             if (value === undefined || value === null || value === '') {
               return undefined
@@ -415,7 +419,10 @@ Common patch fields: outputs, end_time, status, error`,
           start_time: params.start_time,
           end_time: params.end_time,
           inputs: parseJsonValue(params.inputs, 'inputs'),
-          run_outputs: parseJsonValue(params.outputs, 'outputs'),
+          run_outputs: parseJsonValue(
+            params.outputs || toolCallArg(context, params.run_outputs),
+            'outputs'
+          ),
           extra: parseJsonValue(params.extra, 'metadata'),
           tags: parseJsonValue(params.tags, 'tags'),
           parent_run_id: params.parent_run_id,
@@ -600,3 +607,17 @@ export const LangsmithBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LangsmithV2Block: BlockConfig = {
+  ...LangsmithBlock,
+  type: 'langsmith_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(LangsmithBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'langsmith',
+    title: 'LangSmith Credential',
+  }),
+}

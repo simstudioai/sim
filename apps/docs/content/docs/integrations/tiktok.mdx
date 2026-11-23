@@ -6,11 +6,12 @@ integration:
   color: "#000000"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [TikTok](https://www.tiktok.com/) to read the authenticated creator's profile and videos, send a video to their inbox as a draft, and track publishing status. The creator reviews and publishes drafts in TikTok; this integration does not publish them unattended. Webhooks can notify workflows about post and authorization changes.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 
@@ -39,6 +40,8 @@ Get user profile information including follower counts and video statistics. Lis
 
 Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -62,9 +65,13 @@ Get the authenticated TikTok user profile information including display name, av
 | `videoCount` | number | Total number of public videos |
 | `avatarFile` | file | Downloadable copy of the profile avatar image \(largest available variant\), stored as a workflow file so it can be chained into file-consuming blocks \(e.g. attached to an email\). |
 
+</ReferenceDetails>
+
 ### TikTok List Videos
 
 Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -96,9 +103,13 @@ Get a list of the authenticated user's TikTok videos with cover images, titles, 
 | `cursor` | number | Cursor for fetching the next page of results |
 | `hasMore` | boolean | Whether there are more videos to fetch |
 
+</ReferenceDetails>
+
 ### TikTok Query Videos
 
 Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -127,9 +138,13 @@ Query specific TikTok videos by their IDs to get fresh metadata including cover 
 |   ↳ `commentCount` | number | Number of comments |
 |   ↳ `shareCount` | number | Number of shares |
 
+</ReferenceDetails>
+
 ### TikTok Upload Video Draft
 
 Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -143,9 +158,13 @@ Send an uploaded video to the authenticated user's TikTok inbox for manual editi
 | --------- | ---- | ----------- |
 | `publishId` | string | Unique identifier for tracking the draft status. Use this with the Get Post Status tool to check when the user has completed posting from their inbox. |
 
+</ReferenceDetails>
+
 ### TikTok Get Post Status
 
 Check the status of a video draft upload. Use the publishId returned from Upload Video Draft to track progress.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -163,6 +182,8 @@ Check the status of a video draft upload. Use the publishId returned from Upload
 | `uploadedBytes` | number | Number of bytes uploaded to TikTok for FILE_UPLOAD posts |
 | `downloadedBytes` | number | Number of bytes TikTok reports as downloaded |
 
+</ReferenceDetails>
+
 
 
 ## Triggers
@@ -172,6 +193,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 ### TikTok Authorization Removed
 
 Trigger when a user deauthorizes your TikTok app
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -189,13 +212,14 @@ Trigger when a user deauthorizes your TikTok app
 | `clientKey` | string | TikTok app client_key that received the event |
 | `reason` | number | Revocation reason \(0 unknown, 1 user disconnect, 2 account deleted, 3 age change, 4 banned, 5 developer revoke\) |
 
-
----
+</ReferenceDetails>
 
 ### TikTok Post Inbox Delivered
 
 Trigger when a draft notification is delivered to the creator inbox
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -213,13 +237,14 @@ Trigger when a draft notification is delivered to the creator inbox
 | `publishId` | string | Content Posting API publish_id |
 | `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
 
-
----
+</ReferenceDetails>
 
 ### TikTok Post No Longer Public
 
 Trigger when a post is no longer publicly viewable on TikTok
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -238,13 +263,14 @@ Trigger when a post is no longer publicly viewable on TikTok
 | `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
 | `postId` | string | TikTok post_id when the post is publicly available |
 
-
----
+</ReferenceDetails>
 
 ### TikTok Post Publicly Available
 
 Trigger when a published post becomes publicly viewable on TikTok
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -263,12 +289,13 @@ Trigger when a published post becomes publicly viewable on TikTok
 | `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
 | `postId` | string | TikTok post_id when the post is publicly available |
 
-
----
+</ReferenceDetails>
 
 ### TikTok Post Publish Complete
 
 Trigger when a TikTok Content Posting publish completes
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -287,12 +314,13 @@ Trigger when a TikTok Content Posting publish completes
 | `publishId` | string | Content Posting API publish_id |
 | `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
 
-
----
+</ReferenceDetails>
 
 ### TikTok Post Publish Failed
 
 Trigger when a TikTok Content Posting publish fails
+
+<ReferenceDetails label="Configuration and outputs">
 
 #### Configuration
 
@@ -311,4 +339,6 @@ Trigger when a TikTok Content Posting publish fails
 | `publishId` | string | Content Posting API publish_id |
 | `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
 | `failReason` | string | Failure reason enum from TikTok when publishing fails |
+
+</ReferenceDetails>
 

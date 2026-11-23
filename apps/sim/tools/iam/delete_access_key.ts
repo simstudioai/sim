@@ -1,4 +1,5 @@
 import type { IAMDeleteAccessKeyParams, IAMDeleteAccessKeyResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteAccessKeyTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const deleteAccessKeyTool: InternalToolConfig<
   name: 'IAM Delete Access Key',
   description: 'Delete an access key pair for an IAM user',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

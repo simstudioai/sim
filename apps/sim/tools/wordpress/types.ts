@@ -22,6 +22,8 @@ export interface WordPressCreatePostParams extends WordPressBaseParams {
   title: string
   content?: string
   status?: PostStatus
+  /** Publish date in the site timezone (ISO 8601) */
+  date?: string
   excerpt?: string
   /** Comma-separated category IDs */
   categories?: string
@@ -65,6 +67,8 @@ export interface WordPressUpdatePostParams extends WordPressBaseParams {
   title?: string
   content?: string
   status?: PostStatus
+  /** Publish date in the site timezone (ISO 8601) */
+  date?: string
   excerpt?: string
   categories?: string
   tags?: string
@@ -125,6 +129,8 @@ export interface WordPressCreatePageParams extends WordPressBaseParams {
   title: string
   content?: string
   status?: PostStatus
+  /** Publish date in the site timezone (ISO 8601) */
+  date?: string
   excerpt?: string
   parent?: number
   menuOrder?: number
@@ -166,6 +172,8 @@ export interface WordPressUpdatePageParams extends WordPressBaseParams {
   title?: string
   content?: string
   status?: PostStatus
+  /** Publish date in the site timezone (ISO 8601) */
+  date?: string
   excerpt?: string
   parent?: number
   menuOrder?: number
@@ -332,10 +340,13 @@ export interface WordPressListCommentsParams extends WordPressBaseParams {
   perPage?: number
   page?: number
   postId?: number
-  status?: CommentStatus
+  /** List filter; WordPress matches approved comments only as `approve` */
+  status?: string
   search?: string
-  orderBy?: 'date' | 'id' | 'parent'
+  orderBy?: string
   order?: 'asc' | 'desc'
+  /** `edit` returns edit-only fields and requires the `moderate_comments` capability */
+  context?: 'view' | 'edit'
 }
 
 export interface WordPressListCommentsResponse extends ToolResponse {
@@ -544,6 +555,8 @@ export interface WordPressListUsersParams extends WordPressBaseParams {
   search?: string
   roles?: string
   order?: 'asc' | 'desc'
+  /** `edit` returns edit-only fields and requires the `list_users` capability */
+  context?: 'view' | 'edit'
 }
 
 export interface WordPressListUsersResponse extends ToolResponse {
@@ -573,7 +586,8 @@ export interface WordPressSearchContentParams extends WordPressBaseParams {
 }
 
 interface WordPressSearchResult {
-  id: number
+  /** Numeric for post and term results; post-format results are identified by their slug. */
+  id: number | string
   title: string
   url: string
   type: string

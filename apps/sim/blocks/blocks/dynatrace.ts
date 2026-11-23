@@ -1,6 +1,7 @@
 import { DynatraceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Operations that accept the shared `from` timeframe parameter. */
 const FROM_OPERATIONS = [
@@ -111,6 +112,8 @@ const SETTINGS_OBJECT_ID_OPERATIONS = [
 
 export const DynatraceBlock: BlockConfig = {
   type: 'dynatrace',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dynatrace_v2' },
   name: 'Dynatrace',
   description: 'Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security',
   longDescription:
@@ -1557,7 +1560,8 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const baseParams: Record<string, unknown> = {
           environmentUrl: params.environmentUrl,
           apiToken: params.apiToken,
@@ -1578,6 +1582,22 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
           return undefined
         }
 
+        /**
+         * A dedicated block field, else on a tool call the model's arg under the
+         * tool's own param name. Blank strings fall through to `undefined`.
+         */
+        const pick = (dedicated: unknown, toolParam: string) =>
+          dedicated || toolCallArg(context, params[toolParam]) || undefined
+
+        /**
+         * A required tool param fed by a differently named block field: the field's
+         * value, else on a tool call the model's arg when the field is blank.
+         */
+        const orModelArg = (dedicated: unknown, toolParam: string) =>
+          dedicated === undefined || dedicated === null || dedicated === ''
+            ? (toolCallArg(context, params[toolParam]) ?? dedicated)
+            : dedicated
+
         const pagination = {
           pageSize: toNumber(params.pageSize),
           nextPageKey: params.nextPageKey || undefined,
@@ -1585,21 +1605,21 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
 
         // Create and update SLO take the identical definition.
         const sloWriteParams = {
-          name: params.sloName,
-          target: toNumber(params.sloTarget),
-          warning: toNumber(params.sloWarning),
-          timeframe: params.sloTimeframe,
-          evaluationType: params.sloEvaluationType || 'AGGREGATE',
-          description: params.sloDescription || undefined,
-          enabled: params.sloEnabled,
-          filter: params.sloFilter || undefined,
-          metricExpression: params.sloMetricExpression || undefined,
-          metricName: params.sloMetricName || undefined,
+          name: orModelArg(params.sloName, 'name'),
+          target: toNumber(orModelArg(params.sloTarget, 'target')),
+          warning: toNumber(orModelArg(params.sloWarning, 'warning')),
+          timeframe: orModelArg(params.sloTimeframe, 'timeframe'),
+          evaluationType: pick(params.sloEvaluationType, 'evaluationType') || 'AGGREGATE',
+          description: pick(params.sloDescription, 'description'),
+          enabled: orModelArg(params.sloEnabled, 'enabled'),
+          filter: pick(params.sloFilter, 'filter'),
+          metricExpression: pick(params.sloMetricExpression, 'metricExpression'),
+          metricName: pick(params.sloMetricName, 'metricName'),
           burnRateVisualizationEnabled: params.burnRateVisualizationEnabled,
           fastBurnThreshold: toNumber(params.fastBurnThreshold),
         }
 
-        switch (params.operation) {
+        switch (operation) {
           case 'dynatrace_list_problems':
             return {
               ...baseParams,
@@ -1608,15 +1628,15 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               to: params.to || undefined,
               problemSelector: params.problemSelector || undefined,
               entitySelector: params.entitySelector || undefined,
-              sort: params.problemSort || undefined,
-              fields: params.problemFields || undefined,
+              sort: pick(params.problemSort, 'sort'),
+              fields: pick(params.problemFields, 'fields'),
             }
 
           case 'dynatrace_get_problem':
             return {
               ...baseParams,
               problemId: params.problemId,
-              fields: params.problemFields || undefined,
+              fields: pick(params.problemFields, 'fields'),
             }
 
           case 'dynatrace_close_problem':
@@ -1630,7 +1650,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               ...baseParams,
               problemId: params.problemId,
               message: params.message,
-              context: params.commentContext || undefined,
+              context: pick(params.commentContext, 'context'),
             }
 
           case 'dynatrace_query_metrics':
@@ -1650,7 +1670,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               ...pagination,
               metricSelector: params.metricSelector || undefined,
               text: params.text || undefined,
-              fields: params.metricFields || undefined,
+              fields: pick(params.metricFields, 'fields'),
               writtenSince: params.writtenSince || undefined,
               writtenSinceMode: params.writtenSinceMode || undefined,
               metadataSelector: params.metadataSelector || undefined,
@@ -1660,7 +1680,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             return { ...baseParams, metricKey: params.metricKey }
 
           case 'dynatrace_ingest_metrics':
-            return { ...baseParams, payload: params.metricPayload }
+            return { ...baseParams, payload: orModelArg(params.metricPayload, 'payload') }
 
           case 'dynatrace_list_entities':
             return {
@@ -1669,8 +1689,8 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               entitySelector: params.entitySelector,
               from: params.from || undefined,
               to: params.to || undefined,
-              fields: params.entityFields || undefined,
-              sort: params.entitySort || undefined,
+              fields: pick(params.entityFields, 'fields'),
+              sort: pick(params.entitySort, 'sort'),
             }
 
           case 'dynatrace_get_entity':
@@ -1679,7 +1699,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               entityId: params.entityId,
               from: params.from || undefined,
               to: params.to || undefined,
-              fields: params.entityFields || undefined,
+              fields: pick(params.entityFields, 'fields'),
             }
 
           case 'dynatrace_list_entity_types':
@@ -1707,16 +1727,16 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               startTime: toNumber(params.startTime),
               endTime: toNumber(params.endTime),
               eventTimeout: toNumber(params.eventTimeout),
-              properties: params.eventProperties || undefined,
+              properties: pick(params.eventProperties, 'properties'),
             }
 
           case 'dynatrace_search_logs':
             return {
               ...baseParams,
-              query: params.logQuery || undefined,
+              query: pick(params.logQuery, 'query'),
               from: params.from || undefined,
               to: params.to || undefined,
-              sort: params.logSort || undefined,
+              sort: pick(params.logSort, 'sort'),
               limit: toNumber(params.limit),
               nextSliceKey: params.nextSliceKey || undefined,
             }
@@ -1732,7 +1752,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               from: params.from || undefined,
               to: params.to || undefined,
               timeFrame: params.timeFrame || undefined,
-              sort: params.sloSort || undefined,
+              sort: pick(params.sloSort, 'sort'),
               enabledSlos: params.enabledSlos || undefined,
               evaluate: params.evaluate,
               showGlobalSlos: params.showGlobalSlos,
@@ -1754,15 +1774,15 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               securityProblemSelector: params.securityProblemSelector || undefined,
               from: params.from || undefined,
               to: params.to || undefined,
-              fields: params.securityFields || undefined,
-              sort: params.securitySort || undefined,
+              fields: pick(params.securityFields, 'fields'),
+              sort: pick(params.securitySort, 'sort'),
             }
 
           case 'dynatrace_get_security_problem':
             return {
               ...baseParams,
               securityProblemId: params.securityProblemId,
-              fields: params.securityFields || undefined,
+              fields: pick(params.securityFields, 'fields'),
               managementZoneFilter: params.managementZoneFilter || undefined,
               from: params.from || undefined,
             }
@@ -1771,18 +1791,18 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             return {
               ...baseParams,
               ...pagination,
-              filter: params.auditFilter || undefined,
+              filter: pick(params.auditFilter, 'filter'),
               from: params.from || undefined,
               to: params.to || undefined,
-              sort: params.auditSort || undefined,
+              sort: pick(params.auditSort, 'sort'),
             }
 
           case 'dynatrace_mute_security_problem':
             return {
               ...baseParams,
               securityProblemId: params.securityProblemId,
-              reason: params.muteReason,
-              comment: params.muteComment || undefined,
+              reason: orModelArg(params.muteReason, 'reason'),
+              comment: pick(params.muteComment, 'comment'),
             }
 
           case 'dynatrace_unmute_security_problem':
@@ -1790,15 +1810,15 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               ...baseParams,
               securityProblemId: params.securityProblemId,
               reason: UNMUTE_REASON,
-              comment: params.muteComment || undefined,
+              comment: pick(params.muteComment, 'comment'),
             }
 
           case 'dynatrace_mute_security_problems':
             return {
               ...baseParams,
               securityProblemIds: params.securityProblemIds,
-              reason: params.muteReason,
-              comment: params.muteComment || undefined,
+              reason: orModelArg(params.muteReason, 'reason'),
+              comment: pick(params.muteComment, 'comment'),
             }
 
           case 'dynatrace_unmute_security_problems':
@@ -1806,7 +1826,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               ...baseParams,
               securityProblemIds: params.securityProblemIds,
               reason: UNMUTE_REASON,
-              comment: params.muteComment || undefined,
+              comment: pick(params.muteComment, 'comment'),
             }
 
           case 'dynatrace_list_remediation_items':
@@ -1823,15 +1843,15 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               attackSelector: params.attackSelector || undefined,
               from: params.from || undefined,
               to: params.to || undefined,
-              fields: params.attackFields || undefined,
-              sort: params.attackSort || undefined,
+              fields: pick(params.attackFields, 'fields'),
+              sort: pick(params.attackSort, 'sort'),
             }
 
           case 'dynatrace_get_attack':
             return {
               ...baseParams,
               attackId: params.attackId,
-              fields: params.attackFields || undefined,
+              fields: pick(params.attackFields, 'fields'),
             }
 
           case 'dynatrace_list_tags':
@@ -1855,15 +1875,15 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             return {
               ...baseParams,
               entitySelector: params.entitySelector,
-              key: params.tagKey,
-              value: params.tagValue || undefined,
+              key: orModelArg(params.tagKey, 'key'),
+              value: pick(params.tagValue, 'value'),
               deleteAllWithKey: params.deleteAllWithKey,
               from: params.from || undefined,
               to: params.to || undefined,
             }
 
           case 'dynatrace_list_settings_schemas':
-            return { ...baseParams, fields: params.schemaFields || undefined }
+            return { ...baseParams, fields: pick(params.schemaFields, 'fields') }
 
           case 'dynatrace_list_settings_objects':
             return {
@@ -1872,9 +1892,9 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               schemaIds: params.schemaIds || undefined,
               scopes: params.scopes || undefined,
               externalIds: params.externalIds || undefined,
-              fields: params.settingsFields || undefined,
-              filter: params.settingsFilter || undefined,
-              sort: params.settingsSort || undefined,
+              fields: pick(params.settingsFields, 'fields'),
+              filter: pick(params.settingsFilter, 'filter'),
+              sort: pick(params.settingsSort, 'sort'),
             }
 
           case 'dynatrace_get_settings_object':
@@ -1885,9 +1905,9 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               ...baseParams,
               schemaId: params.schemaId,
               scope: params.scope,
-              value: params.settingsValue,
+              value: orModelArg(params.settingsValue, 'value'),
               schemaVersion: params.schemaVersion || undefined,
-              externalId: params.settingsExternalId || undefined,
+              externalId: pick(params.settingsExternalId, 'externalId'),
               validateOnly: params.validateOnly,
             }
 
@@ -1895,7 +1915,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             return {
               ...baseParams,
               objectId: params.objectId,
-              value: params.settingsValue,
+              value: orModelArg(params.settingsValue, 'value'),
               schemaVersion: params.schemaVersion || undefined,
               updateToken: params.updateToken || undefined,
               validateOnly: params.validateOnly,
@@ -1911,13 +1931,17 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
           case 'dynatrace_list_synthetic_monitors':
             return {
               ...baseParams,
-              type: params.monitorType || undefined,
+              type: pick(params.monitorType, 'type'),
               // "Any" must send no filter — enabled=false would return only the
               // disabled monitors, the opposite of what was asked for.
-              enabled: toOptionalBoolean(params.monitorEnabled),
-              location: params.monitorLocation || undefined,
-              tag: params.monitorTag || undefined,
-              managementZone: toNumber(params.monitorManagementZone),
+              enabled:
+                toOptionalBoolean(params.monitorEnabled) ??
+                toOptionalBoolean(toolCallArg(context, params.enabled)),
+              location: pick(params.monitorLocation, 'location'),
+              tag: pick(params.monitorTag, 'tag'),
+              managementZone:
+                toNumber(params.monitorManagementZone) ??
+                toNumber(toolCallArg(context, params.managementZone)),
             }
 
           case 'dynatrace_execute_synthetic_monitors':
@@ -1928,7 +1952,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               failOnPerformanceIssue: params.failOnPerformanceIssue,
               stopOnProblem: params.stopOnProblem,
               takeScreenshotsOnSuccess: params.takeScreenshotsOnSuccess,
-              metadata: params.batchMetadata || undefined,
+              metadata: pick(params.batchMetadata, 'metadata'),
             }
 
           case 'dynatrace_get_synthetic_batch':
@@ -1948,7 +1972,7 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               problemId: params.problemId,
               commentId: params.commentId,
               message: params.message,
-              context: params.commentContext || undefined,
+              context: pick(params.commentContext, 'context'),
             }
 
           case 'dynatrace_create_slo':
@@ -2310,3 +2334,40 @@ export const DynatraceBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DynatraceV2Block: BlockConfig = {
+  ...DynatraceBlock,
+  type: 'dynatrace_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  canvasPresentation: {
+    ...DynatraceBlock.canvasPresentation,
+    defaultTitle: 'Dynatrace',
+    sentences: {
+      byOperation: {
+        ...DynatraceBlock.canvasPresentation?.sentences?.byOperation,
+        dynatrace_list_problems: ['List problems', { text: 'matching', field: 'problemSelector' }],
+        dynatrace_list_metrics: ['List metrics', { text: 'matching', field: 'text' }],
+        dynatrace_list_entity_types: ['List entity types'],
+        dynatrace_list_events: ['List events', { text: 'matching', field: 'eventSelector' }],
+        dynatrace_search_logs: ['Search logs', { text: 'for', field: 'logQuery' }],
+        dynatrace_list_slos: ['List SLOs', { text: 'matching', field: 'sloSelector' }],
+        dynatrace_list_security_problems: [
+          'List security problems',
+          { text: 'matching', field: 'securityProblemSelector' },
+        ],
+        dynatrace_list_attacks: ['List attacks', { text: 'matching', field: 'attackSelector' }],
+        dynatrace_list_settings_schemas: ['List settings schemas'],
+        dynatrace_list_synthetic_monitors: ['List synthetic monitors'],
+        dynatrace_get_audit_logs: ['Get audit logs', { text: 'matching', field: 'auditFilter' }],
+      },
+    },
+  },
+  ...withSavedCredential(DynatraceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'dynatrace',
+    title: 'Dynatrace Credential',
+  }),
+}

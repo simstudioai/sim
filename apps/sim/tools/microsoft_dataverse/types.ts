@@ -74,6 +74,7 @@ export interface DataverseUpdateRecordParams {
   entitySetName: string
   recordId: string
   data: Record<string, unknown>
+  returnRecord?: boolean
 }
 
 export interface DataverseDeleteRecordParams {
@@ -93,6 +94,8 @@ export interface DataverseListRecordsParams {
   top?: number
   expand?: string
   count?: string
+  pageSize?: number
+  nextLink?: string
 }
 
 export interface DataverseCreateRecordResponse extends ToolResponse {
@@ -114,6 +117,7 @@ export interface DataverseGetRecordResponse extends ToolResponse {
 export interface DataverseUpdateRecordResponse extends ToolResponse {
   output: {
     recordId: string
+    record?: Record<string, unknown> | null
     success: boolean
   }
 }
@@ -131,6 +135,7 @@ export interface DataverseListRecordsResponse extends ToolResponse {
     count: number
     totalCount: number | null
     nextLink: string | null
+    pageSize: number | null
     success: boolean
   }
 }

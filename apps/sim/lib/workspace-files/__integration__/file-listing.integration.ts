@@ -679,6 +679,27 @@ describe('bounded workspace file reads in PostgreSQL', () => {
         )
       }
     })
+
+    /**
+     * The file browser's default: every live file, most recently modified first. With sorting
+     * ruled out, an ordered plan exists only through an index keyed on that order.
+     */
+    it('reads the whole workspace in modified order from its workspace index', async () => {
+      const nodes = await explainCaptured(
+        db,
+        () =>
+          queryWorkspaceFiles(sortWorkspaceId, {
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+            limit: 50,
+          }),
+        { match: /order by/, gucs: { enable_sort: 'off' } }
+      )
+      expect(nodes.map((node) => node['Node Type'])).not.toContain('Sort')
+      expect(nodes.map((node) => node['Index Name'])).toContain(
+        'workspace_files_workspace_active_updated_idx'
+      )
+    })
   })
 
   describe('SQL type labels and kinds', () => {

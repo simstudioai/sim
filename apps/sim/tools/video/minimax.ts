@@ -4,9 +4,8 @@ import { parseBooleanParamWithDefault } from '@/tools/video/utils'
 
 export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_minimax',
-  name: 'MiniMax Hailuo Video',
-  description:
-    'Generate videos using MiniMax Hailuo through MiniMax Platform API with advanced realism and prompt optimization',
+  name: 'MiniMax Video',
+  description: 'Generate videos using MiniMax H3 and Hailuo models',
   version: '1.0.0',
 
   params: {
@@ -26,7 +25,8 @@ export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'MiniMax model: hailuo-2.3 (default) or hailuo-02',
+      description:
+        'MiniMax model: MiniMax-H3, MiniMax-H3-Highspeed, MiniMax-H3-Lite, MiniMax-H3-Max, hailuo-2.3, hailuo-02, T2V-01, or T2V-01-Director',
     },
     prompt: {
       type: 'string',
@@ -34,23 +34,37 @@ export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = 
       visibility: 'user-or-llm',
       description: 'Text prompt describing the video to generate',
     },
+    aspectRatio: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Aspect ratio for H3 models, such as 16:9 or 9:16',
+    },
+    resolution: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Model-specific resolution, such as 768P, 2K, or 1080P',
+    },
     duration: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Video duration in seconds (6 or 10, default: 6)',
+      description: 'Video duration in seconds within the selected model limits',
     },
     endpoint: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Quality endpoint: standard (768P) or pro (1080P for 6s videos)',
+      description:
+        'Legacy Hailuo/T2V quality preference: standard or pro (1080P for supported 6s videos). Omit for H3; use resolution instead.',
     },
     promptOptimizer: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Enable prompt optimization for better results (default: true)',
+      description:
+        'Enable prompt optimization for legacy Hailuo/T2V models (default: true). Omit for H3 models.',
     },
   },
 
@@ -64,9 +78,14 @@ export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = 
       apiKey: params.apiKey,
       model: params.model || 'hailuo-2.3',
       prompt: params.prompt,
-      duration: params.duration || 6,
-      endpoint: params.endpoint || 'standard',
-      promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
+      duration: params.duration,
+      aspectRatio: params.aspectRatio,
+      resolution: params.resolution,
+      endpoint: params.endpoint,
+      promptOptimizer:
+        params.promptOptimizer === undefined
+          ? undefined
+          : parseBooleanParamWithDefault(params.promptOptimizer, true),
     }),
   },
 

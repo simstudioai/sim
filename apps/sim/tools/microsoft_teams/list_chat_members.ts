@@ -3,6 +3,7 @@ import type {
   MicrosoftTeamsToolParams,
 } from '@/tools/microsoft_teams/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listChatMembersTool: ToolConfig<
   MicrosoftTeamsToolParams,
@@ -48,7 +49,7 @@ export const listChatMembersTool: ToolConfig<
       if (!chatId) {
         throw new Error('Chat ID is required')
       }
-      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/members`
+      return `https://graph.microsoft.com/v1.0/chats/${safeUrlPathSegment(chatId, 'Chat ID')}/members`
     },
     method: 'GET',
     headers: (params) => {

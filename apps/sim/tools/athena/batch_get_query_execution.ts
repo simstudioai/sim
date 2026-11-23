@@ -2,6 +2,7 @@ import type {
   AthenaBatchGetQueryExecutionParams,
   AthenaBatchGetQueryExecutionResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const batchGetQueryExecutionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const batchGetQueryExecutionTool: InternalToolConfig<
   name: 'Athena Batch Get Query Executions',
   description: 'Get the status and details of up to 50 Athena query executions in one call',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -134,6 +136,50 @@ export const batchGetQueryExecutionTool: InternalToolConfig<
           outputLocation: {
             type: 'string',
             description: 'S3 location of query results',
+            optional: true,
+          },
+          servicePreProcessingTimeInMillis: {
+            type: 'number',
+            description:
+              'Time Athena spent preprocessing the query before submitting it, in milliseconds',
+            optional: true,
+          },
+          serviceProcessingTimeInMillis: {
+            type: 'number',
+            description:
+              'Time Athena spent finalizing and publishing results after execution, in milliseconds',
+            optional: true,
+          },
+          dataManifestLocation: {
+            type: 'string',
+            description: 'S3 location of the manifest file listing files written by the query',
+            optional: true,
+          },
+          reusedPreviousResult: {
+            type: 'boolean',
+            description: 'Whether the query reused a previous result instead of scanning data',
+            optional: true,
+          },
+          athenaError: {
+            type: 'json',
+            description:
+              'Failure details for a FAILED query (errorCategory: 1 system, 2 user, 3 other; errorType; retryable; errorMessage)',
+            optional: true,
+          },
+          executionParameters: {
+            type: 'array',
+            description: "Values supplied for the query's ? placeholders",
+            optional: true,
+          },
+          substatementType: {
+            type: 'string',
+            description:
+              'Kind of query statement that was run (e.g., SELECT, INSERT, CREATE_TABLE)',
+            optional: true,
+          },
+          engineVersion: {
+            type: 'json',
+            description: 'Engine version used (selectedEngineVersion, effectiveEngineVersion)',
             optional: true,
           },
         },

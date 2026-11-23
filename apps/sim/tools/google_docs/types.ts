@@ -1,3 +1,4 @@
+import type { GoogleDocsTabContent } from '@/tools/google_docs/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface GoogleDocsMetadata {
@@ -7,12 +8,14 @@ interface GoogleDocsMetadata {
   createdTime?: string
   modifiedTime?: string
   url?: string
+  revisionId?: string | null
 }
 
 export interface GoogleDocsReadResponse extends ToolResponse {
   output: {
     content: string
     metadata: GoogleDocsMetadata
+    tabs?: GoogleDocsTabContent[]
   }
 }
 
@@ -144,4 +147,8 @@ export interface GoogleDocsToolParams {
   name?: string
   namedRangeId?: string
   namedRangeName?: string
+  includeTabsContent?: boolean
+  suggestionsViewMode?: string
+  tabId?: string
+  searchByRegex?: boolean
 }

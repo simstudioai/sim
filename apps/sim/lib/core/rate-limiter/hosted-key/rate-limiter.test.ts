@@ -32,10 +32,10 @@ interface MockQueue {
 }
 
 /** Stub queue that defaults to "you're at the head, no waiting" — i.e. acts as if the
- *  queue is empty or Redis is unavailable. Tests override per-call to simulate ordering. */
+ *  queue is empty. Tests override per-call to simulate ordering. */
 const createMockQueue = (): MockQueue => {
   const queue: MockQueue = {
-    enqueue: vi.fn().mockResolvedValue({ position: 0, enabled: true }),
+    enqueue: vi.fn().mockResolvedValue({ position: 0, enqueued: true }),
     checkHead: vi.fn().mockResolvedValue('head'),
     refreshHeartbeat: vi.fn().mockResolvedValue(undefined),
     dequeue: vi.fn().mockResolvedValue(undefined),

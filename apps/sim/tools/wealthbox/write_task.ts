@@ -5,7 +5,7 @@ import { formatTaskResponse, validateAndBuildTaskBody } from '@/tools/wealthbox/
 export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxWriteResponse> = {
   id: 'wealthbox_write_task',
   name: 'Write Wealthbox Task',
-  description: 'Create or update a Wealthbox task',
+  description: 'Create a Wealthbox task',
   version: '1.0.0',
 
   oauth: {
@@ -48,13 +48,7 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
   },
 
   request: {
-    url: (params) => {
-      const taskId = params.taskId?.trim()
-      if (taskId) {
-        return `https://api.crmworkspace.com/v1/tasks/${taskId}`
-      }
-      return 'https://api.crmworkspace.com/v1/tasks'
-    },
+    url: 'https://api.crmworkspace.com/v1/tasks',
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
@@ -80,7 +74,7 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
-      description: 'Created or updated task data and metadata',
+      description: 'Created task data and metadata',
       properties: {
         task: { type: 'object', description: 'Raw task data from Wealthbox' },
         success: { type: 'boolean', description: 'Operation success indicator' },
@@ -90,12 +84,12 @@ export const wealthboxWriteTaskTool: ToolConfig<WealthboxWriteParams, WealthboxW
           properties: {
             itemId: {
               type: 'string',
-              description: 'ID of the created/updated task',
+              description: 'ID of the created task',
               optional: true,
             },
             taskId: {
               type: 'string',
-              description: 'ID of the created/updated task',
+              description: 'ID of the created task',
               optional: true,
             },
             itemType: { type: 'string', description: 'Type of item (task)' },

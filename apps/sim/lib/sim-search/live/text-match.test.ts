@@ -59,6 +59,16 @@ describe('text match clauses', () => {
     )
   })
 
+  it('sends a colon or backslash to Confluence as a word break, which it otherwise rejects', () => {
+    expect(confluenceTextClause('Security: Weekly Report', 'all')).toBe(
+      'text ~ "Security  Weekly Report"'
+    )
+    expect(confluenceTextClause(String.raw`C:\builds\out`, 'any')).toBe(
+      'siteSearch ~ "C  builds out"'
+    )
+    expect(confluenceTextClause(String.raw` :\ `, 'all')).toBeUndefined()
+  })
+
   it('falls back to the all-terms clause when fewer than two terms are distinctive', () => {
     expect(jiraTextClause('how does it work', 'any')).toBe('text ~ "how does it work"')
   })

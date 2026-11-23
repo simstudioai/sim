@@ -3,7 +3,13 @@ import {
   generateLoopBlocks,
   generateParallelBlocks,
 } from '@sim/workflow-persistence/subflow-helpers'
-import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
+import {
+  collectErrorSourceBlockIds,
+  getWorkflowBranchHandleRowId,
+  isSubflowType,
+  normalizeWorkflowEdgeSourceHandle,
+  resolveEffectiveErrorEnabled,
+} from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/extractor'
@@ -79,6 +85,8 @@ interface SanitizedCondition {
   id: string
   title: string
   value: string
+  /** The persisted branch key; kept so an edit that echoes the rows keeps it. */
+  key?: string
 }
 
 function toSanitizedCondition(condition: unknown): SanitizedCondition {
@@ -87,6 +95,7 @@ function toSanitizedCondition(condition: unknown): SanitizedCondition {
     id: String(record.id ?? ''),
     title: String(record.title ?? ''),
     value: String(record.value ?? ''),
+    ...(typeof record.key === 'string' && { key: record.key }),
   }
 }
 
@@ -156,7 +165,7 @@ function sanitizeConditions(conditionsJson: string): string {
     const conditions: unknown = JSON.parse(conditionsJson)
     if (!Array.isArray(conditions)) return conditionsJson
 
-    // Keep only id, title, and value - remove UI state
+    // Keep only id, title, value and key - remove UI state
     const cleaned: SanitizedCondition[] = conditions.map(toSanitizedCondition)
 
     return JSON.stringify(cleaned)
@@ -398,12 +407,10 @@ function convertConditionHandleToSimple(
   _blockId: string,
   block: BlockState
 ): string {
-  if (!handle.startsWith('condition-')) {
+  const conditionId = getWorkflowBranchHandleRowId('condition', handle)
+  if (conditionId === null) {
     return handle
   }
-
-  // Extract the condition UUID from the handle
-  const conditionId = handle.substring('condition-'.length)
 
   // Get conditions from block subBlocks (may be JSON string or array)
   const conditionsValue = block.subBlocks?.conditions?.value
@@ -446,12 +453,10 @@ function convertConditionHandleToSimple(
  * Uses 0-indexed numbering for routes
  */
 function convertRouterHandleToSimple(handle: string, _blockId: string, block: BlockState): string {
-  if (!handle.startsWith('router-')) {
+  const routeId = getWorkflowBranchHandleRowId('router', handle)
+  if (routeId === null) {
     return handle
   }
-
-  // Extract the route UUID from the handle
-  const routeId = handle.substring('router-'.length)
 
   // Get routes from block subBlocks (may be JSON string or array)
   const routesValue = block.subBlocks?.routes?.value
@@ -480,11 +485,11 @@ function convertRouterHandleToSimple(handle: string, _blockId: string, block: Bl
  * Outputs: if, else-if-0, else (for conditions) and route-0, route-1 (for routers)
  */
 function convertToSimpleHandle(handle: string, blockId: string, block: BlockState): string {
-  if (handle.startsWith('condition-') && block.type === 'condition') {
+  if (block.type === 'condition') {
     return convertConditionHandleToSimple(handle, blockId, block)
   }
 
-  if (handle.startsWith('router-') && block.type === 'router_v2') {
+  if (block.type === 'router_v2') {
     return convertRouterHandleToSimple(handle, blockId, block)
   }
 
@@ -547,6 +552,7 @@ export function sanitizeForCopilot(
 ): CopilotWorkflowState {
   const sanitizedBlocks: Record<string, CopilotBlockState> = {}
   const processedBlocks = new Set<string>()
+  const errorSourceBlockIds = collectErrorSourceBlockIds(state.edges)
 
   // Helper to find child blocks of a parent (loop/parallel container)
   const findChildBlocks = (parentId: string): string[] => {
@@ -562,7 +568,7 @@ export function sanitizeForCopilot(
     // For loop/parallel blocks, extract config from block.data instead of subBlocks
     let inputs: Record<string, string | number | string[][] | object>
 
-    if (block.type === 'loop' || block.type === 'parallel') {
+    if (isSubflowType(block.type)) {
       // Extract configuration from block.data (only include type-appropriate fields)
       const loopInputs: Record<string, string | number | string[][] | object> = {}
 
@@ -648,7 +654,10 @@ export function sanitizeForCopilot(
     if (connections) result.connections = connections
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
-    if (block.errorEnabled !== undefined) result.errorEnabled = block.errorEnabled
+    // The executor takes the error path whenever an error edge leaves the block, whatever the
+    // flag says, so the flag is shown as the editor draws the port: on with such an edge.
+    const errorEnabled = resolveEffectiveErrorEnabled(block, blockId, errorSourceBlockIds)
+    if (block.errorEnabled !== undefined || errorEnabled) result.errorEnabled = errorEnabled
     if (block.retry !== undefined) result.retry = block.retry
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
 

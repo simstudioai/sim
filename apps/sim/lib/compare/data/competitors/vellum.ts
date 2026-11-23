@@ -893,15 +893,6 @@ export const vellumProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          "Unknown: no documentation describes replacing Vellum's own branding (logo, product name, theme) with a customer's branding across the workspace or deployed apps. Only generic 'white glove' Enterprise service language appears, and that refers to onboarding support, not white-label branding.",
-        detail:
-          "Vellum's own branding-guide page addresses Vellum's use of its own brand assets by others, not a customer-facing white-label capability.",
-        shortValue: 'Unknown, no white-label branding docs found',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataRetention: {
         value:
           'Yes: Enterprise customers can configure data retention policies to automatically delete monitoring/interaction data after a specified period (30, 60, 90, or 365 days) instead of the default indefinite retention.',

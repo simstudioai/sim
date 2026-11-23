@@ -1,4 +1,6 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import { REACTION_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface CreateCommentReactionParams {
@@ -30,6 +32,7 @@ export const createCommentReactionTool: ToolConfig<
   name: 'GitHub Create Comment Reaction',
   description: 'Add a reaction to an issue comment',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -67,7 +70,7 @@ export const createCommentReactionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}/reactions`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/comments/${githubPathSegment(params.comment_id, 'comment_id')}/reactions`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.squirrel-girl-preview+json',
@@ -119,6 +122,7 @@ export const createCommentReactionV2Tool: ToolConfig<CreateCommentReactionParams
   name: createCommentReactionTool.name,
   description: createCommentReactionTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: createCommentReactionTool.params,
   request: createCommentReactionTool.request,
 

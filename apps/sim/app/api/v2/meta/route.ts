@@ -11,7 +11,7 @@ import {
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** GET /api/v2/meta — Report the calling credential's API availability and lifecycle. */
+/** GET /api/v2/meta — Report the calling credential's identity, API availability, and lifecycle. */
 export const GET = defineV2JsonRoute({
   contract: v2GetMetaContract,
   auth: v2ApiKeyAuth,
@@ -24,7 +24,7 @@ export const GET = defineV2JsonRoute({
     return { keyType: credential.keyType, expiresAt: credential.keyExpiresAt }
   },
   useCase: readV2ApiCapabilities,
-  present: ({ v2Enabled, keyType, expiresAt }) => ({
-    data: { v2Enabled, keyType, expiresAt: expiresAt?.toISOString() ?? null },
+  present: ({ expiresAt, ...identity }) => ({
+    data: { ...identity, expiresAt: expiresAt?.toISOString() ?? null },
   }),
 })

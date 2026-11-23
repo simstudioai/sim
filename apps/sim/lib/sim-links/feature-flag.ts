@@ -7,6 +7,6 @@ export function isSimLinksEnabled(organizationId: string): Promise<boolean> {
 
 export async function requireSimLinksEnabled(organizationId: string): Promise<void> {
   if (!(await isSimLinksEnabled(organizationId))) {
-    throw new OrchestrationError('forbidden', 'Sim links are not enabled for this organization')
+    throw new OrchestrationError('forbidden', 'Links are not enabled for this organization')
   }
 }

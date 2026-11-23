@@ -99,7 +99,7 @@ export const getVaultTool: InternalToolConfig<
     items: { type: 'number', description: 'Number of items in the vault' },
     type: {
       type: 'string',
-      description: 'Vault type (USER_CREATED, PERSONAL, or EVERYONE)',
+      description: 'Vault type (USER_CREATED, PERSONAL, EVERYONE, TRANSFER, or UNSUPPORTED)',
     },
     createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
     updatedAt: { type: 'string', description: 'Last update timestamp', optional: true },

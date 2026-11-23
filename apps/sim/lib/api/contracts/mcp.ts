@@ -180,8 +180,8 @@ export const mcpServerIdParamsSchema = z.object({
 
 export const createMcpServerBodySchema = z
   .object({
-    name: z.string().min(1),
-    description: z.string().optional(),
+    name: z.string().min(1).max(255, 'name must be at most 255 characters'),
+    description: z.string().max(2000, 'description must be at most 2000 characters').optional(),
     transport: mcpTransportSchema,
     url: z.string().optional(),
     authType: mcpAuthTypeSchema.optional(),

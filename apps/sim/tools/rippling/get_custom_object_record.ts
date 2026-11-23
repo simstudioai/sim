@@ -1,12 +1,15 @@
 import type { RipplingGetCustomObjectRecordParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetCustomObjectRecordTool: ToolConfig<RipplingGetCustomObjectRecordParams> = {
   id: 'rippling_get_custom_object_record',
   name: 'Rippling Get Custom Object Record',
   description: 'Get a specific custom object record',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -24,7 +27,7 @@ export const ripplingGetCustomObjectRecordTool: ToolConfig<RipplingGetCustomObje
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/${encodeURIComponent(params.codrId.trim())}/`,
+      `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/${safeUrlPathSegment(params.codrId, 'codrId')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

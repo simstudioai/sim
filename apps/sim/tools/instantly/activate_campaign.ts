@@ -11,7 +11,9 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const activateCampaignTool: ToolConfig<
   InstantlyActivateCampaignParams,
@@ -21,6 +23,7 @@ export const activateCampaignTool: ToolConfig<
   name: 'Instantly Activate Campaign',
   description: 'Activates, starts, or resumes an Instantly V2 campaign.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {
@@ -31,7 +34,10 @@ export const activateCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}/activate`),
+    url: (params) =>
+      instantlyUrl(
+        `/api/v2/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/activate`
+      ),
     method: 'POST',
     headers: instantlyHeaders,
   },

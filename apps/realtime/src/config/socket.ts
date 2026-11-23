@@ -35,7 +35,7 @@ function getAllowedOrigins(): string[] {
 
 /**
  * Create and configure a Socket.IO server instance.
- * If REDIS_URL is configured, adds Redis adapter for cross-pod broadcasting.
+ * Attaches the Redis adapter for cross-pod broadcasting.
  */
 export async function createSocketIOServer(httpServer: HttpServer): Promise<Server> {
   const allowedOrigins = getAllowedOrigins()
@@ -61,52 +61,48 @@ export async function createSocketIOServer(httpServer: HttpServer): Promise<Serv
     },
   })
 
-  if (env.REDIS_URL) {
-    logger.info('Configuring Socket.IO Redis adapter...')
+  logger.info('Configuring Socket.IO Redis adapter...')
 
-    const redisOptions = {
-      url: env.REDIS_URL,
-      socket: {
-        reconnectStrategy: (retries: number) => {
-          if (retries > 10) {
-            logger.error('Redis adapter reconnection failed after 10 attempts')
-            return new Error('Redis adapter reconnection failed')
-          }
-          const delay = Math.min(retries * 100, 3000)
-          logger.warn(`Redis adapter reconnecting in ${delay}ms (attempt ${retries})`)
-          return delay
-        },
+  const redisOptions = {
+    url: env.REDIS_URL,
+    socket: {
+      reconnectStrategy: (retries: number) => {
+        if (retries > 10) {
+          logger.error('Redis adapter reconnection failed after 10 attempts')
+          return new Error('Redis adapter reconnection failed')
+        }
+        const delay = Math.min(retries * 100, 3000)
+        logger.warn(`Redis adapter reconnecting in ${delay}ms (attempt ${retries})`)
+        return delay
       },
-    }
-
-    // Create separate clients for pub and sub (recommended for reliability)
-    adapterPubClient = createClient(redisOptions)
-    adapterSubClient = createClient(redisOptions)
-
-    adapterPubClient.on('error', (err) => {
-      logger.error('Redis adapter pub client error:', err)
-    })
-
-    adapterSubClient.on('error', (err) => {
-      logger.error('Redis adapter sub client error:', err)
-    })
-
-    adapterPubClient.on('ready', () => {
-      logger.info('Redis adapter pub client ready')
-    })
-
-    adapterSubClient.on('ready', () => {
-      logger.info('Redis adapter sub client ready')
-    })
-
-    await Promise.all([adapterPubClient.connect(), adapterSubClient.connect()])
-
-    io.adapter(createAdapter(adapterPubClient, adapterSubClient))
-
-    logger.info('Socket.IO Redis adapter connected - cross-pod broadcasting enabled')
-  } else {
-    logger.warn('REDIS_URL not configured - running in single-pod mode')
+    },
   }
+
+  // Create separate clients for pub and sub (recommended for reliability)
+  adapterPubClient = createClient(redisOptions)
+  adapterSubClient = createClient(redisOptions)
+
+  adapterPubClient.on('error', (err) => {
+    logger.error('Redis adapter pub client error:', err)
+  })
+
+  adapterSubClient.on('error', (err) => {
+    logger.error('Redis adapter sub client error:', err)
+  })
+
+  adapterPubClient.on('ready', () => {
+    logger.info('Redis adapter pub client ready')
+  })
+
+  adapterSubClient.on('ready', () => {
+    logger.info('Redis adapter sub client ready')
+  })
+
+  await Promise.all([adapterPubClient.connect(), adapterSubClient.connect()])
+
+  io.adapter(createAdapter(adapterPubClient, adapterSubClient))
+
+  logger.info('Socket.IO Redis adapter connected - cross-pod broadcasting enabled')
 
   logger.info('Socket.IO server configured with:', {
     allowedOrigins: allowedOrigins.length,
@@ -116,7 +112,6 @@ export async function createSocketIOServer(httpServer: HttpServer): Promise<Serv
     maxHttpBufferSize: MAX_HTTP_BUFFER_SIZE,
     cookieSecure: isProd,
     corsCredentials: true,
-    redisAdapter: !!env.REDIS_URL,
   })
 
   return io

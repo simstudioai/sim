@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { TAILNET_SETTINGS_OUTPUT } from '@/tools/tailscale/outputs'
 import type {
   TailscaleTailnetSettings,
@@ -17,6 +18,7 @@ export const tailscaleUpdateTailnetSettingsTool: ToolConfig<
   name: 'Tailscale Update Tailnet Settings',
   description: 'Update selected tailnet settings',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -23,7 +23,7 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/attribution'
 import {
-  isFreeRunPayer,
+  isCappedRunPayer,
   type MidRunUsageVerdict,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
@@ -47,12 +47,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BillingInFlightCode } from '@/lib/mothership/generated/billing'
 import { BILLING_CALLBACK_OUTCOME } from '@/lib/mothership/generated/billing-protocol-v1'
-import { BillingRouteOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { recordJobRunSpend } from '@/lib/mothership/jobs/budget'
+import { BillingRouteOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('BillingUpdateCostAPI')
 /**
@@ -88,7 +88,7 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * A duplicate callback answers too: it is often a retry whose first answer was lost. The charge
  * is already recorded when this runs.
  *
- * A free payer's spend past its limit is never billed, so its standing is read from the ledger
+ * A capped payer's spend past its limit is never billed, so its standing is read from the ledger
  * on every callback, and a standing that cannot be read (a gate that cannot answer, or a read
  * that outlasts {@link USAGE_STANDING_TIMEOUT_MS}) pauses the run. A paid payer's admission is
  * cached per payer and actor (briefly once near the limit) and a refusal is always re-read, so
@@ -101,7 +101,7 @@ async function readUsageStanding(
   billingAttribution: BillingAttributionSnapshot | undefined,
   accountDecision: AccountBillingDecision | undefined
 ): Promise<BillingUsageVerdict> {
-  const readOptions = { uncachedForFreePayer: true }
+  const readOptions = { uncachedForCappedPayer: true }
   const payer = billingAttribution ?? accountDecision
   const readVerdict = billingAttribution
     ? () => readMidRunUsageVerdict(billingAttribution, 0, readOptions)
@@ -109,12 +109,12 @@ async function readUsageStanding(
       ? () => readMidRunAccountUsageVerdict(accountDecision, readOptions)
       : null
   if (!isHosted || !payer || !readVerdict) return { usageExceeded: false }
-  const freePayer = isFreeRunPayer(payer)
+  const cappedPayer = isCappedRunPayer(payer)
   let verdict: MidRunUsageVerdict
   try {
     verdict = await withinDeadline(readVerdict, Date.now() + USAGE_STANDING_TIMEOUT_MS)
   } catch {
-    logger.warn('Usage standing read outlasted the callback budget', { freePayer })
+    logger.warn('Usage standing read outlasted the callback budget', { cappedPayer })
     verdict = { status: 'unknown' }
   }
   if (verdict.status === 'exceeded') {
@@ -129,7 +129,7 @@ async function readUsageStanding(
   }
   // A blocked account is refused at the run's next continuation or re-check, with
   // blocked-account copy rather than the upgrade card.
-  if (verdict.status !== 'unknown' || !freePayer) return { usageExceeded: false }
+  if (verdict.status !== 'unknown' || !cappedPayer) return { usageExceeded: false }
   return {
     usageExceeded: true,
     usageUpgrade: await resolveUsageUpgradePayload(userId, {
@@ -174,13 +174,13 @@ function getBillingResolution(
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
  *
- * Parented under the Go-side `sim.update_cost` span via W3C traceparent
- * propagation. Every mothership request that bills should therefore show
- * the Go client span AND this Sim server span sharing one trace, with
+ * Parented under the worker's span via W3C traceparent propagation. Every
+ * mothership request that bills should therefore show the worker's span AND
+ * this Sim server span sharing one trace, with
  * the actual usage/overage work nested below.
  */
 export const POST = withRouteHandler((req: NextRequest) =>
-  withIncomingGoSpan(
+  withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotBillingUpdateCost,
     {
@@ -196,12 +196,12 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
   const startTime = Date.now()
 
   try {
-    logger.info(`[${requestId}] Update cost request started`)
+    logger.debug('Update cost request started')
 
     // Check authentication (internal API key)
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
-      logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
+      logger.warn(`Authentication failed: ${authResult.error}`)
       span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.AuthFailed)
       span.setAttribute(TraceAttr.HttpStatusCode, 401)
       return NextResponse.json(
@@ -234,7 +234,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       {},
       {
         validationErrorResponse: (error) => {
-          logger.warn(`[${requestId}] Invalid request body`, {
+          logger.warn('Invalid request body', {
             errors: error.issues,
           })
           span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
@@ -324,7 +324,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       ...(idempotencyKey ? { [TraceAttr.BillingIdempotencyKey]: idempotencyKey } : {}),
     })
 
-    logger.info(`[${requestId}] Processing cost update`, {
+    logger.debug('Processing cost update', {
       userId,
       cost,
       model,
@@ -408,7 +408,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           }
         : undefined
 
-    logger.info(`[${requestId}] Billing payer resolved`, {
+    logger.debug('Billing payer resolved', {
       userId,
       billingProtocol: protocol,
       billingResolution: getBillingResolution(isMarkerlessLegacy, billingAttribution),
@@ -417,7 +417,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     })
 
     /**
-     * Go sends cumulative cost across partial, terminal, and retry flushes.
+     * The worker sends cumulative cost across partial, terminal, and retry flushes.
      * Every accepted callback has a stable key, so the maximum cumulative cost
      * converges on one ledger event without underbilling or double-billing.
      */
@@ -441,9 +441,12 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       ...(rolloverSubscriptionId ? { payerSubscriptionId: rolloverSubscriptionId } : {}),
     })
     const billed = result.billed
-    logger.info(`[${requestId}] Cumulative cost top-up`, {
+    logger.info('Cumulative cost top-up', {
       userId,
+      billingPayer: billingContext?.billingEntity ?? { type: 'user', id: userId },
+      workspaceId: resolvedWorkspaceId,
       source,
+      model,
       cumulativeCost: cost,
       billedDelta: result.delta,
       newTotal: result.total,
@@ -453,7 +456,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     // Reconcile the payer's ledger-backed threshold after every cumulative
     // callback, including duplicate retries after a prior settlement failure.
-    // Strict error handling lets Go retry until the committed usage is settled.
+    // Strict error handling lets the worker retry until the committed usage is settled.
     if (billingContext) {
       try {
         await checkAndBillPayerOverageThreshold(billingContext.billingEntity, {
@@ -473,7 +476,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
         ) {
           throw error
         }
-        logger.info(`[${requestId}] Charge landed in a period that has since rolled over`, {
+        logger.info('Charge landed in a period that has since rolled over', {
           billingPeriodEnd: result.billingPeriod.end.toISOString(),
         })
       }
@@ -489,9 +492,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const duration = Date.now() - startTime
 
     // Same-or-lower cumulative than already recorded: nothing new to bill.
-    // Reconciliation has completed, so preserve Go's established 409 outcome.
+    // Reconciliation has completed, so return the 409 the worker reads as already settled.
     if (!billed) {
-      logger.info(`[${requestId}] Duplicate/non-increasing cumulative cost; no new charge`, {
+      logger.info('Duplicate/non-increasing cumulative cost; no new charge', {
         idempotencyKey,
         userId,
         cost,
@@ -511,7 +514,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
       )
     }
 
-    logger.info(`[${requestId}] Cost update completed successfully`, {
+    logger.info('Cost update completed successfully', {
       userId,
       duration,
       cost,
@@ -536,7 +539,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     const isMarkerlessLegacy = !req.headers.get(COPILOT_BILLING_PROTOCOL_HEADER)
     if (error instanceof CumulativeUsageContextMismatchError && !isMarkerlessLegacy) {
-      logger.error(`[${requestId}] Billing context mismatch`, {
+      logger.error('Billing context mismatch', {
         eventKey: error.eventKey,
         mismatchedFields: error.mismatchedFields,
         duration,
@@ -560,7 +563,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
      * the caller resends later, and the monotonic top-up applies the higher cumulative once.
      */
     if (error instanceof CumulativeUsageInFlightError) {
-      logger.info(`[${requestId}] Cost update already in flight for this request`, {
+      logger.info('Cost update already in flight for this request', {
         eventKey: error.eventKey,
         duration,
       })
@@ -593,7 +596,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     /** Old markerless clients treat every 409 as a successful duplicate. */
     if (reconciliationOutcome && !isMarkerlessLegacy) {
-      logger.warn(`[${requestId}] Billing callback requires reconciliation`, {
+      logger.warn('Billing callback requires reconciliation', {
         code: reconciliationOutcome.code,
         duration,
         billingProtocol:
@@ -615,7 +618,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     }
 
     if (error instanceof ThresholdSettlementError) {
-      logger.error(`[${requestId}] Retryable threshold settlement failure`, {
+      logger.error('Retryable threshold settlement failure', {
         settlementErrorCode: error.code,
         retryable: error.retryable,
         duration,
@@ -643,7 +646,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     // lock timeout) — Drizzle's "Failed query" wrapper alone cannot
     // distinguish them, which made the dead-workspace incident undiagnosable
     // from logs.
-    logger.error(`[${requestId}] Cost update failed`, {
+    logger.error('Cost update failed', {
       error: toError(error).message,
       ...(pgCode && { pgCode }),
       ...(pgConstraint && { pgConstraint }),

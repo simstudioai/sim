@@ -1,4 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { enrowHosting } from '@/tools/enrow/hosting'
 import type {
   EnrowFindEmailParams,
@@ -142,7 +143,7 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
       await sleep(POLL_INTERVAL_MS)
       elapsed += POLL_INTERVAL_MS
 
-      const pollResponse = await fetch(
+      const pollResponse = await outboundFetch(
         `https://api.enrow.io/email/find/single?id=${encodeURIComponent(jobId)}`,
         {
           headers: {

@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -33,6 +34,7 @@ export const sportmonksMotorsportGetLeaguesByLiveTool: ToolConfig<
   name: 'Get Leagues by Live',
   description: 'Retrieve all motorsport leagues that currently have live fixtures from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

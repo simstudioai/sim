@@ -6,6 +6,7 @@ import {
   requireValue,
   toStringOrNull,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteReportTool: ToolConfig<JotformDeleteReportParams, JotformMessageResponse> = {
@@ -13,6 +14,7 @@ export const deleteReportTool: ToolConfig<JotformDeleteReportParams, JotformMess
   name: 'Jotform Delete Report',
   description: 'Delete an existing Jotform report.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

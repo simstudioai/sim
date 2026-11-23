@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -40,7 +41,7 @@ async function ashbyPost(
   onBehalfOfUserId: string | null | undefined,
   signal?: AbortSignal
 ): Promise<unknown> {
-  const response = await fetch(`https://api.ashbyhq.com/${path}`, {
+  const response = await outboundFetch(`https://api.ashbyhq.com/${path}`, {
     method: 'POST',
     headers: ashbyAuthHeaders(apiKey, onBehalfOfUserId ?? undefined),
     body: JSON.stringify(body),
@@ -161,7 +162,8 @@ export async function executeAshbyUpload(
     context.signal?.throwIfAborted()
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
-    logger.error(`[${context.requestId}] Ashby candidate file upload failed`, {
+    logger.error('Ashby candidate file upload failed', {
+      requestId: context.requestId,
       error: getErrorMessage(error),
     })
     return failure(

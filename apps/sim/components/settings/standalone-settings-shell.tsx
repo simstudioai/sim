@@ -24,7 +24,9 @@ import { SettingsPendingSection } from '@/components/settings/settings-pending-s
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { hasDesktopSettings } from '@/lib/desktop'
 import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 
@@ -59,7 +61,9 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
 
   useSidebarWidth()
 
+  const desktopSettings = useHydrated() && hasDesktopSettings()
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
+    if (item.id === 'desktop' && !desktopSettings) return false
     if (item.id === 'billing' && !billingEnabled) return false
     if ((item.id === 'admin' || item.id === 'mothership') && !isSuperUser) return false
     return true

@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapPackage,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetPackageTool: ToolConfig<CheckrPackageIdParams, CheckrPackageResponse> = {
@@ -18,6 +19,7 @@ export const checkrGetPackageTool: ToolConfig<CheckrPackageIdParams, CheckrPacka
   name: 'Checkr Get Package',
   description: 'Retrieve a package by ID, including its slug, price, and screenings.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

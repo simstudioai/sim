@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevBatchIdParams,
   TriggerDevBatchResultsResponse,
@@ -19,6 +20,7 @@ export const triggerDevGetBatchResultsTool: ToolConfig<
   description:
     'Retrieve the execution results of every run in a Trigger.dev batch, including outputs and error details.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

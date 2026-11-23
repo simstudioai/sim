@@ -37,6 +37,7 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
         format: 'json',
         no_html: params.noHtml !== false ? '1' : '0',
         skip_disambig: params.skipDisambig ? '1' : '0',
+        no_redirect: '1',
       })
       return `${baseUrl}?${searchParams.toString()}`
     },
@@ -96,7 +97,9 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
         definition: data.Definition || '',
         definitionSource: data.DefinitionSource || '',
         definitionURL: data.DefinitionURL || '',
-        image: data.Image || '',
+        image: data.Image?.startsWith('/')
+          ? `https://duckduckgo.com${data.Image}`
+          : data.Image || '',
         answer: data.Answer || '',
         answerType: data.AnswerType || '',
         type: data.Type || '',
@@ -142,7 +145,7 @@ export const searchTool: ToolConfig<DuckDuckGoSearchParams, DuckDuckGoSearchResp
     },
     image: {
       type: 'string',
-      description: 'URL to an image related to the topic',
+      description: 'Absolute URL to an image related to the topic',
     },
     answer: {
       type: 'string',

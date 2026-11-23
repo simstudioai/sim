@@ -2,7 +2,7 @@
 title: RB2B
 description: Identify and enrich website visitors
 integration:
-  type: "rb2b"
+  type: "rb2b_v2"
   color: "#51FF00"
 ---
 
@@ -17,7 +17,7 @@ Connect an RB2B API key and inspect the returned match before adding a contact t
 
 ## Use the block [#usage-instructions]
 
-Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn. Requires an RB2B API key.
+Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn.
 
 ## Actions
 
@@ -31,7 +31,6 @@ Check the number of API credits remaining on your RB2B account.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 
 #### Output
 
@@ -51,7 +50,6 @@ Convert an IP address (and optional user agent) into hashed email addresses (HEM
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `ip_address` | string | Yes | The IP address to resolve \(IPv4 or IPv6\) |
 | `user_agent` | string | No | Optional user agent string to improve match accuracy |
 | `include_sha256` | boolean | No | Whether to include SHA-256 hashes in addition to MD5 hashes |
@@ -77,7 +75,6 @@ Resolve an IP address (and optional user agent) into mobile advertising identifi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `ip_address` | string | Yes | The IP address to resolve \(IPv4 or IPv6\) |
 | `user_agent` | string | No | Optional user agent string to improve match accuracy |
 
@@ -101,7 +98,6 @@ Identify the company domains associated with an IP address, ranked by confidence
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `ip_address` | string | Yes | The IP address to resolve \(IPv4 or IPv6\) |
 
 #### Output
@@ -124,7 +120,6 @@ Return a full business profile (name, title, company, industry, seniority and mo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `email` | string | Yes | A plaintext email address or an MD5 hash of the email |
 
 #### Output
@@ -162,7 +157,6 @@ Return the most recently active LinkedIn profile URL for an email address or MD5
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `email` | string | Yes | A plaintext email address or an MD5 hash of the email |
 
 #### Output
@@ -183,7 +177,6 @@ Return the LinkedIn slug (the profile identifier portion of the URL) for an emai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `email` | string | Yes | A plaintext email address or an MD5 hash of the email |
 
 #### Output
@@ -204,7 +197,6 @@ Return up to five mobile advertising identifiers (MAIDs) associated with an emai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `email` | string | Yes | A plaintext email address or an MD5 hash of the email |
 
 #### Output
@@ -227,7 +219,6 @@ Return the last known active date for an email address.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `email` | string | Yes | The email address to look up |
 
 #### Output
@@ -253,7 +244,6 @@ Return a full business profile (name, title, company, emails and more) for a Lin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `linkedin_slug` | string | Yes | The LinkedIn profile slug or URL |
 
 #### Output
@@ -290,7 +280,6 @@ Return the personal email with the most recent known network activity for a Link
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `linkedin_slug` | string | Yes | The LinkedIn profile slug or URL |
 
 #### Output
@@ -311,7 +300,6 @@ Return the personal email addresses associated with a LinkedIn profile.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `linkedin_slug` | string | Yes | The LinkedIn profile slug or URL |
 
 #### Output
@@ -332,7 +320,6 @@ Return the business and personal hashed emails (MD5 and SHA-256) associated with
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `linkedin_slug` | string | Yes | The LinkedIn profile slug or URL |
 
 #### Output
@@ -357,7 +344,6 @@ Return the mobile phone number with the most recent known network activity for a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `linkedin_slug` | string | Yes | The LinkedIn profile slug or URL |
 
 #### Output
@@ -378,7 +364,6 @@ Find a LinkedIn profile URL from a first name, last name, and company domain.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | RB2B API key |
 | `first_name` | string | Yes | The person’s first name |
 | `last_name` | string | Yes | The person’s last name |
 | `company_domain` | string | Yes | The company domain \(e.g. example.com\) |

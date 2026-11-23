@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
@@ -27,7 +28,7 @@ export const anthropicProvider: ProviderConfig = {
         const cacheKey = `anthropic::${apiKey}`
         return getCachedProviderClient(
           cacheKey,
-          () => new Anthropic({ apiKey, maxRetries: PROVIDER_MAX_RETRIES })
+          () => new Anthropic({ apiKey, maxRetries: PROVIDER_MAX_RETRIES, fetch: outboundFetch })
         )
       },
       logger,

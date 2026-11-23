@@ -1,6 +1,7 @@
 import type { KalshiEvent } from '@/tools/kalshi/types'
 import { buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface KalshiGetEventParams {
   eventTicker: string // Event ticker
@@ -42,7 +43,7 @@ export const kalshiGetEventTool: ToolConfig<KalshiGetEventParams, KalshiGetEvent
         queryParams.append('with_nested_markets', params.withNestedMarkets)
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/events/${params.eventTicker.trim()}`)
+      const url = buildKalshiUrl(`/events/${safeUrlPathSegment(params.eventTicker, 'eventTicker')}`)
       return query ? `${url}?${query}` : url
     },
     method: 'GET',
@@ -160,7 +161,7 @@ export const kalshiGetEventV2Tool: ToolConfig<KalshiGetEventV2Params, KalshiGetE
         queryParams.append('with_nested_markets', params.withNestedMarkets)
 
       const query = queryParams.toString()
-      const url = buildKalshiUrl(`/events/${params.eventTicker.trim()}`)
+      const url = buildKalshiUrl(`/events/${safeUrlPathSegment(params.eventTicker, 'eventTicker')}`)
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

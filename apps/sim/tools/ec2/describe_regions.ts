@@ -1,5 +1,6 @@
 import type { Ec2DescribeRegionsParams, Ec2DescribeRegionsResponse } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeRegionsTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const describeRegionsTool: InternalToolConfig<
   name: 'EC2 Describe Regions',
   description: 'List AWS Regions available to the account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

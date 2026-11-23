@@ -2,6 +2,7 @@ import { Building, ListChecks, Search, Sparkles, Sprout, Users } from '@sim/emcn
 import { CbInsightsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /** Operations that take a single organization ID on the path. */
 const ORG_OPERATIONS = [
@@ -63,6 +64,8 @@ const DATE_RANGE_OPERATIONS = ['get_commercial_maturity_history', 'get_exit_prob
 
 export const CbInsightsBlock: BlockConfig = {
   type: 'cbinsights',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cbinsights_v2' },
   name: 'CB Insights',
   description: 'Research private markets — firmographics, funding, and predictive scores',
   longDescription:
@@ -651,8 +654,8 @@ export const CbInsightsBlock: BlockConfig = {
        * advanced field is serialized on non-emptiness alone, even while the UI
        * hides it. `undefined` is what actually drops one.
        */
-      params: (params) => {
-        const operation = String(params.operation ?? '')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const isOrg = (ORG_OPERATIONS as readonly string[]).includes(operation)
         const isOrgList = (ORG_LIST_OPERATIONS as readonly string[]).includes(operation)
         const isFirmographics = operation === 'search_firmographics'
@@ -667,11 +670,15 @@ export const CbInsightsBlock: BlockConfig = {
           clientId: params.clientId,
           clientSecret: params.clientSecret,
           orgId: isOrg ? params.orgId : undefined,
-          orgIds: isOrgList ? params.orgIds : firmographic(params.orgIdFilter),
+          orgIds: isOrgList
+            ? params.orgIds
+            : firmographic(params.orgIdFilter ?? toolCallArg(context, params.orgIds)),
           message: isAi ? params.message : undefined,
           chatId: isChat ? params.chatId : undefined,
           names: isLookup ? params.names : undefined,
-          urls: isLookup ? params.urls : firmographic(params.firmographicsUrls),
+          urls: isLookup
+            ? params.urls
+            : firmographic(params.firmographicsUrls ?? toolCallArg(context, params.urls)),
           profileUrl: isLookup ? params.profileUrl : undefined,
           keyword: firmographic(params.keyword),
           orgNames: firmographic(params.orgNames),
@@ -907,6 +914,21 @@ export const CbInsightsBlock: BlockConfig = {
       description: 'Notes describing what each retrieved data source contains',
     },
   },
+}
+
+/** Every operation runs with a saved CB Insights API client. */
+export const CbInsightsV2Block: BlockConfig = {
+  ...CbInsightsBlock,
+  type: 'cbinsights_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CbInsightsBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'cbinsights',
+    title: 'CB Insights Credential',
+  }),
 }
 
 export const CbInsightsBlockMeta = {

@@ -25,3 +25,5 @@ export const firecrawlBatchScrapeTool = batchScrapeTool
 export const firecrawlBatchScrapeStatusTool = batchScrapeStatusTool
 export const firecrawlExtractStatusTool = extractStatusTool
 export const firecrawlCreditUsageTool = creditUsageTool
+
+export { firecrawlEnrichTool } from './enrich'

@@ -2,8 +2,10 @@ import type {
   GitLabDeleteSamlGroupLinkParams,
   GitLabDeleteSamlGroupLinkResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
   GitLabDeleteSamlGroupLinkParams,
@@ -14,6 +16,7 @@ export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
   name: 'GitLab Delete SAML Group Link',
   description: 'Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -51,8 +54,10 @@ export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.groupId).trim())
-      const encodedName = encodeURIComponent(String(params.samlGroupName).trim())
+      const encodedId = encodeGitLabResourceId(params.groupId)
+      const encodedName = safeUrlPathSegment(params.samlGroupName, 'samlGroupName', {
+        allowSeparators: true,
+      })
       const queryParams = new URLSearchParams()
       if (params.provider) queryParams.append('provider', params.provider.trim())
       const query = queryParams.toString()

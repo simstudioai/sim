@@ -1,0 +1,14 @@
+{
+  "namespace": "legacy.zep",
+  "methods": {
+    "add_messages": "addMessages",
+    "add_user": "addUser",
+    "create_thread": "createThread",
+    "delete_thread": "deleteThread",
+    "get_context": "getContext",
+    "get_messages": "getMessages",
+    "get_threads": "getThreads",
+    "get_user": "getUser",
+    "get_user_threads": "getUserThreads"
+  }
+}

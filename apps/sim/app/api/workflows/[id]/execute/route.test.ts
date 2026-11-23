@@ -269,12 +269,14 @@ const PERSONAL_API_KEY_PRINCIPAL = {
   kind: 'personal_api_key',
   userId: 'personal-key-user-1',
   keyId: 'personal-key-1',
+  access: 'write',
 } as const
 
 const WORKSPACE_API_KEY_PRINCIPAL = {
   kind: 'workspace_api_key',
   workspaceId: 'workspace-1',
   keyId: 'workspace-key-1',
+  access: 'write',
 } as const
 
 const EXECUTION_CALLERS: ExecutionCallerCase[] = [
@@ -2161,6 +2163,7 @@ describe('workflow execute async route', () => {
         kind: 'personal_api_key',
         userId: 'api-user-1',
         keyId: 'personal-key-1',
+        access: 'write',
       },
     })
     workflowsUtilsMockFns.mockWorkflowHasResponseBlock.mockReturnValueOnce(true)
@@ -2239,6 +2242,56 @@ describe('workflow execute async route', () => {
         : executionCall.snapshot
     expect(snapshot.metadata.enforceCredentialAccess).toBe(true)
   })
+
+  describe('credential actor is derived from the authenticated caller', () => {
+    const ACTS_AS_AUTHENTICATED_USER: Record<string, boolean> = {
+      session: true,
+      'personal API key': true,
+      'workspace API key': false,
+      'public API': false,
+      'internal JWT': false,
+    }
+
+    it.each(EXECUTION_CALLERS)('$caseName', async (caller) => {
+      const expected = ACTS_AS_AUTHENTICATED_USER[caller.caseName]
+      configureExecutionCaller(caller)
+
+      const response = await POST(
+        createCallerExecutionRequest(caller, undefined, 'sync'),
+        createRouteContext({ id: 'workflow-1' })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockPreprocessExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ useAuthenticatedUserAsActor: expected })
+      )
+      expect(
+        mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata.enforceCredentialAccess
+      ).toBe(expected)
+    })
+  })
+
+  describe('execution access level', () => {
+    it.each([
+      [{}, 'write'],
+      [{ useDraftState: false }, 'read'],
+    ] as const)('session run with %o authorizes at %s', async (bodyExtra, action) => {
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          { input: {}, ...bodyExtra },
+          { 'Content-Type': 'application/json' }
+        ),
+        createRouteContext({ id: 'workflow-1' })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
+        expect.objectContaining({ action })
+      )
+    })
+  })
+
   describe('triggerType override gate', () => {
     it.each([
       ['personal API key', EXECUTION_CALLERS[1]],

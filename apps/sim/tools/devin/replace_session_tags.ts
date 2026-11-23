@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinReplaceSessionTagsParams, DevinSessionTagsResponse } from './types'
 import { normalizeTags } from './utils'
 
@@ -10,6 +12,7 @@ export const devinReplaceSessionTagsTool: ToolConfig<
   name: 'Devin Replace Session Tags',
   description: 'Replace all tags on a Devin session with a new set of tags (max 50 tags).',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -41,7 +44,7 @@ export const devinReplaceSessionTagsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}/tags`,
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/tags`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

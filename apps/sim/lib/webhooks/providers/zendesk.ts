@@ -3,7 +3,9 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -45,7 +47,7 @@ async function deleteZendeskWebhookQuietly(
   authHeader: string,
   webhookId: string
 ): Promise<void> {
-  await fetch(`${apiBase}/webhooks/${webhookId}`, {
+  await outboundFetch(`${apiBase}/webhooks/${webhookId}`, {
     method: 'DELETE',
     headers: { Authorization: authHeader },
   }).catch(() => {})
@@ -88,26 +90,24 @@ export const zendeskHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      logger.warn(`[${requestId}] Zendesk webhook secret not configured`)
+      logger.warn('Zendesk webhook secret not configured', { requestId })
       return new NextResponse('Unauthorized - Missing Zendesk webhook secret', { status: 401 })
     }
 
     const signature = request.headers.get('X-Zendesk-Webhook-Signature')
     const timestamp = request.headers.get('X-Zendesk-Webhook-Signature-Timestamp')
     if (!signature || !timestamp) {
-      logger.warn(`[${requestId}] Zendesk webhook missing signature headers`)
+      logger.warn('Zendesk webhook missing signature headers', { requestId })
       return new NextResponse('Unauthorized - Missing Zendesk signature', { status: 401 })
     }
 
     if (!isZendeskTimestampFresh(timestamp)) {
-      logger.warn(`[${requestId}] Zendesk webhook timestamp outside the allowed window`, {
-        timestamp,
-      })
+      logger.warn('Zendesk webhook timestamp outside the allowed window', { requestId, timestamp })
       return new NextResponse('Unauthorized - Stale Zendesk timestamp', { status: 401 })
     }
 
     if (!validateZendeskSignature(secret, signature, timestamp, rawBody)) {
-      logger.warn(`[${requestId}] Zendesk signature verification failed`)
+      logger.warn('Zendesk signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Zendesk signature', { status: 401 })
     }
 
@@ -122,9 +122,9 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     const { isZendeskEventMatch } = await import('@/triggers/zendesk/utils')
     if (!isZendeskEventMatch(triggerId, eventType || '')) {
-      logger.debug(
-        `[${requestId}] Zendesk event '${eventType}' does not match trigger ${triggerId}, skipping`
-      )
+      logger.debug(`Zendesk event '${eventType}' does not match trigger ${triggerId}, skipping`, {
+        requestId,
+      })
       return false
     }
     return true
@@ -174,20 +174,32 @@ export const zendeskHandler: WebhookProviderHandler = {
     const apiToken = config.apiToken as string | undefined
     const triggerId = config.triggerId as string | undefined
 
-    if (!subdomain) throw new Error('Zendesk subdomain is required to create the webhook.')
+    if (!subdomain) {
+      throw new WebhookDeploymentConfigurationError(
+        'Zendesk subdomain is required to create the webhook.'
+      )
+    }
     if (!isValidZendeskSubdomain(subdomain)) {
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'Zendesk subdomain must contain only letters, numbers, and hyphens (e.g. "yourcompany").'
       )
     }
-    if (!email) throw new Error('Zendesk admin email is required to create the webhook.')
-    if (!apiToken) throw new Error('Zendesk API token is required to create the webhook.')
+    if (!email) {
+      throw new WebhookDeploymentConfigurationError(
+        'Zendesk admin email is required to create the webhook.'
+      )
+    }
+    if (!apiToken) {
+      throw new WebhookDeploymentConfigurationError(
+        'Zendesk API token is required to create the webhook.'
+      )
+    }
 
     const { getZendeskSubscriptions } = await import('@/triggers/zendesk/utils')
     const apiBase = zendeskApiBase(subdomain)
     const authHeader = zendeskAuthHeader(email, apiToken)
 
-    const createRes = await fetch(`${apiBase}/webhooks`, {
+    const createRes = await outboundFetch(`${apiBase}/webhooks`, {
       method: 'POST',
       headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -204,7 +216,8 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     if (!createRes.ok) {
       const detail = await createRes.text().catch(() => '')
-      logger.error(`[${ctx.requestId}] Failed to create Zendesk webhook (${createRes.status})`, {
+      logger.error(`Failed to create Zendesk webhook (${createRes.status})`, {
+        requestId: ctx.requestId,
         detail,
       })
       if (createRes.status === 401 || createRes.status === 403) {
@@ -219,14 +232,14 @@ export const zendeskHandler: WebhookProviderHandler = {
     const externalId = toRecord(created.webhook).id as string | undefined
     if (!externalId) throw new Error('Zendesk webhook created but no webhook ID was returned.')
 
-    const secretRes = await fetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
+    const secretRes = await outboundFetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
       headers: { Authorization: authHeader },
     })
     if (!secretRes.ok) {
       const detail = await secretRes.text().catch(() => '')
       logger.error(
-        `[${ctx.requestId}] Created Zendesk webhook ${externalId} but failed to fetch signing secret (${secretRes.status})`,
-        { detail }
+        `Created Zendesk webhook ${externalId} but failed to fetch signing secret (${secretRes.status})`,
+        { requestId: ctx.requestId, detail }
       )
       await deleteZendeskWebhookQuietly(apiBase, authHeader, externalId)
       throw new Error(`Failed to fetch Zendesk signing secret: ${secretRes.status}`)
@@ -239,7 +252,7 @@ export const zendeskHandler: WebhookProviderHandler = {
       throw new Error('Zendesk did not return a signing secret for the webhook.')
     }
 
-    logger.info(`[${ctx.requestId}] Created Zendesk webhook ${externalId}`)
+    logger.info(`Created Zendesk webhook ${externalId}`, { requestId: ctx.requestId })
     return { providerConfigUpdates: { externalId, webhookSecret: secret } }
   },
 
@@ -252,30 +265,32 @@ export const zendeskHandler: WebhookProviderHandler = {
 
     if (!subdomain || !email || !apiToken || !externalId) {
       if (ctx.strict) throw new Error('Missing Zendesk credentials or webhook ID for deletion.')
-      logger.warn(
-        `[${ctx.requestId}] Skipping Zendesk webhook cleanup — missing credentials or webhook ID`
-      )
+      logger.warn('Skipping Zendesk webhook cleanup — missing credentials or webhook ID', {
+        requestId: ctx.requestId,
+      })
       return
     }
 
     if (!isValidZendeskSubdomain(subdomain)) {
       if (ctx.strict) throw new Error('Invalid Zendesk subdomain for deletion.')
-      logger.warn(`[${ctx.requestId}] Skipping Zendesk webhook cleanup — invalid subdomain`)
+      logger.warn('Skipping Zendesk webhook cleanup — invalid subdomain', {
+        requestId: ctx.requestId,
+      })
       return
     }
 
-    const res = await fetch(`${zendeskApiBase(subdomain)}/webhooks/${externalId}`, {
+    const res = await outboundFetch(`${zendeskApiBase(subdomain)}/webhooks/${externalId}`, {
       method: 'DELETE',
       headers: { Authorization: zendeskAuthHeader(email, apiToken) },
     })
 
     if (!res.ok && res.status !== 404) {
       if (ctx.strict) throw new Error(`Failed to delete Zendesk webhook: ${res.status}`)
-      logger.warn(
-        `[${ctx.requestId}] Failed to delete Zendesk webhook ${externalId} (non-fatal): ${res.status}`
-      )
+      logger.warn(`Failed to delete Zendesk webhook ${externalId} (non-fatal): ${res.status}`, {
+        requestId: ctx.requestId,
+      })
       return
     }
-    logger.info(`[${ctx.requestId}] Deleted Zendesk webhook ${externalId}`)
+    logger.info(`Deleted Zendesk webhook ${externalId}`, { requestId: ctx.requestId })
   },
 }

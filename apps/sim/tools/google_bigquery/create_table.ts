@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryCreateTableResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryCreateTableTool: ToolConfig<
   GoogleBigQueryCreateTableParams,
@@ -66,7 +67,7 @@ export const googleBigQueryCreateTableTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId.trim())}/tables`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}/tables`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -93,7 +94,7 @@ export const googleBigQueryCreateTableTool: ToolConfig<
 
       const body: Record<string, unknown> = {
         tableReference: {
-          projectId: params.projectId,
+          projectId: String(params.projectId).trim(),
           datasetId: params.datasetId.trim(),
           tableId: params.tableId.trim(),
         },

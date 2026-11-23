@@ -58,6 +58,7 @@ const UpdateStackSchema = z
         })
       )
       .optional(),
+    roleArn: z.string().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.templateBody && !data.usePreviousTemplate) {

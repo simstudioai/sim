@@ -162,7 +162,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
-    logger.error(`[${requestId}] CSV import failed:`, error)
+    logger.error('CSV import failed:', error)
     return NextResponse.json({ error: 'Failed to import CSV' }, { status: 500 })
   } finally {
     fileStream?.destroy()

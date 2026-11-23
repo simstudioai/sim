@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramMedia,
   TelegramSendMediaResponse,
@@ -13,6 +14,7 @@ export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, Telegram
     name: 'Telegram Send Video',
     description: 'Send videos to Telegram channels or users through the Telegram Bot API.',
     version: '1.0.0',
+    oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {
@@ -139,9 +141,44 @@ export const telegramSendVideoTool: ToolConfig<TelegramSendVideoParams, Telegram
             type: 'string',
             description: 'Text content of the sent message (if applicable)',
           },
+          video: {
+            type: 'object',
+            description: 'Video sent in the message',
+            optional: true,
+            properties: {
+              file_id: {
+                type: 'string',
+                description: 'Video file ID, reusable to resend the file',
+              },
+              file_unique_id: { type: 'string', description: 'Unique video file identifier' },
+              width: { type: 'number', description: 'Video width in pixels' },
+              height: { type: 'number', description: 'Video height in pixels' },
+              duration: { type: 'number', description: 'Duration of the video in seconds' },
+              thumbnail: {
+                type: 'object',
+                description: 'Video thumbnail details',
+                optional: true,
+                properties: {
+                  file_id: { type: 'string', description: 'Thumbnail file ID' },
+                  file_unique_id: {
+                    type: 'string',
+                    description: 'Unique thumbnail file identifier',
+                  },
+                  file_size: { type: 'number', description: 'Thumbnail file size in bytes' },
+                  width: { type: 'number', description: 'Thumbnail width in pixels' },
+                  height: { type: 'number', description: 'Thumbnail height in pixels' },
+                },
+              },
+              file_name: { type: 'string', description: 'Original video file name' },
+              mime_type: { type: 'string', description: 'Video MIME type' },
+              file_size: { type: 'number', description: 'Video file size in bytes' },
+            },
+          },
           format: {
             type: 'object',
-            description: 'Media format information (for videos, GIFs, etc.)',
+            description:
+              'Legacy key: Telegram returns no format object, so this is never populated. Read video instead.',
+            optional: true,
             properties: {
               file_name: { type: 'string', description: 'Media file name' },
               mime_type: { type: 'string', description: 'Media MIME type' },

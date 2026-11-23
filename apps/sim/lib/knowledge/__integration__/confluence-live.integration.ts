@@ -343,6 +343,7 @@ describe.skipIf(!fixtureFile)('live Confluence ingestion and permission parity',
       kind: 'workspace_api_key',
       workspaceId: input.workspaceId,
       keyId: 'confluence-live',
+      access: 'write',
     }
     expect(
       (

@@ -5,7 +5,9 @@ import type {
   ClerkRevokeSessionResponse,
   ClerkSession,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkRevokeSession')
 
@@ -17,6 +19,7 @@ export const clerkRevokeSessionTool: ToolConfig<
   name: 'Revoke Session in Clerk',
   description: 'Revoke a session to immediately invalidate it',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -34,7 +37,8 @@ export const clerkRevokeSessionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/sessions/${params.sessionId?.trim()}/revoke`,
+    url: (params) =>
+      `https://api.clerk.com/v1/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}/revoke`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

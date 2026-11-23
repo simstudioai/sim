@@ -226,7 +226,7 @@ export function resolveCredentialDisplay(credential: DisplayableCredential): Cre
     return {
       service: null,
       integration,
-      blockType: 'gitlab',
+      blockType: integration?.type ?? 'gitlab',
       icon: GitlabIcon,
       familyName: null,
       coveredIntegrations: integration ? [integration] : [],

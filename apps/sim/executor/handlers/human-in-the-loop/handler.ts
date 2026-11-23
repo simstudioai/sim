@@ -1,12 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
   isCanonicalPair,
   scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
+} from '@sim/workflow-code/catalog/canonical-index'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import { getBlock } from '@/blocks/registry'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -27,6 +28,7 @@ import type { BlockHandler, ExecutionContext, PauseMetadata } from '@/executor/t
 import { collectBlockData } from '@/executor/utils/block-data'
 import { convertBuilderDataToJson, convertPropertyValue } from '@/executor/utils/builder-data'
 import { parseObjectStrings } from '@/executor/utils/json'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import { buildBlockToolParamsTransform } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -422,7 +424,13 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
       Object.values(buildCanonicalIndex(subBlocks).groupsById) as CanonicalGroup[]
     ).filter(isCanonicalPair)
 
+    const operation =
+      toolConfig.operation ??
+      (typeof storedParams.operation === 'string' ? storedParams.operation : undefined)
+    const visibleParams = omitConditionHiddenParams(subBlocks, storedParams, operation)
+
     const { paramsTransform } = buildBlockToolParamsTransform({
+      operation,
       blockSubBlocks: subBlocks,
       blockParamsFn: notificationBlock?.tools?.config?.params,
       blockInputDefs: notificationBlock?.inputs,
@@ -433,20 +441,23 @@ export class HumanInTheLoopBlockHandler implements BlockHandler {
         toolIndex,
         toolConfig.type
       ),
+      storedParams: visibleParams,
     })
 
-    if (!paramsTransform) return storedParams
+    if (!paramsTransform) return visibleParams
 
     try {
-      return paramsTransform(storedParams)
+      return paramsTransform(visibleParams)
     } catch (error) {
       // Mirrors `prepareToolExecution`: a transform that throws must not take the
-      // notification down with it, so the raw params still go out.
+      // notification down with it, so the raw params still go out — except a
+      // `ToolCallParamsError`, whose raw params are unsafe to send.
+      if (error instanceof ToolCallParamsError) throw error
       logger.warn('Notification tool params transform failed, using raw params', {
         toolId,
         error,
       })
-      return storedParams
+      return visibleParams
     }
   }
 

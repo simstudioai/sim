@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TIME_ENTRY_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetTimeEntryTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneGetTimeEntryTool: ToolConfig<
   name: 'Rocketlane Get Time Entry',
   description: 'Get a single Rocketlane time entry by ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

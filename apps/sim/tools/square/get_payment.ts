@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { GetPaymentParams, PaymentResponse } from '@/tools/square/types'
 import {
   PAYMENT_METADATA_OUTPUT_PROPERTIES,
   PAYMENT_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareGetPaymentTool: ToolConfig<GetPaymentParams, PaymentResponse>
   name: 'Square Get Payment',
   description: 'Retrieve details for a single payment by its ID',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -31,7 +34,8 @@ export const squareGetPaymentTool: ToolConfig<GetPaymentParams, PaymentResponse>
   },
 
   request: {
-    url: (params) => `${SQUARE_BASE_URL}/v2/payments/${encodeURIComponent(params.paymentId)}`,
+    url: (params) =>
+      `${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/payments/${encodeURIComponent(params.paymentId)}`,
     method: 'GET',
     headers: (params) => squareHeaders(params.apiKey),
   },

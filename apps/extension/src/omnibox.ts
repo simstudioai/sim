@@ -12,6 +12,10 @@ const logger = createLogger('BrowserExtensionOmnibox')
 
 /** Longer than the gap between a typist's keystrokes, so a name is looked up once it settles. */
 const SUGGEST_DELAY_MS = 220
+const SEARCH_HINT = 'Find a link in Sim'
+// Chrome persists this template and substitutes the input when rendering the default row.
+const OPEN_LINK_HINT = 'Open <match>%s</match> in Sim'
+const SEARCH_LINKS_HINT = 'Find <match>%s</match> in Sim'
 
 /** A Sim link as suggested: its name, and what it shows beside the name. */
 interface SuggestedLink {
@@ -28,6 +32,7 @@ interface SuggestedLink {
 function readTyped(text: string): { name: string; rest: string } {
   const typed = text
     .trim()
+    // Only the keyword's own `sim/`: after it, `go/x` can be a link named `go` with a value.
     .replace(/^sim\//i, '')
     .replace(/^\/+/, '')
     .replace(/#.*$/, '')
@@ -117,16 +122,29 @@ export function registerSimLinkOmnibox() {
    */
   const linksByName = new LRUCache<string, SuggestedLink[]>({ max: 100 })
 
-  chrome.omnibox.onInputStarted.addListener(() => linksByName.clear())
+  let defaultHint: string | undefined
+  function showHint(hint: string) {
+    if (hint === defaultHint) return
+    defaultHint = hint
+    chrome.omnibox.setDefaultSuggestion({ description: hint })
+  }
+
+  function resetSession() {
+    pending?.abort()
+    linksByName.clear()
+    showHint(SEARCH_HINT)
+  }
+
+  showHint(SEARCH_HINT)
+  chrome.omnibox.onInputStarted.addListener(resetSession)
 
   chrome.omnibox.onInputChanged.addListener((text, suggest) => {
     pending?.abort()
     const { name, rest } = readTyped(text)
-    chrome.omnibox.setDefaultSuggestion({
-      description: `Open <match>sim/${escapeXml(`${name}${rest}`)}</match>`,
-    })
     // A name can't hold a space, so `sim card prices` is a search, not a link: ask Sim nothing.
-    if (/\s/.test(name) || name.length > SIM_LINK_NAME_MAX_LENGTH) {
+    const phrase = /\s/.test(name)
+    showHint(phrase ? SEARCH_LINKS_HINT : name || rest ? OPEN_LINK_HINT : SEARCH_HINT)
+    if (phrase || name.length > SIM_LINK_NAME_MAX_LENGTH) {
       suggest([])
       return
     }
@@ -144,17 +162,18 @@ export function registerSimLinkOmnibox() {
       // Signed out or rate limited: the typed link still opens through the resolver, and the name
       // is asked about again on the next keystroke rather than remembered as having no links.
       const links = await fetchSuggestedLinks(key, controller.signal)
+      if (controller.signal.aborted) return
       if (links) linksByName.set(key, links)
-      if (!controller.signal.aborted) suggest(toSuggestions(links ?? [], rest))
+      suggest(toSuggestions(links ?? [], rest))
     })().catch(() => {
       if (!controller.signal.aborted) logger.warn('Could not load Sim link suggestions')
     })
   })
 
-  chrome.omnibox.onInputCancelled.addListener(() => pending?.abort())
+  chrome.omnibox.onInputCancelled.addListener(resetSession)
 
   chrome.omnibox.onInputEntered.addListener((text, disposition) => {
-    pending?.abort()
+    resetSession()
     const url = simLinkUrl(text)
     const opened =
       disposition === 'currentTab'

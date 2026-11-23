@@ -334,6 +334,14 @@ Return ONLY the text to insert - no explanations, no extra text.`,
       condition: { field: 'operation', value: 'replace_text' },
       description: 'When on, only case-sensitive matches are replaced.',
     },
+    {
+      id: 'searchByRegex',
+      title: 'Use Regular Expression',
+      type: 'switch',
+      condition: { field: 'operation', value: 'replace_text' },
+      description: 'When on, the Find text is treated as a regular expression.',
+      mode: 'advanced',
+    },
     // Insert Table fields
     {
       id: 'rows',
@@ -483,6 +491,21 @@ Return ONLY the text to insert - no explanations, no extra text.`,
         { label: 'Star / Circle / Square', id: 'BULLET_STAR_CIRCLE_SQUARE' },
         { label: 'Numbered: Decimal / Alpha / Roman', id: 'NUMBERED_DECIMAL_ALPHA_ROMAN' },
         { label: 'Numbered: Decimal Nested', id: 'NUMBERED_DECIMAL_NESTED' },
+        { label: 'Diamond X / Arrow 3D / Square', id: 'BULLET_DIAMONDX_ARROW3D_SQUARE' },
+        { label: 'Arrow 3D / Circle / Square', id: 'BULLET_ARROW3D_CIRCLE_SQUARE' },
+        {
+          label: 'Numbered: Decimal / Alpha / Roman (parens)',
+          id: 'NUMBERED_DECIMAL_ALPHA_ROMAN_PARENS',
+        },
+        {
+          label: 'Numbered: Upper Alpha / Alpha / Roman',
+          id: 'NUMBERED_UPPERALPHA_ALPHA_ROMAN',
+        },
+        {
+          label: 'Numbered: Upper Roman / Upper Alpha / Decimal',
+          id: 'NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL',
+        },
+        { label: 'Numbered: Zero Decimal / Alpha / Roman', id: 'NUMBERED_ZERODECIMAL_ALPHA_ROMAN' },
       ],
       condition: { field: 'operation', value: 'create_paragraph_bullets' },
     },
@@ -509,6 +532,48 @@ Return ONLY the text to insert - no explanations, no extra text.`,
       type: 'short-input',
       placeholder: 'Name of the named range(s) to delete',
       condition: { field: 'operation', value: 'delete_named_range' },
+    },
+    // Read options
+    {
+      id: 'includeTabsContent',
+      title: 'Read All Tabs',
+      type: 'switch',
+      condition: { field: 'operation', value: 'read' },
+      description:
+        'When on, reads every tab of the document instead of only the first tab, and returns each tab separately.',
+      mode: 'advanced',
+    },
+    {
+      id: 'suggestionsViewMode',
+      title: 'Suggested Edits',
+      type: 'dropdown',
+      options: [
+        { label: 'Default (based on access)', id: '' },
+        { label: 'Show inline', id: 'SUGGESTIONS_INLINE' },
+        { label: 'Preview with suggestions accepted', id: 'PREVIEW_SUGGESTIONS_ACCEPTED' },
+        { label: 'Preview with suggestions rejected', id: 'PREVIEW_WITHOUT_SUGGESTIONS' },
+      ],
+      condition: { field: 'operation', value: 'read' },
+      mode: 'advanced',
+    },
+    // Target tab (advanced) for multi-tab documents
+    {
+      id: 'tabId',
+      title: 'Tab ID',
+      type: 'short-input',
+      placeholder: 'Tab ID (empty: first tab; for Find & Replace: all tabs)',
+      condition: {
+        field: 'operation',
+        value: [
+          'write',
+          'insert_text',
+          'replace_text',
+          'insert_table',
+          'insert_image',
+          'insert_page_break',
+        ],
+      },
+      mode: 'advanced',
     },
     // Shared insertion index (advanced) for the insert operations
     {
@@ -652,10 +717,22 @@ Return ONLY the text to insert - no explanations, no extra text.`,
     name: { type: 'string', description: 'Name for a created named range' },
     namedRangeId: { type: 'string', description: 'ID of a named range to delete' },
     namedRangeName: { type: 'string', description: 'Name of named range(s) to delete' },
+    includeTabsContent: { type: 'boolean', description: 'Read every tab of the document' },
+    suggestionsViewMode: { type: 'string', description: 'How suggested edits are returned' },
+    tabId: { type: 'string', description: 'Target tab ID in a multi-tab document' },
+    searchByRegex: { type: 'boolean', description: 'Treat find text as a regular expression' },
   },
   outputs: {
     content: { type: 'string', description: 'Document content' },
-    metadata: { type: 'json', description: 'Document metadata' },
+    metadata: {
+      type: 'json',
+      description: 'Document metadata (documentId, title, mimeType, url, revisionId on read)',
+    },
+    tabs: {
+      type: 'json',
+      description:
+        'Document tabs when Read All Tabs is on: [{tabId, title, parentTabId, index, nestingLevel, content}]',
+    },
     updatedContent: { type: 'boolean', description: 'Content update status' },
     occurrencesChanged: {
       type: 'number',

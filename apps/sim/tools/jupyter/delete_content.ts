@@ -3,6 +3,7 @@ import type {
   JupyterDeleteContentParams,
   JupyterDeleteContentResponse,
 } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterDeleteContentTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const jupyterDeleteContentTool: InternalToolConfig<
   name: 'Jupyter Delete Content',
   description: 'Delete a file, notebook, or directory on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

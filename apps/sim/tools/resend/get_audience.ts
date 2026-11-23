@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { GetAudienceParams, GetAudienceResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendGetAudienceTool')
@@ -9,6 +10,7 @@ export const resendGetAudienceTool: ToolConfig<GetAudienceParams, GetAudienceRes
   name: 'Get Audience',
   description: 'Retrieve details of an audience by ID',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     audienceId: {

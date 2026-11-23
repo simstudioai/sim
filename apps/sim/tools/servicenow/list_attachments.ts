@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { SERVICENOW_CREDENTIAL_PARAMS } from '@/tools/servicenow/params'
 import type {
   ServiceNowListAttachmentsParams,
   ServiceNowListAttachmentsResponse,
 } from '@/tools/servicenow/types'
 import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowListAttachmentsTool')
@@ -16,6 +18,7 @@ export const listAttachmentsTool: ToolConfig<
   name: 'List ServiceNow Attachments',
   description: 'List the attachments on a ServiceNow record',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {
@@ -36,6 +39,7 @@ export const listAttachmentsTool: ToolConfig<
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...SERVICENOW_CREDENTIAL_PARAMS,
     tableName: {
       type: 'string',
       required: true,

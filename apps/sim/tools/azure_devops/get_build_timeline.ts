@@ -3,6 +3,8 @@ import type {
   GetBuildTimelineParams,
   GetBuildTimelineResponse,
 } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTimelineResponse> = {
@@ -11,6 +13,7 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
   description:
     'Get the execution timeline for an Azure DevOps build — every stage, job, and task with its result and log ID. Use this to identify which steps failed before fetching their logs with Get Build Log.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -41,7 +44,7 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
 
   request: {
     url: (params) =>
-      `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/build/builds/${Number(params.buildId)}/timeline?api-version=7.2-preview.3`,
+      `${azureDevOpsProjectUrl(params)}/_apis/build/builds/${Number(params.buildId)}/timeline?api-version=7.2-preview.3`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -62,6 +65,9 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
         warningCount?: number
         startTime?: string
         finishTime?: string
+        parentId?: string | null
+        state?: string | null
+        issues?: Array<{ type?: string; category?: string | null; message?: string }> | null
       }) => ({
         id: r.id,
         name: r.name,
@@ -72,6 +78,13 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
         warningCount: r.warningCount ?? 0,
         startTime: r.startTime ?? '',
         finishTime: r.finishTime ?? '',
+        parentId: r.parentId ?? null,
+        state: r.state ?? null,
+        issues: (r.issues ?? []).map((issue) => ({
+          type: issue.type ?? '',
+          category: issue.category ?? null,
+          message: issue.message ?? '',
+        })),
       })
     )
 
@@ -89,7 +102,11 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
           failedRecords
             .map(
               (r) =>
-                `[${r.type}] ${r.name} — result: ${r.result}, logId: ${r.logId ?? 'none'}, errors: ${r.errorCount}`
+                `[${r.type}] ${r.name} — result: ${r.result}, logId: ${r.logId ?? 'none'}, errors: ${r.errorCount}` +
+                r.issues
+                  .filter((issue) => issue.type === 'error')
+                  .map((issue) => `\n    error: ${issue.message}`)
+                  .join('')
             )
             .join('\n')
 
@@ -136,6 +153,32 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
               warningCount: { type: 'number', description: 'Number of warnings' },
               startTime: { type: 'string', description: 'ISO 8601 start timestamp' },
               finishTime: { type: 'string', description: 'ISO 8601 finish timestamp' },
+              parentId: {
+                type: 'string',
+                description: 'GUID of the parent record (job for a task, stage for a job)',
+                optional: true,
+                nullable: true,
+              },
+              state: {
+                type: 'string',
+                description: 'pending | inProgress | completed',
+                optional: true,
+                nullable: true,
+              },
+              issues: {
+                type: 'array',
+                description:
+                  'Errors and warnings the step reported (type error|warning, category, message)',
+                optional: true,
+                items: {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', description: 'error or warning' },
+                    category: { type: 'string', description: 'Issue category', nullable: true },
+                    message: { type: 'string', description: 'Issue message' },
+                  },
+                },
+              },
             },
           },
         },
@@ -155,6 +198,32 @@ export const getBuildTimelineTool: ToolConfig<GetBuildTimelineParams, GetBuildTi
               warningCount: { type: 'number', description: 'Number of warnings' },
               startTime: { type: 'string', description: 'ISO 8601 start timestamp' },
               finishTime: { type: 'string', description: 'ISO 8601 finish timestamp' },
+              parentId: {
+                type: 'string',
+                description: 'GUID of the parent record (job for a task, stage for a job)',
+                optional: true,
+                nullable: true,
+              },
+              state: {
+                type: 'string',
+                description: 'pending | inProgress | completed',
+                optional: true,
+                nullable: true,
+              },
+              issues: {
+                type: 'array',
+                description:
+                  'Errors and warnings the step reported (type error|warning, category, message)',
+                optional: true,
+                items: {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', description: 'error or warning' },
+                    category: { type: 'string', description: 'Issue category', nullable: true },
+                    message: { type: 'string', description: 'Issue message' },
+                  },
+                },
+              },
             },
           },
         },

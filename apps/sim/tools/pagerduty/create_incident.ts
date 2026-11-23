@@ -2,6 +2,7 @@ import type {
   PagerDutyCreateIncidentParams,
   PagerDutyCreateIncidentResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createIncidentTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createIncidentTool: ToolConfig<
   name: 'PagerDuty Create Incident',
   description: 'Create a new incident in PagerDuty.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

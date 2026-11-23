@@ -11,7 +11,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, redactBoundParameters, toError } from '@sim/utils/errors'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
@@ -79,6 +78,7 @@ import {
   buildParallelSentinelEndId,
 } from '@/executor/utils/subflow-node-id-codec'
 import { Serializer } from '@/serializer'
+import type { SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ExecutionCore')
 
@@ -285,7 +285,7 @@ async function clearExecutionCancellationSafely(
   try {
     await clearExecutionCancellation(executionId)
   } catch (error) {
-    logger.error(`[${requestId}] Failed to clear execution cancellation`, { error, executionId })
+    logger.error('Failed to clear execution cancellation', { requestId, error, executionId })
   }
 }
 
@@ -326,7 +326,7 @@ async function recordSettledRun(
   try {
     await updateWorkflowRunCounts(workflowId)
   } catch (error) {
-    logger.error(`[${requestId}] Failed to update run counts`, { error })
+    logger.error('Failed to update run counts', { requestId, error })
   }
 }
 
@@ -345,8 +345,9 @@ function buildTraceSpansForLog(
     return buildTraceSpans(result)
   } catch (error) {
     logger.error(
-      `[${requestId}] Failed to build trace spans; finalizing without them`,
-      loggingSession.projectDiagnosticError(error, { executionId })
+      'Failed to build trace spans; finalizing without them',
+      loggingSession.projectDiagnosticError(error, { executionId }),
+      { requestId }
     )
     return { traceSpans: [], totalDuration: result.metadata?.duration ?? 0 }
   }
@@ -378,6 +379,7 @@ async function finalizeExecutionOutcome(params: {
         totalDurationMs: totalDuration || 0,
         error: { message: getTimeoutErrorMessage() },
         traceSpans: traceSpans || [],
+        workflowInput,
         executionState: result.executionState,
       })
     } else if (result.status === 'cancelled') {
@@ -385,6 +387,7 @@ async function finalizeExecutionOutcome(params: {
         endedAt,
         totalDurationMs: totalDuration || 0,
         traceSpans: traceSpans || [],
+        workflowInput,
         executionState: result.executionState,
       })
     } else if (result.status === 'paused') {
@@ -418,11 +421,12 @@ async function finalizeExecutionOutcome(params: {
     }
   } catch (error) {
     logger.warn(
-      `[${requestId}] Post-execution finalization failed`,
+      'Post-execution finalization failed',
       loggingSession.projectDiagnosticError(error, {
         executionId,
         status: result.status,
-      })
+      }),
+      { requestId }
     )
   }
 
@@ -436,8 +440,10 @@ async function finalizeExecutionError(params: {
   workflowId: string
   executionId: string
   requestId: string
+  /** The input the executor ran with; absent when the run failed before its input stage finished. */
+  workflowInput: unknown
 }): Promise<boolean> {
-  const { error, loggingSession, workflowId, executionId, requestId } = params
+  const { error, loggingSession, workflowId, executionId, requestId, workflowInput } = params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
   const { traceSpans } = executionResult
     ? buildTraceSpansForLog(executionResult, loggingSession, requestId, executionId)
@@ -453,6 +459,7 @@ async function finalizeExecutionError(params: {
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,
+      workflowInput,
       executionState: executionResult?.executionState,
     })
 
@@ -462,8 +469,9 @@ async function finalizeExecutionError(params: {
     }
   } catch (postExecError) {
     logger.error(
-      `[${requestId}] Post-execution error logging failed`,
-      loggingSession.projectDiagnosticError(postExecError, { executionId })
+      'Post-execution error logging failed',
+      loggingSession.projectDiagnosticError(postExecError, { executionId }),
+      { requestId }
     )
   }
 
@@ -683,8 +691,24 @@ async function executeWorkflowCoreImpl(
   if (resumeFromSnapshot && !useDraftState && !resumeDeploymentVersionId) {
     throw new Error('Deployed resume requires its admitted deployment version')
   }
+  /**
+   * A draft resume runs the graph it paused on, never the live draft. Any `write`
+   * member can edit the draft while the resumed run keeps its starter's identity
+   * (personal variables, credential access), so reloading it would run another
+   * member's later edits as the starter.
+   */
+  const resumesPausedDraft = resumeFromSnapshot && useDraftState
+  if (resumesPausedDraft && !Array.isArray(snapshot.workflow?.blocks)) {
+    throw new Error('Draft resume is missing the workflow graph it paused on')
+  }
+  const pinnedDeploymentVersionId = metadata.pinnedDeploymentVersionId
+  if (pinnedDeploymentVersionId && (useDraftState || metadata.workflowStateOverride)) {
+    throw new Error('A pinned deployment version cannot run draft or overridden workflow state')
+  }
 
   let processedInput = input || {}
+  // Set once the input stage (file fields, PII redaction) finishes.
+  let executorInput: unknown
   let deploymentVersionId: string | undefined
   let loggingStarted = false
   let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
@@ -721,28 +745,32 @@ async function executeWorkflowCoreImpl(
      * on the environment load, so the two are awaited concurrently below.
      */
     const loadWorkflowState = async () => {
-      if (resumeFromSnapshot && !useDraftState) {
-        if (!resumeDeploymentVersionId) {
-          throw new Error('Deployed resume requires its admitted deployment version')
-        }
-        const deployedData = await loadWorkflowDeploymentVersionState(
+      /** A deployed resume reloads the version its log admitted; a pinned run, its pin. */
+      const versionId =
+        resumeFromSnapshot && !useDraftState ? resumeDeploymentVersionId : pinnedDeploymentVersionId
+      if (versionId) {
+        const versionData = await loadWorkflowDeploymentVersionState(
           workflowId,
-          resumeDeploymentVersionId,
+          versionId,
           providedWorkspaceId
         )
-        logger.info(`[${requestId}] Using admitted historical deployment state (resumed execution)`)
+        logger.info('Using a selected deployment version state', {
+          requestId,
+          resumed: resumeFromSnapshot,
+        })
         return {
-          blocks: deployedData.blocks,
-          edges: deployedData.edges,
-          loops: deployedData.loops,
-          parallels: deployedData.parallels,
-          deploymentVersionId: deployedData.deploymentVersionId,
+          blocks: versionData.blocks,
+          edges: versionData.edges,
+          loops: versionData.loops,
+          parallels: versionData.parallels,
+          deploymentVersionId: versionData.deploymentVersionId,
         }
       }
 
       if (metadata.workflowStateOverride) {
         const override = metadata.workflowStateOverride
-        logger.info(`[${requestId}] Using workflow state override (diff workflow execution)`, {
+        logger.debug('Using workflow state override (diff workflow execution)', {
+          requestId,
           blocksCount: Object.keys(override.blocks).length,
           edgesCount: override.edges.length,
         })
@@ -762,9 +790,9 @@ async function executeWorkflowCoreImpl(
           throw new Error('Workflow not found or not yet saved')
         }
 
-        logger.info(
-          `[${requestId}] Using draft workflow state from normalized tables (client execution)`
-        )
+        logger.info('Using draft workflow state from normalized tables (client execution)', {
+          requestId,
+        })
         return {
           blocks: draftData.blocks,
           edges: draftData.edges,
@@ -775,7 +803,7 @@ async function executeWorkflowCoreImpl(
       }
 
       const deployedData = await loadDeployedWorkflowState(workflowId, providedWorkspaceId)
-      logger.info(`[${requestId}] Using deployed workflow state (deployed execution)`)
+      logger.debug('Using deployed workflow state (deployed execution)', { requestId })
       return {
         blocks: deployedData.blocks,
         edges: deployedData.edges,
@@ -786,16 +814,18 @@ async function executeWorkflowCoreImpl(
     }
 
     const [workflowState, env, piiPolicyRow] = await Promise.all([
-      withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
+      resumesPausedDraft
+        ? undefined
+        : withDatabaseReadRetry(loadWorkflowState, { label: 'loadWorkflowState' }),
       reads.environment,
       reads.piiPolicyRow,
     ])
 
-    const { blocks, loops, parallels } = workflowState
-    const edges: Edge[] = workflowState.edges
-    deploymentVersionId = workflowState.deploymentVersionId
-
-    const mergedStates = mergeSubblockStateWithValues(blocks)
+    deploymentVersionId = workflowState?.deploymentVersionId
+    const loadedWorkflow = workflowState && {
+      ...workflowState,
+      mergedStates: mergeSubblockStateWithValues(workflowState.blocks),
+    }
 
     const {
       personalEncrypted,
@@ -861,7 +891,12 @@ async function executeWorkflowCoreImpl(
       triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
       skipLogCreation,
       deploymentVersionId,
-      workflowState: { blocks, edges, loops, parallels },
+      workflowState: loadedWorkflow && {
+        blocks: loadedWorkflow.blocks,
+        edges: loadedWorkflow.edges,
+        loops: loadedWorkflow.loops,
+        parallels: loadedWorkflow.parallels,
+      },
     })
     /**
      * A start that failed because the run's workspace or workflow is gone ends the run here,
@@ -869,9 +904,6 @@ async function executeWorkflowCoreImpl(
      */
     const deletedScope = loggingSession.getDeletedScope()
     if (deletedScope) throw new ExecutionScopeDeletedError(executionId, deletedScope)
-
-    // Use edges directly - trigger-to-trigger edges are prevented at creation time
-    const filteredEdges = edges
 
     // Check if this is a resume execution before trigger resolution
     const resumePendingQueue = snapshot.state?.pendingQueue
@@ -887,12 +919,16 @@ async function executeWorkflowCoreImpl(
       (resumePendingQueue !== undefined || resumeRemainingEdges !== undefined || resumeTerminalNoop)
     ) {
       resolvedTriggerBlockId = undefined
-      logger.info(`[${requestId}] Skipping trigger resolution for resume execution`, {
+      logger.info('Skipping trigger resolution for resume execution', {
+        requestId,
         pendingQueueLength: resumePendingQueue?.length ?? 0,
         remainingEdgeCount: resumeRemainingEdges?.length ?? 0,
         resumeTerminalNoop,
       })
     } else if (!triggerBlockId) {
+      if (!loadedWorkflow) {
+        throw new Error('Draft resume is missing its pending queue')
+      }
       const executionKind =
         triggerType === 'api' || triggerType === 'chat'
           ? (triggerType as 'api' | 'chat')
@@ -900,28 +936,34 @@ async function executeWorkflowCoreImpl(
             ? 'external'
             : 'manual'
 
-      const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
+      const startBlock = TriggerUtils.findStartBlock(
+        loadedWorkflow.mergedStates,
+        executionKind,
+        false
+      )
 
       if (!startBlock) {
         throw new UserFailure('No start block found. Add a start block to this workflow.')
       }
 
       resolvedTriggerBlockId = startBlock.blockId
-      logger.info(`[${requestId}] Identified trigger block for ${executionKind} execution:`, {
+      logger.debug(`Identified trigger block for ${executionKind} execution:`, {
+        requestId,
         blockId: resolvedTriggerBlockId,
         blockType: startBlock.block.type,
         path: startBlock.path,
       })
     }
 
-    // Serialize workflow
-    const serializedWorkflow = new Serializer().serializeWorkflow(
-      mergedStates,
-      filteredEdges,
-      loops,
-      parallels,
-      true
-    )
+    const serializedWorkflow: SerializedWorkflow = loadedWorkflow
+      ? new Serializer().serializeWorkflow(
+          loadedWorkflow.mergedStates,
+          loadedWorkflow.edges,
+          loadedWorkflow.loops,
+          loadedWorkflow.parallels,
+          true
+        )
+      : snapshot.workflow
     const inputFileKeys = new Set<string>()
     processedInput =
       resumeFromSnapshot || runFromBlock
@@ -959,7 +1001,8 @@ async function executeWorkflowCoreImpl(
 
     // Create and execute workflow with callbacks
     if (resumeFromSnapshot) {
-      logger.info(`[${requestId}] Resume execution detected`, {
+      logger.info('Resume execution detected', {
+        requestId,
         resumePendingQueue,
         hasState: !!snapshot.state,
         stateBlockStatesCount: snapshot.state
@@ -984,12 +1027,13 @@ async function executeWorkflowCoreImpl(
         persistenceSucceeded = true
       })().catch((error) => {
         logger.warn(
-          `[${requestId}] Block completion persistence failed`,
+          'Block completion persistence failed',
           loggingSession.projectDiagnosticError(error, {
             executionId,
             blockId,
             blockType,
-          })
+          }),
+          { requestId }
         )
       })
 
@@ -1008,12 +1052,13 @@ async function executeWorkflowCoreImpl(
           )
         } catch (error) {
           logger.warn(
-            `[${requestId}] Block completion callback failed`,
+            'Block completion callback failed',
             loggingSession.projectDiagnosticError(error, {
               executionId,
               blockId,
               blockType,
-            })
+            }),
+            { requestId }
           )
         }
       })()
@@ -1036,12 +1081,13 @@ async function executeWorkflowCoreImpl(
         persistenceSucceeded = true
       })().catch((error) => {
         logger.warn(
-          `[${requestId}] Block start persistence failed`,
+          'Block start persistence failed',
           loggingSession.projectDiagnosticError(error, {
             executionId,
             blockId,
             blockType,
-          })
+          }),
+          { requestId }
         )
       })
 
@@ -1060,12 +1106,13 @@ async function executeWorkflowCoreImpl(
           )
         } catch (error) {
           logger.warn(
-            `[${requestId}] Block start callback failed`,
+            'Block start callback failed',
             loggingSession.projectDiagnosticError(error, {
               executionId,
               blockId,
               blockType,
-            })
+            }),
+            { requestId }
           )
         }
       })()
@@ -1140,6 +1187,7 @@ async function executeWorkflowCoreImpl(
       })
       processedInput = await redactObjectStrings(processedInput, inputOpts)
     }
+    executorInput = processedInput
 
     if (piiRedaction.blockOutputs.enabled) {
       // Resume / run-from-block restore prior block outputs into state. If those
@@ -1358,14 +1406,16 @@ async function executeWorkflowCoreImpl(
           })
         } catch (postExecError) {
           logger.error(
-            `[${requestId}] Post-execution logging failed`,
-            loggingSession.projectDiagnosticError(postExecError, { executionId })
+            'Post-execution logging failed',
+            loggingSession.projectDiagnosticError(postExecError, { executionId }),
+            { requestId }
           )
         }
       })()
     )
 
-    logger.info(`[${requestId}] Workflow execution completed`, {
+    logger.info('Workflow execution completed', {
+      requestId,
       success: result.success,
       status: result.status,
       duration: result.metadata?.duration,
@@ -1373,13 +1423,16 @@ async function executeWorkflowCoreImpl(
 
     return result
   } catch (error: unknown) {
-    logFailureOnce(logger, `[${requestId}] Execution failed:`, error, {
+    logFailureOnce(logger, 'Execution failed', error, {
       metadata: () => {
         const errorCause = describeErrorCause(error)
-        return projectResolvedSecretDiagnosticError(error, resolvedSecretTraceRegistry, {
-          workflowId,
-          ...(errorCause ? { cause: errorCause } : {}),
-        })
+        return {
+          requestId,
+          ...projectResolvedSecretDiagnosticError(error, resolvedSecretTraceRegistry, {
+            workflowId,
+            ...(errorCause ? { cause: errorCause } : {}),
+          }),
+        }
       },
       executionId,
     })
@@ -1408,6 +1461,7 @@ async function executeWorkflowCoreImpl(
                 workflowId,
                 executionId,
                 requestId,
+                workflowInput: executorInput,
               })
             : false
 
@@ -1416,8 +1470,9 @@ async function executeWorkflowCoreImpl(
           }
         } catch (postExecError) {
           logger.error(
-            `[${requestId}] Post-execution error logging failed`,
-            loggingSession.projectDiagnosticError(postExecError, { executionId })
+            'Post-execution error logging failed',
+            loggingSession.projectDiagnosticError(postExecError, { executionId }),
+            { requestId }
           )
         }
       })()

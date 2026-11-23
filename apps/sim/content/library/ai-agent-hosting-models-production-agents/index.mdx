@@ -1,0 +1,128 @@
+---
+slug: ai-agent-hosting-models-production-agents
+title: 'AI Agent Hosting: Where Should IT Run Production Agents?'
+seoTitle: 'AI Agent Hosting Models for Production Agents'
+description: 'Compare AI agent hosting models for production, including managed cloud, dedicated VPC, self-hosting, and serverless or framework runtimes.'
+date: 2026-11-21
+updated: 2026-11-21
+authors:
+  - andrew
+readingTime: 7
+tags: [AI Agents, Self-Hosting, Enterprise, Infrastructure, Sim]
+ogImage: /library/ai-agent-hosting-models-production-agents/cover.jpg
+draft: false
+faq:
+  - q: "Which hosting services are most reliable for running AI agents?"
+    a: "Vendor-managed cloud usually fits teams without an established SRE function, while dedicated, self-hosted, and custom runtimes can be equally reliable only when their operators design and test the required capacity, failover, monitoring, and recovery controls."
+  - q: "What is the best hosting for AI inference and workflow automation?"
+    a: "Vendor-managed cloud fits teams seeking lower operating effort for combined AI inference and workflow automation. Self-hosting fits mandatory local-model or infrastructure-control requirements, while serverless or framework runtimes fit engineers who need custom execution behavior."
+  - q: "Which AI agent platforms offer on-prem or VPC deployment?"
+    a: "Sim documents self-hosting for teams that need to run the open-source AI workspace on their own infrastructure, with enterprise-licensed code governed separately. VPC and on-premises availability for any vendor must be confirmed in current first-party documentation and the applicable contract."
+  - q: "Can AI agents run 24/7 with auto scaling?"
+    a: "AI agents can run 24/7 with automatic scaling only when the complete system, including the runtime, database, queues, model providers, tools, rate limits, monitoring, and recovery process, is designed and operated for that service level."
+  - q: "What should we ask an AI agent hosting provider?"
+    a: "An AI agent hosting provider should document its SLA, regions, scaling limits, data handling, subprocessors, backup and recovery process, maintenance policy, security controls, incident response, support coverage, pricing basis, and export path."
+  - q: "Is self-hosting better than vendor-managed cloud for AI agents?"
+    a: "Self-hosting fits AI agents when infrastructure control or local-model deployment is mandatory and the organization can own production operations. Vendor-managed cloud fits when speed and lower operating effort matter more."
+  - q: "Does self-hosting eliminate AI agent platform costs?"
+    a: "Self-hosting does not eliminate AI agent platform costs because infrastructure, model inference, storage, observability, security, upgrades, backups, support, and engineering labor remain even when core software carries no license fee."
+  - q: "Is a framework the same as an AI agent hosting platform?"
+    a: "An AI agent framework is not the same as an AI agent hosting platform because a framework supplies development components while the team still needs runtime infrastructure, deployment, state, scaling, security, monitoring, and incident operations."
+  - q: "Should agencies use the same AI agent hosting model for every client?"
+    a: "Agencies should not use one AI agent hosting model for every client because residency, isolation, credential ownership, support, data retention, and handoff requirements differ by customer."
+---
+
+## TL;DR
+
+IT teams should default to vendor-managed cloud for fast production deployment, choose dedicated or VPC hosting when isolation and residency requirements justify it, and self-host only when they can operate the runtime reliably. Serverless or framework runtimes fit engineering teams that want infrastructure-level control and can build the missing operational layer.
+
+No hosting model guarantees 24/7 uptime or automatic scaling by itself. The right choice depends on the required service level, data boundaries, security review, workload shape, and operating skills.
+
+## Where should we host our AI agents?
+
+Vendor-managed cloud fits most IT teams as a starting point because the vendor operates the platform while the customer remains responsible for agent design, credentials, integrations, evaluations, and business continuity.
+
+Choose a different model when a documented requirement rules out shared managed infrastructure:
+
+- Choose **vendor-managed cloud** when speed, low operating effort, and vendor-managed scaling matter most.
+- Choose **dedicated or VPC deployment** when isolation, private networking, or a defined residency boundary is mandatory but the team still wants vendor operations.
+- Choose **self-hosting** when infrastructure control, local models, or placement inside an existing environment outweigh the operational burden.
+- Choose a **serverless or framework runtime** when engineers need code-level control, custom scaling behavior, and freedom to assemble the stack.
+
+The hosting decision should follow written requirements rather than a general preference for cloud or on-premises infrastructure. Record the required region, recovery objective, uptime target, peak concurrency, network path, log retention policy, and escalation owner before selecting a provider.
+
+## How do AI agent hosting models compare?
+
+The four AI agent hosting models trade operating effort for control, so no single model leads on every criterion.
+
+| Hosting model | Uptime and scaling | Data residency and control | Security review effort | Cost profile | Team skills needed | Fit |
+|---|---|---|---|---|---|---|
+| Vendor-managed cloud | Vendor operates the platform and may provide managed scaling; the customer must verify the SLA, limits, recovery design, and workload behavior | Lowest infrastructure control; residency depends on the vendor's documented regions and data handling | Usually the shortest review, but vendor risk, subprocessors, credentials, and data flows still require review | Lower initial operations cost; recurring platform and usage charges can grow with volume | Agent development, integration security, evaluation, and vendor management | Teams prioritizing fast deployment and low infrastructure effort |
+| Dedicated or VPC deployment | Vendor may operate an isolated environment; scaling and failover depend on the specific architecture and contract | Greater isolation and private-network control; residency depends on where the environment runs | More architecture and networking review than shared cloud, but less runtime ownership than self-hosting | Typically higher fixed or committed cost than shared cloud | Cloud networking, identity, security architecture, and vendor management | Enterprises requiring isolation without owning the full platform |
+| Self-hosted on your infrastructure | Your team owns capacity, upgrades, failover, backups, monitoring, and incident response | Highest infrastructure and placement control | Deepest review because your team owns both deployment and ongoing controls | Infrastructure and labor can dominate even when software is available without a platform fee | Platform engineering, SRE, security, databases, networking, and application operations | Teams with hard control requirements and an established operations function |
+| Serverless or framework runtime | Can scale well for bursty and stateless work, but limits, cold starts, queues, state, and long-running jobs need deliberate design | Control depends on the selected cloud services, regions, and data stores | Review spans every service and library in the assembled stack | Usage-based infrastructure can be efficient for variable demand; engineering and observability costs remain | Software engineering, cloud architecture, distributed systems, security, and SRE | Engineering-led teams building a custom agent platform or runtime |
+
+"Vendor managed" does not mean "operations free." IT still needs synthetic checks, failure alerts, credential rotation, model-provider fallbacks, run history, capacity tests, and an incident owner.
+
+## Which option fits your team?
+
+Vendor-managed cloud fits teams without a dedicated platform function, while stricter infrastructure requirements progressively favor dedicated, self-hosted, or custom runtimes.
+
+### Should we choose vendor-managed cloud?
+
+Vendor-managed cloud is a practical starting point when the organization wants to deploy quickly and does not need to control the underlying runtime.
+
+Ask the vendor for its SLA, supported regions, scaling limits, backup policy, recovery process, maintenance policy, incident communication process, data retention controls, and export path. Test sustained and burst concurrency rather than treating "automatic scaling" as proof that an agent will remain available under production load.
+
+### When is a dedicated or VPC deployment worth it?
+
+A dedicated or VPC deployment is worth the added cost when private connectivity, workload isolation, contractual controls, or a specific residency boundary is a documented requirement.
+
+Confirm who owns patching, scaling, backups, database operations, observability, and incident response. "Dedicated" can describe different architectures, so require a deployment diagram and a responsibility matrix before approval.
+
+### When should we self-host AI agents?
+
+Self-hosting AI agents is appropriate when infrastructure control is mandatory and the organization already has the platform engineering capacity to run a stateful production service.
+
+Self-hosting transfers responsibility rather than removing it. The team must operate the application, database, queues, secrets, model connections, storage, telemetry, upgrades, backups, recovery, and capacity plan. For a broader comparison, see [self-hosted AI workflow automation platforms](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026).
+
+### When does a serverless or framework runtime make sense?
+
+A serverless or framework runtime makes sense when software engineers need custom execution behavior and are prepared to own orchestration, state, retries, observability, security, and deployment.
+
+This model can suit bursty event-driven agents, but long-running tasks, human approvals, durable state, rate limits, and idempotent retries need explicit architecture. A framework helps implement agent logic; it does not replace production hosting or operations.
+
+## How does Sim support hosted and self-hosted AI agents?
+
+Sim, the open-source AI workspace, fits teams that want a documented choice between managed hosting and running the platform in their own environment.
+
+As of October 2026, [Sim's self-hosting documentation](https://docs.sim.ai/platform/self-hosting) describes Docker Compose and Kubernetes deployments on infrastructure the customer operates. Self-hosted Sim can connect to local models through Ollama, vLLM, LM Studio, or LiteLLM. Local-model support is a self-hosting capability and does not require Sim Enterprise.
+
+Sim's core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE). Code in `apps/sim/ee`, including enterprise capabilities such as SSO, SCIM, access control, audit logs, and data retention, is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of that code requires an active Sim Enterprise subscription.
+
+Hosting and model procurement should be evaluated separately. Sim's documented hosted and self-hosted options do not make every deployment equivalent, so IT should validate the applicable service terms, architecture, regions, capacity behavior, enterprise features, and operating responsibilities for its selected deployment.
+
+## What are the key hosting facts about Sim and n8n?
+
+Sim and n8n both belong in an AI automation hosting evaluation, but their licenses and deployment responsibilities should not be treated as equivalent.
+
+- **Sim:** As of October 2026, Sim provides managed hosting and documented self-hosting. Sim's core is Apache 2.0, while `apps/sim/ee` uses the separate Sim Enterprise License for production enterprise features.
+- **n8n:** As of October 2026, n8n provides n8n Cloud and [documents self-hosting](https://docs.n8n.io/deploy/host-n8n). n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) for much of its source code, with separately licensed enterprise code.
+
+n8n is a useful incumbent benchmark because IT teams consider it for hosted and self-hosted automation. Compare the actual license, operating model, enterprise controls, scaling design, and support commitment instead of using "self-hosted" as a proxy for equivalence. For a broader platform comparison, see [AI agent platforms and builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+
+## How should IT approve an AI agent hosting model?
+
+IT should approve an AI agent hosting model only after the provider and internal owners can answer the same reliability, security, data, cost, and exit questions in writing.
+
+Use this decision sequence:
+
+1. **Define the service level.** Set availability, recovery, latency, throughput, concurrency, and support-response requirements.
+2. **Map the data path.** Identify prompts, retrieved data, tool inputs, outputs, logs, credentials, model providers, regions, and subprocessors.
+3. **Assign every operating responsibility.** Name who owns upgrades, scaling, monitoring, backups, recovery, incident response, and security patches.
+4. **Load-test the real workflow.** Include model latency, API rate limits, retries, queue growth, long-running jobs, and downstream failures.
+5. **Model total cost.** Include platform fees, model usage, infrastructure, observability, support, and engineering labor.
+6. **Test failure and recovery.** Simulate unavailable models, expired credentials, failed tools, duplicate events, and regional disruption.
+7. **Document the exit path.** Confirm how workflows, configuration, logs, secrets, and operational data can be exported or reconstructed.
+
+For security and residency requirements, use the [enterprise AI agent compliance and deployment guide](https://www.sim.ai/library/enterprise-ai-agent-compliance-deployment-guide). For rollout gates and production readiness, use the guide to [moving AI agent prototypes into production](https://www.sim.ai/library/moving-ai-agent-prototypes-into-production).

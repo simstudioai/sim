@@ -6,6 +6,7 @@ import type {
   CloudflareUpdateZoneSettingResponse,
 } from '@/tools/cloudflare/types'
 import { readCloudflareResponse } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -18,6 +19,7 @@ export const updateZoneSettingTool: ToolConfig<
   description:
     'Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     enabled: {

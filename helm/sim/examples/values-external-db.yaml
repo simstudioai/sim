@@ -72,8 +72,8 @@ app:
 realtime:
   enabled: true
   # Safe to scale past 1: Socket.IO bridges cross-pod events through its Redis
-  # adapter, and the chart bundles Redis by default. Only keep this at 1 if you
-  # set redis.enabled=false without supplying app.env.REDIS_URL..
+  # adapter. Sim requires Redis — the chart bundles it unless you set
+  # redis.enabled=false and supply REDIS_URL yourself.
   replicaCount: 1
   
   resources:
@@ -150,12 +150,11 @@ ingress:
     enabled: true
     secretName: simstudio-tls-secret
 
-# Production-ready features (autoscaling, monitoring, etc.)
+# Production-ready features (autoscaling, disruption budgets, network policy)
 autoscaling:
   enabled: true
-  # Realtime scales with the app because Redis is available by default. Set this
-  # to false only if you run without Redis (redis.enabled=false and no
-  # app.env.REDIS_URL) — multi-replica realtime would drop cross-pod events.
+  # Realtime scales with the app; Redis (always required) bridges its
+  # cross-pod events. Set false to pin realtime at realtime.replicaCount.
   realtime:
     enabled: false
   minReplicas: 2
@@ -168,13 +167,6 @@ podDisruptionBudget:
   minAvailable: null
   maxUnavailable: 1  
   unhealthyPodEvictionPolicy: AlwaysAllow 
-monitoring:
-  serviceMonitor:
-    enabled: true
-    labels:
-      monitoring: "prometheus"
-    interval: 15s
-
 networkPolicy:
   enabled: true
   # `networkPolicy.egress` is a LIST of NetworkPolicy egress rules. With the

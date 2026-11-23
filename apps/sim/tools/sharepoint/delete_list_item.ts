@@ -2,7 +2,7 @@ import type {
   SharepointDeleteListItemResponse,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteListItemTool: ToolConfig<
@@ -60,9 +60,9 @@ export const deleteListItemTool: ToolConfig<
       const itemId = optionalTrim(params.itemId)
       if (!listId) throw new Error('listId must be provided')
       if (!itemId) throw new Error('itemId must be provided')
-      const listSegment = encodeURIComponent(listId)
-      const itemSegment = encodeURIComponent(itemId)
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items/${itemSegment}`
+      const listSegment = graphPathSegment(listId, 'listId')
+      const itemSegment = graphPathSegment(itemId, 'itemId')
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/lists/${listSegment}/items/${itemSegment}`
     },
     method: 'DELETE',
     headers: (params) => ({

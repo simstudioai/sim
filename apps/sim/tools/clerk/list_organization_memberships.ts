@@ -5,7 +5,9 @@ import type {
   ClerkListOrganizationMembershipsResponse,
   ClerkOrganizationMembership,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkListOrganizationMemberships')
 
@@ -17,6 +19,7 @@ export const clerkListOrganizationMembershipsTool: ToolConfig<
   name: 'List Organization Memberships from Clerk',
   description: 'List members of a Clerk organization with optional filtering and pagination',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -71,7 +74,7 @@ export const clerkListOrganizationMembershipsTool: ToolConfig<
       }
 
       const queryString = queryParams.toString()
-      const base = `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}/memberships`
+      const base = `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}/memberships`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',

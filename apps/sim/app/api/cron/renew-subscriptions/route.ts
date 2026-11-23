@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
-import { webhook as webhookTable } from '@sim/db/schema'
+import { webhook as webhookTable, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { runDetached } from '@/lib/core/utils/background'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
@@ -42,7 +44,7 @@ async function recreateSubscription(
   const notificationUrl = getNotificationUrl(webhook)
   const expirationDateTime = new Date(Date.now() + MAX_LIFETIME_MINUTES * 60 * 1000).toISOString()
 
-  const res = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+  const res = await outboundFetch('https://graph.microsoft.com/v1.0/subscriptions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -73,6 +75,104 @@ async function recreateSubscription(
 }
 
 /**
+ * Renews (or, once expired on Microsoft's side, recreates) one webhook's Graph subscription.
+ * Returns whether the subscription is live again.
+ */
+async function renewSubscription(
+  webhook: typeof webhookTable.$inferSelect,
+  config: Record<string, unknown>,
+  expiresAt: Date
+): Promise<boolean> {
+  const requestId = `renewal-${webhook.id}`
+  logger.info(
+    `Renewing Teams subscription for webhook ${webhook.id} (expires: ${expiresAt.toISOString()})`
+  )
+
+  const credentialId = config.credentialId as string | undefined
+  const externalSubscriptionId = config.externalSubscriptionId as string | undefined
+
+  if (!credentialId || !externalSubscriptionId) {
+    logger.error(`Missing credentialId or externalSubscriptionId for webhook ${webhook.id}`)
+    return false
+  }
+
+  const credentialOwner = await getCredentialOwner(credentialId, requestId)
+  if (!credentialOwner) {
+    logger.error(`Credential owner not found for credential ${credentialId}`)
+    return false
+  }
+
+  const accessToken = await refreshAccessTokenIfNeeded(
+    credentialOwner.accountId,
+    credentialOwner.userId,
+    requestId
+  )
+
+  if (!accessToken) {
+    logger.error(`Failed to get access token for webhook ${webhook.id}`)
+    return false
+  }
+
+  const newExpirationDateTime = new Date(
+    Date.now() + MAX_LIFETIME_MINUTES * 60 * 1000
+  ).toISOString()
+
+  const res = await outboundFetch(
+    `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ expirationDateTime: newExpirationDateTime }),
+    }
+  )
+
+  let newSubscriptionId: string | undefined
+  let newExpiration: string | undefined
+
+  if (!res.ok) {
+    const error = await res.json()
+    logger.error(
+      `Failed to renew Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`,
+      { status: res.status, error: error.error }
+    )
+
+    if (res.status === 404 || res.status === 410) {
+      const recreated = await recreateSubscription(webhook, config, accessToken)
+      if (!recreated) return false
+      newSubscriptionId = recreated.id
+      newExpiration = recreated.expirationDateTime
+      logger.info(
+        `Recreated Teams subscription for webhook ${webhook.id} after the previous one expired (new id: ${newSubscriptionId})`
+      )
+    } else {
+      return false
+    }
+  } else {
+    const payload = await res.json()
+    newExpiration = payload.expirationDateTime as string
+  }
+
+  const updatedConfig = {
+    ...config,
+    ...(newSubscriptionId ? { externalSubscriptionId: newSubscriptionId } : {}),
+    subscriptionExpiration: newExpiration,
+  }
+
+  await db
+    .update(webhookTable)
+    .set({ providerConfig: updatedConfig, updatedAt: new Date() })
+    .where(eq(webhookTable.id, webhook.id))
+
+  logger.info(
+    `Successfully renewed Teams subscription for webhook ${webhook.id}. New expiration: ${newExpiration}`
+  )
+  return true
+}
+
+/**
  * Renews Microsoft Teams chat subscriptions that are close to expiring.
  *
  * Teams subscriptions expire after ~3 days and must be renewed. Runs detached
@@ -93,8 +193,10 @@ async function renewExpiringSubscriptions(): Promise<{
   const webhooksWithWorkflows = await db
     .select({
       webhook: webhookTable,
+      workspaceId: workflowTable.workspaceId,
     })
     .from(webhookTable)
+    .innerJoin(workflowTable, eq(webhookTable.workflowId, workflowTable.id))
     .where(
       and(
         deliverableWebhookPredicate(webhookTable, 'active_only'),
@@ -112,7 +214,7 @@ async function renewExpiringSubscriptions(): Promise<{
   /** Renew any subscription expiring within the next 48 hours. */
   const renewalThreshold = new Date(Date.now() + 48 * 60 * 60 * 1000)
 
-  for (const { webhook } of webhooksWithWorkflows) {
+  for (const { webhook, workspaceId } of webhooksWithWorkflows) {
     const config = (webhook.providerConfig as Record<string, any>) || {}
 
     if (config.triggerId !== 'microsoftteams_chat_subscription') continue
@@ -124,102 +226,14 @@ async function renewExpiringSubscriptions(): Promise<{
     if (expiresAt > renewalThreshold) continue
 
     totalChecked++
-    const requestId = `renewal-${webhook.id}`
 
     try {
-      logger.info(
-        `Renewing Teams subscription for webhook ${webhook.id} (expires: ${expiresAt.toISOString()})`
-      )
-
-      const credentialId = config.credentialId as string | undefined
-      const externalSubscriptionId = config.externalSubscriptionId as string | undefined
-
-      if (!credentialId || !externalSubscriptionId) {
-        logger.error(`Missing credentialId or externalSubscriptionId for webhook ${webhook.id}`)
-        totalFailed++
-        continue
-      }
-
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      if (!credentialOwner) {
-        logger.error(`Credential owner not found for credential ${credentialId}`)
-        totalFailed++
-        continue
-      }
-
-      const accessToken = await refreshAccessTokenIfNeeded(
-        credentialOwner.accountId,
-        credentialOwner.userId,
-        requestId
-      )
-
-      if (!accessToken) {
-        logger.error(`Failed to get access token for webhook ${webhook.id}`)
-        totalFailed++
-        continue
-      }
-
-      const newExpirationDateTime = new Date(
-        Date.now() + MAX_LIFETIME_MINUTES * 60 * 1000
-      ).toISOString()
-
-      const res = await fetch(
-        `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ expirationDateTime: newExpirationDateTime }),
-        }
-      )
-
-      let newSubscriptionId: string | undefined
-      let newExpiration: string | undefined
-
-      if (!res.ok) {
-        const error = await res.json()
-        logger.error(
-          `Failed to renew Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`,
-          { status: res.status, error: error.error }
-        )
-
-        if (res.status === 404 || res.status === 410) {
-          const recreated = await recreateSubscription(webhook, config, accessToken)
-          if (!recreated) {
-            totalFailed++
-            continue
-          }
-          newSubscriptionId = recreated.id
-          newExpiration = recreated.expirationDateTime
-          logger.info(
-            `Recreated Teams subscription for webhook ${webhook.id} after the previous one expired (new id: ${newSubscriptionId})`
-          )
-        } else {
-          totalFailed++
-          continue
-        }
-      } else {
-        const payload = await res.json()
-        newExpiration = payload.expirationDateTime as string
-      }
-
-      const updatedConfig = {
-        ...config,
-        ...(newSubscriptionId ? { externalSubscriptionId: newSubscriptionId } : {}),
-        subscriptionExpiration: newExpiration,
-      }
-
-      await db
-        .update(webhookTable)
-        .set({ providerConfig: updatedConfig, updatedAt: new Date() })
-        .where(eq(webhookTable.id, webhook.id))
-
-      logger.info(
-        `Successfully renewed Teams subscription for webhook ${webhook.id}. New expiration: ${newExpiration}`
-      )
-      totalRenewed++
+      const renew = () => renewSubscription(webhook, config, expiresAt)
+      const renewed = workspaceId
+        ? await withResourceOutboundScope({ workspaceId }, renew, { includeArchived: true })
+        : await renew()
+      if (renewed) totalRenewed++
+      else totalFailed++
     } catch (error) {
       logger.error(`Error renewing subscription for webhook ${webhook.id}:`, error)
       totalFailed++

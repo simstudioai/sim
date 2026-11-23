@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelListDomainsParams, VercelListDomainsResponse } from '@/tools/vercel/types'
 
@@ -7,6 +8,7 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
     name: 'Vercel List Domains',
     description: 'List all domains in a Vercel account or team',
     version: '1.0.0',
+    oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

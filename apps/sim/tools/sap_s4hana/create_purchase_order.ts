@@ -142,39 +142,29 @@ export const createPurchaseOrderTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; created entity at output.data.d',
+      description:
+        'Created A_PurchaseOrder entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
-        d: {
+        PurchaseOrder: { type: 'string', description: 'Auto-assigned purchase order number' },
+        PurchaseOrderType: { type: 'string', description: 'PO document type' },
+        CompanyCode: { type: 'string', description: 'Company code' },
+        PurchasingOrganization: { type: 'string', description: 'Purchasing organization' },
+        PurchasingGroup: { type: 'string', description: 'Purchasing group' },
+        Supplier: { type: 'string', description: 'Supplier business partner key' },
+        DocumentCurrency: {
+          type: 'string',
+          description: 'Document currency',
+          optional: true,
+        },
+        CreationDate: {
+          type: 'string',
+          description: 'Creation date (OData /Date(ms)/)',
+          optional: true,
+        },
+        to_PurchaseOrderItem: {
           type: 'json',
-          description: 'Created A_PurchaseOrder entity',
-          properties: {
-            PurchaseOrder: { type: 'string', description: 'Auto-assigned purchase order number' },
-            PurchaseOrderType: { type: 'string', description: 'PO document type' },
-            CompanyCode: { type: 'string', description: 'Company code' },
-            PurchasingOrganization: { type: 'string', description: 'Purchasing organization' },
-            PurchasingGroup: { type: 'string', description: 'Purchasing group' },
-            Supplier: { type: 'string', description: 'Supplier business partner key' },
-            DocumentCurrency: {
-              type: 'string',
-              description: 'Document currency',
-              optional: true,
-            },
-            NetAmount: {
-              type: 'string',
-              description: 'Net amount of the purchase order',
-              optional: true,
-            },
-            CreationDate: {
-              type: 'string',
-              description: 'Creation date (OData /Date(ms)/)',
-              optional: true,
-            },
-            to_PurchaseOrderItem: {
-              type: 'json',
-              description: 'Created PO items returned in deep insert',
-              optional: true,
-            },
-          },
+          description: 'Created PO items returned in deep insert',
+          optional: true,
         },
       },
     },

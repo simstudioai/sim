@@ -1,7 +1,8 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import { SnowflakeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalJsonInput, parseOptionalNumberInput } from '@/blocks/utils'
+import { mapperOperation, parseOptionalJsonInput, parseOptionalNumberInput } from '@/blocks/utils'
 import { SNOWFLAKE_WAREHOUSE_SIZES } from '@/tools/snowflake/types'
 
 const sqlSubmissionOperations = [
@@ -210,8 +211,9 @@ const limitOperationSet: ReadonlySet<string> = new Set(limitOperations)
  * asked for — `AUTO_RESUME = FALSE`, which permanently disables auto-resume on
  * the warehouse, being the damaging one.
  *
- * The string forms are accepted because a direct tool call delivers booleans
- * that way, matching the other boolean readers on this block.
+ * Only the exact strings `'true'`/`'false'` are accepted, so a case-variant
+ * string never enables PURGE, FORCE, SQL execution, or a rating. Switches whose
+ * builders already read case-insensitively use `toBooleanFromInput` instead.
  */
 function optionalBoolean(value: unknown): boolean | undefined {
   if (typeof value === 'boolean') return value
@@ -1184,8 +1186,8 @@ export const SnowflakeBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `snowflake_${params.operation}`,
-      params: (params) => {
-        const operation = String(params.operation)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
 
         if (sqlSubmissionOperationSet.has(operation)) {
@@ -1234,16 +1236,16 @@ export const SnowflakeBlock: BlockConfig = {
               params.maxFileSizeBytes,
               'Maximum file size'
             )
-            result.header = optionalBoolean(params.header)
-            result.overwrite = optionalBoolean(params.overwrite)
-            result.singleFile = optionalBoolean(params.singleFile)
+            result.header = toBooleanFromInput(params.header)
+            result.overwrite = toBooleanFromInput(params.overwrite)
+            result.singleFile = toBooleanFromInput(params.singleFile)
             break
           case 'alter_warehouse':
             result.autoSuspendSeconds = parseOptionalNumberInput(
               params.autoSuspendSeconds,
               'Auto-suspend seconds'
             )
-            result.autoResume = optionalBoolean(params.autoResume)
+            result.autoResume = toBooleanFromInput(params.autoResume)
             break
           case 'call_procedure':
             result.procedureArguments = parseOptionalJsonInput(
@@ -1253,22 +1255,26 @@ export const SnowflakeBlock: BlockConfig = {
             break
           case 'cortex_analyst_ask': {
             /*
-             * Only the selected source reaches the tool, which requires exactly one. A caller
-             * that never set the dropdown (API, Copilot, or a direct tool call) is matched to
-             * the single source field it filled.
+             * Only the selected source reaches the tool, which requires exactly one. The dropdown
+             * wins only when its field is filled: an agent tool row seeds it with its first
+             * option, so a model that filled a different source is matched to that field.
              */
             const sourceFields = Object.values(CORTEX_SEMANTIC_SOURCE_FIELDS)
             const filled = sourceFields.filter((field) => {
               const value = params[field]
               return value !== undefined && value !== null && String(value).trim() !== ''
             })
-            const selected = params.semanticSource
+            const dropdownField = params.semanticSource
               ? CORTEX_SEMANTIC_SOURCE_FIELDS[
                   String(params.semanticSource) as keyof typeof CORTEX_SEMANTIC_SOURCE_FIELDS
                 ]
-              : filled.length === 1
-                ? filled[0]
-                : undefined
+              : undefined
+            const selected =
+              dropdownField && filled.includes(dropdownField)
+                ? dropdownField
+                : filled.length === 1
+                  ? filled[0]
+                  : dropdownField
             if (selected) {
               for (const field of sourceFields) {
                 if (field !== selected) result[field] = undefined

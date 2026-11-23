@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { getOAuth2Tokens } from 'better-auth/oauth2'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('AtlassianOAuth')
@@ -24,7 +25,7 @@ export async function exchangeAtlassianAuthorizationCode({
   redirectUri,
   codeVerifier,
 }: ExchangeAtlassianAuthorizationCodeInput) {
-  const response = await fetch(ATLASSIAN_TOKEN_URL, {
+  const response = await outboundFetch(ATLASSIAN_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import {
   secureFetchWithPinnedIP,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { GitHubOperationError } from '@/lib/internal/github/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import { formatGitHubErrorMessage } from '@/tools/github/response-parsers'
 import type {
   CreateCommentParams,
@@ -19,6 +21,7 @@ import type {
 } from '@/tools/github/types'
 import { secureGitHubRequest } from '@/tools/github/utils.server'
 import type { ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('GitHubLatestCommitOperation')
 const MAX_COMMIT_RESPONSE_BYTES = 10 * 1024 * 1024
@@ -64,16 +67,42 @@ interface GitHubCommitFile {
   blob_url?: string
 }
 
+interface GitHubGitActor {
+  name: string
+  email: string
+  date: string
+}
+
+interface GitHubCommitUser {
+  login: string
+  avatar_url: string
+  html_url: string
+  id?: number
+  node_id?: string
+  type?: string
+  url?: string
+  site_admin?: boolean
+}
+
 interface GitHubCommitResponse {
   sha: string
   html_url: string
   commit: {
+    url?: string
     message: string
-    author: { name: string; email: string; date: string }
-    committer: { name: string; email: string; date: string }
+    comment_count?: number
+    author: GitHubGitActor
+    committer: GitHubGitActor
+    tree?: { sha: string; url: string }
+    verification?: {
+      verified: boolean
+      reason: string
+      signature?: string | null
+      payload?: string | null
+    }
   }
-  author?: { login: string; avatar_url: string; html_url: string }
-  committer?: { login: string; avatar_url: string; html_url: string }
+  author?: GitHubCommitUser | null
+  committer?: GitHubCommitUser | null
   stats?: { additions: number; deletions: number; total: number }
   files?: GitHubCommitFile[]
 }
@@ -97,8 +126,20 @@ function githubHeaders(apiKey: string): Record<string, string> {
   }
 }
 
+/** Builds a request path from caller input, reporting a rejected segment as a 400. */
+function buildRequestPath(build: () => string): string {
+  try {
+    return build()
+  } catch (error) {
+    throw new GitHubOperationError(getErrorMessage(error, 'Invalid GitHub request path'), 400)
+  }
+}
+
 function pullRequestUrl(params: CreateCommentParams): string {
-  return `${GITHUB_API_BASE}/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`
+  return buildRequestPath(
+    () =>
+      `${GITHUB_API_BASE}/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}`
+  )
 }
 
 function isFileCommentRequest(params: CreateCommentParams): boolean {
@@ -348,15 +389,36 @@ async function fetchChangedFileContent(
   }
 }
 
+/**
+ * Merges a commit's git identity with its linked GitHub account. The account
+ * fields keep their `'Unknown'`/`''` fallbacks when the commit has no linked
+ * user, which the v1 output has always returned.
+ */
+function commitActorMetadata(actor: GitHubGitActor, user: GitHubCommitUser | null | undefined) {
+  return {
+    name: actor.name,
+    email: actor.email,
+    date: actor.date,
+    login: user?.login || 'Unknown',
+    avatar_url: user?.avatar_url || '',
+    html_url: user?.html_url || '',
+    id: user?.id,
+    node_id: user?.node_id,
+    type: user?.type,
+    url: user?.url,
+    site_admin: user?.site_admin,
+  }
+}
+
 export async function getGitHubLatestCommit(
   input: LatestCommitParams,
   context: GitHubOperationContext
 ): Promise<LatestCommitResponse> {
   context.signal?.throwIfAborted()
-  const owner = encodeURIComponent(input.owner)
-  const repo = encodeURIComponent(input.repo)
-  const revision = encodeURIComponent(input.branch || 'HEAD')
-  const commitUrl = `https://api.github.com/repos/${owner}/${repo}/commits/${revision}`
+  const commitUrl = buildRequestPath(
+    () =>
+      `${GITHUB_API_BASE}/repos/${githubRepoPath(input.owner, input.repo)}/commits/${safeUrlPathSegment(input.branch || 'HEAD', 'branch', { allowSeparators: true })}`
+  )
   const validation = await validateUrlWithDNS(commitUrl, 'commitUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
   if (!validation.isValid) {
@@ -410,18 +472,12 @@ export async function getGitHubLatestCommit(
         sha: data.sha,
         html_url: data.html_url,
         commit_message: data.commit.message,
-        author: {
-          name: data.commit.author.name,
-          login: data.author?.login || 'Unknown',
-          avatar_url: data.author?.avatar_url || '',
-          html_url: data.author?.html_url || '',
-        },
-        committer: {
-          name: data.commit.committer.name,
-          login: data.committer?.login || 'Unknown',
-          avatar_url: data.committer?.avatar_url || '',
-          html_url: data.committer?.html_url || '',
-        },
+        commit_url: data.commit.url,
+        comment_count: data.commit.comment_count,
+        tree: data.commit.tree,
+        verification: data.commit.verification,
+        author: commitActorMetadata(data.commit.author, data.author),
+        committer: commitActorMetadata(data.commit.committer, data.committer),
         stats: data.stats,
         files: files.length > 0 ? files : undefined,
       },

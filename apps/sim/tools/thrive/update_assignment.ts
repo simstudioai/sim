@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAssignmentResponse, ThriveUpdateAssignmentParams } from '@/tools/thrive/types'
 import { THRIVE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -7,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateAssignmentTool: ToolConfig<
   ThriveUpdateAssignmentParams,
@@ -16,6 +18,7 @@ export const updateAssignmentTool: ToolConfig<
   name: 'Thrive Update Assignment',
   description: 'Update a compliance assignment in Thrive.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -76,7 +79,7 @@ export const updateAssignmentTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/assignments/${encodeURIComponent(params.assignmentId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/assignments/${safeUrlPathSegment(params.assignmentId, 'assignmentId')}`,
     method: 'PATCH',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
     body: (params) => {

@@ -1,5 +1,6 @@
 import type { KalshiAuthParams } from '@/tools/kalshi/types'
 import { buildKalshiAuthHeaders, buildKalshiUrl, handleKalshiError } from '@/tools/kalshi/types'
+import { KALSHI_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface KalshiGetBalanceParams extends KalshiAuthParams {}
@@ -17,6 +18,7 @@ export const kalshiGetBalanceTool: ToolConfig<KalshiGetBalanceParams, KalshiGetB
   name: 'Get Balance from Kalshi',
   description: 'Retrieve your account balance and portfolio value from Kalshi',
   version: '1.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {
@@ -92,6 +94,7 @@ export const kalshiGetBalanceV2Tool: ToolConfig<
   name: 'Get Balance from Kalshi V2',
   description: 'Retrieve your account balance and portfolio value from Kalshi',
   version: '2.0.0',
+  oauth: KALSHI_CREDENTIAL_OAUTH,
 
   params: {
     keyId: {

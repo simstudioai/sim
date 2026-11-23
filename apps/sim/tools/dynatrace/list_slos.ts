@@ -7,6 +7,7 @@ import {
 import type { DynatraceListSlosParams, DynatraceListSlosResponse } from '@/tools/dynatrace/types'
 import { buildDynatraceUrl, dynatraceHeaders, mapSlo, readJsonBody } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSlosTool: ToolConfig<DynatraceListSlosParams, DynatraceListSlosResponse> = {
@@ -15,6 +16,7 @@ export const listSlosTool: ToolConfig<DynatraceListSlosParams, DynatraceListSlos
   description:
     'List service-level objectives with their current attainment, error budget, and burn rate.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

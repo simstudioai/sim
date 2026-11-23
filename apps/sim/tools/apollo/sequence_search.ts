@@ -1,4 +1,6 @@
 import type { ApolloSequenceSearchParams, ApolloSequenceSearchResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloSequenceSearchTool: ToolConfig<
@@ -9,8 +11,10 @@ export const apolloSequenceSearchTool: ToolConfig<
   name: 'Apollo Search Sequences',
   description: "Search for sequences/campaigns in your team's Apollo account (master key required)",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -48,7 +52,7 @@ export const apolloSequenceSearchTool: ToolConfig<
     method: 'POST',
     headers: (params: ApolloSequenceSearchParams) => ({
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
   },
 

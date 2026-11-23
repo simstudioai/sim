@@ -16,7 +16,7 @@ import {
   organizationAuthorizationMock,
   organizationAuthorizationMockFns,
 } from '@sim/testing/mocks/organization-authorization.mock'
-import { and, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull, notInArray, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -69,6 +69,7 @@ import {
   organizationCredentialOperations,
   resolveOrganizationCredentialTokenBundle,
   saveOrganizationCredentialDraft,
+  updateOrganizationCredential,
 } from '@/lib/credentials/application/organization-credentials'
 
 const mocks = {
@@ -147,7 +148,13 @@ describe('organization connection application boundary', () => {
       and(
         and(eq(credential.organizationId, 'org-1'), isNull(credential.workspaceId)),
         or(
-          eq(credential.type, 'service_account'),
+          and(
+            eq(credential.type, 'service_account'),
+            or(
+              eq(credential.createdBy, 'admin-1'),
+              notInArray(credential.providerId, ['jama-service-account', 'flow-service-account'])
+            )
+          ),
           and(eq(credential.type, 'oauth'), eq(credential.createdBy, 'admin-1'))
         ),
         eq(credential.type, 'oauth'),
@@ -271,6 +278,88 @@ describe('organization connection application boundary', () => {
       })
     ).rejects.toThrow('not found')
     expect(mocks.resolveToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('personal organization service-account isolation', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mocks.authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
+    mocks.catalog.mockResolvedValue([])
+    mocks.resolveToken.mockResolvedValue({ accessToken: 'private-token' })
+    mocks.create.mockResolvedValue({ success: true, created: true, credential: row })
+    mocks.update.mockResolvedValue({ success: true, updatedFields: ['displayName'] })
+  })
+
+  it.each(['jama-service-account', 'flow-service-account'])(
+    'does not let an admin use another member’s %s connection',
+    async (providerId) => {
+      mocks.getCredential.mockResolvedValue({ ...row, providerId, createdBy: 'other-member' })
+      await expect(
+        resolveOrganizationCredentialTokenBundle({
+          principal,
+          organizationId: 'org-1',
+          credentialId: row.id,
+          expectedProviderId: providerId,
+          requestId: 'test',
+          purpose: 'browsing',
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+  )
+
+  it.each(['jama-service-account', 'flow-service-account'])(
+    'requires the personal connection flow when creating %s',
+    async (providerId) => {
+      await expect(
+        createOrganizationCredential.execute({
+          principal,
+          input: {
+            organizationId: 'org-1',
+            type: 'service_account',
+            providerId,
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+  )
+
+  it.each([
+    { owner: 'other-member', code: 'not_found' },
+    { owner: 'admin-1', code: 'validation' },
+  ])(
+    'keeps personal credential updates in the identity-verified flow for $owner',
+    async ({ owner, code }) => {
+      mocks.getCredential.mockResolvedValue({
+        ...row,
+        providerId: 'jama-service-account',
+        createdBy: owner,
+      })
+      await expect(
+        updateOrganizationCredential.execute({
+          principal,
+          input: {
+            organizationId: 'org-1',
+            credentialId: row.id,
+            displayName: 'Renamed',
+          },
+        })
+      ).rejects.toMatchObject({ code })
+    }
+  )
+
+  it('still lets the owner browse using their personal credential', async () => {
+    mocks.getCredential.mockResolvedValue({ ...row, providerId: 'jama-service-account' })
+    await expect(
+      resolveOrganizationCredentialTokenBundle({
+        principal,
+        organizationId: 'org-1',
+        credentialId: row.id,
+        expectedProviderId: 'jama-service-account',
+        requestId: 'test',
+        purpose: 'browsing',
+      })
+    ).resolves.toMatchObject({ accessToken: 'private-token' })
   })
 })
 

@@ -19,7 +19,7 @@ import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
 } from '@/lib/slack-search/manifest'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 export const SLACK_SEARCH_STALE_TIME = 30_000

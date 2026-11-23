@@ -12,6 +12,7 @@ import {
   mapGeo,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrUpdateGeoTool: ToolConfig<CheckrUpdateGeoParams, CheckrGeoResponse> = {
@@ -19,6 +20,7 @@ export const checkrUpdateGeoTool: ToolConfig<CheckrUpdateGeoParams, CheckrGeoRes
   name: 'Checkr Update Geo',
   description: 'Add a city to a geo. A geo’s city can only be set once.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

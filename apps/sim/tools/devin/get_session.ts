@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinGetSessionParams, DevinGetSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 
@@ -8,6 +10,7 @@ export const devinGetSessionTool: ToolConfig<DevinGetSessionParams, DevinGetSess
   description:
     'Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,7 +35,7 @@ export const devinGetSessionTool: ToolConfig<DevinGetSessionParams, DevinGetSess
 
   request: {
     url: (params) =>
-      `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions/${params.sessionId.trim()}`,
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions/${safeUrlPathSegment(params.sessionId, 'sessionId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

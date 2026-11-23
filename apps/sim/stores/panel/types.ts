@@ -7,7 +7,7 @@ import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
  * Available panel tabs
  */
 
-export type PanelTab = 'copilot' | 'editor' | 'toolbar'
+export type PanelTab = 'copilot' | 'editor' | 'toolbar' | 'code'
 
 /**
  * Panel state interface

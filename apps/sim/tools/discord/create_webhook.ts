@@ -2,7 +2,9 @@ import type {
   DiscordCreateWebhookParams,
   DiscordCreateWebhookResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordCreateWebhookTool: ToolConfig<
   DiscordCreateWebhookParams,
@@ -12,6 +14,7 @@ export const discordCreateWebhookTool: ToolConfig<
   name: 'Discord Create Webhook',
   description: 'Create a webhook in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -34,7 +37,7 @@ export const discordCreateWebhookTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -42,7 +45,7 @@ export const discordCreateWebhookTool: ToolConfig<
 
   request: {
     url: (params: DiscordCreateWebhookParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/webhooks`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/webhooks`
     },
     method: 'POST',
     headers: (params) => ({

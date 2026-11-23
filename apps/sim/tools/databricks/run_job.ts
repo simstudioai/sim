@@ -4,6 +4,7 @@ import {
   optionalDatabricksString,
   parseDatabricksJson,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResponse> = {
@@ -12,6 +13,7 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   description:
     'Trigger an existing Databricks job to run immediately with optional job-level or notebook parameters.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     only: {

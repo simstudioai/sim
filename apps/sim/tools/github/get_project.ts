@@ -1,5 +1,18 @@
 import type { GetProjectParams, ProjectResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * GraphQL rejects a string for `Int!`, and the block's short-input stores the
+ * project number as text, so it is converted before it becomes a variable.
+ */
+function toProjectNumber(value: unknown): number {
+  const parsed = typeof value === 'string' ? Number(value.trim()) : value
+  if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`project_number must be a positive integer, but was ${String(value)}`)
+  }
+  return parsed
+}
 
 export const getProjectTool: ToolConfig<GetProjectParams, ProjectResponse> = {
   id: 'github_get_project',
@@ -7,6 +20,7 @@ export const getProjectTool: ToolConfig<GetProjectParams, ProjectResponse> = {
   description:
     'Get detailed information about a specific GitHub Project V2 by its number. Returns project details including ID, title, description, URL, and status.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner_type: {
@@ -66,7 +80,7 @@ export const getProjectTool: ToolConfig<GetProjectParams, ProjectResponse> = {
         query,
         variables: {
           login: params.owner_login,
-          number: params.project_number,
+          number: toProjectNumber(params.project_number),
         },
       }
     },
@@ -167,6 +181,7 @@ export const getProjectV2Tool: ToolConfig<GetProjectParams, any> = {
   name: getProjectTool.name,
   description: getProjectTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getProjectTool.params,
   request: getProjectTool.request,
 

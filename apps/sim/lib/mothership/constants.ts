@@ -23,7 +23,7 @@ export const WORKER_STREAM_IDLE_TIMEOUT_MS = 120_000
 /**
  * Watchdog cap for a single sim-executed copilot tool. A tool that neither
  * resolves nor rejects within its cap is failed with a timeout error so the
- * checkpoint loop can resume Go with an error result instead of wedging the
+ * checkpoint loop can resume the worker with an error result instead of wedging the
  * chat (and its pending-stream lock) behind a hung await forever.
  */
 export const TOOL_WATCHDOG_DEFAULT_MS = 60_000
@@ -65,6 +65,13 @@ export const CHAT_RUN_DEADLINE_MS = 3_600_000
  * and cannot steal work from a live tab.
  */
 export const COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS = 30_000
+
+/**
+ * The workflow grace when no chat view is reading the turn's stream at dispatch: a tab closed,
+ * a switch to another chat or page. It only bridges a view that is re-attaching right then (a
+ * reload, a reconnect after a network drop), which reads the call within a reconnect poll.
+ */
+export const COPILOT_WORKFLOW_TOOL_NO_VIEWER_GRACE_MS = 5_000
 
 /**
  * How long a desktop tool call (browser, terminal, local import) waits for the desktop app to

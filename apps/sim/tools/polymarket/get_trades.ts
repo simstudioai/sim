@@ -1,5 +1,13 @@
 import type { PolymarketTrade } from '@/tools/polymarket/types'
-import { buildDataUrl, handlePolymarketError } from '@/tools/polymarket/types'
+import {
+  appendDataPagination,
+  buildDataUrl,
+  handlePolymarketError,
+  POLYMARKET_CURSOR_DESCRIPTION,
+  POLYMARKET_DATA_PAGE_OUTPUTS,
+  type PolymarketDataPage,
+  readDataPage,
+} from '@/tools/polymarket/types'
 import type { ToolConfig } from '@/tools/types'
 
 export interface PolymarketGetTradesParams {
@@ -12,11 +20,12 @@ export interface PolymarketGetTradesParams {
   filterAmount?: string
   limit?: string
   offset?: string
+  cursor?: string
 }
 
 export interface PolymarketGetTradesResponse {
   success: boolean
-  output: {
+  output: PolymarketDataPage & {
     trades: PolymarketTrade[]
   }
 }
@@ -77,32 +86,36 @@ export const polymarketGetTradesTool: ToolConfig<
     limit: {
       type: 'string',
       required: false,
-      description: 'Number of results per page (e.g., "50"). Default: 100, max: 10000.',
+      description: 'Number of results for the first page (e.g., "50"). Default: 100, max: 1000.',
       visibility: 'user-or-llm',
     },
     offset: {
       type: 'string',
       required: false,
-      description: 'Number of results to skip for pagination (e.g., "100").',
+      description:
+        'Not supported by the Polymarket Data API v2, which pages by cursor. Use cursor instead.',
+      visibility: 'user-or-llm',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      description: POLYMARKET_CURSOR_DESCRIPTION,
       visibility: 'user-or-llm',
     },
   },
 
   request: {
     url: (params) => {
-      const queryParams = new URLSearchParams()
-      if (params.user) queryParams.append('user', params.user)
-      if (params.market) queryParams.append('market', params.market)
-      if (params.eventId) queryParams.append('eventId', params.eventId)
-      if (params.side) queryParams.append('side', params.side.toUpperCase())
-      if (params.takerOnly) queryParams.append('takerOnly', params.takerOnly)
-      if (params.filterType) queryParams.append('filterType', params.filterType.toUpperCase())
-      if (params.filterAmount) queryParams.append('filterAmount', params.filterAmount)
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.offset) queryParams.append('offset', params.offset)
-
-      const url = buildDataUrl('/trades')
-      return `${url}?${queryParams.toString()}`
+      const query = new URLSearchParams()
+      if (params.user) query.append('user', params.user)
+      if (params.market) query.append('condition', params.market)
+      if (params.eventId) query.append('event_id', params.eventId)
+      if (params.side) query.append('side', params.side.toUpperCase())
+      if (params.takerOnly) query.append('taker_only', params.takerOnly)
+      if (params.filterType) query.append('filter_type', params.filterType.toUpperCase())
+      if (params.filterAmount) query.append('filter_amount', params.filterAmount)
+      appendDataPagination(query, params)
+      return buildDataUrl('/trades', query)
     },
     method: 'GET',
     headers: () => ({
@@ -117,33 +130,34 @@ export const polymarketGetTradesTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_trades')
     }
 
-    const rawTrades = Array.isArray(data) ? data : []
-    const trades: PolymarketTrade[] = rawTrades.map((t: Record<string, unknown>) => ({
-      proxyWallet: (t.proxyWallet as string) ?? null,
+    const { rows, page } = readDataPage(data)
+    const trades: PolymarketTrade[] = rows.map((t) => ({
+      proxyWallet: (t.proxy_wallet as string) ?? null,
       side: (t.side as string) ?? '',
-      asset: (t.asset as string) ?? '',
-      conditionId: (t.conditionId as string) ?? '',
+      asset: (t.token_id as string) ?? '',
+      conditionId: (t.condition_id as string) ?? '',
       size: (t.size as number) ?? 0,
       price: (t.price as number) ?? 0,
       timestamp: (t.timestamp as number) ?? 0,
       title: (t.title as string) ?? null,
       slug: (t.slug as string) ?? null,
       icon: (t.icon as string) ?? null,
-      eventSlug: (t.eventSlug as string) ?? null,
+      eventSlug: (t.event_slug as string) ?? null,
       outcome: (t.outcome as string) ?? null,
-      outcomeIndex: (t.outcomeIndex as number) ?? null,
+      outcomeIndex: (t.outcome_index as number) ?? null,
       name: (t.name as string) ?? null,
       pseudonym: (t.pseudonym as string) ?? null,
       bio: (t.bio as string) ?? null,
-      profileImage: (t.profileImage as string) ?? null,
-      profileImageOptimized: (t.profileImageOptimized as string) ?? null,
-      transactionHash: (t.transactionHash as string) ?? null,
+      profileImage: (t.profile_image as string) ?? null,
+      profileImageOptimized: (t.profile_image_optimized as string) ?? null,
+      transactionHash: (t.transaction_hash as string) ?? null,
     }))
 
     return {
       success: true,
       output: {
         trades,
+        ...page,
       },
     }
   },
@@ -177,5 +191,6 @@ export const polymarketGetTradesTool: ToolConfig<
         },
       },
     },
+    ...POLYMARKET_DATA_PAGE_OUTPUTS,
   },
 }

@@ -110,9 +110,7 @@ export async function deleteStorageFiles(
     stats.filesDeleted += result.deleted
     stats.filesFailed += result.failed.length
     for (const { key, error } of result.failed) {
-      logger.error(`[${label}] Failed to delete storage file ${key} (context: ${context}):`, {
-        error,
-      })
+      logger.error(`Failed to delete storage file ${key} (context: ${context}):`, { label, error })
     }
   }
 
@@ -131,7 +129,7 @@ export async function cleanupCopilotBackend(
 
   if (chatIds.length === 0 || !env.COPILOT_API_KEY) {
     if (!env.COPILOT_API_KEY) {
-      logger.warn(`[${label}] COPILOT_API_KEY not set, skipping copilot backend cleanup`)
+      logger.warn('COPILOT_API_KEY not set, skipping copilot backend cleanup', { label })
     }
     return stats
   }
@@ -150,7 +148,8 @@ export async function cleanupCopilotBackend(
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '')
-        logger.error(`[${label}] Copilot backend cleanup failed: ${response.status}`, {
+        logger.error(`Copilot backend cleanup failed: ${response.status}`, {
+          label,
           errorBody,
           chatCount: chunk.length,
         })
@@ -161,11 +160,12 @@ export async function cleanupCopilotBackend(
       const result = await response.json()
       stats.deleted += result.deleted ?? 0
       logger.info(
-        `[${label}] Copilot backend cleanup: ${result.deleted} chats deleted (batch ${Math.floor(i / COPILOT_CLEANUP_BATCH_SIZE) + 1})`
+        `Copilot backend cleanup: ${result.deleted} chats deleted (batch ${Math.floor(i / COPILOT_CLEANUP_BATCH_SIZE) + 1})`,
+        { label }
       )
     } catch (error) {
       stats.failed += chunk.length
-      logger.error(`[${label}] Copilot backend cleanup request failed:`, { error })
+      logger.error('Copilot backend cleanup request failed:', { label, error })
     }
   }
 
@@ -188,7 +188,8 @@ export async function prepareChatCleanup(
   // Collect file refs BEFORE DB deletion (keys + context are lost after cascade)
   const files = await collectChatFiles(chatIds)
   if (files.length > 0) {
-    logger.info(`[${label}] Collected ${files.length} files for cleanup`, {
+    logger.info(`Collected ${files.length} files for cleanup`, {
+      label,
       files: files.map((f) => ({ key: f.key, context: f.context })),
     })
   }
@@ -208,7 +209,8 @@ export async function prepareChatCleanup(
       }
       if (survivors.size > 0) {
         logger.info(
-          `[${label}] Skipping external cleanup for ${survivors.size} chats whose rows still exist`
+          `Skipping external cleanup for ${survivors.size} chats whose rows still exist`,
+          { label }
         )
       }
       const confirmedChatIds = chatIds.filter((id) => !survivors.has(id))
@@ -220,7 +222,8 @@ export async function prepareChatCleanup(
       if (confirmedChatIds.length > 0) {
         const copilotResult = await cleanupCopilotBackend(confirmedChatIds, label)
         logger.info(
-          `[${label}] Copilot backend: ${copilotResult.deleted} deleted, ${copilotResult.failed} failed`
+          `Copilot backend: ${copilotResult.deleted} deleted, ${copilotResult.failed} failed`,
+          { label }
         )
         await enqueueChatInlineImageCleanup(cleanupDb, confirmedChatIds)
       }
@@ -229,7 +232,8 @@ export async function prepareChatCleanup(
       if (confirmedFiles.length > 0) {
         const fileStats = await deleteStorageFiles(confirmedFiles, label)
         logger.info(
-          `[${label}] Storage cleanup: ${fileStats.filesDeleted} deleted, ${fileStats.filesFailed} failed`
+          `Storage cleanup: ${fileStats.filesDeleted} deleted, ${fileStats.filesFailed} failed`,
+          { label }
         )
       }
     },

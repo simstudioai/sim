@@ -1,4 +1,6 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ProfoundCategoryTagsParams, ProfoundCategoryTagsResponse } from './types'
 
 export const profoundCategoryTagsTool: ToolConfig<
@@ -9,6 +11,7 @@ export const profoundCategoryTagsTool: ToolConfig<
   name: 'Profound Category Tags',
   description: 'List tags for a specific category in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -27,7 +30,7 @@ export const profoundCategoryTagsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tryprofound.com/v1/org/categories/${encodeURIComponent(params.categoryId)}/tags`,
+      `https://api.tryprofound.com/v1/org/categories/${safeUrlPathSegment(params.categoryId, 'categoryId')}/tags`,
     method: 'GET',
     headers: (params) => ({
       'X-API-Key': params.apiKey,

@@ -38,13 +38,20 @@ export function durableResourceAuthoringVersion(
   return admitted ? RESOURCE_AUTHORING_VERSION : undefined
 }
 
-export const StreamRecoveryConfigSchema = z
+const WORKER_ROUTES = ['/api/mothership', '/api/copilot'] as const
+
+/**
+ * The recovery intent as stored on the run. The worker route is persisted as `goRoute`, a name
+ * every deployed and self-hosted Sim parses under `.strict()`, so it is never renamed; this module
+ * is the only place that names it.
+ */
+const PersistedStreamRecoveryConfigSchema = z
   .object({
     kind: z.enum(DURABLE_STREAM_KINDS),
     resourceAuthoringVersion: z.literal(RESOURCE_AUTHORING_VERSION).optional(),
     billingAdmission: BillingAdmissionSchema.optional(),
     request: DurableChatRequestSchema,
-    goRoute: z.enum(['/api/mothership', '/api/copilot']),
+    goRoute: z.enum(WORKER_ROUTES),
     clientToolPickupExpected: z.boolean(),
     userTimezone: z.string().optional(),
     requestMode: z.enum(COPILOT_REQUEST_MODES).optional(),
@@ -60,6 +67,27 @@ export const StreamRecoveryConfigSchema = z
       message: 'Recovery mode must match the admitted request',
     }
   )
+
+type PersistedStreamRecoveryConfig = z.output<typeof PersistedStreamRecoveryConfigSchema>
+
+/** Reads a stored recovery intent, exposing its route as `workerRoute`. */
+export const StreamRecoveryConfigSchema = PersistedStreamRecoveryConfigSchema.transform(
+  ({ goRoute, ...config }) => ({ ...config, workerRoute: goRoute })
+)
+
+/** A recovery intent as code builds it, before it is validated for storage. */
+export type StreamRecoveryConfigInput = Omit<
+  z.input<typeof PersistedStreamRecoveryConfigSchema>,
+  'goRoute'
+> & { workerRoute: (typeof WORKER_ROUTES)[number] }
+
+/** Validates a recovery intent and returns the shape stored on the run. */
+export function persistedStreamRecoveryConfig({
+  workerRoute,
+  ...config
+}: StreamRecoveryConfigInput): PersistedStreamRecoveryConfig {
+  return PersistedStreamRecoveryConfigSchema.parse({ ...config, goRoute: workerRoute })
+}
 
 export async function streamRecoveryConfig(
   options: CopilotLifecycleOptions,
@@ -81,10 +109,10 @@ export async function streamRecoveryConfig(
         options.executionContext?.copilotResourceAdmission ?? options.copilotResourceAdmission,
     })
   )
-  return StreamRecoveryConfigSchema.parse({
+  return PersistedStreamRecoveryConfigSchema.parse({
     kind,
     request,
-    goRoute: options.goRoute ?? '/api/copilot',
+    goRoute: options.workerRoute ?? '/api/copilot',
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,
     userTimezone: options.executionContext?.userTimezone,
     requestMode: options.executionContext?.requestMode,

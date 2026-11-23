@@ -2,7 +2,7 @@
 title: Sportmonks
 description: Access Sportmonks football, motorsport, odds, and reference data
 integration:
-  type: "sportmonks"
+  type: "sportmonks_v2"
   color: "#171534"
 ---
 
@@ -38,7 +38,6 @@ Retrieve lineup-level expected goals (xG) values per player from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;player;team;type\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -71,7 +70,6 @@ Retrieve fixture-level expected goals (xG) values per team from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;participant;type\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -103,7 +101,6 @@ Retrieve all textual commentaries available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;player\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -136,7 +133,6 @@ Retrieve all football fixtures available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -181,7 +177,6 @@ Retrieve all football players available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. nationality;position\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -224,7 +219,6 @@ Retrieve all teams with their rivals information from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. team;rival\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -252,7 +246,6 @@ Retrieve all football teams available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -289,7 +282,6 @@ Retrieve all transfer rumours available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -328,7 +320,6 @@ Retrieve all transfers available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply \(e.g. transferTypes:219,220\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -365,7 +356,6 @@ Retrieve the knockout-stage tournament bracket (stages and progression edges) fo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
 
@@ -387,7 +377,6 @@ Retrieve a single football coach by their ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `coachId` | string | Yes | The unique id of the coach |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams;statistics\) |
 | `filters` | string | No | Filters to apply |
@@ -426,7 +415,6 @@ Retrieve all football coaches available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply \(e.g. coachCountries:462\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -467,7 +455,6 @@ Retrieve all coaches for a country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;nationality\) |
 | `filters` | string | No | Filters to apply |
@@ -509,7 +496,6 @@ Retrieve textual commentary for a fixture by fixture ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;relatedPlayer\) |
 
@@ -539,7 +525,6 @@ Retrieve all current leagues for a team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
@@ -576,7 +561,6 @@ Retrieve the premium expected lineups for a player ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `playerId` | string | Yes | The unique id of the player |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fixture\) |
 | `filters` | string | No | Filters to apply |
@@ -614,7 +598,6 @@ Retrieve the premium expected lineups for a team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fixture\) |
 | `filters` | string | No | Filters to apply |
@@ -652,7 +635,6 @@ Retrieve all squad entries for a team (based on current seasons) by team ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;position\) |
 | `filters` | string | No | Filters to apply |
@@ -684,7 +666,6 @@ Retrieve a single football fixture by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;events;lineups;statistics\) |
 | `filters` | string | No | Filters to apply \(e.g. eventTypes:14\) |
@@ -727,7 +708,6 @@ Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `date` | string | Yes | The date to fetch fixtures for, in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;league\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501,271\) |
@@ -773,7 +753,6 @@ Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `startDate` | string | Yes | Start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | End date in YYYY-MM-DD format \(max 100 days after start\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
@@ -820,7 +799,6 @@ Retrieve fixtures for a team within a date range (YYYY-MM-DD) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `startDate` | string | Yes | Start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | End date in YYYY-MM-DD format |
 | `teamId` | string | Yes | The unique id of the team |
@@ -868,7 +846,6 @@ Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `ids` | string | Yes | Comma-separated fixture IDs \(e.g. 18535517,18535518\). Maximum of 50 IDs |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
@@ -911,7 +888,6 @@ Retrieve the standing table for a round ID grouped by group where applicable fro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `roundId` | string | Yes | The unique id of the round |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply \(e.g. standingGroups:246697\) |
@@ -934,7 +910,6 @@ Retrieve the head-to-head fixtures between two teams from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `team1` | string | Yes | The id of the first team |
 | `team2` | string | Yes | The id of the second team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
@@ -981,7 +956,6 @@ Retrieve all fixtures that are currently being played (in-play) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;events\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
 
@@ -1023,7 +997,6 @@ Retrieve all coaches that have received updates in the past two hours
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;nationality\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1064,7 +1037,6 @@ Retrieve all fixtures that have received updates within the last 10 seconds
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
 
@@ -1106,7 +1078,6 @@ Retrieve all livescores that have received updates within the last 10 seconds
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
 
@@ -1148,7 +1119,6 @@ Retrieve all players that have received updates in the past two hours
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. nationality;position\) |
 | `filters` | string | No | Filters to apply |
 
@@ -1188,7 +1158,6 @@ Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `leagueId` | string | Yes | The unique id of the league |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;team;player;round\) |
 
@@ -1218,7 +1187,6 @@ Retrieve the latest transfers available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply \(e.g. transferTypes:219,220\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1255,7 +1223,6 @@ Retrieve a single football league by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `leagueId` | string | Yes | The unique id of the league |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -1289,7 +1256,6 @@ Retrieve all football leagues available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1325,7 +1291,6 @@ Retrieve all leagues for a country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
@@ -1362,7 +1327,6 @@ Retrieve all leagues with fixtures on a given date (YYYY-MM-DD) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `date` | string | Yes | The fixture date in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
@@ -1399,7 +1363,6 @@ Retrieve all current and historical leagues for a team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
@@ -1436,7 +1399,6 @@ Retrieve all leagues that have fixtures currently being played from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1472,7 +1434,6 @@ Retrieve all live (in-play) prediction probabilities from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;fixture\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -1502,7 +1463,6 @@ Retrieve all live (in-play) prediction probabilities for a fixture ID from Sport
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;fixture\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1533,7 +1493,6 @@ Retrieve the live standing table for a league ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `leagueId` | string | Yes | The unique id of the league |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply \(e.g. standingGroups:246697\) |
@@ -1568,7 +1527,6 @@ Retrieve fixtures starting within 15 minutes and currently in progress from Spor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;events\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
 
@@ -1610,7 +1568,6 @@ Retrieve all available match facts within your Sportmonks subscription (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;sport;fixture\) |
 | `filters` | string | No | Filters to apply \(e.g. matchFactTypes:76088\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1645,7 +1602,6 @@ Retrieve match facts within a date range (YYYY-MM-DD) from Sportmonks (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `startDate` | string | Yes | Start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | End date in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;sport;fixture\) |
@@ -1682,7 +1638,6 @@ Retrieve match facts for a fixture ID from Sportmonks (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;sport;fixture\) |
 | `filters` | string | No | Filters to apply \(e.g. matchFactTypes:76088\) |
@@ -1718,7 +1673,6 @@ Retrieve match facts for a league ID from Sportmonks (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `leagueId` | string | Yes | The unique id of the league |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;sport;fixture\) |
 | `filters` | string | No | Filters to apply \(e.g. matchFactTypes:76088\) |
@@ -1754,7 +1708,6 @@ Retrieve all past fixtures that were available for a TV station ID from Sportmon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `tvStationId` | string | Yes | The unique id of the TV station |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
@@ -1800,7 +1753,6 @@ Retrieve a single football player by their ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `playerId` | string | Yes | The unique id of the player |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;position;teams.team;statistics\) |
 | `filters` | string | No | Filters to apply |
@@ -1841,7 +1793,6 @@ Retrieve all players for a country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. nationality;position\) |
 | `filters` | string | No | Filters to apply |
@@ -1885,7 +1836,6 @@ Retrieve all post-match news articles available within your Sportmonks subscript
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;league\) |
 | `filters` | string | No | Filters to apply \(e.g. newsitemLeagues:8\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -1915,7 +1865,6 @@ Retrieve all post-match news articles for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;league\) |
 | `filters` | string | No | Filters to apply \(e.g. newsitemLeagues:8\) |
@@ -1946,7 +1895,6 @@ Retrieve the predictions model performance for a league ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `leagueId` | string | Yes | The unique id of the league |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;league\) |
 | `filters` | string | No | Filters to apply \(e.g. predictabilityTypes:245\) |
@@ -1976,7 +1924,6 @@ Retrieve all pre-match news articles available within your Sportmonks subscripti
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;league\) |
 | `filters` | string | No | Filters to apply \(e.g. newsitemLeagues:8\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2006,7 +1953,6 @@ Retrieve all pre-match news articles for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;league\) |
 | `filters` | string | No | Filters to apply \(e.g. newsitemLeagues:8\) |
@@ -2037,7 +1983,6 @@ Retrieve all pre-match news articles for upcoming fixtures from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;league\) |
 | `filters` | string | No | Filters to apply \(e.g. newsitemLeagues:8\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2067,7 +2012,6 @@ Retrieve all prediction probabilities available within your Sportmonks subscript
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;fixture\) |
 | `filters` | string | No | Filters to apply \(e.g. predictionTypes:236\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2096,7 +2040,6 @@ Retrieve prediction probabilities for a fixture by fixture ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;fixture\) |
 | `filters` | string | No | Filters to apply \(e.g. predictionTypes:236\) |
@@ -2126,7 +2069,6 @@ Retrieve a single football referee by their ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `refereeId` | string | Yes | The unique id of the referee |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;statistics\) |
 | `filters` | string | No | Filters to apply |
@@ -2164,7 +2106,6 @@ Retrieve all football referees available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;statistics\) |
 | `filters` | string | No | Filters to apply \(e.g. refereeCountries:44\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2204,7 +2145,6 @@ Retrieve all referees for a country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;nationality\) |
 | `filters` | string | No | Filters to apply |
@@ -2245,7 +2185,6 @@ Retrieve all referees for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;nationality\) |
 | `filters` | string | No | Filters to apply |
@@ -2286,7 +2225,6 @@ Retrieve rival teams for a team by team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. team;rival\) |
 
@@ -2311,7 +2249,6 @@ Retrieve a single football round by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `roundId` | string | Yes | The unique id of the round |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;stage;fixtures\) |
 | `filters` | string | No | Filters to apply |
@@ -2345,7 +2282,6 @@ Retrieve all available statistics for a round ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `roundId` | string | Yes | The unique id of the round |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant\) |
 | `filters` | string | No | Filters to apply \(e.g. seasonstatisticTypes:52,88\) |
@@ -2376,7 +2312,6 @@ Retrieve all football rounds available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;stage\) |
 | `filters` | string | No | Filters to apply \(e.g. roundSeasons:19735\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2412,7 +2347,6 @@ Retrieve all rounds for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;stage\) |
 | `filters` | string | No | Filters to apply |
@@ -2446,7 +2380,6 @@ Retrieve the full schedule (stages, rounds and fixtures) for a season by season 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 
 ##### Output
@@ -2467,7 +2400,6 @@ Retrieve the full season schedule for a specific team by season ID and team ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `teamId` | string | Yes | The unique id of the team |
 
@@ -2489,7 +2421,6 @@ Retrieve the full schedule (stages, rounds and fixtures) for a team by team ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 
 ##### Output
@@ -2510,7 +2441,6 @@ Retrieve a single football season by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;stages;fixtures\) |
 | `filters` | string | No | Filters to apply |
@@ -2546,7 +2476,6 @@ Retrieve all football seasons available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;stages\) |
 | `filters` | string | No | Filters to apply \(e.g. seasonLeagues:501\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2584,7 +2513,6 @@ Retrieve all seasons for a team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;stages\) |
 | `filters` | string | No | Filters to apply |
@@ -2620,7 +2548,6 @@ Retrieve a single football stage by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `stageId` | string | Yes | The unique id of the stage |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;rounds\) |
 | `filters` | string | No | Filters to apply |
@@ -2655,7 +2582,6 @@ Retrieve all available statistics for a stage ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `stageId` | string | Yes | The unique id of the stage |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant\) |
 | `filters` | string | No | Filters to apply \(e.g. seasonstatisticTypes:52,88\) |
@@ -2686,7 +2612,6 @@ Retrieve all football stages available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;rounds\) |
 | `filters` | string | No | Filters to apply \(e.g. stageSeasons:19735\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2723,7 +2648,6 @@ Retrieve all stages for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;rounds\) |
 | `filters` | string | No | Filters to apply |
@@ -2758,7 +2682,6 @@ Retrieve point corrections (awarded or deducted) for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;stage\) |
 | `filters` | string | No | Filters to apply |
@@ -2791,7 +2714,6 @@ Retrieve all standings available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;league;season\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -2828,7 +2750,6 @@ Retrieve the full standing table for a round ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `roundId` | string | Yes | The unique id of the round |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply \(e.g. standingGroups:246697\) |
@@ -2863,7 +2784,6 @@ Retrieve the full league standings table for a season by season ID from Sportmon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details;form\) |
 | `filters` | string | No | Filters to apply \(e.g. standingStages:77453568\) |
@@ -2898,7 +2818,6 @@ Retrieve a single fixture state by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `stateId` | string | Yes | The unique id of the state |
 
 ##### Output
@@ -2924,7 +2843,6 @@ Retrieve all fixture states (e.g. Not Started, 1st Half, Full Time) from Sportmo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
 | `order` | string | No | Order direction \(asc or desc\) |
@@ -2952,7 +2870,6 @@ Retrieve a single football team by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue;coaches;players.player\) |
 | `filters` | string | No | Filters to apply |
@@ -2987,7 +2904,6 @@ Retrieve all team rankings available within your Sportmonks subscription (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. team\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -3016,7 +2932,6 @@ Retrieve team rankings for a given date (YYYY-MM-DD) from Sportmonks (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `date` | string | Yes | The ranking date in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. team\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -3046,7 +2961,6 @@ Retrieve team rankings for a team ID from Sportmonks (beta)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. team\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -3076,7 +2990,6 @@ Retrieve the current domestic squad for a team by team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;position\) |
 | `filters` | string | No | Filters to apply |
@@ -3108,7 +3021,6 @@ Retrieve the (historical) squad for a team in a specific season from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;position\) |
@@ -3141,7 +3053,6 @@ Retrieve all teams for a country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue\) |
 | `filters` | string | No | Filters to apply |
@@ -3179,7 +3090,6 @@ Retrieve all teams for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue\) |
 | `filters` | string | No | Filters to apply |
@@ -3217,7 +3127,6 @@ Retrieve the topscorers (goals, assists, cards) for a season by season ID from S
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;participant;type\) |
 | `filters` | string | No | Filters to apply \(e.g. seasontopscorerTypes:208\) |
@@ -3252,7 +3161,6 @@ Retrieve topscorers for a stage by stage ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `stageId` | string | Yes | The unique id of the stage |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;participant;type\) |
 | `filters` | string | No | Filters to apply \(e.g. stageTopscorerTypes:208\) |
@@ -3287,7 +3195,6 @@ Retrieve all available Team of the Week (TOTW) entries from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;team;player;round\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -3319,7 +3226,6 @@ Retrieve the Team of the Week (TOTW) for a round ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `roundId` | string | Yes | The unique id of the round |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixture;team;player;round\) |
 
@@ -3349,7 +3255,6 @@ Retrieve a single transfer by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `transferId` | string | Yes | The unique id of the transfer |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply |
@@ -3384,7 +3289,6 @@ Retrieve a single transfer rumour by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `rumourId` | string | Yes | The unique id of the transfer rumour |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply |
@@ -3421,7 +3325,6 @@ Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `startDate` | string | Yes | Start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | End date in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
@@ -3462,7 +3365,6 @@ Retrieve transfer rumours for a player ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `playerId` | string | Yes | The unique id of the player |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply |
@@ -3502,7 +3404,6 @@ Retrieve transfer rumours for a team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply |
@@ -3542,7 +3443,6 @@ Retrieve transfers within a date range (YYYY-MM-DD) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `startDate` | string | Yes | Start date in YYYY-MM-DD format |
 | `endDate` | string | Yes | End date in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
@@ -3581,7 +3481,6 @@ Retrieve transfers for a player by player ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `playerId` | string | Yes | The unique id of the player |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fromTeam;toTeam;type\) |
 | `filters` | string | No | Filters to apply |
@@ -3619,7 +3518,6 @@ Retrieve transfers for a team by team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;fromTeam;toTeam\) |
 | `filters` | string | No | Filters to apply \(e.g. transferTypes:219,220\) |
@@ -3657,7 +3555,6 @@ Retrieve a single TV station by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `tvStationId` | string | Yes | The unique id of the TV station |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
 | `filters` | string | No | Filters to apply |
@@ -3686,7 +3583,6 @@ Retrieve all TV stations available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -3717,7 +3613,6 @@ Retrieve broadcasting TV stations for a fixture by fixture ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. fixtures;countries\) |
 | `filters` | string | No | Filters to apply |
@@ -3749,7 +3644,6 @@ Retrieve all upcoming fixtures for a market ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `marketId` | string | Yes | The unique id of the market |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;odds\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
@@ -3795,7 +3689,6 @@ Retrieve all upcoming fixtures available for a TV station ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `tvStationId` | string | Yes | The unique id of the TV station |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
@@ -3841,7 +3734,6 @@ Retrieve all value bets available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;fixture\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -3869,7 +3761,6 @@ Retrieve value bet predictions for a fixture by fixture ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. type;fixture\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -3898,7 +3789,6 @@ Retrieve a single football venue by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `venueId` | string | Yes | The unique id of the venue |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city;fixtures\) |
 | `filters` | string | No | Filters to apply |
@@ -3934,7 +3824,6 @@ Retrieve all football venues available within your Sportmonks subscription
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply \(e.g. venueCountries:98\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -3972,7 +3861,6 @@ Retrieve all venues for a season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply |
@@ -4008,7 +3896,6 @@ Search for football coaches by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The coach name to search for \(e.g. Gerrard\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
@@ -4050,7 +3937,6 @@ Search for football fixtures by name (participants) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The fixture name to search for \(e.g. Celtic\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
 | `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
@@ -4096,7 +3982,6 @@ Search for football leagues by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The league name to search for \(e.g. Premier\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
 | `filters` | string | No | Filters to apply |
@@ -4133,7 +4018,6 @@ Search for football players by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The player name to search for \(e.g. Tavernier\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;position;teams.team\) |
 | `filters` | string | No | Filters to apply |
@@ -4177,7 +4061,6 @@ Search for football referees by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The referee name to search for |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country\) |
 | `filters` | string | No | Filters to apply |
@@ -4218,7 +4101,6 @@ Search for football rounds by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The round name to search for \(e.g. 5\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season\) |
 | `filters` | string | No | Filters to apply |
@@ -4255,7 +4137,6 @@ Search for football seasons by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The season name to search for \(e.g. 2023/2024\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league\) |
 | `filters` | string | No | Filters to apply |
@@ -4294,7 +4175,6 @@ Search for football stages by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The stage name to search for \(e.g. Group\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season\) |
 | `filters` | string | No | Filters to apply |
@@ -4332,7 +4212,6 @@ Search for football teams by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The team name to search for \(e.g. Celtic\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue\) |
 | `filters` | string | No | Filters to apply |
@@ -4370,7 +4249,6 @@ Search for football venues by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The venue name to search for \(e.g. Celtic Park\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply |
@@ -4411,7 +4289,6 @@ Retrieve all motorsport fixtures (sessions) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -4456,7 +4333,6 @@ Retrieve the current motorsport leagues for a team by team ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team \(constructor\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -4494,7 +4370,6 @@ Retrieve a single motorsport driver by their ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `driverId` | string | Yes | The unique id of the driver |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
@@ -4535,7 +4410,6 @@ Retrieve all driver championship standings from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;season\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -4572,7 +4446,6 @@ Retrieve the drivers championship standings for a season by season ID from Sport
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;season\) |
 | `filters` | string | No | Filters to apply |
@@ -4610,7 +4483,6 @@ Retrieve all motorsport drivers from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -4653,7 +4525,6 @@ Retrieve all motorsport drivers for a country by country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
@@ -4697,7 +4568,6 @@ Retrieve all motorsport drivers for a season by season ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
@@ -4741,7 +4611,6 @@ Retrieve a single motorsport fixture (session) by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results;latestLaps;pitstops\) |
 | `filters` | string | No | Filters to apply |
@@ -4784,7 +4653,6 @@ Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Spo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `date` | string | Yes | The date to fetch fixtures for, in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;venue\) |
 | `filters` | string | No | Filters to apply |
@@ -4830,7 +4698,6 @@ Retrieve motorsport fixtures (sessions) between two dates (YYYY-MM-DD, max 100 d
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `startDate` | string | Yes | The start date of the range, in YYYY-MM-DD format |
 | `endDate` | string | Yes | The end date of the range, in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;venue\) |
@@ -4877,7 +4744,6 @@ Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Spor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureIds` | string | Yes | Comma-separated list of fixture ids \(max 50, e.g. 19408487,19408480\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results\) |
 | `filters` | string | No | Filters to apply |
@@ -4923,7 +4789,6 @@ Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply |
@@ -4952,7 +4817,6 @@ Retrieve all laps for a motorsport fixture and driver from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `driverId` | string | Yes | The unique id of the driver |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
@@ -4982,7 +4846,6 @@ Retrieve all laps for a motorsport fixture and lap number from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `lapNumber` | string | Yes | The lap number to retrieve |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
@@ -5012,7 +4875,6 @@ Retrieve the latest laps for a motorsport fixture (session) by fixture ID from S
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply |
@@ -5041,7 +4903,6 @@ Retrieve the latest pitstops for a motorsport fixture (session) by fixture ID fr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply |
@@ -5070,7 +4931,6 @@ Retrieve the latest tyre stints for a motorsport fixture (session) by fixture ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply |
@@ -5099,7 +4959,6 @@ Retrieve the most recently updated motorsport drivers from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5142,7 +5001,6 @@ Retrieve the most recently updated motorsport fixtures (sessions) from Sportmonk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5187,7 +5045,6 @@ Retrieve a single motorsport league by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `leagueId` | string | Yes | The unique id of the league |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -5222,7 +5079,6 @@ Retrieve all motorsport leagues from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5259,7 +5115,6 @@ Retrieve all motorsport leagues for a country by country ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -5297,7 +5152,6 @@ Retrieve all motorsport leagues with fixtures on a specific date (YYYY-MM-DD) fr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `date` | string | Yes | The date to fetch leagues for, in YYYY-MM-DD format |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -5335,7 +5189,6 @@ Retrieve all motorsport leagues that currently have live fixtures from Sportmonk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5372,7 +5225,6 @@ Retrieve all current and historical motorsport leagues for a team by team ID fro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team \(constructor\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -5410,7 +5262,6 @@ Retrieve all live motorsport fixtures (sessions) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5455,7 +5306,6 @@ Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Spor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply |
@@ -5484,7 +5334,6 @@ Retrieve all pitstops for a motorsport fixture and driver from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `driverId` | string | Yes | The unique id of the driver |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
@@ -5514,7 +5363,6 @@ Retrieve all pitstops for a motorsport fixture and lap number from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `lapNumber` | string | Yes | The lap number to retrieve |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
@@ -5544,7 +5392,6 @@ Retrieve race results (stages with fixtures, lineups and lineup details) for a s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `driverId` | string | Yes | The unique id of the driver |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
@@ -5584,7 +5431,6 @@ Retrieve race results (stages with fixtures, lineups and lineup details) for a s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `teamId` | string | Yes | The unique id of the team \(constructor\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
@@ -5624,7 +5470,6 @@ Retrieve the full schedule (stages with nested fixtures and venues) for a season
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
 | `filters` | string | No | Filters to apply |
@@ -5663,7 +5508,6 @@ Retrieve a single motorsport season by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;stages\) |
 | `filters` | string | No | Filters to apply |
@@ -5698,7 +5542,6 @@ Retrieve all motorsport seasons from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;stages\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5735,7 +5578,6 @@ Retrieve a single motorsport stage (race weekend) by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `stageId` | string | Yes | The unique id of the stage \(race weekend\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;fixtures\) |
 | `filters` | string | No | Filters to apply |
@@ -5771,7 +5613,6 @@ Retrieve all motorsport stages (race weekends) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;fixtures\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5809,7 +5650,6 @@ Retrieve all motorsport stages (race weekends) for a season by season ID from Sp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;fixtures\) |
 | `filters` | string | No | Filters to apply |
@@ -5848,7 +5688,6 @@ Retrieve a single motorsport fixture state by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `stateId` | string | Yes | The unique id of the state |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
 | `filters` | string | No | Filters to apply |
@@ -5876,7 +5715,6 @@ Retrieve all possible motorsport fixture states from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -5906,7 +5744,6 @@ Retrieve all tyre stints for a motorsport fixture (session) by fixture ID from S
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
 | `filters` | string | No | Filters to apply |
@@ -5935,7 +5772,6 @@ Retrieve all tyre stints for a motorsport fixture and driver from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `driverId` | string | Yes | The unique id of the driver |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
@@ -5965,7 +5801,6 @@ Retrieve all tyre stints for a motorsport fixture and stint number from Sportmon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
 | `stintNumber` | string | Yes | The stint number to retrieve |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
@@ -5995,7 +5830,6 @@ Retrieve a single motorsport team (constructor) by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `teamId` | string | Yes | The unique id of the team \(constructor\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
 | `filters` | string | No | Filters to apply |
@@ -6030,7 +5864,6 @@ Retrieve all team (constructor) championship standings from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;season\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6067,7 +5900,6 @@ Retrieve the constructors championship standings for a season by season ID from 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;season\) |
 | `filters` | string | No | Filters to apply |
@@ -6105,7 +5937,6 @@ Retrieve all motorsport teams (constructors) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6142,7 +5973,6 @@ Retrieve all motorsport teams (constructors) for a country by country ID from Sp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
 | `filters` | string | No | Filters to apply |
@@ -6180,7 +6010,6 @@ Retrieve all motorsport teams (constructors) for a season by season ID from Spor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
 | `filters` | string | No | Filters to apply |
@@ -6218,7 +6047,6 @@ Retrieve a single motorsport venue (racing track) by its ID from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `venueId` | string | Yes | The unique id of the venue \(track\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply |
@@ -6254,7 +6082,6 @@ Retrieve all motorsport venues (racing tracks) from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6292,7 +6119,6 @@ Retrieve all motorsport venues (racing tracks) for a season by season ID from Sp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `seasonId` | string | Yes | The unique id of the season |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply |
@@ -6331,7 +6157,6 @@ Search for motorsport drivers by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The driver name to search for \(e.g. Verstappen\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
 | `filters` | string | No | Filters to apply |
@@ -6375,7 +6200,6 @@ Search for motorsport leagues by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The league name to search for \(e.g. Formula\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;seasons\) |
 | `filters` | string | No | Filters to apply |
@@ -6413,7 +6237,6 @@ Search for motorsport stages (race weekends) by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The stage name to search for \(e.g. Monaco\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. league;season;fixtures\) |
 | `filters` | string | No | Filters to apply |
@@ -6452,7 +6275,6 @@ Search for motorsport teams (constructors) by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The team name to search for \(e.g. Bull\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
 | `filters` | string | No | Filters to apply |
@@ -6490,7 +6312,6 @@ Search for motorsport venues (racing tracks) by name from Sportmonks
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The venue name to search for \(e.g. Hungaroring\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;city\) |
 | `filters` | string | No | Filters to apply |
@@ -6531,7 +6352,6 @@ Retrieve all available historical (premium) pre-match odd values from the Sportm
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. odd\) |
 | `filters` | string | No | Filters to apply \(e.g. winningOdds\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6564,7 +6384,6 @@ Retrieve all available live (in-play) odds from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12, bookmakers:2,14, IdAfter:oddID\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6609,7 +6428,6 @@ Retrieve all available pre-match odds from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12, bookmakers:2,14, winningOdds, IdAfter:oddID\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6653,7 +6471,6 @@ Retrieve all available premium (historical) pre-match odds from the Sportmonks O
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12, bookmakers:2,14, IdAfter:oddID\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -6697,7 +6514,6 @@ Retrieve a single bookmaker by its ID from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `bookmakerId` | string | Yes | The unique id of the bookmaker |
 
 ##### Output
@@ -6721,7 +6537,6 @@ Retrieve bookmakers' own event ids mapped to a Sportmonks fixture via the Sportm
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -6749,7 +6564,6 @@ Retrieve all bookmakers from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `filters` | string | No | Filters to apply \(e.g. IdAfter:bookmakerID\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -6776,7 +6590,6 @@ Retrieve all bookmakers available for a fixture from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -6803,7 +6616,6 @@ Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odd
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14 or winningOdds\) |
@@ -6849,7 +6661,6 @@ Retrieve live (in-play) odds for a fixture from a specific bookmaker via the Spo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `bookmakerId` | string | Yes | The unique id of the bookmaker |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -6893,7 +6704,6 @@ Retrieve live (in-play) odds for a fixture on a specific market via the Sportmon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `marketId` | string | Yes | The unique id of the market |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -6937,7 +6747,6 @@ Retrieve in-play odds updated in the last 10 seconds from the Sportmonks Odds AP
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14\) |
 
@@ -6979,7 +6788,6 @@ Retrieve pre-match odds updated in the last 10 seconds from the Sportmonks Odds 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14 or winningOdds\) |
 
@@ -7020,7 +6828,6 @@ Retrieve a single betting market by its ID from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `marketId` | string | Yes | The unique id of the market |
 
 ##### Output
@@ -7044,7 +6851,6 @@ Retrieve all betting markets from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `filters` | string | No | Filters to apply \(e.g. IdAfter:marketID\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -7071,7 +6877,6 @@ Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14 or winningOdds\) |
@@ -7116,7 +6921,6 @@ Retrieve pre-match odds for a fixture from a specific bookmaker via the Sportmon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `bookmakerId` | string | Yes | The unique id of the bookmaker |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -7159,7 +6963,6 @@ Retrieve pre-match odds for a fixture on a specific market via the Sportmonks Od
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `marketId` | string | Yes | The unique id of the market |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -7202,7 +7005,6 @@ Retrieve premium (historical) pre-match odds for a fixture from the Sportmonks O
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
 | `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14\) |
@@ -7244,7 +7046,6 @@ Retrieve premium pre-match odds for a fixture from a specific bookmaker via the 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `bookmakerId` | string | Yes | The unique id of the bookmaker |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -7287,7 +7088,6 @@ Retrieve premium pre-match odds for a fixture on a specific market via the Sport
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fixtureId` | string | Yes | The unique id of the fixture |
 | `marketId` | string | Yes | The unique id of the market |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -7330,7 +7130,6 @@ Retrieve historical (premium) odds updated between two UNIX timestamps (max 5 mi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fromTimestamp` | string | Yes | Start of the range as a UNIX timestamp \(e.g. 1767225600\) |
 | `toTimestamp` | string | Yes | End of the range as a UNIX timestamp \(max 5 minutes after the start\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. odd\) |
@@ -7365,7 +7164,6 @@ Retrieve premium odds updated between two UNIX timestamps (max 5 minutes) from t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `fromTimestamp` | string | Yes | Start of the range as a UNIX timestamp \(e.g. 1767225600\) |
 | `toTimestamp` | string | Yes | End of the range as a UNIX timestamp \(max 5 minutes after the start\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
@@ -7411,7 +7209,6 @@ Search for bookmakers by name from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The bookmaker name to search for \(e.g. bet365\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -7438,7 +7235,6 @@ Search for betting markets by name from the Sportmonks Odds API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The market name to search for \(e.g. Over/Under\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -7467,7 +7263,6 @@ Retrieve all cities from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. region\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -7499,7 +7294,6 @@ Retrieve a single city by its ID from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `cityId` | string | Yes | The unique id of the city |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. region\) |
 
@@ -7528,7 +7322,6 @@ Retrieve a single continent by its ID from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `continentId` | string | Yes | The unique id of the continent |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. countries\) |
 
@@ -7553,7 +7346,6 @@ Retrieve all continents from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. countries\) |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
@@ -7580,7 +7372,6 @@ Retrieve all countries from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. continent;regions\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -7617,7 +7408,6 @@ Retrieve a single country by its ID from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `countryId` | string | Yes | The unique id of the country |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. continent;regions\) |
 
@@ -7651,7 +7441,6 @@ Retrieve all available filters grouped per entity from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 
 ##### Output
 
@@ -7671,7 +7460,6 @@ Retrieve your Sportmonks API usage aggregated per 5 minutes
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
 | `order` | string | No | Order direction \(asc or desc\) |
@@ -7701,7 +7489,6 @@ Retrieve a single region by its ID from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `regionId` | string | Yes | The unique id of the region |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;cities\) |
 
@@ -7726,7 +7513,6 @@ Retrieve all regions from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;cities\) |
 | `filters` | string | No | Filters to apply |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
@@ -7754,7 +7540,6 @@ Retrieve all supported time zones (IANA names) from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 
 ##### Output
 
@@ -7774,7 +7559,6 @@ Retrieve a single type by its ID from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `typeId` | string | Yes | The unique id of the type |
 
 ##### Output
@@ -7802,7 +7586,6 @@ Retrieve the available types grouped per entity from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 
 ##### Output
 
@@ -7822,7 +7605,6 @@ Retrieve all types (reference data describing events, statistics, positions, etc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `per_page` | string | No | Number of results per page \(max 50, default 25\) |
 | `page` | string | No | Page number to retrieve |
 | `order` | string | No | Order direction \(asc or desc\) |
@@ -7852,7 +7634,6 @@ Search for cities by name from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The city name to search for \(e.g. London\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. region\) |
 | `filters` | string | No | Filters to apply |
@@ -7885,7 +7666,6 @@ Search for countries by name from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The country name to search for \(e.g. Brazil\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. continent;regions\) |
 | `filters` | string | No | Filters to apply |
@@ -7923,7 +7703,6 @@ Search for regions by name from the Sportmonks Core API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Sportmonks API token |
 | `query` | string | Yes | The region name to search for \(e.g. Utrecht\) |
 | `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;cities\) |
 | `filters` | string | No | Filters to apply |

@@ -30,25 +30,18 @@ import {
   GetLatestConfigurationCommand,
   StartConfigurationSessionCommand,
 } from '@aws-sdk/client-appconfigdata'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { AppConfigConnectionConfig } from '@/tools/appconfig/types'
 
 export function createAppConfigClient(config: AppConfigConnectionConfig): AppConfigClient {
   return new AppConfigClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 
 export function createAppConfigDataClient(config: AppConfigConnectionConfig): AppConfigDataClient {
   return new AppConfigDataClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

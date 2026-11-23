@@ -2,6 +2,8 @@ import type {
   ApolloOrganizationSearchParams,
   ApolloOrganizationSearchResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloOrganizationSearchTool: ToolConfig<
@@ -12,8 +14,10 @@ export const apolloOrganizationSearchTool: ToolConfig<
   name: 'Apollo Organization Search',
   description: "Search Apollo's database for companies using filters",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -102,7 +106,7 @@ export const apolloOrganizationSearchTool: ToolConfig<
     method: 'POST',
     headers: (params: ApolloOrganizationSearchParams) => ({
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
   },
 

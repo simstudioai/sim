@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   MicrosoftPlannerListPlansResponse,
   MicrosoftPlannerToolParams,
@@ -15,6 +16,7 @@ export const listPlansTool: ToolConfig<
   name: 'List Microsoft Planner Plans',
   description: 'List all plans shared with the current user',
   version: '1.0',
+  errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 
   oauth: {
     required: true,

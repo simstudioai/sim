@@ -169,7 +169,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     })
   })
 
-  it('keeps the worker callback protocol aligned with the Go-produced wire constants', () => {
+  it('keeps the callback protocol aligned with the worker wire constants', () => {
     expect(Object.values(BillingProtocol).sort()).toEqual(
       Object.values(COPILOT_BILLING_PROTOCOL).sort()
     )
@@ -230,7 +230,7 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
     expect(mockRecordCumulativeUsage).not.toHaveBeenCalled()
   })
 
-  it('returns no-op success for markerless local self-hosted Go when billing is disabled', async () => {
+  it('returns no-op success for a markerless self-hosted caller when billing is disabled', async () => {
     setEnvFlags({ isBillingEnabled: false })
 
     const res = await POST(

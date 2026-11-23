@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomGetCompanyParams {
   accessToken: string
@@ -34,7 +36,8 @@ const getCompanyBase = {
   },
 
   request: {
-    url: (params: IntercomGetCompanyParams) => buildIntercomUrl(`/companies/${params.companyId}`),
+    url: (params: IntercomGetCompanyParams) =>
+      buildIntercomUrl(`/companies/${safeUrlPathSegment(params.companyId, 'companyId')}`),
     method: 'GET',
     headers: (params: IntercomGetCompanyParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -53,6 +56,7 @@ export const intercomGetCompanyTool: ToolConfig<
   name: 'Get Company from Intercom',
   description: 'Retrieve a single company by ID from Intercom',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...getCompanyBase,
 
@@ -127,6 +131,7 @@ export const intercomGetCompanyV2Tool: ToolConfig<
   name: 'Get Company from Intercom',
   description: 'Retrieve a single company by ID from Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

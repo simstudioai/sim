@@ -112,28 +112,21 @@ export const updateProductTool: InternalToolConfig<UpdateProductParams, SapS4Han
     data: {
       type: 'json',
       description:
-        'Null on 204 success, or OData v2 envelope with the updated A_Product entity at output.data.d',
+        'Null on 204 No Content (the usual response), or the updated A_Product entity when SAP returns one',
       properties: {
-        d: {
-          type: 'json',
-          description: 'Updated A_Product entity (only present if SAP returns a body)',
+        Product: { type: 'string', description: 'Product (material) number' },
+        ProductType: { type: 'string', description: 'Product type', optional: true },
+        ProductGroup: { type: 'string', description: 'Material group', optional: true },
+        BaseUnit: { type: 'string', description: 'Base unit of measure', optional: true },
+        IsMarkedForDeletion: {
+          type: 'boolean',
+          description: 'Deletion flag',
           optional: true,
-          properties: {
-            Product: { type: 'string', description: 'Product (material) number' },
-            ProductType: { type: 'string', description: 'Product type', optional: true },
-            ProductGroup: { type: 'string', description: 'Material group', optional: true },
-            BaseUnit: { type: 'string', description: 'Base unit of measure', optional: true },
-            IsMarkedForDeletion: {
-              type: 'boolean',
-              description: 'Deletion flag',
-              optional: true,
-            },
-            LastChangeDate: {
-              type: 'string',
-              description: 'Last change date',
-              optional: true,
-            },
-          },
+        },
+        LastChangeDate: {
+          type: 'string',
+          description: 'Last change date',
+          optional: true,
         },
       },
     },

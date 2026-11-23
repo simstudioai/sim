@@ -1,5 +1,10 @@
 import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-defaults'
-import { CREDIT_TIERS, CREDITS_PER_DOLLAR, DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import {
+  CREDIT_TIERS,
+  CREDITS_PER_DOLLAR,
+  DEFAULT_FREE_CREDITS,
+  PRO_TRIAL_DAYS,
+} from '@/lib/billing/constants'
 
 /**
  * Looks up a credit tier by name, so a column binds to the right tier even if
@@ -85,6 +90,10 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         ],
       },
       {
+        label: 'Free trial for new subscribers',
+        values: [false, `${PRO_TRIAL_DAYS} days`, false, false],
+      },
+      {
         label: 'Weekly refresh',
         values: [
           false,
@@ -92,6 +101,10 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
           `+${formatCredits(MAX_TIER.weeklyRefreshCredits)}/week`,
           'Custom',
         ],
+      },
+      {
+        label: 'Sim-hosted models & tools',
+        values: [false, true, true, true],
       },
     ],
   },
@@ -209,7 +222,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         values: [false, false, false, true],
       },
       {
-        label: 'Self Hosting',
+        label: 'Self-Hosted Enterprise Features',
         values: [false, false, false, true],
       },
       {

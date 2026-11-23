@@ -1,9 +1,12 @@
 import { GongIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const GongBlock: BlockConfig = {
   type: 'gong',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'gong_v2' },
   name: 'Gong',
   description:
     'Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure',
@@ -1085,11 +1088,11 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     ],
     config: {
       tool: (params) => `gong_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
         // Map operation-specific subBlock IDs to tool param names, gated by the
         // selected operation so stale values from other operations never leak in
-        const operation = params.operation as string
+        const operation = mapperOperation(params, context)
         if (operation === 'get_call_transcript' || operation === 'get_extensive_calls') {
           if (params.transcriptFromDateTime) result.fromDateTime = params.transcriptFromDateTime
           if (params.transcriptToDateTime) result.toDateTime = params.transcriptToDateTime
@@ -1120,7 +1123,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           if (params.logsToDateTime) result.toDateTime = params.logsToDateTime
         }
         if (operation === 'unassign_flow_prospects') {
-          result.flowId = params.unassignFlowId || undefined
+          result.flowId = params.unassignFlowId || toolCallArg(context, params.flowId) || undefined
         }
         return result
       },
@@ -1539,3 +1542,17 @@ export const GongBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GongV2Block: BlockConfig = {
+  ...GongBlock,
+  type: 'gong_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GongBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'gong',
+    title: 'Gong Credential',
+  }),
+}

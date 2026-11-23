@@ -1,7 +1,6 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 /** How a sub-processor's role on the list is changing. */
 export type SubprocessorChangeType = 'added' | 'replaced' | 'removed'
@@ -70,17 +69,16 @@ export function SubprocessorChangeEmail({
   subprocessorListUrl,
   subscriptionUrl,
 }: SubprocessorChangeEmailProps) {
-  const brand = getBrandConfig()
   const effectiveDateLabel = formatNoticeDate(effectiveDate)
-  const previewText = `${brand.name} is changing its sub-processors on ${effectiveDateLabel}`
+  const previewText = `Sim is changing its sub-processors on ${effectiveDateLabel}`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={false}>
       <Text style={baseStyles.greeting}>{recipientName ? `Hi ${recipientName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
-        We are giving you advance notice of a change to the sub-processors {brand.name} uses to
-        process customer personal data. The change takes effect on{' '}
+        We are giving you advance notice of a change to the sub-processors Sim uses to process
+        customer personal data. The change takes effect on{' '}
         <EmailStrong>{effectiveDateLabel}</EmailStrong>.
       </Text>
 

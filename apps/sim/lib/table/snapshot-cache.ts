@@ -159,18 +159,19 @@ export async function getOrCreateTableSnapshot(
 
   const head = await headObject(key, SNAPSHOT_STORAGE_CONTEXT)
   if (head) {
-    logger.info(`[${requestId}] Snapshot hit`, { tableId: table.id, version, size: head.size })
+    logger.info('Snapshot hit', { requestId, tableId: table.id, version, size: head.size })
     return { key, size: head.size, version }
   }
 
-  logger.info(`[${requestId}] Snapshot miss; materializing`, { tableId: table.id, version })
+  logger.info('Snapshot miss; materializing', { requestId, tableId: table.id, version })
   const size = await materialize(table, key)
 
   const after = await readRowsVersion(table.id)
   if (after !== version) {
     // The table mutated mid-scan: the bytes under `key` may be torn. Re-key to the new version and
     // rebuild once (or reuse if a concurrent writer already stored it); drop the stale object.
-    logger.info(`[${requestId}] rows_version advanced during materialize; re-keying`, {
+    logger.info('rows_version advanced during materialize; re-keying', {
+      requestId,
       tableId: table.id,
       from: version,
       to: after,

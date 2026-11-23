@@ -11,7 +11,9 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteCampaignTool: ToolConfig<
   InstantlyDeleteCampaignParams,
@@ -21,6 +23,7 @@ export const deleteCampaignTool: ToolConfig<
   name: 'Instantly Delete Campaign',
   description: 'Permanently deletes an Instantly V2 campaign.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     campaignId: {
@@ -31,7 +34,8 @@ export const deleteCampaignTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => instantlyUrl(`/api/v2/campaigns/${params.campaignId.trim()}`),
+    url: (params) =>
+      instantlyUrl(`/api/v2/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}`),
     method: 'DELETE',
     headers: instantlyHeaders,
   },

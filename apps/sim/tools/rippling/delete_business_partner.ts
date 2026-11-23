@@ -1,11 +1,14 @@
 import type { RipplingDeleteBusinessPartnerParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusinessPartnerParams> = {
   id: 'rippling_delete_business_partner',
   name: 'Rippling Delete Business Partner',
   description: 'Delete a business partner',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -22,7 +25,7 @@ export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusines
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/business-partners/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/business-partners/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

@@ -13,6 +13,7 @@ import {
   throwCirclebackError,
   toIdList,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listActionItemsTool: ToolConfig<
@@ -24,6 +25,7 @@ export const listActionItemsTool: ToolConfig<
   description:
     'Lists action items across the authenticated user meetings, filtered by assignee, status, tags, and attendees. Defaults to incomplete action items assigned to the API key owner.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

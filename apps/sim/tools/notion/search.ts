@@ -1,6 +1,6 @@
 import type { NotionResponse, NotionSearchParams } from '@/tools/notion/types'
 import { PAGINATION_OUTPUT_PROPERTIES, SEARCH_RESULTS_OUTPUT } from '@/tools/notion/types'
-import { extractTitleFromItem } from '@/tools/notion/utils'
+import { clampNotionPageSize, extractTitleFromItem } from '@/tools/notion/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = {
@@ -82,8 +82,9 @@ export const notionSearchTool: ToolConfig<NotionSearchParams, NotionResponse> = 
       }
 
       // Add page size if provided
-      if (params.pageSize) {
-        body.page_size = Math.min(Number(params.pageSize), 100)
+      const pageSize = clampNotionPageSize(params.pageSize)
+      if (pageSize != null) {
+        body.page_size = pageSize
       }
 
       // Add pagination cursor if provided

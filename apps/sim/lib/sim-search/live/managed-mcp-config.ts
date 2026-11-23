@@ -3,6 +3,7 @@ export const MANAGED_SEARCH_MCP_READ_TOOLS = {
   coda: ['search', 'url_convert', 'content_read', 'document_outline', 'table_rows_read'],
   fireflies: ['fireflies_get_transcripts', 'fireflies_get_transcript', 'fireflies_get_summary'],
   granola: ['query_granola_meetings', 'list_meetings', 'get_meetings', 'get_meeting_transcript'],
+  hex: ['get_me', 'search_projects', 'get_project', 'list_cells'],
   hubspot: ['get_user_details', 'search_crm_objects', 'get_crm_objects'],
   lucid: [
     'search',

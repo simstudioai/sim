@@ -1,4 +1,5 @@
 import type { MySQLDeleteParams, MySQLResponse } from '@/tools/mysql/types'
+import { MYSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteTool: InternalToolConfig<MySQLDeleteParams, MySQLResponse> = {
@@ -6,6 +7,7 @@ export const deleteTool: InternalToolConfig<MySQLDeleteParams, MySQLResponse> = 
   name: 'MySQL Delete',
   description: 'Delete records from MySQL database',
   version: '1.0',
+  oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

@@ -1033,6 +1033,12 @@ describe('durable source and member cycles in PostgreSQL', () => {
             ((toNumberOrNull(node['Actual Rows']) ?? 0) +
               (toNumberOrNull(node['Rows Removed by Filter']) ?? 0)) *
             (toNumberOrNull(node['Actual Loops']) ?? 1),
+          /** What a statement over the bound needs to explain which rows the walk passed over. */
+          indexCond: node['Index Cond'] ?? null,
+          filter: node.Filter ?? null,
+          rowsPerLoop: toNumberOrNull(node['Actual Rows']),
+          removedPerLoop: toNumberOrNull(node['Rows Removed by Filter']),
+          loops: toNumberOrNull(node['Actual Loops']),
         }))
       return { read: scans.reduce((total, { read }) => total + read, 0), scans }
     }

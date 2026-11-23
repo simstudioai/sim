@@ -1,5 +1,6 @@
 import type { RDSDataClient } from '@aws-sdk/client-rds-data'
 import {
+  buildSqlParameters,
   createRdsClient,
   executeDelete,
   executeInsert,
@@ -45,7 +46,7 @@ export function executeRdsQuery(input: RdsQueryInput, signal?: AbortSignal) {
       input.secretArn,
       input.database,
       input.query,
-      undefined,
+      buildSqlParameters(input.parameters),
       signal
     )
     return {
@@ -64,13 +65,14 @@ export function executeRdsStatement(input: RdsExecuteInput, signal?: AbortSignal
       input.secretArn,
       input.database,
       input.query,
-      undefined,
+      buildSqlParameters(input.parameters),
       signal
     )
     return {
       message: `Query executed successfully. ${result.rowCount} row(s) affected.`,
       rows: result.rows,
       rowCount: result.rowCount,
+      ...(result.generatedFields && { generatedFields: result.generatedFields }),
     }
   })
 }
@@ -90,6 +92,7 @@ export function executeRdsInsert(input: RdsInsertInput, signal?: AbortSignal) {
       message: `Insert executed successfully. ${result.rowCount} row(s) inserted.`,
       rows: result.rows,
       rowCount: result.rowCount,
+      ...(result.generatedFields && { generatedFields: result.generatedFields }),
     }
   })
 }

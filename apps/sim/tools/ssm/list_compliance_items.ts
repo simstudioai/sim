@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmListComplianceItemsParams,
   SsmListComplianceItemsResponse,
@@ -12,6 +13,7 @@ export const listComplianceItemsTool: InternalToolConfig<
   name: 'SSM List Compliance Items',
   description: 'List individual compliance findings reported to AWS Systems Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

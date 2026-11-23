@@ -49,17 +49,43 @@ export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResp
       visibility: 'user-only',
       description: 'Search query to filter groups (e.g., "email:admin*")',
     },
+    userKey: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Only list groups this user or group is a direct member of (email or immutable ID). Cannot be combined with customer',
+    },
+    orderBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Column to sort results by. Only "email" is supported',
+    },
+    sortOrder: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort direction when orderBy is set: ASCENDING or DESCENDING',
+    },
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://admin.googleapis.com/admin/directory/v1/groups')
 
-      // Use my_customer as default if no customer or domain specified
-      if (params.customer) {
+      if (params.userKey) {
+        url.searchParams.set('userKey', params.userKey)
+      } else if (params.customer) {
         url.searchParams.set('customer', params.customer)
       } else if (!params.domain) {
         url.searchParams.set('customer', 'my_customer')
+      }
+      if (params.orderBy) {
+        url.searchParams.set('orderBy', params.orderBy)
+      }
+      if (params.sortOrder) {
+        url.searchParams.set('sortOrder', params.sortOrder)
       }
 
       if (params.domain) {
@@ -99,7 +125,11 @@ export const listGroupsTool: ToolConfig<GoogleGroupsListParams, GoogleGroupsResp
   },
 
   outputs: {
-    groups: { type: 'json', description: 'Array of group objects' },
+    groups: {
+      type: 'json',
+      description:
+        'Array of group objects (id, email, name, description, directMembersCount, adminCreated, aliases, nonEditableAliases, etag, kind)',
+    },
     nextPageToken: { type: 'string', description: 'Token for fetching next page of results' },
   },
 }

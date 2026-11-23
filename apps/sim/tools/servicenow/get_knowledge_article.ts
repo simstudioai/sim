@@ -13,6 +13,7 @@ import {
   toRecordObject,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getKnowledgeArticleTool: ToolConfig<
@@ -24,6 +25,7 @@ export const getKnowledgeArticleTool: ToolConfig<
   description:
     'Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

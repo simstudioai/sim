@@ -34,7 +34,7 @@ export async function resolveVertexCredential({
 }: ResolveVertexCredentialParams): Promise<string> {
   const requestId = `${callerLabel}-${Date.now()}`
 
-  logger.info(`[${requestId}] Resolving Vertex AI credential: ${credentialId}`)
+  logger.info(`Resolving Vertex AI credential: ${credentialId}`, { requestId })
 
   if (!actingUserId) {
     throw new Error('Vertex AI credential use requires an authenticated user')
@@ -46,7 +46,8 @@ export async function resolveVertexCredential({
     throw new Error(`Vertex AI credential not found: ${credentialId}`)
   }
   if (workspaceId && cred.workspaceId !== workspaceId) {
-    logger.warn(`[${requestId}] Vertex AI credential belongs to a different workspace`, {
+    logger.warn('Vertex AI credential belongs to a different workspace', {
+      requestId,
       credentialId,
       executingWorkspaceId: workspaceId,
     })
@@ -57,9 +58,12 @@ export async function resolveVertexCredential({
   }
 
   if (cred.type === 'service_account') {
-    const accessToken = await getServiceAccountToken(cred.id, [
-      'https://www.googleapis.com/auth/cloud-platform',
-    ])
+    const accessToken = await getServiceAccountToken(
+      cred.id,
+      ['https://www.googleapis.com/auth/cloud-platform'],
+      undefined,
+      { service: 'vertex-ai' }
+    )
     recordCredentialAccess({
       actorId: actingUserId,
       workspaceId: cred.workspaceId,
@@ -69,7 +73,7 @@ export async function resolveVertexCredential({
       workflowId,
       executionId,
     })
-    logger.info(`[${requestId}] Successfully resolved Vertex AI service account credential`)
+    logger.info('Successfully resolved Vertex AI service account credential', { requestId })
     return accessToken
   }
 
@@ -90,6 +94,6 @@ export async function resolveVertexCredential({
     throw new Error('Failed to get Vertex AI access token')
   }
 
-  logger.info(`[${requestId}] Successfully resolved Vertex AI credential`)
+  logger.info('Successfully resolved Vertex AI credential', { requestId })
   return accessToken
 }

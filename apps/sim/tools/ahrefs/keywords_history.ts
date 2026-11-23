@@ -2,6 +2,7 @@ import type {
   AhrefsKeywordsHistoryParams,
   AhrefsKeywordsHistoryResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'date,top3,top4_10,top11_20,top21_50,top51_plus'
@@ -15,6 +16,7 @@ export const keywordsHistoryTool: ToolConfig<
   description:
     'Get the historical organic keyword ranking distribution for a target domain or URL over a date range: how many keywords rank in each position bucket at each point in time.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

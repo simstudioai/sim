@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface GetExperimentParams {
   projectId: string
@@ -30,7 +30,10 @@ interface GetExperimentResponse {
   experiment: Experiment
 }
 
-export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentResponse> = {
+export const getExperimentTool: ToolConfig<
+  GetExperimentParams,
+  ToolResponse & { output: GetExperimentResponse }
+> = {
   id: 'posthog_get_experiment',
   name: 'PostHog Get Experiment',
   description: 'Get details of a specific experiment',
@@ -74,7 +77,7 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/experiments/${params.experimentId}/`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/experiments/${postHogPathSegment(params.experimentId, 'experimentId')}/`
     },
     method: 'GET',
     headers: (params) => ({
@@ -87,7 +90,10 @@ export const getExperimentTool: ToolConfig<GetExperimentParams, GetExperimentRes
     const data = await response.json()
 
     return {
-      experiment: data,
+      success: true,
+      output: {
+        experiment: data,
+      },
     }
   },
 

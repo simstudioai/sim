@@ -2,6 +2,7 @@ import type {
   EnrichDisposableEmailCheckParams,
   EnrichDisposableEmailCheckResponse,
 } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const disposableEmailCheckTool: ToolConfig<
@@ -13,6 +14,7 @@ export const disposableEmailCheckTool: ToolConfig<
   description:
     'Check if an email address is from a disposable or temporary email provider. Returns a score and validation details.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

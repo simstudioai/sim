@@ -2,6 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { sanitizeInputFormat, sanitizeTools } from '@/lib/workflows/comparison/normalize'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { getBlock } from '@/blocks/registry'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import {
   BlockType,
@@ -63,6 +65,7 @@ import {
   attachTrustedExecutionCost,
   buildBlockExecutionError,
   normalizeError,
+  readErrorOutputs,
   readTrustedExecutionCost,
   type TrustedExecutionCost,
 } from '@/executor/utils/errors'
@@ -90,7 +93,6 @@ import {
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { SerializedBlock } from '@/serializer/types'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
 
@@ -737,6 +739,7 @@ export class BlockExecutor {
     const trustedExecutionCost = readTrustedExecutionCost(error) ?? completedHandlerCost
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+      ...declaredErrorOutputs(block, isDatabaseError ? undefined : error, errorMessage),
       ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }
 
@@ -1461,4 +1464,21 @@ function stripThinkingContentFromOutput(output: unknown): void {
       ;(segment as { thinkingContent?: string }).thinkingContent = undefined
     }
   }
+}
+
+/**
+ * The block's declared error outputs (`BlockConfig.errorOutputs`), each the value its handler
+ * attached to `error` (a Function's thrown message without its line and code), or `message` when
+ * none was attached: a failure the handler never reported has nothing narrower to say. A database
+ * failure passes no `error`, so its masked message is all any output carries.
+ */
+function declaredErrorOutputs(
+  block: SerializedBlock,
+  error: unknown,
+  message: string
+): Record<string, string> {
+  const declared = block.metadata?.id ? getBlock(block.metadata.id)?.errorOutputs : undefined
+  if (!declared) return {}
+  const attached = readErrorOutputs(error)
+  return Object.fromEntries(Object.keys(declared).map((key) => [key, attached?.[key] || message]))
 }

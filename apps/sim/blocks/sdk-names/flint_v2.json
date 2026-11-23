@@ -1,0 +1,13 @@
+{
+  "namespace": "flint",
+  "methods": {
+    "flint_create_task": "createTask",
+    "flint_generate_pages": "generatePages",
+    "flint_get_task": "getTask"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

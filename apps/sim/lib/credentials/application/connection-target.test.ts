@@ -53,6 +53,7 @@ const principal = {
   kind: 'personal_api_key' as const,
   userId: 'user-1',
   keyId: 'key-1',
+  access: 'write' as const,
 }
 const context = {
   workspaceId: 'workspace-1',

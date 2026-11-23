@@ -2,6 +2,14 @@ import type { ArxivSearchParams, ArxivSearchResponse } from '@/tools/arxiv/types
 import { extractTotalResults, parseArxivXML } from '@/tools/arxiv/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/** The `search_query` sent to arXiv: the query, prefixed with its field unless searching all fields. */
+function composeSearchQuery(params: ArxivSearchParams): string {
+  if (params.searchField && params.searchField !== 'all') {
+    return `${params.searchField}:${params.searchQuery}`
+  }
+  return params.searchQuery
+}
+
 export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
   id: 'arxiv_search',
   name: 'ArXiv Search',
@@ -47,12 +55,7 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       const baseUrl = 'https://export.arxiv.org/api/query'
       const searchParams = new URLSearchParams()
 
-      // Build search query
-      let searchQuery = params.searchQuery
-      if (params.searchField && params.searchField !== 'all') {
-        searchQuery = `${params.searchField}:${params.searchQuery}`
-      }
-      searchParams.append('search_query', searchQuery)
+      searchParams.append('search_query', composeSearchQuery(params))
 
       // Add optional parameters
       if (params.maxResults) {
@@ -77,10 +80,9 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const xmlText = await response.text()
 
-    // Parse XML response
     const papers = parseArxivXML(xmlText)
     const totalResults = extractTotalResults(xmlText)
 
@@ -89,14 +91,14 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       output: {
         papers,
         totalResults,
-        query: '', // Will be filled by the calling code
+        query: params ? composeSearchQuery(params) : '',
       },
     }
   },
 
   outputs: {
     papers: {
-      type: 'json',
+      type: 'array',
       description: 'Array of papers matching the search query',
       items: {
         type: 'object',
@@ -104,16 +106,16 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
           id: { type: 'string' },
           title: { type: 'string' },
           summary: { type: 'string' },
-          authors: { type: 'string' },
+          authors: { type: 'array', items: { type: 'string' } },
           published: { type: 'string' },
           updated: { type: 'string' },
           link: { type: 'string' },
           pdfLink: { type: 'string' },
-          categories: { type: 'string' },
+          categories: { type: 'array', items: { type: 'string' } },
           primaryCategory: { type: 'string' },
-          comment: { type: 'string' },
-          journalRef: { type: 'string' },
-          doi: { type: 'string' },
+          comment: { type: 'string', optional: true },
+          journalRef: { type: 'string', optional: true },
+          doi: { type: 'string', optional: true },
         },
       },
     },
@@ -121,5 +123,6 @@ export const searchTool: ToolConfig<ArxivSearchParams, ArxivSearchResponse> = {
       type: 'number',
       description: 'Total number of results found for the search query',
     },
+    query: { type: 'string', description: 'The search query that was executed' },
   },
 }

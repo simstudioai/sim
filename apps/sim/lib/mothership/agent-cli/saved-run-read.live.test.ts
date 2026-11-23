@@ -140,6 +140,7 @@ import {
 } from '@/lib/mothership/generated/protocol'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
+import { persistedStreamRecoveryConfig } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import {
   isToolCallStreamEvent,
@@ -162,7 +163,7 @@ import { calculateNextRunTime, getScheduleTimeValues } from '@/lib/workflows/sch
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
-import { POST as abortChatRoute } from '@/app/api/copilot/chat/abort/route'
+import { POST as abortChatRoute } from '@/app/api/mothership/chat/abort/route'
 import {
   POST as addChatResourceRoute,
   DELETE as removeChatResourceRoute,
@@ -227,7 +228,12 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   ...(await original<typeof import('@/lib/mothership/request/session/controller-lease')>()),
   assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('@/lib/mothership/chat-status', () => ({ chatPubSub: null }))
+vi.mock('@/lib/mothership/chat-status', async () => {
+  const { mothershipChatStatusMock } = await import(
+    '@sim/testing/mocks/mothership-chat-status.mock'
+  )
+  return mothershipChatStatusMock
+})
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: () => {} }))
 vi.mock('@/lib/mothership/inbox/agentmail-client', () => ({
   getAttachment: async (_inbox: string, _message: string, id: string) => {
@@ -286,7 +292,12 @@ vi.mock('@sim/db', async () => {
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api/server/routes/v2-api-key-auth')>()),
   authenticateV2ApiKey: async () => ({
-    principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+    principal: {
+      kind: 'personal_api_key',
+      userId: 'run-reader',
+      keyId: 'local-key',
+      access: 'write',
+    },
     rateLimitSubjectIds: ['user:run-reader'],
     rateLimitSubscription: null,
     keyType: 'personal',
@@ -1369,7 +1380,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         message: { id: streamId, content: 'Preserve the original instruction and attachments' },
         recovery: {
           kind: 'interactive_stream' as const,
-          goRoute: '/api/mothership' as const,
+          workerRoute: '/api/mothership' as const,
           clientToolPickupExpected: false,
           request: {
             messageId: streamId,
@@ -1391,7 +1402,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       const run = await admitChatTurn.execute({ principal: admissionPrincipal, input })
       expect(run.streamId).toBe(input.message.id)
       expect(run.requestContext).toMatchObject({
-        recovery: input.recovery,
+        recovery: persistedStreamRecoveryConfig(input.recovery),
         controllerToken: input.lease.value,
       })
       const messages = await loadCopilotChatMessages(input.chatId)
@@ -1513,7 +1524,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           executionId: generateId(),
           runId: generateId(),
           interactive: true,
-          goRoute: '/api/mothership',
+          workerRoute: '/api/mothership',
           onComplete,
           recovery: {
             streamId,
@@ -2613,7 +2624,12 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
             expect(sessions.size).toBe(2)
             if (mode === 'partial-files') {
               const existing = await readWorkspaceFileArtifact.execute({
-                principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+                principal: {
+                  kind: 'personal_api_key',
+                  userId: 'run-reader',
+                  keyId: 'local-key',
+                  access: 'write',
+                },
                 input: { workspaceId, reference: `files/existing-${exportName}`, maxBytes: 1024 },
               })
               expect(existing.buffer.toString('utf8')).toBe('Existing report must survive')
@@ -2664,7 +2680,12 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
         const reference = `uploads/${encodeURIComponent(filename)}`
         expect(prepared.context[0].content).toContain(reference)
         const read = await readWorkspaceFileText.execute({
-          principal: { kind: 'personal_api_key', userId: 'run-reader', keyId: 'local-key' },
+          principal: {
+            kind: 'personal_api_key',
+            userId: 'run-reader',
+            keyId: 'local-key',
+            access: 'write',
+          },
           input: { workspaceId, reference },
         })
         expect(read.file.id).toBe(row.id)
@@ -3246,12 +3267,13 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                 workflowId,
                 chatId,
                 ...(resume ? { runId: resume.id, executionId: resume.executionId } : {}),
-                goRoute: initialRoute,
+                workerRoute: initialRoute,
                 interactive: false,
                 clientToolPickupExpected: false,
                 flushAfterEvent: false,
                 onEvent: (event) => {
-                  if (event.type === 'tool' && event.payload.replay) replayedToolFrames++
+                  if (event.type === 'tool' && 'replay' in event.payload && event.payload.replay)
+                    replayedToolFrames++
                   if (resume && isToolCallStreamEvent(event) && !event.payload.replay)
                     secondSawCall.resolve()
                 },
@@ -3794,7 +3816,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
                     stoppedAt = Date.now()
                     // The Stop button's request: it stops the run, not just the stream.
                     const response = await abortChatRoute(
-                      new NextRequest('https://sim.test/api/copilot/chat/abort', {
+                      new NextRequest('https://sim.test/api/mothership/chat/abort', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },
                         body: JSON.stringify({ chatId, streamId: messageId, workspaceId }),
@@ -3830,7 +3852,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               workspaceId,
               workflowId: draftId,
               chatId,
-              goRoute: '/api/mothership',
+              workerRoute: '/api/mothership',
               interactive: false,
               clientToolPickupExpected: false,
               flushAfterEvent: false,

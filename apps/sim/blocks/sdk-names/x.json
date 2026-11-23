@@ -1,0 +1,38 @@
+{
+  "namespace": "x",
+  "methods": {
+    "x_create_bookmark": "createBookmark",
+    "x_create_tweet": "createTweet",
+    "x_delete_bookmark": "deleteBookmark",
+    "x_delete_tweet": "deleteTweet",
+    "x_get_blocking": "getBlockedUsers",
+    "x_get_bookmarks": "getBookmarks",
+    "x_get_followers": "getFollowers",
+    "x_get_following": "getFollowing",
+    "x_get_liked_tweets": "getLikedTweets",
+    "x_get_liking_users": "getLikingUsers",
+    "x_get_me": "getMyProfile",
+    "x_get_personalized_trends": "getPersonalizedTrends",
+    "x_get_quote_tweets": "getQuoteTweets",
+    "x_get_retweeted_by": "getRetweetedBy",
+    "x_get_trends_by_woeid": "getTrendsByLocation",
+    "x_get_tweets_by_ids": "getTweetsByIds",
+    "x_get_usage": "getApiUsage",
+    "x_get_user_mentions": "getUserMentions",
+    "x_get_user_timeline": "getUserTimeline",
+    "x_get_user_tweets": "getUserTweets",
+    "x_hide_reply": "hideReply",
+    "x_manage_block": "blockUnblock",
+    "x_manage_follow": "followUnfollow",
+    "x_manage_like": "likeUnlike",
+    "x_manage_mute": "muteUnmute",
+    "x_manage_retweet": "retweetUnretweet",
+    "x_search_tweets": "searchTweets",
+    "x_search_users": "searchUsers"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

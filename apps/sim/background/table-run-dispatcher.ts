@@ -43,7 +43,7 @@ export const tableRunDispatcherTask = task({
     try {
       await runDispatcherToCompletion(dispatchId, concurrency)
     } catch (err) {
-      logger.error(`[${dispatchId}] dispatcher loop failed`, { error: toError(err).message })
+      logger.error('dispatcher loop failed', { dispatchId, error: toError(err).message })
       throw err
     }
   },

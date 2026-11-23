@@ -14,16 +14,16 @@ import {
   requireAdmittedWorkspaceFile,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
+import {
+  resolveActiveWorkspaceFileContext,
+  type WorkspaceFileTargetInput,
+} from '@/lib/workspace-files/application/file-context'
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import { createFileReadReceipt, type FileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
-export interface DownloadWorkspaceFileInput {
-  fileId: string
-  assertedWorkspaceId?: string
-}
+export type DownloadWorkspaceFileInput = WorkspaceFileTargetInput
 
 export interface DownloadWorkspaceFileResult {
   file: NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
@@ -107,7 +107,12 @@ async function executeDownloadWorkspaceFileStream({
   const result = await streamWorkspaceFileRecord(file, principal)
   const provenance = await finishFileDelivery({
     principal,
-    authorize: () => downloadWorkspaceFileStream.authorize({ principal, input }),
+    // Recheck the file the reference resolved to, not whatever its path names by now.
+    authorize: () =>
+      downloadWorkspaceFileStream.authorize({
+        principal,
+        input: { fileId: context.fileId, assertedWorkspaceId: input.assertedWorkspaceId },
+      }),
     receipt:
       result.receipt ??
       createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [

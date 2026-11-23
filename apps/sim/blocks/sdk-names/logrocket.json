@@ -1,0 +1,11 @@
+{
+  "namespace": "logrocket",
+  "methods": {
+    "create_release": "createRelease",
+    "get_audit_logs": "getAuditLogs",
+    "get_highlights": "getHighlights",
+    "identify_user": "identifyUser",
+    "list_exported_sessions": "listExportedSessions",
+    "request_highlights": "requestHighlights"
+  }
+}

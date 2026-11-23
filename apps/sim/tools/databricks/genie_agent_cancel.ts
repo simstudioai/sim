@@ -10,6 +10,7 @@ import {
   mapGenieMessage,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +23,7 @@ export const genieAgentCancelTool: ToolConfig<
   description:
     'Cancel an in-flight Genie agent response using the response ID returned by the agent stream.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...GENIE_SPACE_PARAMS,
     conversationId: {

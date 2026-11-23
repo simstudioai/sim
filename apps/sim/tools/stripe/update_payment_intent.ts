@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -9,6 +10,7 @@ import {
   PAYMENT_INTENT_OUTPUT,
 } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_update_payment_intent',
@@ -23,6 +25,7 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
   name: 'Stripe Update Payment Intent',
   description: 'Update an existing Payment Intent',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -70,7 +73,8 @@ export const stripeUpdatePaymentIntentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}`,
+    url: (params) =>
+      `https://api.stripe.com/v1/payment_intents/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSecuritySignalTool: ToolConfig<GetSecuritySignalParams, GetSecuritySignalResponse> =
@@ -14,6 +15,7 @@ export const getSecuritySignalTool: ToolConfig<GetSecuritySignalParams, GetSecur
     description:
       'Get the details of a single Cloud SIEM security signal. Requires the `security_monitoring_signals_read` permission.',
     version: '1.0.0',
+    oauth: DATADOG_CREDENTIAL_OAUTH,
 
     params: {
       signalId: {

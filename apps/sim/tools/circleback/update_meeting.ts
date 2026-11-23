@@ -4,6 +4,7 @@ import {
   circlebackHeaders,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -26,6 +27,7 @@ export const updateMeetingTool: ToolConfig<
   description:
     'Updates the name, notes, or private notes of a Circleback meeting. The API returns only the fields that were updated.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

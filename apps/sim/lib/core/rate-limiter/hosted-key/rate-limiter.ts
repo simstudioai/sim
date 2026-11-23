@@ -106,14 +106,23 @@ interface WaitState {
  * across all users within the same workspace.
  */
 export class HostedKeyRateLimiter {
-  private storage: RateLimitStorageAdapter
+  private readonly injectedStorage: RateLimitStorageAdapter | undefined
   private queue: HostedKeyQueue
   /** Round-robin counter per provider for even key distribution */
   private roundRobinCounters = new Map<string, number>()
 
   constructor(storage?: RateLimitStorageAdapter, queue?: HostedKeyQueue) {
-    this.storage = storage ?? createStorageAdapter()
+    this.injectedStorage = storage
     this.queue = queue ?? getHostedKeyQueue()
+  }
+
+  /**
+   * Resolved on each use so constructing the limiter never touches Redis
+   * (`next build` evaluates module-scope instances without REDIS_URL) and the
+   * factory's cached adapter follows Redis reconnects.
+   */
+  private get storage(): RateLimitStorageAdapter {
+    return this.injectedStorage ?? createStorageAdapter()
   }
 
   private buildActorStorageKey(provider: string, billingActorId: string): string {
@@ -271,7 +280,7 @@ export class HostedKeyRateLimiter {
     const enqueueResult = await this.queue.enqueue(provider, billingActorId, ticketId)
 
     try {
-      // Wait for our turn at the head of the queue (no-op when Redis unavailable).
+      // Wait for our turn at the head of the queue (returns at once when the queue fails open).
       const headStatus = await this.waitForQueueHead(
         provider,
         billingActorId,
@@ -339,7 +348,7 @@ export class HostedKeyRateLimiter {
       }
 
       const totalWaitedMs = Date.now() - startedAt
-      if (enqueueResult.enabled && (enqueueResult.position > 0 || totalWaitedMs > 100)) {
+      if (enqueueResult.enqueued && (enqueueResult.position > 0 || totalWaitedMs > 100)) {
         // Attribute the wait to its dominant cause: queue depth takes precedence (it's
         // reported alongside queuePosition), otherwise the bucket phase that actually slept.
         const reason: 'queue_position' | 'actor_requests' | 'dimension' =
@@ -448,8 +457,8 @@ export class HostedKeyRateLimiter {
    * regular cadence so we don't get reaped as dead. Returns `timedOut: true` once the wait
    * budget is exhausted before reaching the head (see {@link remainingWaitBudgetMs}).
    *
-   * No-op when Redis is unavailable (queue.enqueue returns enabled=false and checkHead
-   * always returns 'head').
+   * Fails open when a queue Redis call fails (queue.enqueue returns enqueued=false and checkHead
+   * returns 'head').
    */
   private async waitForQueueHead(
     provider: string,

@@ -9,6 +9,7 @@ import {
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
+import { referencesTable } from '@/lib/table/ids'
 import {
   cancelTableExportResource,
   createTableExportResource,
@@ -60,11 +61,12 @@ async function resolveTableExportContext(
   input: TableExportResourceInput
 ): Promise<TableExportContext> {
   const record = await requireTableExport(input.exportId, input.workspaceId)
-  if (input.tableId !== undefined && input.tableId !== record.tableId) {
-    throw new OrchestrationError('not_found', 'Table export not found')
-  }
   const table = await getTableById(record.tableId)
-  if (!table || table.workspaceId !== record.workspaceId) {
+  if (
+    !table ||
+    table.workspaceId !== record.workspaceId ||
+    (input.tableId !== undefined && !referencesTable(input.tableId, table))
+  ) {
     throw new OrchestrationError('not_found', 'Table export not found')
   }
   const workspace = await resolveTableWorkspaceContext(record.workspaceId)

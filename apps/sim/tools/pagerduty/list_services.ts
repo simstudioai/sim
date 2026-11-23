@@ -1,7 +1,9 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type {
   PagerDutyListServicesParams,
   PagerDutyListServicesResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listServicesTool: ToolConfig<
@@ -12,6 +14,7 @@ export const listServicesTool: ToolConfig<
   name: 'PagerDuty List Services',
   description: 'List services from PagerDuty with optional name filter.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -38,6 +41,13 @@ export const listServicesTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Offset to start pagination search results',
     },
+    includeTotal: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Populate the total result count in the response (PagerDuty returns null for total unless requested; slower)',
+    },
   },
 
   request: {
@@ -46,6 +56,7 @@ export const listServicesTool: ToolConfig<
       if (params.query) query.set('query', params.query)
       if (params.limit) query.set('limit', params.limit)
       if (params.offset) query.set('offset', params.offset)
+      if (toBooleanFromInput(params.includeTotal)) query.set('total', 'true')
       const qs = query.toString()
       return `https://api.pagerduty.com/services${qs ? `?${qs}` : ''}`
     },

@@ -3,13 +3,16 @@ import type {
   DiscordGetUserResponse,
   DiscordUser,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
   id: 'discord_get_user',
   name: 'Discord Get User',
   description: 'Retrieve information about a Discord user',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -28,7 +31,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
 
   request: {
     url: (params: DiscordGetUserParams) =>
-      `https://discord.com/api/v10/users/${params.userId.trim()}`,
+      `https://discord.com/api/v10/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'GET',
     headers: (params: DiscordGetUserParams) => {
       const headers: Record<string, string> = {
@@ -64,11 +67,26 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
         id: { type: 'string', description: 'User ID' },
         username: { type: 'string', description: 'Username' },
         discriminator: { type: 'string', description: 'User discriminator (4-digit number)' },
-        avatar: { type: 'string', description: 'User avatar hash' },
+        global_name: {
+          type: 'string',
+          description: 'User display name, if set',
+          nullable: true,
+        },
+        avatar: { type: 'string', description: 'User avatar hash', nullable: true },
         bot: { type: 'boolean', description: 'Whether user is a bot' },
         system: { type: 'boolean', description: 'Whether user is a system user' },
-        email: { type: 'string', description: 'User email (if available)' },
-        verified: { type: 'boolean', description: 'Whether user email is verified' },
+        email: {
+          type: 'string',
+          description: 'User email. Not returned for a user looked up by ID',
+          optional: true,
+          nullable: true,
+        },
+        verified: {
+          type: 'boolean',
+          description:
+            'Whether the user email is verified. Not returned for a user looked up by ID',
+          optional: true,
+        },
       },
     },
   },

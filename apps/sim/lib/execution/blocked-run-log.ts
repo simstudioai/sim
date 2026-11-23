@@ -14,17 +14,13 @@ export const BLOCKED_RUN_LOG_WINDOW_SECONDS = 15 * 60
 
 /**
  * Claims the right to record this window's blocked-run log row for a workflow
- * and gate. Returns false when another refusal already recorded one. Without
- * Redis, or when Redis fails, it returns true: a duplicate row is better than
- * hiding that runs are blocked. Usage-limit refusals only occur on hosted
- * billing deployments, which always run Redis.
+ * and gate. Returns false when another refusal already recorded one. When
+ * Redis fails it returns true: a duplicate row is better than hiding that runs
+ * are blocked.
  */
 export async function claimBlockedRunLog(workflowId: string, gate: string): Promise<boolean> {
-  const redis = getRedisClient()
-  if (!redis) return true
-
   try {
-    const claimed = await redis.set(
+    const claimed = await getRedisClient().set(
       `blocked-run-log:v1:${workflowId}:${gate}`,
       '1',
       'EX',

@@ -1,5 +1,5 @@
 /**
- * The join's readiness contract, with the shared store ENABLED (`file-doc.test.ts` runs it disabled).
+ * The join's readiness contract against the shared store.
  *
  * A room loads its document from the file's Redis stream one entry at a time, into the same `Y.Doc`
  * that fans every update out to the room. So a client attached while that is happening is not sent the
@@ -247,12 +247,12 @@ function requestSyncStep2(handlers: Record<string, Handler>): void {
   handlers[FILE_DOC_EVENTS.MESSAGE](encoding.toUint8Array(encoder))
 }
 
-describe('file-doc join readiness (shared store enabled)', () => {
+describe('file-doc join readiness against the shared store', () => {
   /** Every socket the test created, so a room emit can be routed to its members. */
   const sockets: FakeSocket[] = []
 
-  // One store for the whole file: `initFileDocStore` is idempotent once enabled, so a per-test
-  // shutdown would leave every later test running against a store with closed clients.
+  // One store for the whole file: `beforeEach` resets the fake backing, so the tests share one
+  // started store instead of restarting it around every case.
   beforeAll(async () => {
     await initFileDocStore('redis://fake')
   })

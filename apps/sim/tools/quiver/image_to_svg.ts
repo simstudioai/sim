@@ -5,6 +5,7 @@ import type {
   QuiverSvgResponse,
   QuiverSvgV2Response,
 } from '@/tools/quiver/types'
+import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const quiverImageToSvgTool = {
@@ -12,6 +13,7 @@ export const quiverImageToSvgTool = {
   name: 'Quiver Image to SVG',
   description: 'Convert raster images into vector SVG format using QuiverAI',
   version: '1.0.0',
+  oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -24,7 +26,7 @@ export const quiverImageToSvgTool = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'The model to use for vectorization (e.g., "arrow-preview")',
+      description: 'The model to use for vectorization (e.g., "arrow-2")',
     },
     image: {
       type: 'file',
@@ -36,25 +38,28 @@ export const quiverImageToSvgTool = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Sampling temperature (0-2, default 1)',
+      description:
+        'Sampling temperature (0-2, default 1). Not sent for Arrow 2 Telos, which rejects it',
     },
     top_p: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Nucleus sampling probability (0-1, default 1)',
+      description:
+        'Nucleus sampling probability (0-1, default 1). Not sent for Arrow 2 Telos, which rejects it',
     },
     max_output_tokens: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum output tokens (1-131072)',
+      description: 'Maximum output tokens (1-65536)',
     },
     presence_penalty: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Token penalty for prior output (-2 to 2, default 0)',
+      description:
+        'Token penalty for prior output (-2 to 2, default 0). Not sent for Arrow 2 Telos, which rejects it',
     },
     auto_crop: {
       type: 'boolean',
@@ -138,6 +143,7 @@ export const quiverImageToSvgV2Tool: InternalToolConfig<
   ...quiverImageToSvgTool,
   id: 'quiver_image_to_svg_v2',
   version: '2.0.0',
+  oauth: QUIVER_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data: QuiverSvgV2Response = await response.json()
     if (!data.success) throw new Error(data.error || 'Failed to vectorize image')

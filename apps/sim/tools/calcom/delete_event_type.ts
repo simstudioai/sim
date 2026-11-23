@@ -3,6 +3,7 @@ import type {
   CalcomDeleteEventTypeResponse,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteEventTypeTool: ToolConfig<
   CalcomDeleteEventTypeParams,
@@ -35,7 +36,7 @@ export const deleteEventTypeTool: ToolConfig<
 
   request: {
     url: (params: CalcomDeleteEventTypeParams) =>
-      `https://api.cal.com/v2/event-types/${params.eventTypeId}`,
+      `https://api.cal.com/v2/event-types/${safeUrlPathSegment(params.eventTypeId, 'eventTypeId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

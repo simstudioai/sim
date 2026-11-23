@@ -329,10 +329,11 @@ async function requestAccessToken(
     const text = redactTokenSecrets(await response.text().catch(() => ''), auth)
     signal?.throwIfAborted()
     logger.warn(
-      `[${requestId}] Concur token fetch failed (${response.status}): ${truncate(
+      `Concur token fetch failed (${response.status}): ${truncate(
         text,
         TOKEN_ERROR_RAW_BODY_MAX_LENGTH
-      )}`
+      )}`,
+      { requestId }
     )
     throw new Error(
       `Concur token request failed: ${extractSapConcurError(parseMaybeJson(text), response.status, {

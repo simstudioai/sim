@@ -1,4 +1,5 @@
 import type { SESListIdentitiesParams, SESListIdentitiesResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listIdentitiesTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const listIdentitiesTool: InternalToolConfig<
   description:
     'List all verified email identities (email addresses and domains) in your SES account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

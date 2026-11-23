@@ -528,7 +528,7 @@ export async function performCreateWorkflowMcpServer(
     })
 
     if (addedTools.length > 0 && params.publishEffects !== false) {
-      mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId: params.workspaceId })
+      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId: params.workspaceId })
     }
 
     if (params.projectLegacyAudit !== false)
@@ -669,7 +669,7 @@ export async function performDeleteWorkflowMcpServer(
     }
 
     if (params.publishEffects !== false)
-      mcpPubSub?.publishWorkflowToolsChanged({
+      mcpPubSub.publishWorkflowToolsChanged({
         serverId: params.serverId,
         workspaceId: params.workspaceId,
       })
@@ -894,7 +894,7 @@ export async function performCreateWorkflowMcpTool(
     }
 
     if (params.publishEffects !== false)
-      mcpPubSub?.publishWorkflowToolsChanged({
+      mcpPubSub.publishWorkflowToolsChanged({
         serverId: params.serverId,
         workspaceId: params.workspaceId,
       })
@@ -1105,7 +1105,7 @@ export async function performUpdateWorkflowMcpTool(
     if (!tool) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
     if (params.publishEffects !== false)
-      mcpPubSub?.publishWorkflowToolsChanged({
+      mcpPubSub.publishWorkflowToolsChanged({
         serverId: params.serverId,
         workspaceId: params.workspaceId,
       })
@@ -1179,7 +1179,7 @@ export async function performDeleteWorkflowMcpTool(
     if (!tool) return { success: false, error: 'Tool not found', errorCode: 'not_found' }
 
     if (params.publishEffects !== false)
-      mcpPubSub?.publishWorkflowToolsChanged({
+      mcpPubSub.publishWorkflowToolsChanged({
         serverId: params.serverId,
         workspaceId: params.workspaceId,
       })

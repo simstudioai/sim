@@ -10,6 +10,7 @@ import {
   parseBrexJson,
   toBrexDateTime,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListCashTransactionsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const brexListCashTransactionsTool: ToolConfig<
   name: 'Brex List Cash Transactions',
   description: 'List transactions for a Brex cash account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { MailSendParams, MailSendResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const resendSendTool: InternalToolConfig<MailSendParams, MailSendResult> = {
@@ -6,6 +7,7 @@ export const resendSendTool: InternalToolConfig<MailSendParams, MailSendResult> 
   name: 'Send Email',
   description: 'Send an email using your own Resend API key and from address',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     fromAddress: {

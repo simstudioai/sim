@@ -18,6 +18,7 @@ import {
   transformRecordResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getChangeRequestTool: ToolConfig<
@@ -29,6 +30,7 @@ export const getChangeRequestTool: ToolConfig<
   description:
     'Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_id. Reference fields are returned with both their sys_id and their label by default.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

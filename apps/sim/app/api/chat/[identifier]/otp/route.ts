@@ -10,16 +10,12 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
 import {
-  decodeOTPValue,
-  deleteOTP,
   generateOTP,
-  getOTP,
-  incrementOTPAttempts,
-  MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_IP_RATE_LIMIT,
   OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
+  verifyOTP,
 } from '@/lib/core/security/otp'
 import { afterResponse } from '@/lib/core/utils/after-response'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
@@ -43,7 +39,7 @@ async function deliverOtp(requestId: string, deploymentId: string, title: string
     { failClosed: true }
   )
   if (!resourceRateLimit.allowed) {
-    logger.warn(`[${requestId}] OTP resource rate limit exceeded for chat ${deploymentId}`)
+    logger.warn(`OTP resource rate limit exceeded for chat ${deploymentId}`, { requestId })
     return
   }
 
@@ -53,7 +49,7 @@ async function deliverOtp(requestId: string, deploymentId: string, title: string
     { failClosed: true }
   )
   if (!emailRateLimit.allowed) {
-    logger.warn(`[${requestId}] OTP email rate limit exceeded for ${email} on chat ${deploymentId}`)
+    logger.warn(`OTP email rate limit exceeded for ${email} on chat ${deploymentId}`, { requestId })
     return
   }
 
@@ -68,11 +64,11 @@ async function deliverOtp(requestId: string, deploymentId: string, title: string
   })
 
   if (!emailResult.success) {
-    logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
+    logger.error('Failed to send OTP email:', emailResult.message, { requestId })
     return
   }
 
-  logger.info(`[${requestId}] OTP sent to ${email} for chat ${deploymentId}`)
+  logger.info(`OTP sent to ${email} for chat ${deploymentId}`, { requestId })
 }
 
 export const POST = withRouteHandler(
@@ -89,7 +85,7 @@ export const POST = withRouteHandler(
           { failClosed: true }
         )
         if (!ipRateLimit.allowed) {
-          logger.warn(`[${requestId}] OTP IP rate limit exceeded for ${identifier} from ${ip}`)
+          logger.warn(`OTP IP rate limit exceeded for ${identifier} from ${ip}`)
           const retryAfter = Math.ceil(
             (ipRateLimit.retryAfterMs ?? OTP_IP_RATE_LIMIT.refillIntervalMs) / 1000
           )
@@ -123,7 +119,7 @@ export const POST = withRouteHandler(
         .limit(1)
 
       if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
+        logger.warn(`Chat not found for identifier: ${identifier}`)
         return createCodedErrorResponse('Chat not found', 404)
       }
 
@@ -144,7 +140,7 @@ export const POST = withRouteHandler(
       })
       return otpRequestAccepted()
     } catch (error) {
-      logger.error(`[${requestId}] Error processing OTP request:`, error)
+      logger.error('Error processing OTP request:', error)
       return createCodedErrorResponse('Failed to process request', 500)
     }
   }
@@ -153,7 +149,6 @@ export const POST = withRouteHandler(
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
     const { identifier } = await context.params
-    const requestId = generateRequestId()
 
     try {
       const parsed = await parseRequest(verifyChatEmailOtpContract, request, context, {
@@ -184,7 +179,7 @@ export const PUT = withRouteHandler(
         .limit(1)
 
       if (deploymentResult.length === 0) {
-        logger.warn(`[${requestId}] Chat not found for identifier: ${identifier}`)
+        logger.warn(`Chat not found for identifier: ${identifier}`)
         return createCodedErrorResponse('Chat not found', 404)
       }
 
@@ -197,32 +192,17 @@ export const PUT = withRouteHandler(
         return createCodedErrorResponse('Email not authorized', 403)
       }
 
-      const storedValue = await getOTP('chat', deployment.id, email)
-      if (!storedValue) {
+      const verification = await verifyOTP('chat', deployment.id, email, otp)
+      if (verification === 'missing') {
         return createCodedErrorResponse('No verification code found, request a new one', 400)
       }
-
-      const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
-
-      if (attempts >= MAX_OTP_ATTEMPTS) {
-        await deleteOTP('chat', deployment.id, email)
-        logger.warn(`[${requestId}] OTP already locked out for ${email}`)
+      if (verification === 'locked') {
+        logger.warn('OTP invalidated after max failed attempts', { chatId: deployment.id })
         return createCodedErrorResponse('Too many failed attempts. Please request a new code.', 429)
       }
-
-      if (storedOTP !== otp) {
-        const result = await incrementOTPAttempts('chat', deployment.id, email, storedValue)
-        if (result === 'locked') {
-          logger.warn(`[${requestId}] OTP invalidated after max failed attempts for ${email}`)
-          return createCodedErrorResponse(
-            'Too many failed attempts. Please request a new code.',
-            429
-          )
-        }
+      if (verification === 'invalid') {
         return createCodedErrorResponse('Invalid verification code', 400)
       }
-
-      await deleteOTP('chat', deployment.id, email)
 
       const response = createSuccessResponse({
         id: deployment.id,
@@ -238,7 +218,7 @@ export const PUT = withRouteHandler(
 
       return response
     } catch (error) {
-      logger.error(`[${requestId}] Error verifying OTP:`, error)
+      logger.error('Error verifying OTP:', error)
       return createCodedErrorResponse('Failed to process request', 500)
     }
   }

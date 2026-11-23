@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
+import { getV2ApiLinks } from '@/lib/api/links'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { DOCS_URL } from '@/lib/help-links'
 
 /** RFC 9727 §4.2: the catalog is a Linkset carrying the RFC's profile. */
 const API_CATALOG_CONTENT_TYPE =
@@ -20,6 +20,7 @@ export const GET = withRouteHandler(() => {
   const baseUrl = getBaseUrl()
   const catalogUrl = `${baseUrl}/.well-known/api-catalog`
   const apiUrl = `${baseUrl}/api/v2`
+  const links = getV2ApiLinks()
 
   return NextResponse.json(
     {
@@ -27,10 +28,8 @@ export const GET = withRouteHandler(() => {
         { anchor: catalogUrl, item: [{ href: apiUrl }] },
         {
           anchor: apiUrl,
-          'service-desc': [
-            { href: `${DOCS_URL}/openapi.json`, type: 'application/vnd.oai.openapi+json' },
-          ],
-          'service-doc': [{ href: `${DOCS_URL}/api-reference/getting-started`, type: 'text/html' }],
+          'service-desc': [{ href: links.openapi, type: 'application/vnd.oai.openapi+json' }],
+          'service-doc': [{ href: links.docs, type: 'text/html' }],
           status: [{ href: `${baseUrl}/api/health`, type: 'application/json' }],
         },
       ],

@@ -16,6 +16,7 @@ import {
   buildTableRecordUrl,
   transformRecordResponse,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const resolveIncidentTool: ToolConfig<
@@ -27,6 +28,7 @@ export const resolveIncidentTool: ToolConfig<
   description:
     'Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

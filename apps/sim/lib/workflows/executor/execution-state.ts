@@ -1,9 +1,12 @@
 import { db } from '@sim/db'
-import { workflowExecutionLogs } from '@sim/db/schema'
-import { isRecordLike } from '@sim/utils/object'
+import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
+import { buildResumeUiUrl } from '@/executor/constants'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+import type { PausePoint } from '@/executor/types'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
@@ -188,6 +191,60 @@ export async function getWorkflowExecutionCopilotToolCallId(
   return typeof toolCallId === 'string' ? toolCallId : undefined
 }
 
+/** A paused execution's pause points, stored keyed by context id (older rows: an array). */
+/**
+ * A point still waiting on a human: not a time pause, and not yet resumed or resuming. The
+ * paused-run list admits runs by this rule; `paused-runs.ts` spells it in SQL.
+ */
+export function isWaitingHumanPausePoint(point: PausePoint): boolean {
+  return point.pauseKind !== 'time' && point.resumeStatus === 'paused'
+}
+
+export function normalizePausePoints(raw: unknown): PausePoint[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw as PausePoint[]
+  if (typeof raw === 'object') return Object.values(raw as Record<string, PausePoint>)
+  return []
+}
+
+/**
+ * The page where a person answers the execution's open pauses, or null when nothing waits on a
+ * person: the run is not paused, or is paused only on time and resumes itself.
+ */
+export async function getHumanPauseResumeUrl(
+  executionId: string,
+  workflowId: string
+): Promise<string | null> {
+  const [paused] = await db
+    .select({ status: pausedExecutions.status, pausePoints: pausedExecutions.pausePoints })
+    .from(pausedExecutions)
+    .where(
+      and(
+        eq(pausedExecutions.executionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  if (!paused || (paused.status !== 'paused' && paused.status !== 'partially_resumed')) {
+    return null
+  }
+  const waitsOnPerson = normalizePausePoints(paused.pausePoints).some(isWaitingHumanPausePoint)
+  return waitsOnPerson ? buildResumeUiUrl(getBaseUrl(), workflowId, executionId) : null
+}
+
+/**
+ * The message an error finalization (`force_failed`) stored as the run's `finalOutput.error`.
+ * Any other run's `finalOutput.error` is the workflow's own data, not a failure message.
+ */
+function readFailureMessage(executionData: Record<string, unknown>): string | undefined {
+  if (typeof executionData.error === 'string') return executionData.error
+  if (executionData.finalizationPath !== 'force_failed') return undefined
+  const { finalOutput } = executionData
+  return isRecordLike(finalOutput) && typeof finalOutput.error === 'string'
+    ? finalOutput.error
+    : undefined
+}
+
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */
 export async function getTrustedWorkflowToolExecution(
   executionId: string,
@@ -232,7 +289,7 @@ export async function getTrustedWorkflowToolExecution(
     ...(Object.hasOwn(executionData, 'finalOutput')
       ? { finalOutput: executionData.finalOutput }
       : {}),
-    ...(typeof executionData.error === 'string' ? { error: executionData.error } : {}),
+    ...filterUndefined({ error: readFailureMessage(executionData) }),
     blockLogs: state.blockLogs,
     provenance,
   }

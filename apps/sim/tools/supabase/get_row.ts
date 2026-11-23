@@ -1,4 +1,5 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SupabaseGetRowParams, SupabaseGetRowResponse } from '@/tools/supabase/types'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const getRowTool: ToolConfig<SupabaseGetRowParams, SupabaseGetRowResponse
   name: 'Supabase Get Row',
   description: 'Get a single row from a Supabase table based on filter criteria',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

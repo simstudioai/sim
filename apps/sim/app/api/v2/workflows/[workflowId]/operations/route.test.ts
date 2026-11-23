@@ -5,6 +5,7 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,22 +42,15 @@ const DROPPED_INPUT = {
   error: 'Invalid credential ID',
 }
 
-/** An empty report, with every field the contract publishes. */
-const LINT = {
-  sources: [],
-  sinks: [],
-  orphanBlocks: [],
-  emptyOutgoingPorts: [],
-  invalidBranchPorts: [],
-  invalidConnectionTargets: [],
-  fieldIssues: [],
-  unresolvedReferences: [],
-  tableFieldIssues: [],
-  notes: [],
-}
+const LINT = createEmptyWorkflowLintReport()
 
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'personal-key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,

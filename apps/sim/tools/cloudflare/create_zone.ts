@@ -9,6 +9,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCreateZoneResponse> =
@@ -17,6 +18,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
     name: 'Cloudflare Create Zone',
     description: 'Adds a new zone (domain) to the Cloudflare account.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {
       name: {

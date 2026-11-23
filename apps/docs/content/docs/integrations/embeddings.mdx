@@ -6,6 +6,8 @@ integration:
   color: "#7B4DFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 An embedding represents text as a numeric vector. Compare vectors to search by meaning, group related text, or find near-duplicates.
@@ -31,7 +33,6 @@ Ollama has no task-type or dimension control in this block. Sim uses the model's
 Knowledge bases embed separately. Each base fixes an embedding model and vector width at creation from the supported knowledge base catalog. Use this block when a workflow needs to generate vectors itself.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Use the block [#usage-instructions]
 
 Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models, plus embedding models on a self-hosted Ollama.
@@ -42,6 +43,8 @@ Turn text into embedding vectors for semantic search, clustering, and similarity
 
 Generate embeddings from text using OpenAI's embedding models
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -63,11 +66,15 @@ Generate embeddings from text using OpenAI's embedding models
 | `usage` | json | Token usage |
 |   ↳ `prompt_tokens` | number | Tokens in the input |
 |   ↳ `total_tokens` | number | Total tokens billed |
+
+</ReferenceDetails>
 
 ### OpenRouter Embeddings
 
 Generate embeddings through OpenRouter
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -89,11 +96,15 @@ Generate embeddings through OpenRouter
 | `usage` | json | Token usage |
 |   ↳ `prompt_tokens` | number | Tokens in the input |
 |   ↳ `total_tokens` | number | Total tokens billed |
+
+</ReferenceDetails>
 
 ### Gemini Embeddings
 
 Generate embeddings from text using Google's Gemini embedding models
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -115,11 +126,15 @@ Generate embeddings from text using Google's Gemini embedding models
 | `usage` | json | Token usage |
 |   ↳ `prompt_tokens` | number | Tokens in the input |
 |   ↳ `total_tokens` | number | Total tokens billed |
+
+</ReferenceDetails>
 
 ### Cohere Embeddings
 
 Generate embeddings from text using Cohere's embedding models
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -141,11 +156,15 @@ Generate embeddings from text using Cohere's embedding models
 | `usage` | json | Token usage |
 |   ↳ `prompt_tokens` | number | Tokens in the input |
 |   ↳ `total_tokens` | number | Total tokens billed |
+
+</ReferenceDetails>
 
 ### Mistral Embeddings
 
 Generate embeddings from text using Mistral's embedding models
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -168,9 +187,13 @@ Generate embeddings from text using Mistral's embedding models
 |   ↳ `prompt_tokens` | number | Tokens in the input |
 |   ↳ `total_tokens` | number | Total tokens billed |
 
+</ReferenceDetails>
+
 ### Ollama Embeddings
 
 Generate embeddings on a self-hosted Ollama server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -190,5 +213,7 @@ Generate embeddings on a self-hosted Ollama server
 | `usage` | json | Token usage |
 |   ↳ `prompt_tokens` | number | Tokens in the input |
 |   ↳ `total_tokens` | number | Total tokens billed |
+
+</ReferenceDetails>
 
 

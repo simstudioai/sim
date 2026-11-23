@@ -7,6 +7,7 @@ import {
   requireValue,
   toFormBody,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWebhookTool: ToolConfig<JotformCreateWebhookParams, JotformWebhooksResponse> = {
@@ -15,6 +16,7 @@ export const createWebhookTool: ToolConfig<JotformCreateWebhookParams, JotformWe
   description:
     'Register a webhook on a form so every new submission is posted to the given URL. Returns the full webhook list for the form.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

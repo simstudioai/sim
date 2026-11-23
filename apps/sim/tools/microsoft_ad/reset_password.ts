@@ -3,6 +3,7 @@ import type {
   MicrosoftAdResetPasswordResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Microsoft Graph exposes a user's password authentication method under a fixed, publicly
@@ -23,9 +24,15 @@ export const resetPasswordTool: ToolConfig<
     "Reset another user's password through their password authentication method. Leave the new password empty to have Microsoft generate one and return it. The user is prompted to change the password at their next sign-in. Cannot be run against your own account.",
   version: '1.0.0',
   errorExtractor: 'nested-error-object',
+  /**
+   * Graph does not support application permissions for `resetPassword`, so a
+   * saved Microsoft app credential is turned away before any request.
+   * @see https://learn.microsoft.com/en-us/graph/api/authenticationmethod-resetpassword
+   */
   oauth: {
     required: true,
     provider: 'microsoft-ad',
+    credentialKind: 'oauth',
   },
   params: {
     accessToken: {
@@ -52,7 +59,7 @@ export const resetPasswordTool: ToolConfig<
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/authentication/methods/${PASSWORD_METHOD_ROUTE_SEGMENT}/resetPassword`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/authentication/methods/${PASSWORD_METHOD_ROUTE_SEGMENT}/resetPassword`
     },
     method: 'POST',
     headers: (params) => ({

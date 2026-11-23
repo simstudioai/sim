@@ -10,6 +10,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSettingsSchemasTool: ToolConfig<
@@ -21,6 +22,7 @@ export const listSettingsSchemasTool: ToolConfig<
   description:
     'List the settings schemas available in the environment. Use it to find the schema ID for a configuration type such as builtin:alerting.profile.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

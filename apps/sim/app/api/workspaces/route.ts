@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { type WorkspaceMode, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
@@ -11,6 +11,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { createWorkspace } from '@/lib/workspaces/create'
@@ -23,6 +24,20 @@ import {
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
+
+/** A failed lookup leaves the viewer on the blocked picker rather than failing the list. */
+async function resolveForwardOrganizationId(session: {
+  user: { id: string }
+}): Promise<string | undefined> {
+  try {
+    return (await resolveRolledOutOrganizationId(session)) ?? undefined
+  } catch (error) {
+    logger.warn('Could not resolve an organization to forward a blocked viewer to', {
+      error: getErrorMessage(error),
+    })
+    return undefined
+  }
+}
 
 // Get all workspaces for the current user
 export const GET = withRouteHandler(async (request: Request) => {
@@ -58,6 +73,7 @@ export const GET = withRouteHandler(async (request: Request) => {
         lastActiveWorkspaceId,
         pinnedWorkspaceIds,
         creationPolicy,
+        forwardOrganizationId: await resolveForwardOrganizationId(session),
       })
     }
 

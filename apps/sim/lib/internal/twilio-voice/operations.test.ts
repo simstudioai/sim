@@ -32,7 +32,9 @@ describe('getTwilioRecording', () => {
       )
       .mockResolvedValueOnce(
         Response.json({
-          transcriptions: [{ transcription_text: 'hello', status: 'completed' }],
+          transcriptions: [
+            { recording_sid: 'RE123', transcription_text: 'hello', status: 'completed' },
+          ],
         })
       )
       .mockResolvedValueOnce(
@@ -72,5 +74,41 @@ describe('getTwilioRecording', () => {
       success: true,
       output: { duration: 42, transcriptionText: 'hello', file: storedFile },
     })
+  })
+  it("reads the transcription from the recording's own list, never another recording's", async () => {
+    mockSecureFetchWithPinnedIP.mockReset()
+    mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(Response.json({ sid: 'RE123', call_sid: 'CA123' }))
+      .mockResolvedValueOnce(
+        Response.json({
+          transcriptions: [{ recording_sid: 'RE999', transcription_text: 'another call' }],
+        })
+      )
+
+    const result = await getTwilioRecording(
+      { accountSid: 'AC123', authToken: 'secret', recordingSid: 'RE123' },
+      { requestId: 'request-1' }
+    )
+
+    expect(mockSecureFetchWithPinnedIP.mock.calls[1][0]).toBe(
+      'https://api.twilio.com/2010-04-01/Accounts/AC123/Recordings/RE123/Transcriptions.json'
+    )
+    expect(result).toMatchObject({ success: true, output: { transcriptionText: undefined } })
+  })
+  it('authenticates every request with an API key as its SID and secret', async () => {
+    const apiKey = `SK${'b'.repeat(32)}:key-secret`
+    await getTwilioRecording(
+      { accountSid: 'AC123', authToken: apiKey, recordingSid: 'RE123' },
+      { requestId: 'request-1' }
+    )
+
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(3)
+    for (const [, , init] of mockSecureFetchWithPinnedIP.mock.calls) {
+      expect(init.headers).toEqual(
+        expect.objectContaining({
+          Authorization: `Basic ${Buffer.from(apiKey).toString('base64')}`,
+        })
+      )
+    }
   })
 })

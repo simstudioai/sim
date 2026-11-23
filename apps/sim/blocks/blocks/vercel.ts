@@ -1,6 +1,12 @@
 import { VercelIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  isToolCall,
+  mapperOperation,
+  parseOptionalBooleanInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -11,6 +17,8 @@ const DEPLOY_TARGET_PROJECT_FIELD = ['name', 'project'] as const
 
 export const VercelBlock: BlockConfig = {
   type: 'vercel',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'vercel_v2' },
   name: 'Vercel',
   description: 'Manage Vercel deployments, projects, and infrastructure',
   longDescription:
@@ -1631,10 +1639,9 @@ export const VercelBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `vercel_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const {
           apiKey,
-          operation,
           deploymentsProjectId,
           deploymentsApp,
           deploymentsSince,
@@ -1731,11 +1738,20 @@ export const VercelBlock: BlockConfig = {
 
         const base = { ...rest, apiKey, ...(teamSlug ? { slug: teamSlug } : {}) }
 
-        switch (operation) {
+        /**
+         * On a tool call the model sends the tool's own param name, so it fills a blank dedicated
+         * field. The canvas keeps the dedicated field as is.
+         */
+        const orModelArg = (dedicated: unknown, modelArg: unknown) =>
+          isToolCall(context) && (dedicated === undefined || dedicated === null || dedicated === '')
+            ? modelArg
+            : dedicated
+
+        switch (mapperOperation(params, context)) {
           case 'list_deployments':
             return {
               ...base,
-              projectId: deploymentsProjectId || undefined,
+              projectId: orModelArg(deploymentsProjectId, rest.projectId) || undefined,
               ...(deploymentsApp ? { app: deploymentsApp } : {}),
               ...(deploymentsSince ? { since: Number(deploymentsSince) } : {}),
               ...(deploymentsUntil ? { until: Number(deploymentsUntil) } : {}),
@@ -1755,21 +1771,21 @@ export const VercelBlock: BlockConfig = {
           case 'create_deployment':
             return {
               ...base,
-              deploymentId: redeployId || undefined,
-              target: deployTarget || undefined,
+              deploymentId: orModelArg(redeployId, rest.deploymentId) || undefined,
+              target: orModelArg(deployTarget, rest.target) || undefined,
               ...(deploymentGitSource ? { gitSource: deploymentGitSource } : {}),
               ...(deploymentForceNew ? { forceNew: deploymentForceNew } : {}),
             }
           case 'create_project':
-            return { ...base, name: projectName }
+            return { ...base, name: orModelArg(projectName, rest.name) }
           case 'update_project':
-            return { ...base, name: updateProjectName || undefined }
+            return { ...base, name: orModelArg(updateProjectName, rest.name) || undefined }
           case 'list_projects':
             return { ...base, ...(projectsFrom ? { from: projectsFrom } : {}) }
           case 'add_project_domain':
             return {
               ...base,
-              domain: domainName,
+              domain: orModelArg(domainName, rest.domain),
               ...(updateDomainRedirect ? { redirect: updateDomainRedirect } : {}),
               ...(updateDomainRedirectStatusCode
                 ? { redirectStatusCode: Number(updateDomainRedirectStatusCode) }
@@ -1778,11 +1794,11 @@ export const VercelBlock: BlockConfig = {
             }
           case 'remove_project_domain':
           case 'verify_project_domain':
-            return { ...base, domain: domainName }
+            return { ...base, domain: orModelArg(domainName, rest.domain) }
           case 'update_project_domain':
             return {
               ...base,
-              domain: domainName,
+              domain: orModelArg(domainName, rest.domain),
               ...(updateDomainRedirect ? { redirect: updateDomainRedirect } : {}),
               ...(updateDomainRedirectStatusCode
                 ? { redirectStatusCode: Number(updateDomainRedirectStatusCode) }
@@ -1792,13 +1808,13 @@ export const VercelBlock: BlockConfig = {
           case 'get_domain':
           case 'delete_domain':
           case 'get_domain_config':
-            return { ...base, domain: domainName }
+            return { ...base, domain: orModelArg(domainName, rest.domain) }
           case 'add_domain':
-            return { ...base, name: domainName }
+            return { ...base, name: orModelArg(domainName, rest.name) }
           case 'list_dns_records':
             return {
               ...base,
-              domain: domainName,
+              domain: orModelArg(domainName, rest.domain),
               ...(dnsRecordsLimit ? { limit: Number(dnsRecordsLimit) } : {}),
             }
           case 'list_project_domains':
@@ -1809,7 +1825,7 @@ export const VercelBlock: BlockConfig = {
           case 'create_dns_record':
             return {
               ...base,
-              domain: domainName,
+              domain: orModelArg(domainName, rest.domain),
               recordName,
               recordType,
               ...(recordValue ? { value: recordValue } : {}),
@@ -1830,12 +1846,12 @@ export const VercelBlock: BlockConfig = {
               ...(recordComment ? { comment: recordComment } : {}),
             }
           case 'delete_dns_record':
-            return { ...base, domain: domainName, recordId }
+            return { ...base, domain: orModelArg(domainName, rest.domain), recordId }
           case 'update_dns_record':
             return {
               ...base,
               recordId,
-              name: updateRecordName || undefined,
+              name: orModelArg(updateRecordName, rest.name) || undefined,
               ...(updateRecordType ? { type: updateRecordType } : {}),
               ...(updateRecordValue ? { value: updateRecordValue } : {}),
               ...(updateRecordTtl ? { ttl: updateRecordTtl } : {}),
@@ -1868,10 +1884,10 @@ export const VercelBlock: BlockConfig = {
           case 'create_env_var':
             return {
               ...base,
-              key: envKey,
-              value: envValue,
-              target: envTarget,
-              type: envType,
+              key: orModelArg(envKey, rest.key),
+              value: orModelArg(envValue, rest.value),
+              target: orModelArg(envTarget, rest.target),
+              type: orModelArg(envType, rest.type),
               ...(envGitBranch ? { gitBranch: envGitBranch } : {}),
               ...(envComment ? { comment: envComment } : {}),
             }
@@ -1880,7 +1896,7 @@ export const VercelBlock: BlockConfig = {
               ...base,
               ...(envKey ? { key: envKey } : {}),
               ...(envValue ? { value: envValue } : {}),
-              target: envTarget || undefined,
+              target: orModelArg(envTarget, rest.target) || undefined,
               ...(envType ? { type: envType } : {}),
               ...(envGitBranch ? { gitBranch: envGitBranch } : {}),
               ...(envComment ? { comment: envComment } : {}),
@@ -1891,8 +1907,8 @@ export const VercelBlock: BlockConfig = {
           case 'create_alias':
             return {
               ...base,
-              deploymentId: aliasDeploymentId,
-              alias: aliasName,
+              deploymentId: orModelArg(aliasDeploymentId, rest.deploymentId),
+              alias: orModelArg(aliasName, rest.alias),
               ...(aliasRedirect ? { redirect: aliasRedirect } : {}),
             }
           case 'get_edge_config':
@@ -1900,14 +1916,14 @@ export const VercelBlock: BlockConfig = {
           case 'delete_edge_config':
             return { ...base, edgeConfigId }
           case 'create_edge_config':
-            return { ...base, slug: edgeConfigSlug }
+            return { ...base, slug: orModelArg(edgeConfigSlug, rest.slug) }
           case 'update_edge_config_items':
-            return { ...base, edgeConfigId, items: edgeConfigItems }
+            return { ...base, edgeConfigId, items: orModelArg(edgeConfigItems, rest.items) }
           case 'create_webhook':
             return {
               ...base,
-              url: webhookUrl,
-              events: webhookEvents,
+              url: orModelArg(webhookUrl, rest.url),
+              events: orModelArg(webhookEvents, rest.events),
               ...(webhookProjectIds ? { projectIds: webhookProjectIds } : {}),
             }
           case 'delete_webhook':
@@ -1916,31 +1932,38 @@ export const VercelBlock: BlockConfig = {
           case 'create_check':
             return {
               ...base,
-              deploymentId: checkDeploymentId,
-              name: checkName,
-              blocking: checkBlocking === 'true',
+              deploymentId: orModelArg(checkDeploymentId, rest.deploymentId),
+              name: orModelArg(checkName, rest.name),
+              blocking:
+                isToolCall(context) && !checkBlocking
+                  ? (parseOptionalBooleanInput(rest.blocking) ?? false)
+                  : checkBlocking === 'true',
               ...(checkPath ? { path: checkPath } : {}),
               ...(checkDetailsUrl ? { detailsUrl: checkDetailsUrl } : {}),
               ...(checkExternalId ? { externalId: checkExternalId } : {}),
               ...(checkRerequestable ? { rerequestable: checkRerequestable === 'true' } : {}),
             }
           case 'get_check':
-            return { ...base, deploymentId: checkDeploymentId, checkId }
+            return {
+              ...base,
+              deploymentId: orModelArg(checkDeploymentId, rest.deploymentId),
+              checkId,
+            }
           case 'rerequest_check':
             return {
               ...base,
-              deploymentId: checkDeploymentId,
+              deploymentId: orModelArg(checkDeploymentId, rest.deploymentId),
               checkId,
               ...(checkAutoUpdate ? { autoUpdate: checkAutoUpdate === 'true' } : {}),
             }
           case 'list_checks':
-            return { ...base, deploymentId: checkDeploymentId }
+            return { ...base, deploymentId: orModelArg(checkDeploymentId, rest.deploymentId) }
           case 'update_check':
             return {
               ...base,
-              deploymentId: checkDeploymentId,
+              deploymentId: orModelArg(checkDeploymentId, rest.deploymentId),
               checkId,
-              name: checkName || undefined,
+              name: orModelArg(checkName, rest.name) || undefined,
               ...(checkStatus ? { status: checkStatus } : {}),
               ...(checkConclusion ? { conclusion: checkConclusion } : {}),
               ...(checkPath ? { path: checkPath } : {}),
@@ -1949,16 +1972,16 @@ export const VercelBlock: BlockConfig = {
               ...(checkOutput ? { output: checkOutput } : {}),
             }
           case 'get_team':
-            return { ...base, teamId: teamIdParam }
+            return { ...base, teamId: orModelArg(teamIdParam, rest.teamId) }
           case 'list_team_members':
             return {
               ...base,
-              teamId: teamIdParam,
+              teamId: orModelArg(teamIdParam, rest.teamId),
               ...(memberRole ? { role: memberRole } : {}),
               ...(teamMembersLimit ? { limit: Number(teamMembersLimit) } : {}),
               ...(teamMembersSince ? { since: Number(teamMembersSince) } : {}),
               ...(teamMembersUntil ? { until: Number(teamMembersUntil) } : {}),
-              search: teamMembersSearch || undefined,
+              search: orModelArg(teamMembersSearch, rest.search) || undefined,
             }
           case 'list_teams':
             return {
@@ -2349,3 +2372,17 @@ export const VercelBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const VercelV2Block: BlockConfig = {
+  ...VercelBlock,
+  type: 'vercel_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(VercelBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'vercel',
+    title: 'Vercel Credential',
+  }),
+}

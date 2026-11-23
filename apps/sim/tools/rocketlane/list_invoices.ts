@@ -9,6 +9,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListInvoicesTool: ToolConfig<
@@ -20,6 +21,7 @@ export const rocketlaneListInvoicesTool: ToolConfig<
   description:
     'Search invoices in Rocketlane with date, amount, company, invoice-number, and status filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

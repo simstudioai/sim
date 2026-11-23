@@ -6,6 +6,7 @@ import {
   TRELLO_API_BASE_URL,
 } from '@/tools/trello/shared'
 import type { TrelloCreateCardParams, TrelloCreateCardResponse } from '@/tools/trello/types'
+import { TRELLO_CARD_OUTPUT_PROPERTIES } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCreateCardResponse> = {
@@ -55,6 +56,12 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
       required: false,
       visibility: 'user-or-llm',
       description: 'Due date (ISO 8601 format)',
+    },
+    start: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Start date (ISO 8601 format)',
     },
     dueComplete: {
       type: 'boolean',
@@ -119,6 +126,7 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
       if (params.desc) body.desc = params.desc
       if (params.pos) body.pos = params.pos
       if (params.due) body.due = params.due
+      if (params.start) body.start = params.start
       if (params.dueComplete !== undefined) body.dueComplete = params.dueComplete
       if (params.labelIds?.length) body.idLabels = params.labelIds
       if (params.memberIds?.length) body.idMembers = params.memberIds
@@ -168,51 +176,9 @@ export const trelloCreateCardTool: ToolConfig<TrelloCreateCardParams, TrelloCrea
     card: {
       type: 'json',
       description:
-        'Created card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+        'Created card (id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members)',
       optional: true,
-      properties: {
-        id: { type: 'string', description: 'Card ID' },
-        name: { type: 'string', description: 'Card name' },
-        desc: { type: 'string', description: 'Card description' },
-        url: { type: 'string', description: 'Full card URL' },
-        idBoard: { type: 'string', description: 'Board ID containing the card' },
-        idList: { type: 'string', description: 'List ID containing the card' },
-        closed: { type: 'boolean', description: 'Whether the card is archived' },
-        labelIds: {
-          type: 'array',
-          description: 'Label IDs applied to the card',
-          items: {
-            type: 'string',
-            description: 'A Trello label ID',
-          },
-        },
-        labels: {
-          type: 'array',
-          description: 'Labels applied to the card',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Label ID' },
-              name: { type: 'string', description: 'Label name' },
-              color: {
-                type: 'string',
-                description: 'Label color',
-                optional: true,
-              },
-            },
-          },
-        },
-        due: {
-          type: 'string',
-          description: 'Card due date in ISO 8601 format',
-          optional: true,
-        },
-        dueComplete: {
-          type: 'boolean',
-          description: 'Whether the due date is complete',
-          optional: true,
-        },
-      },
+      properties: TRELLO_CARD_OUTPUT_PROPERTIES,
     },
   },
 }

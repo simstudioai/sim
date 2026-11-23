@@ -202,11 +202,22 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
     },
     sharedDepartments: {
       type: 'array',
-      items: { type: 'string' },
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ID of the department to share the ticket with' },
+          type: {
+            type: 'string',
+            description: 'Access privilege: READ_ONLY, READ_WRITE, or RESTRICTED_ACCESS',
+          },
+        },
+        required: ['id', 'type'],
+      },
       maxItems: 10,
       required: false,
       visibility: 'user-or-llm',
-      description: 'JSON array of shared departments and access privileges',
+      description:
+        'Departments to share the ticket with, each as {"id": departmentId, "type": "READ_ONLY" | "READ_WRITE" | "RESTRICTED_ACCESS"}. JSON array.',
     },
     teamId: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Team ID' },
     secondaryContacts: {

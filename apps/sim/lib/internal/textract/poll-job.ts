@@ -29,9 +29,9 @@ export async function pollTextractJob<TResult extends PollableJobResult>(
 
     if (jobStatus === 'SUCCEEDED' || jobStatus === 'PARTIAL_SUCCESS') {
       if (jobStatus === 'PARTIAL_SUCCESS') {
-        logger.warn(`[${requestId}] Job completed with partial success: ${result.StatusMessage}`)
+        logger.warn(`Job completed with partial success: ${result.StatusMessage}`, { requestId })
       } else {
-        logger.info(`[${requestId}] Async job completed successfully after ${attempt + 1} polls`)
+        logger.info(`Async job completed successfully after ${attempt + 1} polls`, { requestId })
       }
 
       let merged = result
@@ -52,7 +52,7 @@ export async function pollTextractJob<TResult extends PollableJobResult>(
       )
     }
 
-    logger.info(`[${requestId}] Job status: ${jobStatus}, attempt ${attempt + 1}/${maxAttempts}`)
+    logger.info(`Job status: ${jobStatus}, attempt ${attempt + 1}/${maxAttempts}`, { requestId })
     await sleep(pollIntervalMs)
     signal?.throwIfAborted()
   }

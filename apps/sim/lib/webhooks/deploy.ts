@@ -4,9 +4,17 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit, toRecord } from '@sim/utils/object'
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import {
+  EGRESS_UNAVAILABLE_MESSAGE,
+  isUnavailableFailure,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import {
   getSlackBotCredential,
@@ -42,15 +50,12 @@ import {
   isDeploymentVersionProtectedByCurrentOperation,
 } from '@/lib/workflows/persistence/deployment-operations'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { SIM_SUBSCRIBED_EVENTS, slackEventById } from '@/triggers/slack/shared'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
@@ -362,6 +367,15 @@ export async function resolveWebhookConfigForBlock(input: {
   const triggerDef = getTrigger(triggerId)
   const { providerConfig, missingFields, credentialReference, credentialServiceId, triggerPath } =
     buildProviderConfig(input.block, triggerId, triggerDef)
+  /** Deploys also run from the outbox with no request scope, so `auth.test` takes the workflow's own. */
+  const workflowWorkspaceId =
+    typeof input.workflow.workspaceId === 'string' ? input.workflow.workspaceId : null
+  const verifySlackBotToken = (botToken: string) =>
+    workflowWorkspaceId
+      ? withResourceOutboundScope({ workspaceId: workflowWorkspaceId }, () =>
+          fetchSlackTeamId(botToken)
+        )
+      : fetchSlackTeamId(botToken)
 
   if (missingFields.length > 0) {
     return {
@@ -494,13 +508,13 @@ export async function resolveWebhookConfigForBlock(input: {
         providerConfig.eventType === 'reaction_removed'
       ) {
         try {
-          const { userId: botUserId } = await fetchSlackTeamId(botCredential.botToken)
+          const { userId: botUserId } = await verifySlackBotToken(botCredential.botToken)
           if (botUserId) providerConfig.bot_user_id = botUserId
         } catch (error: unknown) {
-          logger.error(
-            `[${input.requestId}] Slack custom bot identity resolution failed for ${input.block.id}`,
-            error
-          )
+          logger.error(`Slack custom bot identity resolution failed for ${input.block.id}`, error, {
+            requestId: input.requestId,
+          })
+          if (isUnavailableFailure(error)) return egressUnavailableResult()
           return {
             success: false,
             error: {
@@ -614,14 +628,14 @@ export async function resolveWebhookConfigForBlock(input: {
         }
       }
       try {
-        const { teamId, userId: botUserId } = await fetchSlackTeamId(botToken)
+        const { teamId, userId: botUserId } = await verifySlackBotToken(botToken)
         routingKey = teamId
         if (botUserId) providerConfig.bot_user_id = botUserId
       } catch (error: unknown) {
-        logger.error(
-          `[${input.requestId}] Slack team_id resolution failed for ${input.block.id}`,
-          error
-        )
+        logger.error(`Slack team_id resolution failed for ${input.block.id}`, error, {
+          requestId: input.requestId,
+        })
+        if (isUnavailableFailure(error)) return egressUnavailableResult()
         return {
           success: false,
           error: {
@@ -725,7 +739,10 @@ export async function resolveWebhookConfigForBlock(input: {
       return {
         success: false,
         error: {
-          message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
+          message: deployFailureMessage(
+            error,
+            getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`)
+          ),
           status: webhookConfigFailureStatus(error),
         },
       }
@@ -766,6 +783,26 @@ async function configurePollingIfNeeded(
   return null
 }
 
+/** A trigger that could not be resolved because the organization's egress route is down. */
+function egressUnavailableResult(): ResolveWebhookConfigResult {
+  return {
+    success: false,
+    error: {
+      message: EGRESS_UNAVAILABLE_MESSAGE,
+      status: statusForOrchestrationError('unavailable'),
+    },
+  }
+}
+
+/**
+ * The caller-facing text for a deploy failure: the fixed outage message when the organization's
+ * egress route failed (its routing code stays in logs), `message` otherwise.
+ */
+function deployFailureMessage(error: unknown, message: string): string {
+  const failures = error instanceof AggregateError ? error.errors : [error]
+  return failures.some(isUnavailableFailure) ? EGRESS_UNAVAILABLE_MESSAGE : message
+}
+
 /**
  * 400 when the provider rejected the trigger's configuration, so the deploy
  * fails terminally instead of retrying a create that cannot succeed. Stable
@@ -774,6 +811,7 @@ async function configurePollingIfNeeded(
  */
 function webhookConfigFailureStatus(error: unknown): number {
   const failures = error instanceof AggregateError ? error.errors : [error]
+  if (failures.some(isUnavailableFailure)) return statusForOrchestrationError('unavailable')
   const permanent =
     failures.length > 0 &&
     failures.every((failure) => failure instanceof WebhookDeploymentConfigurationError)
@@ -863,7 +901,10 @@ export async function prepareStableTriggerWebhooksForDeploy({
     return {
       success: false,
       error: {
-        message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
+        message: deployFailureMessage(
+          error,
+          getErrorMessage(error, 'Failed to prepare webhook registrations')
+        ),
         status: webhookConfigFailureStatus(error),
       },
     }
@@ -914,7 +955,8 @@ export async function saveTriggerWebhooksForDeploy({
     webhooksByBlockId.set(wh.blockId, existingForBlock)
   }
 
-  logger.info(`[${requestId}] Starting webhook sync`, {
+  logger.info('Starting webhook sync', {
+    requestId,
     workflowId,
     currentBlockIds: Array.from(currentBlockIds),
     existingWebhookBlockIds: Array.from(webhooksByBlockId.keys()),
@@ -944,7 +986,8 @@ export async function saveTriggerWebhooksForDeploy({
       })
       if (pathConflict) {
         logger.warn(
-          `[${requestId}] Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`
+          `Webhook path conflict for "${triggerPath}": already owned by workflow ${pathConflict}`,
+          { requestId }
         )
         return {
           success: false,
@@ -966,9 +1009,9 @@ export async function saveTriggerWebhooksForDeploy({
       const [existingWh, ...extraWebhooks] = existingForBlock
       if (extraWebhooks.length > 0) {
         webhooksToDelete.push(...extraWebhooks)
-        logger.info(
-          `[${requestId}] Found ${extraWebhooks.length} extra webhook(s) for block ${block.id}`
-        )
+        logger.info(`Found ${extraWebhooks.length} extra webhook(s) for block ${block.id}`, {
+          requestId,
+        })
       }
 
       // Check if config changed or if we're forcing recreation (e.g., activating old version)
@@ -987,11 +1030,11 @@ export async function saveTriggerWebhooksForDeploy({
         webhooksToDelete.push(existingWh)
         blocksNeedingWebhook.push(block)
         if (forceRecreateSubscriptions) {
-          logger.info(
-            `[${requestId}] Forcing webhook recreation for block ${block.id} (reactivating version)`
-          )
+          logger.info(`Forcing webhook recreation for block ${block.id} (reactivating version)`, {
+            requestId,
+          })
         } else {
-          logger.info(`[${requestId}] Webhook config changed for block ${block.id}, will recreate`)
+          logger.info(`Webhook config changed for block ${block.id}, will recreate`, { requestId })
         }
       }
       if (!needsRecreation && existingConfig.subscriptionActivationPending === true) {
@@ -1011,8 +1054,13 @@ export async function saveTriggerWebhooksForDeploy({
           return {
             success: false,
             error: {
-              message: getErrorMessage(error, 'Failed to activate webhook subscription'),
-              status: 500,
+              message: deployFailureMessage(
+                error,
+                getErrorMessage(error, 'Failed to activate webhook subscription')
+              ),
+              status: isUnavailableFailure(error)
+                ? statusForOrchestrationError('unavailable')
+                : 500,
             },
           }
         }
@@ -1024,13 +1072,14 @@ export async function saveTriggerWebhooksForDeploy({
   for (const wh of existingWebhooks) {
     if (wh.blockId && !currentBlockIds.has(wh.blockId)) {
       webhooksToDelete.push(wh)
-      logger.info(`[${requestId}] Webhook orphaned (block deleted): ${wh.blockId}`)
+      logger.info(`Webhook orphaned (block deleted): ${wh.blockId}`, { requestId })
     }
   }
 
   // 3. Delete webhooks that need deletion
   if (webhooksToDelete.length > 0) {
-    logger.info(`[${requestId}] Deleting ${webhooksToDelete.length} webhook(s)`, {
+    logger.info(`Deleting ${webhooksToDelete.length} webhook(s)`, {
+      requestId,
       webhookIds: webhooksToDelete.map((wh) => wh.id),
     })
 
@@ -1042,7 +1091,7 @@ export async function saveTriggerWebhooksForDeploy({
         })
         cleanupSucceeded = true
       } catch (cleanupError) {
-        logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+        logger.warn(`Failed to cleanup external webhook ${wh.id}`, cleanupError, { requestId })
         if (strictExternalCleanup) throw cleanupError
       }
       if (!strictExternalCleanup || cleanupSucceeded) {
@@ -1105,7 +1154,14 @@ export async function saveTriggerWebhooksForDeploy({
         externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
     } catch (error: unknown) {
-      logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
+      if (error instanceof WebhookDeploymentConfigurationError) {
+        logger.warn(`Rejected webhook trigger configuration for ${block.id}`, {
+          requestId,
+          error: error.message,
+        })
+      } else {
+        logger.error(`Failed to create external subscription for ${block.id}`, error, { requestId })
+      }
       await pendingVerificationTracker.clearAll()
       let cleanupFailure: unknown
       for (const sub of createdSubscriptions) {
@@ -1125,8 +1181,9 @@ export async function saveTriggerWebhooksForDeploy({
           } catch (cleanupError) {
             cleanupFailure = cleanupError
             logger.warn(
-              `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
-              cleanupError
+              `Failed to cleanup external subscription for ${sub.block.id}`,
+              cleanupError,
+              { requestId }
             )
             await persistCreatedWebhookRecordAfterCleanupFailure({
               workflowId,
@@ -1140,10 +1197,12 @@ export async function saveTriggerWebhooksForDeploy({
       return {
         success: false,
         error: {
-          message:
+          message: deployFailureMessage(
+            error,
             (cleanupFailure as Error)?.message ||
-            (error as Error)?.message ||
-            'Failed to create external subscription',
+              (error as Error)?.message ||
+              'Failed to create external subscription'
+          ),
           // cleanupFailure never overrides the root cause's status.
           status: webhookConfigFailureStatus(error),
         },
@@ -1209,10 +1268,9 @@ export async function saveTriggerWebhooksForDeploy({
         }
       )
       if (pollingError) {
-        logger.error(
-          `[${requestId}] Polling configuration failed for ${sub.block.id}`,
-          pollingError
-        )
+        logger.error(`Polling configuration failed for ${sub.block.id}`, pollingError, {
+          requestId,
+        })
         const cleanedWebhookIds: string[] = []
         for (const otherSub of createdSubscriptions) {
           if (otherSub.webhookId === sub.webhookId) continue
@@ -1232,8 +1290,9 @@ export async function saveTriggerWebhooksForDeploy({
               cleanedWebhookIds.push(otherSub.webhookId)
             } catch (cleanupError) {
               logger.warn(
-                `[${requestId}] Failed to cleanup external subscription for ${otherSub.block.id}`,
-                cleanupError
+                `Failed to cleanup external subscription for ${otherSub.block.id}`,
+                cleanupError,
+                { requestId }
               )
             }
           } else {
@@ -1248,7 +1307,7 @@ export async function saveTriggerWebhooksForDeploy({
     }
   } catch (error: unknown) {
     await pendingVerificationTracker.clearAll()
-    logger.error(`[${requestId}] Failed to save or activate webhook records`, error)
+    logger.error('Failed to save or activate webhook records', error, { requestId })
     let cleanupFailure: unknown
     for (const sub of createdSubscriptions) {
       if (sub.externalSubscriptionCreated) {
@@ -1271,10 +1330,9 @@ export async function saveTriggerWebhooksForDeploy({
           if (recordsCommitted) await db.delete(webhook).where(eq(webhook.id, sub.webhookId))
         } catch (cleanupError) {
           cleanupFailure = cleanupError
-          logger.warn(
-            `[${requestId}] Failed to cleanup external subscription for ${sub.block.id}`,
-            cleanupError
-          )
+          logger.warn(`Failed to cleanup external subscription for ${sub.block.id}`, cleanupError, {
+            requestId,
+          })
           if (!recordsCommitted)
             await persistCreatedWebhookRecordAfterCleanupFailure({
               workflowId,
@@ -1290,11 +1348,13 @@ export async function saveTriggerWebhooksForDeploy({
     return {
       success: false,
       error: {
-        message:
+        message: deployFailureMessage(
+          error,
           (cleanupFailure as Error)?.message ||
-          (error as Error)?.message ||
-          'Failed to save webhook records',
-        status: 500,
+            (error as Error)?.message ||
+            'Failed to save webhook records'
+        ),
+        status: isUnavailableFailure(error) ? statusForOrchestrationError('unavailable') : 500,
       },
     }
   }
@@ -1335,10 +1395,9 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
       updatedAt: new Date(),
     })
   } catch (persistError) {
-    logger.error(
-      `[${requestId}] Failed to persist webhook record after external cleanup failure`,
-      persistError
-    )
+    logger.error('Failed to persist webhook record after external cleanup failure', persistError, {
+      requestId,
+    })
   }
 }
 
@@ -1385,12 +1444,8 @@ export async function cleanupWebhooksForWorkflow(
   }
 
   logger.info(
-    `[${requestId}] Cleaning up ${existingWebhooks.length} webhook(s) for ${skipExternalCleanup ? 'DB records only' : 'undeploy'}`,
-    {
-      workflowId,
-      deploymentVersionId,
-      webhookIds: existingWebhooks.map((wh) => wh.id),
-    }
+    `Cleaning up ${existingWebhooks.length} webhook(s) for ${skipExternalCleanup ? 'DB records only' : 'undeploy'}`,
+    { requestId, workflowId, deploymentVersionId, webhookIds: existingWebhooks.map((wh) => wh.id) }
   )
 
   if (!skipExternalCleanup) {
@@ -1414,7 +1469,8 @@ export async function cleanupWebhooksForWorkflow(
         shouldDeleteWebhook,
       })
       if (!deleted) {
-        logger.info(`[${requestId}] Stopping webhook DB cleanup because deployment became active`, {
+        logger.info('Stopping webhook DB cleanup because deployment became active', {
+          requestId,
           workflowId,
           deploymentVersionId,
           webhookId: wh.id,
@@ -1426,8 +1482,9 @@ export async function cleanupWebhooksForWorkflow(
 
   logger.info(
     deploymentVersionId
-      ? `[${requestId}] Cleaned up webhooks for workflow ${workflowId} deployment ${deploymentVersionId}`
-      : `[${requestId}] Cleaned up all webhooks for workflow ${workflowId}`
+      ? `Cleaned up webhooks for workflow ${workflowId} deployment ${deploymentVersionId}`
+      : `Cleaned up all webhooks for workflow ${workflowId}`,
+    { requestId }
   )
 }
 
@@ -1449,7 +1506,8 @@ async function cleanupWebhookRow(params: {
   const { webhook: wh, workflow, requestId, deploymentVersionId, strictExternalCleanup } = params
   const workflowId = wh.workflowId
   if (params.shouldDeleteWebhook && !(await params.shouldDeleteWebhook())) {
-    logger.info(`[${requestId}] Stopping webhook cleanup because deployment became active`, {
+    logger.info('Stopping webhook cleanup because deployment became active', {
+      requestId,
       workflowId,
       deploymentVersionId,
       webhookId: wh.id,
@@ -1460,7 +1518,7 @@ async function cleanupWebhookRow(params: {
   try {
     await cleanupExternalWebhook(wh, workflow, requestId, { throwOnError: strictExternalCleanup })
   } catch (cleanupError) {
-    logger.warn(`[${requestId}] Failed to cleanup external webhook ${wh.id}`, cleanupError)
+    logger.warn(`Failed to cleanup external webhook ${wh.id}`, cleanupError, { requestId })
     if (strictExternalCleanup) throw cleanupError
   }
 
@@ -1471,7 +1529,8 @@ async function cleanupWebhookRow(params: {
     shouldDeleteWebhook: params.shouldDeleteWebhook,
   })
   if (!deleted) {
-    logger.info(`[${requestId}] Stopping webhook DB cleanup because deployment became active`, {
+    logger.info('Stopping webhook DB cleanup because deployment became active', {
+      requestId,
       workflowId,
       deploymentVersionId,
       webhookId: wh.id,
@@ -1534,13 +1593,11 @@ export async function cleanupInactiveDeploymentWebhooks(params: {
   const batch = staleWebhooks.slice(0, params.limit)
   if (batch.length === 0) return { hasMore: false }
 
-  logger.info(
-    `[${requestId}] Cleaning up ${batch.length} webhook(s) owned by inactive deployments`,
-    {
-      workflowId,
-      webhookIds: batch.map((wh) => wh.id),
-    }
-  )
+  logger.info(`Cleaning up ${batch.length} webhook(s) owned by inactive deployments`, {
+    requestId,
+    workflowId,
+    webhookIds: batch.map((wh) => wh.id),
+  })
 
   for (const wh of batch) {
     const deploymentVersionId = wh.deploymentVersionId

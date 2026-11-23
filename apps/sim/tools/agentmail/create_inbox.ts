@@ -1,4 +1,5 @@
 import type { CreateInboxParams, CreateInboxResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailCreateInboxTool: ToolConfig<CreateInboxParams, CreateInboxResult> = {
@@ -6,6 +7,7 @@ export const agentmailCreateInboxTool: ToolConfig<CreateInboxParams, CreateInbox
   name: 'Create Inbox',
   description: 'Create a new email inbox with AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

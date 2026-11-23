@@ -111,16 +111,16 @@ export function checkInternalApiKey(req: NextRequest) {
 }
 
 /**
- * Shim-route envelope pre-validation (the /api/mothership/* aliases): clone the body,
- * and when it parses as JSON, check it against the envelope schema before delegating to
- * the copilot handler that actually consumes the request. Returns the 400 to send, or
- * null to proceed. A non-JSON body proceeds — the delegate owns that failure mode.
+ * Pre-validates the `/api/mothership/chat` POST envelope before `handleUnifiedChatPost` reads
+ * the body: clones the request and, when it parses as JSON, checks it against the envelope
+ * schema. Returns the 400 to send, or null to proceed. A non-JSON body proceeds, since the
+ * handler owns that failure mode.
  */
-export async function validateShimEnvelope(
+export async function validateChatPostEnvelope(
   request: NextRequest,
   schema: z.ZodType
 ): Promise<NextResponse | null> {
-  // boundary-raw-json: shim pre-validates the mothership envelope before delegating to the copilot handler that consumes the body
+  // boundary-raw-json: pre-validates the chat POST envelope on a clone so handleUnifiedChatPost can still read the body
   const body = await request
     .clone()
     .json()

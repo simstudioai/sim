@@ -12,6 +12,7 @@ import {
   logfireUrl,
   parseLogfireResponse,
 } from '@/tools/logfire/utils'
+import { LOGFIRE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const logfireQueryTool: ToolConfig<LogfireQueryParams, LogfireQueryResponse> = {
@@ -20,6 +21,7 @@ export const logfireQueryTool: ToolConfig<LogfireQueryParams, LogfireQueryRespon
   description:
     'Run a read-only SQL query against Logfire traces, logs, and metrics. Reads the records and metrics tables using PostgreSQL-compatible syntax.',
   version: '1.0.0',
+  oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,12 +1,15 @@
 import type { QdrantFetchParams, QdrantResponse } from '@/tools/qdrant/types'
 import { POINT_OUTPUT_PROPERTIES, QDRANT_RESPONSE_OUTPUT_PROPERTIES } from '@/tools/qdrant/types'
+import { QDRANT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
   id: 'qdrant_fetch_points',
   name: 'Qdrant Fetch Points',
   description: 'Fetch points by ID from a Qdrant collection',
   version: '1.0',
+  oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {
     url: {
@@ -55,7 +58,8 @@ export const fetchPointsTool: ToolConfig<QdrantFetchParams, QdrantResponse> = {
 
   request: {
     method: 'POST',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection', { preserveWhitespace: true, stripTabsAndNewlines: true })}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

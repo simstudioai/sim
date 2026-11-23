@@ -10,7 +10,6 @@ import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { useBrandConfig } from '@/ee/whitelabeling'
 import { createPublicFileContentSource } from '@/hooks/use-file-content-source'
 
 interface PublicFileViewProps {
@@ -36,7 +35,6 @@ export function PublicFileView({
   ownerName,
 }: PublicFileViewProps) {
   const contentUrl = `/api/files/public/${token}/content`
-  const brand = useBrandConfig()
   const provenance = buildProvenance(workspaceName, ownerName)
 
   // The public viewer reuses the in-app FileViewer; the content source seam swaps
@@ -73,20 +71,16 @@ export function PublicFileView({
       <DesktopTitleBarLane />
       <header className='z-10 flex shrink-0 items-center justify-between gap-4 border-[var(--border)] border-b bg-[var(--bg)] px-4 py-3'>
         <div className='flex min-w-0 items-center gap-3'>
-          {!brand.logoUrl && (
-            <>
-              <Link
-                href={SITE_URL}
-                target='_blank'
-                rel='noopener noreferrer'
-                aria-label='Sim home'
-                className='flex shrink-0 items-center'
-              >
-                <SimWordmark />
-              </Link>
-              <div className='h-5 w-px shrink-0 bg-[var(--border)]' />
-            </>
-          )}
+          <Link
+            href={SITE_URL}
+            target='_blank'
+            rel='noopener noreferrer'
+            aria-label='Sim home'
+            className='flex shrink-0 items-center'
+          >
+            <SimWordmark />
+          </Link>
+          <div className='h-5 w-px shrink-0 bg-[var(--border)]' />
           <div className='flex min-w-0 flex-col'>
             <OverflowText label={name} className='text-[var(--text-body)] text-sm' />
             {provenance ? (

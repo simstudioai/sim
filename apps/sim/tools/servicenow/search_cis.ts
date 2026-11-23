@@ -12,7 +12,9 @@ import {
   transformRecordListResponse,
   withQueryString,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowRecordListResponse> = {
   id: 'servicenow_search_cis',
@@ -20,6 +22,7 @@ export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowReco
   description:
     'Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,
@@ -49,7 +52,9 @@ export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowReco
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      const table = params.ciClass?.trim() || SERVICENOW_TABLES.CI
+      const table = params.ciClass?.trim()
+        ? safeUrlPathSegment(params.ciClass, 'ciClass')
+        : SERVICENOW_TABLES.CI
       const searchParams = new URLSearchParams()
       appendReadParams(searchParams, {
         query: buildEncodedQuery(

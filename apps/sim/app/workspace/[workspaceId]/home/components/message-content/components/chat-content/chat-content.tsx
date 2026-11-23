@@ -189,6 +189,14 @@ function SourceReference({ index, children }: SourceReferenceProps) {
   )
 }
 
+/**
+ * Placeholder URLs Streamdown's streaming parser substitutes for a link or image
+ * whose URL is still arriving. Neither resolves, so a pending link renders as
+ * its text and a pending image is withheld until the URL completes.
+ */
+const INCOMPLETE_LINK_HREF = 'streamdown:incomplete-link'
+const INCOMPLETE_IMAGE_SRC = 'streamdown:incomplete-image'
+
 const WORKSPACE_LINK_PREFIX = '#sim-workspace-ref-'
 const WorkspaceRefsContext = createContext<{
   resources: WorkspaceResourceTagData[]
@@ -375,6 +383,7 @@ const MARKDOWN_COMPONENTS = {
     href?: string
     'data-footnote-ref'?: boolean
   }) {
+    if (href === INCOMPLETE_LINK_HREF) return <>{children}</>
     if (href?.startsWith(SOURCE_LINK_PREFIX)) {
       return (
         <SourceReference index={Number(href.slice(SOURCE_LINK_PREFIX.length))}>
@@ -488,7 +497,7 @@ const MARKDOWN_COMPONENTS = {
     return <del className='text-[var(--text-tertiary)] line-through'>{children}</del>
   },
   img({ src, alt }: ComponentPropsWithoutRef<'img'>) {
-    if (typeof src !== 'string' || !src) return null
+    if (typeof src !== 'string' || !src || src === INCOMPLETE_IMAGE_SRC) return null
     return (
       <Lightbox src={src} alt={alt ?? ''}>
         <button
@@ -606,14 +615,12 @@ function ChatContentInner({
    * trades identical pixels, unlike flipping at `isRevealing`'s edge, which cut
    * running fades short (the old completion flash).
    *
-   * The swap must REMOUNT Streamdown (via `key`), not just flip its props:
-   * Streamdown's default element components are memoized on className + source
-   * position (`E`/`qe` in streamdown 2.5), so a re-parse of unchanged content
-   * without the animate plugin bails at every unoverridden element (`p`,
-   * `strong`, `tr`, headings, …) and leaves the stale per-char span DOM in
-   * place. The settled instance keeps the streaming parser (`parserTree`
-   * below) so the remount only sheds the spans, never re-interprets the
-   * markdown.
+   * The swap REMOUNTS Streamdown (via `key`) rather than flipping its props,
+   * so the settled tree is built from scratch without the animate plugin and
+   * no memoized element (`p`, `strong`, `tr`, headings, …) can carry the
+   * per-word span DOM over. The settled instance keeps the streaming parser
+   * (`parserTree` below) so the remount only sheds the spans, never
+   * re-interprets the markdown.
    *
    * The drain is deliberately one-way: a stream that resumes afterwards
    * (reconnect/continuation) reveals paced but unfaded, because re-arming

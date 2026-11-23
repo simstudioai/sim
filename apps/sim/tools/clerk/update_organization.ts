@@ -5,7 +5,9 @@ import type {
   ClerkUpdateOrganizationParams,
   ClerkUpdateOrganizationResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkUpdateOrganization')
 
@@ -17,6 +19,7 @@ export const clerkUpdateOrganizationTool: ToolConfig<
   name: 'Update Organization in Clerk',
   description: 'Update an existing organization in your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -58,7 +61,8 @@ export const clerkUpdateOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}`,
     method: 'PATCH',
     headers: (params) => {
       if (!params.secretKey) {

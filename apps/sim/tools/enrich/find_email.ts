@@ -1,4 +1,5 @@
 import type { EnrichFindEmailParams, EnrichFindEmailResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const findEmailTool: ToolConfig<EnrichFindEmailParams, EnrichFindEmailResponse> = {
@@ -6,6 +7,7 @@ export const findEmailTool: ToolConfig<EnrichFindEmailParams, EnrichFindEmailRes
   name: 'Enrich Find Email',
   description: "Find a person's work email address using their full name and company domain.",
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

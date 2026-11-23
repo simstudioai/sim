@@ -2,7 +2,7 @@
 title: Convex
 description: Use Convex database
 integration:
-  type: "convex"
+  type: "convex_v2"
   color: "#FFFFFF"
 ---
 
@@ -33,8 +33,6 @@ Run a Convex query function and return its result
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `functionPath` | string | Yes | Path to the query function \(e.g., messages:list or folder/file:myQuery\) |
 | `args` | json | No | Named arguments to pass to the function as a JSON object |
 
@@ -57,8 +55,6 @@ Run a Convex mutation function to write data and return its result
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `functionPath` | string | Yes | Path to the mutation function \(e.g., messages:send or folder/file:myMutation\) |
 | `args` | json | No | Named arguments to pass to the function as a JSON object |
 
@@ -81,8 +77,6 @@ Run a Convex action function and return its result
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `functionPath` | string | Yes | Path to the action function \(e.g., emails:send or folder/file:myAction\) |
 | `args` | json | No | Named arguments to pass to the function as a JSON object |
 
@@ -105,8 +99,6 @@ Run any Convex function (query, mutation, or action) by path without specifying 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `functionPath` | string | Yes | Path to the function \(e.g., messages:list or folder/file:myFunction\) |
 | `args` | json | No | Named arguments to pass to the function as a JSON object |
 
@@ -129,8 +121,6 @@ List all tables in a Convex deployment along with their JSON schemas. Requires s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 
 #### Output
 
@@ -151,8 +141,6 @@ List documents from a Convex table via a paginated snapshot. Pass the returned s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `tableName` | string | No | Table to list documents from. Omit to list documents from all tables. |
 | `snapshot` | string | No | Snapshot timestamp from a previous page. Omit on the first request to start a new snapshot. |
 | `pageCursor` | string | No | Page cursor from a previous page of the same snapshot. Omit on the first request. |
@@ -178,8 +166,6 @@ List documents that changed after a snapshot or previous delta cursor. Deleted d
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud) |
-| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
 | `cursor` | string | Yes | Timestamp cursor to read deltas after. Use the snapshot value from List Documents or the cursor from a previous Document Deltas page. |
 | `tableName` | string | No | Table to read deltas from. Omit to read deltas from all tables. |
 

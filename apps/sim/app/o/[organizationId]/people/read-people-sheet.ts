@@ -1,4 +1,4 @@
-import { PEOPLE_IMPORT_MAX_ROWS } from '@/lib/api/contracts/people'
+import { PEOPLE_IMPORT_MAX_COLUMNS, PEOPLE_IMPORT_MAX_ROWS } from '@/lib/api/contracts/people'
 import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -24,6 +24,7 @@ export async function readPeopleSheet(file: File): Promise<PeopleSheet> {
   const XLSX = await import('xlsx')
   const workbook = XLSX.read(data, {
     type: 'array',
+    sheets: 0,
     raw: /\.(csv|tsv)$/i.test(file.name),
     dense: true,
     // Keeps each cell's number format, which is how a date cell is told from a number.
@@ -34,6 +35,10 @@ export async function readPeopleSheet(file: File): Promise<PeopleSheet> {
   const dateSystem = { date1904: Boolean(workbook.Workbook?.WBProps?.date1904) }
   if (!sheet?.['!ref']) throw new Error('The file has no rows')
   const range = XLSX.utils.decode_range(sheet['!ref'])
+  const rowCount = range.e.r - range.s.r
+  if (rowCount > PEOPLE_IMPORT_MAX_ROWS) {
+    throw new Error(`Import at most ${PEOPLE_IMPORT_MAX_ROWS} rows at a time`)
+  }
   const grid = sheet['!data'] ?? []
   const text = (row: number, column: number): string => {
     const cell = grid[row]?.[column]
@@ -47,19 +52,19 @@ export async function readPeopleSheet(file: File): Promise<PeopleSheet> {
     return String(cell.w ?? cell.v).trim()
   }
   const columns: { header: string; index: number }[] = []
-  for (let index = range.s.c; index <= range.e.c; index++) {
+  for (const key of Object.keys(grid[range.s.r] ?? [])) {
+    const index = Number(key)
     const header = text(range.s.r, index)
     if (!header) continue
     if (columns.some((column) => column.header === header)) {
       throw new Error(`The ${header} column appears more than once`)
     }
+    if (columns.length === PEOPLE_IMPORT_MAX_COLUMNS) {
+      throw new Error(`Import at most ${PEOPLE_IMPORT_MAX_COLUMNS} named columns at a time`)
+    }
     columns.push({ header, index })
   }
   if (!columns.length) throw new Error('The first row should name the columns')
-  const rowCount = range.e.r - range.s.r
-  if (rowCount > PEOPLE_IMPORT_MAX_ROWS) {
-    throw new Error(`Import at most ${PEOPLE_IMPORT_MAX_ROWS} rows at a time`)
-  }
   return {
     fileName: file.name,
     headers: columns.map(({ header }) => header),

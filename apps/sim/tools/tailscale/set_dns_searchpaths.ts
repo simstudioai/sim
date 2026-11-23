@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleSetDnsSearchpathsParams,
   TailscaleSetDnsSearchpathsResponse,
@@ -14,6 +15,7 @@ export const tailscaleSetDnsSearchpathsTool: ToolConfig<
   name: 'Tailscale Set DNS Search Paths',
   description: 'Replace the DNS search domains for the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

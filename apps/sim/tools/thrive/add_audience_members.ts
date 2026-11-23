@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAddUsersResponse, ThriveAudienceUsersParams } from '@/tools/thrive/types'
 import { THRIVE_ADD_USERS_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import {
@@ -7,6 +8,7 @@ import {
   parseThriveResponse,
 } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addAudienceMembersTool: ToolConfig<ThriveAudienceUsersParams, ThriveAddUsersResponse> =
   {
@@ -14,6 +16,7 @@ export const addAudienceMembersTool: ToolConfig<ThriveAudienceUsersParams, Thriv
     name: 'Thrive Add Audience Members',
     description: 'Add members to a Thrive audience by email, ref, or id.',
     version: '1.0.0',
+    oauth: THRIVE_CREDENTIAL_OAUTH,
 
     params: {
       tenantId: {
@@ -51,7 +54,7 @@ export const addAudienceMembersTool: ToolConfig<ThriveAudienceUsersParams, Thriv
 
     request: {
       url: (params) =>
-        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/members`,
+        `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members`,
       method: 'POST',
       headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
       body: (params) => JSON.stringify(parseThriveArray<string>(params.users, 'users')),

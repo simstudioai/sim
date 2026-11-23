@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { normalizeName } from '@/executor/constants'
@@ -26,6 +27,12 @@ export interface ChildOutputSelection {
   /** Actual child block ID to the caller-supplied ref used in the scoped selector. */
   selectedBlockRefs: ReadonlyMap<string, string>
   targetsChildWorkflow: boolean
+  /**
+   * Selectors this child neither serves nor forwards, with why. A selection only shapes what
+   * the run reports, so a selector that cannot apply here is dropped, never a reason to fail
+   * the child block.
+   */
+  ignored: ReadonlyArray<{ selector: string; reason: string }>
 }
 
 function assertValidSelectorPart(value: string, label: string): void {
@@ -235,7 +242,14 @@ export function resolveOutputBlockRef(
   return matches[0].id
 }
 
-/** Routes workflow-scoped selections into a child executor. */
+/**
+ * Routes workflow-scoped selections into a child executor. Selectors arrive in the internal
+ * form; one that names a block of the current workflow is skipped, one scoped to a deeper
+ * workflow is forwarded unchanged, and one scoped to this child is rewritten to the child's
+ * block ID. A selector that does not parse, or names no block of this child, is reported in
+ * `ignored` rather than thrown: the run has already been admitted and selection is
+ * presentation.
+ */
 export function selectChildOutputSelectors(
   childWorkflowId: string,
   childBlocks: Record<string, BlockState>,
@@ -244,21 +258,34 @@ export function selectChildOutputSelectors(
   assertValidSelectorPart(childWorkflowId, 'workflow ID')
   const childSelectors: string[] = []
   const selectedBlockRefs = new Map<string, string>()
+  const ignored: { selector: string; reason: string }[] = []
   let targetsChildWorkflow = false
 
   for (const selector of selectedOutputs ?? []) {
-    const parsed = parseInternalOutputSelector(selector)
+    let parsed: ParsedOutputSelector
+    try {
+      parsed = parseInternalOutputSelector(selector)
+    } catch (error) {
+      ignored.push({ selector, reason: getErrorMessage(error) })
+      continue
+    }
     if (!parsed.workflowId) continue
     if (parsed.workflowId !== childWorkflowId) {
       childSelectors.push(selector)
       continue
     }
 
+    let childBlockId: string
+    try {
+      childBlockId = resolveOutputBlockRef(parsed.blockId, childBlocks)
+    } catch (error) {
+      ignored.push({ selector, reason: getErrorMessage(error) })
+      continue
+    }
     targetsChildWorkflow = true
-    const childBlockId = resolveOutputBlockRef(parsed.blockId, childBlocks)
     selectedBlockRefs.set(childBlockId, parsed.blockId)
     childSelectors.push(formatInternalOutputSelector(childBlockId, parsed.path))
   }
 
-  return { selectedOutputs: childSelectors, selectedBlockRefs, targetsChildWorkflow }
+  return { selectedOutputs: childSelectors, selectedBlockRefs, targetsChildWorkflow, ignored }
 }

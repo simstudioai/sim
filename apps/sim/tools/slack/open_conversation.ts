@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createSlackWebApiTool, slackId, slackJson } from '@/tools/slack/web-api'
+import { createSlackWebApiTool, slackId, slackIdList } from '@/tools/slack/web-api'
 import { conversationOutput, conversationSchema } from '@/tools/slack/web-api-responses'
 
 /** https://docs.slack.dev/reference/methods/conversations.open/ */
@@ -12,7 +12,13 @@ export const slackOpenConversationTool = createSlackWebApiTool({
   method: 'POST',
   oauth: { required: true, provider: 'slack', requiredScopes: [] },
   params: {
-    users: { type: 'json', required: false, visibility: 'user-or-llm', description: 'User IDs' },
+    users: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        '1 to 8 Slack user IDs, as a JSON array or a comma-separated string. Omit channel.',
+    },
     channel: {
       type: 'string',
       required: false,
@@ -34,7 +40,7 @@ export const slackOpenConversationTool = createSlackWebApiTool({
   },
   input: z
     .object({
-      users: slackJson(z.array(slackId).min(1).max(8))
+      users: slackIdList(z.array(slackId).min(1).max(8))
         .transform((ids) => ids.join(','))
         .optional(),
       channel: z.string().trim().min(1).optional(),

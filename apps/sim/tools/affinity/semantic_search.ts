@@ -12,6 +12,7 @@ import {
   requireParam,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinitySemanticSearchTool: ToolConfig<
@@ -23,6 +24,7 @@ export const affinitySemanticSearchTool: ToolConfig<
   description:
     'Find companies from a description in plain language — industry, technology, stage, or business model. Currently searches companies only.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

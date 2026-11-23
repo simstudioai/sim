@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { apiKeyAccessSchema } from '@/lib/api/contracts/api-keys'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -29,6 +30,19 @@ const base64Url43 = (message: string) => z.string().regex(/^[A-Za-z0-9\-_]{43}$/
 export const cliAuthScopeSchema = z.enum(['copilot', 'platform']).default('copilot')
 export type CliAuthScope = z.output<typeof cliAuthScopeSchema>
 
+/**
+ * Bounds on a minted platform key's lifetime, in whole days. The same window
+ * every other key-creation surface allows: one day to one year.
+ */
+export const CLI_AUTH_MIN_EXPIRY_DAYS = 1
+export const CLI_AUTH_MAX_EXPIRY_DAYS = 365
+
+const cliAuthExpiresInDaysSchema = z
+  .number()
+  .int('expiresInDays must be a whole number of days')
+  .min(CLI_AUTH_MIN_EXPIRY_DAYS, `expiresInDays must be at least ${CLI_AUTH_MIN_EXPIRY_DAYS}`)
+  .max(CLI_AUTH_MAX_EXPIRY_DAYS, `expiresInDays cannot exceed ${CLI_AUTH_MAX_EXPIRY_DAYS}`)
+
 export const approveCliAuthBodySchema = z.object({
   request: base64Url43('request must be a base64url request id'),
   challenge: base64Url43('challenge must be a base64url-encoded SHA-256 digest'),
@@ -50,6 +64,15 @@ export const approveCliAuthBodySchema = z.object({
    * request did not come from that UI.
    */
   bindKeyToWorkspace: z.boolean().optional().default(false),
+  /**
+   * Platform scope only: the access the key is minted with. The terminal asks
+   * for it in the browser URL and the approval page shows it before the user
+   * approves; recording it here, rather than reading it at poll time, is what
+   * keeps the unauthenticated poll from widening it.
+   */
+  access: apiKeyAccessSchema.optional().default('write'),
+  /** Platform scope only: days until the minted key expires. Absent means it never expires. */
+  expiresInDays: cliAuthExpiresInDaysSchema.optional(),
 })
 export type ApproveCliAuthBody = z.input<typeof approveCliAuthBodySchema>
 
@@ -81,7 +104,12 @@ export const pollCliAuthContract = defineRouteContract({
       z.object({ status: z.literal('pending') }),
       z.object({
         status: z.literal('complete'),
-        key: z.object({ id: z.string(), apiKey: z.string() }),
+        key: z.object({
+          id: z.string(),
+          apiKey: z.string(),
+          /** The name the key is listed under in Settings → API keys. */
+          name: z.string(),
+        }),
         /**
          * Echoes what the approving user actually consented to. The CLI asked
          * for a scope in the browser URL, but the approval is what binds it —
@@ -102,6 +130,14 @@ export const pollCliAuthContract = defineRouteContract({
          * profile somewhere the credential cannot follow.
          */
         workspaceBound: z.boolean(),
+        /**
+         * Platform scope only: the access the key was minted with, as approved.
+         * A terminal that asked for read-only must check this rather than
+         * assume it — a server that predates the field mints full access.
+         */
+        access: apiKeyAccessSchema.optional(),
+        /** Platform scope only: when the key expires, or null when it never does. */
+        expiresAt: z.string().nullable().optional(),
       }),
     ]),
   },

@@ -1,9 +1,12 @@
 import { AgentMailIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const AgentMailBlock: BlockConfig = {
   type: 'agentmail',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'agentmail_v2' },
   name: 'AgentMail',
   description: 'Manage email inboxes, threads, and messages with AgentMail',
   longDescription:
@@ -564,9 +567,9 @@ export const AgentMailBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `agentmail_${params.operation || 'send_message'}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           inboxIdParam,
           permanent,
           replyMessageId,
@@ -587,11 +590,11 @@ export const AgentMailBlock: BlockConfig = {
         }
 
         if (operation === 'delete_thread' && permanent !== undefined) {
-          rest.permanent = permanent === 'true'
+          rest.permanent = permanent === true || permanent === 'true'
         }
 
         if (operation === 'reply_message' && replyAll !== undefined) {
-          rest.replyAll = replyAll === 'true'
+          rest.replyAll = replyAll === true || replyAll === 'true'
         }
 
         if (operation === 'reply_message' && replyMessageId) {
@@ -601,7 +604,7 @@ export const AgentMailBlock: BlockConfig = {
         if (operation === 'reply_message' && replyTo) {
           rest.to = replyTo
         } else if (operation === 'reply_message') {
-          rest.to = undefined
+          rest.to = toolCallArg(context, rest.to)
         }
 
         if (operation === 'forward_message' && forwardMessageId) {
@@ -807,3 +810,19 @@ export const AgentMailBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AgentMailV2Block: BlockConfig = {
+  ...AgentMailBlock,
+  type: 'agentmail_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels.',
+  ...withSavedCredential(AgentMailBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'agentmail',
+    title: 'AgentMail Credential',
+  }),
+}

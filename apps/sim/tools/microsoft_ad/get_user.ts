@@ -1,9 +1,25 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   MicrosoftAdGetUserParams,
   MicrosoftAdGetUserResponse,
 } from '@/tools/microsoft_ad/types'
-import { USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { MANAGER_OUTPUT_PROPERTIES, USER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
+import { isTrueFlag, mapUser, USER_SELECT } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+const MANAGER_SELECT = 'id,displayName,mail,userPrincipalName,jobTitle'
+
+function mapManager(manager: unknown): Record<string, unknown> | null {
+  if (!isRecordLike(manager)) return null
+  return {
+    id: manager.id ?? null,
+    displayName: manager.displayName ?? null,
+    mail: manager.mail ?? null,
+    userPrincipalName: manager.userPrincipalName ?? null,
+    jobTitle: manager.jobTitle ?? null,
+  }
+}
 
 export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUserResponse> = {
   id: 'microsoft_ad_get_user',
@@ -28,36 +44,34 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
       visibility: 'user-or-llm',
       description: 'User ID or user principal name (e.g., "user@example.com")',
     },
+    includeManager: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: "Also return the user's manager (adds $expand=manager to the request)",
+    },
   },
   request: {
     url: (params) => {
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}?$select=id,displayName,givenName,surname,userPrincipalName,mail,jobTitle,department,officeLocation,mobilePhone,accountEnabled`
+      const expand = isTrueFlag(params.includeManager)
+        ? `&$expand=manager($select=${MANAGER_SELECT})`
+        : ''
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}?$select=${USER_SELECT}${expand}`
     },
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const user = await response.json()
     return {
       success: true,
       output: {
-        user: {
-          id: user.id ?? null,
-          displayName: user.displayName ?? null,
-          givenName: user.givenName ?? null,
-          surname: user.surname ?? null,
-          userPrincipalName: user.userPrincipalName ?? null,
-          mail: user.mail ?? null,
-          jobTitle: user.jobTitle ?? null,
-          department: user.department ?? null,
-          officeLocation: user.officeLocation ?? null,
-          mobilePhone: user.mobilePhone ?? null,
-          accountEnabled: user.accountEnabled ?? null,
-        },
+        user: mapUser(user),
+        ...(isTrueFlag(params?.includeManager) ? { manager: mapManager(user.manager) } : {}),
       },
     }
   },
@@ -66,6 +80,13 @@ export const getUserTool: ToolConfig<MicrosoftAdGetUserParams, MicrosoftAdGetUse
       type: 'object',
       description: 'User details',
       properties: USER_OUTPUT_PROPERTIES,
+    },
+    manager: {
+      type: 'object',
+      description:
+        "The user's manager, returned only when includeManager is true; null when no manager is assigned",
+      optional: true,
+      properties: MANAGER_OUTPUT_PROPERTIES,
     },
   },
 }

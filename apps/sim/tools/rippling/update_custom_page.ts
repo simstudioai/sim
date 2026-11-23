@@ -1,11 +1,14 @@
 import type { RipplingUpdateCustomPageParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateCustomPageTool: ToolConfig<RipplingUpdateCustomPageParams> = {
   id: 'rippling_update_custom_page',
   name: 'Rippling Update CustomPage',
   description: 'Update a custom page',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -18,7 +21,7 @@ export const ripplingUpdateCustomPageTool: ToolConfig<RipplingUpdateCustomPagePa
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-pages/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-pages/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

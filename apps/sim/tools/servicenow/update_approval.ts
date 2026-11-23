@@ -10,6 +10,7 @@ import {
   buildTableRecordUrl,
   transformRecordResponse,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const ALLOWED_DECISIONS = new Set<string>([APPROVAL_STATE.APPROVED, APPROVAL_STATE.REJECTED])
@@ -23,6 +24,7 @@ export const updateApprovalTool: ToolConfig<
   description:
     'Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

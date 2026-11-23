@@ -7,7 +7,6 @@ import {
   FILE_DELIVERY_CSP_PATH_PATTERN,
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
-  getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
 import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
@@ -31,7 +30,7 @@ const nextConfig: NextConfig = {
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).
-  productionBrowserSourceMaps: true,
+  productionBrowserSourceMaps: !isTruthy(env.NEXT_BUILD_SKIP_SOURCE_MAPS),
   turbopack: {
     root: path.join(import.meta.dirname, '../..'),
   },
@@ -70,36 +69,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
-      // Brand logo domain if configured
-      ...(process.env.NEXT_PUBLIC_BRAND_LOGO_URL
-        ? (() => {
-            try {
-              return [
-                {
-                  protocol: 'https' as const,
-                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_LOGO_URL!).hostname,
-                },
-              ]
-            } catch {
-              return []
-            }
-          })()
-        : []),
-      // Brand favicon domain if configured
-      ...(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL
-        ? (() => {
-            try {
-              return [
-                {
-                  protocol: 'https' as const,
-                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL!).hostname,
-                },
-              ]
-            } catch {
-              return []
-            }
-          })()
-        : []),
     ],
   },
   typescript: {
@@ -183,15 +152,8 @@ const nextConfig: NextConfig = {
      * 5.4x faster restarts and ~1.9x less memory. Cold compile with an empty
      * cache is unchanged (~32s either way) — the cache only pays back on restart.
      *
-     * This is deliberately NOT the same decision as `turbopackFileSystemCacheForBuild`
-     * below. That one is measured-harmful for `next build`; this one is
-     * measured-beneficial for `next dev`. It was previously `false`, but that was
-     * incidental — it was introduced by a landing-page redesign (#5408) whose
-     * description never mentions Turbopack, caching, or dev performance, and it
-     * is not covered by the #6078 build A/B cited below.
-     *
      * The cache is unbounded on disk (an abandoned one reached 78 GB here), so
-     * `scripts/prune-turbopack-cache.ts` is chained into every `dev` script to cap it.
+     * `scripts/prune-turbopack-cache.mts` is chained into every `dev` script to cap it.
      * A *corrupted* cache can abort Turbopack outright ("Cache corruption
      * detected: checksum mismatch") rather than falling back — it depends whether
      * the damaged region is read. `bun run dev:clean` and restart is the fix.
@@ -204,16 +166,8 @@ const nextConfig: NextConfig = {
      */
     turbopackFileSystemCacheForDev: true,
     /**
-     * Turbopack's persistent build cache (beta) stays off — it is a net loss at
-     * this app's size. A controlled A/B on a byte-identical module graph (PR
-     * #6078) measured compile at 113s with it off, 162s cold with it on, and 360s
-     * warm: the cache made the same build 3.2x slower. It also grew 5.1 GB ->
-     * 12 GB across two runs of an unchanged tree, so a cache degrades the longer
-     * it lives. Restoring across commits is separately undocumented-as-supported
-     * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
-     *
-     * The explicit pin is load-bearing: 16.3.0 flipped this default to true for
-     * stable (vercel/next.js#94616), so dropping it re-enables the slower cache.
+     * Off, explicitly: Next enables it by default, and a CI build compiles code its cache has
+     * never seen, so it only pays for writing the cache back (15-37s) on a disk that is discarded.
      */
     turbopackFileSystemCacheForBuild: false,
     /**
@@ -241,7 +195,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
       '@radix-ui/react-select',
-      '@radix-ui/react-tabs',
       '@radix-ui/react-checkbox',
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
@@ -326,10 +279,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-          {
-            key: 'Content-Security-Policy',
-            value: getWorkflowExecutionCSPPolicy(),
-          },
         ],
       },
       {
@@ -337,10 +286,6 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
           { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
-          {
-            key: 'Content-Security-Policy',
-            value: getWorkflowExecutionCSPPolicy(),
-          },
         ],
       },
       {
@@ -491,7 +436,17 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/team',
-        destination: 'https://cal.com/team/sim/demo',
+        destination: `${SIM_SITE_URL}/demo`,
+        permanent: false,
+      },
+      {
+        source: '/security',
+        destination: 'https://trust.sim.ai/',
+        permanent: false,
+      },
+      {
+        source: '/trust',
+        destination: 'https://trust.sim.ai/',
         permanent: false,
       }
     )
@@ -643,6 +598,20 @@ const nextConfig: NextConfig = {
       }
     )
 
+    /** Readers and agents guess the product's full name; the page's slug is `microsoft-copilot`. */
+    redirects.push(
+      {
+        source: '/comparisons/microsoft-copilot-studio',
+        destination: '/comparisons/microsoft-copilot',
+        permanent: true,
+      },
+      {
+        source: '/comparisons/copilot-studio',
+        destination: '/comparisons/microsoft-copilot',
+        permanent: true,
+      }
+    )
+
     /**
      * Stray crawler/artifact URLs picked up in an external SEO audit — no
      * page ever existed at these paths, but they were indexed or linked
@@ -656,11 +625,6 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/&',
-        destination: '/',
-        permanent: true,
-      },
-      {
-        source: '/Sim',
         destination: '/',
         permanent: true,
       },
@@ -719,10 +683,6 @@ const nextConfig: NextConfig = {
         {
           source: '/favicon.ico',
           destination: '/icon.svg',
-        },
-        {
-          source: '/r/:shortCode',
-          destination: 'https://go.trybeluga.ai/:shortCode',
         },
       ],
       /**

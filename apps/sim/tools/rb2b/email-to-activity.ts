@@ -4,6 +4,7 @@ import {
   type Rb2bEmailActivityResponse,
 } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bEmailToActivityTool: ToolConfig<
@@ -14,6 +15,7 @@ export const rb2bEmailToActivityTool: ToolConfig<
   name: 'RB2B Email to Last Active Date',
   description: 'Return the last known active date for an email address.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadActionResponse, SmartleadCampaignIdParams } from '@/tools/smartlead/types'
 import {
   actionOutputs,
@@ -32,6 +33,7 @@ export const updateCampaignSettingsTool: ToolConfig<
   name: 'Smartlead Update Campaign Settings',
   description: 'Updates tracking, stop-on-activity, and sending settings for a Smartlead campaign.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

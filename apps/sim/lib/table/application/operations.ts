@@ -151,6 +151,8 @@ export const tableOperations = {
   addColumn: writeOperation('tables.columns.add', 'none'),
   updateColumn: writeOperation('tables.columns.update', 'none'),
   deleteColumn: writeOperation('tables.columns.delete', 'none'),
+  /** A table's own fields, column drops, updates and adds, and source rows, in one transaction. */
+  reshape: writeOperation('tables.reshape', 'none'),
   listRows: readOperation('tables.rows.list', 'sourced'),
   analytics: defineWorkspaceOperation({
     id: 'tables.rows.analytics',

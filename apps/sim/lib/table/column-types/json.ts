@@ -1,4 +1,5 @@
 import { TypeJson } from '@sim/emcn/icons'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const jsonColumnType: ColumnTypeDefinition = {
@@ -14,19 +15,7 @@ export const jsonColumnType: ColumnTypeDefinition = {
   editor: 'text',
   expandable: true,
 
-  coerce(value) {
-    // Anything JSON-serializable is already valid — this is the widest type.
-    return { ok: true, value }
-  },
-
-  validateCell(value, column) {
-    try {
-      JSON.stringify(value)
-      return null
-    } catch {
-      return `${column.name} must be valid JSON`
-    }
-  },
+  ...CELL_RULES.json,
 
   formatForDisplay(value) {
     return JSON.stringify(value)

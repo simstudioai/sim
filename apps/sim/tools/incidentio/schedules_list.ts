@@ -2,6 +2,7 @@ import type {
   IncidentioSchedulesListParams,
   IncidentioSchedulesListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const schedulesListTool: ToolConfig<
@@ -12,6 +13,7 @@ export const schedulesListTool: ToolConfig<
   name: 'List Schedules',
   description: 'List all schedules in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -64,6 +66,7 @@ export const schedulesListTool: ToolConfig<
           ? {
               after: data.pagination_meta.after,
               page_size: data.pagination_meta.page_size,
+              total_record_count: data.pagination_meta.total_record_count,
             }
           : undefined,
       },
@@ -136,6 +139,11 @@ export const schedulesListTool: ToolConfig<
       properties: {
         after: { type: 'string', description: 'Cursor for next page', optional: true },
         page_size: { type: 'number', description: 'Number of results per page' },
+        total_record_count: {
+          type: 'number',
+          description: 'Total number of schedules',
+          optional: true,
+        },
       },
     },
   },

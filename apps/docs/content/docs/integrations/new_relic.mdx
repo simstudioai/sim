@@ -2,7 +2,7 @@
 title: New Relic
 description: Query observability data and record deployments in New Relic
 integration:
-  type: "new_relic"
+  type: "new_relic_v2"
   color: "#000000"
 ---
 
@@ -25,12 +25,12 @@ Run NRQL queries, search monitored entities, fetch entity details, and record de
 
 Run a NRQL query against a New Relic account using NerdGraph.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
-| `region` | string | No | New Relic data center region: us or eu |
 | `accountId` | number | Yes | New Relic account ID to query |
 | `nrql` | string | Yes | NRQL query to execute |
 | `timeout` | number | No | Optional query timeout in seconds |
@@ -42,16 +42,18 @@ Run a NRQL query against a New Relic account using NerdGraph.
 | `results` | array | NRQL result rows. Row fields depend on the query projection. |
 | `resultCount` | number | Number of NRQL result rows returned |
 
+</ReferenceDetails>
+
 ### New Relic Search Entities
 
 Search New Relic entities by name, GUID, domain type, tags, or reporting state.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
-| `region` | string | No | New Relic data center region: us or eu |
 | `query` | string | Yes | Entity search query, for example: name like "api" or domainType = "APM-APPLICATION" |
 | `cursor` | string | No | Pagination cursor from a previous entity search |
 
@@ -73,16 +75,18 @@ Search New Relic entities by name, GUID, domain type, tags, or reporting state.
 |     ↳ `values` | array | Tag values |
 | `nextCursor` | string | Cursor for the next page of results |
 
+</ReferenceDetails>
+
 ### New Relic Get Entity
 
 Fetch a New Relic entity by GUID.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
-| `region` | string | No | New Relic data center region: us or eu |
 | `guid` | string | Yes | Entity GUID |
 
 #### Output
@@ -100,6 +104,8 @@ Fetch a New Relic entity by GUID.
 |     ↳ `key` | string | Tag key |
 |     ↳ `values` | array | Tag values |
 
+</ReferenceDetails>
+
 ### New Relic Create Deployment Event
 
 Record a deployment change event in New Relic change tracking.
@@ -110,8 +116,6 @@ Record a deployment change event in New Relic change tracking.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | New Relic user API key for NerdGraph |
-| `region` | string | No | New Relic data center region: us or eu |
 | `entityGuid` | string | Yes | GUID of the entity associated with the deployment |
 | `version` | string | Yes | Deployment version, release name, or commit SHA |
 | `shortDescription` | string | No | Short description of the deployment |

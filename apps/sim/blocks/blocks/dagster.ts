@@ -1,6 +1,7 @@
 import { DagsterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 /** Coerces a subBlock value to a finite number, returning undefined for empty or non-numeric input. */
 function toFiniteNumber(value: unknown): number | undefined {
@@ -548,46 +549,56 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `dagster_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
 
-        if (params.operation === 'list_runs') {
+        if (operation === 'list_runs') {
           result.limit = toFiniteNumber(params.limit)
-          result.jobName = params.listRunsJobName || undefined
+          result.jobName =
+            params.listRunsJobName || toolCallArg(context, params.jobName) || undefined
           result.createdAfter = toFiniteNumber(params.createdAfter)
           result.createdBefore = toFiniteNumber(params.createdBefore)
-          result.cursor = params.runsCursor || undefined
+          result.cursor = params.runsCursor || toolCallArg(context, params.cursor) || undefined
         }
 
-        if (params.operation === 'get_run_logs') {
-          result.limit = toFiniteNumber(params.logsLimit)
+        if (operation === 'get_run_logs') {
+          result.limit =
+            toFiniteNumber(params.logsLimit) ?? toolCallArg(context, toFiniteNumber(params.limit))
         }
 
-        if (params.operation === 'reexecute_run') {
+        if (operation === 'reexecute_run') {
           if (params.runId) result.parentRunId = params.runId
         }
 
-        if (params.operation === 'list_schedules' && !params.scheduleStatus) {
+        if (operation === 'list_schedules' && !params.scheduleStatus) {
           result.scheduleStatus = undefined
         }
-        if (params.operation === 'list_sensors' && !params.sensorStatus) {
+        if (operation === 'list_sensors' && !params.sensorStatus) {
           result.sensorStatus = undefined
         }
 
-        if (params.operation === 'list_assets') {
-          result.prefix = params.assetPrefix || undefined
-          result.limit = toFiniteNumber(params.assetsLimit)
-          result.cursor = params.assetsCursor || undefined
+        if (operation === 'list_assets') {
+          result.prefix = params.assetPrefix || toolCallArg(context, params.prefix) || undefined
+          result.limit =
+            toFiniteNumber(params.assetsLimit) ?? toolCallArg(context, toFiniteNumber(params.limit))
+          result.cursor = params.assetsCursor || toolCallArg(context, params.cursor) || undefined
         }
 
-        if (params.operation === 'materialize_assets') {
-          result.jobName = params.assetJobName
+        if (operation === 'materialize_assets') {
+          result.jobName =
+            params.assetJobName || toolCallArg(context, params.jobName) || params.assetJobName
         }
 
-        if (params.operation === 'report_asset_materialization') {
-          result.eventType = params.reportEventType || 'ASSET_MATERIALIZATION'
-          result.partitionKeys = params.reportPartitionKeys || undefined
-          result.description = params.reportDescription || undefined
+        if (operation === 'report_asset_materialization') {
+          result.eventType =
+            toolCallArg(context, params.eventType) ||
+            params.reportEventType ||
+            'ASSET_MATERIALIZATION'
+          result.partitionKeys =
+            params.reportPartitionKeys || toolCallArg(context, params.partitionKeys) || undefined
+          result.description =
+            params.reportDescription || toolCallArg(context, params.description) || undefined
         }
 
         return result

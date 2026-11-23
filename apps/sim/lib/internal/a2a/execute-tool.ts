@@ -117,7 +117,8 @@ export const executeA2ATool: InternalToolOperationHandler = async (request) => {
     }
     const notReady = docNotReadyResponse(error)
     if (notReady) return notReady
-    logger.error(`[${request.requestId}] A2A operation failed`, {
+    logger.error('A2A operation failed', {
+      requestId: request.requestId,
       error: getErrorMessage(error),
       toolId: request.toolId,
     })

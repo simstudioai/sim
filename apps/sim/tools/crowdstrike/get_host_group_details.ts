@@ -2,6 +2,10 @@ import type {
   CrowdStrikeGetHostGroupDetailsParams,
   CrowdStrikeGetHostGroupDetailsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetHostGroupDetailsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeGetHostGroupDetailsTool: InternalToolConfig<
   description:
     'Get CrowdStrike Falcon host group records for one or more group IDs (GET /devices/entities/host-groups/v1). Requires the "Host groups: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeGetHostGroupDetailsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     hostGroupIds: {
       type: 'json',
       required: true,
@@ -46,6 +52,7 @@ export const crowdstrikeGetHostGroupDetailsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       hostGroupIds: params.hostGroupIds,
       operation: 'crowdstrike_get_host_group_details',
     }),

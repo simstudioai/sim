@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { sha256Hex } from '@sim/security/hash'
 import { requireAdmittedContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
@@ -6,23 +7,34 @@ import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveCanonicalActiveKnowledgeDocumentContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { recordDocumentFileSha256 } from '@/lib/knowledge/documents/service'
 import {
   createKnowledgeDocumentSourceValue,
   loadKnowledgeDocumentDurableSecretProvenance,
 } from '@/lib/knowledge/secret-provenance'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 
 export interface ReadOriginalKnowledgeDocumentInput {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId: string
+  /**
+   * Largest original the read accepts. Defaults to the text-extraction cap, for a caller that
+   * parses the bytes; a raw download raises it up to the stored-document limit.
+   */
   maxBytes?: number
   signal?: AbortSignal
 }
 
-/** Reads one authorized original without requiring indexing, fetching URLs, or creating a file. */
+/**
+ * Reads one authorized original without requiring indexing, fetching URLs, or creating a file,
+ * with the SHA-256 of its bytes. An older document's first read records that hash on the
+ * document (idempotent metadata, like a key a source read allocates), so later reads that only
+ * need the hash skip the download.
+ */
 export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({
@@ -34,7 +46,11 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   }) => resolveCanonicalActiveKnowledgeDocumentContext(input, principal),
   async execute({ input, context, principal }) {
     const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
-    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_TEXT_EXTRACTION_BYTES)
+    if (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes < 1 ||
+      maxBytes > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
+    )
       throw new OrchestrationError('validation', 'Invalid document read byte limit')
     input.signal?.throwIfAborted()
     const doc = context.document
@@ -93,6 +109,10 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       throw error
     }
     input.signal?.throwIfAborted()
-    return { ...metadata, sourceAvailable: true as const, buffer, hasRecordedSecrets }
+    const sha256 = doc.fileSha256 ?? sha256Hex(buffer)
+    if (doc.fileSha256 === null && doc.storageKey) {
+      await recordDocumentFileSha256(doc.id, doc.storageKey, sha256)
+    }
+    return { ...metadata, sourceAvailable: true as const, buffer, sha256, hasRecordedSecrets }
   },
 })

@@ -234,10 +234,12 @@ export class McpClient {
       if (this.onToolsChanged) {
         this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
           if (!this.isConnected) return
-          logger.info(`[${this.config.name}] Received tools/list_changed notification`)
+          logger.info('Received tools/list_changed notification', { serverName: this.config.name })
           this.onToolsChanged?.(this.config.id)
         })
-        logger.info(`[${this.config.name}] Registered tools/list_changed notification handler`)
+        logger.info('Registered tools/list_changed notification handler', {
+          serverName: this.config.name,
+        })
       }
 
       logger.info(`Successfully connected to MCP server: ${this.config.name}`, {
@@ -507,16 +509,16 @@ export class McpClient {
     }
 
     try {
-      logger.info(`[${this.config.name}] Sending ping to server`)
+      logger.info('Sending ping to server', { serverName: this.config.name })
       // Bound the ping so a half-open connection (no FIN/RST, so `onclose` never
       // fires) is detected quickly instead of stalling on the SDK's 60s default.
       const response = await this.client.ping(
         timeoutMs !== undefined ? { timeout: timeoutMs } : undefined
       )
-      logger.info(`[${this.config.name}] Ping successful`)
+      logger.info('Ping successful', { serverName: this.config.name })
       return response
     } catch (error) {
-      logger.warn(`[${this.config.name}] Ping failed:`, error)
+      logger.warn('Ping failed:', error, { serverName: this.config.name })
       throw error
     }
   }

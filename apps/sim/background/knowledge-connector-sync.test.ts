@@ -76,7 +76,8 @@ describe('knowledge connector sync worker', () => {
       processingDispatch: { failed: 1 },
     })
     expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('1 source failures, 1 dispatch failures')
+      expect.stringContaining('1 source failures, 1 dispatch failures'),
+      { requestId: 'request-1' }
     )
   })
 

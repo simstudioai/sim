@@ -20,5 +20,5 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
   mapInput: ({ query }) => ({ query: query.q }),
-  present: (links) => ({ links }),
+  present: (suggestions) => suggestions,
 })

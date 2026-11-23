@@ -29,13 +29,11 @@ import { isDesktopApp } from '@/lib/desktop'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import { useStartSlackCredentialGroupConfiguration } from '@/hooks/queries/credential-groups'
-import {
-  organizationAccountsKeys,
-  useOrganizationAccounts,
-} from '@/hooks/queries/organization-accounts'
+import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useSlackSearchInstallations } from '@/hooks/queries/slack-search'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
+import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 const CHANNEL_NAME = 'slack-managed-users'

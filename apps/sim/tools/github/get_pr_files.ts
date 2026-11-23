@@ -1,5 +1,7 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetPRFilesParams, PRFilesListResponse } from '@/tools/github/types'
 import { PR_FILE_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> = {
@@ -7,6 +9,7 @@ export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> =
   name: 'GitHub Get PR Files',
   description: 'Get the list of files changed in a pull request',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -52,7 +55,7 @@ export const getPRFilesTool: ToolConfig<GetPRFilesParams, PRFilesListResponse> =
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/files`
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/files`
       )
       if (params.per_page) url.searchParams.append('per_page', Number(params.per_page).toString())
       if (params.page) url.searchParams.append('page', Number(params.page).toString())
@@ -121,7 +124,8 @@ ${files
               filename: { type: 'string', description: 'File path' },
               status: {
                 type: 'string',
-                description: 'Change type (added/modified/deleted/renamed)',
+                description:
+                  'Change type (added, removed, modified, renamed, copied, changed, unchanged)',
               },
               additions: { type: 'number', description: 'Lines added' },
               deletions: { type: 'number', description: 'Lines deleted' },
@@ -132,7 +136,7 @@ ${files
             },
           },
         },
-        total_count: { type: 'number', description: 'Total number of files changed' },
+        total_count: { type: 'number', description: 'Number of files in this page' },
       },
     },
   },
@@ -144,6 +148,7 @@ export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
   name: getPRFilesTool.name,
   description: getPRFilesTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getPRFilesTool.params,
   request: getPRFilesTool.request,
 
@@ -167,6 +172,6 @@ export const getPRFilesV2Tool: ToolConfig<GetPRFilesParams, any> = {
         properties: PR_FILE_OUTPUT_PROPERTIES,
       },
     },
-    count: { type: 'number', description: 'Total number of files' },
+    count: { type: 'number', description: 'Number of files in this page' },
   },
 }

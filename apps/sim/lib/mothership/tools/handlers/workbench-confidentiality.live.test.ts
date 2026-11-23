@@ -18,9 +18,9 @@ import {
   mothershipAsyncRunsMockFns,
 } from '@sim/testing/mocks/mothership-async-runs.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,
@@ -51,7 +51,7 @@ vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
   RUNTIME_INSTALL_TIMEOUT_MS: 60_000,
 }))
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 vi.mock('@/lib/workspace-files/application/delegated-principal', () => ({
   rebindWorkspaceFileDelegatedPrincipal: ({ principal }: { principal: unknown }) => principal,
@@ -232,7 +232,7 @@ beforeEach(async () => {
   })
   mothershipAsyncRunsMockFns.mockIsActiveSandboxResourceOwner.mockResolvedValue(true)
   mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://worker.test')
-  mothershipGoFetchMockFns.mockFetchGo.mockImplementation(async () =>
+  mothershipWorkerFetchMockFns.mockFetchWorker.mockImplementation(async () =>
     Response.json({ version: 1, entrypoint: 'fixture-bootstrap' })
   )
   envFlagsMock.isMothershipSandboxEnabled = true
@@ -351,6 +351,10 @@ async function sandboxApi(path: string, handler: () => Promise<Response>, method
   return inResourceScope(async () => {
     const session = await buildMothershipSandboxSession({
       ...scope,
+      principal: createDelegatedPrincipal({
+        subjectUserId: scope.userId,
+        workspaceId: scope.workspaceId,
+      }),
       sessionKey: chatSandboxSessionKey(chatId),
     })
     const endpoint = session.envs!.SIM_ENDPOINT
@@ -750,6 +754,10 @@ describe('persistent workbench output confidentiality', () => {
       await inResourceScope(async () => {
         const session = await buildMothershipSandboxSession({
           ...scope,
+          principal: createDelegatedPrincipal({
+            subjectUserId: scope.userId,
+            workspaceId: scope.workspaceId,
+          }),
           sessionKey: chatSandboxSessionKey(chatId),
         })
         const credential = session.envs!.SIM_API_KEY

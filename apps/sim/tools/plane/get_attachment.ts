@@ -11,6 +11,7 @@ import {
   planeRedirectPolicy,
   planeVersionedValues,
 } from '@/tools/plane/utils'
+import { PLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +23,7 @@ export const planeGetAttachmentTool: ToolConfig<
   name: 'Plane Get an attachment',
   description: 'Get an attachment in Plane. Requires API v2.',
   version: '1.0.0',
+  oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,
     apiVersion: PLANE_VERSION_PARAM,

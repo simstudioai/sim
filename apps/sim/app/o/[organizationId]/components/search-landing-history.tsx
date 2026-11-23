@@ -21,7 +21,7 @@ export function SearchLandingHistory({
   onSearch,
   children,
 }: SearchLandingHistoryProps) {
-  const history = useSearchHistory(organizationId)
+  const history = useSearchHistory(organizationId, userId)
   const clear = useClearSearchHistory(organizationId, userId)
   const [selection, setSelection] = useState<'sources' | 'queries' | null>(null)
   const data = history.isError ? undefined : history.data

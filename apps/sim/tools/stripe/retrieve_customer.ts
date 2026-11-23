@@ -1,12 +1,15 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerResponse, RetrieveCustomerParams } from '@/tools/stripe/types'
 import { CUSTOMER_METADATA_OUTPUT_PROPERTIES, CUSTOMER_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, CustomerResponse> = {
   id: 'stripe_retrieve_customer',
   name: 'Stripe Retrieve Customer',
   description: 'Retrieve an existing customer by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -24,7 +27,7 @@ export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, Cust
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/customers/${params.id}`,
+    url: (params) => `https://api.stripe.com/v1/customers/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

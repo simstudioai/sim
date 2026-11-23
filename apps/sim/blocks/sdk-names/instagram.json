@@ -1,0 +1,34 @@
+{
+  "namespace": "legacy.instagram",
+  "methods": {
+    "instagram_delete_comment": "deleteComment",
+    "instagram_download_media": "downloadMedia",
+    "instagram_get_account_insights": "getAccountInsights",
+    "instagram_get_container_status": "getContainerStatus",
+    "instagram_get_conversation_messages": "getConversationMessages",
+    "instagram_get_media": "getMedia",
+    "instagram_get_media_insights": "getMediaInsights",
+    "instagram_get_message": "getMessage",
+    "instagram_get_profile": "getProfile",
+    "instagram_get_publishing_limit": "getPublishingLimit",
+    "instagram_hide_comment": "hideComment",
+    "instagram_list_comments": "listComments",
+    "instagram_list_conversations": "listConversations",
+    "instagram_list_media": "listMedia",
+    "instagram_list_stories": "listStories",
+    "instagram_private_reply": "privateReply",
+    "instagram_publish_carousel": "publishCarousel",
+    "instagram_publish_image": "publishImage",
+    "instagram_publish_reel": "publishReel",
+    "instagram_publish_story": "publishStory",
+    "instagram_publish_video": "publishVideo",
+    "instagram_reply_to_comment": "replyToComment",
+    "instagram_send_text_message": "sendTextMessage",
+    "instagram_set_comments_enabled": "setCommentsEnabled"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

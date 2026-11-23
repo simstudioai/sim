@@ -1,0 +1,23 @@
+{
+  "namespace": "revenuecat",
+  "methods": {
+    "create_purchase": "createPurchase",
+    "defer_google_subscription": "deferGoogleSubscription",
+    "delete_customer": "deleteCustomer",
+    "get_customer": "getCustomer",
+    "grant_entitlement": "grantEntitlement",
+    "list_offerings": "listOfferings",
+    "refund_google_subscription": "refundGoogleSubscription",
+    "revoke_entitlement": "revokeEntitlement",
+    "revoke_google_subscription": "revokeGoogleSubscription",
+    "update_subscriber_attributes": "updateSubscriberAttributes"
+  },
+  "triggers": {
+    "revenuecat_cancellation": "cancellation",
+    "revenuecat_expiration": "expiration",
+    "revenuecat_initial_purchase": "initialPurchase",
+    "revenuecat_non_renewing_purchase": "nonRenewingPurchase",
+    "revenuecat_product_change": "productChange",
+    "revenuecat_renewal": "renewal"
+  }
+}

@@ -134,14 +134,19 @@ export const simProfile: CompetitorProfile = {
   facts: {
     platform: {
       builderType: {
-        value: 'Visual drag-and-drop canvas, natural-language (Chat), or code (API/SDK)',
+        value: 'Visual drag-and-drop canvas, natural-language (Chat), or code (REST API and CLI)',
         shortValue: 'Visual canvas, chat, or code',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Introduction (visual, natural-language, and API building)',
+            asOf: '2026-11-10',
+          },
+          {
+            url: 'https://docs.sim.ai/cli',
+            label: 'Sim Docs: CLI',
+            asOf: '2026-11-10',
           },
         ],
       },
@@ -155,8 +160,8 @@ export const simProfile: CompetitorProfile = {
         sources: [
           {
             url: 'https://docs.sim.ai/introduction',
-            label: 'Sim Docs: Introduction (visual, natural-language, and API/SDK building)',
-            asOf: '2026-07-08',
+            label: 'Sim Docs: Introduction (visual, natural-language, and API building)',
+            asOf: '2026-11-10',
           },
         ],
       },
@@ -181,7 +186,7 @@ export const simProfile: CompetitorProfile = {
         value:
           'Cloud-hosted (managed, multi-tenant SaaS) or self-hosted (Docker/Kubernetes). No documented managed single-tenant/VPC hosting tier in between',
         detail:
-          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self Hosting" flag; there is no dedicated-instance/VPC offering.',
+          'The Enterprise plan\'s only hosting-related row in the pricing comparison table is a boolean "Self-Hosted Enterprise Features" flag; there is no dedicated-instance/VPC offering.',
         shortValue: 'Cloud-hosted or self-hosted, no mid-tier VPC option',
         confidence: 'verified',
         sources: [
@@ -467,14 +472,14 @@ export const simProfile: CompetitorProfile = {
       },
       humanInTheLoop: {
         value:
-          'Yes: dedicated approval block that pauses a run and waits for a human-submitted "Resume Form," with durable pause/resume via persisted execution snapshots and notification hooks (e.g. Slack, email) carrying the resume link',
+          'Yes: dedicated approval block that pauses a run and waits for a human-submitted "Resume Form," with durable pause/resume via persisted execution snapshots. Reviewers can be notified through Slack, Gmail, Microsoft Teams, Twilio SMS, or a webhook carrying the approval link, and approve in the Sim approval portal or through the resume API, after which the run continues',
         shortValue: 'Approval block with durable pause/resume and notifications',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
             label: 'Sim Docs: Human in the Loop Block',
-            asOf: '2026-07-02',
+            asOf: '2026-11-16',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/execution/snapshot.ts',
@@ -730,19 +735,19 @@ export const simProfile: CompetitorProfile = {
       },
       extensibilitySdk: {
         value:
-          'Official client SDKs exist for Python (simstudio-sdk, pip install simstudio-sdk) and TypeScript/JavaScript (simstudio-ts-sdk, npm install simstudio-ts-sdk), both wrapping the REST API (x-api-key header) with methods like execute_workflow / executeWorkflow, retry-with-backoff, and usage-limit lookups. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
-        shortValue: 'Official Python and TypeScript SDKs, plus MCP, code block, and A2A protocol',
+          'No language-specific client SDKs: code calls the REST API directly (x-api-key header), with a published OpenAPI 3.1 specification for generating clients, and the `sim` CLI runs workflows and manages resources from a terminal or script. Extensibility is further extended by MCP (client + server), a sandboxed code-execution block (JS/Python), custom tools, and an Agent-to-Agent (A2A) protocol block for external agent interop',
+        shortValue: 'REST API with OpenAPI spec and CLI, plus MCP, code block, and A2A protocol',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/api-reference/python',
-            label: 'Sim Docs: Python SDK',
-            asOf: '2026-07-04',
+            url: 'https://docs.sim.ai/api-reference/getting-started',
+            label: 'Sim Docs: API Reference - Getting Started',
+            asOf: '2026-11-10',
           },
           {
-            url: 'https://docs.sim.ai/api-reference/typescript',
-            label: 'Sim Docs: TypeScript SDK',
-            asOf: '2026-07-04',
+            url: 'https://docs.sim.ai/cli',
+            label: 'Sim Docs: CLI',
+            asOf: '2026-11-10',
           },
           {
             url: 'https://docs.sim.ai/agents/mcp',
@@ -969,19 +974,6 @@ export const simProfile: CompetitorProfile = {
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/permission-groups/fields.ts',
             label: 'Sim codebase: PermissionGroupConfig (allowedIntegrations)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      whiteLabeling: {
-        value:
-          'Yes: Enterprise orgs can replace the logo, wordmark, brand name, and primary/accent theme colors across the workspace UI with their own',
-        shortValue: 'Custom logo, name, and theme colors (Enterprise)',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
-            label: 'Sim Docs: Whitelabeling',
             asOf: '2026-07-02',
           },
         ],

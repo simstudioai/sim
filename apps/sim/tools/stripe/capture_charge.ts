@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -5,6 +6,7 @@ import {
 } from '@/tools/stripe/idempotency'
 import type { CaptureChargeParams, ChargeResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_capture_charge',
@@ -19,6 +21,7 @@ export const stripeCaptureChargeTool: ToolConfig<
   name: 'Stripe Capture Charge',
   description: 'Capture an uncaptured charge',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -43,7 +46,8 @@ export const stripeCaptureChargeTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/charges/${params.id}/capture`,
+    url: (params) =>
+      `https://api.stripe.com/v1/charges/${safeUrlPathSegment(params.id, 'id')}/capture`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

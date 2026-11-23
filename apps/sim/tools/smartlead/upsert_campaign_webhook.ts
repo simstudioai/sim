@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadUpsertWebhookResponse,
@@ -33,6 +34,7 @@ export const upsertCampaignWebhookTool: ToolConfig<
   description:
     'Creates a webhook on a Smartlead campaign, or updates an existing one when a webhook ID is supplied. Smartlead requires at least one lead category.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

@@ -1,0 +1,19 @@
+{
+  "namespace": "legacy.microsoftExcel",
+  "methods": {
+    "clear_range": "clearRange",
+    "create_table": "createTable",
+    "delete_worksheet": "deleteWorksheet",
+    "format_range": "formatRange",
+    "read": "readData",
+    "sort_range": "sortRange",
+    "table_add": "addToTable",
+    "worksheet_add": "addWorksheet",
+    "write": "writeUpdateData"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -1,5 +1,7 @@
 import type { OutlookReplyParams, OutlookReplyResponse } from '@/tools/outlook/types'
+import { buildOutlookRecipientMessage } from '@/tools/outlook/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const outlookReplyTool: ToolConfig<OutlookReplyParams, OutlookReplyResponse> = {
   id: 'outlook_reply',
@@ -31,11 +33,23 @@ export const outlookReplyTool: ToolConfig<OutlookReplyParams, OutlookReplyRespon
       visibility: 'user-or-llm',
       description: 'The reply text to include above the original message',
     },
+    cc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'CC recipients to add to the reply (comma-separated)',
+    },
+    bcc: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'BCC recipients to add to the reply (comma-separated)',
+    },
   },
 
   request: {
     url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/messages/${params.messageId.trim()}/reply`,
+      `https://graph.microsoft.com/v1.0/me/messages/${safeUrlPathSegment(params.messageId, 'messageId', { allowSeparators: true })}/reply`,
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
@@ -46,9 +60,12 @@ export const outlookReplyTool: ToolConfig<OutlookReplyParams, OutlookReplyRespon
         'Content-Type': 'application/json',
       }
     },
-    body: (params) => ({
-      comment: params.comment ?? '',
-    }),
+    body: (params) => {
+      const message = buildOutlookRecipientMessage({ cc: params.cc, bcc: params.bcc })
+      return message
+        ? { comment: params.comment ?? '', message }
+        : { comment: params.comment ?? '' }
+    },
   },
 
   transformResponse: async (response: Response) => {

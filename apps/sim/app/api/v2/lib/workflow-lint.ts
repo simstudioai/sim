@@ -62,6 +62,15 @@ export function presentWorkflowLint(lint: WorkflowLintReport) {
       field: issue.field,
       tableName: issue.tableName,
     })),
+    manualRunIssue: lint.manualRunIssue
+      ? {
+          reason: lint.manualRunIssue.reason,
+          message: lint.manualRunIssue.message,
+          blockId: lint.manualRunIssue.blockId ?? null,
+          blockName: lint.manualRunIssue.blockName ?? null,
+          blockType: lint.manualRunIssue.blockType ?? null,
+        }
+      : null,
     notes: lint.notes,
   }
 }

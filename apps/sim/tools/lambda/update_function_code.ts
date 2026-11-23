@@ -3,6 +3,7 @@ import type {
   LambdaUpdateFunctionCodeParams,
   LambdaUpdateFunctionCodeResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateFunctionCodeTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const updateFunctionCodeTool: InternalToolConfig<
   name: 'Lambda Update Function Code',
   description: "Update a function's deployment package from Amazon S3 or a container image",
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

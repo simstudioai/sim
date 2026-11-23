@@ -1,4 +1,5 @@
 import type { SESUpdateTemplateParams, SESUpdateTemplateResponse } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTemplateTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const updateTemplateTool: InternalToolConfig<
   name: 'SES Update Template',
   description: 'Update the subject, HTML, and text content of an existing SES email template',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

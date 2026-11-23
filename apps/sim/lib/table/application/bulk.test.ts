@@ -174,6 +174,34 @@ describe('table bulk application use cases', () => {
     expect(result.deleted).toEqual([{ kind: 'table', id: 'table-2', name: 'Archived' }])
   })
 
+  it('acts once on a table named twice, by its id and by its name', async () => {
+    const archived = new Set<string>()
+    mocks.resolveTableContext.mockImplementation(async (reference: string) => {
+      const tableId = reference === 'Table table-2' ? 'table-2' : reference
+      if (archived.has(tableId)) throw new OrchestrationError('not_found', 'Table not found')
+      return tableContext(tableId)
+    })
+    mocks.deleteTable.mockImplementation(async (tableId: string) => {
+      archived.add(tableId)
+      return { archived: { name: 'Archived', workspaceId: 'workspace-1' } }
+    })
+
+    const result = await bulkDeleteTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        tableIds: ['table-2', 'Table table-2'],
+        folderKeying: 'ids' as const,
+        folders: [],
+      },
+    })
+
+    expect(mocks.deleteTable).toHaveBeenCalledTimes(1)
+    expect(result.deleted).toEqual([{ kind: 'table', id: 'table-2', name: 'Archived' }])
+    expect(result.notFound).toEqual([])
+    expect(result.failed).toEqual([])
+  })
+
   it('conceals an inaccessible table as not-found rather than naming it', async () => {
     mocks.resolveTableContext.mockRejectedValueOnce(
       new OrchestrationError('not_found', 'Table not found')

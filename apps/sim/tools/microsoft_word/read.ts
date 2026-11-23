@@ -3,6 +3,7 @@ import type {
   MicrosoftWordReadResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
+import { DOCUMENT_METADATA_DETAIL_PROPERTIES } from '@/tools/microsoft_word/utils'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const readTool: InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordReadResponse> = {
@@ -69,6 +70,7 @@ export const readTool: InternalToolConfig<MicrosoftWordToolParams, MicrosoftWord
           description: 'ISO 8601 last modification time',
           optional: true,
         },
+        ...DOCUMENT_METADATA_DETAIL_PROPERTIES,
       },
     },
   },

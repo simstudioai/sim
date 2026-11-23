@@ -1,0 +1,57 @@
+{
+  "namespace": "rootly",
+  "methods": {
+    "rootly_acknowledge_alert": "acknowledgeAlert",
+    "rootly_add_incident_event": "addIncidentEvent",
+    "rootly_add_subscribers": "addSubscribers",
+    "rootly_assign_incident_role": "assignIncidentRole",
+    "rootly_create_action_item": "createActionItem",
+    "rootly_create_alert": "createAlert",
+    "rootly_create_incident": "createIncident",
+    "rootly_create_status_page_event": "createStatusPageEvent",
+    "rootly_delete_action_item": "deleteActionItem",
+    "rootly_delete_incident": "deleteIncident",
+    "rootly_escalate_alert": "escalateAlert",
+    "rootly_get_alert": "getAlert",
+    "rootly_get_incident": "getIncident",
+    "rootly_list_action_items": "listActionItems",
+    "rootly_list_alerts": "listAlerts",
+    "rootly_list_causes": "listCauses",
+    "rootly_list_environments": "listEnvironments",
+    "rootly_list_escalation_policies": "listEscalationPolicies",
+    "rootly_list_functionalities": "listFunctionalities",
+    "rootly_list_incident_events": "listIncidentEvents",
+    "rootly_list_incident_roles": "listIncidentRoles",
+    "rootly_list_incident_types": "listIncidentTypes",
+    "rootly_list_incidents": "listIncidents",
+    "rootly_list_on_calls": "listOnCalls",
+    "rootly_list_playbooks": "listPlaybooks",
+    "rootly_list_retrospectives": "listRetrospectives",
+    "rootly_list_schedules": "listSchedules",
+    "rootly_list_services": "listServices",
+    "rootly_list_severities": "listSeverities",
+    "rootly_list_teams": "listTeams",
+    "rootly_list_users": "listUsers",
+    "rootly_mitigate_incident": "mitigateIncident",
+    "rootly_remove_subscribers": "removeSubscribers",
+    "rootly_resolve_alert": "resolveAlert",
+    "rootly_resolve_incident": "resolveIncident",
+    "rootly_run_workflow": "runWorkflow",
+    "rootly_snooze_alert": "snoozeAlert",
+    "rootly_unassign_incident_role": "unassignIncidentRole",
+    "rootly_update_action_item": "updateActionItem",
+    "rootly_update_alert": "updateAlert",
+    "rootly_update_incident": "updateIncident"
+  },
+  "triggers": {
+    "rootly_alert_created": "alertCreated",
+    "rootly_incident_created": "incidentCreated",
+    "rootly_incident_resolved": "incidentResolved",
+    "rootly_incident_updated": "incidentUpdated"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

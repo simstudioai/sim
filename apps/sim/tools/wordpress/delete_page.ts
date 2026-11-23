@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeletePageParams,
@@ -41,7 +42,7 @@ export const deletePageTool: ToolConfig<WordPressDeletePageParams, WordPressDele
   request: {
     url: (params) => {
       const forceParam = params.force ? '?force=true' : ''
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/pages/${params.pageId}${forceParam}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/pages/${safeUrlPathSegment(params.pageId, 'pageId')}${forceParam}`
     },
     method: 'DELETE',
     headers: (params) => ({

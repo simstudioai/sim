@@ -88,8 +88,9 @@ export const greenhouseHandler: WebhookProviderHandler = {
       const { isGreenhouseEventMatch } = await import('@/triggers/greenhouse/utils')
       if (!isGreenhouseEventMatch(triggerId, action || '')) {
         logger.debug(
-          `[${requestId}] Greenhouse event mismatch for trigger ${triggerId}. Action: ${action}. Skipping execution.`,
+          `Greenhouse event mismatch for trigger ${triggerId}. Action: ${action}. Skipping execution.`,
           {
+            requestId,
             webhookId: webhook.id,
             workflowId: workflow.id,
             triggerId,

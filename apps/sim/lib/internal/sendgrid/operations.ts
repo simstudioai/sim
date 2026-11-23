@@ -95,7 +95,7 @@ export async function executeSendGridSend(
     }
   }
 
-  const messageId = await sendSendGridMail(input.apiKey, body, context.signal)
+  const messageId = await sendSendGridMail(input.apiKey, input.region, body, context.signal)
   return {
     success: true,
     output: {

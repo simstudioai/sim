@@ -492,6 +492,33 @@ describe('shared resource retention across workspace departure and account erasu
     ).toMatchObject([{ version: 1, authorUserIds: [fixture.departingId] }])
   })
 
+  it('hands off more files than Postgres accepts bind parameters', async () => {
+    const fixture = await seedResources(false)
+    /** More ids than Postgres's 65,535 bind parameters per statement. */
+    const bulkFileCount = 66_000
+    await db.execute(sql`
+      INSERT INTO ${workspaceFiles} (id, key, user_id, workspace_id, context, original_name, content_type)
+      SELECT ${fixture.workspaceId} || '-kb-' || n, ${fixture.workspaceId} || '/kb/' || n,
+        ${fixture.departingId}, ${fixture.workspaceId}, 'knowledge-base', 'bulk.txt', 'text/plain'
+      FROM generate_series(1, ${bulkFileCount}) AS n
+    `)
+    const result = await db.transaction((tx) =>
+      revokeWorkspaceAccessTx(tx, {
+        workspaceId: fixture.workspaceId,
+        userId: fixture.departingId,
+      })
+    )
+    expect(result.revoked).toBe(true)
+    expect(
+      await db
+        .select({ userId: workspaceFiles.userId, files: sql<number>`count(*)::int` })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.workspaceId, fixture.workspaceId))
+        .groupBy(workspaceFiles.userId)
+    ).toEqual([{ userId: fixture.ownerId, files: bulkFileCount + 1 }])
+    await assertTransferred(fixture)
+  })
+
   it('repairs references left by departures before the handoff fix', async () => {
     const fixture = await seedResources(true, false)
     await deleteUserAccount(fixture.departingId, { recordIdentity: false })

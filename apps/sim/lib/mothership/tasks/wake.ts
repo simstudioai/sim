@@ -37,7 +37,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
   const { taskId, chatId, workspaceId, organizationId, userId, message, runId } = input
   const userMessageId = runId
   const owner = organizationId ? { organizationId, userId } : { workspaceId: workspaceId!, userId }
-  chatPubSub?.publishStatusChanged({
+  chatPubSub.publishStatusChanged({
     ...owner,
     chatId,
     type: 'started',
@@ -78,7 +78,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
       userId,
       ...(organizationId ? { organizationId } : { workspaceId }),
       chatId,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,
@@ -100,7 +100,7 @@ export async function runWakeTurn(input: WakeRequest): Promise<void> {
     logger.error('Wake turn failed', { taskId, chatId, error: getErrorMessage(error) })
   } finally {
     await releasePendingChatStream(chatId, userMessageId)
-    chatPubSub?.publishStatusChanged({
+    chatPubSub.publishStatusChanged({
       ...owner,
       chatId,
       type: 'completed',

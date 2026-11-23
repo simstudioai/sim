@@ -21,7 +21,8 @@ export const listQueryHistoryTool: ToolConfig<
   version: '1.0.0',
   oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Query History',
-  description: 'List queries that completed in the last seven days, optionally filtered.',
+  description:
+    'List queries from the last seven days, optionally filtered. Queries still running are included unless an end time is set.',
   params: {
     ...snowflakeAuthParamFields,
     role: {

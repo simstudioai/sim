@@ -12,6 +12,7 @@ import {
   mapReport,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrUpdateReportTool: ToolConfig<CheckrUpdateReportParams, CheckrReportResponse> = {
@@ -20,6 +21,7 @@ export const checkrUpdateReportTool: ToolConfig<CheckrUpdateReportParams, Checkr
   description:
     'Upgrade a report to a different package or mark it as engaged. Provide a package, an adjudication, or both.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

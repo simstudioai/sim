@@ -1,0 +1,65 @@
+{
+  "namespace": "helpscout",
+  "methods": {
+    "assign_conversation": "assignConversation",
+    "create_conversation": "createConversation",
+    "create_customer": "createCustomer",
+    "create_customer_thread": "addCustomerMessage",
+    "create_note": "addNote",
+    "create_reply": "replyToConversation",
+    "delete_conversation": "deleteConversation",
+    "get_conversation": "getConversation",
+    "get_current_user": "getCurrentUser",
+    "get_customer": "getCustomer",
+    "get_organization": "getOrganization",
+    "get_saved_reply": "getSavedReply",
+    "list_conversations": "listConversations",
+    "list_custom_fields": "listCustomFields",
+    "list_customer_properties": "listCustomerProperties",
+    "list_customers": "listCustomers",
+    "list_folders": "listFolders",
+    "list_mailboxes": "listInboxes",
+    "list_organizations": "listOrganizations",
+    "list_saved_replies": "listSavedReplies",
+    "list_tags": "listTags",
+    "list_teams": "listTeams",
+    "list_threads": "listThreads",
+    "list_users": "listUsers",
+    "list_workflows": "listWorkflows",
+    "move_conversation": "moveConversation",
+    "run_workflow": "runWorkflow",
+    "set_conversation_tags": "setConversationTags",
+    "snooze_conversation": "snoozeConversation",
+    "unassign_conversation": "unassignConversation",
+    "unsnooze_conversation": "unsnoozeConversation",
+    "update_conversation_customer": "changeConversationCustomer",
+    "update_conversation_status": "updateConversationStatus",
+    "update_conversation_subject": "updateConversationSubject",
+    "update_custom_fields": "updateCustomFields",
+    "update_customer": "updateCustomer",
+    "update_customer_properties": "updateCustomerProperties"
+  },
+  "triggers": {
+    "helpscout_agent_replied": "agentReplied",
+    "helpscout_conversation_assigned": "conversationAssigned",
+    "helpscout_conversation_created": "conversationCreated",
+    "helpscout_conversation_deleted": "conversationDeleted",
+    "helpscout_conversation_merged": "conversationMerged",
+    "helpscout_conversation_moved": "conversationMoved",
+    "helpscout_conversation_status_changed": "conversationStatusChanged",
+    "helpscout_conversation_tags_updated": "conversationTagsUpdated",
+    "helpscout_customer_created": "customerCreated",
+    "helpscout_customer_replied": "customerReplied",
+    "helpscout_customer_updated": "customerUpdated",
+    "helpscout_note_created": "noteCreated",
+    "helpscout_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

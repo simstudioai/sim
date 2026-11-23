@@ -1,0 +1,1418 @@
+{
+  "alibaba/happy-horse/text-to-video": {
+    "label": "Happy Horse",
+    "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+    "resolutions": ["720p", "1080p"],
+    "image": {
+      "endpoint": "alibaba/happy-horse/image-to-video",
+      "imageField": "image_url",
+      "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["720p", "1080p"]
+    }
+  },
+  "alibaba/happy-horse/v1.1/text-to-video": {
+    "label": "Happy Horse 1.1",
+    "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21", "5:4", "4:5"],
+    "resolutions": ["720p", "1080p"],
+    "image": {
+      "endpoint": "alibaba/happy-horse/v1.1/image-to-video",
+      "imageField": "image_url",
+      "durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["720p", "1080p"]
+    }
+  },
+  "alibaba/wan-3.0-prime/text-to-video": {
+    "label": "Wan 3.0 Prime",
+    "durations": [
+      2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+      27, 28, 29, 30
+    ],
+    "aspectRatios": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "audioField": "audio",
+    "image": {
+      "endpoint": "alibaba/wan-3.0-prime/image-to-video",
+      "imageField": "start_image_url",
+      "durations": [
+        2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+        27, 28, 29, 30
+      ],
+      "aspectRatios": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["480p", "720p", "1080p"],
+      "audioField": "audio"
+    }
+  },
+  "alibaba/wan-3.0/text-to-video": {
+    "label": "Wan 3.0",
+    "durations": [
+      2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+      27, 28, 29, 30
+    ],
+    "aspectRatios": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "audioField": "audio",
+    "image": {
+      "endpoint": "alibaba/wan-3.0/image-to-video",
+      "imageField": "start_image_url",
+      "durations": [
+        2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+        27, 28, 29, 30
+      ],
+      "aspectRatios": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["480p", "720p", "1080p"],
+      "audioField": "audio"
+    }
+  },
+  "blackforestlabs/flux-3-max/text-to-video": {
+    "label": "FLUX 3 Max",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "aspectRatios": ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["720p", "1080p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "blackforestlabs/flux-3-max/image-to-video",
+      "imageField": "image_url",
+      "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "aspectRatios": ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["720p", "1080p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "blackforestlabs/flux-3/text-to-video": {
+    "label": "Flux 3",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "aspectRatios": ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["720p", "1080p", "1440p", "2160p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "blackforestlabs/flux-3/image-to-video",
+      "imageField": "image_url",
+      "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "aspectRatios": ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["720p", "1080p", "1440p", "2160p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "blackforestlabs/flux-3/text-to-video/draft": {
+    "label": "Flux 3 Draft",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "aspectRatios": ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "blackforestlabs/flux-3/image-to-video/draft",
+      "imageField": "image_url",
+      "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "aspectRatios": ["auto", "21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "audioField": "generate_audio"
+    }
+  },
+  "bytedance/seedance-2.0/fast/text-to-video": {
+    "label": "ByteDance Seedance 2.0 Fast",
+    "legacyId": "seedance-2.0-fast",
+    "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "bytedance/seedance-2.0/fast/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["480p", "720p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "bytedance/seedance-2.0/mini/text-to-video": {
+    "label": "Seedance 2.0 Mini",
+    "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["480p", "720p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "bytedance/seedance-2.0/text-to-video": {
+    "label": "ByteDance Seedance 2.0",
+    "legacyId": "seedance-2.0",
+    "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p", "4k"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "bytedance/seedance-2.0/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["480p", "720p", "1080p", "4k"],
+      "audioField": "generate_audio"
+    }
+  },
+  "bytedance/seedance-2.0/us/text-to-video": {
+    "label": "Seedance 2.0 US",
+    "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p", "4k"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "bytedance/seedance-2.0/us/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+      "resolutions": ["480p", "720p", "1080p", "4k"],
+      "audioField": "generate_audio"
+    }
+  },
+  "bytedance/seedance-2.5/text-to-video": {
+    "label": "Seedance 2.5",
+    "durations": [
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28",
+      "29",
+      "30"
+    ],
+    "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "bytedance/seedance-2.5/image-to-video",
+      "imageField": "image_url",
+      "durations": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30"
+      ],
+      "aspectRatios": ["auto"],
+      "resolutions": ["480p", "720p", "1080p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "bytedance/seedance-2.5/us/text-to-video": {
+    "label": "Seedance 2.5 US",
+    "durations": [
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23",
+      "24",
+      "25",
+      "26",
+      "27",
+      "28",
+      "29",
+      "30"
+    ],
+    "aspectRatios": ["auto", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+      "imageField": "image_url",
+      "durations": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30"
+      ],
+      "aspectRatios": ["auto"],
+      "resolutions": ["480p", "720p", "1080p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "creatify/boreal": {
+    "label": "Boreal",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "aspectRatios": ["auto", "16:9", "9:16", "1:1", "4:3", "3:4"],
+    "resolutions": ["720p", "1080p", "2k"]
+  },
+  "fal-ai/bytedance/seedance/v1.5/pro/text-to-video": {
+    "label": "Bytedance Seedance V1.5 Pro",
+    "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12"],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "auto"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/bytedance/seedance/v1.5/pro/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4", "5", "6", "7", "8", "9", "10", "11", "12"],
+      "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "auto"],
+      "resolutions": ["480p", "720p", "1080p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/bytedance/seedance/v1/pro/fast/text-to-video": {
+    "label": "Bytedance Seedance V1 Pro Fast",
+    "durations": ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/bytedance/seedance/v1/pro/fast/image-to-video",
+      "imageField": "image_url",
+      "durations": ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+      "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "auto"],
+      "resolutions": ["480p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/bytedance/seedance/v1/pro/text-to-video": {
+    "label": "Seedance 1.0 Pro",
+    "durations": ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/bytedance/seedance/v1/pro/image-to-video",
+      "imageField": "image_url",
+      "durations": ["2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+      "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "auto"],
+      "resolutions": ["480p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/heygen/avatar5/digital-twin": {
+    "label": "HeyGen Avatar V Digital Twin",
+    "aspectRatios": ["16:9", "9:16", "4:5", "5:4", "1:1", "auto"],
+    "resolutions": ["720p", "1080p", "4k"]
+  },
+  "fal-ai/heygen/v2/video-agent": {
+    "label": "HeyGen Video Agent v2"
+  },
+  "fal-ai/heygen/v3/video-agent": {
+    "label": "HeyGen Video Agent v3"
+  },
+  "fal-ai/hunyuan-video": {
+    "label": "Hunyuan Video",
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["480p", "580p", "720p"]
+  },
+  "fal-ai/hunyuan-video-v1.5/text-to-video": {
+    "label": "Hunyuan Video V1.5",
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["480p"],
+    "image": {
+      "endpoint": "fal-ai/hunyuan-video-v1.5/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["16:9", "9:16"],
+      "resolutions": ["480p"]
+    }
+  },
+  "fal-ai/infinity-star/text-to-video": {
+    "label": "Infinity Star",
+    "aspectRatios": ["16:9", "1:1", "9:16"]
+  },
+  "fal-ai/kandinsky5-pro/text-to-video": {
+    "label": "Kandinsky5 Pro",
+    "durations": ["5s"],
+    "aspectRatios": ["3:2", "1:1", "2:3"],
+    "resolutions": ["512P", "1024P"],
+    "image": {
+      "endpoint": "fal-ai/kandinsky5-pro/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5s"],
+      "resolutions": ["512P", "1024P"]
+    }
+  },
+  "fal-ai/kandinsky5/text-to-video": {
+    "label": "Kandinsky 5",
+    "durations": ["5s", "10s"],
+    "aspectRatios": ["3:2", "1:1", "2:3"],
+    "resolutions": ["768x512"]
+  },
+  "fal-ai/kandinsky5/text-to-video/distill": {
+    "label": "Kandinsky 5 Distilled",
+    "durations": ["5s", "10s"],
+    "aspectRatios": ["3:2", "1:1", "2:3"],
+    "resolutions": ["768x512"]
+  },
+  "fal-ai/kandinsky6-lite/text-to-video": {
+    "label": "Kandinsky 6.0 Lite",
+    "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kandinsky6-lite/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kandinsky6-pro/text-to-video": {
+    "label": "Kandinsky 6.0 Pro",
+    "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kandinsky6-pro/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/o3/4k/text-to-video": {
+    "label": "Kling O3 4K",
+    "legacyId": "kling-o3-4k",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/o3/4k/image-to-video",
+      "imageField": "image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/o3/pro/text-to-video": {
+    "label": "Kling O3 Pro",
+    "legacyId": "kling-o3-pro",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/o3/pro/image-to-video",
+      "imageField": "image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/o3/standard/text-to-video": {
+    "label": "Kling O3 [Standard]",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/o3/standard/image-to-video",
+      "imageField": "image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/v2.5-turbo/pro/text-to-video": {
+    "label": "Kling v2.5",
+    "durations": ["5", "10"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "10"]
+    }
+  },
+  "fal-ai/kling-video/v2.6/pro/text-to-video": {
+    "label": "Kling Video v2.6",
+    "durations": ["5", "10"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/v2.6/pro/image-to-video",
+      "imageField": "start_image_url",
+      "durations": ["5", "10"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/v3/4k/text-to-video": {
+    "label": "Kling 3.0 4K",
+    "legacyId": "kling-v3-4k",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/v3/4k/image-to-video",
+      "imageField": "start_image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/v3/pro/text-to-video": {
+    "label": "Kling 3.0 Pro",
+    "legacyId": "kling-v3-pro",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/v3/pro/image-to-video",
+      "imageField": "start_image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/v3/standard/text-to-video": {
+    "label": "Kling Video v3 [Standard]",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/kling-video/v3/standard/image-to-video",
+      "imageField": "start_image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/kling-video/v3/turbo/pro/text-to-video": {
+    "label": "Kling Video V3 Turbo Pro",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/kling-video/v3/turbo/pro/image-to-video",
+      "imageField": "image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
+    }
+  },
+  "fal-ai/kling-video/v3/turbo/standard/text-to-video": {
+    "label": "Kling Video V3 Standard Turbo",
+    "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/kling-video/v3/turbo/standard/image-to-video",
+      "imageField": "image_url",
+      "durations": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
+    }
+  },
+  "fal-ai/krea-wan-14b/text-to-video": {
+    "label": "Krea Wan 14b"
+  },
+  "fal-ai/longcat-video/distilled/text-to-video/480p": {
+    "label": "LongCat Video Distilled 480p",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/longcat-video/distilled/image-to-video/480p",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/longcat-video/distilled/text-to-video/720p": {
+    "label": "LongCat Video Distilled 720p",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/longcat-video/distilled/image-to-video/720p",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/longcat-video/text-to-video/480p": {
+    "label": "LongCat Video 480p",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/longcat-video/image-to-video/480p",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/longcat-video/text-to-video/720p": {
+    "label": "LongCat Video 720p",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/longcat-video/image-to-video/720p",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/ltx-2-19b/distilled/text-to-video": {
+    "label": "LTX-2 19B Distilled",
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/ltx-2-19b/distilled/image-to-video",
+      "imageField": "image_url",
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/ltx-2-19b/text-to-video": {
+    "label": "LTX-2 19B",
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/ltx-2-19b/image-to-video",
+      "imageField": "image_url",
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/ltx-2.3-22b/distilled/text-to-video": {
+    "label": "LTX-2.3 22B Distilled",
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/ltx-2.3-22b/distilled/image-to-video",
+      "imageField": "image_url",
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/ltx-2.3-22b/text-to-video": {
+    "label": "LTX-2.3 22B",
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/ltx-2.3-22b/image-to-video",
+      "imageField": "image_url",
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/ltx-2.3-quality/text-to-video": {
+    "label": "Ltx 2.3 Quality",
+    "resolutions": [
+      "square_hd",
+      "square",
+      "portrait_4_3",
+      "portrait_16_9",
+      "landscape_4_3",
+      "landscape_16_9"
+    ],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/ltx-2.3-quality/image-to-video",
+      "imageField": "image_url",
+      "resolutions": [
+        "auto",
+        "square_hd",
+        "square",
+        "portrait_4_3",
+        "portrait_16_9",
+        "landscape_4_3",
+        "landscape_16_9"
+      ],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/ltx-2.3/text-to-video": {
+    "label": "LTX 2.3",
+    "legacyId": "ltx-2.3",
+    "durations": [6, 8, 10],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["1080p", "1440p", "2160p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/ltx-2.3/image-to-video",
+      "imageField": "image_url",
+      "durations": [6, 8, 10],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["1080p", "1440p", "2160p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/ltx-2.3/text-to-video/fast": {
+    "label": "LTX 2.3 Fast",
+    "legacyId": "ltx-2.3-fast",
+    "durations": [6, 8, 10, 12, 14, 16, 18, 20],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["1080p", "1440p", "2160p"],
+    "audioField": "generate_audio",
+    "maxDurationByResolution": {
+      "1440p": 10,
+      "2160p": 10
+    },
+    "image": {
+      "endpoint": "fal-ai/ltx-2.3/image-to-video/fast",
+      "imageField": "image_url",
+      "durations": [6, 8, 10, 12, 14, 16, 18, 20],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["1080p", "1440p", "2160p"],
+      "audioField": "generate_audio",
+      "maxDurationByResolution": {
+        "1440p": 10,
+        "2160p": 10
+      }
+    }
+  },
+  "fal-ai/ltx-video": {
+    "label": "LTX Video (preview, research license)",
+    "image": {
+      "endpoint": "fal-ai/ltx-video/image-to-video",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/ltx-video-13b-distilled": {
+    "label": "LTX Video-0.9.7 13B Distilled",
+    "aspectRatios": ["9:16", "1:1", "16:9"],
+    "resolutions": ["480p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/ltx-video-13b-distilled/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["9:16", "1:1", "16:9", "auto"],
+      "resolutions": ["480p", "720p"]
+    }
+  },
+  "fal-ai/ltxv-13b-098-distilled": {
+    "label": "LTX-Video 13B 0.9.8 Distilled",
+    "aspectRatios": ["9:16", "1:1", "16:9"],
+    "resolutions": ["480p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/ltxv-13b-098-distilled/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["9:16", "1:1", "16:9", "auto"],
+      "resolutions": ["480p", "720p"]
+    }
+  },
+  "fal-ai/luma-dream-machine/ray-2": {
+    "label": "Luma Ray 2",
+    "durations": ["5s", "9s"],
+    "aspectRatios": ["16:9", "9:16", "4:3", "3:4", "21:9", "9:21"],
+    "resolutions": ["540p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/luma-dream-machine/ray-2/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5s", "9s"],
+      "aspectRatios": ["16:9", "9:16", "4:3", "3:4", "21:9", "9:21"],
+      "resolutions": ["540p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/luma-dream-machine/ray-2-flash": {
+    "label": "Luma Ray 2 Flash",
+    "durations": ["5s", "9s"],
+    "aspectRatios": ["16:9", "9:16", "4:3", "3:4", "21:9", "9:21"],
+    "resolutions": ["540p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/luma-dream-machine/ray-2-flash/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5s", "9s"],
+      "aspectRatios": ["16:9", "9:16", "4:3", "3:4", "21:9", "9:21"],
+      "resolutions": ["540p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/magi-distilled": {
+    "label": "MAGI-1 (Distilled)",
+    "aspectRatios": ["auto", "16:9", "9:16", "1:1"],
+    "resolutions": ["480p", "720p"]
+  },
+  "fal-ai/minimax/hailuo-02/pro/text-to-video": {
+    "label": "MiniMax Hailuo 02 [Pro]",
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/hailuo-02/pro/image-to-video",
+      "imageField": "image_url",
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/minimax/hailuo-02/standard/text-to-video": {
+    "label": "MiniMax Hailuo 02 [Standard]",
+    "durations": ["6", "10"],
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/hailuo-02/standard/image-to-video",
+      "imageField": "image_url",
+      "durations": ["6", "10"],
+      "resolutions": ["512P", "768P"],
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/minimax/hailuo-2.3/pro/text-to-video": {
+    "label": "MiniMax Hailuo 2.3 Pro",
+    "legacyId": "minimax-hailuo-2.3-pro",
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/hailuo-2.3/pro/image-to-video",
+      "imageField": "image_url",
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/minimax/hailuo-2.3/standard/text-to-video": {
+    "label": "MiniMax Hailuo 2.3 Standard",
+    "legacyId": "minimax-hailuo-2.3-standard",
+    "durations": ["6", "10"],
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/hailuo-2.3/standard/image-to-video",
+      "imageField": "image_url",
+      "durations": ["6", "10"],
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/minimax/video-01": {
+    "label": "MiniMax (Hailuo AI) Video 01",
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/video-01/image-to-video",
+      "imageField": "image_url",
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/minimax/video-01-director": {
+    "label": "MiniMax (Hailuo AI) Video 01 Director",
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/video-01-director/image-to-video",
+      "imageField": "image_url",
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/minimax/video-01-live": {
+    "label": "MiniMax (Hailuo AI) Video 01 Live",
+    "promptOptimizer": true,
+    "image": {
+      "endpoint": "fal-ai/minimax/video-01-live/image-to-video",
+      "imageField": "image_url",
+      "promptOptimizer": true
+    }
+  },
+  "fal-ai/ovi": {
+    "label": "Ovi",
+    "resolutions": ["512x992", "992x512", "960x512", "512x960", "720x720", "448x1120", "1120x448"],
+    "image": {
+      "endpoint": "fal-ai/ovi/image-to-video",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/pixverse/c1/text-to-video": {
+    "label": "PixVerse C1",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16", "2:3", "3:2", "21:9"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/pixverse/c1/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["360p", "540p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/pixverse/v3.5/text-to-video": {
+    "label": "PixVerse V3.5",
+    "durations": ["5", "8"],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "maxDurationByResolution": {
+      "1080p": 5
+    },
+    "image": {
+      "endpoint": "fal-ai/pixverse/v3.5/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "8"],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "maxDurationByResolution": {
+        "1080p": 5
+      }
+    }
+  },
+  "fal-ai/pixverse/v3.5/text-to-video/fast": {
+    "label": "PixVerse V3.5 Fast",
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/pixverse/v3.5/image-to-video/fast",
+      "imageField": "image_url",
+      "resolutions": ["360p", "540p", "720p"]
+    }
+  },
+  "fal-ai/pixverse/v4.5/text-to-video": {
+    "label": "PixVerse V4.5",
+    "durations": ["5", "8"],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "maxDurationByResolution": {
+      "1080p": 5
+    },
+    "image": {
+      "endpoint": "fal-ai/pixverse/v4.5/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "8"],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "maxDurationByResolution": {
+        "1080p": 5
+      }
+    }
+  },
+  "fal-ai/pixverse/v4.5/text-to-video/fast": {
+    "label": "PixVerse V4.5 Fast",
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/pixverse/v4.5/image-to-video/fast",
+      "imageField": "image_url",
+      "resolutions": ["360p", "540p", "720p"]
+    }
+  },
+  "fal-ai/pixverse/v4/text-to-video": {
+    "label": "PixVerse V4",
+    "durations": ["5", "8"],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "maxDurationByResolution": {
+      "1080p": 5
+    },
+    "image": {
+      "endpoint": "fal-ai/pixverse/v4/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "8"],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "maxDurationByResolution": {
+        "1080p": 5
+      }
+    }
+  },
+  "fal-ai/pixverse/v4/text-to-video/fast": {
+    "label": "PixVerse V4 Fast",
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/pixverse/v4/image-to-video/fast",
+      "imageField": "image_url",
+      "resolutions": ["360p", "540p", "720p"]
+    }
+  },
+  "fal-ai/pixverse/v5.5/text-to-video": {
+    "label": "PixVerse V5.5",
+    "durations": ["5", "8", "10"],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "maxDurationByResolution": {
+      "1080p": 8
+    },
+    "image": {
+      "endpoint": "fal-ai/pixverse/v5.5/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "8", "10"],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "maxDurationByResolution": {
+        "1080p": 8
+      }
+    }
+  },
+  "fal-ai/pixverse/v5.6/text-to-video": {
+    "label": "PixVerse V5.6",
+    "durations": ["5", "8", "10"],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "maxDurationByResolution": {
+      "1080p": 8
+    },
+    "image": {
+      "endpoint": "fal-ai/pixverse/v5.6/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "8", "10"],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "maxDurationByResolution": {
+        "1080p": 8
+      }
+    }
+  },
+  "fal-ai/pixverse/v5/text-to-video": {
+    "label": "PixVerse V5",
+    "durations": ["5", "8"],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "maxDurationByResolution": {
+      "1080p": 5
+    },
+    "image": {
+      "endpoint": "fal-ai/pixverse/v5/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "8"],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "maxDurationByResolution": {
+        "1080p": 5
+      }
+    }
+  },
+  "fal-ai/pixverse/v6/text-to-video": {
+    "label": "PixVerse V6",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16", "2:3", "3:2", "21:9"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/pixverse/v6/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["360p", "540p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/veo3.1": {
+    "label": "Google Veo 3.1",
+    "legacyId": "veo-3.1",
+    "durations": ["4s", "6s", "8s"],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["720p", "1080p", "4k"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/veo3.1/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4s", "6s", "8s"],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["720p", "1080p", "4k"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/veo3.1/fast": {
+    "label": "Google Veo 3.1 Fast",
+    "legacyId": "veo-3.1-fast",
+    "durations": ["4s", "6s", "8s"],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["720p", "1080p", "4k"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/veo3.1/fast/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4s", "6s", "8s"],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["720p", "1080p", "4k"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/veo3.1/lite": {
+    "label": "Google Veo 3.1 Lite",
+    "durations": ["4s", "6s", "8s"],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["720p", "1080p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "fal-ai/veo3.1/lite/image-to-video",
+      "imageField": "image_url",
+      "durations": ["4s", "6s", "8s"],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["720p", "1080p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "fal-ai/vidu/q1/text-to-video": {
+    "label": "Vidu Q1",
+    "maxPromptLength": 1500,
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "image": {
+      "endpoint": "fal-ai/vidu/q1/image-to-video",
+      "imageField": "image_url",
+      "maxPromptLength": 1500
+    }
+  },
+  "fal-ai/vidu/q2/text-to-video": {
+    "label": "Vidu Q2",
+    "durations": [2, 3, 4, 5, 6, 7, 8],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["360p", "520p", "720p", "1080p"]
+  },
+  "fal-ai/vidu/q3/text-to-video": {
+    "label": "Vidu Q3",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "aspectRatios": ["16:9", "9:16", "4:3", "3:4", "1:1"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "audioField": "audio",
+    "image": {
+      "endpoint": "fal-ai/vidu/q3/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "audioField": "audio"
+    }
+  },
+  "fal-ai/vidu/q3/text-to-video/turbo": {
+    "label": "Vidu Q3 Turbo",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "aspectRatios": ["16:9", "9:16", "4:3", "3:4", "1:1"],
+    "resolutions": ["360p", "540p", "720p", "1080p"],
+    "audioField": "audio",
+    "image": {
+      "endpoint": "fal-ai/vidu/q3/image-to-video/turbo",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+      "resolutions": ["360p", "540p", "720p", "1080p"],
+      "audioField": "audio"
+    }
+  },
+  "fal-ai/wan-25-preview/text-to-video": {
+    "label": "Wan 2.5",
+    "durations": ["5", "10"],
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/wan-25-preview/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "10"],
+      "resolutions": ["480p", "720p", "1080p"]
+    }
+  },
+  "fal-ai/wan-pro/text-to-video": {
+    "label": "Wan-2.1 Pro",
+    "image": {
+      "endpoint": "fal-ai/wan-pro/image-to-video",
+      "imageField": "image_url"
+    }
+  },
+  "fal-ai/wan-t2v-lora": {
+    "label": "Wan-2.1 with LoRAs",
+    "aspectRatios": ["9:16", "16:9"],
+    "resolutions": ["480p", "580p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/wan-i2v-lora",
+      "imageField": "image_url",
+      "aspectRatios": ["auto", "16:9", "9:16", "1:1"],
+      "resolutions": ["480p", "720p"]
+    }
+  },
+  "fal-ai/wan/v2.2-5b/text-to-video": {
+    "label": "Wan v2.2 5B",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["580p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/wan/v2.2-5b/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["auto", "16:9", "9:16", "1:1"],
+      "resolutions": ["580p", "720p"]
+    }
+  },
+  "fal-ai/wan/v2.2-5b/text-to-video/distill": {
+    "label": "Wan 2.2 5B Distilled",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["580p", "720p"]
+  },
+  "fal-ai/wan/v2.2-5b/text-to-video/fast-wan": {
+    "label": "Wan 2.2 5B FastWan",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["480p", "580p", "720p"]
+  },
+  "fal-ai/wan/v2.2-a14b/text-to-video": {
+    "label": "Wan-2.2 A14B",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["480p", "580p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/wan/v2.2-a14b/image-to-video",
+      "imageField": "image_url",
+      "aspectRatios": ["auto", "16:9", "9:16", "1:1"],
+      "resolutions": ["480p", "580p", "720p"]
+    }
+  },
+  "fal-ai/wan/v2.2-a14b/text-to-video/lora": {
+    "label": "Wan-2.2 A14B with LoRAs",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["480p", "580p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/wan/v2.2-a14b/image-to-video/lora",
+      "imageField": "image_url",
+      "aspectRatios": ["auto", "16:9", "9:16", "1:1"],
+      "resolutions": ["480p", "580p", "720p"]
+    }
+  },
+  "fal-ai/wan/v2.2-a14b/text-to-video/turbo": {
+    "label": "WAN 2.2 A14B Turbo",
+    "legacyId": "wan-2.2-a14b-turbo",
+    "aspectRatios": ["16:9", "9:16", "1:1"],
+    "resolutions": ["480p", "580p", "720p"],
+    "image": {
+      "endpoint": "fal-ai/wan/v2.2-a14b/image-to-video/turbo",
+      "imageField": "image_url",
+      "aspectRatios": ["auto", "16:9", "9:16", "1:1"],
+      "resolutions": ["480p", "580p", "720p"]
+    }
+  },
+  "fal-ai/wan/v2.7/text-to-video": {
+    "label": "Wan 2.7",
+    "durations": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+    "resolutions": ["720p", "1080p"],
+    "image": {
+      "endpoint": "fal-ai/wan/v2.7/image-to-video",
+      "imageField": "image_url",
+      "durations": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["720p", "1080p"]
+    }
+  },
+  "google/gemini-omni-flash": {
+    "label": "Gemini Omni Flash",
+    "durations": [3, 4, 5, 6, 7, 8, 9, 10],
+    "aspectRatios": ["16:9", "9:16"],
+    "image": {
+      "endpoint": "google/gemini-omni-flash/image-to-video",
+      "imageField": "image_url",
+      "durations": [3, 4, 5, 6, 7, 8, 9, 10],
+      "aspectRatios": ["16:9", "9:16"]
+    }
+  },
+  "google/gemini-omni-flash/v1.1/text-to-video": {
+    "label": "Gemini Omni Flash 1.1",
+    "durations": [3, 4, 5, 6, 7, 8, 9, 10],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["360p", "720p", "1080p", "4k"],
+    "image": {
+      "endpoint": "google/gemini-omni-flash/v1.1/image-to-video",
+      "imageField": "image_url",
+      "durations": [3, 4, 5, 6, 7, 8, 9, 10],
+      "aspectRatios": ["16:9", "9:16"],
+      "resolutions": ["360p", "720p", "1080p", "4k"]
+    }
+  },
+  "heygen/heygen-video/text-to-video": {
+    "label": "HeyGen Video",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480p", "768p", "1080p", "2k"],
+    "image": {
+      "endpoint": "heygen/heygen-video/image-to-video",
+      "imageField": "image_url",
+      "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["480p", "768p", "1080p", "2k"]
+    }
+  },
+  "kling/v4/text-to-video": {
+    "label": "Kling 4.0",
+    "durations": [
+      3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+      28, 29, 30
+    ],
+    "aspectRatios": ["16:9", "9:16", "1:1", "21:9"],
+    "resolutions": ["720p", "1080p"],
+    "image": {
+      "endpoint": "kling/v4/image-to-video",
+      "imageField": "start_image_url",
+      "durations": [
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+        28, 29, 30
+      ],
+      "resolutions": ["720p", "1080p"]
+    }
+  },
+  "lightricks/ltx-2.5/text-to-video/fast": {
+    "label": "LTX 2.5 Fast",
+    "durations": [6, 8, 10, 12, 14, 16, 18, 20],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["720p", "1080p", "1440p", "2160p"],
+    "audioField": "generate_audio",
+    "maxDurationByResolution": {
+      "1440p": 10,
+      "2160p": 10
+    },
+    "image": {
+      "endpoint": "lightricks/ltx-2.5/image-to-video/fast",
+      "imageField": "image_url",
+      "durations": [6, 8, 10, 12, 14, 16, 18, 20],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["720p", "1080p", "1440p", "2160p"],
+      "audioField": "generate_audio",
+      "maxDurationByResolution": {
+        "1440p": 10,
+        "2160p": 10
+      }
+    }
+  },
+  "lightricks/ltx-2.5/text-to-video/pro": {
+    "label": "LTX 2.5 Pro",
+    "durations": [6, 8, 10],
+    "aspectRatios": ["16:9", "9:16"],
+    "resolutions": ["720p", "1080p"],
+    "audioField": "generate_audio",
+    "image": {
+      "endpoint": "lightricks/ltx-2.5/image-to-video/pro",
+      "imageField": "image_url",
+      "durations": [6, 8, 10],
+      "aspectRatios": ["auto", "16:9", "9:16"],
+      "resolutions": ["720p", "1080p"],
+      "audioField": "generate_audio"
+    }
+  },
+  "luma/agent/ray/v3.2/text-to-video": {
+    "label": "Luma Ray 3.2",
+    "durations": ["5s", "10s"],
+    "aspectRatios": ["3:4", "4:3", "1:1", "9:16", "16:9", "21:9"],
+    "resolutions": ["540p", "720p", "1080p"],
+    "image": {
+      "endpoint": "luma/agent/ray/v3.2/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5s", "10s"],
+      "aspectRatios": ["3:4", "4:3", "1:1", "9:16", "16:9", "21:9"],
+      "resolutions": ["540p", "720p", "1080p"]
+    }
+  },
+  "minimax/h3-max-turbo/text-to-video": {
+    "label": "H3 Max Turbo",
+    "requestDefaults": {
+      "prompt_expansion_mode": "balanced"
+    },
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480P", "768P", "1080P"],
+    "image": {
+      "endpoint": "minimax/h3-max-turbo/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["480P", "768P", "1080P"],
+      "requestDefaults": {
+        "prompt_expansion_mode": "balanced"
+      }
+    }
+  },
+  "minimax/h3-max/styles/16bit-pixel": {
+    "label": "H3 Max 16-bit Pixel",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+  },
+  "minimax/h3-max/styles/hand-drawn": {
+    "label": "H3 Max Hand Drawn",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+  },
+  "minimax/h3-max/styles/low-poly": {
+    "label": "H3 Max Low Poly",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+  },
+  "minimax/h3-max/styles/retro-toon-70s": {
+    "label": "H3 Max Retro Toon 70s",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+  },
+  "minimax/h3-max/styles/vhs": {
+    "label": "H3 Max VHS",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+  },
+  "minimax/h3-max/text-to-video": {
+    "label": "MiniMax H3 Max",
+    "requestDefaults": {
+      "prompt_expansion_mode": "balanced"
+    },
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480P", "768P", "1080P"],
+    "image": {
+      "endpoint": "minimax/h3-max/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["480P", "768P", "1080P"],
+      "requestDefaults": {
+        "prompt_expansion_mode": "balanced"
+      }
+    }
+  },
+  "minimax/h3/text-to-video": {
+    "label": "MiniMax H3",
+    "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    "resolutions": ["480P", "768P", "2K", "4K"],
+    "image": {
+      "endpoint": "minimax/h3/image-to-video",
+      "imageField": "image_url",
+      "durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["480P", "768P", "2K", "4K"]
+    }
+  },
+  "moonvalley/marey/t2v": {
+    "label": "Marey Realism V1.5",
+    "durations": ["5s", "10s"],
+    "image": {
+      "endpoint": "moonvalley/marey/i2v",
+      "imageField": "image_url",
+      "durations": ["5s", "10s"]
+    }
+  },
+  "wan/v2.6/text-to-video": {
+    "label": "Wan v2.6",
+    "durations": ["5", "10", "15"],
+    "aspectRatios": ["16:9", "9:16", "1:1", "4:3", "3:4"],
+    "resolutions": ["720p", "1080p"],
+    "image": {
+      "endpoint": "wan/v2.6/image-to-video",
+      "imageField": "image_url",
+      "durations": ["5", "10", "15"],
+      "resolutions": ["720p", "1080p"]
+    }
+  },
+  "xai/grok-imagine-video/text-to-video": {
+    "label": "Grok Imagine Video",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"],
+    "resolutions": ["480p", "720p"],
+    "image": {
+      "endpoint": "xai/grok-imagine-video/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "aspectRatios": ["auto", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"],
+      "resolutions": ["480p", "720p"]
+    }
+  },
+  "xai/grok-imagine-video/v1.5/lite/text-to-video": {
+    "label": "Grok Imagine Video 1.5 Lite",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "image": {
+      "endpoint": "xai/grok-imagine-video/v1.5/lite/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["480p", "720p", "1080p"]
+    }
+  },
+  "xai/grok-imagine-video/v1.5/text-to-video": {
+    "label": "Grok Imagine Video 1.5",
+    "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "aspectRatios": ["16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"],
+    "resolutions": ["480p", "720p", "1080p"],
+    "image": {
+      "endpoint": "xai/grok-imagine-video/v1.5/image-to-video",
+      "imageField": "image_url",
+      "durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "resolutions": ["480p", "720p", "1080p"]
+    }
+  }
+}

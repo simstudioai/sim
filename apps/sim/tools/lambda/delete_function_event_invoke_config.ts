@@ -3,6 +3,7 @@ import type {
   LambdaDeleteFunctionEventInvokeConfigParams,
   LambdaDeleteFunctionEventInvokeConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteFunctionEventInvokeConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const deleteFunctionEventInvokeConfigTool: InternalToolConfig<
   name: 'Lambda Delete Async Invoke Config',
   description: 'Remove the asynchronous invocation configuration of a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

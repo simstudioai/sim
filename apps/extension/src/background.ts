@@ -1,15 +1,25 @@
+import { SIM_LINK_DRAFT_PATH, simLinkDraftDestination } from '@sim/browser-extension-protocol'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { CAPTURE_INTENT_KEY, captureIntentKey } from '@/config'
+import {
+  CAPTURE_INTENT_KEY,
+  captureIntentKey,
+  OPEN_SIM_COMMAND,
+  REFERENCE_PAGE_KEY,
+  SIM_ORIGIN,
+} from '@/config'
 import { captureIntentSchema } from '@/intent'
 import { registerSimLinkOmnibox } from '@/omnibox'
+import { registerShortHostVisits } from '@/short-hosts'
 import { digestUrl } from '@/utils'
 
 const logger = createLogger('BrowserExtension')
 const SELECTION_MENU = 'ask-sim-selection'
+const LINK_MENU = 'create-sim-link'
 
 async function configure() {
   await chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
+  await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
   await chrome.contextMenus.removeAll()
   chrome.contextMenus.create({
     id: SELECTION_MENU,
@@ -17,9 +27,16 @@ async function configure() {
     contexts: ['selection'],
     documentUrlPatterns: ['http://*/*', 'https://*/*'],
   })
+  chrome.contextMenus.create({
+    id: LINK_MENU,
+    title: 'Create link in Sim',
+    contexts: ['link'],
+    documentUrlPatterns: ['http://*/*', 'https://*/*'],
+    targetUrlPatterns: ['http://*/*', 'https://*/*'],
+  })
 }
 
-function open(tab: chrome.tabs.Tab, kind: 'page' | 'selection') {
+function open(tab: chrome.tabs.Tab, trigger: 'page' | 'selection' | 'keyboard') {
   if (tab.incognito) return
   // Chrome requires open() in the original user-gesture task, before any await.
   const opened = chrome.sidePanel.open({ windowId: tab.windowId })
@@ -31,17 +48,39 @@ function open(tab: chrome.tabs.Tab, kind: 'page' | 'selection') {
   const identity = chrome.scripting.executeScript({
     target: { tabId: tab.id, frameIds: [0] },
     world: 'ISOLATED',
-    func: () => location.href,
+    func: (keyboard: boolean) => {
+      if (!keyboard) return { href: location.href, selected: false }
+      const active = document.activeElement
+      const protectedFocus =
+        active instanceof HTMLElement &&
+        (active.isContentEditable ||
+          active.matches('iframe,frame,input,textarea,select') ||
+          Boolean(chrome.dom.openOrClosedShadowRoot(active)?.activeElement))
+      return {
+        href: location.href,
+        selected: protectedFocus || window.getSelection()?.isCollapsed === false,
+      }
+    },
+    args: [trigger === 'keyboard'],
   })
-  void Promise.all([opened, identity, digestUrl(tab.url)])
-    .then(([, result, urlDigest]) => {
+  const referenceEnabled =
+    trigger !== 'selection' &&
+    chrome.storage.local
+      .get(REFERENCE_PAGE_KEY)
+      .then((values) => values[REFERENCE_PAGE_KEY] === true)
+      .catch(() => false)
+  void Promise.all([opened, identity, digestUrl(tab.url), referenceEnabled])
+    .then(([, result, urlDigest, enabled]) => {
       const document = result[0]
-      if (!document?.documentId || document.result !== tab.url) return
+      if (!document?.documentId || !document.result || document.result.href !== tab.url) return
+      const kind = trigger === 'selection' || document.result.selected ? 'selection' : 'page'
+      if (enabled && kind === 'page' && trigger !== 'keyboard') return
       return chrome.storage.session.set({
         [captureIntentKey(tab.windowId, generateId())]: {
           tabId: tab.id,
           windowId: tab.windowId,
-          kind,
+          kind: enabled && kind === 'page' ? 'focus' : kind,
+          focusComposer: trigger === 'keyboard',
           createdAt,
           documentId: document.documentId,
           urlDigest,
@@ -52,15 +91,27 @@ function open(tab: chrome.tabs.Tab, kind: 'page' | 'selection') {
 }
 
 registerSimLinkOmnibox()
+registerShortHostVisits()
 chrome.runtime.onInstalled.addListener(() => {
   void configure().catch(() => logger.warn('Could not initialize extension controls'))
 })
 chrome.action.onClicked.addListener((tab) => open(tab, 'page'))
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === SELECTION_MENU && tab && !info.editable) open(tab, 'selection')
+  if (!tab || tab.incognito || info.editable) return
+  if (info.menuItemId === LINK_MENU && info.linkUrl) {
+    const destination = simLinkDraftDestination(info.linkUrl)
+    if (destination) {
+      const draft = new URL(SIM_LINK_DRAFT_PATH, SIM_ORIGIN)
+      draft.hash = new URLSearchParams({ url: destination }).toString()
+      void chrome.tabs
+        .create({ url: draft.href, windowId: tab.windowId })
+        .catch(() => logger.warn('Could not open the Sim Link draft'))
+    }
+  }
+  if (info.menuItemId === SELECTION_MENU) open(tab, 'selection')
 })
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command === 'open-sim' && tab) open(tab, 'page')
+  if (command === OPEN_SIM_COMMAND && tab) open(tab, 'keyboard')
 })
 function clearTabIntent(tabId: number) {
   void chrome.storage.session

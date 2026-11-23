@@ -7,6 +7,7 @@ import {
   transformSearchResponse,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { CRUNCHBASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const crunchbaseSearchFundingRoundsTool: ToolConfig<
@@ -18,6 +19,7 @@ export const crunchbaseSearchFundingRoundsTool: ToolConfig<
   description:
     'Search Crunchbase funding rounds with filter predicates on announced date, investment type, amount raised, and investors.',
   version: '1.0.0',
+  oauth: CRUNCHBASE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.CRUNCHBASE_ERRORS,
 
   params: {

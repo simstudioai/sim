@@ -3,6 +3,7 @@ import type {
   GranolaListAuditEventsResponse,
 } from '@/tools/granola/types'
 import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAuditEventsTool: ToolConfig<
@@ -14,6 +15,7 @@ export const listAuditEventsTool: ToolConfig<
   description:
     'Lists workspace audit events from Granola, with optional action and date filters. Events are returned in collection order and retained for one year.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

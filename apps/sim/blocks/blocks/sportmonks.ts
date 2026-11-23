@@ -1,5 +1,6 @@
 import { SportmonksIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const DATE_WAND_CONFIG = {
   enabled: true,
@@ -825,6 +826,8 @@ const FOR_FIXTURE = { text: 'for fixture', field: 'fixtureId' } as const
 
 export const SportmonksBlock: BlockConfig = {
   type: 'sportmonks',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sportmonks_v2' },
   name: 'Sportmonks',
   description: 'Access Sportmonks football, motorsport, odds, and reference data',
   longDescription:
@@ -2928,3 +2931,17 @@ export const SportmonksBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SportmonksV2Block: BlockConfig = {
+  ...SportmonksBlock,
+  type: 'sportmonks_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SportmonksBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sportmonks',
+    title: 'Sportmonks Credential',
+  }),
+}

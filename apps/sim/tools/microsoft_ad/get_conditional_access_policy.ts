@@ -5,6 +5,7 @@ import type {
 import { CONDITIONAL_ACCESS_POLICY_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { mapConditionalAccessPolicy } from '@/tools/microsoft_ad/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getConditionalAccessPolicyTool: ToolConfig<
   MicrosoftAdGetConditionalAccessPolicyParams,
@@ -38,7 +39,7 @@ export const getConditionalAccessPolicyTool: ToolConfig<
     url: (params) => {
       const policyId = params.policyId?.trim()
       if (!policyId) throw new Error('Policy ID is required')
-      return `https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies/${encodeURIComponent(policyId)}`
+      return `https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies/${safeUrlPathSegment(policyId, 'policyId')}`
     },
     method: 'GET',
     headers: (params) => ({

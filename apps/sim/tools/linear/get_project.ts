@@ -1,5 +1,5 @@
 import type { LinearGetProjectParams, LinearGetProjectResponse } from '@/tools/linear/types'
-import { PROJECT_FULL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
+import { PROJECT_DETAIL_OUTPUT_PROPERTIES } from '@/tools/linear/types'
 import { linearAuthorizationHeader } from '@/tools/linear/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -43,6 +43,11 @@ export const linearGetProjectTool: ToolConfig<LinearGetProjectParams, LinearGetP
             name
             description
             state
+            status {
+              id
+              name
+              type
+            }
             priority
             startDate
             targetDate
@@ -89,6 +94,7 @@ export const linearGetProjectTool: ToolConfig<LinearGetProjectParams, LinearGetP
           name: project.name,
           description: project.description,
           state: project.state,
+          status: project.status,
           priority: project.priority,
           startDate: project.startDate,
           targetDate: project.targetDate,
@@ -107,7 +113,7 @@ export const linearGetProjectTool: ToolConfig<LinearGetProjectParams, LinearGetP
     project: {
       type: 'object',
       description: 'The project with full details',
-      properties: PROJECT_FULL_OUTPUT_PROPERTIES,
+      properties: PROJECT_DETAIL_OUTPUT_PROPERTIES,
     },
   },
 }

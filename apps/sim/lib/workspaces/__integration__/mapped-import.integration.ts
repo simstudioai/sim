@@ -26,7 +26,12 @@ const userId = generateId()
 const workspaceId = generateId()
 const sandboxId = generateId()
 const permissionId = generateId()
-const principal = { kind: 'personal_api_key', userId, keyId: generateId() } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId,
+  keyId: generateId(),
+  access: 'write',
+} as const
 
 function input(name: string) {
   const state: WorkflowState = {

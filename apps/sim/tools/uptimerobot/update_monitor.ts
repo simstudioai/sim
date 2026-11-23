@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   buildMonitorBody,
@@ -18,6 +19,7 @@ export const uptimeRobotUpdateMonitorTool: ToolConfig<
   name: 'UptimeRobot Update Monitor',
   description: 'Update an existing UptimeRobot monitor. Only the provided fields are changed.',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

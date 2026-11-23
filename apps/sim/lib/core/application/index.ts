@@ -10,6 +10,7 @@ export {
   type WorkspaceUseCaseAuditEntry,
   type WorkspaceUseCaseAuditRollup,
 } from '@/lib/core/application/authorized-workspace-use-case'
+export { isOperationFeatureEnabled } from '@/lib/core/application/feature-availability'
 export {
   FORBIDDEN_DETAIL_CODES,
   type ForbiddenDetailCode,
@@ -17,8 +18,10 @@ export {
   forbiddenErrorDetails,
 } from '@/lib/core/application/forbidden'
 export {
+  credentialApiScopes,
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
+  ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application/oauth-authorization'
 export {

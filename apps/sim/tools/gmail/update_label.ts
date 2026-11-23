@@ -1,5 +1,6 @@
 import { GMAIL_API_BASE } from '@/tools/gmail/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Tool-only (not exposed in the Gmail block UI). Mirrors the existing
@@ -76,7 +77,7 @@ export const gmailUpdateLabelV2Tool: ToolConfig<GmailUpdateLabelParams, GmailUpd
 
     request: {
       url: (params: GmailUpdateLabelParams) =>
-        `${GMAIL_API_BASE}/labels/${encodeURIComponent(params.labelId.trim())}`,
+        `${GMAIL_API_BASE}/labels/${safeUrlPathSegment(params.labelId, 'labelId')}`,
       method: 'PATCH',
       headers: (params: GmailUpdateLabelParams) => ({
         Authorization: `Bearer ${params.accessToken}`,

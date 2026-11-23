@@ -99,7 +99,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     const classified = orchestrationErrorResponse(error)
     if (classified) return classified
 
-    logger.error(`[${requestId}] Error adding column to table:`, error)
+    logger.error('Error adding column to table:', error)
     return NextResponse.json({ error: 'Failed to add column' }, { status: 500 })
   }
 })
@@ -160,7 +160,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
-    logger.error(`[${requestId}] Error updating column in table:`, error)
+    logger.error('Error updating column in table:', error)
     return NextResponse.json({ error: 'Failed to update column' }, { status: 500 })
   }
 })
@@ -230,7 +230,7 @@ export const DELETE = withRouteHandler(
       const classified = orchestrationErrorResponse(error)
       if (classified) return classified
 
-      logger.error(`[${requestId}] Error deleting column from table:`, error)
+      logger.error('Error deleting column from table:', error)
       return NextResponse.json({ error: 'Failed to delete column' }, { status: 500 })
     }
   }

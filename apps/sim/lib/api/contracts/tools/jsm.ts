@@ -81,6 +81,8 @@ export const jsmRequestsBodySchema = jsmBaseBodySchema.extend({
   serviceDeskId: z.string().optional(),
   requestOwnership: z.string().optional(),
   requestStatus: z.string().optional(),
+  approvalStatus: z.string().optional(),
+  organizationId: z.string().optional(),
   requestTypeId: z.string().optional(),
   searchTerm: z.string().optional(),
   expand: z.string().optional(),

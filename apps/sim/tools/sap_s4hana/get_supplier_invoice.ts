@@ -115,77 +115,71 @@ export const getSupplierInvoiceTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; entity at output.data.d',
+      description: 'A_SupplierInvoice entity (the integration unwraps the OData v2 `d` envelope)',
       properties: {
-        d: {
-          type: 'json',
-          description: 'A_SupplierInvoice entity',
-          properties: {
-            SupplierInvoice: { type: 'string', description: 'Supplier invoice number' },
-            FiscalYear: { type: 'string', description: 'Fiscal year' },
-            CompanyCode: { type: 'string', description: 'Company code' },
-            DocumentDate: {
-              type: 'string',
-              description: 'Invoice document date',
-              optional: true,
-            },
-            PostingDate: { type: 'string', description: 'Posting date', optional: true },
-            InvoicingParty: {
-              type: 'string',
-              description: 'Invoicing party (supplier key)',
-              optional: true,
-            },
-            InvoiceGrossAmount: {
-              type: 'string',
-              description: 'Gross invoice amount',
-              optional: true,
-            },
-            DocumentCurrency: {
-              type: 'string',
-              description: 'Document currency',
-              optional: true,
-            },
-            AccountingDocumentType: {
-              type: 'string',
-              description: 'Accounting document type',
-              optional: true,
-            },
-            PaymentTerms: {
-              type: 'string',
-              description: 'Payment terms key',
-              optional: true,
-            },
-            DueCalculationBaseDate: {
-              type: 'string',
-              description: 'Baseline date for due-date calculation',
-              optional: true,
-            },
-            SupplierInvoiceIDByInvcgParty: {
-              type: 'string',
-              description: 'Reference number used by the invoicing party',
-              optional: true,
-            },
-            PaymentMethod: {
-              type: 'string',
-              description: 'Payment method',
-              optional: true,
-            },
-            TaxIsCalculatedAutomatically: {
-              type: 'boolean',
-              description: 'Whether tax is calculated automatically',
-              optional: true,
-            },
-            ManualCashDiscount: {
-              type: 'string',
-              description: 'Manually entered cash discount amount',
-              optional: true,
-            },
-            BusinessPlace: {
-              type: 'string',
-              description: 'Business place (jurisdiction code)',
-              optional: true,
-            },
-          },
+        SupplierInvoice: { type: 'string', description: 'Supplier invoice number' },
+        FiscalYear: { type: 'string', description: 'Fiscal year' },
+        CompanyCode: { type: 'string', description: 'Company code' },
+        DocumentDate: {
+          type: 'string',
+          description: 'Invoice document date',
+          optional: true,
+        },
+        PostingDate: { type: 'string', description: 'Posting date', optional: true },
+        InvoicingParty: {
+          type: 'string',
+          description: 'Invoicing party (supplier key)',
+          optional: true,
+        },
+        InvoiceGrossAmount: {
+          type: 'string',
+          description: 'Gross invoice amount',
+          optional: true,
+        },
+        DocumentCurrency: {
+          type: 'string',
+          description: 'Document currency',
+          optional: true,
+        },
+        AccountingDocumentType: {
+          type: 'string',
+          description: 'Accounting document type',
+          optional: true,
+        },
+        PaymentTerms: {
+          type: 'string',
+          description: 'Payment terms key',
+          optional: true,
+        },
+        DueCalculationBaseDate: {
+          type: 'string',
+          description: 'Baseline date for due-date calculation',
+          optional: true,
+        },
+        SupplierInvoiceIDByInvcgParty: {
+          type: 'string',
+          description: 'Reference number used by the invoicing party',
+          optional: true,
+        },
+        PaymentMethod: {
+          type: 'string',
+          description: 'Payment method',
+          optional: true,
+        },
+        TaxIsCalculatedAutomatically: {
+          type: 'boolean',
+          description: 'Whether tax is calculated automatically',
+          optional: true,
+        },
+        ManualCashDiscount: {
+          type: 'string',
+          description: 'Manually entered cash discount amount',
+          optional: true,
+        },
+        BusinessPlace: {
+          type: 'string',
+          description: 'Business place (jurisdiction code)',
+          optional: true,
         },
       },
     },

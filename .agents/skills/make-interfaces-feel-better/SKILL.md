@@ -49,7 +49,7 @@ Animate contextual icons with opacity, scale, and blur instead of toggling visib
 
 ### 8. Font Smoothing
 
-Apply `-webkit-font-smoothing: antialiased` to the root layout on macOS for crisper text. In this repo, do not add root-level smoothing or other global styles (CLAUDE.md "Styling and EMCN"); raise it as a design-system proposal instead.
+Apply `-webkit-font-smoothing: antialiased` to the root layout on macOS for crisper text. In this repo, do not add root-level smoothing or other global styles (`.claude/rules/sim-styling.md`); raise it as a design-system proposal instead.
 
 ### 9. Tabular Numbers
 

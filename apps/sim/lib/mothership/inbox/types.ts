@@ -55,9 +55,17 @@ export interface AgentMailMessage {
   in_reply_to?: string
   references?: string[]
   labels?: string[]
+  authentication_results?: AgentMailAuthenticationResults
   sort_key?: string
   updated_at?: string
   created_at: string
+}
+
+export interface AgentMailAuthenticationResults {
+  spf?: string
+  dkim?: string
+  dmarc?: string
+  dkim_domain?: string
 }
 
 export interface AgentMailAttachment {

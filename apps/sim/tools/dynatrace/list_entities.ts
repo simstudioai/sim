@@ -15,6 +15,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEntitiesTool: ToolConfig<
@@ -26,6 +27,7 @@ export const listEntitiesTool: ToolConfig<
   description:
     'List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

@@ -1,11 +1,7 @@
 import { randomInt } from 'crypto'
-import { db } from '@sim/db'
-import { verification } from '@sim/db/schema'
-import { generateId } from '@sim/utils/id'
-import { and, eq, gt } from 'drizzle-orm'
+import { safeCompare } from '@sim/security/compare'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { getStorageMethod } from '@/lib/core/storage'
 
 export type DeploymentKind = 'chat' | 'file'
 
@@ -36,26 +32,13 @@ export const OTP_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
 }
 
 /**
- * Key formats are kept per-kind to preserve any in-flight OTPs already issued
- * against existing chat deployments. The chat Redis key uses the legacy `otp:`
- * prefix; the chat DB identifier uses `chat-otp:`.
+ * Redis key per deployment kind. The chat key keeps the legacy `otp:` prefix so
+ * codes already issued against existing chat deployments stay valid.
  */
 const OTP_KEYS = {
-  chat: {
-    redisKey: (email: string, deploymentId: string) => `otp:${email}:${deploymentId}`,
-    dbIdentifier: (email: string, deploymentId: string) => `chat-otp:${deploymentId}:${email}`,
-  },
-  file: {
-    redisKey: (email: string, deploymentId: string) => `otp:file:${email}:${deploymentId}`,
-    dbIdentifier: (email: string, deploymentId: string) => `file-otp:${deploymentId}:${email}`,
-  },
-} as const satisfies Record<
-  DeploymentKind,
-  {
-    redisKey: (email: string, deploymentId: string) => string
-    dbIdentifier: (email: string, deploymentId: string) => string
-  }
->
+  chat: (email: string, deploymentId: string) => `otp:${email}:${deploymentId}`,
+  file: (email: string, deploymentId: string) => `otp:file:${email}:${deploymentId}`,
+} as const satisfies Record<DeploymentKind, (email: string, deploymentId: string) => string>
 
 /** Returns a cryptographically random 6-digit OTP code. */
 export function generateOTP(): string {
@@ -64,194 +47,123 @@ export function generateOTP(): string {
 
 /**
  * OTP values are stored as `"code:attempts"` (e.g. `"654321:0"`).
- * This keeps the attempt counter in the same key/row as the OTP itself.
+ * This keeps the attempt counter in the same key as the OTP itself.
  */
 function encodeOTPValue(otp: string, attempts: number): string {
   return `${otp}:${attempts}`
 }
 
-export function decodeOTPValue(value: string): { otp: string; attempts: number } {
+function decodeOTPValue(value: string): { otp: string; attempts: number } {
   const lastColon = value.lastIndexOf(':')
   if (lastColon === -1) return { otp: value, attempts: 0 }
   const attempts = Number.parseInt(value.slice(lastColon + 1), 10)
   return { otp: value.slice(0, lastColon), attempts: Number.isNaN(attempts) ? 0 : attempts }
 }
 
-/**
- * Stores an OTP for a deployment+email pair, choosing Redis or the
- * `verification` table based on the configured storage method.
- */
+/** Stores an OTP for a deployment+email pair in Redis, replacing any previous code. */
 export async function storeOTP(
   kind: DeploymentKind,
   deploymentId: string,
   email: string,
   otp: string
 ): Promise<void> {
-  const keys = OTP_KEYS[kind]
-  const value = encodeOTPValue(otp, 0)
-  const storageMethod = getStorageMethod()
-
-  if (storageMethod === 'redis') {
-    const redis = getRedisClient()
-    if (!redis) throw new Error('Redis configured but client unavailable')
-    await redis.set(keys.redisKey(email, deploymentId), value, 'EX', OTP_EXPIRY_SECONDS)
-    return
-  }
-
-  const now = new Date()
-  const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MS)
-  const identifier = keys.dbIdentifier(email, deploymentId)
-
-  await db.transaction(async (tx) => {
-    await tx.delete(verification).where(eq(verification.identifier, identifier))
-    await tx.insert(verification).values({
-      id: generateId(),
-      identifier,
-      value,
-      expiresAt,
-      createdAt: now,
-      updatedAt: now,
-    })
-  })
-}
-
-export async function getOTP(
-  kind: DeploymentKind,
-  deploymentId: string,
-  email: string
-): Promise<string | null> {
-  const keys = OTP_KEYS[kind]
-  const storageMethod = getStorageMethod()
-
-  if (storageMethod === 'redis') {
-    const redis = getRedisClient()
-    if (!redis) throw new Error('Redis configured but client unavailable')
-    return redis.get(keys.redisKey(email, deploymentId))
-  }
-
-  const now = new Date()
-  const [record] = await db
-    .select({ value: verification.value })
-    .from(verification)
-    .where(
-      and(
-        eq(verification.identifier, keys.dbIdentifier(email, deploymentId)),
-        gt(verification.expiresAt, now)
-      )
-    )
-    .limit(1)
-
-  return record?.value ?? null
+  const redis = getRedisClient()
+  await redis.set(
+    OTP_KEYS[kind](email, deploymentId),
+    encodeOTPValue(otp, 0),
+    'EX',
+    OTP_EXPIRY_SECONDS
+  )
 }
 
 /**
- * Lua script for atomic OTP attempt increment in Redis.
- * Returns `'LOCKED'` if max attempts reached (key deleted), new encoded value
- * otherwise, nil if key missing.
+ * Lua script that reserves one verification attempt in Redis. Returns the
+ * code with the reserved attempt number, or nil when no code exists or its
+ * attempts are spent. Rewrites keep the remaining lifetime to the
+ * millisecond; a code without one is treated as expired so it can never
+ * become permanent.
  */
-const ATOMIC_INCREMENT_SCRIPT = `
+const RESERVE_ATTEMPT_SCRIPT = `
 local val = redis.call('GET', KEYS[1])
 if not val then return nil end
-local colon = val:find(':([^:]*)$')
-local otp, attempts
-if colon then
-  otp = val:sub(1, colon - 1)
-  attempts = tonumber(val:sub(colon + 1)) or 0
-else
-  otp = val
-  attempts = 0
-end
-attempts = attempts + 1
-if attempts >= tonumber(ARGV[1]) then
+local otp, attempts = val:match('^(.*):(%d+)$')
+if not otp then return nil end
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl <= 0 then
   redis.call('DEL', KEYS[1])
-  return 'LOCKED'
+  return nil
 end
-local newVal = otp .. ':' .. attempts
-local ttl = redis.call('TTL', KEYS[1])
-if ttl > 0 then
-  redis.call('SET', KEYS[1], newVal, 'EX', ttl)
-else
-  redis.call('SET', KEYS[1], newVal)
-end
+attempts = tonumber(attempts)
+if attempts >= tonumber(ARGV[1]) then return nil end
+local newVal = otp .. ':' .. (attempts + 1)
+redis.call('SET', KEYS[1], newVal, 'PX', ttl)
 return newVal
 `
 
 /**
- * Atomically increments an OTP's failed-attempt counter. Returns `'locked'`
- * if the max-attempts threshold was reached (and the OTP was deleted), or
- * `'incremented'` otherwise. The DB path uses optimistic locking with retry.
+ * Lua script that deletes the key only while it still holds the code in
+ * ARGV[1], returning 1 when this call removed it.
  */
-export async function incrementOTPAttempts(
-  kind: DeploymentKind,
-  deploymentId: string,
-  email: string,
-  currentValue: string
-): Promise<'locked' | 'incremented'> {
-  const keys = OTP_KEYS[kind]
-  const storageMethod = getStorageMethod()
+const CONSUME_SCRIPT = `
+local val = redis.call('GET', KEYS[1])
+if not val or val:match('^(.*):%d+$') ~= ARGV[1] then return 0 end
+return redis.call('DEL', KEYS[1])
+`
 
-  if (storageMethod === 'redis') {
-    const redis = getRedisClient()
-    if (!redis) throw new Error('Redis configured but client unavailable')
-    const key = keys.redisKey(email, deploymentId)
-    const result = await redis.eval(ATOMIC_INCREMENT_SCRIPT, 1, key, MAX_OTP_ATTEMPTS)
-    if (result === null || result === 'LOCKED') return 'locked'
-    return 'incremented'
-  }
-
-  const identifier = keys.dbIdentifier(email, deploymentId)
-  const MAX_RETRIES = 3
-  let value = currentValue
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const { otp, attempts } = decodeOTPValue(value)
-    const newAttempts = attempts + 1
-
-    if (newAttempts >= MAX_OTP_ATTEMPTS) {
-      await db.delete(verification).where(eq(verification.identifier, identifier))
-      return 'locked'
-    }
-
-    const newValue = encodeOTPValue(otp, newAttempts)
-    const updated = await db
-      .update(verification)
-      .set({ value: newValue, updatedAt: new Date() })
-      .where(and(eq(verification.identifier, identifier), eq(verification.value, value)))
-      .returning({ id: verification.id })
-
-    if (updated.length > 0) return 'incremented'
-
-    const fresh = await getOTP(kind, deploymentId, email)
-    if (!fresh) return 'locked'
-    value = fresh
-  }
-
-  /**
-   * Retry exhaustion under heavy DB-path contention: this request did not
-   * succeed in writing its own +1, so the stored count may not reflect it.
-   * Fail closed — invalidate the OTP rather than return `'incremented'` with
-   * a possibly-undercounted attempt total.
-   */
-  await db.delete(verification).where(eq(verification.identifier, identifier))
-  return 'locked'
-}
-
-export async function deleteOTP(
+/**
+ * Atomically spends one of the code's {@link MAX_OTP_ATTEMPTS} attempts and
+ * returns the stored code with its reserved attempt count, or `null` when no
+ * live code is left or all its attempts are spent.
+ */
+async function reserveOTPAttempt(
   kind: DeploymentKind,
   deploymentId: string,
   email: string
-): Promise<void> {
-  const keys = OTP_KEYS[kind]
-  const storageMethod = getStorageMethod()
+): Promise<{ otp: string; attempts: number } | null> {
+  const redis = getRedisClient()
+  const key = OTP_KEYS[kind](email, deploymentId)
+  const result = await redis.eval(RESERVE_ATTEMPT_SCRIPT, 1, key, MAX_OTP_ATTEMPTS)
+  return typeof result === 'string' ? decodeOTPValue(result) : null
+}
 
-  if (storageMethod === 'redis') {
-    const redis = getRedisClient()
-    if (!redis) throw new Error('Redis configured but client unavailable')
-    await redis.del(keys.redisKey(email, deploymentId))
-    return
+export type OTPVerification = 'valid' | 'invalid' | 'locked' | 'missing'
+
+/**
+ * Checks a submitted code and consumes it on a match. An attempt is reserved
+ * before the comparison, so at most {@link MAX_OTP_ATTEMPTS} guesses are ever
+ * compared against one code however many requests run concurrently, and only
+ * one correct submission succeeds. `'locked'` means this guess spent the last
+ * attempt and the code is gone; `'missing'` covers a code that is gone or was
+ * consumed by a concurrent request.
+ */
+export async function verifyOTP(
+  kind: DeploymentKind,
+  deploymentId: string,
+  email: string,
+  code: string
+): Promise<OTPVerification> {
+  const reserved = await reserveOTPAttempt(kind, deploymentId, email)
+  if (!reserved) return 'missing'
+  if (safeCompare(reserved.otp, code)) {
+    return (await consumeOTP(kind, deploymentId, email, reserved.otp)) ? 'valid' : 'missing'
   }
+  if (reserved.attempts < MAX_OTP_ATTEMPTS) return 'invalid'
+  await consumeOTP(kind, deploymentId, email, reserved.otp)
+  return 'locked'
+}
 
-  await db
-    .delete(verification)
-    .where(eq(verification.identifier, keys.dbIdentifier(email, deploymentId)))
+/**
+ * Deletes the stored code only if it is still `otp`, so concurrent correct
+ * submissions get one success between them and a newer code issued meanwhile
+ * survives. Returns whether this call removed it.
+ */
+async function consumeOTP(
+  kind: DeploymentKind,
+  deploymentId: string,
+  email: string,
+  otp: string
+): Promise<boolean> {
+  const redis = getRedisClient()
+  const key = OTP_KEYS[kind](email, deploymentId)
+  return (await redis.eval(CONSUME_SCRIPT, 1, key, otp)) === 1
 }

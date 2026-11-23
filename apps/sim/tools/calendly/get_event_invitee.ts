@@ -3,6 +3,7 @@ import type {
   CalendlyGetEventInviteeResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEventInviteeTool: ToolConfig<
@@ -13,6 +14,7 @@ export const getEventInviteeTool: ToolConfig<
   name: 'Calendly Get Event Invitee',
   description: 'Retrieve a single invitee of a scheduled event, including their intake answers',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -39,7 +41,7 @@ export const getEventInviteeTool: ToolConfig<
 
   request: {
     url: (params: CalendlyGetEventInviteeParams) =>
-      `https://api.calendly.com/scheduled_events/${toUuid(params.eventUuid)}/invitees/${toUuid(params.inviteeUuid)}`,
+      `https://api.calendly.com/scheduled_events/${toUuid(params.eventUuid, 'eventUuid')}/invitees/${toUuid(params.inviteeUuid, 'inviteeUuid')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

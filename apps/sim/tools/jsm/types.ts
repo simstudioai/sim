@@ -14,7 +14,16 @@ export const SERVICE_DESK_ITEM_PROPERTIES = {
   projectId: { type: 'string', description: 'Associated Jira project ID' },
   projectName: { type: 'string', description: 'Associated project name' },
   projectKey: { type: 'string', description: 'Associated project key' },
-  name: { type: 'string', description: 'Service desk name' },
+  projectTypeKey: {
+    type: 'string',
+    description: 'Associated project type key (e.g., service_desk)',
+    optional: true,
+  },
+  name: {
+    type: 'string',
+    description: 'Service desk name (not returned by the Service Desk API; use projectName)',
+    optional: true,
+  },
   description: { type: 'string', description: 'Service desk description', optional: true },
   leadDisplayName: { type: 'string', description: 'Project lead display name', optional: true },
 } as const
@@ -78,6 +87,37 @@ export const REQUEST_ITEM_PROPERTIES = {
       properties: REQUEST_FIELD_VALUE_PROPERTIES,
     },
   },
+  _links: {
+    type: 'json',
+    description: 'Request links: web (customer portal URL), agent, jiraRest, self',
+    optional: true,
+  },
+  participants: {
+    type: 'json',
+    description: 'Paged participants (values, size, isLastPage) when expand includes participant',
+    optional: true,
+  },
+  sla: {
+    type: 'json',
+    description:
+      'Paged SLA records (values with ongoingCycle, completedCycles) when expand includes sla',
+    optional: true,
+  },
+  status: {
+    type: 'json',
+    description: 'Paged status history when expand includes status',
+    optional: true,
+  },
+  requestType: {
+    type: 'json',
+    description: 'Request type details when expand includes requestType',
+    optional: true,
+  },
+  serviceDesk: {
+    type: 'json',
+    description: 'Service desk details when expand includes serviceDesk',
+    optional: true,
+  },
 } as const
 
 /** Output properties for a comment item */
@@ -114,6 +154,11 @@ export const QUEUE_ITEM_PROPERTIES = {
 export const SLA_ITEM_PROPERTIES = {
   id: { type: 'string', description: 'SLA metric ID' },
   name: { type: 'string', description: 'SLA metric name' },
+  slaDisplayFormat: {
+    type: 'string',
+    description: 'How the SLA time is displayed (e.g., NEW_SLA_FORMAT)',
+    optional: true,
+  },
   completedCycles: {
     type: 'json',
     description:
@@ -145,6 +190,17 @@ export const PARTICIPANT_ITEM_PROPERTIES = {
 export const ORGANIZATION_ITEM_PROPERTIES = {
   id: { type: 'string', description: 'Organization ID' },
   name: { type: 'string', description: 'Organization name' },
+  uuid: { type: 'string', description: 'Organization UUID', optional: true },
+  created: {
+    type: 'json',
+    description: 'Creation date with iso8601, friendly, epochMillis',
+    optional: true,
+  },
+  scimManaged: {
+    type: 'boolean',
+    description: 'Whether the organization is managed by SCIM',
+    optional: true,
+  },
 } as const
 
 /** Output properties for a customer item */
@@ -345,6 +401,7 @@ interface JsmRequest {
     fieldId: string
     label: string
     value: unknown
+    renderedValue?: unknown
   }>
   currentStatus: {
     status: string
@@ -446,8 +503,16 @@ export interface JsmGetRequestParams extends JsmBaseParams {
 
 export interface JsmGetRequestsParams extends JsmBaseParams {
   serviceDeskId?: string
-  requestOwnership?: 'OWNED_REQUESTS' | 'PARTICIPATED_REQUESTS' | 'APPROVER' | 'ALL_REQUESTS'
+  requestOwnership?:
+    | 'OWNED_REQUESTS'
+    | 'PARTICIPATED_REQUESTS'
+    | 'APPROVER'
+    | 'ALL_REQUESTS'
+    | 'ORGANIZATION'
+    | 'ALL_ORGANIZATIONS'
   requestStatus?: 'OPEN_REQUESTS' | 'CLOSED_REQUESTS' | 'ALL_REQUESTS'
+  approvalStatus?: 'MY_PENDING_APPROVAL' | 'MY_HISTORY_APPROVAL'
+  organizationId?: string
   requestTypeId?: string
   searchTerm?: string
   expand?: string
@@ -582,8 +647,15 @@ export interface JsmCreateRequestResponse extends ToolResponse {
       statusDate?: { iso8601: string; friendly: string }
     } | null
     reporter: { accountId: string; displayName: string; emailAddress?: string } | null
+    requestFieldValues?: Array<{
+      fieldId: string
+      label: string
+      value: unknown
+      renderedValue?: unknown
+    }>
     success: boolean
     url: string
+    webUrl?: string | null
   }
 }
 
@@ -606,8 +678,16 @@ export interface JsmGetRequestResponse extends ToolResponse {
       emailAddress?: string
       active: boolean
     } | null
-    requestFieldValues: Array<{ fieldId: string; label: string; value: unknown }>
+    requestFieldValues: Array<{
+      fieldId: string
+      label: string
+      value: unknown
+      renderedValue?: unknown
+    }>
     url: string
+    webUrl?: string | null
+    participants?: JsmParticipant[] | null
+    slas?: JsmSla[] | null
     request?: Record<string, unknown>
   }
 }
@@ -1203,6 +1283,9 @@ export interface JsmSearchObjectsAqlResponse extends ToolResponse {
     total: number
     pageNumber: number
     pageSize: number
+    startAt?: number
+    maxResults?: number
+    isLast?: boolean
   }
 }
 

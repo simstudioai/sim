@@ -1,5 +1,6 @@
 import type { OneDriveShareLinkResponse, OneDriveToolParams } from '@/tools/onedrive/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLinkResponse> = {
   id: 'onedrive_create_share_link',
@@ -38,11 +39,18 @@ export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLi
       description:
         'Who can use the link: "anonymous" (anyone), "organization" (tenant members), or "users" (specific people)',
     },
+    expirationDateTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'When the link expires, in yyyy-MM-ddTHH:mm:ssZ format (e.g., "2026-12-31T23:59:59Z"). Omit for no expiration unless the organization enforces one',
+    },
   },
 
   request: {
     url: (params) =>
-      `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(params.fileId || '')}/createLink`,
+      `https://graph.microsoft.com/v1.0/me/drive/items/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}/createLink`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -51,6 +59,9 @@ export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLi
     body: (params) => ({
       type: params.linkType || 'view',
       ...(params.linkScope && { scope: params.linkScope }),
+      ...(params.expirationDateTime?.trim() && {
+        expirationDateTime: params.expirationDateTime.trim(),
+      }),
     }),
   },
 
@@ -65,6 +76,10 @@ export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLi
           scope: data.link?.scope,
           webUrl: data.link?.webUrl,
           webHtml: data.link?.webHtml,
+          permissionId: data.id ?? null,
+          roles: Array.isArray(data.roles) ? data.roles : [],
+          hasPassword: data.hasPassword ?? null,
+          expirationDateTime: data.expirationDateTime ?? null,
         },
       },
     }
@@ -75,6 +90,36 @@ export const createShareLinkTool: ToolConfig<OneDriveToolParams, OneDriveShareLi
     link: {
       type: 'object',
       description: 'The created sharing link, including its type, scope, and URL',
+      properties: {
+        type: { type: 'string', description: 'Link type (view, edit, or embed)' },
+        scope: { type: 'string', description: 'Link scope', optional: true },
+        webUrl: { type: 'string', description: 'The sharing URL' },
+        webHtml: {
+          type: 'string',
+          description: 'Embeddable iframe HTML (embed links only)',
+          optional: true,
+        },
+        permissionId: {
+          type: 'string',
+          description: 'ID of the permission that backs the link',
+          optional: true,
+        },
+        roles: {
+          type: 'array',
+          description: 'Roles the link grants (e.g., read, write)',
+          optional: true,
+        },
+        hasPassword: {
+          type: 'boolean',
+          description: 'Whether the link is password protected',
+          optional: true,
+        },
+        expirationDateTime: {
+          type: 'string',
+          description: 'When the link expires, if it does',
+          optional: true,
+        },
+      },
     },
   },
 }

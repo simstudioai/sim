@@ -1,6 +1,15 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  type CanonicalModeOverrides,
+  getCanonicalValues,
+  isCanonicalPair,
+  resolveCanonicalMode,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type OpenAI from 'openai'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
@@ -13,23 +22,16 @@ import {
 } from '@/lib/core/utils/records'
 import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
-import {
-  buildCanonicalIndex,
-  type CanonicalGroup,
-  type CanonicalModeOverrides,
-  isCanonicalPair,
-  resolveActiveCanonicalValue,
-  scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
+import { resolveActiveCanonicalValue } from '@/lib/workflows/subblocks/visibility'
+import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
-import type { SubBlockConfig } from '@/blocks/types'
+import type { BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import {
   findProviderFromModel,
   getComputerUseModels,
   getHostedModels,
-  getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
@@ -37,9 +39,13 @@ import {
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
   getProviderModels,
+  isAutoModel,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
-  updateOllamaModels as updateOllamaModelsInDefinitions,
+  SIM_AUTO_MODEL_ID,
+  updateLiteLLMModels,
+  updateOllamaModels,
+  updateVLLMModels,
 } from '@/providers/models'
 import {
   getModelPricing as getRegisteredModelPricing,
@@ -51,8 +57,9 @@ import {
   getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
+import { ToolCallParamsError } from '@/providers/tool-params-error'
 import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
-import { mergeToolParameters } from '@/tools/merge-params'
+import { isNonEmpty, mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
 import type { WorkflowToolExecutionContext } from '@/tools/types'
 
@@ -164,21 +171,20 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   together: buildProviderMetadata('together'),
   baseten: buildProviderMetadata('baseten'),
   nebius: buildProviderMetadata('nebius'),
+  thinkingmachines: buildProviderMetadata('thinkingmachines'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
-  updateOllamaModelsInDefinitions(models)
+  updateOllamaModels(models)
   providers.ollama.models = getProviderModels('ollama')
 }
 
 export function updateVLLMProviderModels(models: string[]): void {
-  const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
   providers.vllm.models = getProviderModels('vllm')
 }
 
 export function updateLiteLLMProviderModels(models: string[]): void {
-  const { updateLiteLLMModels } = require('@/providers/models')
   updateLiteLLMModels(models)
   providers.litellm.models = getProviderModels('litellm')
 }
@@ -254,7 +260,19 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
+/**
+ * The provider that serves `model`, defaulting an unrecognised id to Ollama.
+ *
+ * Throws for a blacklisted provider or model, and for sim-auto: the pseudo-model has no
+ * provider of its own until the model router (`lib/model-router`) swaps in a concrete one at
+ * execution time, so answering Ollama for it would send `sim-auto` to a server that has
+ * never heard of it.
+ */
 export function getProviderFromModel(model: string): ProviderId {
+  if (isAutoModel(model)) {
+    throw new Error(`${SIM_AUTO_MODEL_ID} has no provider until the model router resolves it`)
+  }
+
   const normalizedModel = model.toLowerCase()
 
   let providerId = findProviderFromModel(model)
@@ -523,7 +541,10 @@ function buildCustomBlockInputMappingSchema(
   }
 }
 
-type BlockToolParamsFn = (params: Record<string, any>) => Record<string, any>
+type BlockToolParamsFn = (
+  params: Record<string, any>,
+  context?: BlockToolParamsContext
+) => Record<string, any>
 
 /**
  * Builds the transform that turns a tool row's stored sub-block values into the
@@ -532,7 +553,10 @@ type BlockToolParamsFn = (params: Record<string, any>) => Record<string, any>
  * Four steps, in an order each of which is load-bearing:
  *
  * 1. Collapse canonical basic/advanced pairs onto the canonical id, so a value stored
- *    under `manualChannel` becomes the `channel` the tool declares.
+ *    under `manualChannel` becomes the `channel` the tool declares. The active member is
+ *    picked from the decoded values, as the canvas sees them: a builder the user emptied
+ *    is stored as `'[]'`, which reads as filled until it decodes to `[]`, and would
+ *    otherwise hide the model's argument for the other member.
  * 2. Decode the stringified values back to their real shapes, and expand a
  *    `checkbox-list` onto its option params. After the collapse so a pair is decoded
  *    once under its canonical id, and BEFORE the block's `params` function because
@@ -547,24 +571,34 @@ type BlockToolParamsFn = (params: Record<string, any>) => Record<string, any>
  * none of it, which is why it needed a new version rather than a fix in place.
  */
 export function buildBlockToolParamsTransform(config: {
+  operation?: string
   blockSubBlocks: SubBlockConfig[] | undefined
   blockParamsFn: BlockToolParamsFn | undefined
   blockInputDefs: Record<string, unknown> | undefined
   toolParams: Record<string, { type?: string }> | undefined
   canonicalGroups: CanonicalGroup[]
   scopedCanonicalModes: CanonicalModeOverrides | undefined
+  /** The params the tool row stores; their non-empty ids reach the mapper as `pinnedParams`. */
+  storedParams?: Record<string, unknown>
 }): {
   paramsTransform: BlockToolParamsFn | undefined
   jsonShapedParamKeys: string[]
 } {
   const {
+    operation,
     blockSubBlocks,
     blockParamsFn,
     blockInputDefs,
     toolParams,
     canonicalGroups,
     scopedCanonicalModes,
+    storedParams,
   } = config
+  const pinnedParams = new Set(
+    Object.entries(storedParams ?? {})
+      .filter(([, value]) => isNonEmpty(value))
+      .map(([paramId]) => paramId)
+  )
 
   /**
    * The value shape of every key this tool can receive. Keyed by the sub-block that
@@ -580,16 +614,19 @@ export function buildBlockToolParamsTransform(config: {
   const paramsTransform = needsTransform
     ? (params: Record<string, any>): Record<string, any> => {
         let result = { ...params }
+        const decodedMembers = decodeToolParams(params, paramShapes)
 
         for (const group of canonicalGroups) {
           // Route through the canonical SOT: an explicit scoped override wins, else the value
           // heuristic - no `?? 'basic'` (which dropped an advanced-only value when basic was empty).
           const explicitMode = scopedCanonicalModes?.[group.canonicalId]
-          const chosen = resolveActiveCanonicalValue(
+          const mode = resolveCanonicalMode(
             group,
-            result,
+            decodedMembers,
             explicitMode ? { [group.canonicalId]: explicitMode } : undefined
           )
+          const { basicValue, advancedValue } = getCanonicalValues(group, result)
+          const chosen = mode === 'advanced' ? advancedValue : basicValue
 
           const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
           result = omit(result, sourceIds)
@@ -613,7 +650,7 @@ export function buildBlockToolParamsTransform(config: {
         }
 
         if (blockParamsFn) {
-          const transformed = blockParamsFn(result)
+          const transformed = blockParamsFn(result, { operation, pinnedParams })
           result = { ...result, ...transformed }
         }
 
@@ -835,7 +872,14 @@ export async function transformBlockTool(
 
   const { createLLMToolSchema } = await import('@/tools/params')
 
-  const userProvidedParams = block.params || {}
+  const operation =
+    selectedOperation ??
+    (typeof block.params?.operation === 'string' ? block.params.operation : undefined)
+  const userProvidedParams = omitConditionHiddenParams(
+    blockDef.subBlocks,
+    block.params || {},
+    operation
+  )
 
   const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
     ? // canonical-index-unscoped: an agent tool resolves against `block.params`, which only ever
@@ -893,12 +937,14 @@ export async function transformBlockTool(
   }
 
   const { paramsTransform, jsonShapedParamKeys } = buildBlockToolParamsTransform({
+    operation,
     blockSubBlocks: blockDef?.subBlocks,
     blockParamsFn: blockDef?.tools?.config?.params as BlockToolParamsFn | undefined,
     blockInputDefs: blockDef?.inputs as Record<string, unknown> | undefined,
     toolParams: toolConfig.params,
     canonicalGroups,
     scopedCanonicalModes,
+    storedParams: userProvidedParams,
   })
 
   const providerTool: ProviderToolConfig = {
@@ -1443,7 +1489,6 @@ export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
-export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
 /**
@@ -1485,10 +1530,6 @@ export function supportsThinking(model: string): boolean {
 /** Whether the model accepts caller-placed prompt-cache breakpoints. */
 export function supportsPromptCaching(model: string): boolean {
   return MODELS_WITH_PROMPT_CACHING.includes(model.toLowerCase())
-}
-
-export function isDeepResearchModel(model: string): boolean {
-  return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
 /**
@@ -1602,6 +1643,7 @@ export function prepareToolExecution(
       toolParams = tool.paramsTransform(toolParams)
       transformed = true
     } catch (err) {
+      if (err instanceof ToolCallParamsError) throw err
       logger.warn('paramsTransform failed, using raw params', { error: err })
     }
 

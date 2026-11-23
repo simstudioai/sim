@@ -51,7 +51,7 @@ export const POST = withRouteHandler(
       }
 
       logger.info(
-        `[${requestId}] Admin API: ${result.latestDeploymentAttempt?.status === 'active' ? 'Activated' : 'Accepted activation for'} version ${versionNum} on workflow ${workflowId}`
+        `Admin API: ${result.latestDeploymentAttempt?.status === 'active' ? 'Activated' : 'Accepted activation for'} version ${versionNum} on workflow ${workflowId}`
       )
 
       return singleResponse({
@@ -63,10 +63,7 @@ export const POST = withRouteHandler(
         latestDeploymentAttempt: result.latestDeploymentAttempt,
       })
     } catch (error) {
-      logger.error(
-        `[${requestId}] Admin API: Failed to activate version for workflow ${workflowId}`,
-        { error }
-      )
+      logger.error(`Admin API: Failed to activate version for workflow ${workflowId}`, { error })
       return adminInternalErrorResponse('Failed to activate deployment version')
     }
   })

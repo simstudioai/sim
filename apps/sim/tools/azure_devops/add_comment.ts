@@ -4,7 +4,8 @@ import type {
   AzureDevOpsComment,
 } from '@/tools/azure_devops/types'
 import type { AzureDevOpsRawComment } from '@/tools/azure_devops/utils'
-import { formatComment, mapComment } from '@/tools/azure_devops/utils'
+import { azureDevOpsProjectUrl, formatComment, mapComment } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = {
@@ -12,6 +13,7 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
   name: 'Azure DevOps Add Comment',
   description: 'Add a comment to a work item in Azure DevOps.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -38,6 +40,13 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
       visibility: 'user-or-llm',
       description: 'Comment text (HTML supported, e.g. "<p>My comment</p>")',
     },
+    format: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comment format: "markdown" or "html". Omit to send the text without a format (API version 7.0 behavior).',
+    },
     accessToken: {
       type: 'string',
       required: true,
@@ -49,9 +58,15 @@ export const addCommentTool: ToolConfig<AddCommentParams, AddCommentResponse> = 
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
+        `${azureDevOpsProjectUrl(params)}/_apis/wit/workitems/${Number(params.workItemId)}/comments`
       )
-      url.searchParams.set('api-version', '7.0-preview.3')
+      const format = params.format?.trim().toLowerCase()
+      if (format) {
+        url.searchParams.set('format', format)
+        url.searchParams.set('api-version', '7.2-preview.4')
+      } else {
+        url.searchParams.set('api-version', '7.0-preview.3')
+      }
       return url.toString()
     },
     method: 'POST',

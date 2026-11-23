@@ -2,154 +2,103 @@
  * Code editor syntax token theme.
  * Cursor/VS Code base colors with Sim's vibrant saturation.
  * Colors aligned to Sim brand where applicable.
- * Applied to elements with .code-editor-theme class.
  *
- * Uses double-class specificity (.code-editor-theme.code-editor-theme)
+ * The palette is a set of `--code-token-*` variables so Shiki surfaces (diffs, via
+ * `CODE_TOKEN_COLORS` in `syntax-theme.ts`) color code exactly like Prism does here.
+ * A `.light` island inside `.dark` redeclares the light palette, matching the app's
+ * nesting-aware dark variant.
+ *
+ * Token rules use double-class specificity (.code-editor-theme.code-editor-theme)
  * to override PrismJS defaults without !important.
  */
 
-.code-editor-theme.code-editor-theme {
+:root,
+.light {
+  --code-token-comment: #16a34a;
+  --code-token-punctuation: #383838;
+  --code-token-variable: #0891b2;
+  --code-token-constant: #16a34a;
+  --code-token-string: #b45309;
+  --code-token-keyword: #2f55ff;
+  --code-token-function: #ca8a04;
+  --code-token-regex: #e11d48;
+  --code-token-deleted: #dc2626;
   --code-reference: #1d4ed8;
 }
 
-.dark .code-editor-theme.code-editor-theme {
+.dark {
+  --code-token-comment: #6ec97d;
+  --code-token-punctuation: #d4d4d4;
+  --code-token-variable: #4fc3f7;
+  --code-token-constant: #a5d6a7;
+  --code-token-string: #f39c6b;
+  --code-token-keyword: #2fa1ff;
+  --code-token-function: #fbbf24;
+  --code-token-regex: #f87171;
+  --code-token-deleted: #f87171;
   --code-reference: #35b6ff;
 }
 
-/**
- * Light mode token colors - Cursor style with Sim vibrancy
- */
 .code-editor-theme.code-editor-theme .token.comment,
 .code-editor-theme.code-editor-theme .token.block-comment,
 .code-editor-theme.code-editor-theme .token.prolog,
 .code-editor-theme.code-editor-theme .token.doctype,
 .code-editor-theme.code-editor-theme .token.cdata {
-  color: #16a34a;
+  color: var(--code-token-comment);
 }
 
-.code-editor-theme.code-editor-theme .token.punctuation {
-  color: #383838;
+.code-editor-theme.code-editor-theme .token.punctuation,
+.code-editor-theme.code-editor-theme .token.operator,
+.code-editor-theme.code-editor-theme .token.entity,
+.code-editor-theme.code-editor-theme .token.url,
+.code-editor-theme.code-editor-theme .token.symbol {
+  color: var(--code-token-punctuation);
 }
 
 .code-editor-theme.code-editor-theme .token.property,
 .code-editor-theme.code-editor-theme .token.attr-name,
 .code-editor-theme.code-editor-theme .token.variable {
-  color: #0891b2;
+  color: var(--code-token-variable);
 }
 
 .code-editor-theme.code-editor-theme .token.tag,
 .code-editor-theme.code-editor-theme .token.boolean,
 .code-editor-theme.code-editor-theme .token.number,
 .code-editor-theme.code-editor-theme .token.constant {
-  color: #16a34a;
+  color: var(--code-token-constant);
 }
 
 .code-editor-theme.code-editor-theme .token.string,
 .code-editor-theme.code-editor-theme .token.char,
 .code-editor-theme.code-editor-theme .token.builtin,
 .code-editor-theme.code-editor-theme .token.inserted {
-  color: #b45309;
-}
-
-.code-editor-theme.code-editor-theme .token.operator,
-.code-editor-theme.code-editor-theme .token.entity,
-.code-editor-theme.code-editor-theme .token.url {
-  color: #383838;
+  color: var(--code-token-string);
 }
 
 .code-editor-theme.code-editor-theme .token.atrule,
 .code-editor-theme.code-editor-theme .token.attr-value,
 .code-editor-theme.code-editor-theme .token.keyword {
-  color: #2f55ff;
+  color: var(--code-token-keyword);
 }
 
 .code-editor-theme.code-editor-theme .token.function,
 .code-editor-theme.code-editor-theme .token.class-name {
-  color: #ca8a04;
+  color: var(--code-token-function);
 }
 
 .code-editor-theme.code-editor-theme .token.regex,
 .code-editor-theme.code-editor-theme .token.important {
-  color: #e11d48;
-}
-
-.code-editor-theme.code-editor-theme .token.symbol {
-  color: #383838;
+  color: var(--code-token-regex);
 }
 
 .code-editor-theme.code-editor-theme .token.deleted {
-  color: #dc2626;
+  color: var(--code-token-deleted);
 }
 
 /* Platform accent for <workflow.reference> and {{ENV}} placeholders */
 .code-editor-theme.code-editor-theme [data-code-reference],
 .code-editor-theme.code-editor-theme .token [data-code-reference] {
   color: var(--code-reference);
-}
-
-/**
- * Dark mode token colors - Cursor style with Sim vibrancy
- */
-.dark .code-editor-theme.code-editor-theme .token.comment,
-.dark .code-editor-theme.code-editor-theme .token.block-comment,
-.dark .code-editor-theme.code-editor-theme .token.prolog,
-.dark .code-editor-theme.code-editor-theme .token.doctype,
-.dark .code-editor-theme.code-editor-theme .token.cdata {
-  color: #6ec97d;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.punctuation {
-  color: #d4d4d4;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.property,
-.dark .code-editor-theme.code-editor-theme .token.attr-name,
-.dark .code-editor-theme.code-editor-theme .token.variable {
-  color: #4fc3f7;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.tag,
-.dark .code-editor-theme.code-editor-theme .token.boolean,
-.dark .code-editor-theme.code-editor-theme .token.number,
-.dark .code-editor-theme.code-editor-theme .token.constant {
-  color: #a5d6a7;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.string,
-.dark .code-editor-theme.code-editor-theme .token.char,
-.dark .code-editor-theme.code-editor-theme .token.builtin,
-.dark .code-editor-theme.code-editor-theme .token.inserted {
-  color: #f39c6b;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.operator,
-.dark .code-editor-theme.code-editor-theme .token.entity,
-.dark .code-editor-theme.code-editor-theme .token.url {
-  color: #d4d4d4;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.atrule,
-.dark .code-editor-theme.code-editor-theme .token.attr-value,
-.dark .code-editor-theme.code-editor-theme .token.keyword {
-  color: #2fa1ff;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.function,
-.dark .code-editor-theme.code-editor-theme .token.class-name {
-  color: #fbbf24;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.regex,
-.dark .code-editor-theme.code-editor-theme .token.important {
-  color: #f87171;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.symbol {
-  color: #d4d4d4;
-}
-
-.dark .code-editor-theme.code-editor-theme .token.deleted {
-  color: #f87171;
 }
 
 /* Ensure transparent backgrounds */

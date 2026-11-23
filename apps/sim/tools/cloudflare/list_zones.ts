@@ -9,6 +9,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareListZonesResponse> = {
@@ -16,6 +17,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
   name: 'Cloudflare List Zones',
   description: 'Lists one page of zones (domains) in the Cloudflare account.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     type: {

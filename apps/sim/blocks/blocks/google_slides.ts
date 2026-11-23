@@ -4,7 +4,13 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import {
+  isToolCall,
+  mapperOperation,
+  normalizeFileInput,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+  toolCallArg,
+} from '@/blocks/utils'
 
 const PRESENTATION_FIELD = ['presentationId', 'manualPresentationId'] as const
 const SOURCE_PRESENTATION_FIELD = [
@@ -2690,7 +2696,17 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
             throw new Error(`Invalid Google Slides operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        /**
+         * The block field on the canvas. On a tool call a blank block field falls back to the
+         * model's arg, which arrives under the tool's param name.
+         */
+        const orModelArg = (blockValue: unknown, modelArg: unknown): unknown =>
+          isToolCall(context) &&
+          (blockValue === undefined || blockValue === null || blockValue === '')
+            ? modelArg
+            : blockValue
         const {
           oauthCredential,
           presentationId,
@@ -2712,22 +2728,32 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           oauthCredential,
         }
 
-        if (params.operation === 'write' && slideIndex) {
+        if (operation === 'write' && slideIndex) {
           result.slideIndex = Number.parseInt(slideIndex as string, 10)
         }
 
-        if (params.operation === 'create') {
+        if (operation === 'create') {
           result.folderId = effectiveFolderId || undefined
           if (createContent) {
             result.content = createContent
           }
         }
 
-        if (params.operation === 'add_slide' && params.insertionIndex) {
+        if (operation === 'add_slide' && params.insertionIndex) {
           result.insertionIndex = Number.parseInt(params.insertionIndex as string, 10)
         }
 
-        if (params.operation === 'add_image') {
+        if (operation === 'add_image') {
+          const source = params.imageSource
+          if (source) {
+            const fileObject = normalizeFileInput(source, { single: true })
+            if (fileObject) {
+              const fileUrl = resolveHttpsUrlFromFileInput(fileObject)
+              if (fileUrl) result.imageUrl = fileUrl
+            } else if (typeof source === 'string') {
+              result.imageUrl = source.trim()
+            }
+          }
           if (imageWidth) {
             result.width = Number.parseInt(imageWidth as string, 10)
           }
@@ -2742,34 +2768,34 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        if (params.operation === 'get_thumbnail') {
-          result.pageObjectId = thumbnailPageId
+        if (operation === 'get_thumbnail') {
+          result.pageObjectId = orModelArg(thumbnailPageId, params.pageObjectId)
         }
 
-        if (params.operation === 'get_page') {
-          result.pageObjectId = params.getPageObjectId
+        if (operation === 'get_page') {
+          result.pageObjectId = orModelArg(params.getPageObjectId, params.pageObjectId)
         }
 
-        if (params.operation === 'delete_object') {
-          result.objectId = params.deleteObjectId
+        if (operation === 'delete_object') {
+          result.objectId = orModelArg(params.deleteObjectId, params.objectId)
         }
 
-        if (params.operation === 'duplicate_object') {
-          result.objectId = params.duplicateObjectId
+        if (operation === 'duplicate_object') {
+          result.objectId = orModelArg(params.duplicateObjectId, params.objectId)
           if (params.duplicateObjectIds) {
             result.objectIds = params.duplicateObjectIds
           }
         }
 
-        if (params.operation === 'reorder_slides') {
-          result.slideObjectIds = params.reorderSlideIds
+        if (operation === 'reorder_slides') {
+          result.slideObjectIds = orModelArg(params.reorderSlideIds, params.slideObjectIds)
           if (params.reorderInsertionIndex) {
             result.insertionIndex = Number.parseInt(params.reorderInsertionIndex as string, 10)
           }
         }
 
-        if (params.operation === 'create_table') {
-          result.pageObjectId = params.tablePageObjectId
+        if (operation === 'create_table') {
+          result.pageObjectId = orModelArg(params.tablePageObjectId, params.pageObjectId)
           if (params.tableRows) {
             result.rows = Number.parseInt(params.tableRows as string, 10)
           }
@@ -2790,8 +2816,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        if (params.operation === 'create_shape') {
-          result.pageObjectId = params.shapePageObjectId
+        if (operation === 'create_shape') {
+          result.pageObjectId = orModelArg(params.shapePageObjectId, params.pageObjectId)
           result.shapeType = params.shapeType
           if (params.shapeWidth) {
             result.width = Number.parseInt(params.shapeWidth as string, 10)
@@ -2807,9 +2833,9 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           }
         }
 
-        if (params.operation === 'insert_text') {
-          result.objectId = params.insertTextObjectId
-          result.text = params.insertTextContent
+        if (operation === 'insert_text') {
+          result.objectId = orModelArg(params.insertTextObjectId, params.objectId)
+          result.text = orModelArg(params.insertTextContent, params.text)
           if (params.insertTextIndex) {
             result.insertionIndex = Number.parseInt(params.insertTextIndex as string, 10)
           }
@@ -2828,8 +2854,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           'create_paragraph_bullets',
           'delete_paragraph_bullets',
         ])
-        if (TEXT_RANGE_OPS.has(params.operation as string)) {
-          result.objectId = params.textObjectId
+        if (TEXT_RANGE_OPS.has(operation)) {
+          result.objectId = orModelArg(params.textObjectId, params.objectId)
           const rowIdx = toNum(params.textRowIndex)
           const colIdx = toNum(params.textColumnIndex)
           if (rowIdx !== undefined) result.rowIndex = rowIdx
@@ -2841,7 +2867,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (endIdx !== undefined) result.endIndex = endIdx
         }
 
-        if (params.operation === 'update_text_style') {
+        if (operation === 'update_text_style') {
           if (params.textBold !== undefined) result.bold = params.textBold
           if (params.textItalic !== undefined) result.italic = params.textItalic
           if (params.textUnderline !== undefined) result.underline = params.textUnderline
@@ -2859,7 +2885,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.textStyleFields) result.fields = params.textStyleFields
         }
 
-        if (params.operation === 'update_paragraph_style') {
+        if (operation === 'update_paragraph_style') {
           if (params.paragraphAlignment) result.alignment = params.paragraphAlignment
           const ls = toNum(params.paragraphLineSpacing)
           if (ls !== undefined) result.lineSpacing = ls
@@ -2879,13 +2905,13 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.paragraphStyleFields) result.fields = params.paragraphStyleFields
         }
 
-        if (params.operation === 'create_paragraph_bullets' && params.bulletPreset) {
+        if (operation === 'create_paragraph_bullets' && params.bulletPreset) {
           result.bulletPreset = params.bulletPreset
         }
 
-        if (params.operation === 'replace_all_shapes_with_image') {
-          result.imageUrl = params.replaceShapesImageUrl
-          result.findText = params.replaceShapesFindText
+        if (operation === 'replace_all_shapes_with_image') {
+          result.imageUrl = orModelArg(params.replaceShapesImageUrl, rest.imageUrl)
+          result.findText = orModelArg(params.replaceShapesFindText, params.findText)
           if (params.replaceShapesMatchCase !== undefined)
             result.matchCase = params.replaceShapesMatchCase
           if (params.replaceShapesImageMethod)
@@ -2894,14 +2920,14 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
             result.pageObjectIds = params.replaceShapesPageObjectIds
         }
 
-        if (params.operation === 'replace_image') {
-          result.imageObjectId = params.replaceImageObjectId
-          result.imageUrl = params.replaceImageUrl
+        if (operation === 'replace_image') {
+          result.imageObjectId = orModelArg(params.replaceImageObjectId, params.imageObjectId)
+          result.imageUrl = orModelArg(params.replaceImageUrl, rest.imageUrl)
           if (params.replaceImageMethod) result.imageReplaceMethod = params.replaceImageMethod
         }
 
-        if (params.operation === 'update_image_properties') {
-          result.objectId = params.imagePropsObjectId
+        if (operation === 'update_image_properties') {
+          result.objectId = orModelArg(params.imagePropsObjectId, params.objectId)
           const brightness = toNum(params.imageBrightness)
           if (brightness !== undefined) result.brightness = brightness
           const contrast = toNum(params.imageContrast)
@@ -2917,8 +2943,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.imagePropertiesFields) result.fields = params.imagePropertiesFields
         }
 
-        if (params.operation === 'update_shape_properties') {
-          result.objectId = params.shapePropsObjectId
+        if (operation === 'update_shape_properties') {
+          result.objectId = orModelArg(params.shapePropsObjectId, params.objectId)
           if (params.shapeFillColor) result.fillColor = params.shapeFillColor
           const fillAlpha = toNum(params.shapeFillAlpha)
           if (fillAlpha !== undefined) result.fillAlpha = fillAlpha
@@ -2935,8 +2961,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.shapePropertiesFields) result.fields = params.shapePropertiesFields
         }
 
-        if (params.operation === 'update_page_properties') {
-          result.objectId = params.pagePropsObjectId
+        if (operation === 'update_page_properties') {
+          result.objectId = orModelArg(params.pagePropsObjectId, params.objectId)
           if (params.pageBackgroundColor) result.backgroundColor = params.pageBackgroundColor
           const bgAlpha = toNum(params.pageBackgroundAlpha)
           if (bgAlpha !== undefined) result.backgroundAlpha = bgAlpha
@@ -2948,22 +2974,22 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.pagePropertiesFields) result.fields = params.pagePropertiesFields
         }
 
-        if (params.operation === 'update_slide_properties') {
-          result.objectId = params.slidePropsObjectId
+        if (operation === 'update_slide_properties') {
+          result.objectId = orModelArg(params.slidePropsObjectId, params.objectId)
           if (params.slideIsSkipped !== undefined) result.isSkipped = params.slideIsSkipped
           if (params.slidePropertiesJson) result.propertiesJson = params.slidePropertiesJson
           if (params.slidePropertiesFields) result.fields = params.slidePropertiesFields
         }
 
-        if (params.operation === 'update_page_element_alt_text') {
-          result.objectId = params.altTextObjectId
+        if (operation === 'update_page_element_alt_text') {
+          result.objectId = orModelArg(params.altTextObjectId, params.objectId)
           if (params.altTextTitle !== undefined) result.title = params.altTextTitle
           if (params.altTextDescription !== undefined)
             result.description = params.altTextDescription
         }
 
-        if (params.operation === 'update_page_element_transform') {
-          result.objectId = params.transformObjectId
+        if (operation === 'update_page_element_transform') {
+          result.objectId = orModelArg(params.transformObjectId, params.objectId)
           const sx = toNum(params.transformScaleX)
           const sy = toNum(params.transformScaleY)
           const shx = toNum(params.transformShearX)
@@ -2979,25 +3005,30 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.transformApplyMode) result.applyMode = params.transformApplyMode
         }
 
-        if (params.operation === 'update_page_elements_z_order') {
-          result.objectIds = params.zOrderObjectIds
-          // Always overwrite — even when zOrderOperation is empty — so the block-level
-          // operation name 'update_page_elements_z_order' can never leak through as the
-          // z-order enum value and produce a confusing API error.
-          result.operation = params.zOrderOperation || undefined
+        if (operation === 'update_page_elements_z_order') {
+          result.objectIds = orModelArg(params.zOrderObjectIds, params.objectIds)
+          // The tool's z-order enum shares the block's `operation` key. On the canvas always
+          // overwrite it so the block operation name never reaches the API; on a tool call
+          // `rest` already holds the model's enum under the tool's own `operation` param.
+          if (params.zOrderOperation || !isToolCall(context)) {
+            Object.assign(result, { operation: params.zOrderOperation || undefined })
+          }
         }
 
-        if (params.operation === 'group_objects') {
-          result.childrenObjectIds = params.groupChildrenObjectIds
+        if (operation === 'group_objects') {
+          result.childrenObjectIds = orModelArg(
+            params.groupChildrenObjectIds,
+            params.childrenObjectIds
+          )
           if (params.groupObjectIdInput) result.groupObjectId = params.groupObjectIdInput
         }
 
-        if (params.operation === 'ungroup_objects') {
-          result.objectIds = params.ungroupObjectIds
+        if (operation === 'ungroup_objects') {
+          result.objectIds = orModelArg(params.ungroupObjectIds, params.objectIds)
         }
 
-        if (params.operation === 'create_line') {
-          result.pageObjectId = params.linePageObjectId
+        if (operation === 'create_line') {
+          result.pageObjectId = orModelArg(params.linePageObjectId, params.pageObjectId)
           if (params.lineCategory) result.lineCategory = params.lineCategory
           const lw = toNum(params.lineWidth)
           const lh = toNum(params.lineHeight)
@@ -3009,8 +3040,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (lpy !== undefined) result.positionY = lpy
         }
 
-        if (params.operation === 'update_line_properties') {
-          result.objectId = params.linePropsObjectId
+        if (operation === 'update_line_properties') {
+          result.objectId = orModelArg(params.linePropsObjectId, params.objectId)
           if (params.lineColor) result.lineColor = params.lineColor
           const lineWeight = toNum(params.lineWeight)
           if (lineWeight !== undefined) result.lineWeight = lineWeight
@@ -3022,13 +3053,13 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.linePropertiesFields) result.fields = params.linePropertiesFields
         }
 
-        if (params.operation === 'update_line_category') {
-          result.objectId = params.lineCategoryObjectId
+        if (operation === 'update_line_category') {
+          result.objectId = orModelArg(params.lineCategoryObjectId, params.objectId)
           if (params.newLineCategory) result.lineCategory = params.newLineCategory
         }
 
-        if (params.operation === 'reroute_line') {
-          result.objectId = params.rerouteLineObjectId
+        if (operation === 'reroute_line') {
+          result.objectId = orModelArg(params.rerouteLineObjectId, params.objectId)
         }
 
         const TABLE_CELL_REF_OPS = new Set([
@@ -3037,24 +3068,21 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           'delete_table_row',
           'delete_table_column',
         ])
-        if (TABLE_CELL_REF_OPS.has(params.operation as string)) {
-          result.tableObjectId = params.tableTargetObjectId
+        if (TABLE_CELL_REF_OPS.has(operation)) {
+          result.tableObjectId = orModelArg(params.tableTargetObjectId, params.tableObjectId)
           const rIdx = toNum(params.tableCellRowIndex)
           const cIdx = toNum(params.tableCellColumnIndex)
           if (rIdx !== undefined) result.rowIndex = rIdx
           if (cIdx !== undefined) result.columnIndex = cIdx
         }
-        if (
-          params.operation === 'insert_table_rows' ||
-          params.operation === 'insert_table_columns'
-        ) {
+        if (operation === 'insert_table_rows' || operation === 'insert_table_columns') {
           const n = toNum(params.tableInsertNumber)
           if (n !== undefined) result.number = n
         }
-        if (params.operation === 'insert_table_rows' && params.tableInsertBelow !== undefined) {
+        if (operation === 'insert_table_rows' && params.tableInsertBelow !== undefined) {
           result.insertBelow = params.tableInsertBelow
         }
-        if (params.operation === 'insert_table_columns' && params.tableInsertRight !== undefined) {
+        if (operation === 'insert_table_columns' && params.tableInsertRight !== undefined) {
           result.insertRight = params.tableInsertRight
         }
 
@@ -3064,8 +3092,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           'update_table_cell_properties',
           'update_table_border_properties',
         ])
-        if (TABLE_RANGE_OPS.has(params.operation as string)) {
-          result.objectId = params.tableRangeObjectId
+        if (TABLE_RANGE_OPS.has(operation)) {
+          result.objectId = orModelArg(params.tableRangeObjectId, params.objectId)
           const rIdx = toNum(params.tableRangeRowIndex)
           const cIdx = toNum(params.tableRangeColumnIndex)
           const rSpan = toNum(params.tableRangeRowSpan)
@@ -3076,7 +3104,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (cSpan !== undefined) result.columnSpan = cSpan
         }
 
-        if (params.operation === 'update_table_cell_properties') {
+        if (operation === 'update_table_cell_properties') {
           if (params.tableCellBackgroundColor)
             result.backgroundColor = params.tableCellBackgroundColor
           const cellAlpha = toNum(params.tableCellBackgroundAlpha)
@@ -3087,7 +3115,7 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.tableCellPropertiesFields) result.fields = params.tableCellPropertiesFields
         }
 
-        if (params.operation === 'update_table_border_properties') {
+        if (operation === 'update_table_border_properties') {
           if (params.tableBorderPosition) result.borderPosition = params.tableBorderPosition
           if (params.tableBorderColor) result.borderColor = params.tableBorderColor
           const borderWeight = toNum(params.tableBorderWeight)
@@ -3098,8 +3126,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.tableBorderPropertiesFields) result.fields = params.tableBorderPropertiesFields
         }
 
-        if (params.operation === 'update_table_column_properties') {
-          result.objectId = params.tableColumnPropsObjectId
+        if (operation === 'update_table_column_properties') {
+          result.objectId = orModelArg(params.tableColumnPropsObjectId, params.objectId)
           if (params.tableColumnIndices) result.columnIndices = params.tableColumnIndices
           const colWidth = toNum(params.tableColumnWidth)
           if (colWidth !== undefined) result.columnWidth = colWidth
@@ -3108,8 +3136,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.tableColumnPropertiesFields) result.fields = params.tableColumnPropertiesFields
         }
 
-        if (params.operation === 'update_table_row_properties') {
-          result.objectId = params.tableRowPropsObjectId
+        if (operation === 'update_table_row_properties') {
+          result.objectId = orModelArg(params.tableRowPropsObjectId, params.objectId)
           if (params.tableRowIndices) result.rowIndices = params.tableRowIndices
           const minHeight = toNum(params.tableMinRowHeight)
           if (minHeight !== undefined) result.minRowHeight = minHeight
@@ -3117,8 +3145,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.tableRowPropertiesFields) result.fields = params.tableRowPropertiesFields
         }
 
-        if (params.operation === 'create_sheets_chart') {
-          result.pageObjectId = params.chartPageObjectId
+        if (operation === 'create_sheets_chart') {
+          result.pageObjectId = orModelArg(params.chartPageObjectId, params.pageObjectId)
           if (params.chartSpreadsheetId) result.spreadsheetId = params.chartSpreadsheetId
           const cId = toNum(params.chartId)
           if (cId !== undefined) result.chartId = cId
@@ -3133,15 +3161,15 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (cpy !== undefined) result.positionY = cpy
         }
 
-        if (params.operation === 'refresh_sheets_chart') {
-          result.objectId = params.refreshChartObjectId
+        if (operation === 'refresh_sheets_chart') {
+          result.objectId = orModelArg(params.refreshChartObjectId, params.objectId)
         }
 
-        if (params.operation === 'replace_all_shapes_with_sheets_chart') {
+        if (operation === 'replace_all_shapes_with_sheets_chart') {
           if (params.chartSpreadsheetId) result.spreadsheetId = params.chartSpreadsheetId
           const cId = toNum(params.chartId)
           if (cId !== undefined) result.chartId = cId
-          result.findText = params.replaceShapesChartFindText
+          result.findText = orModelArg(params.replaceShapesChartFindText, params.findText)
           if (params.replaceShapesChartMatchCase !== undefined)
             result.matchCase = params.replaceShapesChartMatchCase
           if (params.chartLinkingMode) result.linkingMode = params.chartLinkingMode
@@ -3149,8 +3177,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
             result.pageObjectIds = params.replaceShapesChartPageObjectIds
         }
 
-        if (params.operation === 'create_video') {
-          result.pageObjectId = params.videoPageObjectId
+        if (operation === 'create_video') {
+          result.pageObjectId = orModelArg(params.videoPageObjectId, params.pageObjectId)
           if (params.videoSource) result.source = params.videoSource
           if (params.videoId) result.videoId = params.videoId
           const vw = toNum(params.videoWidth)
@@ -3163,8 +3191,8 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (vpy !== undefined) result.positionY = vpy
         }
 
-        if (params.operation === 'update_video_properties') {
-          result.objectId = params.videoPropsObjectId
+        if (operation === 'update_video_properties') {
+          result.objectId = orModelArg(params.videoPropsObjectId, params.objectId)
           if (params.videoAutoPlay !== undefined) result.autoPlay = params.videoAutoPlay
           if (params.videoMute !== undefined) result.mute = params.videoMute
           const vStart = toNum(params.videoStart)
@@ -3179,15 +3207,16 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
           if (params.videoPropertiesFields) result.fields = params.videoPropertiesFields
         }
 
-        if (params.operation === 'batch_update') {
+        if (operation === 'batch_update') {
           if (params.requestsJson) result.requests = params.requestsJson
           if (params.writeControlJson) result.writeControl = params.writeControlJson
         }
 
-        if (params.operation === 'copy_presentation') {
+        if (operation === 'copy_presentation') {
           if (params.sourcePresentationId) result.sourcePresentationId = params.sourcePresentationId
           if (params.copyTitle) result.title = params.copyTitle
           if (params.copyFolderId) result.folderId = params.copyFolderId
+          else if (isToolCall(context) && effectiveFolderId) result.folderId = effectiveFolderId
           result.presentationId = undefined
         }
 
@@ -3466,6 +3495,34 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
     pageType: { type: 'string', description: 'Page type (SLIDE, MASTER, etc.)' },
     pageElements: { type: 'json', description: 'Page elements array' },
     slideProperties: { type: 'json', description: 'Slide-specific properties' },
+    slideContents: {
+      type: 'json',
+      description:
+        'Plain-text view of each slide from Read: [{objectId, index, text, speakerNotes, isSkipped}]',
+    },
+    revisionId: {
+      type: 'string',
+      description: 'Presentation revision ID from Get Page (Read returns it in metadata)',
+    },
+    pageProperties: {
+      type: 'json',
+      description: 'Page properties from Get Page (pageBackgroundFill, colorScheme)',
+    },
+    layoutProperties: {
+      type: 'json',
+      description:
+        'Layout properties from Get Page, for layout pages (masterObjectId, name, displayName)',
+    },
+    notesProperties: {
+      type: 'json',
+      description: 'Notes properties from Get Page, for notes pages (speakerNotesObjectId)',
+    },
+    masterProperties: {
+      type: 'json',
+      description: 'Master properties from Get Page, for master pages (displayName)',
+    },
+    pageText: { type: 'string', description: 'Text on the page from Get Page' },
+    speakerNotes: { type: 'string', description: 'Speaker notes of the slide from Get Page' },
     deleted: { type: 'boolean', description: 'Whether object was deleted' },
     duplicatedObjectId: { type: 'string', description: 'Object ID of the duplicate' },
     moved: { type: 'boolean', description: 'Whether slides were moved' },
@@ -3571,15 +3628,16 @@ export const GoogleSlidesV2Block: BlockConfig = {
     access: GoogleSlidesBlock.tools!.access,
     config: {
       tool: GoogleSlidesBlock.tools!.config!.tool,
-      params: (params) => {
+      params: (params, context) => {
         const baseParams = GoogleSlidesBlock.tools?.config?.params
         if (!baseParams) {
           return params
         }
 
-        if (params.operation === 'add_image') {
+        if (mapperOperation(params, context) === 'add_image') {
           const fileObject = normalizeFileInput(params.imageFile, { single: true })
           if (!fileObject) {
+            if (toolCallArg(context, params.imageUrl)) return baseParams(params, context)
             throw new Error('Image file is required.')
           }
           const imageUrl = resolveHttpsUrlFromFileInput(fileObject)
@@ -3587,13 +3645,16 @@ export const GoogleSlidesV2Block: BlockConfig = {
             throw new Error('Image file must include a https URL.')
           }
 
-          return baseParams({
-            ...params,
-            imageUrl,
-          })
+          return baseParams(
+            {
+              ...params,
+              imageUrl,
+            },
+            context
+          )
         }
 
-        return baseParams(params)
+        return baseParams(params, context)
       },
     },
   },

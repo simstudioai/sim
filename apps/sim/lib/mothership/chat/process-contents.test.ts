@@ -714,17 +714,42 @@ describe('processContextsServer - browser and terminal selections', () => {
     }
   )
 
-  it('refuses more than three page snapshots before resolving context', async () => {
+  it('delivers ten short page snapshots without dropping their sources', async () => {
+    const snapshots = Array.from({ length: 10 }, (_, index) => ({
+      ...snapshot,
+      id: `11111111-1111-4111-8111-11111111111${index}`,
+      url: `https://example.com/page-${index}`,
+      text: `Source ${index}`,
+    }))
+    const result = await processContextsServer(
+      snapshots.map((page, index) => ({
+        kind: 'browser_page' as const,
+        label: `Page (${index + 1})`,
+        snapshot: page,
+      })),
+      'user-1'
+    )
+    expect(result).toHaveLength(10)
+    for (const [index, context] of result.entries()) {
+      const payload = context.content.split('\n').find((line) => line.startsWith('{'))
+      expect(payload && JSON.parse(payload)).toEqual(snapshots[index])
+    }
+  })
+
+  it.each([
+    { name: 'combined text', text: 'x'.repeat(37_501) },
+    { name: 'combined serialized bytes', text: '\u0000'.repeat(18_751) },
+  ])('refuses an oversized page batch before resolving context: $name', async ({ text }) => {
     await expect(
       processContextsServer(
         Array.from({ length: 4 }, (_, index) => ({
           kind: 'browser_page' as const,
           label: `Page ${index}`,
-          snapshot: { ...snapshot, id: `11111111-1111-4111-8111-11111111111${index}` },
+          snapshot: { ...snapshot, text, id: `11111111-1111-4111-8111-11111111111${index}` },
         })),
         'user-1'
       )
-    ).rejects.toThrow('At most 3 page snapshots')
+    ).rejects.toThrow('These pages contain too much text')
   })
 
   it('points every browser and terminal mention at its exact tab', async () => {

@@ -24,7 +24,7 @@ export const harmonicGetPeopleSavedSearchNetNewResultsTool: ToolConfig<
   description:
     'Get only the people newly matching a subscribed Harmonic people saved search, so a monitor does not reprocess the whole result set.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

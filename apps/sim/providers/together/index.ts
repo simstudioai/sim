@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import {
@@ -44,6 +45,7 @@ export const togetherProvider: ProviderConfig = {
 
     const client = new OpenAI({
       ...openAICompatTransport(),
+      fetch: outboundFetch,
       apiKey: request.apiKey,
       baseURL: 'https://api.together.ai/v1',
     })

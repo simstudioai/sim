@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { SERVICENOW_CREDENTIAL_PARAMS } from '@/tools/servicenow/params'
 import type {
   ServiceNowUploadAttachmentParams,
   ServiceNowUploadAttachmentResponse,
 } from '@/tools/servicenow/types'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowUploadAttachmentTool')
@@ -15,6 +17,7 @@ export const uploadAttachmentTool: InternalToolConfig<
   name: 'Upload ServiceNow Attachment',
   description: 'Attach a file to a ServiceNow record',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {
@@ -35,6 +38,7 @@ export const uploadAttachmentTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...SERVICENOW_CREDENTIAL_PARAMS,
     tableName: {
       type: 'string',
       required: true,
@@ -66,6 +70,8 @@ export const uploadAttachmentTool: InternalToolConfig<
       instanceUrl: params.instanceUrl,
       username: params.username,
       password: params.password,
+      accessToken: params.accessToken,
+      authStyle: params.authStyle,
       tableName: params.tableName,
       recordSysId: params.recordSysId,
       fileName: params.fileName,

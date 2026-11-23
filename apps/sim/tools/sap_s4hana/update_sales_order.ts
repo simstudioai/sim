@@ -112,40 +112,33 @@ export const updateSalesOrderTool: InternalToolConfig<UpdateSalesOrderParams, Sa
     data: {
       type: 'json',
       description:
-        'Null on 204 success; otherwise OData v2 envelope with the updated entity at output.data.d',
+        'Null on 204 No Content (the usual response), or the updated A_SalesOrder entity when SAP returns one',
       optional: true,
       properties: {
-        d: {
-          type: 'json',
-          description: 'Updated A_SalesOrder entity (when SAP returns one)',
+        SalesOrder: {
+          type: 'string',
+          description: 'Sales order number',
           optional: true,
-          properties: {
-            SalesOrder: {
-              type: 'string',
-              description: 'Sales order number',
-              optional: true,
-            },
-            SalesOrderType: {
-              type: 'string',
-              description: 'Sales document type',
-              optional: true,
-            },
-            PurchaseOrderByCustomer: {
-              type: 'string',
-              description: 'Customer purchase order reference',
-              optional: true,
-            },
-            OverallSDProcessStatus: {
-              type: 'string',
-              description: 'Overall sales document process status',
-              optional: true,
-            },
-            OverallTotalDeliveryStatus: {
-              type: 'string',
-              description: 'Overall total delivery status',
-              optional: true,
-            },
-          },
+        },
+        SalesOrderType: {
+          type: 'string',
+          description: 'Sales document type',
+          optional: true,
+        },
+        PurchaseOrderByCustomer: {
+          type: 'string',
+          description: 'Customer purchase order reference',
+          optional: true,
+        },
+        OverallSDProcessStatus: {
+          type: 'string',
+          description: 'Overall sales document process status',
+          optional: true,
+        },
+        OverallTotalDeliveryStatus: {
+          type: 'string',
+          description: 'Overall total delivery status',
+          optional: true,
         },
       },
     },

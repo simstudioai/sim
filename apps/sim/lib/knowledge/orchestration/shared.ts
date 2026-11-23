@@ -70,7 +70,7 @@ export function classifyKnowledgeFailure(
   if (classified) {
     return fail(classified.message, classified.code)
   }
-  logger.error(`[${requestId}] ${operation} failed`, { error })
+  logger.error(`${operation} failed`, { requestId, error })
   return fail(toError(error).message, 'internal')
 }
 

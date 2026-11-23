@@ -5,6 +5,7 @@ import { isMultipartError, type MultipartError, readMultipart } from '@/lib/core
 type Part =
   | { name: string; value: string }
   | { name: string; filename: string; value: string; contentType?: string }
+  | { name: string; value: string; contentType: string }
 
 const BOUNDARY = '----testboundary1234'
 
@@ -14,6 +15,8 @@ function buildBody(parts: Part[], boundary = BOUNDARY): Buffer {
     let header = `--${boundary}\r\nContent-Disposition: form-data; name="${part.name}"`
     if ('filename' in part) {
       header += `; filename="${part.filename}"\r\nContent-Type: ${part.contentType ?? 'text/csv'}`
+    } else if ('contentType' in part) {
+      header += `\r\nContent-Type: ${part.contentType}`
     }
     header += '\r\n\r\n'
     segments.push(Buffer.from(header, 'utf8'), Buffer.from(part.value, 'utf8'), Buffer.from('\r\n'))
@@ -113,6 +116,18 @@ describe('readMultipart', () => {
 
   it('rejects NO_FILE when the body has no file part', async () => {
     const request = makeRequest([{ name: 'workspaceId', value: 'ws-1' }])
+    await readMultipart(request, { maxFileBytes: 1024 }).then(
+      () => {
+        throw new Error('expected rejection')
+      },
+      (err) => expectCode(err, 'NO_FILE')
+    )
+  })
+
+  it('rejects NO_FILE when the file part carries no filename', async () => {
+    const request = makeRequest([
+      { name: 'file', value: 'name\nAlice\n', contentType: 'application/octet-stream' },
+    ])
     await readMultipart(request, { maxFileBytes: 1024 }).then(
       () => {
         throw new Error('expected rejection')

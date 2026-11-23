@@ -1,6 +1,5 @@
 /**
- * Generic durable event log over Redis (sorted set + monotonic id + TTL), with an
- * in-memory fallback for dev/tests. This is the reusable core extracted from the
+ * Generic durable event log over Redis (sorted set + monotonic id + TTL). This is the reusable core extracted from the
  * Tables cell-event buffer; a domain adapter (e.g. `lib/table/events.ts`) supplies
  * its Redis key prefix and how to serialize an entry, and gets append/read/tail
  * semantics for free — including replay-on-reconnect and prune detection.
@@ -16,7 +15,6 @@
 
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('EventLog')
@@ -116,11 +114,10 @@ export interface EventLogEntry {
 /**
  * How an adapter serializes one entry. `entryPrefix`/`entrySuffix` are spliced
  * around the minted `eventId` in Lua (`prefix + eventId + suffix`) for the Redis
- * write; `buildEntry` returns the equivalent object. It is the canonical entry
- * builder for BOTH paths — the in-memory fallback AND the Redis success path,
- * which returns `buildEntry(eventId)` rather than re-parsing the stored string —
- * so it MUST produce the byte-identical shape to the spliced JSON, or dev/no-Redis
- * behaves differently from prod.
+ * write; `buildEntry` returns the equivalent object. The append path returns
+ * `buildEntry(eventId)` rather than re-parsing the stored string, while readers
+ * parse the stored string — so it MUST produce the byte-identical shape to the
+ * spliced JSON, or a live append and its replay disagree.
  */
 export interface EntrySerializer<E extends EventLogEntry> {
   entryPrefix: string
@@ -143,41 +140,6 @@ function metaKey(config: EventLogConfig, streamId: string) {
   return `${config.prefix}${streamId}:meta`
 }
 
-interface MemoryStream<E extends EventLogEntry> {
-  events: E[]
-  earliestEventId?: number
-  nextEventId: number
-  expiresAt: number
-}
-
-/** In-memory fallback keyed by `${prefix}${streamId}`, shared across all families. */
-const memoryStreams = new Map<string, MemoryStream<EventLogEntry>>()
-
-function memoryKey(config: EventLogConfig, streamId: string) {
-  return `${config.prefix}${streamId}`
-}
-
-function canUseMemoryBuffer(): boolean {
-  return typeof window === 'undefined' && getConfiguredCacheProvider() === 'database'
-}
-
-function pruneExpiredMemoryStreams(now = Date.now()): void {
-  for (const [key, stream] of memoryStreams) {
-    if (stream.expiresAt <= now) memoryStreams.delete(key)
-  }
-}
-
-function getMemoryStream(config: EventLogConfig, streamId: string): MemoryStream<EventLogEntry> {
-  pruneExpiredMemoryStreams()
-  const key = memoryKey(config, streamId)
-  let stream = memoryStreams.get(key)
-  if (!stream) {
-    stream = { events: [], nextEventId: 1, expiresAt: Date.now() + config.ttlSeconds * 1000 }
-    memoryStreams.set(key, stream)
-  }
-  return stream
-}
-
 /**
  * Append an event. Fire-and-forget from the caller — never throws, returns null on
  * failure. A Redis blip must not fail the originating mutation.
@@ -187,41 +149,8 @@ export async function appendEvent<E extends EventLogEntry>(
   streamId: string,
   serializer: EntrySerializer<E>
 ): Promise<E | null> {
-  const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryBuffer()) {
-      try {
-        const stream = getMemoryStream(config, streamId)
-        const entry = serializer.buildEntry(stream.nextEventId++)
-        stream.events.push(entry)
-        if (stream.events.length > config.cap) {
-          stream.events = stream.events.slice(-config.cap)
-        }
-        if (config.maxBytes > 0) {
-          // UTF-8 bytes, so this path bounds a stream identically to the Lua's `string.len`;
-          // `String.length` counts UTF-16 units and under-reports every non-ASCII event.
-          const entryBytes = (event: EventLogEntry) =>
-            Buffer.byteLength(JSON.stringify(event), 'utf8')
-          let bytes = stream.events.reduce((total, event) => total + entryBytes(event), 0)
-          while (bytes > config.maxBytes && stream.events.length > 1) {
-            bytes -= entryBytes(stream.events[0])
-            stream.events = stream.events.slice(1)
-          }
-        }
-        stream.earliestEventId = stream.events[0]?.eventId
-        stream.expiresAt = Date.now() + config.ttlSeconds * 1000
-        return entry
-      } catch (error) {
-        logger.warn('appendEvent: memory append failed', {
-          streamId,
-          error: toError(error).message,
-        })
-        return null
-      }
-    }
-    return null
-  }
   try {
+    const redis = getRedisClient()
     const result = await redis.eval(
       APPEND_EVENT_SCRIPT,
       3,
@@ -252,13 +181,6 @@ export async function appendEvent<E extends EventLogEntry>(
  */
 export async function getLatestEventId(config: EventLogConfig, streamId: string): Promise<number> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryBuffer()) {
-      const stream = memoryStreams.get(memoryKey(config, streamId))
-      return stream ? stream.nextEventId - 1 : 0
-    }
-    return 0
-  }
   const raw = await redis.get(seqKey(config, streamId))
   if (!raw) return 0
   const parsed = Number.parseInt(raw, 10)
@@ -276,26 +198,6 @@ export async function readEventsSince<E extends EventLogEntry>(
   afterEventId: number
 ): Promise<EventLogReadResult<E>> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryBuffer()) {
-      pruneExpiredMemoryStreams()
-      const stream = memoryStreams.get(memoryKey(config, streamId))
-      if (!stream) {
-        if (afterEventId > 0) return { status: 'pruned', earliestEventId: undefined }
-        return { status: 'ok', events: [] }
-      }
-      if (stream.earliestEventId !== undefined && afterEventId + 1 < stream.earliestEventId) {
-        return { status: 'pruned', earliestEventId: stream.earliestEventId }
-      }
-      return {
-        status: 'ok',
-        events: stream.events
-          .filter((entry) => entry.eventId > afterEventId)
-          .slice(0, config.readChunk) as E[],
-      }
-    }
-    return { status: 'unavailable', error: 'Redis client unavailable' }
-  }
   try {
     const meta = await redis.hgetall(metaKey(config, streamId))
     const earliestEventId =
@@ -334,9 +236,4 @@ export async function readEventsSince<E extends EventLogEntry>(
     logger.warn('readEventsSince failed', { streamId, error: message })
     return { status: 'unavailable', error: message }
   }
-}
-
-/** Test-only: clear the in-memory streams between cases. */
-export function resetEventLogMemoryForTesting(): void {
-  memoryStreams.clear()
 }

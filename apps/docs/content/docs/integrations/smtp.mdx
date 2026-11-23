@@ -6,11 +6,12 @@ integration:
   color: "#2D3748"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 The SMTP block sends email through a mail server using its hostname, port, security protocol, and credentials. Set the sender, recipients, subject, and plain-text or HTML body; add CC, BCC, reply-to, and attachments as needed. Inspect the returned send status and message ID, or the error if sending fails.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Send email through an SMTP server using its host, port, security protocol, and c
 ### SMTP Send Mail
 
 Send emails via SMTP server
+
+<ReferenceDetails>
 
 #### Input
 
@@ -51,5 +54,7 @@ Send emails via SMTP server
 | `to` | string | Recipient email address |
 | `subject` | string | Email subject |
 | `error` | string | Error message if sending failed |
+
+</ReferenceDetails>
 
 

@@ -2,6 +2,7 @@ import type {
   AppConfigListDeploymentStrategiesParams,
   AppConfigListDeploymentStrategiesResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listDeploymentStrategiesTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listDeploymentStrategiesTool: InternalToolConfig<
   name: 'AppConfig List Deployment Strategies',
   description: 'List deployment strategies available in AWS AppConfig',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -1,5 +1,6 @@
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadMarkCompleteResponse,
@@ -30,6 +31,7 @@ export const markLeadCompleteTool: ToolConfig<
   description:
     'Marks a lead as completed in a Smartlead campaign so it stops receiving further sequence steps.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

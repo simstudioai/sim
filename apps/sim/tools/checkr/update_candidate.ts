@@ -13,6 +13,7 @@ import {
   checkrUrl,
   mapCandidate,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrUpdateCandidateTool: ToolConfig<
@@ -24,6 +25,7 @@ export const checkrUpdateCandidateTool: ToolConfig<
   description:
     'Update a candidate. Once a report is ordered only empty fields can change, except email, phone, previous driver license, copy requested, custom ID, and geo IDs.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {
