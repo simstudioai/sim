@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_RESPONSE_BYTES,
@@ -235,5 +236,32 @@ describe('validate-pii (Presidio service)', () => {
       expect(res.error).toContain('detected entities exceed the validation response size limit')
       expect(fetchMock).toHaveBeenCalledOnce()
     })
+  })
+})
+
+describe('maskPIIBatch with PII_SERVICE_CHUNK_CONCURRENCY set', () => {
+  afterEach(() => {
+    resetEnvMock()
+    vi.resetModules()
+  })
+
+  it('masks when the deployment sets the service chunk concurrency (env values arrive as strings)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: { body: string }) => {
+        const body = JSON.parse(init.body) as { texts: string[]; entities?: string[] }
+        const texts = body.texts.map((t) => applyReplace(t, emailSpans(t, body.entities)))
+        return new Response(JSON.stringify({ texts }), { status: 200 })
+      })
+    )
+    setEnv({ PII_SERVICE_CHUNK_CONCURRENCY: '4' })
+    vi.resetModules()
+    const { maskPIIBatch: maskWithConfiguredConcurrency } = await import(
+      '@/lib/guardrails/validate-pii'
+    )
+
+    const masked = await maskWithConfiguredConcurrency(['mail a@b.com'], ['EMAIL_ADDRESS'])
+
+    expect(masked).toEqual(['mail <EMAIL_ADDRESS>'])
   })
 })
