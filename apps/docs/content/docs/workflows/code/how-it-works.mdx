@@ -7,7 +7,7 @@ A source file is a declaration, not a program. Sim reads it, compares it with th
 
 ## Nothing in the file runs
 
-`workflow.ts` is TypeScript so that your editor can complete and type-check it, but no command executes it. Sim parses the file and reads each `const x = builder('Name', {…})` as one block, each `.to()` as one connection, and each param as one setting. That is why the file holds declarations only: a helper function, a loop that creates blocks, or an import has no value Sim could read without running it, so it is refused with `E_UNSUPPORTED_SYNTAX` and a hint.
+`workflow.ts` is TypeScript so that your editor can complete and type-check it, but no command executes it. Sim parses the file and reads each `const x = builder('Name', {…})` as one block, each `.to()` as one connection, and each param as one setting. That is why the file holds declarations only: a helper function, a loop that creates blocks, or an import from anything but `@sim/workflow-sdk` has no value Sim could read without running it, so it is refused with `E_UNSUPPORTED_SYNTAX` and a hint.
 
 `check` runs this compiler on your machine, the same one the server runs, against the block catalog the last `get` cached. Function code under `functions/` is not run either: it is stored as the Function block's code and runs in Sim, like code typed into the workflow builder.
 
@@ -75,7 +75,9 @@ A workspace directory adds tables, knowledge bases, files, custom tools, skills,
 
 A resource with no base entry is created, or **adopted** when Sim already holds one under the same name. An adopt only adds to what is there, such as a column or a document; one that would change or remove anything is refused with `E_APPLY_NO_BASE`. A resource the directory stops declaring is deleted only when the base recorded it and you pass `--allow-delete`; anything else Sim holds is kept and named in a `W_UNDECLARED` warning.
 
-Each workflow folder is applied exactly as a single workflow, with its own `.sim/lock.json` and `.sim/base.json`. An apply writes resources in dependency order, so a table exists before the workflow that writes to it, and deletes run in reverse.
+Workflows are the exception to this table. Each workflow folder is applied exactly as a single workflow, with its own `.sim/lock.json` and `.sim/base.json`: a folder you did not edit is skipped without asking whether Sim changed it, so it gets no `W_SERVER_CHANGED`, and an edited folder is refused as stale whenever Sim changed the workflow since its base, even when both made the same change.
+
+An apply writes resources in dependency order, so a table exists before the workflow that writes to it, and deletes run in reverse.
 
 ### Applying a workspace
 

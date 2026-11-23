@@ -16,14 +16,14 @@ Each finding prints as `file:line:column`, with the code around it and a hint. `
 - **The source has errors.** Fix each one at the line it names. The [diagnostic codes](#by-diagnostic-code) below cover the common ones, and [Diagnostic codes](/workflows/code/diagnostics) lists every code.
 - **`check` failed on a warning.** An apply saves some warnings as written, such as a required field left empty, so `check` fails on them in a block you added since the `get`. `sim workflows source check --help` lists them.
 - **"No block catalog is cached".** `sim workflows source check` and `params` work from the catalog the last `get` or `create` cached on this machine. Run `get` once, for example on a fresh CI runner. `sim workspaces source check` downloads the catalog itself.
-- **A name is taken.** `SOURCE_NAME_TAKEN` on `create`: pass `--name`. `E_NAME_TAKEN` on an apply: another workflow in the folder has the name `workflow('…')` gives.
+- **A name is taken.** `SOURCE_NAME_TAKEN` on `create`: pass `--name`. `E_NAME_TAKEN` on an apply: another resource of the same kind already has that name, such as another workflow in the folder for the name `workflow('…')` gives, or another skill or custom tool in a workspace directory.
 - **`get` refused the directory.** `SOURCE_LOCAL_EDITS` means the directory holds edits no apply has saved: apply them, get into another directory, or pass `--force` to discard them. `SOURCE_WORKFLOW_MISMATCH` means it holds another workflow, and `SOURCE_DIR_KIND_MISMATCH` that it is the other kind of directory, which `--force` never overrides.
 - **The directory belongs to another workspace.** `SOURCE_OTHER_WORKSPACE`: a directory acts on the workspace it was read from. Drop `--workspace`, or promote it with `--to`.
 - **Binary files were never downloaded.** `SOURCE_BLOBS_NOT_FETCHED`: run `get` again before applying.
 
 ### Exit `5`: stale [#exit-5]
 
-Someone saved what this directory was read from after you read it, in the workflow builder, through the API, or with another apply. Nothing was written, and a dry run exits `5` the same way.
+Someone saved what this directory was read from after you read it, in the workflow builder, through the API, or with another apply. A workflow apply, and a workspace apply refused while planning, writes nothing; a dry run exits `5` the same way. A workspace apply that found a resource changed part-way through its writes has saved the changes before it into the directory, so carry over only the rest.
 
 1. See what changed in Sim: `sim workflows source diff --dir <dir> --server`.
 2. Get the current version into a fresh directory: `sim workflows source get <workflowId> --dir <fresh dir>`.
@@ -90,7 +90,7 @@ Ctrl-C. If the CLI says a write may have happened, `status` shows whether it did
 
 ### `E_UNSUPPORTED_SYNTAX` [#e-unsupported-syntax]
 
-The file holds a form Sim cannot read without running it, such as a helper function, an `if`, a loop that creates blocks, or an import of your own. Write each block as its own `const`, use `loop()`, `parallel()`, `condition` or `router` blocks for control flow, and put logic inside function code. The hint names the supported form; [File syntax](/workflows/code/syntax) lists them all.
+The file holds a form Sim cannot read without running it, such as a helper function, an `if`, a loop that creates blocks, or an import from anything but `@sim/workflow-sdk`. Write each block as its own `const`, use `loop()`, `parallel()`, `condition` or `router` blocks for control flow, and put logic inside function code. The hint names the supported form; [File syntax](/workflows/code/syntax) lists them all.
 
 ### `E_UNKNOWN_BUILDER` and `E_UNKNOWN_PARAM` [#e-unknown-param]
 
