@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@sim/utils": "workspace:*",
-    "zod": "4.3.6"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@sim/testing": "workspace:*",
