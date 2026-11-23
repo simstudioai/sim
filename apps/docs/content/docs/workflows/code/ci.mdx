@@ -1,0 +1,181 @@
+---
+title: Run in CI
+description: Dry-run source on pull requests, apply on merge, comment the plan, detect drift on a schedule, and promote, with GitHub Actions recipes.
+---
+
+Result: a pull request that shows what an apply would change, an apply on merge, and a scheduled check that tells you when someone edited the workspace in Sim.
+
+## Credentials
+
+Saving and dry-running source act as a person. Use a personal API key (**Settings → Sim API keys**, passed as `SIM_API_KEY`) or an OAuth login. A workspace API key is refused with `403` for workflows, and for a workspace directory it can apply only the kinds it can write; see [Workspace API keys](/workflows/code/workspace#workspace-api-keys). Set `SIM_WORKSPACE` unless you pass `--workspace`, and `SIM_ENDPOINT` if you use a self-hosted Sim. See [Authenticating CI](/cli/authentication#authenticating-ci).
+
+## What to commit
+
+- **A workflow directory:** commit `workflow.ts`, `functions/`, `.sim/lock.json`, `.sim/base.json`, `.sim/written.json`, `.sim/stored-edges.json`, `tsconfig.json` and `.gitattributes`. CI finds the workflow from `workflowId` in `.sim/base.json`, and `status` and `get` use `.sim/written.json` to tell your edits apart from what the CLI last wrote. Gitignore `tsconfig.full.json`; `.sim/sdk/` is optional.
+- **A workspace directory:** commit everything, including `.sim/`. Its generated `.gitignore` leaves out only temporary files.
+
+[Directory layout](/workflows/code/directory) lists every file.
+
+## One workflow
+
+Run `sim workflows source apply --dir <dir> --dry-run` on pull requests. It exits `0` when the workflow is valid, `1` when it has errors, and `5` when the workflow was changed in the workflow builder after you committed the directory, so a failing check blocks the merge. `check` is not needed: the dry run runs every check a save runs, and `check` fails on a fresh runner that has no cached block catalog.
+
+```yaml title=".github/workflows/sim-workflow.yml"
+on:
+  pull_request:
+    paths: ['support-triage/**']
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    env:
+      SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
+      SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+      - run: bun add -g sim
+      - run: sim workflows source apply --dir support-triage --dry-run
+```
+
+## A workspace
+
+Keep a [workspace directory](/workflows/code/workspace) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors, `5` when the workspace changed since the committed base, and `15` when the apply would hold back changes that use a secret with no value or a credential nothing binds to. `check` downloads the block catalog once on a fresh runner. On GitHub Actions (`GITHUB_ACTIONS=true`), every source command also annotates each error and warning at its file and line, so they show inline on the pull request, and a workspace `apply` (a dry run too) appends its plan and errors to the job's step summary.
+
+```yaml title=".github/workflows/sim-workspace.yml"
+on:
+  pull_request:
+    paths: ['workspace/**']
+  push:
+    branches: [main]
+    paths: ['workspace/**']
+
+concurrency: sim-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    env:
+      SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
+      SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+      - run: bun add -g sim
+      - run: sim workspaces source check --dir workspace
+      - run: bunx -p typescript@7.0.2 tsc -p workspace
+      - run: sim workspaces source apply --dir workspace --dry-run
+      - if: github.event_name == 'push'
+        run: sim workspaces source apply --dir workspace --yes
+      - if: ${{ !cancelled() && github.event_name == 'push' }}
+        run: |
+          git add -A workspace
+          if ! git diff --cached --quiet; then
+            git -c user.name=sim-bot -c user.email=sim-bot@users.noreply.github.com \
+              commit -m "chore(workspace): files the apply rewrote [skip ci]"
+            git push
+          fi
+```
+
+`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. That step runs even when the apply failed (`!cancelled()`), because an apply can fail having written part of its plan: exit `15` means it held back changes that use a secret with no value or a credential nothing binds to and applied the rest, and exit `8` means it stopped part-way. Either way the directory records what was written, so committing it keeps the next run from being refused as stale (exit `5`) for resources this run wrote; the job still fails, so set the secret, connect the credential or fix the failure, and push again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request.
+
+After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping. Pull requests from forks do not receive repository secrets, so the dry run needs a branch in the same repository.
+
+### Comment the plan on the pull request
+
+The step summary appears on the run page, not in the pull request. To post the plan as one comment that later pushes edit instead of adding another, copy the summary file in the same step that runs the dry run, with `pull-requests: write` in `permissions`:
+
+```yaml
+      - if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          sim workspaces source apply --dir workspace --dry-run || status=$?
+          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none --body-file "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+```
+
+Use this step in place of the plain dry-run step for pull requests. The comment lists the first 50 changes and errors and counts the rest. `--edit-last` edits the last comment from the same account, which is the Actions bot here, so do not post other comments from this token on the pull request.
+
+### Detect drift on a schedule
+
+A change made in Sim, such as a hotfix in the workflow builder, makes the next apply exit `5`. A scheduled job finds it first: `status` exits `12` when the server changed since the directory was read, and `11` when the committed directory holds edits no apply has saved, for example after a merge whose apply failed.
+
+```yaml title=".github/workflows/sim-drift.yml"
+on:
+  schedule:
+    - cron: '17 6 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    env:
+      SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
+      SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+      - run: bun add -g sim
+      - run: |
+          status=0
+          sim workspaces source status --dir workspace || status=$?
+          case "$status" in
+            0) exit 0 ;;
+            11|12) ;;
+            *) exit "$status" ;;
+          esac
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body="sim workspaces source status exited $status ($run_url). Run it locally for the changes and the next command."
+          gh label create sim-drift --force
+          number=$(gh issue list --label sim-drift --state open --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --label sim-drift --title "Sim workspace drift" --body "$body"
+          fi
+```
+
+To bring the change into git instead, run `sim workspaces source get --dir workspace` on a new branch and open a pull request.
+
+### Promote in CI
+
+To promote the same directory to a second workspace, add a step with `--to` before the step that commits the files back:
+
+```bash
+sim workspaces source apply --dir workspace --to "$PROD_WORKSPACE_ID" --yes
+```
+
+The promotion writes `workspace/.sim/targets/<workspaceId>.json`, what it left in that workspace. Committing it lets the next run tell a change made in that workspace since (kept, or exit `5` when the directory changed the same resource) from one to promote. See [Promote to another workspace](/workflows/code/promote).
+
+## Git provenance
+
+In a git repository, `apply` and `create` send the commit checked out (`HEAD`) and the `origin` remote URL, with any credentials, query or fragment removed, as `provenance.gitSha` and `provenance.repo`, each only when `git` can read it (a repository with no `origin` sends only the commit). A saved write records what was sent in its [audit log](/platform/enterprise/audit-logs) entry (`workflow.updated` or `workflow.created` for a workflow, `workspace.updated` for a workspace apply). A directory outside a repository sends neither.
+
+## Related docs
+
+- [Exit codes](/workflows/code/exit-codes)
+- [Promote to another workspace](/workflows/code/promote)
+- [Scripting](/cli/scripting)
+- [Authenticating CI](/cli/authentication#authenticating-ci)

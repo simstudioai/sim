@@ -7,6 +7,9 @@
  * workflow code already says ({@link SHARED_CODES}) use that code, and every other workspace code
  * is one the workflow vocabulary does not hold ({@link WorkspaceDiagnosticCode} is `never` if it
  * does).
+ *
+ * The TSDoc above each code is its meaning in the public docs: `bun run generate:workflow-code-docs`
+ * reads it, and fails on a code without one.
  */
 
 import {
@@ -60,9 +63,13 @@ const DECLARATION_CODES = [
 
 /** `.sim/base.json`. */
 const BASE_CODES = [
+  /** The base is not valid JSON. */
   'E_BASE_JSON',
+  /** `version` is missing or not `1`. */
   'E_BASE_VERSION',
+  /** A required field is missing or of the wrong type or format. */
   'E_BASE_SHAPE',
+  /** A field the base does not define (`x-` keys are allowed). */
   'E_BASE_UNKNOWN_FIELD',
 ] as const
 

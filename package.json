@@ -126,6 +126,8 @@
     "sim-setup": "bun run packages/sim-setup/src/index.ts",
     "generate:agent-stream-docs": "bun run scripts/sync-agent-stream-docs.ts",
     "check:agent-stream-docs": "bun run scripts/sync-agent-stream-docs.ts --check",
+    "generate:workflow-code-docs": "bun run scripts/sync-workflow-code-docs.ts",
+    "check:workflow-code-docs": "bun run scripts/sync-workflow-code-docs.ts --check",
     "prepare": "bun husky",
     "test:workflow-sync": "bun --no-env-file scripts/test-integration.ts lib/workspaces/__integration__",
     "type-check": "bun run type-check:scripts:esm && turbo run type-check",

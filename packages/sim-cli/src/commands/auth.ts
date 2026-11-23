@@ -755,7 +755,7 @@ async function loginWithHandoff(
       : `the newest key named "CLI (…Z)", created at about ${new Date().toISOString().slice(0, 19).replace('T', ' ')}Z,`
     printLine(
       styles().yellow(
-        `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → API keys.`
+        `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → Sim API keys.`
       )
     )
     throw error
@@ -851,7 +851,7 @@ export function logoutCommand(): Command {
         printLine(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         if (credential?.kind === 'api_key') {
           printLine(
-            styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
+            styles().dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
           )
         }
         return
@@ -886,7 +886,7 @@ export function logoutCommand(): Command {
       if (credential.kind === 'api_key') {
         /** Local API-key removal cannot revoke the server-side key. */
         printLine(
-          styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
+          styles().dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
         )
       }
     })
