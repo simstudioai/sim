@@ -8084,6 +8084,13 @@ type GetLogResponseRef2 = {
   startedAt: string
   endedAt: string | null
   totalDurationMs: number | null
+  failure: {
+    blockId: string
+    blockName: string
+    blockType: string
+    error: string | null
+    errorMessage: string | null
+  } | null
   files: Array<GetLogResponseRef0> | null
   executedByEmail: string | null
   workflow: {

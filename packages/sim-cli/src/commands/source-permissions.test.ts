@@ -33,44 +33,37 @@ function snapshot(content: string, dispose: () => Promise<void>) {
 }
 
 describe('Search permission CSV upload', () => {
-  it('cancels a stalled snapshot on Node 20 without AbortSignal.any and releases its lease', async () => {
+  it('cancels a stalled snapshot and releases its lease', async () => {
     const controller = new AbortController()
     const snapshotController = new AbortController()
-    const originalAny = Object.getOwnPropertyDescriptor(AbortSignal, 'any')
-    Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true })
     let disposed = false
     let cancelled = false
-    try {
-      const result = await runEmbeddedCli(
-        args,
-        { ...identity, signal: controller.signal },
-        {
-          openFile: async () => ({
-            size: 100,
-            signal: snapshotController.signal,
-            stream: async () =>
-              new ReadableStream({
-                pull() {
-                  controller.abort()
-                },
-                cancel() {
-                  cancelled = true
-                },
-              }),
-            dispose: async () => {
-              disposed = true
-            },
-          }),
-        }
-      )
-      expect(result.exitCode).toBe(1)
-      expect(disposed).toBe(true)
-      expect(cancelled).toBe(true)
-      expect(result.stderr).toContain('cancelled')
-    } finally {
-      if (originalAny) Object.defineProperty(AbortSignal, 'any', originalAny)
-      else Reflect.deleteProperty(AbortSignal, 'any')
-    }
+    const result = await runEmbeddedCli(
+      args,
+      { ...identity, signal: controller.signal },
+      {
+        openFile: async () => ({
+          size: 100,
+          signal: snapshotController.signal,
+          stream: async () =>
+            new ReadableStream({
+              pull() {
+                controller.abort()
+              },
+              cancel() {
+                cancelled = true
+              },
+            }),
+          dispose: async () => {
+            disposed = true
+          },
+        }),
+      }
+    )
+    expect(result.exitCode).toBe(1)
+    expect(disposed).toBe(true)
+    expect(cancelled).toBe(true)
+    expect(result.stderr).toContain('cancelled')
   })
 
   it('preserves snapshot I/O failures instead of blaming CSV syntax', async () => {

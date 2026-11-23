@@ -171,6 +171,21 @@ describe('workspaces source get', () => {
     expect(existsSync(join(dir, 'tables/accounts.rows.jsonl'))).toBe(false)
   })
 
+  it("writes a root AGENTS.md pointing at the guide, refreshed while it is the CLI's and never replaced once edited", async () => {
+    serve({ 'tables/leads.ts': LEADS })
+
+    await get()
+
+    const pointer = readFileSync(join(dir, 'AGENTS.md'), 'utf8')
+    expect(pointer).toContain('.sim/AGENTS.md')
+    expect(pointer).toContain('sim workspaces source check')
+
+    writeFileSync(join(dir, 'AGENTS.md'), '# Our rules\n')
+    await get()
+
+    expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toBe('# Our rules\n')
+  })
+
   it('writes the workspace primer atop the guide, and the deep dives to the advanced guide it names', async () => {
     serve({ 'tables/leads.ts': LEADS })
 

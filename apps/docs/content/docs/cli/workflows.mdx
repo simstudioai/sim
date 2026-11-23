@@ -377,6 +377,18 @@ Outputs:
   A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
   <call.result.data.x>.
+References:
+  Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
+  <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
+  that did not run (a branch not taken) is null as a whole value, in a condition or in a
+  Function's code, and '' inside text.
+Order:
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
+Run logs:
+  `sim logs list --workflow <workflowId>` lists a workflow's runs; `sim logs get <runId> --trace
+  --no-include-workflow-state` shows each block's resolved inputs, outputs and errors.
 ```
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
@@ -1142,7 +1154,7 @@ sim workflows export <workflowId> [options]
 
 </CommandTable>
 
-Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use `sim workflows state get`.
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: that is the export, not an unset block. To read what a block is set to, use `sim workflows outline` or `sim workflows state get`.
 
 API request and response schemas: [exportWorkflow](/api-reference/workflows/exportWorkflow).
 
@@ -1386,6 +1398,7 @@ sim workflows source status [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--offline` | No | Report local changes only, without asking the server. |
 | `--json` | No | Print the machine-readable status (same as --output json). |
@@ -1411,6 +1424,7 @@ sim workflows source create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
 | `--dry-run` | No | Check the source and show the outcome without creating anything. |
 | `--name <name>` | No | The workflow name (default: the source's). |
@@ -1447,6 +1461,7 @@ sim workflows source apply [workflowId] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |

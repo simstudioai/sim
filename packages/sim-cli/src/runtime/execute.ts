@@ -232,7 +232,11 @@ const RESULT_NOTES: Readonly<
   Partial<
     Record<
       V2OperationName,
-      (payload: Record<string, unknown>, body: Record<string, unknown> | undefined) => string | null
+      (
+        payload: Record<string, unknown>,
+        body: Record<string, unknown> | undefined,
+        flags: Readonly<Record<string, unknown>>
+      ) => string | null
     >
   >
 > = {
@@ -242,13 +246,25 @@ const RESULT_NOTES: Readonly<
       ? 'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
       : null
   },
+  /**
+   * An export's credentials always, and its workspace bindings unless asked for, print as `null`, which reads as "this block is
+   * unset" to anyone who has not read the help. The document goes to stdout untouched (it is the
+   * portable artifact), so the pointer to where the bindings can be read goes to stderr.
+   */
+  exportWorkflow: (_payload, _body, flags) =>
+    `note: ${
+      flags.includeWorkspaceBindings === true
+        ? 'a credential always prints as null here'
+        : 'a table, child workflow, knowledge base or other workspace binding prints as null here, and a credential always does'
+    }: that is the export, not an unset block. Read what blocks are set to with \`sim workflows outline <workflowId>\` or \`sim workflows state get <workflowId>\`.`,
 }
 
 /** Writes the operation's result note to stderr, when it has one and the result calls for it. */
 function writeResultNote(
   operation: V2OperationName,
   payload: unknown,
-  body: Record<string, unknown> | undefined
+  body: Record<string, unknown> | undefined,
+  flags: Readonly<Record<string, unknown>>
 ): void {
   const note = RESULT_NOTES[operation]
   if (!note) return
@@ -256,7 +272,7 @@ function writeResultNote(
     payload && typeof payload === 'object' && !Array.isArray(payload)
       ? (payload as Record<string, unknown>)
       : {}
-  const message = note(record, body)
+  const message = note(record, body, flags)
   if (message) writeStderr(styles().dim(`${message}\n`))
 }
 
@@ -670,7 +686,7 @@ export async function executeOperation(
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
-  writeResultNote(operation, payload, request.body)
+  writeResultNote(operation, payload, request.body, requestFlags)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

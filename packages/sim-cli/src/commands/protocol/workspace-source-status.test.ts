@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { hostname, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Command } from 'commander'
@@ -491,15 +499,32 @@ describe('workspaces source status', () => {
       })
     )
     write('workflows/w7/workflow.ts', `${INGEST}// edited\n`)
-    mockRequest.mockResolvedValue(dryRun())
+    mockRequest.mockResolvedValue(
+      dryRun(
+        [],
+        [
+          {
+            code: 'W_SERVER_CHANGED',
+            severity: 'warning',
+            message: 'm',
+            kind: 'table',
+            key: 'leads',
+          },
+        ]
+      )
+    )
 
-    await run('status')
+    const summary = join(dir, 'status.md')
+    await run('status', '--summary-file', summary)
 
     const sent = sentFiles()[0]
     expect(sent['workflows/w7/workflow.ts']).toBe(`${INGEST}// edited\n`)
     expect(sent['workflows/w8/workflow.ts']).toBeUndefined()
     expect(sent['workflows/w8/.sim/base.json']).toBe(INGEST_BASE)
     expect(printed().note).toContain('More workflow folders than one dry run compares')
+    const markdown = readFileSync(summary, 'utf8')
+    expect(markdown).toContain('The server check was incomplete: More workflow folders')
+    expect(markdown).toContain('- table leads: changed on the server')
   })
 
   it('reports drift when the server changed a resource left alone here, exit 12, and names a get', async () => {

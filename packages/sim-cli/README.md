@@ -12,10 +12,10 @@ to set up a Sim deployment.
 
 ## Install
 
-The CLI requires Node.js 20 or newer.
+The CLI requires Node.js 22 or newer. Install it globally with Bun (npm and pnpm work too; keep upgrading with the manager that owns the installation, or run `sim update`):
 
 ```bash
-npm install --global sim
+bun add --global sim
 sim --version
 ```
 

@@ -7808,6 +7808,18 @@ Outputs:
   A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
   <call.result.data.x>.
+References:
+  Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
+  <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
+  that did not run (a branch not taken) is null as a whole value, in a condition or in a
+  Function's code, and '' inside text.
+Order:
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
+Run logs:
+  `sim logs list --workflow <workflowId>` lists a workflow's runs; `sim logs get <runId> --trace
+  --no-include-workflow-state` shows each block's resolved inputs, outputs and errors.
 ```
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
@@ -8549,7 +8561,7 @@ sim workflows export <workflowId> [options]
 
 </CommandTable>
 
-Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use `sim workflows state get`.
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: that is the export, not an unset block. To read what a block is set to, use `sim workflows outline` or `sim workflows state get`.
 
 API request and response schemas: [exportWorkflow](/api-reference/workflows/exportWorkflow).
 
@@ -8642,6 +8654,7 @@ sim workflows source apply [workflowId] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
 | `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -8669,6 +8682,7 @@ sim workflows source create [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
 | `--dry-run` | No | Check the source and show the outcome without creating anything. |
 | `--name <name>` | No | The workflow name (default: the source's). |
@@ -8723,6 +8737,7 @@ sim workflows source status [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
 | `--offline` | No | Report local changes only, without asking the server. |
 | `--json` | No | Print the machine-readable status (same as --output json). |
@@ -10047,6 +10062,7 @@ sim workspaces source apply [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
 | `--dry-run` | No | Plan and check without writing anything. |
 | `-y, --yes` | No | Apply without asking for confirmation. |
@@ -10084,7 +10100,7 @@ sim workspaces source check [options]
 
 Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached (in a fresh clone with no cache, such as CI, it downloads the catalog once with the profile's credentials). No other request is made. It checks, against what the directory declares: - env names (secrets.ts), with a did-you-mean - credential keys (credentials.ts) - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a did-you-mean, and a key holding a look-alike letter (a Cyrillic а) named by its code point - the columns and select options of a table row write - a child workflow call: an inputMapping key the child's Start trigger does not declare, and a child with no Start trigger - each tables/&lt;key&gt;.rows.jsonl: a malformed line, an undeclared column, a managed key two lines share, an empty required cell, a repeated unique value, a value its column's type or options cannot hold - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters The dry run still checks what only the server knows (stored values, MCP tool names, model ids, deployments, credential bindings), so run it before applying. A check also regenerates .sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
 
-Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials). With --output json, stdout is one document that also lists every finding under diagnostics.
 
 These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
 
@@ -10106,6 +10122,7 @@ sim workspaces source status [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--summary-file <path>` | No | Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment. |
 | `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
 | `--only <kinds>` | No | Report only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
 | `--offline` | No | Report local changes only, without asking the server. |

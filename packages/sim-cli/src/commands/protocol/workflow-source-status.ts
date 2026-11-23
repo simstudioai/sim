@@ -51,7 +51,7 @@ import {
   unreachableReason,
 } from './source-status'
 import { refreshWorkflowWorkspaceTypes, withSourceExitCode } from './source-tree'
-import type { Diagnostic } from './source-ui'
+import { type Diagnostic, summaryFileOption } from './source-ui'
 import { codeFilePaths, readBase, readLock, readSourceFiles } from './workflow-dir'
 
 type PlanData = PlanWorkflowSourceResponse['data']
@@ -144,6 +144,7 @@ interface StatusOptions {
   dir: string
   offline?: boolean
   json?: boolean
+  summaryFile?: string
 }
 
 /**
@@ -158,6 +159,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
     'getSourceResources',
   ])
   absoluteDirOption(command)
+  summaryFileOption(command)
   command
     .option('--dir <dir>', 'Source directory: workflow.ts, functions/* and .sim/', '.')
     .option('--offline', 'Report local changes only, without asking the server')
@@ -244,6 +246,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           errors: plan?.errors ?? 0,
           deletes: (plan?.blocksRemoved ?? 0) + (plan?.variablesRemoved ?? 0) > 0,
           scope: '',
+          summaryFile: options.summaryFile,
           login,
         }),
       }
@@ -252,7 +255,8 @@ export function attachWorkflowSourceStatus(source: Command): void {
         `Workflow ${workflowId} in ${options.dir}`,
         report,
         planLine,
-        data ? workflowPlanFindings(data) : []
+        data ? workflowPlanFindings(data) : [],
+        options.summaryFile
       )
       setSoftExitCode(statusExitCode(status.state, login))
     })

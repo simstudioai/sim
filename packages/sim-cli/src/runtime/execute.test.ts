@@ -182,6 +182,46 @@ describe('a chat publish that lands on public auth', () => {
   })
 })
 
+describe('a workflow export', () => {
+  const PORTABLE = {
+    version: '1.0',
+    state: { blocks: { a: { subBlocks: { tableSelector: null } } } },
+  }
+
+  function exportWorkflow(flags: Record<string, unknown>) {
+    const host = leaf('exportWorkflow')
+    return executeOperation(
+      'exportWorkflow',
+      CLI_CONTRACT.exportWorkflow ?? {},
+      V2_OPERATIONS.exportWorkflow,
+      ['wf_1', flags, host]
+    )
+  }
+
+  it('explains the nulled bindings on stderr and leaves stdout the portable document', async () => {
+    request.mockResolvedValue({ data: PORTABLE })
+    const captured = streams()
+
+    await exportWorkflow({})
+
+    expect(captured.stderr).toContain('prints as null here')
+    expect(captured.stderr).toContain('sim workflows outline <workflowId>')
+    expect(captured.stderr).toContain('sim workflows state get <workflowId>')
+    expect(captured.stdout).not.toContain('note:')
+    expect(JSON.parse(captured.stdout)).toEqual(PORTABLE)
+  })
+
+  it('still says a credential is null when the bindings were asked for', async () => {
+    request.mockResolvedValue({ data: PORTABLE })
+    const captured = streams()
+
+    await exportWorkflow({ includeWorkspaceBindings: true })
+
+    expect(captured.stderr).toContain('a credential always prints as null')
+    expect(captured.stderr).not.toContain('workspace binding')
+  })
+})
+
 describe('workspace mutation receipt identity', () => {
   const receipt: GetWorkspaceOperationResponse['data'] = {
     operationId: 'operation-1',

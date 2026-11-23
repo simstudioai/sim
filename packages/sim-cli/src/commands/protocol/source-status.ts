@@ -10,6 +10,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { stripTrailingSlashes } from '@sim/utils/string'
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
+import { publishSummary } from '#sim-cli/output/github-actions'
 import type { OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
@@ -24,7 +25,15 @@ import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { CliUsageError, LocalRefusal } from './local-errors'
-import { type Diagnostic, findingsOutput } from './source-ui'
+import {
+  codeSpan,
+  type Diagnostic,
+  errorBullets,
+  findingsOutput,
+  markdownCell,
+  summaryFileFlag,
+  summaryMarker,
+} from './source-ui'
 
 /** One change of a workspace apply's plan. */
 type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
@@ -139,6 +148,61 @@ const SERVER_WORDS = {
 } as const
 
 /**
+ * A status as the Markdown a step summary or `--summary-file` holds: the local changes, what
+ * changed on the server (the drift a scheduled job opens an issue for), the plan's one line and
+ * the next command; the plan's error findings follow it, as an apply's summary lists them.
+ */
+function statusMarkdown<Plan>(
+  heading: string,
+  report: StatusReport<Plan>,
+  planLine: (plan: Plan) => string,
+  findings: readonly Diagnostic[]
+): string {
+  const lines = [`### Sim status: ${markdownCell(heading)}`, '']
+  if (report.local.length === 0) lines.push('No local changes.')
+  else {
+    lines.push('**Local changes**', '')
+    for (const entry of report.local) {
+      lines.push(`- ${entry.change} ${entry.kind} ${markdownCell(entry.key)}`)
+    }
+  }
+  if (report.unnamed?.length) {
+    lines.push(
+      '',
+      `Not named by any codeFile(), so applying never sends ${report.unnamed.length === 1 ? 'it' : 'them'}: ${report.unnamed.map(markdownCell).join(', ')}`
+    )
+  }
+  lines.push('')
+  if (report.server === 'checked') {
+    if (report.drift.length === 0 && report.conflicts.length === 0 && !report.note) {
+      lines.push('The server changed nothing this directory read.')
+    }
+    if (report.note) lines.push(`The server check was incomplete: ${markdownCell(report.note)}`, '')
+    if (report.drift.length > 0) {
+      lines.push('**Changed on the server since the directory was read**', '')
+      for (const entry of report.drift) {
+        lines.push(`- ${entry.kind} ${markdownCell(entry.key)}: ${SERVER_WORDS[entry.server]}`)
+      }
+    }
+    if (report.conflicts.length > 0) {
+      lines.push('**Conflicts (changed on both sides; applying them is refused)**', '')
+      for (const entry of report.conflicts) {
+        lines.push(
+          `- ${entry.kind} ${markdownCell(entry.key)}: ${SERVER_WORDS[entry.server]}, ${entry.change} here`
+        )
+      }
+    }
+  } else {
+    lines.push(`Server not checked${report.note ? `: ${markdownCell(report.note)}` : '.'}`)
+  }
+  if (report.plan) lines.push('', markdownCell(planLine(report.plan)))
+  const errors = findings.filter((finding) => finding.severity === 'error')
+  if (errors.length > 0) lines.push('', '**Errors**', '', ...errorBullets(errors))
+  if (report.next) lines.push('', `Next: ${codeSpan(report.next.command)}`)
+  return lines.join('\n')
+}
+
+/**
  * Prints a status: the machine shape for `json` and `yaml`, with the plan's `findings` (from
  * {@link planFindings}) under `diagnostics`, else the findings on stderr as an apply prints them
  * and one screen naming each local change, each drifted and conflicting resource, the dry run's
@@ -149,8 +213,13 @@ export function printStatusReport<Plan>(
   heading: string,
   report: StatusReport<Plan>,
   planLine: (plan: Plan) => string,
-  findings: readonly Diagnostic[]
+  findings: readonly Diagnostic[],
+  summaryFile?: string
 ): void {
+  publishSummary(() => statusMarkdown(heading, report, planLine, findings), {
+    file: summaryFile,
+    marker: summaryMarker(report.dir),
+  })
   const shown = findingsOutput(format, false, report.dir)
   shown.print(findings)
   if (shown.machine) {
@@ -426,6 +495,8 @@ interface NextStepInput {
    * scope the status was asked for (`--only`, `--workspace`), so the command acts on what it showed.
    */
   scope: string
+  /** `--summary-file`, carried onto the commands that write a summary (the dry run and apply). */
+  summaryFile?: string
   /**
    * The login command when the server was not checked because the profile has no login: nothing
    * else can be decided until it runs.
@@ -463,18 +534,18 @@ export function nextStep(status: SourceStatus, input: NextStepInput): NextStep |
   }
   if (input.server !== 'checked') {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
+      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: 'The dry run checks the changes against the server.',
     }
   }
   if (input.errors > 0) {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
+      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: `It prints the ${input.errors} error(s) to fix before applying.`,
     }
   }
   return {
-    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}`,
+    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}${summaryFileFlag(input.summaryFile)}`,
     reason:
       status.drift.length > 0
         ? `Applies your changes; then \`${prefix} get ${input.getArgs}--dir ${dir}\` picks up the server's.`

@@ -9,9 +9,9 @@ import {
   readCheckDeclarations,
   refreshWorkspaceTsconfigs,
   reportCheck,
-  STRICT_HELP,
   type StrictOptions,
   strictFlags,
+  strictHelp,
   strictMode,
   withWorkflowInputs,
 } from './source-check'
@@ -43,7 +43,7 @@ deployment), so run it before applying. A check also adds the blocks the source 
 CLI's tsconfig.json, so tsc type-checks a block the edit added; in a workspace directory it also
 regenerates .sim/sdk/workspace.d.ts, so tsc types each workflow's inputs as its files declare them.
 
-${STRICT_HELP}`
+${strictHelp('no cached catalog (run the get once)')}`
 
 /**
  * `sim workflows source check [--dir <dir>]`: compiles a source directory locally with the bundled

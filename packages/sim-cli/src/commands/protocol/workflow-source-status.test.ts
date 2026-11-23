@@ -246,6 +246,23 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('carries --summary-file onto the apply it recommends', async () => {
+    const file = join(root, 'my plan.md')
+    write(
+      root,
+      'workflow.ts',
+      ENTRY.replace('})\n})', "})\n  fn('Rank', { code: codeFile('./functions/rank.js') })\n})")
+    )
+    write(root, 'functions/rank.js', 'return 2\n')
+    mockRequest.mockResolvedValue(dryRun([], 1))
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(printed().next).toMatchObject({
+      command: `sim workflows source apply --dir ${root} --yes --summary-file '${file}'`,
+    })
+  })
+
   it('names --allow-delete in the apply it recommends when the edit removes a variable', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     const plan = dryRun([], 1)
@@ -276,6 +293,37 @@ describe('workflows source status', () => {
     vi.mocked(console.log).mockClear()
     await run(root, 'diff', '--server')
     expect(printed()).toMatchObject({ files: [] })
+  })
+
+  it('lists the files no codeFile() names in --summary-file, not "No local changes" alone', async () => {
+    write(root, 'functions/notes.js', 'return 3\n')
+    mockRequest.mockResolvedValue(dryRun())
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('applying never sends it: functions/notes.js')
+  })
+
+  it('lists the plan errors in --summary-file, not only their count', async () => {
+    mockRequest.mockResolvedValue(
+      dryRun([
+        {
+          code: 'E_UNRESOLVED_BLOCK',
+          severity: 'error',
+          message: 'No block named score.',
+          file: 'workflow.ts',
+          line: 4,
+        },
+      ])
+    )
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain(
+      '`E_UNRESOLVED_BLOCK` workflow.ts:4: No block named score.'
+    )
   })
 
   it('does not report a recorded function file as deleted once no codeFile() names it but it is still on disk', async () => {
@@ -314,6 +362,20 @@ describe('workflows source status', () => {
       plan: null,
       next: { command: `sim workflows source get ${WORKFLOW_ID} --dir ${root}` },
     })
+    expect(process.exitCode).toBe(12)
+  })
+
+  it('writes the drift to --summary-file for a scheduled job to act on', async () => {
+    mockRequest.mockResolvedValue(dryRun([STALE]))
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
+    expect(markdown).toContain('**Changed on the server since the directory was read**')
+    expect(markdown).toContain(`- workflow ${WORKFLOW_ID}: changed on the server`)
+    expect(markdown).toContain(`Next: \`sim workflows source get ${WORKFLOW_ID} --dir ${root}\``)
     expect(process.exitCode).toBe(12)
   })
 

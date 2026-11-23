@@ -190,6 +190,76 @@ describe('sim workflows source apply', () => {
     expect(stderrLines().join('\n')).not.toContain('Blocks:')
   })
 
+  it('carries --summary-file onto the apply it names next, quoted', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    const file = join(dir, 'my plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--summary-file', file)
+
+    expect(stdoutJson()).toMatchObject({
+      next: {
+        command: `sim workflows source apply --dir ${dir} --summary-file '${file}' --yes`,
+      },
+    })
+  })
+
+  it('writes the plan to --summary-file: the counts, each block, the errors and a stale deployment', async () => {
+    setTerminal(false)
+    const dryRunAnswer = outcome({
+      dryRun: true,
+      diagnostics: [
+        {
+          code: 'E_UNKNOWN_IDENTIFIER',
+          severity: 'error',
+          message: 'Nothing | named x.',
+          file: 'workflow.ts',
+          line: 4,
+        },
+      ],
+    })
+    request.mockResolvedValue(dryRunAnswer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
+    expect(markdown).toContain(`### Sim workflow plan: ${WORKFLOW_ID}`)
+    expect(markdown).toContain('1 to add, 0 to remove, 0 to modify, 0 renamed; connections +1 -0')
+    expect(markdown).toContain('| + | start (start_trigger) | added |')
+    expect(markdown).toContain('- `E_UNKNOWN_IDENTIFIER` workflow.ts:4: Nothing \\| named x.')
+    expect(markdown).toContain('The live deployment now differs from the draft.')
+  })
+
+  it('names variable changes in --summary-file, which no block or connection count shows', async () => {
+    setTerminal(false)
+    const answer = outcome({ dryRun: true })
+    answer.data.diff.blocks.added = []
+    answer.data.diff.edges = { added: 0, removed: 0 }
+    answer.data.diff.variables = { added: ['limit'], removed: [], modified: ['region'] }
+    request.mockResolvedValue(answer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('Variables: added limit; modified region')
+  })
+
+  it('names a name or description change in --summary-file, which no count shows', async () => {
+    setTerminal(false)
+    const answer = outcome({ dryRun: true })
+    answer.data.diff.blocks.added = []
+    answer.data.diff.edges = { added: 0, removed: 0 }
+    Object.assign(answer.data.diff, { meta: ['name', 'description'] })
+    request.mockResolvedValue(answer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('Metadata: name, description')
+  })
+
   it('prints the whole next command in a table, never clipping the flag it names', async () => {
     setTerminal(false)
     contextMockState.output = 'table'

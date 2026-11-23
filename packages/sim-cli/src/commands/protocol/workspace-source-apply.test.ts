@@ -1789,6 +1789,46 @@ describe('workspaces source apply', () => {
     ])
   })
 
+  it('carries --summary-file onto the apply it names next, quoted', async () => {
+    const file = join(dir, 'my plan.md')
+    request.mockResolvedValue(
+      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--summary-file', file)
+
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed.next.command).toBe(
+      `sim workspaces source apply --dir ${dir} --summary-file '${file}' --yes`
+    )
+  })
+
+  it('writes the plan to --summary-file whatever CI runs it, opening with a marker a job can find', async () => {
+    const file = join(dir, 'plan.md')
+    writeFileSync(file, 'an earlier run\n')
+    request.mockResolvedValue(
+      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--dry-run', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
+    expect(markdown).toContain('### Sim workspace plan: ws_local')
+    expect(markdown).toContain('| + | tables/leads | create | planned |')
+    expect(markdown).not.toContain('an earlier run')
+  })
+
+  it('takes the summary file from SIM_SUMMARY_FILE', async () => {
+    const file = join(dir, 'from-env.md')
+    vi.stubEnv('SIM_SUMMARY_FILE', file)
+    request.mockResolvedValue(answer({ dryRun: true }))
+
+    await apply('--dry-run')
+
+    expect(readFileSync(file, 'utf8')).toContain('### Sim workspace plan: ws_local')
+  })
+
   it('says what an apply wrote in the step summary, not what it would write', async () => {
     const summary = join(dir, 'step-summary.md')
     vi.stubEnv('GITHUB_ACTIONS', 'true')

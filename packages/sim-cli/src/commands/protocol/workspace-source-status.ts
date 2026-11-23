@@ -70,7 +70,7 @@ import {
   unreachableReason,
 } from './source-status'
 import { withSourceExitCode } from './source-tree'
-import type { Diagnostic } from './source-ui'
+import { type Diagnostic, summaryFileOption } from './source-ui'
 import {
   assertWorkspaceDir,
   ONLY_KINDS_HELP,
@@ -336,6 +336,7 @@ interface StatusOptions {
   only?: string
   offline?: boolean
   json?: boolean
+  summaryFile?: string
 }
 
 /**
@@ -349,6 +350,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
     'applyWorkspaceSource',
   ])
   absoluteDirOption(command)
+  summaryFileOption(command)
   command
     .option('--dir <dir>', 'Workspace source directory written by `workspaces source get`', '.')
     .option('--only <kinds>', `Report only these kinds (${ONLY_KINDS_HELP})`)
@@ -459,6 +461,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 errors: plan?.errors ?? 0,
                 deletes: destructiveChanges(applyPlan) > 0,
                 scope: `${onlyScope}${workspaceScope}`,
+                summaryFile: options.summaryFile,
                 login,
               }),
           }
@@ -467,7 +470,8 @@ export function attachWorkspaceSourceStatus(source: Command): void {
             `Workspace ${workspaceId ?? '(no base)'} in ${options.dir}`,
             report,
             planLine,
-            planned
+            planned,
+            options.summaryFile
           )
           setSoftExitCode(statusExitCode(status.state, login))
         },

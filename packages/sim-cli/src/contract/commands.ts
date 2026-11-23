@@ -103,7 +103,19 @@ Outputs:
   code that threw; its <name.errorMessage> is the thrown message alone, the one to reply with.
   A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
-  <call.result.data.x>.`
+  <call.result.data.x>.
+References:
+  Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
+  <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
+  that did not run (a branch not taken) is null as a whole value, in a condition or in a
+  Function's code, and '' inside text.
+Order:
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given, except insert_into_subflow, which runs a parent before its children. A delete plus an add with the same name therefore replaces the block in one batch.
+Run logs:
+  \`sim logs list --workflow <workflowId>\` lists a workflow's runs; \`sim logs get <runId> --trace
+  --no-include-workflow-state\` shows each block's resolved inputs, outputs and errors.`
 /** How to read `sim blocks get` for a `workflows operations apply` edit. */
 const BLOCK_DETAIL_GUIDE = `
 Reading it for \`sim workflows operations apply\`:
@@ -2312,8 +2324,8 @@ blocks you add from it.`,
     describe: 'Print a workflow as a portable JSON document',
     helpText: `
 Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
---include-workspace-bindings, and credentials always do: to read what a block is set to, use
-\`sim workflows state get\`.`,
+--include-workspace-bindings, and credentials always do: that is the export, not an unset block.
+To read what a block is set to, use \`sim workflows outline\` or \`sim workflows state get\`.`,
     flags: {
       includeReferences: {
         boolean: true,

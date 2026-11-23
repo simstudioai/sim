@@ -34,7 +34,7 @@ export const tableUpsertRowTool: InternalToolConfig<TableRowInsertParams, TableU
       type: 'string',
       required: false,
       description:
-        'Unique column to match on. Required only when the table has more than one unique column.',
+        'Unique column (name or id) to match on. Required only when the table has more than one unique column.',
       visibility: 'user-only',
     },
   },

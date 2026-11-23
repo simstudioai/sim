@@ -441,7 +441,7 @@ Return ONLY the data JSON:`,
       type: 'short-input',
       canonicalParamId: 'conflictColumn',
       mode: 'advanced',
-      placeholder: 'Enter the column id',
+      placeholder: 'Enter the column name',
       dependsOn: ['tableId'],
       condition: { field: 'operation', value: 'upsert_row' },
     },
@@ -810,7 +810,7 @@ Return ONLY the sort JSON:`,
     conflictColumn: {
       type: 'string',
       description:
-        'Unique column to match on for upsert (required if the table has multiple unique columns)',
+        'Unique column (name or id) to match on for upsert (required if the table has multiple unique columns)',
     },
   },
 

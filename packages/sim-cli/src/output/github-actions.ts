@@ -1,12 +1,13 @@
 /**
  * GitHub Actions output: inside a GitHub Actions job (`GITHUB_ACTIONS=true`) a finding becomes an
  * `::error file=…,line=…::` workflow command, which the runner shows inline on the pull request,
- * and a source write appends its plan to the job's step summary (`$GITHUB_STEP_SUMMARY`).
+ * and a source write appends its plan to the job's step summary (`$GITHUB_STEP_SUMMARY`) or
+ * writes it to `--summary-file`.
  *
  * The commands go to stderr: the runner reads workflow commands from both streams, and stdout
  * stays the one result document a script parses.
  */
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { getErrorMessage } from '@sim/utils/errors'
 import { embedStore } from '../embed-context'
@@ -72,20 +73,48 @@ export function printAnnotations(lines: readonly string[]): void {
   for (const line of lines) printError(line)
 }
 
+/** What a summary is published to beside the step summary. */
+interface SummaryOptions {
+  /** `--summary-file`: a path the Markdown is written to, whatever CI this runs in. */
+  file?: string
+  /** The first line of that file, so a job can find and replace a comment it posted earlier. */
+  marker?: string
+  env?: NodeJS.ProcessEnv
+}
+
 /**
- * Appends `markdown()` (built only then) to the job's step summary, when this is a GitHub Actions
- * step that has one. A summary that cannot be written is reported and skipped: the command's own
- * result stands.
+ * Publishes `markdown()` (built only when something takes it): appended to the job's step summary
+ * when this is a GitHub Actions step that has one, and written to `--summary-file` (else
+ * `$SIM_SUMMARY_FILE`) on any CI, replacing what an earlier run left there. The file gets the
+ * Markdown only, so a plan reads the same in a pull-request comment, a GitLab note or a build log.
+ * A summary that cannot be written is reported and skipped: the command's own result stands. An
+ * embedded host never writes one, whatever flags it was handed.
  */
-export function appendStepSummary(
-  markdown: () => string,
-  env: NodeJS.ProcessEnv = process.env
-): void {
-  const path = env.GITHUB_STEP_SUMMARY
-  if (!inGithubActions(env) || !path) return
+export function publishSummary(markdown: () => string, options: SummaryOptions = {}): void {
+  const env = options.env ?? process.env
+  if (embedStore.getStore()) return
+  const stepSummary = inGithubActions(env) ? env.GITHUB_STEP_SUMMARY : undefined
+  const file = options.file || env.SIM_SUMMARY_FILE
+  if (!stepSummary && !file) return
+  let text: string
   try {
-    appendFileSync(path, `${markdown().trimEnd()}\n\n`)
+    text = `${markdown().trimEnd()}\n`
   } catch (error) {
-    printError(`The step summary could not be written: ${getErrorMessage(error)}`)
+    printError(`The summary could not be built: ${getErrorMessage(error)}`)
+    return
+  }
+  if (stepSummary) writeSummary('The step summary', () => appendFileSync(stepSummary, `${text}\n`))
+  if (file) {
+    writeSummary(`The summary file ${file}`, () =>
+      writeFileSync(file, options.marker ? `${options.marker}\n${text}` : text)
+    )
+  }
+}
+
+function writeSummary(name: string, write: () => void): void {
+  try {
+    write()
+  } catch (error) {
+    printError(`${name} could not be written: ${getErrorMessage(error)}`)
   }
 }

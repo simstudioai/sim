@@ -46,7 +46,7 @@ jobs:
 
 ## A workspace
 
-Keep a [workspace directory](/workflows/code/workspace) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors, `5` when the workspace changed since the committed base, and `15` when the apply would hold back changes that use a secret with no value or a credential nothing binds to. `check` downloads the block catalog once on a fresh runner. On GitHub Actions (`GITHUB_ACTIONS=true`), every source command also annotates each error and warning at its file and line, so they show inline on the pull request, and a workspace `apply` (a dry run too) appends its plan and errors to the job's step summary.
+Keep a [workspace directory](/workflows/code/workspace) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors, `5` when the workspace changed since the committed base, and `15` when the apply would hold back changes that use a secret with no value or a credential nothing binds to. `check` downloads the block catalog once on a fresh runner. On GitHub Actions (`GITHUB_ACTIONS=true`), every source command also annotates each error and warning at its file and line, so they show inline on the pull request, and an `apply` (a dry run too), `create` and `status` append the plan and errors to the job's step summary. `--summary-file <path>` (or `SIM_SUMMARY_FILE`) also writes the same Markdown to a file on any CI, replacing it each run.
 
 ```yaml title=".github/workflows/sim-workspace.yml"
 on:
@@ -95,7 +95,7 @@ After merging two branches that each applied, a dry run with no changes means th
 
 ### Comment the plan on the pull request
 
-The step summary appears on the run page, not in the pull request. To post the plan as one comment that later pushes edit instead of adding another, copy the summary file in the same step that runs the dry run, with `pull-requests: write` in `permissions`:
+The step summary appears on the run page, not in the pull request. To post the plan as one comment that later pushes edit instead of adding another, write the plan to a file with `--summary-file` in the step that runs the dry run and post that file, with `pull-requests: write` in `permissions`:
 
 ```yaml
       - if: github.event_name == 'pull_request'
@@ -103,8 +103,8 @@ The step summary appears on the run page, not in the pull request. To post the p
           GH_TOKEN: ${{ github.token }}
         run: |
           status=0
-          sim workspaces source apply --dir workspace --dry-run || status=$?
-          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none --body-file "$GITHUB_STEP_SUMMARY"
+          sim workspaces source apply --dir workspace --dry-run --summary-file plan.md || status=$?
+          gh pr comment "${{ github.event.pull_request.number }}" --edit-last --create-if-none --body-file plan.md
           exit "$status"
 ```
 

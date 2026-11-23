@@ -13,9 +13,9 @@ import {
   refreshWorkspaceTsconfigs,
   reportCheck,
   requireCachedCatalog,
-  STRICT_HELP,
   type StrictOptions,
   strictFlags,
+  strictHelp,
   strictMode,
   withWorkflowInputs,
   workspaceWorkflowKeys,
@@ -53,7 +53,7 @@ deployments, credential bindings), so run it before applying. A check also regen
 .sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each
 workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
 
-${STRICT_HELP}`
+${strictHelp("no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials)")}`
 
 /**
  * The workspace's catalog for a check with none cached (a fresh clone in CI), downloaded and
