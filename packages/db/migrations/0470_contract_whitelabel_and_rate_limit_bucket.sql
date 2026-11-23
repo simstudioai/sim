@@ -1,8 +1,5 @@
--- Contracts the two objects v0.9.65 stopped declaring and using. organization.whitelabel_settings was
--- un-declared in 0468 (#10269) and rate_limit_bucket's Postgres token bucket and provider-capacity store
--- were removed when Redis became required (#10272). rate_limit_bucket has no FKs in either direction.
 -- Each drop autocommits under a short lock timeout so a busy table fails fast for migrate.ts to retry
--- rather than queue traffic behind its ACCESS EXCLUSIVE lock.
+-- rather than queue traffic behind its ACCESS EXCLUSIVE lock. rate_limit_bucket has no FKs.
 COMMIT;--> statement-breakpoint
 SET lock_timeout = '100ms';--> statement-breakpoint
 -- migration-safe: contract of #10269 (shipped in v0.9.65): whitelabeling was removed and no release from v0.9.65 on declares, reads, or writes whitelabel_settings.
