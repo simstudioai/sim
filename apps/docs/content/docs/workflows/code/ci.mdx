@@ -140,7 +140,10 @@ jobs:
       - run: bun add -g sim
       - run: |
           status=0
-          sim workspaces source status --dir workspace || status=$?
+          sim workspaces source status --dir workspace --output json > status.json || status=$?
+          if [ "$status" -eq 0 ] || [ "$status" -eq 11 ] || [ "$status" -eq 12 ]; then
+            [ "$(jq -r .server status.json)" = checked ] || { echo "Sim was not checked: $(jq -r .note status.json)"; exit 1; }
+          fi
           case "$status" in
             0) exit 0 ;;
             11|12) ;;
@@ -157,7 +160,7 @@ jobs:
           fi
 ```
 
-To bring the change into git instead, run `sim workspaces source get --dir workspace` on a new branch and open a pull request.
+`status` exits `0` or `11` without asking Sim when the server is unreachable, so the job reads the `server` field of its JSON output and fails unless it is `checked`. To bring the change into git instead, run `sim workspaces source get --dir workspace` on a new branch and open a pull request.
 
 ### Promote in CI
 

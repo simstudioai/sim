@@ -32,7 +32,7 @@ If another workflow already has that name, the command exits `1` with `SOURCE_NA
 
 ## Fork a workflow
 
-Copy its directory, delete the copy's `.sim/`, and create it under a new name:
+Copy its directory, delete the copy's `.sim/`, and create it under a new name. A copy has no stored workflow to take a saved secret from, so replace each `stored()` in the file, which `get` printed for a value it does not show, with `env.NAME` or the value; otherwise the create fails with `E_STORED_VALUE_MISSING`.
 
 ```bash
 sim workflows source create --dir ./copy --workspace <workspaceId> --name "New name" --yes
