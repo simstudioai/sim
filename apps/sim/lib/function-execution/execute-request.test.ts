@@ -3905,6 +3905,16 @@ describe('Function execution request', () => {
       expect(data.errorMessage).toBe('invalid phone: 555')
     })
 
+    it("drops Node's bracketed code label from a JavaScript sandbox error", async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nreturn 1',
+        "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'left-pad'"
+      )
+      expect(data.error).toBe("Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'left-pad'")
+      expect(data.errorMessage).toBe("Cannot find module 'left-pad'")
+    })
+
     it('keeps the text before a colon that error cuts from a typed sandbox error', async () => {
       const data = await failRemote(
         'javascript',

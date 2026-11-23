@@ -574,8 +574,11 @@ function extractEnhancedError(
  */
 const SANDBOX_FILE_PATH_PREFIX = /^(?:file:\/\/)?\/\S*:\s*/
 
-/** The type label a sandbox error leads with (`ValueError: invalid phone`), when a message follows. */
-const SANDBOX_ERROR_LABEL = /^[A-Za-z_$][\w$.]*:\s+(?=\S)/
+/**
+ * The type label a sandbox error leads with, when a message follows: `ValueError: invalid phone`,
+ * or Node's bracketed form `Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'x'`.
+ */
+const SANDBOX_ERROR_LABEL = /^[A-Za-z_$][\w$.]*(?: \[[\w.$-]+\])?:\s+(?=\S)/
 
 /**
  * Parse and format E2B error message
