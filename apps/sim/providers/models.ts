@@ -7067,40 +7067,22 @@ export function supportsForcedToolUse(modelId: string): boolean {
   return capabilities?.forcedToolUse ?? capabilities?.toolUsageControl ?? false
 }
 
+/** A self-hosted server's model ids as free, capability-less catalog entries. */
+function toSelfHostedModels(models: string[]): ModelDefinition[] {
+  const updatedAt = new Date().toISOString().split('T')[0]
+  return models.map((id) => ({ id, pricing: { input: 0, output: 0, updatedAt }, capabilities: {} }))
+}
+
 export function updateOllamaModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.ollama.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.ollama.models = toSelfHostedModels(models)
 }
 
 export function updateVLLMModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.vllm.models = toSelfHostedModels(models)
 }
 
 export function updateLiteLLMModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.litellm.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.litellm.models = toSelfHostedModels(models)
 }
 
 /**

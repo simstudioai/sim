@@ -41,7 +41,9 @@ import {
   getProviderModels,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
+  updateLiteLLMModels,
   updateOllamaModels as updateOllamaModelsInDefinitions,
+  updateVLLMModels,
 } from '@/providers/models'
 import {
   getModelPricing as getRegisteredModelPricing,
@@ -176,13 +178,11 @@ export function updateOllamaProviderModels(models: string[]): void {
 }
 
 export function updateVLLMProviderModels(models: string[]): void {
-  const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
   providers.vllm.models = getProviderModels('vllm')
 }
 
 export function updateLiteLLMProviderModels(models: string[]): void {
-  const { updateLiteLLMModels } = require('@/providers/models')
   updateLiteLLMModels(models)
   providers.litellm.models = getProviderModels('litellm')
 }

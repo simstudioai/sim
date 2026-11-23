@@ -27,8 +27,8 @@ import {
 } from '@/hooks/queries/workspace-host'
 
 /**
- * Resolves and caches the route-derived host context before any workspace UI or
- * host branding renders. A `null` result is an explicit access denial.
+ * Resolves and caches the route-derived host context before any workspace UI
+ * renders. A `null` result is an explicit access denial.
  */
 export function prefetchWorkspaceHostContext(
   queryClient: QueryClient,
