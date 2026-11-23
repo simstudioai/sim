@@ -35,7 +35,7 @@ async function check(...flags: string[]): Promise<void> {
   const source = new Command('source')
   attachWorkspaceSourceCheck(source)
   source.commands.forEach((command) => command.exitOverride())
-  await source.parseAsync(['node', 'source', 'check', '--dir', dir, ...flags])
+  await source.parseAsync(['node', 'source', 'check', '--dir', dir, '--no-types', ...flags])
 }
 
 function writeFile(path: string, text: string): void {
@@ -109,7 +109,7 @@ describe('sim workspaces source check', () => {
 
     await check()
 
-    expect(result()).toMatchObject({ checked: 'compile', errors: 0, warnings: 0, workflows: 2 })
+    expect(result()).toMatchObject({ checked: ['compile'], errors: 0, warnings: 0, workflows: 2 })
     expect(process.exitCode).toBeUndefined()
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
   })

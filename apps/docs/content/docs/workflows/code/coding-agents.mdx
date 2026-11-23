@@ -24,7 +24,7 @@ Point the agent at `.sim/AGENTS.md` before it edits.
    sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes && sim workflows run <workflowId> --manual --input '{...}'
    ```
 
-   A non-zero exit code stops the chain at the first failure. `apply` compiles the source and compares it with the saved draft again, so an agent can skip `--dry-run`. People and CI use `apply --dry-run` to review the plan, and `status` shows what changed and what to run next. Add `bunx -p typescript@7.0.2 tsc -p <dir>` after `check` to catch type errors.
+   A non-zero exit code stops the chain at the first failure. `apply` compiles the source and compares it with the saved draft again, so an agent can skip `--dry-run`. `check` also type-checks the directory, so the chain needs no separate `tsc`. People and CI use `apply --dry-run` to review the plan, and `status` shows what changed and what to run next.
 
 For a whole workspace, use `sim workspaces source` with the same steps; see [Manage a workspace as code](/workflows/code/workspace).
 

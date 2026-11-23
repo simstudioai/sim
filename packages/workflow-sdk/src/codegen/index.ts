@@ -29,7 +29,7 @@ export {
   renderBuilderReference,
   renderCompactBuilder,
 } from './reference'
-export { SOURCE_COMPILER_OPTIONS, typecheckCommand } from './tsconfig'
+export { SOURCE_COMPILER_OPTIONS, SOURCE_TYPESCRIPT_VERSION } from './tsconfig'
 export {
   type GenerateWorkspaceTypesFn,
   generateWorkspaceTypes,

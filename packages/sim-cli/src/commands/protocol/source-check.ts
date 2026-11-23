@@ -765,7 +765,8 @@ interface UnlistedCounts {
 }
 
 /**
- * Prints a check's findings and result, and exits 1 on any error. The findings are bounded as the
+ * Prints a check's findings and result, and exits 1 on any error. `checked` lists what ran: the
+ * compile, and the type check unless it was skipped or could not run. The findings are bounded as the
  * server bounds an answer of the same source (`bound`, the workflow answer's by default), while
  * `errors` and `warnings` count every one. `verbose` keeps info findings in a machine result.
  */
@@ -779,6 +780,8 @@ export function reportCheck(
     unlisted?: UnlistedCounts
     /** The source directory, which GitHub Actions annotations resolve finding files under. */
     dir?: string
+    /** Whether the type check ran after the compile (`source-types.ts`). */
+    typesChecked?: boolean
   } = {}
 ): void {
   const shown = findingsOutput(output, options.verbose, options.dir)
@@ -788,7 +791,7 @@ export function reportCheck(
   const errors = findings.filter((finding) => finding.severity === 'error').length + unlisted.errors
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
-    checked: 'compile',
+    checked: options.typesChecked ? ['compile', 'types'] : ['compile'],
     errors,
     warnings:
       findings.filter((finding) => finding.severity === 'warning').length + unlisted.warnings,

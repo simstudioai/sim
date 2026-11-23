@@ -981,6 +981,8 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -1482,6 +1484,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       message: string
     }
     needBlobs: Array<string>
@@ -1777,6 +1781,8 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -5454,6 +5460,8 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -10591,6 +10599,8 @@ export type GetWorkflowSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -11285,6 +11295,8 @@ export type GetWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -14618,6 +14630,8 @@ export type PlanWorkflowSourceResponse = {
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_NAME_TAKEN'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string
@@ -15074,6 +15088,8 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       message: string
     }
     needBlobs: Array<string>
@@ -15369,6 +15385,8 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_APPLY_BLOCK_DELETE'
         | 'E_APPLY_VARIABLE_DELETE'
         | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
       severity: 'error' | 'warning' | 'info'
       message: string
       hint?: string

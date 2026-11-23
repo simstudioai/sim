@@ -2,7 +2,6 @@
  * The group help of `sim workflows source` and `sim workspaces source`: the edit loop and the
  * flags it needs, so a reader of the group needs no command's own `--help` to start.
  */
-import { typecheckCommand } from '@sim/workflow-sdk/codegen'
 import { SOURCE_DRIFT_EXIT_CODE, SOURCE_LOCAL_CHANGES_EXIT_CODE } from '../../exit-codes'
 import { SOURCE_AGENTS_FILE } from './source-dir'
 
@@ -35,13 +34,13 @@ The loop:
 ${loopRows([
   ['sim workflows source get <workflowId> --dir ./wf', 'write workflow.ts, functions/* and .sim/'],
   ['edit ./wf/workflow.ts', 'every file first, then the one command below'],
-  ['sim workflows source check --dir ./wf', 'offline: each error as file:line:column'],
+  ['sim workflows source check --dir ./wf', 'compile + types: each error as file:line:column'],
   ['  && sim workflows source apply --dir ./wf --yes', 'save the draft (it re-checks)'],
   ['  && sim workflows run <workflowId> --manual', 'test the saved draft'],
 ])}
 Run those three as one chained command: a non-zero exit stops it at the first failure, and the next
-step fixes what it reported. For review, \`apply --dry-run\` prints the plan and writes nothing;
-\`${typecheckCommand('./wf')}\` adds type errors.
+step fixes what it reported. Check also type-checks with TypeScript (installed once, on its first
+run; --no-types skips it). For review, \`apply --dry-run\` prints the plan and writes nothing.
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
@@ -59,12 +58,12 @@ The loop:
 ${loopRows([
   ['sim workspaces source get --dir ./ws', 'write tables/, workflows/<key>/, … and .sim/'],
   ['edit the files', 'every file first; a new workflow: workflows/<key>/workflow.ts'],
-  ['sim workspaces source check --dir ./ws', 'offline: each error as file:line:column'],
+  ['sim workspaces source check --dir ./ws', 'compile + types: each error as file:line:column'],
   ['  && sim workspaces source apply --dir ./ws --yes', 'write it to the workspace (it re-checks)'],
 ])}
 Run those two as one chained command: a non-zero exit stops it at the first failure, and the next
-step fixes what it reported. For review, \`apply --dry-run\` prints the plan and writes nothing;
-\`${typecheckCommand('./ws')}\` adds type errors.
+step fixes what it reported. Check also type-checks with TypeScript (installed once, on its first
+run; --no-types skips it). For review, \`apply --dry-run\` prints the plan and writes nothing.
 Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry-run\`, then
 --yes.
 ${WORKSPACE_LINE}
