@@ -1167,7 +1167,7 @@ describe('the type check of workspaces source check', () => {
 
   it.each([
     ['the resources listed', true],
-    ['no resource listing (a caller the listing refuses)', false],
+    ['no resource listing (the listing route not found)', false],
   ])(
     'types a table a new tables/<key>.ts declares, in the same check, with %s',
     async (_, listed) => {
@@ -1253,6 +1253,7 @@ describe('the type check of workspaces source check', () => {
 
     await runWorkspaceSource('check', dir)
 
+    expect(result().checked).toEqual(['compile', 'types'])
     const codes = result().diagnostics.map(({ code, line }) => `${code}:${line}`)
     expect(codes).toContain('E_UNKNOWN_PARAM:7')
     expect(codes).not.toContain('E_TYPE:7')
