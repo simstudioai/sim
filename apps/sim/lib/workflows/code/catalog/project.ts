@@ -649,6 +649,7 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
   assign(projected, 'singleInstance', block.singleInstance)
   const dynamicOutputs = projectDynamicOutputs(block)
   if (dynamicOutputs) projected.dynamicOutputs = dynamicOutputs
+  if (block.errorOutputs) projected.errorOutputs = Object.keys(block.errorOutputs)
   const legacyIds = projectLegacyIds(block.type)
   if (legacyIds) projected.legacyIds = legacyIds
   const legacyCanonicalIds = CANONICAL_ID_MIGRATIONS[block.type]

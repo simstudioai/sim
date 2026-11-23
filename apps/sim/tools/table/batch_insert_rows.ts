@@ -3,7 +3,11 @@ import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-se
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { tableSuccess } from '@/tools/table/response'
-import type { TableBatchInsertParams, TableBatchInsertResponse } from '@/tools/table/types'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableBatchInsertParams,
+  type TableBatchInsertResponse,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tableBatchInsertRowsTool: InternalToolConfig<
@@ -58,6 +62,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
       rows: data.rows,
       insertedCount: data.insertedCount,
       message: data.message || 'Rows inserted successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
@@ -65,6 +70,7 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
     success: { type: 'boolean', description: 'Whether rows were inserted' },
     rows: { type: 'array', description: 'Inserted rows data' },
     insertedCount: { type: 'number', description: 'Number of rows inserted' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

@@ -733,6 +733,43 @@ describe('hints that name the fix', () => {
     expect(unknown?.hint).toBe('Wire call.onError(<handler>) and read call.error in the handler.')
   })
 
+  it('reads a Function error output where x.error reads, and nowhere else', () => {
+    const body = (wiring: string) =>
+      [
+        START,
+        "const parse = fn('Parse', { code: 'return 1' })",
+        "const failed = api('Failed', { url: 'https://x', body: { why: parse.errorMessage } })",
+        'start.to(parse)',
+        wiring,
+      ].join('\n')
+    const handled = run(body('parse.onError(failed)'))
+    expect(findings(handled, 'W_OUTPUT_PATH_UNDECLARED')).toEqual([])
+    expect(findings(handled, 'W_JSON_REF_UNTYPED')).toEqual([])
+    expect(JSON.stringify(handled.workflow?.blocks.failed?.params.body)).toContain(
+      '\\"<parse.errorMessage>\\"'
+    )
+    const [unhandled] = findings(run(body('parse.to(failed)')), 'W_OUTPUT_PATH_UNDECLARED')
+    expect(unhandled?.message).toBe(
+      'Parse has no output errorMessage: only a block with an error edge outputs its failure message.'
+    )
+    expect(unhandled?.hint).toBe(
+      'Wire parse.onError(<handler>) and read parse.errorMessage in the handler.'
+    )
+    const [notDeclared] = findings(
+      run(
+        [
+          START,
+          "const call = api('Call', { url: 'https://x' })",
+          "const failed = api('Failed', { url: 'https://x', body: { why: call.errorMessage } })",
+          'start.to(call)',
+          'call.onError(failed)',
+        ].join('\n')
+      ),
+      'W_UNKNOWN_OUTPUT_PATH'
+    )
+    expect(notDeclared?.message).toBe('Call has no output errorMessage.')
+  })
+
   it('stores x.error quoted in a JSON body, since the failure message is a string', () => {
     const result = run(
       [

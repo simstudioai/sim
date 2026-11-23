@@ -9228,6 +9228,7 @@ export type GetSourceCatalogResponse = {
           source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
           param: string
         }
+        errorOutputs?: Array<string>
         graph: {
           canBeTarget: boolean
           errorPort: boolean

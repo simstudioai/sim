@@ -9,6 +9,7 @@ import {
   credential,
   customTool,
   env,
+  fn,
   gmail,
   human,
   js,
@@ -122,6 +123,13 @@ export default workflow('Rejected', {}, () => {
       messages: [{ role: 'user', content: t`${p.currentItem.email}` }],
     })
   })
+
+  // A Function also outputs `errorMessage` on failure; a block that declares no such output does not.
+  const parse = fn('Parse', { code: js`return 1` })
+  parse.error satisfies Ref<string>
+  parse.errorMessage satisfies Ref<string>
+  // @ts-expect-error `errorMessage` is a Function's error output: an agent fails with `error` alone
+  t`${classify.errorMessage}`
 
   // A declared input field replaces the built-in output of the same name, as at run time.
   const counted = trigger.start('Counted', { inputFormat: { input: 'number' } })

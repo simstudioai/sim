@@ -6988,7 +6988,10 @@
         "errorPort": true,
         "container": null,
         "annotationOnly": false
-      }
+      },
+      "errorOutputs": [
+        "errorMessage"
+      ]
     },
     "generic_webhook": {
       "type": "generic_webhook",
@@ -32128,6 +32131,20 @@
             "value": "get_schema"
           }
         },
+        "ignoredColumns": {
+          "type": "array",
+          "description": "Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column.",
+          "condition": {
+            "field": "operation",
+            "value": [
+              "insert_row",
+              "batch_insert_rows",
+              "upsert_row",
+              "update_row",
+              "update_rows_by_filter"
+            ]
+          }
+        },
         "message": {
           "type": "string",
           "description": "Operation status message"
@@ -32156,6 +32173,7 @@
           "names": [
             "success",
             "row",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32164,6 +32182,7 @@
             "success",
             "row",
             "operation",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32172,6 +32191,7 @@
             "success",
             "rows",
             "insertedCount",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32180,6 +32200,7 @@
             "success",
             "updatedCount",
             "updatedRowIds",
+            "ignoredColumns",
             "message"
           ]
         },
@@ -32195,6 +32216,7 @@
           "names": [
             "success",
             "row",
+            "ignoredColumns",
             "message"
           ]
         },

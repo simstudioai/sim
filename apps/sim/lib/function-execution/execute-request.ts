@@ -569,8 +569,24 @@ function extractEnhancedError(
 }
 
 /**
+ * A leading absolute file path a sandbox puts before a JavaScript error's message
+ * (`/home/user/index.js: Unexpected token`).
+ */
+const SANDBOX_FILE_PATH_PREFIX = /^(?:file:\/\/)?\/\S*:\s*/
+
+/**
+ * The type label a sandbox error leads with, when a message follows: `ValueError: invalid phone`,
+ * or Node's bracketed form `Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'x'`.
+ */
+const SANDBOX_ERROR_LABEL = /^[A-Za-z_$][\w$.]*(?: \[[\w.$-]+\])?:\s+(?=\S)/
+
+/**
  * Parse and format E2B error message
- * Removes E2B-specific line references and adds correct user line numbers
+ * Removes E2B-specific line references and adds correct user line numbers.
+ *
+ * `errorMessage` is the thrown message alone: `formattedError` without its
+ * `Line N: \`code\` -` location and its error-type label, or the labelled form
+ * when the error has no message of its own.
  */
 function formatE2BError(
   errorMessage: string,
@@ -578,7 +594,7 @@ function formatE2BError(
   language: CodeLanguage,
   userCode: string,
   prologueLineCount: number
-): { formattedError: string; cleanedOutput: string } {
+): { formattedError: string; cleanedOutput: string; errorMessage: string } {
   const wrapperLines =
     language === CodeLanguage.Python ? E2B_PYTHON_WRAPPER_LINES : E2B_JS_WRAPPER_LINES
   const totalOffset = prologueLineCount + wrapperLines
@@ -586,6 +602,7 @@ function formatE2BError(
   let userLine: number | undefined
   let cleanErrorType = ''
   let cleanErrorMsg = ''
+  let thrownMessage = ''
 
   if (language === CodeLanguage.Python) {
     const moduleMatch = errorOutput.match(/<sim-function-module>[^\n]*line (\d+)/)
@@ -604,6 +621,7 @@ function formatE2BError(
       .replace(/\s*\(detected at line \d+\)/g, '')
       .replace(/\s*\([^)]+\.py, line \d+\)/g, '')
       .trim()
+    thrownMessage = cleanErrorMsg.replace(SANDBOX_ERROR_LABEL, '')
   } else if (language === CodeLanguage.JavaScript) {
     const firstLineEnd = errorMessage.indexOf('\n')
     const firstLine = firstLineEnd > 0 ? errorMessage.substring(0, firstLineEnd) : errorMessage
@@ -612,6 +630,7 @@ function formatE2BError(
     if (jsErrorMatch) {
       cleanErrorType = jsErrorMatch[1]
       cleanErrorMsg = jsErrorMatch[2].trim()
+      thrownMessage = cleanErrorMsg
       const originalLine = Number.parseInt(jsErrorMatch[3], 10)
       userLine = originalLine - totalOffset
     } else {
@@ -627,8 +646,15 @@ function formatE2BError(
           .replace(/^[^:]+:\s*/, '') // Remove file path
           .replace(/\s*\(\d+:\d+\)\s*$/, '') // Remove line:col at end
           .trim()
+        // `cleanErrorMsg` also cuts a message's own text before its first colon
+        // (`invalid phone: 555`); the thrown message drops only a real path.
+        thrownMessage = errorMatch[2]
+          .replace(SANDBOX_FILE_PATH_PREFIX, '')
+          .replace(/\s*\(\d+:\d+\)\s*$/, '')
+          .trim()
       } else {
         cleanErrorMsg = firstLine
+        thrownMessage = firstLine.replace(SANDBOX_ERROR_LABEL, '')
       }
     }
   }
@@ -655,7 +681,7 @@ function formatE2BError(
 
   const cleanedOutput = finalErrorMsg
 
-  return { formattedError, cleanedOutput }
+  return { formattedError, cleanedOutput, errorMessage: thrownMessage || finalErrorMsg }
 }
 
 /**
@@ -3009,7 +3035,7 @@ export async function executeFunctionRequest(
 
         if (e2bError) {
           const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
-          const { formattedError, cleanedOutput } = formatE2BError(
+          const { formattedError, cleanedOutput, errorMessage } = formatE2BError(
             scrubInternalIdentifiers(
               getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
               compilerInternalIdentifiers
@@ -3023,6 +3049,7 @@ export async function executeFunctionRequest(
             {
               success: false,
               error: formattedError,
+              errorMessage,
               output: {
                 result: null,
                 stdout: cleanedOutput,
@@ -3142,7 +3169,7 @@ export async function executeFunctionRequest(
 
       if (e2bError) {
         const errorDisplayCode = getErrorDisplayCode(sourceCodeForErrors, resolvedCode)
-        const { formattedError, cleanedOutput } = formatE2BError(
+        const { formattedError, cleanedOutput, errorMessage } = formatE2BError(
           scrubInternalIdentifiers(
             getErrorDisplayMessage(e2bError, sourceCodeForErrors, resolvedCode),
             compilerInternalIdentifiers
@@ -3156,6 +3183,7 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: formattedError,
+            errorMessage,
             output: {
               result: null,
               stdout: cleanedOutput,
@@ -3317,6 +3345,7 @@ export async function executeFunctionRequest(
         {
           success: false,
           error: userFriendlyErrorMessage,
+          errorMessage: enhancedError.message,
           output: {
             result: null,
             stdout: cleanStdout(isolatedResult.stdout),
@@ -3533,6 +3562,7 @@ export async function executeFunctionRequest(
     const errorResponse = {
       success: false,
       error: userFriendlyErrorMessage,
+      errorMessage: scrubInternalIdentifiers(enhancedError.message, compilerInternalIdentifiers),
       output: {
         result: null,
         stdout: cleanStdout(stdout),

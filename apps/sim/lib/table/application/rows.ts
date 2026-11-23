@@ -280,8 +280,9 @@ function actorUserId(
 }
 
 /**
- * Refuses a wire row naming a column the table does not have. Applied only to a
- * `strictWrite` caller — see {@link rowWriteOptions}.
+ * Refuses a wire row naming a column the table does not have, on either wire.
+ * Applied only to a `strictWrite` caller — see {@link rowWriteOptions}. Shared so
+ * the two keyings cannot drift in how they name the offending keys.
  *
  * The name→id remap drops unrecognised keys, so without this an insert of
  * `{"nosuchcol":"x"}` created an empty row under a 201, and a patch of
@@ -289,18 +290,6 @@ function actorUserId(
  * that matched nothing, and in both cases the client is told the write
  * succeeded. Naming the offending columns is the only answer that lets a caller
  * tell a typo apart from an empty match.
- */
-function assertKnownColumnNames(
-  data: RowData,
-  idByName: ReadonlyMap<string, string>,
-  rowLabel?: string
-): void {
-  assertNoUnknownColumns(unknownColumnNames(data, idByName), rowLabel)
-}
-
-/**
- * Refuses a wire row naming a column the table does not have, on either wire.
- * Shared so the two keyings cannot drift in how they name the offending keys.
  */
 function assertNoUnknownColumns(unknown: string[], rowLabel?: string): void {
   if (unknown.length === 0) return
@@ -334,7 +323,7 @@ function assertNoUnknownColumns(unknown: string[], rowLabel?: string): void {
 export type TableRowDataKeying = 'names' | 'ids'
 
 /**
- * The id-keyed counterpart of {@link assertKnownColumnNames}, applied on the same
+ * The id-keyed check {@link assertNoUnknownColumns} makes, applied on the same
  * `strictWrite` condition so strictness means the same thing on either wire.
  *
  * `buildColumnNameById` keys by {@link getColumnId}, so a legacy pre-backfill
@@ -349,52 +338,71 @@ function assertKnownColumnIds(data: RowData, table: TableDefinition, rowLabel?: 
 }
 
 /**
+ * Wire keys naming no column of the table, which a lax name-keyed write drops
+ * instead of refusing (see {@link rowWriteOptions}), in the order first sent.
+ * Always empty for a `strictWrite` or id-keyed write, which drops nothing.
+ */
+interface IgnoredColumns {
+  ignoredColumns: string[]
+}
+
+/**
  * Normalizes one wire row to storage keying. See {@link TableRowDataKeying}.
  *
  * Note the asymmetry a lax (non-`strictWrite`) caller sees: the name path drops
  * keys naming no column, while the id path stores what it is given. That
  * matches what each wire did before this discriminator existed, and only
- * `strictWrite` makes the two agree.
+ * `strictWrite` makes the two agree. The dropped keys come back as
+ * `ignoredColumns`, so the caller can report them.
  */
 function rowDataToStorage(
   data: RowData,
   table: TableDefinition,
   keying: TableRowDataKeying,
   strict = false
-): RowData {
+): IgnoredColumns & { data: RowData } {
   if (keying === 'ids') {
     if (strict) assertKnownColumnIds(data, table)
-    return data
+    return { data, ignoredColumns: [] }
   }
   const idByName = buildIdByName(table.schema)
-  if (strict) assertKnownColumnNames(data, idByName)
-  return rowDataNameToId(data, idByName)
+  const ignoredColumns = unknownColumnNames(data, idByName)
+  if (strict) assertNoUnknownColumns(ignoredColumns)
+  return { data: rowDataNameToId(data, idByName), ignoredColumns }
 }
 
 /**
  * {@link rowDataToStorage} over a batch. Either index is built once for the
  * whole batch rather than per row — these paths run over up to
- * `MAX_BATCH_INSERT_SIZE` rows.
+ * `MAX_BATCH_INSERT_SIZE` rows. `ignoredColumns` is every row's dropped keys,
+ * each once.
  */
 function rowsToStorage(
   rows: readonly RowData[],
   table: TableDefinition,
   keying: TableRowDataKeying,
   strict = false
-): RowData[] {
+): IgnoredColumns & { rows: RowData[] } {
   if (keying === 'ids') {
-    if (!strict) return [...rows]
+    if (!strict) return { rows: [...rows], ignoredColumns: [] }
     const nameById = buildColumnNameById(table.schema.columns)
-    return rows.map((row, index) => {
-      assertNoUnknownColumns(unknownColumnNames(row, nameById), `Row ${index + 1}`)
-      return row
-    })
+    return {
+      rows: rows.map((row, index) => {
+        assertNoUnknownColumns(unknownColumnNames(row, nameById), `Row ${index + 1}`)
+        return row
+      }),
+      ignoredColumns: [],
+    }
   }
   const idByName = buildIdByName(table.schema)
-  return rows.map((row, index) => {
-    if (strict) assertKnownColumnNames(row, idByName, `Row ${index + 1}`)
+  const ignoredColumns = new Set<string>()
+  const storageRows = rows.map((row, index) => {
+    const unknown = unknownColumnNames(row, idByName)
+    if (strict) assertNoUnknownColumns(unknown, `Row ${index + 1}`)
+    for (const key of unknown) ignoredColumns.add(key)
     return rowDataNameToId(row, idByName)
   })
+  return { rows: storageRows, ignoredColumns: [...ignoredColumns] }
 }
 
 /**
@@ -899,8 +907,10 @@ interface CreateBatchTableRowsInput extends TableScopedInput {
 export type CreateTableRowsInput = CreateSingleTableRowInput | CreateBatchTableRowsInput
 
 export type CreateTableRowsResult =
-  | (TableResult & { kind: 'single'; row: TableRow; secretProvenance?: TableRowsProvenance })
-  | (TableResult & { kind: 'batch'; rows: TableRow[]; secretProvenance?: TableRowsProvenance })
+  | (TableResult &
+      IgnoredColumns & { kind: 'single'; row: TableRow; secretProvenance?: TableRowsProvenance })
+  | (TableResult &
+      IgnoredColumns & { kind: 'batch'; rows: TableRow[]; secretProvenance?: TableRowsProvenance })
 
 export const createTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.createRows,
@@ -923,7 +933,12 @@ export const createTableRows = defineAuthorizedTableUseCase({
       ) {
         throw new TableRowsValidationError('Position must be 0 or greater')
       }
-      const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+      const { data, ignoredColumns } = rowDataToStorage(
+        input.data,
+        context.table,
+        input.dataKeying,
+        input.strictWrite
+      )
       const secretProvenance = singleRowWriteProvenance({
         principal,
         workspaceId: context.workspaceId,
@@ -961,6 +976,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
         kind: 'single',
         table: context.table,
         row,
+        ignoredColumns,
         ...(input.includePersistedSecretProvenance && readProvenance
           ? { secretProvenance: readProvenance.exportProvenance() }
           : {}),
@@ -977,7 +993,12 @@ export const createTableRows = defineAuthorizedTableUseCase({
     if (input.orderKeys && input.orderKeys.length !== input.rows.length) {
       throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
     }
-    const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
+    const { rows, ignoredColumns } = rowsToStorage(
+      input.rows,
+      context.table,
+      input.dataKeying,
+      input.strictWrite
+    )
     const secretProvenance = input.secretProvenanceEnvelope
       ? resolveRowWriteProvenance({
           envelope: input.secretProvenanceEnvelope,
@@ -1017,6 +1038,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
       kind: 'batch',
       table: context.table,
       rows: created,
+      ignoredColumns,
       ...(input.includePersistedSecretProvenance && readProvenance
         ? { secretProvenance: readProvenance.exportProvenance() }
         : {}),
@@ -1078,7 +1100,7 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
     }
 
-    const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
+    const { rows } = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
     const result = await replaceTableRowsPrimitive(
       {
         tableId: context.tableId,
@@ -1316,7 +1338,7 @@ export interface UpdateTableRowInput extends TableScopedInput {
   actorClientId?: string
 }
 
-export interface UpdateTableRowResult extends TableResult {
+export interface UpdateTableRowResult extends TableResult, IgnoredColumns {
   row: TableRow
   changed: boolean
   secretProvenance?: TableRowsProvenance
@@ -1332,7 +1354,12 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       actorUserId(principal, context.billedAccountUserId),
       input.includePersistedSecretProvenance
     )
-    const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const { data, ignoredColumns } = rowDataToStorage(
+      input.data,
+      context.table,
+      input.dataKeying,
+      input.strictWrite
+    )
     const secretProvenance = singleRowWriteProvenance({
       principal,
       workspaceId: context.workspaceId,
@@ -1360,6 +1387,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       table: context.table,
       row,
       changed: Object.keys(data).length > 0,
+      ignoredColumns,
       ...(input.includePersistedSecretProvenance && readProvenance
         ? { secretProvenance: readProvenance.exportProvenance() }
         : {}),
@@ -1395,7 +1423,7 @@ export interface UpdateTableRowsInput extends TableScopedInput {
   secretProvenanceEnvelope?: TableRowProvenanceEnvelope
 }
 
-export interface UpdateTableRowsResult extends TableResult, BulkOperationResult {}
+export interface UpdateTableRowsResult extends TableResult, BulkOperationResult, IgnoredColumns {}
 
 export const updateTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.updateRows,
@@ -1405,7 +1433,12 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
-      const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+      const { data, ignoredColumns } = rowDataToStorage(
+        input.data,
+        context.table,
+        input.dataKeying,
+        input.strictWrite
+      )
       const secretProvenance = singleRowWriteProvenance({
         principal,
         workspaceId: context.workspaceId,
@@ -1431,7 +1464,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         rowWriteOptions(input)
       )
-      return { table: context.table, ...result }
+      return { table: context.table, ...result, ignoredColumns }
     } catch (error) {
       rethrowQueryValidation(error)
     }
@@ -1503,7 +1536,7 @@ export const batchUpdateTableRows = defineAuthorizedTableUseCase({
         `Batch update count must be between 1 and ${CSV_MAX_BATCH_SIZE}`
       )
     }
-    const storageData = rowsToStorage(
+    const { rows: storageData } = rowsToStorage(
       input.updates.map((update) => update.data),
       context.table,
       input.dataKeying,
@@ -1682,7 +1715,7 @@ export interface UpsertTableRowInput extends TableScopedInput {
   includePersistedSecretProvenance?: boolean
 }
 
-export interface UpsertTableRowResult extends TableResult {
+export interface UpsertTableRowResult extends TableResult, IgnoredColumns {
   /** Without the executions sidecar — see {@link UpsertResult.row}. */
   row: TableRowSummary
   operation: 'insert' | 'update'
@@ -1705,7 +1738,12 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       input.conflictTarget && input.dataKeying !== 'ids'
         ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
         : input.conflictTarget
-    const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const { data, ignoredColumns } = rowDataToStorage(
+      input.data,
+      context.table,
+      input.dataKeying,
+      input.strictWrite
+    )
     const secretProvenance = singleRowWriteProvenance({
       principal,
       workspaceId: context.workspaceId,
@@ -1732,6 +1770,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       table: context.table,
       row: result.row,
       operation: result.operation,
+      ignoredColumns,
       ...(input.includePersistedSecretProvenance && readProvenance
         ? { secretProvenance: readProvenance.exportProvenance() }
         : {}),

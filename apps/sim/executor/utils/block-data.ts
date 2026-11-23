@@ -41,11 +41,16 @@ function getRegistrySchema(block: SerializedBlock): OutputSchema | undefined {
   const blockConfig = getBlock(blockType)
   const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
   const triggerMode = Boolean(isTriggerBehavior(block) && isTriggerCapable)
-  const outputs = getEffectiveBlockOutputs(blockType, subBlocks, {
-    triggerMode,
-    preferToolOutputs: !triggerMode,
-    includeHidden: true,
-  }) as OutputSchema
+  // A block's error outputs resolve empty after a successful run, as the implicit `error` does
+  // (`IMPLICIT_ERROR_OUTPUT_SCHEMA`); an output the block declares under the same name wins.
+  const outputs: OutputSchema = {
+    ...blockConfig?.errorOutputs,
+    ...(getEffectiveBlockOutputs(blockType, subBlocks, {
+      triggerMode,
+      preferToolOutputs: !triggerMode,
+      includeHidden: true,
+    }) as OutputSchema),
+  }
 
   if (!outputs || Object.keys(outputs).length === 0) {
     return undefined

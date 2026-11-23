@@ -2602,11 +2602,14 @@ async function executeToolImplementation(
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     const functionSandboxCost =
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
+    const functionErrorMessage =
+      normalizedToolId === 'function_execute' ? readResponseErrorMessage(responseData) : undefined
     return {
       success: false,
       output: loggedFailureOutput(error, {
         ...errorDetails,
         ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+        ...(functionErrorMessage ? { errorMessage: functionErrorMessage } : {}),
       }),
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
@@ -2793,6 +2796,13 @@ function readFunctionSandboxCost(value: unknown): FunctionSandboxCost | undefine
     return undefined
   }
   return { input, output, total }
+}
+
+/** A failed Function's thrown message alone, without the line and code its `error` carries. */
+function readResponseErrorMessage(value: unknown): string | undefined {
+  return isRecordLike(value) && typeof value.errorMessage === 'string'
+    ? value.errorMessage
+    : undefined
 }
 
 function isToolResponse(value: unknown): value is ToolResponse {

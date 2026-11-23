@@ -456,13 +456,18 @@ export interface Group {
 }
 
 /**
- * The failure message a block outputs when an error edge leaves it (`x.onError(y)` runs `y` with
- * `x.error`); a check refuses `x.error` on a block without one, which fails the run instead.
+ * What a block outputs when it fails and an error edge leaves it (`x.onError(y)` runs `y` with
+ * `x.error`): the failure message `error` on every block, plus the error outputs `E` its catalog
+ * entry declares (a Function's `errorMessage`, the thrown message without its line and code). A
+ * check refuses each on a block without an error edge, which fails the run instead. An output the
+ * block declares under the same name keeps its declared type.
  */
-type ErrorOutput<O> = [O] extends [{ error: unknown }] ? unknown : { readonly error: Ref<string> }
+type ErrorOutputs<O, E extends string> = {
+  readonly [K in 'error' | E as [O] extends [Record<K, unknown>] ? never : K]: Ref<string>
+}
 
-/** A block: a node whose outputs can be referenced, and `error` after an `onError` edge. */
-export type Block<O> = Node & Ref<O> & ErrorOutput<O>
+/** A block: a node whose outputs can be referenced, and its error outputs after an `onError` edge. */
+export type Block<O, E extends string = never> = Node & Ref<O> & ErrorOutputs<O, E>
 
 /** The named ports of a condition or router. */
 export type Branches<K extends string> = { readonly [P in K]: Node }
@@ -645,7 +650,8 @@ export declare const parallel: {
 
 /**
  * Params and outputs of the blocks below, generated from the catalog. Each entry is
- * `{ params; output }`; without generated types the params are loose.
+ * `{ params; output }`, with `errorOutputs` when the block declares any; without generated types
+ * the params are loose.
  */
 // biome-ignore lint/suspicious/noEmptyInterface: an empty interface is the merge target generated declarations augment
 export interface SpecialBuilderTypes {}
@@ -661,6 +667,13 @@ type SpecialOutput<K extends string> = K extends keyof SpecialBuilderTypes
     ? O
     : never
   : Json
+
+/** The error outputs a special builder's block declares; a builder whose block has any passes them. */
+type SpecialErrorOutputs<K extends string> = K extends keyof SpecialBuilderTypes
+  ? SpecialBuilderTypes[K] extends { errorOutputs: infer E extends string }
+    ? E
+    : never
+  : never
 
 /** A condition expression, or `true` for the `else` branch. */
 export type BranchExpression = Template | string | true
@@ -711,7 +724,7 @@ export declare function fn(
   name: string,
   params: SpecialParams<'fn'> & { code: Template | CodeFileRef | string },
   meta?: BlockMeta
-): Block<SpecialOutput<'fn'>>
+): Block<SpecialOutput<'fn'>, SpecialErrorOutputs<'fn'>>
 
 /**
  * The inputs of a child workflow by key, each checked against the input its start block

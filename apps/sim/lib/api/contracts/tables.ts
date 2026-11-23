@@ -901,6 +901,12 @@ export const updateRowsByFilterBodySchema = z.object({
     .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
 
+/**
+ * The keys of a row write that name no column, which a lax name-keyed write drops instead of
+ * refusing. Only the workflow Table tools' writes report it; the grid's routes never do.
+ */
+const ignoredColumnsSchema = z.array(z.string()).optional()
+
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
     success: z.literal(true),
@@ -1225,6 +1231,7 @@ export const insertTableRowsContract = defineRouteContract({
         z.object({
           row: tableRowSchema,
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
       successResponseSchema(
@@ -1232,6 +1239,7 @@ export const insertTableRowsContract = defineRouteContract({
           rows: z.array(tableRowSchema),
           insertedCount: z.number(),
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
     ]),
@@ -1423,6 +1431,7 @@ export const upsertTableRowContract = defineRouteContract({
         row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1455,6 +1464,7 @@ export const updateTableRowContract = defineRouteContract({
       z.object({
         row: tableRowWireSchema,
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1489,6 +1499,7 @@ export const updateTableRowsByFilterContract = defineRouteContract({
         message: z.string(),
         updatedCount: z.number(),
         updatedRowIds: z.array(z.string()).optional(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },

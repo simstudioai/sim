@@ -3768,6 +3768,214 @@ describe('Function execution request', () => {
       expect(data.error).toContain('Line 1: `retur <start.reqerror>`')
       expect(data.error).not.toContain('globalThis')
       expect(data.debug.lineContent).toBe('retur <start.reqerror>')
+      expect(data.errorMessage).toBe('Unexpected identifier')
+    })
+  })
+
+  /**
+   * `errorMessage` is the thrown message alone; `error` keeps its line, code and type label
+   * byte for byte. Each case pins both, so a change to either is a visible diff here.
+   */
+  describe('errorMessage beside error', () => {
+    async function failIsolated(code: string, error: Record<string, unknown>) {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: null, stdout: '', error })
+      const response = await POST(createMockRequest('POST', { code, timeout: 5000 }))
+      expect(response.status).toBe(422)
+      return response.json()
+    }
+
+    async function failRemote(
+      language: 'javascript' | 'python',
+      code: string,
+      error: string,
+      stdout = ''
+    ) {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout,
+        error,
+        sandboxId: 'sandbox-error',
+      })
+      const response = await POST(
+        createMockRequest('POST', {
+          code,
+          language,
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+        })
+      )
+      expect(response.status).toBe(422)
+      return response.json()
+    }
+
+    it('drops the line and code from a runtime error in isolated-vm', async () => {
+      const data = await failIsolated("const phone = '5'\nthrow new Error('invalid phone')", {
+        message: 'invalid phone',
+        name: 'Error',
+        line: 2,
+        lineContent: "throw new Error('invalid phone')",
+      })
+      expect(data.error).toBe("Line 2: `throw new Error('invalid phone')` - invalid phone")
+      expect(data.errorMessage).toBe('invalid phone')
+    })
+
+    it('drops the type label error puts before a TypeError', async () => {
+      const data = await failIsolated('const obj = null\nreturn obj.x', {
+        message: "Cannot read properties of null (reading 'x')",
+        name: 'TypeError',
+        line: 2,
+        lineContent: 'return obj.x',
+      })
+      expect(data.error).toBe(
+        "Type Error: Line 2: `return obj.x` - Cannot read properties of null (reading 'x')"
+      )
+      expect(data.errorMessage).toBe("Cannot read properties of null (reading 'x')")
+    })
+
+    it('keeps a syntax error message without its location', async () => {
+      const data = await failIsolated('return {', {
+        message: 'Unexpected end of input',
+        name: 'SyntaxError',
+        line: 1,
+        lineContent: 'return {',
+      })
+      expect(data.error).toBe('Syntax Error: Line 1: `return {` - Unexpected end of input')
+      expect(data.errorMessage).toBe('Unexpected end of input')
+    })
+
+    it.each([
+      { thrown: "throw 'declined'", message: 'declined' },
+      { thrown: 'throw {}', message: '[object Object]' },
+    ])(
+      'treats a non-Error throw ($thrown), which the isolate reports by its string form, like any message',
+      async ({ thrown, message }) => {
+        const data = await failIsolated(thrown, {
+          message,
+          name: 'Error',
+          line: 1,
+          lineContent: thrown,
+        })
+        expect(data.error).toBe(`Line 1: \`${thrown}\` - ${message}`)
+        expect(data.errorMessage).toBe(message)
+      }
+    )
+
+    it('keeps every line of a multi-line message', async () => {
+      const data = await failIsolated("throw new Error('bad row\\nrow 3: no email')", {
+        message: 'bad row\nrow 3: no email',
+        name: 'Error',
+        line: 1,
+        lineContent: "throw new Error('bad row\\nrow 3: no email')",
+      })
+      expect(data.error).toBe(
+        "Line 1: `throw new Error('bad row\\nrow 3: no email')` - bad row\nrow 3: no email"
+      )
+      expect(data.errorMessage).toBe('bad row\nrow 3: no email')
+    })
+
+    it('is the message itself when the error carries no line', async () => {
+      const data = await failIsolated('return 1', { message: 'quota exceeded', name: 'Error' })
+      expect(data.error).toBe('quota exceeded')
+      expect(data.errorMessage).toBe('quota exceeded')
+    })
+
+    it('holds a resolved value only where error holds it, never the code that read it', async () => {
+      const data = await failIsolated("throw new Error('rejected key ' + <start.apiKey>)", {
+        message: 'rejected key sk-live-123',
+        name: 'Error',
+        line: 1,
+        lineContent: "throw new Error('rejected key ' + <start.apiKey>)",
+      })
+      expect(data.error).toBe(
+        "Line 1: `throw new Error('rejected key ' + <start.apiKey>)` - rejected key sk-live-123"
+      )
+      expect(data.errorMessage).toBe('rejected key sk-live-123')
+      expect(data.error.endsWith(data.errorMessage)).toBe(true)
+    })
+
+    it('drops the type label from a JavaScript sandbox error', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nthrow new Error("invalid phone: 555")',
+        'Error: invalid phone: 555'
+      )
+      expect(data.error).toBe('Error: invalid phone: 555')
+      expect(data.errorMessage).toBe('invalid phone: 555')
+    })
+
+    it("drops Node's bracketed code label from a JavaScript sandbox error", async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nreturn 1',
+        "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'left-pad'"
+      )
+      expect(data.error).toBe("Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'left-pad'")
+      expect(data.errorMessage).toBe("Cannot find module 'left-pad'")
+    })
+
+    it('keeps the text before a colon that error cuts from a typed sandbox error', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nthrow new RangeError("invalid phone: 555")',
+        'RangeError: invalid phone: 555'
+      )
+      expect(data.error).toBe('RangeError: 555')
+      expect(data.errorMessage).toBe('invalid phone: 555')
+    })
+
+    it('drops the file path a JavaScript sandbox syntax error leads with', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nreturn 1',
+        'SyntaxError: /home/user/index.js: Unexpected token (9:8)'
+      )
+      expect(data.error).toBe('SyntaxError: Unexpected token')
+      expect(data.errorMessage).toBe('Unexpected token')
+    })
+
+    it('drops the line, code and exception name from a Python error', async () => {
+      const data = await failRemote(
+        'python',
+        "phone = '5'\nraise ValueError('invalid phone')",
+        'ValueError: invalid phone',
+        'Traceback (most recent call last):\n  File "<sim-function-module>", line 2, in <module>\nValueError: invalid phone'
+      )
+      expect(data.error).toBe(
+        "Line 2: `raise ValueError('invalid phone')` - ValueError: invalid phone"
+      )
+      expect(data.errorMessage).toBe('invalid phone')
+    })
+
+    it('keeps a Python syntax error message without its file and line', async () => {
+      const data = await failRemote(
+        'python',
+        'def f(:',
+        'SyntaxError: invalid syntax (3907239417.py, line 1)'
+      )
+      expect(data.error).toBe('SyntaxError: invalid syntax')
+      expect(data.errorMessage).toBe('invalid syntax')
+    })
+
+    it('labels a Python error with no message rather than leaving it empty', async () => {
+      const data = await failRemote('python', 'raise KeyError()', 'KeyError: ')
+      expect(data.error).toBe('KeyError:')
+      expect(data.errorMessage).toBe('KeyError:')
+    })
+
+    it('reports a failure before the code runs by its message', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return <variable.missing>',
+          workflowVariables: {},
+          timeout: 5000,
+        })
+      )
+      const data = await response.json()
+      expect(response.status).toBe(500)
+      expect(data.error).toBe('Variable "missing" doesn\'t exist.')
+      expect(data.errorMessage).toBe('Variable "missing" doesn\'t exist.')
     })
   })
 })

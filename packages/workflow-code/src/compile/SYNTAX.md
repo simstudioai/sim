@@ -197,7 +197,9 @@ reordered tool never takes another tool's secret.
   do, so `start.nope`, or a reference to an input since removed, is `W_OUTPUT_PATH_UNDECLARED`
   at the reference (a caller may still pass it, so it is never refused); other dynamic outputs
   skip the check. `x.error` on a block with no error edge reads nothing:
-  `W_OUTPUT_PATH_UNDECLARED`.
+  `W_OUTPUT_PATH_UNDECLARED`. So does an error output a block's catalog entry declares
+  (`errorOutputs`: a Function's `x.errorMessage`, the thrown message without line or code), which
+  any other block does not have (`W_UNKNOWN_OUTPUT_PATH`).
 - A ref to a block declared later is `W_FORWARD_REF`; it still resolves. A ref into a sibling
   subflow's child is `E_OUT_OF_SCOPE`. An unknown identifier is `E_UNKNOWN_IDENTIFIER` with a
   did-you-mean. Wiring resolves its identifiers the same way.

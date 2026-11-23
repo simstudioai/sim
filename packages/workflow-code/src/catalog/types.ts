@@ -288,6 +288,11 @@ export interface CatalogBlock {
    * `W_UNKNOWN_OUTPUT_PATH` is skipped.
    */
   dynamicOutputs?: CatalogDynamicOutputs
+  /**
+   * Text outputs the block writes only when it fails into an error edge, beside the `error` every
+   * block has (a Function's `errorMessage`). Compile and codegen treat each exactly as `error`.
+   */
+  errorOutputs?: string[]
   graph: CatalogBlockGraph
   legacyIds?: CatalogLegacyId[]
   legacyCanonicalIds?: Array<{ from: CanonicalParamId; to: CanonicalParamId }>

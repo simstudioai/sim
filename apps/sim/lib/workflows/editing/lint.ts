@@ -729,6 +729,16 @@ const DYNAMIC_OUTPUT_BLOCK_TYPES = new Set(['loop', 'parallel', 'table', 'table_
  */
 const IMPLICIT_ERROR_OUTPUT = 'error'
 
+/**
+ * Whether `key` is an output the executor writes only on a failure: the implicit
+ * `error`, or one of the block's declared `errorOutputs` (a Function's `errorMessage`).
+ */
+function isErrorOutputKey(block: BlockState, key: string): boolean {
+  if (key === IMPLICIT_ERROR_OUTPUT) return true
+  const errorOutputs = block.type ? getBlock(block.type)?.errorOutputs : undefined
+  return errorOutputs !== undefined && Object.hasOwn(errorOutputs, key)
+}
+
 /** Trailing `[n]` index suffixes, so `items[0]` compares as the key `items`. */
 const INDEX_SUFFIX = /(?:\[\d+\])+$/
 
@@ -966,7 +976,7 @@ export function collectDanglingBlockOutputReferences(
             if (nested) undeclaredNested.set(`<${token}>`, { targetId, ...nested })
             continue
           }
-          if (!keys || !segment || segment === IMPLICIT_ERROR_OUTPUT) continue
+          if (!keys || !segment || isErrorOutputKey(blocks[targetId], segment)) continue
           const group = unknownByTarget.get(targetId) ?? {
             target: blocks[targetId],
             keys,

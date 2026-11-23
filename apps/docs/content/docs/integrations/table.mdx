@@ -52,6 +52,7 @@ Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `ignoredColumns` | array | Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column. |
 | `success` | boolean | Whether row was inserted |
 | `row` | json | Inserted row data |
 | `message` | string | Status message |
@@ -75,6 +76,7 @@ Insert multiple rows into a table at once (up to 1000 rows)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `ignoredColumns` | array | Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column. |
 | `success` | boolean | Whether rows were inserted |
 | `rows` | array | Inserted rows data |
 | `insertedCount` | number | Number of rows inserted |
@@ -100,6 +102,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `ignoredColumns` | array | Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column. |
 | `success` | boolean | Whether row was upserted |
 | `row` | json | Upserted row data |
 | `operation` | string | Operation performed: insert or update |
@@ -125,6 +128,7 @@ Update an existing row in a table. Supports partial updates - only include the f
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `ignoredColumns` | array | Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column. |
 | `success` | boolean | Whether row was updated |
 | `row` | json | Updated row data |
 | `message` | string | Status message |
@@ -150,6 +154,7 @@ Update multiple rows that match filter criteria. Data is merged with existing ro
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `ignoredColumns` | array | Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column. |
 | `success` | boolean | Whether rows were updated |
 | `updatedCount` | number | Number of rows updated |
 | `updatedRowIds` | array | IDs of updated rows |
