@@ -1,4 +1,5 @@
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import type { Mock } from 'vitest'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
@@ -35,6 +36,8 @@ beforeEach(() => {
 
 afterEach(() => {
   setEnvFlags({ isHosted: false })
+  setEnv({ OLLAMA_URL: undefined })
+  envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset().mockImplementation(() => [])
 })
 
 describe('agent model field', () => {
@@ -81,4 +84,57 @@ describe('translate and guardrails model fields', () => {
       expect(errors[0]?.error).toContain('Unknown model id')
     }
   )
+})
+
+describe('model ids no provider declares', () => {
+  const CATALOG_BLOCKS = ['router_v2', 'evaluator', 'translate', 'guardrails']
+
+  it.each(CATALOG_BLOCKS)(
+    'accepts an installed Ollama model on %s where Ollama is reachable',
+    (blockType) => {
+      expect(validateModel(blockType, 'llama3.1:8b')).toEqual({ errors: [], model: 'llama3.1:8b' })
+      setEnvFlags({ isHosted: true })
+      setEnv({ OLLAMA_URL: 'http://ollama.internal:11434' })
+      expect(validateModel(blockType, 'qwen3:latest')).toEqual({
+        errors: [],
+        model: 'qwen3:latest',
+      })
+    }
+  )
+
+  it.each(CATALOG_BLOCKS)('rejects it on %s on hosted Sim with no Ollama', (blockType) => {
+    setEnvFlags({ isHosted: true })
+    const { errors, model } = validateModel(blockType, 'llama3.1:8b')
+    expect(model).toBeUndefined()
+    expect(errors[0]?.error).toContain('Unknown model id')
+  })
+
+  it.each(['hhao/qwen2.5-coder-tools', 'hf.co/bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M'])(
+    'accepts a namespaced Ollama library name such as %s',
+    (model) => {
+      expect(validateModel('router_v2', model)).toEqual({ errors: [], model })
+    }
+  )
+
+  it.each(['best available model', 'llama3.1:8b:extra', 'model/'])(
+    'still rejects %s, which is not an Ollama model name',
+    (model) => {
+      const { errors } = validateModel('router_v2', model)
+      expect(errors[0]?.error).toContain('Unknown model id')
+    }
+  )
+
+  it.each(['claude-sonnet-4.6', 'groq/'])(
+    'still rejects %s, which a provider claims, so it never reaches Ollama',
+    (model) => {
+      const { errors } = validateModel('router_v2', model)
+      expect(errors[0]?.error).toContain('Unknown model id')
+    }
+  )
+
+  it('rejects it when the Ollama provider is blacklisted', () => {
+    envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(['ollama'])
+    const { errors } = validateModel('router_v2', 'llama3.1:8b')
+    expect(errors[0]?.error).toContain('Unknown model id')
+  })
 })

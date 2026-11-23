@@ -9,6 +9,7 @@ import {
   resolveCanonicalMode,
 } from '@sim/workflow-code/catalog/canonical-index'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
+import { isOllamaAvailable } from '@/lib/core/utils/urls'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
@@ -44,6 +45,7 @@ import { MODEL_OPTION_SOURCES } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import {
+  findProviderFromModel,
   getHostedModels,
   isAutoModel,
   isCustomModelId,
@@ -587,6 +589,9 @@ function isStoredFile(value: unknown): boolean {
   return isPlainRecord(value) && Boolean(value.name) && Boolean(value.path)
 }
 
+/** An Ollama model name: `[namespace/]name[:tag]`, e.g. `llama3.1:8b` or `hf.co/org/model:Q4_K_M`. */
+const OLLAMA_MODEL_NAME = /^[\w.-]+(\/[\w.-]+)*(:[\w.-]+)?$/
+
 /**
  * Validates a value against its expected subBlock type
  * Returns validation result with the value or an error
@@ -998,10 +1003,22 @@ export function validateValueForSubBlockType(
         }
         // sim-auto is valid only where the source offers Auto, which it does on hosted Sim
         // only; writes of it anywhere else are rejected as unknown.
-        if (isAutoModel(trimmed) && modelSource.auto && isHostedDeployment) {
+        const isAuto = isAutoModel(trimmed)
+        if (isAuto && modelSource.auto && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
         }
-        if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {
+        // An id no provider claims runs on Ollama (`getProviderFromModel`'s default), so
+        // wherever an Ollama server is reachable an Ollama-shaped name may be a locally
+        // installed model. The server cannot list what is installed, so a mistyped name of
+        // that shape fails at execution instead. sim-auto is never one: it never reaches a
+        // provider as itself.
+        const isUnknown = !isKnownModelId(trimmed) && !isCustomModelId(trimmed)
+        const mayBeLocalModel =
+          !isAuto &&
+          OLLAMA_MODEL_NAME.test(trimmed) &&
+          findProviderFromModel(trimmed) === null &&
+          isOllamaAvailable()
+        if (trimmed !== '' && isUnknown && !mayBeLocalModel) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
             suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
