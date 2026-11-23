@@ -22,11 +22,11 @@ function resumeCommand(runId: string, workflowId: string, contextId: string): st
 }
 
 /**
- * The exact `runs resume` command for a paused run record, one line per point still waiting. The
- * server names the run to resume in `paused.runId` (for a resumed run that paused again, the run
- * it resumed, not the record's own `runId`) and each point's `contextId`. Null when nothing waits
- * or an id is not in the format the server issues, so no untrusted text reaches a printed
- * command.
+ * The exact `runs resume` command for a paused run record, one line per human pause still waiting
+ * (a timed pause resumes on its own, and the resume route refuses it). The server names the run to
+ * resume in `paused.runId` (for a resumed run that paused again, the run it resumed, not the
+ * record's own `runId`) and each point's `contextId`. Null when nothing waits or an id is not in
+ * the format the server issues, so no untrusted text reaches a printed command.
  */
 export function resumeCommandFor(
   record: Record<string, unknown>,
@@ -37,7 +37,7 @@ export function resumeCommandFor(
   if (!issuedId(runId) || !issuedId(workflowId)) return null
   const commands: string[] = []
   for (const point of Array.isArray(paused?.points) ? paused.points : []) {
-    if (!isRecordLike(point) || point.status !== 'paused') continue
+    if (!isRecordLike(point) || point.status !== 'paused' || point.kind !== 'human') continue
     if (!issuedId(point.contextId)) return null
     commands.push(resumeCommand(runId, workflowId, point.contextId))
   }

@@ -123,7 +123,7 @@ describe('sim workflows runs get on a paused run', () => {
         contextId: 'ctx_1',
         pauseKind: 'human',
         runId: RUN_ID,
-        points: [{ contextId: 'ctx_1', status: 'paused' }],
+        points: [{ contextId: 'ctx_1', kind: 'human', status: 'paused' }],
       },
     }
     answer({ data: run })

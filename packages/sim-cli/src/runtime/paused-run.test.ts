@@ -30,6 +30,18 @@ describe('withResumeNext', () => {
     })
   })
 
+  it('names no command for a timed pause, which resumes on its own', () => {
+    const timed = { contextId: 'later', kind: 'time', status: 'paused' }
+    expect(
+      withResumeNext('executeWorkflow', {
+        ...paused,
+        paused: { runId: 'run_top', points: [timed, point('ctx_9')] },
+      })
+    ).toMatchObject({ next: 'sim workflows runs resume run_top --workflow wf_1 --context ctx_9' })
+    const onlyTimed = { ...paused, paused: { runId: 'run_top', points: [timed] } }
+    expect(withResumeNext('executeWorkflow', onlyTimed)).toBe(onlyTimed)
+  })
+
   it('names one command per waiting point, quoting a branch context', () => {
     const several = {
       ...paused,

@@ -78,7 +78,7 @@ interface RunPayload {
     pauseKind?: string | null
     resumeAt?: string | null
     runId?: string
-    points?: Array<{ contextId: string; status: string }>
+    points?: Array<{ contextId: string; kind: string; status: string }>
   } | null
 }
 
@@ -157,7 +157,7 @@ describe('workflows runs wait', () => {
         pauseKind: 'human',
         contextId: 'ctx_9',
         runId: 'run_1',
-        points: [{ contextId: 'ctx_9', status: 'paused' }],
+        points: [{ contextId: 'ctx_9', kind: 'human', status: 'paused' }],
       },
     })
 
@@ -178,7 +178,7 @@ describe('workflows runs wait', () => {
         pauseKind: 'human',
         contextId: 'ctx_9',
         runId: 'exec_9',
-        points: [{ contextId: 'ctx_9', status: 'paused' }],
+        points: [{ contextId: 'ctx_9', kind: 'human', status: 'paused' }],
       },
     })
 
