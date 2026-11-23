@@ -684,12 +684,6 @@ const nextConfig: NextConfig = {
           source: '/favicon.ico',
           destination: '/icon.svg',
         },
-        /**
-         * Serves Stop from browser tabs still on v0.9.64 or earlier, which call the old abort
-         * path. Remove in any release after the first one that ships the move (the release
-         * after v0.9.64).
-         */
-        { source: '/api/copilot/chat/abort', destination: '/api/mothership/chat/abort' },
       ],
       /**
        * Fallback rewrites run only after every page and dynamic route has failed to match, so
