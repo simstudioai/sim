@@ -175,6 +175,14 @@ class ResumeAdmissionError extends Error {
 export type FailedResumeOutcome = 'pause_retained' | 'execution_failed' | 'execution_completed'
 
 /** Matches the paused execution mode to the deployment recorded on its durable root log. */
+/**
+ * The run a resumed attempt's pause is recorded under: the execution the resumed engine ran as,
+ * else the attempt's own id. Resume workflow run names this run to resume the pause.
+ */
+export function pausedRunIdOf(result: ExecutionResult, resumeExecutionId: string): string {
+  return result.metadata?.executionId ?? resumeExecutionId
+}
+
 export function requireResumeDeploymentVersion(
   useDraftState: unknown,
   deploymentVersionId: string | null
@@ -997,7 +1005,7 @@ export class PauseResumeManager {
          * reason, then throw so the attempt settles as failed below. The thrown
          * message stays stable; the underlying error rides on `cause`.
          */
-        const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
+        const effectiveExecutionId = pausedRunIdOf(result, resumeExecutionId)
         const failPause = async (reason: string, cause?: unknown): Promise<never> => {
           logger.error(
             reason,

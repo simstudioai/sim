@@ -16,13 +16,7 @@ import { fingerprintOf } from '@sim/workspace-code'
 import { printError } from '#sim-cli/output/io'
 import { type WorkspaceFolder, workspaceFolderOf } from './dir-kind'
 import { readSourceJson, readSourceText, type SourceDirChange, updateSourceDir } from './files'
-import {
-  lockCodeFiles,
-  orphanedCodeFiles,
-  SOURCE_WRITTEN_FILE,
-  sourceRelativePath,
-  writableFiles,
-} from './layout'
+import { lockCodeFiles, orphanedCodeFiles, sourceRelativePath, writableFiles } from './layout'
 import {
   digest,
   inWorkspace,
@@ -104,12 +98,7 @@ export async function writeBack(
   const unnamed = await unnamedCodeFiles(dir, previousLock, answer, orphaned)
   await updateSourceDir(dir, {
     write,
-    remove: [
-      ...orphaned,
-      ...(extra.remove ?? []),
-      // A record of the folder's own, from before, would shadow the workspace's.
-      ...(folder ? [SOURCE_WRITTEN_FILE] : []),
-    ],
+    remove: [...orphaned, ...(extra.remove ?? [])],
   })
   if (folder) await recordFolderWrite(folder, Object.fromEntries(printed), orphaned, answer.base)
   if (unnamed.length > 0) {

@@ -760,7 +760,7 @@ export type ApplyWorkflowSourceBody = {
     [key: string]: unknown
   }
   base: {
-    version?: 1
+    version: 1
     workflowId: string
     workspaceId: string
     fingerprint: string
@@ -825,7 +825,6 @@ export type ApplyWorkflowSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -1117,7 +1116,7 @@ export type ApplyWorkspaceSourceBody = {
           string,
           {
             id: string
-            rev: number | string
+            rev: string
             sha256: string
           }
         >
@@ -1331,7 +1330,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -1508,7 +1506,7 @@ export type ApplyWorkspaceSourceResponse = {
             string,
             {
               id: string
-              rev: number | string
+              rev: string
               sha256: string
             }
           >
@@ -1627,7 +1625,6 @@ export type ApplyWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -5301,7 +5298,6 @@ export type CreateWorkflowFromSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -7161,6 +7157,14 @@ type ExecuteWorkflowResponseRef1 = {
   endedAt?: string
   durationMs?: number
   executionTimeoutSeconds: number | null
+  paused: {
+    runId: string
+    points: Array<{
+      contextId: string
+      kind: 'human' | 'time'
+      status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+    }>
+  } | null
 }
 
 type ExecuteWorkflowResponseRef2 = {
@@ -9218,6 +9222,7 @@ export type GetSourceCatalogResponse = {
             description?: string
             condition?: unknown
             hiddenFromDisplay?: boolean
+            mayBeText?: true
             properties?: Record<string, unknown>
             sharedProperties?: number
             items?: unknown
@@ -9448,6 +9453,7 @@ export type GetSourceCatalogResponse = {
             description?: string
             condition?: unknown
             hiddenFromDisplay?: boolean
+            mayBeText?: true
             properties?: Record<string, unknown>
             sharedProperties?: number
             items?: unknown
@@ -9631,6 +9637,7 @@ export type GetSourceCatalogResponse = {
           description?: string
           condition?: unknown
           hiddenFromDisplay?: boolean
+          mayBeText?: true
           properties?: Record<string, unknown>
           sharedProperties?: number
           items?: unknown
@@ -10349,6 +10356,7 @@ type GetWorkflowRunResponseRef4 = {
     automaticResumeWaitingReason: string | null
     pausePointCount: number
     resumedCount: number
+    runId: string
     points: Array<GetWorkflowRunResponseRef0>
   } | null
   cost: {
@@ -10427,7 +10435,6 @@ export type GetWorkflowSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -10992,7 +10999,7 @@ export type GetWorkspaceSourceResponse = {
             string,
             {
               id: string
-              rev: number | string
+              rev: string
               sha256: string
             }
           >
@@ -11126,7 +11133,6 @@ export type GetWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -14396,7 +14402,7 @@ export type PlanWorkflowSourceBody = {
     [key: string]: unknown
   }
   base: {
-    version?: 1
+    version: 1
     workflowId: string
     workspaceId: string
     fingerprint: string
@@ -14456,7 +14462,6 @@ export type PlanWorkflowSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_LIMIT_EXCEEDED'
@@ -14708,7 +14713,7 @@ export type PlanWorkspaceSourceBody = {
           string,
           {
             id: string
-            rev: number | string
+            rev: string
             sha256: string
           }
         >
@@ -14917,7 +14922,6 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -15094,7 +15098,7 @@ export type PlanWorkspaceSourceResponse = {
             string,
             {
               id: string
-              rev: number | string
+              rev: string
               sha256: string
             }
           >
@@ -15213,7 +15217,6 @@ export type PlanWorkspaceSourceResponse = {
         | 'E_SYNTAX'
         | 'E_SDK_HEADER'
         | 'E_SDK_MAJOR'
-        | 'E_SDK_MAJOR_OLD'
         | 'E_UNSUPPORTED_SYNTAX'
         | 'E_WORKFLOW_EXPORT'
         | 'E_INVALID_CHARACTER'
@@ -17798,6 +17801,14 @@ type ResumeWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  paused: {
+    runId: string
+    points: Array<{
+      contextId: string
+      kind: 'human' | 'time'
+      status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+    }>
+  } | null
 }
 
 type ResumeWorkflowResponseRef2 = {

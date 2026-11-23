@@ -4394,6 +4394,7 @@
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
                         "durationMs": 1000,
+                        "paused": null,
                         "executionTimeoutSeconds": 3000
                       }
                     }
@@ -5131,7 +5132,7 @@
       "post": {
         "operationId": "resumeWorkflowRunV2",
         "summary": "Resume workflow run",
-        "description": "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
+        "description": "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt; when it pauses again, `paused.runId` names the run to resume next. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.resume",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -5229,7 +5230,8 @@
                         "error": null,
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
-                        "durationMs": 1000
+                        "durationMs": 1000,
+                        "paused": null
                       }
                     }
                   }
@@ -6736,7 +6738,7 @@
                           {
                             "key": "lookup-order",
                             "id": "ctl_2b8d6f03",
-                            "name": "lookup_order"
+                            "name": "Lookup order"
                           }
                         ],
                         "mcpServers": [
@@ -17275,6 +17277,50 @@
               }
             ],
             "description": "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string",
+                    "description": "Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed."
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "contextId": {
+                          "type": "string",
+                          "description": "Pause context to name in `contextId` when resuming this point."
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["human", "time"],
+                          "description": "`human` waits for a resume request; `time` resumes automatically at `resumeAt`."
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["paused", "queued", "resuming", "resumed", "failed"],
+                          "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
+                        }
+                      },
+                      "required": ["contextId", "kind", "status"],
+                      "additionalProperties": false
+                    },
+                    "description": "Every point the run is paused at. Resume one with Resume workflow run, naming `runId` and its `contextId`."
+                  }
+                },
+                "required": ["runId", "points"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the run waits when `status` is `paused`; null otherwise."
           }
         },
         "required": [
@@ -17284,7 +17330,8 @@
           "output",
           "blockOutputs",
           "error",
-          "executionTimeoutSeconds"
+          "executionTimeoutSeconds",
+          "paused"
         ],
         "additionalProperties": false,
         "title": "Workflow run result",
@@ -17316,6 +17363,7 @@
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
               "durationMs": 1000,
+              "paused": null,
               "executionTimeoutSeconds": 3000
             }
           }
@@ -18248,6 +18296,10 @@
                     "type": "number",
                     "description": "Number of pause points that have resumed."
                   },
+                  "runId": {
+                    "type": "string",
+                    "description": "Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed."
+                  },
                   "points": {
                     "type": "array",
                     "items": {
@@ -18265,6 +18317,7 @@
                   "automaticResumeWaitingReason",
                   "pausePointCount",
                   "resumedCount",
+                  "runId",
                   "points"
                 ],
                 "additionalProperties": false
@@ -18479,9 +18532,53 @@
             "description": "Execution duration in milliseconds.",
             "type": "number",
             "minimum": 0
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string",
+                    "description": "Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed."
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "contextId": {
+                          "type": "string",
+                          "description": "Pause context to name in `contextId` when resuming this point."
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["human", "time"],
+                          "description": "`human` waits for a resume request; `time` resumes automatically at `resumeAt`."
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["paused", "queued", "resuming", "resumed", "failed"],
+                          "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
+                        }
+                      },
+                      "required": ["contextId", "kind", "status"],
+                      "additionalProperties": false
+                    },
+                    "description": "Every point the run is paused at. Resume one with Resume workflow run, naming `runId` and its `contextId`."
+                  }
+                },
+                "required": ["runId", "points"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the run waits when `status` is `paused`; null otherwise."
           }
         },
-        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error"],
+        "required": ["runId", "workflowId", "status", "output", "blockOutputs", "error", "paused"],
         "additionalProperties": false,
         "title": "Workflow resume result",
         "description": "Synchronous resumed run output and in-band execution status. Run failures are reported in band, not as HTTP errors, so branch on `status`."
@@ -18511,7 +18608,8 @@
               "error": null,
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
-              "durationMs": 1000
+              "durationMs": 1000,
+              "paused": null
             }
           }
         ]
@@ -19090,10 +19188,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -19149,7 +19246,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -19625,7 +19721,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -20008,10 +20103,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -20299,10 +20393,9 @@
             "type": "object",
             "properties": {
               "version": {
-                "default": 1,
-                "description": "Base format version; a base written before it existed reads as 1.",
                 "type": "number",
-                "const": 1
+                "const": 1,
+                "description": "Base format version."
               },
               "workflowId": {
                 "type": "string",
@@ -20324,7 +20417,7 @@
                 "description": "Hash of the block catalog the source was printed against."
               }
             },
-            "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
+            "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
             "additionalProperties": {
               "description": "An `x-` extension field, kept verbatim."
             },
@@ -20593,7 +20686,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -20976,10 +21068,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -21267,10 +21358,9 @@
             "type": "object",
             "properties": {
               "version": {
-                "default": 1,
-                "description": "Base format version; a base written before it existed reads as 1.",
                 "type": "number",
-                "const": 1
+                "const": 1,
+                "description": "Base format version."
               },
               "workflowId": {
                 "type": "string",
@@ -21292,7 +21382,7 @@
                 "description": "Hash of the block catalog the source was printed against."
               }
             },
-            "required": ["workflowId", "workspaceId", "fingerprint", "catalogHash"],
+            "required": ["version", "workflowId", "workspaceId", "fingerprint", "catalogHash"],
             "additionalProperties": {
               "description": "An `x-` extension field, kept verbatim."
             },
@@ -21537,7 +21627,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_LIMIT_EXCEEDED",
@@ -21920,10 +22009,9 @@
                 "type": "object",
                 "properties": {
                   "version": {
-                    "default": 1,
-                    "description": "Base format version; a base written before it existed reads as 1.",
                     "type": "number",
-                    "const": 1
+                    "const": 1,
+                    "description": "Base format version."
                   },
                   "workflowId": {
                     "type": "string",
@@ -22469,7 +22557,7 @@
                 {
                   "key": "lookup-order",
                   "id": "ctl_2b8d6f03",
-                  "name": "lookup_order"
+                  "name": "Lookup order"
                 }
               ],
               "mcpServers": [
@@ -26394,16 +26482,7 @@
                                 "description": "Stored id of the binary file."
                               },
                               "rev": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
+                                "type": "string",
                                 "description": "Content revision as last read."
                               },
                               "sha256": {
@@ -26598,7 +26677,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_INVALID_CHARACTER",
@@ -27183,7 +27261,6 @@
                       "E_SYNTAX",
                       "E_SDK_HEADER",
                       "E_SDK_MAJOR",
-                      "E_SDK_MAJOR_OLD",
                       "E_UNSUPPORTED_SYNTAX",
                       "E_WORKFLOW_EXPORT",
                       "E_INVALID_CHARACTER",
@@ -27438,16 +27515,7 @@
                                 "description": "Stored id of the binary file."
                               },
                               "rev": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
+                                "type": "string",
                                 "description": "Content revision as last read."
                               },
                               "sha256": {
@@ -27607,7 +27675,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_INVALID_CHARACTER",
@@ -28010,16 +28077,7 @@
                             "description": "Stored id of the binary file."
                           },
                           "rev": {
-                            "anyOf": [
-                              {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
-                              },
-                              {
-                                "type": "string"
-                              }
-                            ],
+                            "type": "string",
                             "description": "Content revision as last read."
                           },
                           "sha256": {
@@ -28481,7 +28539,6 @@
                       "E_SYNTAX",
                       "E_SDK_HEADER",
                       "E_SDK_MAJOR",
-                      "E_SDK_MAJOR_OLD",
                       "E_UNSUPPORTED_SYNTAX",
                       "E_WORKFLOW_EXPORT",
                       "E_INVALID_CHARACTER",
@@ -28736,16 +28793,7 @@
                                 "description": "Stored id of the binary file."
                               },
                               "rev": {
-                                "anyOf": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": -9007199254740991,
-                                    "maximum": 9007199254740991
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
+                                "type": "string",
                                 "description": "Content revision as last read."
                               },
                               "sha256": {
@@ -28905,7 +28953,6 @@
                         "E_SYNTAX",
                         "E_SDK_HEADER",
                         "E_SDK_MAJOR",
-                        "E_SDK_MAJOR_OLD",
                         "E_UNSUPPORTED_SYNTAX",
                         "E_WORKFLOW_EXPORT",
                         "E_INVALID_CHARACTER",
@@ -29308,16 +29355,7 @@
                             "description": "Stored id of the binary file."
                           },
                           "rev": {
-                            "anyOf": [
-                              {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
-                              },
-                              {
-                                "type": "string"
-                              }
-                            ],
+                            "type": "string",
                             "description": "Content revision as last read."
                           },
                           "sha256": {

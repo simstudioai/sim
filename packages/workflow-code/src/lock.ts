@@ -11,9 +11,7 @@
  * Version policy: adding an optional field does not bump `version`. Validators learn a field
  * before writers emit it; until every reader knows a field, data goes under an `x-` key, which
  * every validator tolerates and preserves. Removing or changing the meaning of a field bumps it,
- * and the new format adds its step to {@link upgradeWorkflowLock} or {@link upgradeSourceBase}:
- * every reader goes through them, so a file written in any version this build reads parses as
- * the current one.
+ * and a reader refuses any version but its own.
  */
 
 import { isRecordLike } from '@sim/utils/object'
@@ -29,7 +27,7 @@ import { SDK_RESERVED_IDENTIFIERS } from './sdk'
 /**
  * `sf1:` + lowercase hex SHA-256 (`sourceFingerprint`). Checkouts in the field hold it in their
  * base, so a change to canonicalize's output or to the hashing is a format change: it bumps the
- * prefix (`sf2:`) and accepts the old one for a release. `equivalence/pinned.test.ts` pins it.
+ * prefix (`sf2:`), and a checkout read before it re-runs get. `equivalence/pinned.test.ts` pins it.
  */
 export type SourceFingerprint = `sf1:${string}`
 
@@ -111,7 +109,7 @@ export type WorkflowLockV1 = {
 /** One environment's freshness facts for a lock, `.sim/base.json` (see the module comment). */
 export type SourceBase = {
   [extension: LockExtensionKey]: Json
-  /** Base format version; a base written before it existed reads as 1. */
+  /** Base format version. */
   version: 1
   /** The workflow the source was read from; apply refuses a base read from another workflow. */
   workflowId: string
@@ -540,35 +538,14 @@ function blocksOnParentCycles(blocks: Record<BlockKey, WorkflowLockBlock>): Set<
 }
 
 /**
- * A lock object of any version this build reads, as the current version (1) holds it, or `null`
- * for a version it cannot read. The one seam a lock format change goes through: v1 is current,
- * so it passes through unchanged.
- */
-function upgradeWorkflowLock(
-  json: Record<string, unknown>
-): (Record<string, unknown> & { version: 1 }) | null {
-  return json.version === 1 ? { ...json, version: 1 } : null
-}
-
-/**
- * A base object of any version this build reads, as the current version (1) holds it, or `null`
- * for a version it cannot read. A base written before `version` existed is version 1.
- */
-function upgradeSourceBase(
-  json: Record<string, unknown>
-): (Record<string, unknown> & { version: 1 }) | null {
-  return json.version === undefined || json.version === 1 ? { ...json, version: 1 } : null
-}
-
-/**
- * Validates a source base (`.sim/base.json`), given as parsed JSON or as JSON text, through
- * {@link upgradeSourceBase}. Unknown fields are refused except `x-` extensions, which are kept.
+ * Validates a source base (`.sim/base.json`), given as parsed JSON or as JSON text. Only version 1
+ * is read. Unknown fields are refused except `x-` extensions, which are kept.
  */
 export function parseSourceBase(input: unknown): { base: SourceBase } | { problem: string } {
   const parsed = jsonInput(input)
   if (!parsed || !isRecordLike(parsed.json)) return { problem: 'The base is not a JSON object.' }
-  const json = upgradeSourceBase(parsed.json)
-  if (!json) return { problem: 'Unsupported base version; expected 1.' }
+  const json = parsed.json
+  if (json.version !== 1) return { problem: 'Unsupported base version; expected 1.' }
   const problems: string[] = []
   const extensions = readExtensions(json, BASE_FIELDS, (field, problem) =>
     problems.push(
@@ -607,7 +584,7 @@ export function parseSourceBase(input: unknown): { base: SourceBase } | { proble
 }
 
 /**
- * Validates a lock, given as parsed JSON or as JSON text, through {@link upgradeWorkflowLock}.
+ * Validates a lock, given as parsed JSON or as JSON text; only version 1 is read.
  * Every problem is reported at once, each with an RFC 6901 `path`; a lock with any problem is
  * rejected whole. Unknown fields are errors, so a typo never silently drops identity, except `x-`
  * extension fields, which are preserved. A version this build cannot read stops validation there.
@@ -623,8 +600,8 @@ export function parseWorkflowLock(input: unknown): ParseWorkflowLockResult {
     reader.report('E_LOCK_SHAPE', [], 'The lock must be a JSON object.')
     return { diagnostics: reader.diagnostics }
   }
-  const json = upgradeWorkflowLock(parsed.json)
-  if (!json) {
+  const json = parsed.json
+  if (json.version !== 1) {
     reader.report('E_LOCK_VERSION', ['version'], 'Unsupported lock version; expected 1.')
     return { diagnostics: reader.diagnostics }
   }

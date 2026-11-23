@@ -87,12 +87,6 @@ export const SDK_RESOURCE_CALLS = {
   'file-folder': 'folder',
 } as const satisfies Partial<Record<ResourceKind, string>>
 
-/**
- * The oldest SDK major the compiler reads. A header below it is `E_SDK_MAJOR_OLD`: no
- * down-migration exists, so such a file must be printed again for a supported major.
- */
-export const OLDEST_SDK_MAJOR = 1
-
 /** How the SDK treats one core export. An export with no traits is a value constructor or const. */
 interface SdkCoreExportTraits {
   /**

@@ -6805,7 +6805,8 @@
       "outputs": {
         "data": {
           "type": "json",
-          "description": "API response data (JSON, text, or other formats)"
+          "description": "API response data (JSON, text, or other formats)",
+          "mayBeText": true
         },
         "status": {
           "type": "number",
@@ -6972,7 +6973,8 @@
       "outputs": {
         "result": {
           "type": "json",
-          "description": "Structured result emitted by the executed code"
+          "description": "Structured result emitted by the executed code",
+          "mayBeText": true
         },
         "stdout": {
           "type": "string",

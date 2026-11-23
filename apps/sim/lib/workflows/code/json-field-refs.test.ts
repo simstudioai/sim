@@ -109,3 +109,38 @@ describe('JSON field literals against the real resolver', () => {
     })
   })
 })
+
+describe('JSON field references to an output that may be text', () => {
+  /** The `W_JSON_REF_UNTYPED` tokens of a row whose JSON `data` holds `fields` bare. */
+  function untypedTokens(fields: string): string[] {
+    const compiled = compileWorkflow({
+      entry: {
+        path: 'workflow.ts',
+        text: `// @sim-sdk 1
+import { api, table, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Text outputs', {}, () => {
+  const start = trigger.start('Start')
+  const fetchTicket = api('Fetch ticket', { url: 'https://example.com', method: 'GET' })
+  const logTicket = table.insertRow('Log ticket', { tableId: table('tickets'), data: { ${fields} } })
+  start.to(fetchTicket).to(logTicket)
+})
+`,
+      },
+      files: new Map(),
+      catalog,
+      sdkMajor: catalog.sdkMajor,
+    })
+    return compiled.diagnostics
+      .filter((diagnostic) => diagnostic.code === 'W_JSON_REF_UNTYPED')
+      .map((diagnostic) => diagnostic.message.match(/<[^>]+>/)?.[0] ?? diagnostic.message)
+  }
+
+  it('flags a bare HTTP body, which a text response splices in unquoted', () => {
+    expect(untypedTokens('body: fetchTicket.data')).toEqual(['<fetchticket.data>'])
+  })
+
+  it('stores a bare JSON output that is never text without a warning', () => {
+    expect(untypedTokens('headers: fetchTicket.headers, status: fetchTicket.status')).toEqual([])
+  })
+})

@@ -42,7 +42,6 @@ import {
   planFindings,
   printDiffReport,
   printStatusReport,
-  readPlan,
   type ServerCheck,
   STATUS_EXIT_CODES_HELP,
   type StatusReport,
@@ -193,22 +192,12 @@ export function attachWorkflowSourceStatus(source: Command): void {
         const files = await readSourceFiles(options.dir, lock)
         try {
           const body = { files, lock, base: local.base }
-          const response = await readPlan(
-            () =>
-              client.request<PlanWorkflowSourceResponse>('planWorkflowSource', {
-                params: { workflowId },
-                query: { allowDelete: true },
-                body,
-                retryRateLimited: true,
-              }),
-            () =>
-              client.request<PlanWorkflowSourceResponse>('applyWorkflowSource', {
-                params: { workflowId },
-                query: { dryRun: true, allowDelete: true },
-                body: { ...body, provenance: { client: 'cli' } },
-                retryRateLimited: true,
-              })
-          )
+          const response = await client.request<PlanWorkflowSourceResponse>('planWorkflowSource', {
+            params: { workflowId },
+            query: { allowDelete: true },
+            body,
+            retryRateLimited: true,
+          })
           data = response.data
           await refreshWorkflowWorkspaceTypes(client, options.dir, local.base.workspaceId)
           if (data.diagnostics.some((finding) => finding.code === 'E_APPLY_STALE')) {

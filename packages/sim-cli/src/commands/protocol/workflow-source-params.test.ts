@@ -52,6 +52,7 @@ function writeBase(catalogHash?: string): void {
   writeFileSync(
     join(dir, '.sim/base.json'),
     JSON.stringify({
+      version: 1,
       workflowId: 'wf',
       workspaceId: WORKSPACE_ID,
       fingerprint: 'sf1:a',

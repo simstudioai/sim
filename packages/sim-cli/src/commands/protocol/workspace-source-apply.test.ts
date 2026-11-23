@@ -68,7 +68,13 @@ const LEADS = "// @sim-sdk 1\nexport default defineTable({ name: 'leads', column
 const INGEST = "// @sim-sdk 1\nexport default workflow('Ingest', {}, () => {})\n"
 /** A workflow folder's base, as a get in `workspaceId` writes it. */
 const folderBase = (workspaceId: string) =>
-  JSON.stringify({ workflowId: 'wf_1', workspaceId, fingerprint: 'sf1:a', catalogHash: 'c' })
+  JSON.stringify({
+    version: 1,
+    workflowId: 'wf_1',
+    workspaceId,
+    fingerprint: 'sf1:a',
+    catalogHash: 'c',
+  })
 const INGEST_BASE = folderBase('ws_local')
 
 function answer(overrides: Record<string, unknown> = {}) {
@@ -1028,7 +1034,7 @@ describe('workspaces source apply', () => {
         resources: {
           'file:a.bin': {
             id: 'f1',
-            blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256: sha(Buffer.from([1, 2, 3])) } },
+            blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: sha(Buffer.from([1, 2, 3])) } },
           },
         },
       })
@@ -1070,7 +1076,7 @@ describe('workspaces source apply', () => {
         resources: {
           'file:a.bin': {
             id: 'f1',
-            blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256: sha(Buffer.from([1, 2, 3])) } },
+            blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256: sha(Buffer.from([1, 2, 3])) } },
           },
         },
       })
@@ -1333,10 +1339,10 @@ describe('workspaces source apply', () => {
       JSON.stringify({
         ...BASE,
         resources: {
-          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: 1, sha256 } } },
+          'file:a.bin': { id: 'f1', blobs: { 'files/a.bin': { id: 'f1', rev: '1', sha256 } } },
           'knowledge-base:docs': {
             id: 'kb1',
-            blobs: { 'guide.pdf': { id: 'd1', rev: 1, sha256 } },
+            blobs: { 'guide.pdf': { id: 'd1', rev: '1', sha256 } },
           },
         },
       })
@@ -1369,8 +1375,8 @@ describe('workspaces source apply', () => {
       JSON.stringify({
         ...BASE,
         resources: {
-          'file:a.txt': { id: 'f1', blobs: { 'files/a.txt': { id: 'f1', rev: 1, sha256 } } },
-          'file:b.txt': { id: 'f2', blobs: { 'files/b.txt': { id: 'f2', rev: 1, sha256 } } },
+          'file:a.txt': { id: 'f1', blobs: { 'files/a.txt': { id: 'f1', rev: '1', sha256 } } },
+          'file:b.txt': { id: 'f2', blobs: { 'files/b.txt': { id: 'f2', rev: '1', sha256 } } },
         },
       })
     )
@@ -1405,6 +1411,7 @@ describe('workspaces source apply', () => {
     request.mockResolvedValue(
       answer({
         dryRun: true,
+        refuses: true,
         diagnostics: [
           {
             code: 'E_APPLY_STALE',
@@ -1504,6 +1511,7 @@ describe('workspaces source apply', () => {
     request.mockResolvedValue(
       answer({
         dryRun: true,
+        refuses: true,
         diagnostics: codes.map((code) => ({ code, severity: 'error', message: code })),
       })
     )
@@ -1511,6 +1519,20 @@ describe('workspaces source apply', () => {
     await apply('--dry-run')
 
     expect(process.exitCode).toBe(exitCode)
+  })
+
+  it("takes a dry run's refusal from the server's answer alone, never from its findings", async () => {
+    request.mockResolvedValue(
+      answer({
+        dryRun: true,
+        plan: [{ kind: 'table', key: 'leads', action: 'create', held: true }],
+        diagnostics: [{ code: 'E_APPLY_LOCKED', severity: 'error', message: 'locked' }],
+      })
+    )
+
+    await apply('--dry-run')
+
+    expect(process.exitCode).toBe(1)
   })
 
   it('refuses a local blob over the size limit before reading it, and exits 7', async () => {
@@ -1915,41 +1937,6 @@ describe('workspaces source apply', () => {
     )
 
     await apply('--dry-run')
-
-    expect(process.exitCode).toBe(1)
-  })
-
-  it('exits a dry run as refused when a delete breaks a workflow it holds back, for a server without refuses, as the apply refuses it', async () => {
-    // E_PLAN_REF_DELETED names the held workflow, but the server records it on the delete (or the
-    // plan), which no hold excuses: the apply would refuse, so the dry run cannot exit 15.
-    request.mockResolvedValue(
-      answer({
-        dryRun: true,
-        plan: [
-          { kind: 'table', key: 'leads', action: 'create' },
-          { kind: 'workflow', key: 'parent', action: 'update', held: true },
-          { kind: 'workflow', key: 'child', action: 'delete' },
-        ],
-        diagnostics: [
-          {
-            code: 'E_SECRET_MISSING',
-            severity: 'error',
-            message: 'workflows/parent is held back: it reads the secret OPENAI_API_KEY.',
-            kind: 'workflow',
-            key: 'parent',
-          },
-          {
-            code: 'E_PLAN_REF_DELETED',
-            severity: 'error',
-            message: 'workflows/parent uses workflow "child", which this apply deletes.',
-            kind: 'workflow',
-            key: 'parent',
-          },
-        ],
-      })
-    )
-
-    await apply('--dry-run', '--allow-delete')
 
     expect(process.exitCode).toBe(1)
   })

@@ -150,11 +150,13 @@ describe('v2 run detail and cancel adapters', () => {
         pausePointCount: 1,
         resumedCount: 0,
       },
+      pausedRunId: 'run-parent',
     })
 
     const body = await (await callStatus()).json()
 
     expect(body.data.paused.contextId).toBe('context-1')
+    expect(body.data.paused.runId).toBe('run-parent')
     expect(body.data.paused).not.toHaveProperty('pausedExecutionId')
   })
 

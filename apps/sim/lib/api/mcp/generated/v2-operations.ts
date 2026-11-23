@@ -2812,7 +2812,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ResumeWorkflowContract,
     summary: 'Resume workflow run',
     description:
-      "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
+      "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt; when it pauses again, `paused.runId` names the run to resume next. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route').then(
         (route) => route.POST

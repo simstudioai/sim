@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import {
   existsSync,
   mkdirSync,
@@ -181,6 +180,9 @@ const MANIFEST = {
   knowledgeBases: [],
   credentials: [{ key: 'support-slack', id: 'c-1', name: 'Support Slack', provider: 'slack' }],
   workflows: [],
+  skills: [],
+  customTools: [],
+  mcpServers: [],
   env: ['CRM_KEY'],
   truncated: false,
 }
@@ -673,24 +675,6 @@ describe('a get into a directory that already holds source', () => {
     expect(read('functions/score.js')).toBe('return 2\r\n')
   })
 
-  it('replaces unedited CRLF function code an older CLI recorded with its raw digest', async () => {
-    const crlf = { ...FILES, 'functions/score.js': 'return 1\r\n' }
-    server.source = () => json(sourceResponse(crlf))
-    await get()
-    const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
-    writeFileSync(
-      join(dir, '.sim/written.json'),
-      JSON.stringify({
-        version: 1,
-        files: Object.fromEntries(Object.entries(crlf).map(([path, text]) => [path, sha256(text)])),
-      })
-    )
-
-    await get()
-
-    expect(read('functions/score.js')).toBe('return 1\r\n')
-  })
-
   it('refuses to overwrite an unapplied edit, such as the one a stale apply refused', async () => {
     await get()
     writeFileSync(join(dir, 'workflow.ts'), EDITED)
@@ -1068,8 +1052,6 @@ describe('checking a workflow holding a type the workspace catalog withholds', (
 
   it('caches each catalog once by its hash, fetching the workflow catalog only while uncached', async () => {
     const cacheDir = join(root, 'config/cache/source-catalog')
-    mkdirSync(join(cacheDir, WORKSPACE_ID), { recursive: true })
-    writeFileSync(join(cacheDir, `${WORKSPACE_ID}.json`), '{}')
     serve(TICKET_ROUTER)
     const queries: string[] = []
     const answer = server.catalog

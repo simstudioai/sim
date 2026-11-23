@@ -52,7 +52,7 @@ import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
-import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
+import type { BlockLog, NormalizedBlockOutput, PausePoint } from '@/executor/types'
 import {
   classifyExecutionError,
   hasExecutionResult,
@@ -183,6 +183,8 @@ export interface ExecuteWorkflowServiceRun {
   durationMs?: number
   /** The execution timeout applied to the run in milliseconds; `0` means untimed. */
   executionTimeoutMs: number
+  /** Where a `paused` run waits, recorded under its `executionId`. */
+  pausePoints?: PausePoint[]
 }
 
 /** A run's result before the applied timeout is stamped onto it. */
@@ -864,6 +866,7 @@ export async function executeWorkflowService(
           startedAt: result.metadata?.startTime,
           endedAt: result.metadata?.endTime,
           durationMs: result.metadata?.duration,
+          ...(status === 'paused' ? { pausePoints: result.pausePoints ?? [] } : {}),
         }
       } catch (error: unknown) {
         const errorMessage = getErrorMessage(error, 'Unknown error')

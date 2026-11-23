@@ -333,6 +333,38 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     })
   })
 
+  it('names where a paused run waits: the run to resume and each pause point', async () => {
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'paused',
+      output: {},
+      pausePoints: [
+        { contextId: 'ctx-1', pauseKind: 'human', resumeStatus: 'paused' },
+        { contextId: 'ctx-2', pauseKind: 'time', resumeStatus: 'paused' },
+      ],
+      metadata: { duration: 5 },
+    })
+
+    const body = await (await callExecute({ input: {} })).json()
+
+    expect(body.data).toMatchObject({
+      status: 'paused',
+      paused: {
+        runId: 'execution-123',
+        points: [
+          { contextId: 'ctx-1', kind: 'human', status: 'paused' },
+          { contextId: 'ctx-2', kind: 'time', status: 'paused' },
+        ],
+      },
+    })
+  })
+
+  it('reports no pause for a run that finished', async () => {
+    const body = await (await callExecute({ input: {} })).json()
+
+    expect(body.data.paused).toBeNull()
+  })
+
   it('streams an immediate heartbeat and the same sync result when NDJSON is accepted', async () => {
     vi.useFakeTimers()
     try {
@@ -382,6 +414,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
           status: 'completed',
           output: { result: 'done' },
           blockOutputs: null,
+          paused: null,
           error: null,
           startedAt: '2026-07-31T00:00:00.000Z',
           endedAt: '2026-07-31T00:00:01.000Z',

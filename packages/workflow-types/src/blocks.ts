@@ -84,6 +84,12 @@ export type OutputFieldDefinition =
       description?: string
       condition?: OutputCondition
       hiddenFromDisplay?: boolean
+      /**
+       * A `json` or `any` output whose value can still be text at run time (a Function's `result`
+       * is whatever its code returns; an HTTP body is parsed only when it says it is JSON).
+       * Workflow source stores a bare reference to it in JSON text as untyped.
+       */
+      mayBeText?: boolean
     }
 
 export function isHiddenFromDisplay(def: unknown): boolean {

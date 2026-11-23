@@ -27,7 +27,7 @@ import type {
   VarKey,
 } from '../model'
 import { getOwn, setOwn } from '../records'
-import { OLDEST_SDK_MAJOR, SDK_MODULE } from '../sdk'
+import { SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
 import { CommentCollector } from './comments'
@@ -539,20 +539,16 @@ function compileEntry(
         hint: `Start the file with // @sim-sdk ${input.sdkMajor}.`,
       }
     )
-  } else if (parsed.sdkMajor > input.sdkMajor) {
+  } else if (parsed.sdkMajor !== input.sdkMajor) {
     reporter.report(
       'E_SDK_MAJOR',
-      `This file targets SDK ${parsed.sdkMajor}; this server supports up to ${input.sdkMajor}.`,
-      { file, start: 0, end: parsed.headerEnd },
-      { hint: `Write // @sim-sdk ${input.sdkMajor}, or update Sim.` }
-    )
-  } else if (parsed.sdkMajor < OLDEST_SDK_MAJOR) {
-    reporter.report(
-      'E_SDK_MAJOR_OLD',
-      `This file targets SDK ${parsed.sdkMajor}; this server supports SDK ${OLDEST_SDK_MAJOR} to ${input.sdkMajor}.`,
+      `This file targets SDK ${parsed.sdkMajor}; this server reads SDK ${input.sdkMajor}.`,
       { file, start: 0, end: parsed.headerEnd },
       {
-        hint: `Rewrite the file for SDK ${input.sdkMajor}: run sim workflows source get to print it again.`,
+        hint:
+          parsed.sdkMajor > input.sdkMajor
+            ? `Write // @sim-sdk ${input.sdkMajor}, or update Sim.`
+            : `Write // @sim-sdk ${input.sdkMajor}: run sim workflows source get to print the file again.`,
       }
     )
   }

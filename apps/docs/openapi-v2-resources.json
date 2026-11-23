@@ -32795,6 +32795,11 @@
                             "description": "Hidden from the output picker.",
                             "type": "boolean"
                           },
+                          "mayBeText": {
+                            "description": "A `json` or `any` output whose value can still be text at run time.",
+                            "type": "boolean",
+                            "const": true
+                          },
                           "properties": {
                             "description": "Nested outputs by name, each of this same shape.",
                             "type": "object",
@@ -33838,6 +33843,11 @@
                             "description": "Hidden from the output picker.",
                             "type": "boolean"
                           },
+                          "mayBeText": {
+                            "description": "A `json` or `any` output whose value can still be text at run time.",
+                            "type": "boolean",
+                            "const": true
+                          },
                           "properties": {
                             "description": "Nested outputs by name, each of this same shape.",
                             "type": "object",
@@ -34696,6 +34706,11 @@
                       "hiddenFromDisplay": {
                         "description": "Hidden from the output picker.",
                         "type": "boolean"
+                      },
+                      "mayBeText": {
+                        "description": "A `json` or `any` output whose value can still be text at run time.",
+                        "type": "boolean",
+                        "const": true
                       },
                       "properties": {
                         "description": "Nested outputs by name, each of this same shape.",

@@ -209,7 +209,7 @@ changed.
 | `.sim/base.json` (workspace) | `version: 1` | Same policy |
 | `workflow_source_meta` | `version: 1` | Same policy; a bump needs a data migration |
 | Fingerprints | `sf1:` (workflow), `rf1:` (resource) | Any change to canonicalize or a kind's `canonical()` output changes every stored fingerprint and makes every checkout stale; treat it as a format change |
-| SDK surface | `// @sim-sdk 1`, `SDK_MAJOR`, `OLDEST_SDK_MAJOR` | Compile refuses a newer major and reads down to the floor |
+| SDK surface | `// @sim-sdk 1`, `SDK_MAJOR` | Compile refuses any major but the server's |
 | `apps/sim/blocks/sdk-names/` | append-only | Never rename or remove a name |
 
 Nothing upgrades an old version: a bump is a hard refusal until a migration exists. A lock or base

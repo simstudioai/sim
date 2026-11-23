@@ -14,11 +14,14 @@ import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types
 import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { RESUME_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/enqueue-execution'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import {
+  PauseResumeManager,
+  pausedRunIdOf,
+} from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionResult } from '@/executor/types'
+import type { ExecutionResult, PausePoint } from '@/executor/types'
 import {
   classifyExecutionError,
   hasExecutionResult,
@@ -87,6 +90,8 @@ export type ResumeWorkflowExecutionResult =
         startTime?: string
         endTime?: string
       }
+      /** Where a run that paused again waits: the run the pause is recorded under, and its points. */
+      paused: { runId: string; points: PausePoint[] } | null
     }
   | {
       kind: 'async'
@@ -353,6 +358,13 @@ export async function executeResumeWorkflow({
               endTime: result.metadata.endTime,
             }
           : undefined,
+        paused:
+          status === 'paused'
+            ? {
+                runId: pausedRunIdOf(result, enqueueResult.resumeExecutionId),
+                points: result.pausePoints ?? [],
+              }
+            : null,
       }
     }
 

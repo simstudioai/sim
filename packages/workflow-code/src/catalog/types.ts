@@ -200,6 +200,8 @@ export interface CatalogOutput {
   description?: string
   condition?: OutputCondition
   hiddenFromDisplay?: boolean
+  /** A `json` or `any` output whose value can still be text at run time. */
+  mayBeText?: true
   properties?: Record<string, CatalogOutput>
   items?: CatalogOutput
 }

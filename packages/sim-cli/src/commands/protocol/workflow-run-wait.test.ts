@@ -77,6 +77,8 @@ interface RunPayload {
     contextId?: string | null
     pauseKind?: string | null
     resumeAt?: string | null
+    runId?: string
+    points?: Array<{ contextId: string; status: string }>
   } | null
 }
 
@@ -149,7 +151,15 @@ describe('workflows runs wait', () => {
   })
 
   it('stops on a pause that is waiting for a human, and says how to resume it', async () => {
-    respondWith({ status: 'paused', paused: { pauseKind: 'human', contextId: 'ctx_9' } })
+    respondWith({
+      status: 'paused',
+      paused: {
+        pauseKind: 'human',
+        contextId: 'ctx_9',
+        runId: 'run_1',
+        points: [{ contextId: 'ctx_9', status: 'paused' }],
+      },
+    })
 
     await wait()
 
@@ -160,11 +170,16 @@ describe('workflows runs wait', () => {
     )
   })
 
-  it('names the same resume command the run record prints in next, from the output links', async () => {
+  it('names the run the server records the pause under, not the run it waited on', async () => {
     respondWith({
       status: 'paused',
-      output: { data: { _resume: { contextId: 'ctx_9', executionId: 'exec_9' } } },
-      paused: { pauseKind: 'human', contextId: 'ctx_other' },
+      output: { data: { _resume: { contextId: 'decoy', executionId: 'decoy_run' } } },
+      paused: {
+        pauseKind: 'human',
+        contextId: 'ctx_9',
+        runId: 'exec_9',
+        points: [{ contextId: 'ctx_9', status: 'paused' }],
+      },
     })
 
     await wait()

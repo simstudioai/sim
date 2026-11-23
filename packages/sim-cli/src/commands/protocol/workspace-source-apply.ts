@@ -130,30 +130,9 @@ function failedExitCode(failed: NonNullable<ApplyData['failed']>): number {
     : refusedExitCode([{ code: failed.code, severity: 'error' }])
 }
 
-/**
- * Whether `finding` is about a change the plan holds back, which refuses nothing else: one naming
- * that change. For a server that predates `refuses` only; `E_PLAN_REF_DELETED` names the workflow
- * that uses what a delete removes but sits on the delete or the plan, so no hold excuses it.
- */
-function isHeldFinding(
-  plan: readonly Change[],
-  finding: ApplyData['diagnostics'][number]
-): boolean {
-  return (
-    finding.code !== 'E_PLAN_REF_DELETED' &&
-    plan.some((change) => change.held && change.kind === finding.kind && change.key === finding.key)
-  )
-}
-
-/**
- * Whether a dry run's errors refuse the apply: the server's answer (`refuses`), or for a server
- * that predates it, any error but those of changes held back.
- */
+/** Whether a dry run's errors refuse the apply, as the server answers (`refuses`). */
 function refusesApply(data: ApplyData): boolean {
-  if (data.refuses !== undefined) return data.refuses
-  return data.diagnostics.some(
-    (finding) => finding.severity === 'error' && !isHeldFinding(data.plan, finding)
-  )
+  return data.refuses === true
 }
 
 /**

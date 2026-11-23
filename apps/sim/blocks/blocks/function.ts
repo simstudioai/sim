@@ -172,7 +172,11 @@ try {
     },
   },
   outputs: {
-    result: { type: 'json', description: 'Structured result emitted by the executed code' },
+    result: {
+      type: 'json',
+      description: 'Structured result emitted by the executed code',
+      mayBeText: true,
+    },
     stdout: {
       type: 'string',
       description: 'Console log output and debug messages from function execution',

@@ -6,8 +6,8 @@
  * base; the root only records each workflow's id.
  *
  * Version policy as the lock's: adding an optional field does not bump `version`, and unknown
- * data goes under an `x-` key, which the parser tolerates and preserves. A format change adds its
- * step to {@link upgradeWorkspaceBase}, which every read goes through.
+ * data goes under an `x-` key, which the parser tolerates and preserves. A format change bumps
+ * `version`, and the parser refuses any version but its own.
  */
 import { isRecordLike } from '@sim/utils/object'
 import {
@@ -143,18 +143,9 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 }
 
 /**
- * A base object of any version this build reads, as the current version (1) holds it, or `null`
- * for a version it cannot read. v1 is current, so it passes through unchanged.
- */
-function upgradeWorkspaceBase(
-  json: Record<string, unknown>
-): (Record<string, unknown> & { version: 1 }) | null {
-  return json.version === 1 ? { ...json, version: 1 } : null
-}
-
-/**
- * Validates a base (an object, or its JSON text), through {@link upgradeWorkspaceBase}. Unknown fields are refused unless they are `x-`
- * extensions, which are kept; every problem is reported, each with its JSON Pointer in `path`.
+ * Validates a base (an object, or its JSON text); only version 1 is read. Unknown fields are
+ * refused unless they are `x-` extensions, which are kept; every problem is reported, each with
+ * its JSON Pointer in `path`.
  */
 export function parseWorkspaceBase(
   input: unknown
@@ -186,8 +177,8 @@ export function parseWorkspaceBase(
     shape('', 'The base must be an object.')
     return { diagnostics }
   }
-  const value = upgradeWorkspaceBase(parsed.json)
-  if (!value) {
+  const value = parsed.json
+  if (value.version !== 1) {
     return {
       diagnostics: [
         diagnostic('E_BASE_VERSION', 'The base version must be 1.', { path: '/version' }),
@@ -272,7 +263,7 @@ function parseResource(
         if (
           !isRecordLike(blob) ||
           !isNonEmptyString(blob.id) ||
-          !(typeof rev === 'number' || isNonEmptyString(rev)) ||
+          !isNonEmptyString(rev) ||
           typeof blob.sha256 !== 'string' ||
           !SHA256_HEX.test(blob.sha256)
         ) {
@@ -282,7 +273,7 @@ function parseResource(
         blobs[name] = {
           ...extensionsOf(blob, BLOB_FIELDS, blobPath),
           id: blob.id,
-          rev: String(rev),
+          rev,
           sha256: blob.sha256,
         }
       }

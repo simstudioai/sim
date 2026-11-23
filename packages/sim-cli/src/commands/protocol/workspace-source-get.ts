@@ -37,7 +37,6 @@ import {
   finishTree,
   loadCatalog,
   loadWorkspaceTypes,
-  primerOption,
   printTreeResult,
   sourceTreeChange,
   withSourceExitCode,
@@ -335,7 +334,6 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'downloadKnowledgeDocument',
   ])
   absoluteDirOption(command)
-  primerOption(command)
   searchTasks(command, [
     'change the model in every agent block',
     'bulk edit every workflow in the workspace',
@@ -348,7 +346,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory')
     .addHelpText('after', GET_HELP)
-    .action(async (options: { dir: string; only?: string; force?: boolean; primer?: boolean }) => {
+    .action(async (options: { dir: string; only?: string; force?: boolean }) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
@@ -392,7 +390,6 @@ export function attachWorkspaceSourceGet(source: Command): void {
           skipped: data.skipped.length,
           guide: result.guide,
           editLoop: editLoop('workspace', options.dir),
-          ...(options.primer === true ? { primer: result.primer } : {}),
           ...findings.result(data.diagnostics),
         })
       })

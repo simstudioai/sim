@@ -242,6 +242,10 @@ const catalogOutputSchema = z
       .optional()
       .describe('When the output is present: `{ field, value, not?, and? }`.'),
     hiddenFromDisplay: z.boolean().optional().describe('Hidden from the output picker.'),
+    mayBeText: z
+      .literal(true)
+      .optional()
+      .describe('A `json` or `any` output whose value can still be text at run time.'),
     properties: z
       .record(z.string(), z.unknown().describe('A nested output, of this same shape.'))
       .optional()

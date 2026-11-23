@@ -175,7 +175,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
           )
         : null
 
-      return { ...status, files, pausePoints, failedBlock }
+      return { ...status, files, pausePoints, pausedRunId: stateExecutionId, failedBlock }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {
         throw new OrchestrationError('conflict', FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE)
