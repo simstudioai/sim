@@ -159,6 +159,12 @@ function collectBindings(program: Node): Bindings {
       const name = boundName(node.id)
       if (name !== null) declare(name, node.init ?? null)
       else for (const child of childNodes(node.id)) walkPatternNames(child, (n) => declare(n, null))
+    } else if (
+      node.type === 'ImportSpecifier' ||
+      node.type === 'ImportDefaultSpecifier' ||
+      node.type === 'ImportNamespaceSpecifier'
+    ) {
+      declare(node.local.name, null)
     } else if (node.type === 'FunctionDeclaration' && node.id) {
       declare(node.id.name, null)
     } else if (isFunctionNode(node) && 'params' in node) {

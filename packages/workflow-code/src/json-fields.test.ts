@@ -206,6 +206,7 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     expect(
       untyped("const Object = { keys: () => 'oops' }\nreturn { v: Object.keys({}).slice(0) }", 'v')
     ).toHaveLength(1)
+    expect(untyped("import String from 'x'\nreturn { v: String(2) }", 'v')).toHaveLength(1)
     expect(untyped('return { v: (5).toFixed(2) }', 'v')).toEqual([])
     expect(untyped("return { v: ['a'].join(',') }", 'v')).toEqual([])
   })
