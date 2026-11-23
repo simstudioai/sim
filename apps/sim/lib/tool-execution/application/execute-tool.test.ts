@@ -22,6 +22,10 @@ import {
   blockVisibilityMockFns,
 } from '@sim/testing/mocks/block-visibility.mock'
 import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import {
   customBlockOperationsMock,
   customBlockOperationsMockFns,
 } from '@sim/testing/mocks/custom-block-operations.mock'
@@ -49,6 +53,8 @@ vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@sim/audit', () => auditMock)
+
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
   allowedIntegrationTypes: hoisted.allowedIntegrationTypes,
@@ -258,6 +264,15 @@ function run(input: Partial<Parameters<typeof executeToolForCaller.execute>[0]['
   })
 }
 
+function usableCredentialIn(workspaceId: string) {
+  return {
+    credential: { id: 'credential-1', workspaceId, type: 'service_account' },
+    member: { role: 'member' },
+    hasWorkspaceAccess: true,
+    isAdmin: false,
+  }
+}
+
 describe('executeToolForCaller', () => {
   afterAll(resetEnvFlagsMock)
 
@@ -286,6 +301,9 @@ describe('executeToolForCaller', () => {
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: false })
     environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({})
+    credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue(
+      usableCredentialIn(WORKSPACE_ID)
+    )
   })
 
   it.each<PersonalApiKeyPrincipal | SessionPrincipal>([principal, createSessionPrincipal()])(
@@ -413,6 +431,20 @@ describe('executeToolForCaller', () => {
       code: 'validation',
       message: expect.stringContaining('input.accessKeyId'),
     })
+  })
+
+  it('refuses a credential from another workspace the caller can use', async () => {
+    credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue(
+      usableCredentialIn('workspace-a')
+    )
+
+    await expect(
+      run({ toolId: 'slack_message', credentialId: 'credential-1', input: { text: 'hi' } })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: expect.stringContaining('credential you can use in this workspace'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
 
   it('requires a credential for an OAuth tool before it dispatches', async () => {
