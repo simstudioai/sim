@@ -7,7 +7,7 @@ Claude Code, Cursor, Codex and other coding agents work from a directory that `g
 
 ## What get gives an agent
 
-- A **primer**: `get` prints it (in JSON output, its `primer` field), and it opens `.sim/AGENTS.md`. It covers the edit loop, how block identity, references and renames work, failures and retries, test runs, deletes, deploy, exit codes, and the params of each builder the workflow already uses.
+- A **primer**, which opens `.sim/AGENTS.md`. `get` prints a short summary instead (the files written, the guide, and the `editLoop` commands to run); `get --primer` also prints the primer (in JSON output, its `primer` field). It covers the edit loop, how block identity, references and renames work, failures and retries, test runs, deletes, deploy, exit codes, and the params of each builder the workflow already uses.
 - **`.sim/AGENTS.md`**: the primer followed by a reference, by task. A workspace directory also gets `.sim/GUIDE-advanced.md`.
 - **`.sim/examples/`**: one correct example of each common block to copy from.
 - **`.sim/sdk/`**: the type declarations, with `.sim/sdk/INDEX.md` listing the builders.
@@ -26,7 +26,7 @@ For a whole workspace, use `sim workspaces source` with the same steps; see [Man
 
 ## Look things up
 
-- `sim workflows source params <builder>` prints a builder's params and outputs from the cached block catalog without a request. A namespace such as `gmail` lists its builders.
+- `sim workflows source params <builder>` prints a builder in brief (an example call, the required params with types, the optional ones by name and the outputs) from the cached block catalog without a request. `--full` prints every param with its type, options, default and doc. A legacy builder names the one that replaces it, and a namespace such as `gmail` lists its builders.
 - `sim workflows source resources` lists the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and environment variable names the file can name.
 - `sim workflows source catalog` shows the block catalog the source is checked against.
 

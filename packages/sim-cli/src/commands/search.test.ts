@@ -135,4 +135,12 @@ describe('the agent discovery note', () => {
   it('is never shown to a person', () => {
     expect(helpOf(['--help'], {})).not.toContain('AGENT COMMAND DISCOVERY')
   })
+
+  it('leaves the worked examples to a person, keeping the notes an agent needs', () => {
+    const agent = helpOf(['--help'], { CLAUDECODE: '1' })
+    const person = helpOf(['--help'], {})
+    expect(person).toContain('\nExamples:\n')
+    expect(agent).not.toContain('\nExamples:\n')
+    expect(agent).toContain('A command targets the profile')
+  })
 })

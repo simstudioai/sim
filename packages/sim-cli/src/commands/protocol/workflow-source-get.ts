@@ -15,7 +15,7 @@ import {
   withSourceCommandLock,
 } from './source-dir'
 import { sourceExitCodesHelp } from './source-exit-codes'
-import { printTreeResult, withSourceExitCode } from './source-tree'
+import { editLoop, primerOption, printTreeResult, withSourceExitCode } from './source-tree'
 import { findingsOutput } from './source-ui'
 import { type PrintedSource, writeSourceDirectory } from './workflow-dir'
 
@@ -60,7 +60,8 @@ async function assertNoLocalEdits(dir: string, source: PrintedSource): Promise<v
  * declarations for the blocks the source uses (`.sim/sdk/**`; every block's are generated once
  * per catalog into the CLI's cache, which `tsconfig.full.json` includes, and the catalog itself is
  * ETag-cached), `.sim/sdk/workspace.d.ts` from the resource manifest, the tsconfig files, the
- * primer it prints atop `.sim/AGENTS.md`, the examples in `.sim/examples/` and the
+ * primer it writes atop `.sim/AGENTS.md` (printed only with `--primer`; the result names the edit
+ * loop instead), the examples in `.sim/examples/` and the
  * `.gitattributes` lines that keep the source LF. Without `--dir` the generated handler runs unchanged. Commander offers
  * no way to read the action it holds, so it is captured and delegated to, as `runs get` does.
  */
@@ -85,6 +86,7 @@ export function attachWorkflowSourceGet(source: Command): void {
     `--${FORCE_FLAG}`,
     "With --dir: replace another workflow's source or edits no apply has saved"
   )
+  primerOption(get)
   absoluteDirOption(get)
   get.addHelpText('after', sourceExitCodesHelp('workflows source get', 'Exit codes with --dir'))
   get.action(async (workflowId: string, _options: unknown, command: Command): Promise<void> => {
@@ -122,7 +124,7 @@ export function attachWorkflowSourceGet(source: Command): void {
         )
       assertPrintedSourcePaths(workflowSource.files)
       if (!force) await assertNoLocalEdits(dir, workflowSource)
-      const tree = await writeSourceDirectory(
+      const { primer, ...tree } = await writeSourceDirectory(
         client,
         dir,
         workflowSource,
@@ -134,6 +136,8 @@ export function attachWorkflowSourceGet(source: Command): void {
         workflowId: workflowSource.workflowId,
         dir,
         ...tree,
+        editLoop: editLoop('workflow', dir),
+        ...(flags.primer === true ? { primer } : {}),
         fingerprint: workflowSource.base.fingerprint,
         ...findings.result(workflowSource.diagnostics),
       })

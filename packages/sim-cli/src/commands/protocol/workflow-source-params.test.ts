@@ -84,7 +84,7 @@ describe('sim workflows source params', () => {
     cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, catalogWithoutUpsert())
     writeBase(printedWith)
 
-    await params('table.upsertRow')
+    await params('table.upsertRow', '--full')
 
     const { builder } = stdoutJson() as {
       builder: { key: string; params: { common: Array<{ key: string; required: boolean }> } }
@@ -143,5 +143,54 @@ describe('sim workflows source params', () => {
 
     expect(error.code).toBe('CATALOG_NOT_CACHED')
     expect(contextMockFns.mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('prints a brief builder by default and every param with its docs under --full', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeBase()
+
+    await params('table.upsertRow')
+    const brief = stdoutJson() as {
+      builder: {
+        required: Array<{ key: string; type: string }>
+        optional: string[]
+        outputs: string[]
+      }
+    }
+    expect(brief.builder.required.map((param) => param.key)).toEqual(['tableId', 'data'])
+    expect(brief.builder).not.toHaveProperty('params')
+    expect(brief.builder.outputs.length).toBeGreaterThan(0)
+
+    vi.mocked(console.log).mockClear()
+    await params('table.upsertRow', '--full')
+    const full = stdoutJson() as { builder: { params: { common: unknown[] } } }
+    expect(full.builder.params.common.length).toBeGreaterThan(brief.builder.required.length)
+    expect(JSON.stringify(full).length).toBeGreaterThan(JSON.stringify(brief).length * 2)
+  })
+
+  it('names the builder that replaces a legacy block type, by either name', async () => {
+    const catalog = JSON.parse(FIXTURE_TEXT)
+    catalog.blocks.human_in_the_loop = {
+      ...catalog.blocks.human_in_the_loop_v2,
+      type: 'human_in_the_loop',
+      lifecycle: { hidden: true, sunset: { status: 'legacy', replacedBy: 'human_in_the_loop_v2' } },
+    }
+    catalog.builders['legacy.humanInTheLoop'] = { type: 'human_in_the_loop' }
+    cacheCatalogText(
+      join(dir, 'config'),
+      WORKSPACE_ID,
+      JSON.stringify({ ...catalog, hash: 'e'.repeat(64) })
+    )
+    writeBase()
+
+    await params('human_in_the_loop')
+
+    expect(stdoutJson()).toMatchObject({
+      builder: {
+        key: 'legacy.humanInTheLoop',
+        legacy: true,
+        replacement: { blockType: 'human_in_the_loop_v2', builders: ['human'] },
+      },
+    })
   })
 })

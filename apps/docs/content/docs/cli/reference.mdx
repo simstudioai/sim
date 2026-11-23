@@ -8622,6 +8622,7 @@ sim workflows source get <workflowId> [options]
 | `--function-code <value>` | No | Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates. Accepted values: `inline`, `files`. |
 | `--dir <dir>` | No | Write the source, its lock and SDK type declarations into this directory instead of printing them. |
 | `--force` | No | With --dir: replace another workflow's source or edits no apply has saved. |
+| `--primer` | No | Also print the primer written atop .sim/AGENTS.md (a `primer` field in JSON). |
 
 </CommandTable>
 
@@ -8809,10 +8810,11 @@ sim workflows source params <builder> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--dir <dir>` | No | Source directory whose catalog to read. Defaults to `.`. |
+| `--full` | No | Print every param with its type, enum, default and doc, not the brief form. |
 
 </CommandTable>
 
-Prints a builder's params (required first, with enums and defaults), the gate field that picks which others apply, and its outputs, from the block catalog the last get, create or check cached. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
+Prints a builder in brief (an example call, the required params with types, the optional ones by name, the gate field that picks which others apply, and the outputs), from the block catalog the last get, create or check cached. --full prints every param with its type, enum, default and doc. A legacy builder names the one that replaces it. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
 
 Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no cached catalog (run a get once).
 
@@ -10035,6 +10037,7 @@ sim workspaces source get [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--primer` | No | Also print the primer written atop .sim/AGENTS.md (a `primer` field in JSON). |
 | `--dir <dir>` | Yes | Directory to write the workspace source into. |
 | `--only <kinds>` | No | Read only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
 | `--force` | No | Replace files with edits no apply has saved. |

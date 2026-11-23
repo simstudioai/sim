@@ -66,6 +66,8 @@ const NUMBER_METHODS: ReadonlySet<string> = new Set([
   'getTime',
   'charCodeAt',
 ])
+/** Methods that return their receiver's kind: a string's `slice` is a string, an array's an array. */
+const SAME_KIND_METHODS: ReadonlySet<string> = new Set(['slice', 'concat'])
 const ARRAY_METHODS: ReadonlySet<string> = new Set(['map', 'filter', 'split', 'flat', 'flatMap'])
 const STATIC_KINDS: Readonly<Record<string, JsKind>> = {
   'Number.isFinite': 'boolean',
@@ -284,6 +286,10 @@ class Inference {
       if (known) return known
     }
     if (STRING_METHODS.has(method)) return 'string'
+    if (SAME_KIND_METHODS.has(method)) {
+      if (this.kind(callee.object) === 'string') return 'string'
+      return this.isArray(callee.object) ? 'typed' : undefined
+    }
     if (BOOLEAN_METHODS.has(method)) return 'boolean'
     if (NUMBER_METHODS.has(method)) return 'number'
     if (ARRAY_METHODS.has(method)) return 'typed'

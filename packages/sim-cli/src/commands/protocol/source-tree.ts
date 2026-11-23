@@ -27,8 +27,10 @@ import {
   SDK_MAJOR,
   SDK_MODELS_FILE,
   sdkIndexHeader,
+  typecheckCommand,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
+import type { Command } from 'commander'
 import { printError, printLine } from '#sim-cli/output/io'
 import type { OutputFormat } from '../../config/index'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
@@ -55,6 +57,7 @@ import {
   withMissingLines,
 } from './source-dir'
 import { AGENTS_POINTER_MARKER, agentsPointer, type PrimerKind, primerFor } from './source-primer'
+import { shellWord } from './source-ui'
 
 const TSCONFIG_FILE = 'tsconfig.json'
 /** Where agents look first: the nearest `AGENTS.md` above the file they edit. */
@@ -572,12 +575,13 @@ export function finishTree(
 }
 
 /**
- * Prints a tree write's result: in JSON or YAML one document with the primer as its `primer`
- * field, otherwise the fields and then the primer as text, so it reads as written.
+ * Prints a tree write's result: the fields, then the primer as text when the result carries one
+ * (in JSON or YAML it is the document's `primer` field). A get leaves the primer out unless
+ * `--primer` asks for it: it is already the top of `.sim/AGENTS.md`.
  */
 export function printTreeResult(
   format: OutputFormat,
-  result: Record<string, unknown> & { primer: string }
+  result: Record<string, unknown> & { primer?: string }
 ): void {
   if (format === 'json' || format === 'yaml') {
     printProtocolResult(format, result)
@@ -585,7 +589,29 @@ export function printTreeResult(
   }
   const { primer, ...fields } = result
   printProtocolResult(format, fields)
-  printLine(`\n${primer}`)
+  if (primer !== undefined) printLine(`\n${primer}`)
+}
+
+/** Adds `--primer` to a get command: it prints the primer the get writes atop `.sim/AGENTS.md`. */
+export function primerOption(command: Command): void {
+  command.option(
+    '--primer',
+    'Also print the primer written atop .sim/AGENTS.md (a `primer` field in JSON)'
+  )
+}
+
+/**
+ * The commands of a directory's edit loop, in order, for a get's result: what the primer's loop
+ * says, runnable from anywhere because each names the directory.
+ */
+export function editLoop(kind: PrimerKind, dir: string): string[] {
+  const group = kind === 'workflow' ? 'sim workflows source' : 'sim workspaces source'
+  const at = shellWord(dir)
+  return [
+    `${group} check --dir ${at}`,
+    typecheckCommand(at),
+    `${group} apply --dir ${at} --dry-run`,
+  ]
 }
 
 /** What a directory's editable tree holds beside the printed source. */

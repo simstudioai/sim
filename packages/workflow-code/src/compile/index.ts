@@ -731,13 +731,12 @@ function compileEntry(
     setOwn(params, id, { kind: 'value', value })
     for (const ref of refs) {
       if (refValueKind(ref.token, refTypes) !== 'untyped') continue
-      const returned = referencedResultKind(ref.token, refTypes.block)
-      if (returned === 'typed') continue
       // An unchanged field stays quiet only while what it reads is too: a Function that now
-      // returns text where it returned a number makes the same bare token break the JSON.
+      // returns something unreadable where it returned a number makes the same bare token break
+      // the JSON.
       if (
         stored.holds(ref.blockKey, id, value) &&
-        referencedResultKind(ref.token, stored.block) === returned
+        referencedResultKind(ref.token, stored.block) === undefined
       ) {
         continue
       }

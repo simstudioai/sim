@@ -401,7 +401,11 @@ A JSON code field (a `code` subBlock holding JSON text: an agent's `responseForm
 splices a reference's value into such text raw for a string and as JSON otherwise, so a bare
 reference in a literal is stored by its output type: quoted (`"<a.b>"`) when the catalog or the
 workflow types it `string`, bare (`<a.b>`) otherwise, and bare with `W_JSON_REF_UNTYPED` when
-nothing types it. A string in the literal (a template or plain string) is always a JSON string. The
+nothing types it. A Function's `result.<field>` is typed by what its JavaScript certainly returns
+there (`refValueKind` reads `function-returns.ts`), so a text field is quoted at compile and
+printed back as the bare reference. The runtime splice is not changed: a bare token outside a
+string is spliced raw by design (a string holding JSON text is nested on purpose), and the text is
+not valid JSON until the splice, so the resolver cannot tell where a value should be encoded. A string in the literal (a template or plain string) is always a JSON string. The
 printer writes stored text back as a literal only when serializing that literal reproduces the text
 byte for byte; print and compile decide each token's form through the same `refValueKind`. In a
 pair, a list or object literal never lands in the JSON code member when the other member takes it

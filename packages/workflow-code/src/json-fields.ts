@@ -21,6 +21,7 @@ import { blockOutputSchemas, errorOutputOf } from './catalog/activity'
 import type { BlockCatalog, CatalogOutput } from './catalog/types'
 import { catalogBlock } from './catalog/view'
 import { parseStoredPath, type RefSegment } from './code-files/ref-path'
+import { referencedResultKind } from './compile/function-returns'
 import {
   type BlockKey,
   type CanonicalBlock,
@@ -179,7 +180,8 @@ export function responseFormatFields(param: CanonicalParam | undefined): string[
  * and the workflow say: `string`, `typed` (any other declared type), or `untyped` when nothing
  * declares it (a path into untyped JSON, a loop item, an unknown block). An environment variable
  * is a string; a variable goes by its type; a block output by its declared output type, else by
- * the field its dynamic outputs declare.
+ * the field its dynamic outputs declare, or for a Function's `result.<field>` by what its
+ * JavaScript certainly returns there.
  */
 export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   if (token.startsWith('{{')) return 'string'
@@ -214,6 +216,9 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   })
   const found = outputAt(outputs, segments)
   if (found) return found.type === 'string' ? 'string' : 'typed'
+  // A Function's `result.<field>` is typed by the object literal its JavaScript returns.
+  const returned = referencedResultKind(token, scope.block)
+  if (returned) return returned
   if (declared.dynamicOutputs) {
     const { source, param } = declared.dynamicOutputs
     const field = dynamicFieldName(source, segments)

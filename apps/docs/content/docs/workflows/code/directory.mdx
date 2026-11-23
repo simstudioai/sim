@@ -18,7 +18,7 @@ description: Every file a workflow directory and a workspace directory holds, wh
 | `.sim/written.json` | A digest of each file as the CLI last wrote it, so `status` and `get` tell your edits from the CLI's | Commit |
 | `.sim/stored-edges.json` | The connections the stored workflow held when it was printed, so an offline `check` tells them from connections you added. The CLI's own record, never sent | Commit |
 | `.sim/starter.json` | The workspace a starter was written for, before `create` | Not kept: removed once the workflow exists |
-| `.sim/AGENTS.md` | The guide for coding agents: the primer `get` prints, then a reference | Optional, written again by `get` |
+| `.sim/AGENTS.md` | The guide for coding agents: the primer, then a reference | Optional, written again by `get` |
 | `.sim/examples/` | Example workflows to copy from | Optional, written again by `get` |
 | `.sim/sdk/` | Type declarations for the blocks the workflow uses, and your workspace's tables, credentials, knowledge bases and environment variable names. `.sim/sdk/INDEX.md` lists the builders | Optional, written again by `get` and `check` |
 | `tsconfig.json` | Resolves the declarations and type-checks the blocks the workflow uses. Left as it is if you already have one | Commit |

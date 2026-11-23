@@ -182,10 +182,18 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     }
   })
 
-  it('keeps the warning on a field returned as text, which stored bare breaks the JSON', () => {
-    const code = "return { tier: 'gold', label: String(1) + 'x' }"
-    expect(untyped(code, 'tier')).toHaveLength(1)
-    expect(untyped(code, 'label')).toHaveLength(1)
+  it('stores a field the code returns as text quoted, so a string value cannot break the JSON', () => {
+    const code =
+      "return { tier: 'gold', label: String(1) + 'x', day: new Date().toISOString().slice(0, 10) }"
+    for (const field of ['tier', 'label', 'day']) {
+      const result = compile(code, field)
+      expect(untyped(code, field), field).toEqual([])
+      const body = result.workflow?.blocks.next?.params.body
+      expect(body, field).toEqual({
+        kind: 'value',
+        value: `{\n  "v": "<score.result.${field}>"\n}`,
+      })
+    }
   })
 
   it('keeps the warning when nothing certain says what the field holds', () => {
@@ -263,11 +271,23 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     expect(renamed(printed, new Map())).toHaveLength(1)
   })
 
-  it('on an apply, warns on an unchanged JSON field when the Function it reads now returns text there', () => {
+  it('on an apply, warns on an unchanged JSON field when the Function it reads no longer says what it returns', () => {
     const printed = compile('return { v: 1 }', 'v').workflow
     if (!printed) throw new Error('the source did not compile')
 
     expect(untyped('return { v: 2 }', 'v', printed)).toEqual([])
-    expect(untyped("return { v: 'one' }", 'v', printed)).toHaveLength(1)
+    expect(untyped('return { v: $ref.start.v }', 'v', printed)).toHaveLength(1)
+  })
+
+  it('on an apply, requotes an unchanged JSON field when the Function it reads now returns text there', () => {
+    const printed = compile('return { v: 1 }', 'v').workflow
+    if (!printed) throw new Error('the source did not compile')
+
+    const next = compile("return { v: 'one' }", 'v', printed)
+    expect(next.workflow?.blocks.next?.params.body).toEqual({
+      kind: 'value',
+      value: '{\n  "v": "<score.result.v>"\n}',
+    })
+    expect(untyped("return { v: 'one' }", 'v', printed)).toEqual([])
   })
 })

@@ -19,7 +19,7 @@ This writes `workflow.ts`, any function code under `functions/`, type declaratio
 
 `get` into a directory that already holds source refuses to overwrite edits you have not applied, and refuses a directory that holds a different workflow. Pass `--force` to replace them. A workspace directory is always refused, `--force` included.
 
-To write a block the workflow does not use yet, `sim workflows source params <builder>` (for example `table.upsertRow` or `trigger.schedule`) prints its params, required ones first with their options and defaults, and its outputs, from the cached block catalog without a request. A namespace such as `gmail` lists its builders.
+To write a block the workflow does not use yet, `sim workflows source params <builder>` (for example `table.upsertRow` or `trigger.schedule`) prints an example call, its required params with their types, its optional params by name and its outputs, from the cached block catalog without a request (`--full` adds every param's options, default and doc). A namespace such as `gmail` lists its builders.
 
 ## 2. Edit and check
 
