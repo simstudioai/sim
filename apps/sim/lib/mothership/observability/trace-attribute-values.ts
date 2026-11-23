@@ -113,6 +113,18 @@ export const CopilotStopOutcome = {
   ValidationError: 'validation_error',
 } as const
 
+/**
+ * Which way the generated stream-contract schema disagrees with Sim's ingest validator on one
+ * worker frame: `schema_rejects` frames would start failing were the schema the validator.
+ */
+export const CopilotStreamContractDirection = {
+  SchemaAccepts: 'schema_accepts',
+  SchemaRejects: 'schema_rejects',
+} as const
+
+export type CopilotStreamContractDirectionValue =
+  (typeof CopilotStreamContractDirection)[keyof typeof CopilotStreamContractDirection]
+
 export const CopilotSurface = {
   Copilot: 'copilot',
   Mothership: 'mothership',
