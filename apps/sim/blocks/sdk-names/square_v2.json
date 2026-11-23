@@ -1,0 +1,44 @@
+{
+  "namespace": "square",
+  "methods": {
+    "batch_retrieve_inventory_counts": "batchRetrieveInventoryCounts",
+    "cancel_invoice": "cancelInvoice",
+    "cancel_payment": "cancelPayment",
+    "complete_payment": "completePayment",
+    "create_catalog_image": "createCatalogImage",
+    "create_customer": "createCustomer",
+    "create_invoice": "createInvoice",
+    "create_order": "createOrder",
+    "create_payment": "createPayment",
+    "delete_catalog_object": "deleteCatalogObject",
+    "delete_customer": "deleteCustomer",
+    "delete_invoice": "deleteInvoice",
+    "get_catalog_object": "getCatalogObject",
+    "get_customer": "getCustomer",
+    "get_invoice": "getInvoice",
+    "get_location": "getLocation",
+    "get_order": "getOrder",
+    "get_payment": "getPayment",
+    "get_refund": "getRefund",
+    "list_catalog": "listCatalog",
+    "list_customers": "listCustomers",
+    "list_invoices": "listInvoices",
+    "list_locations": "listLocations",
+    "list_payments": "listPayments",
+    "list_refunds": "listRefunds",
+    "pay_order": "payOrder",
+    "publish_invoice": "publishInvoice",
+    "refund_payment": "refundPayment",
+    "search_catalog_objects": "searchCatalogObjects",
+    "search_customers": "searchCustomers",
+    "search_invoices": "searchInvoices",
+    "search_orders": "searchOrders",
+    "update_customer": "updateCustomer",
+    "upsert_catalog_object": "upsertCatalogObject"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

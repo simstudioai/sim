@@ -7,15 +7,15 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { execute } = vi.hoisted(() => ({ execute: vi.fn() }))
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({
   mothershipRequestHeaders: () => ({ 'x-api-key': 'worker-key' }),
 }))
@@ -27,7 +27,7 @@ import { SIM_CONTROL_KINDS } from '@/lib/mothership/generated/sim-transport'
 import { receiveSimControls, startSimReceivers } from '@/lib/mothership/transport/receiver'
 
 const mocks = {
-  fetch: mothershipGoFetchMockFns.mockFetchGo,
+  fetch: mothershipWorkerFetchMockFns.mockFetchWorker,
   execute,
   sleep: utilsHelpersMockFns.mockInterruptibleSleep,
 }

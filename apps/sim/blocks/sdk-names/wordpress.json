@@ -1,0 +1,42 @@
+{
+  "namespace": "wordpress",
+  "methods": {
+    "wordpress_create_category": "createCategory",
+    "wordpress_create_comment": "createComment",
+    "wordpress_create_page": "createPage",
+    "wordpress_create_post": "createPost",
+    "wordpress_create_tag": "createTag",
+    "wordpress_delete_category": "deleteCategory",
+    "wordpress_delete_comment": "deleteComment",
+    "wordpress_delete_media": "deleteMedia",
+    "wordpress_delete_page": "deletePage",
+    "wordpress_delete_post": "deletePost",
+    "wordpress_delete_tag": "deleteTag",
+    "wordpress_get_category": "getCategory",
+    "wordpress_get_current_user": "getCurrentUser",
+    "wordpress_get_media": "getMedia",
+    "wordpress_get_page": "getPage",
+    "wordpress_get_post": "getPost",
+    "wordpress_get_tag": "getTag",
+    "wordpress_get_user": "getUser",
+    "wordpress_list_categories": "listCategories",
+    "wordpress_list_comments": "listComments",
+    "wordpress_list_media": "listMedia",
+    "wordpress_list_pages": "listPages",
+    "wordpress_list_posts": "listPosts",
+    "wordpress_list_tags": "listTags",
+    "wordpress_list_users": "listUsers",
+    "wordpress_search_content": "searchContent",
+    "wordpress_update_category": "updateCategory",
+    "wordpress_update_comment": "updateComment",
+    "wordpress_update_page": "updatePage",
+    "wordpress_update_post": "updatePost",
+    "wordpress_update_tag": "updateTag",
+    "wordpress_upload_media": "uploadMedia"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

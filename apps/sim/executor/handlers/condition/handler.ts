@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isElseConditionTitle } from '@sim/workflow-types/workflow'
 import { adoptToolFailure, markFailureKind } from '@/lib/core/errors/failure-log'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   isNonRetryableExecutionError,
   NonRetryableExecutionError,
 } from '@/lib/execution/non-retryable-error'
-import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -336,16 +336,7 @@ export class ConditionBlockHandler implements BlockHandler {
     const baseBlockId = extractBaseBlockId(block.id)
     const branchIndex = isBranchNodeId(block.id) ? extractBranchIndex(block.id) : null
 
-    const sourceConnection = ctx.workflow?.connections.find((conn) => conn.target === baseBlockId)
-    let sourceBlockId = sourceConnection?.source
-
-    if (sourceBlockId && branchIndex !== null) {
-      const virtualSourceId = buildBranchNodeId(sourceBlockId, branchIndex)
-      if (ctx.blockStates.has(virtualSourceId)) {
-        sourceBlockId = virtualSourceId
-      }
-    }
-
+    const sourceBlockId = this.resolveSourceBlockId(ctx, baseBlockId, branchIndex)
     const evalContext = this.buildEvaluationContext(ctx, sourceBlockId)
     const rawSourceOutput = sourceBlockId ? ctx.blockStates.get(sourceBlockId)?.output : null
 
@@ -572,6 +563,28 @@ export class ConditionBlockHandler implements BlockHandler {
     }
 
     return null
+  }
+
+  /**
+   * The block whose output the condition evaluates against and passes on: of the blocks with an
+   * edge into it (each as its own branch's copy inside a parallel, when that copy ran), the first
+   * that ran in this execution, else the first. A condition joining an if/else so reads the
+   * branch that ran, whichever edge was drawn first. "Ran" reads `executedBlocks`, which a loop
+   * clears between iterations; a block state keeps `executed` from earlier iterations.
+   */
+  private resolveSourceBlockId(
+    ctx: ExecutionContext,
+    baseBlockId: string,
+    branchIndex: number | null
+  ): string | undefined {
+    const sources = (ctx.workflow?.connections ?? [])
+      .filter((conn) => conn.target === baseBlockId)
+      .map((conn) => {
+        if (branchIndex === null) return conn.source
+        const virtualSourceId = buildBranchNodeId(conn.source, branchIndex)
+        return ctx.blockStates.has(virtualSourceId) ? virtualSourceId : conn.source
+      })
+    return sources.find((id) => ctx.executedBlocks.has(id)) ?? sources[0]
   }
 
   private findConnectionForCondition(

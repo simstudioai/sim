@@ -120,9 +120,10 @@ export default function ComparisonHubPage() {
             <p className='sr-only'>
               This directory lists every Sim vs. competitor comparison page, covering workflow
               automation platforms (n8n, Zapier, Make, Pipedream), enterprise AI builders (Gumloop,
-              Workato, Retool, Tines, StackAI, Power Automate, Vellum), and AI agent products
-              (OpenAI AgentKit, Claude Cowork). Each page gives sourced, dated facts across
-              platform, AI capabilities, integrations, pricing, security, and support.
+              Workato, Retool, Tines, StackAI, Relevance AI, Power Automate, Vellum), open-source
+              agent builders (Dify, Langflow, Flowise), and AI agent products (OpenAI AgentKit,
+              Claude Cowork). Each page gives sourced, dated facts across platform, AI capabilities,
+              integrations, pricing, security, and support.
             </p>
           </div>
         </div>

@@ -89,7 +89,10 @@ describe('chunked workspace file search on PostgreSQL', () => {
   )
   const ginWriteMigration = '0364_workspace_file_search_direct_gin.sql'
 
-  async function applyMigration(migration: string) {
+  async function applyMigration(
+    migration: string,
+    matches: (statement: string) => boolean = () => true
+  ) {
     const source = readFileSync(
       resolve(process.cwd(), '../../packages/db/migrations', migration),
       'utf8'
@@ -98,7 +101,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
     try {
       await session`BEGIN`
       for (const statement of source.split('--> statement-breakpoint'))
-        if (statement.trim()) await session.unsafe(statement)
+        if (statement.trim() && matches(statement)) await session.unsafe(statement)
       await session`COMMIT`
     } finally {
       await session`ROLLBACK`
@@ -178,6 +181,13 @@ describe('chunked workspace file search on PostgreSQL', () => {
     ]) {
       await applyMigration(migration)
     }
+    // Take only the trigger redefinition and the legacy search-table drops: any other unqualified DROP falls through search_path to public.
+    await applyMigration(
+      '0468_retire_legacy_search_and_contracts.sql',
+      (statement) =>
+        /\bCREATE OR REPLACE FUNCTION workspace_file_search_mark_pending\b/.test(statement) ||
+        /\bDROP TABLE IF EXISTS "workspace_file_search_/.test(statement)
+    )
     database.current = drizzle(connection)
     database.search = drizzle(searchConnection, {
       logger: {
@@ -196,7 +206,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
   })
   beforeEach(async () => {
     await connection`TRUNCATE workspace, workspace_files, workspace_file_search_revision, workspace_file_search_build,
-      workspace_file_search_chunk, workspace_file_search_index, workspace_file_search_segment, workspace_file_search_dispatch_queue, workspace_file_search_backfill, file_search_dependency, file_search_dispatch_queue`
+      workspace_file_search_chunk, workspace_file_search_backfill, file_search_dependency, file_search_dispatch_queue`
     await connection`INSERT INTO workspace_file_search_backfill (id, completed_at) VALUES ('file-search-owners-v3', now())`
     await addFile('file-1')
   })

@@ -29,9 +29,6 @@
  *   tasks race. {@link shouldSeed} is a Redis lock + empty-stream check layered on top ONLY as an
  *   efficiency gate (so tasks don't all run the seed fetch); correctness does not depend on it.
  *
- * When `REDIS_URL` is unset (single-pod dev) the store is DISABLED and every method degrades to the
- * relay's original single-replica behavior: seed locally, no stream, no tailer.
- *
  * @module
  */
 
@@ -169,11 +166,6 @@ const COMPACTION_FIELD = 'c'
 /** Identifies a seed's document generation, allowing old rooms to reject every later update. */
 const GENERATION_FIELD = 'g'
 const INVALIDATED_GENERATION = '__invalidated__'
-
-/** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
- * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
- * can never collide with a {@link generateId} token. */
-const DISABLED_LOCK_TOKEN = '__disabled__'
 
 /** How long a blocking multiplexed read waits before re-snapshotting the live room set. Also bounds
  * how long a room attached mid-block waits for its first cross-task update (updates are not lost — the
@@ -362,31 +354,35 @@ interface StoreRoom {
   realEdited: boolean
 }
 
-/**
- * The Redis-Streams shared Yjs backend. A single instance per process. `enabled` is false when there
- * is no `REDIS_URL`, in which case every method is a no-op and the relay runs single-replica.
- */
+/** The Redis-Streams shared Yjs backend. A single instance per process. */
 export class FileDocStore {
-  readonly enabled: boolean
   /** Command connection: XADD / locks / XLEN / XTRIM / EXPIRE. */
   private write: RedisClientType | null = null
   /** Dedicated connection for blocking XREAD (a blocking command monopolizes its connection). */
   private read: RedisClientType | null = null
   private readonly rooms = new Map<string, StoreRoom>()
-  private readonly localInvalidations = new Map<
-    string,
-    { version: number; expiresAt: number; replacementDocId?: string }
-  >()
   private running = false
+  /**
+   * Bumped on every start, so a reader loop left over from before a restart exits instead of
+   * running alongside the new one.
+   */
+  private generation = 0
+  /** The in-flight start, shared by concurrent {@link init} calls so they open one pair of connections. */
+  private starting: Promise<void> | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
 
-  constructor(private readonly redisUrl: string | undefined) {
-    this.enabled = Boolean(redisUrl)
-  }
+  constructor(private readonly redisUrl: string) {}
 
   /** Connect the two Redis clients and start the multiplexed reader + TTL heartbeat. Idempotent. */
   async init(): Promise<void> {
-    if (!this.enabled || this.running || !this.redisUrl) return
+    if (this.running) return
+    this.starting ??= this.start().finally(() => {
+      this.starting = null
+    })
+    return this.starting
+  }
+
+  private async start(): Promise<void> {
     const options = {
       url: this.redisUrl,
       socket: {
@@ -412,7 +408,7 @@ export class FileDocStore {
     this.read.on('error', (err) => logger.error('FileDocStore read client error:', err))
     await Promise.all([this.write.connect(), this.read.connect()])
     this.running = true
-    void this.runReader()
+    void this.runReader(++this.generation)
     this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
     logger.info('FileDocStore ready — shared Yjs backend over Redis Streams enabled')
   }
@@ -426,16 +422,15 @@ export class FileDocStore {
     this.write = null
     this.read = null
     this.rooms.clear()
-    this.localInvalidations.clear()
   }
 
   /**
    * Register a locally-opened room and load the shared state into its doc ({@link catchUp}). A
    * brand-new file has an empty stream and loads nothing (it is seeded shortly after, via
-   * {@link shouldSeed}). Single-replica rooms are tracked only for invalidation lifecycle.
+   * {@link shouldSeed}).
    */
   async attachRoom(name: string, doc: Y.Doc): Promise<void> {
-    if (this.enabled && !this.write) throw new Error('FileDocStore is not initialized')
+    if (!this.write) throw new Error('FileDocStore is not initialized')
     // Register BEFORE the async read so a concurrent publish/tailer for this room can't be missed —
     // the tailer resumes from `lastId`, which the catch-up advances.
     const room: StoreRoom = {
@@ -453,7 +448,6 @@ export class FileDocStore {
       realEdited: false,
     }
     this.rooms.set(name, room)
-    if (!this.enabled) return
     try {
       await this.catchUp(name)
     } catch (error) {
@@ -464,10 +458,9 @@ export class FileDocStore {
 
   /**
    * Completes shared replay before applying entries, so joins never receive a partial document.
-   * Repeated calls skip integrated entries; detached rooms and disabled stores are ignored.
+   * Repeated calls skip integrated entries; detached rooms are ignored.
    */
   async catchUp(name: string): Promise<void> {
-    if (!this.enabled) return
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const room = this.rooms.get(name)
     if (!room) return
@@ -568,11 +561,11 @@ export class FileDocStore {
 
   /**
    * Fire-and-forget append for the hot keystroke path (`doc.on('update')`): converges peers without
-   * blocking the relay. Retries internally; never throws. No-op when disabled. Pass `agent: true` for
+   * blocking the relay. Retries internally; never throws. Pass `agent: true` for
    * a copilot preview frame so peer tasks tail it as {@link REDIS_AGENT_ORIGIN} and never persist it.
    */
   publish(name: string, update: Uint8Array, agent = false): void {
-    if (!this.enabled || !this.write) return
+    if (!this.write) return
     void this.appendUpdate(name, update, agent).catch((error) => {
       logger.warn(`FileDocStore rejected a non-durable legacy update for ${name}`, {
         error: getErrorMessage(error),
@@ -583,14 +576,13 @@ export class FileDocStore {
   /**
    * Awaitable append for callers that must know the update is durably in the stream before proceeding
    * — the copilot merge, so the cross-task merge lock is not released before the diff is committed
-   * (else the next task would diff a stale base). Throws on ultimate failure. No-op when disabled.
+   * (else the next task would diff a stale base). Throws on ultimate failure.
    */
   async publishAndWait(
     name: string,
     update: Uint8Array,
     expectedGeneration = this.rooms.get(name)?.generation ?? ''
   ): Promise<void> {
-    if (!this.enabled) return
     if (!this.write) throw new Error('FileDocStore is not initialized')
     await this.appendUpdate(name, update, false, expectedGeneration)
   }
@@ -609,7 +601,6 @@ export class FileDocStore {
     if (!editor?.userId.trim() || !editor.connectionId.trim()) {
       throw new Error('Document updates require an authenticated editor')
     }
-    if (!this.enabled) return
     if (!this.write) throw new Error('FileDocStore is not initialized')
     assertUpdateWithinLimit(update)
     const encoded = Buffer.from(update).toString('base64')
@@ -674,8 +665,7 @@ export class FileDocStore {
    * there is no check-then-append window, and two tasks racing (even both past an expired seed lock) can
    * never both write a seed. Returns true if THIS call wrote the seed (apply it locally), false if the
    * stream was already seeded (the tailer will deliver the peer's seed — do NOT apply a second one).
-   * Retries a transient Redis error like {@link appendUpdate}; throws if it ultimately fails. Disabled →
-   * true (single-replica: seed locally, no stream).
+   * Retries a transient Redis error like {@link appendUpdate}; throws if it ultimately fails.
    */
   async seedIfEmpty(
     name: string,
@@ -685,22 +675,6 @@ export class FileDocStore {
   ): Promise<boolean> {
     assertUpdateWithinLimit(update)
     const generation = generationOfSeed(update)
-    if (!this.enabled) {
-      const invalidation = this.localInvalidations.get(name)
-      if (invalidation && invalidation.expiresAt > Date.now() && invalidation.version > version)
-        return false
-      if (
-        strictGeneration &&
-        invalidation &&
-        invalidation.expiresAt > Date.now() &&
-        invalidation.replacementDocId &&
-        invalidation.replacementDocId !== generation
-      )
-        return false
-      const room = this.rooms.get(name)
-      if (room) room.generationInvalidated = false
-      return true
-    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const encoded = Buffer.from(update).toString('base64')
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
@@ -744,23 +718,6 @@ export class FileDocStore {
     name: string,
     version: number
   ): Promise<{ status: 'applied'; docId?: string } | { status: 'stale' }> {
-    if (!this.enabled) {
-      const now = Date.now()
-      const previous = this.localInvalidations.get(name)
-      if (previous && previous.expiresAt > now && previous.version >= version)
-        return { status: 'stale' }
-      this.localInvalidations.set(name, { version, expiresAt: now + STREAM_TTL_SEC * 1_000 })
-      const room = this.rooms.get(name)
-      const docId = room?.generationInvalidated
-        ? undefined
-        : room?.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
-      if (room) room.generationInvalidated = true
-      if (!this.heartbeat) {
-        this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
-        this.heartbeat.unref()
-      }
-      return { status: 'applied', ...(typeof docId === 'string' ? { docId } : {}) }
-    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const generation = await this.write.eval(INVALIDATE_DOCUMENT_SCRIPT, {
       keys: [
@@ -781,27 +738,11 @@ export class FileDocStore {
   }
 
   async getDocumentGeneration(name: string): Promise<string> {
-    if (!this.enabled) {
-      const invalidation = this.localInvalidations.get(name)
-      if (invalidation && invalidation.expiresAt > Date.now())
-        return invalidation.replacementDocId ?? INVALIDATED_GENERATION
-      const generation = this.rooms
-        .get(name)
-        ?.doc.getMap(FILE_DOC_SEED.configMap)
-        .get(FILE_DOC_SEED.docIdKey)
-      return typeof generation === 'string' ? generation : ''
-    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     return (await this.write.get(generationKey(name))) ?? ''
   }
 
   async isDocumentGenerationCurrent(name: string, generation?: string): Promise<boolean> {
-    if (!this.enabled) {
-      const invalidation = this.localInvalidations.get(name)
-      if (invalidation?.replacementDocId && invalidation.expiresAt > Date.now())
-        return generation === invalidation.replacementDocId
-      return !this.rooms.get(name)?.generationInvalidated
-    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const current = await this.write.get(generationKey(name))
     return current === null ? !generation : current === generation
@@ -815,23 +756,6 @@ export class FileDocStore {
   ): Promise<{ status: 'applied'; docId: string } | { status: 'stale' }> {
     if (!retiredDocId || !replacementDocId || retiredDocId === replacementDocId)
       throw new Error('Document retirement requires distinct identities')
-    if (!this.enabled) {
-      const generation = await this.getDocumentGeneration(name)
-      if (generation && generation !== retiredDocId) return { status: 'stale' }
-      const previous = this.localInvalidations.get(name)
-      this.localInvalidations.set(name, {
-        version: previous?.version ?? 0,
-        expiresAt: Date.now() + STREAM_TTL_SEC * 1_000,
-        replacementDocId,
-      })
-      const room = this.rooms.get(name)
-      if (room) room.generationInvalidated = true
-      if (!this.heartbeat) {
-        this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
-        this.heartbeat.unref()
-      }
-      return { status: 'applied', docId: retiredDocId }
-    }
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const result = await this.write.eval(RETIRE_DOCUMENT_SCRIPT, {
       keys: [
@@ -852,10 +776,10 @@ export class FileDocStore {
    * skips the seed fetch when a prior holder already seeded (the split-brain guard itself is the atomic
    * {@link SEED_IF_EMPTY_SCRIPT}, not this check). Treats `true` as "already seeded", so it fails CLOSED:
    * a Redis `xLen` error returns `true` (cannot confirm empty → skip the redundant fetch; the atomic seed
-   * would no-op anyway). `false` only when genuinely empty, or when disabled (single-replica).
+   * would no-op anyway). `false` only when genuinely empty, or before the store is initialized.
    */
   async streamHasContent(name: string): Promise<boolean> {
-    if (!this.enabled || !this.write) return false
+    if (!this.write) return false
     try {
       return (await this.write.xLen(streamKey(name))) > 0
     } catch (error) {
@@ -869,11 +793,9 @@ export class FileDocStore {
   /**
    * Acquire a distributed lock with a unique ownership TOKEN (`SET key <token> NX PX`). Returns the
    * token to release with, or `null` if not won. Fails CLOSED (null) on a Redis error — a lock we can't
-   * prove we hold must not be treated as held. The special sentinel {@link DISABLED_LOCK_TOKEN} lets a
-   * disabled store return a truthy token so callers proceed single-replica without special-casing.
+   * prove we hold must not be treated as held.
    */
   private async acquireLock(key: string, ttlMs: number): Promise<string | null> {
-    if (!this.enabled) return DISABLED_LOCK_TOKEN
     if (!this.write) return null
     const token = generateId()
     try {
@@ -888,7 +810,7 @@ export class FileDocStore {
 
   /** Release a lock via compare-and-delete, so it is only dropped if we still hold our token. */
   private async releaseLock(key: string, token: string): Promise<void> {
-    if (!this.write || token === DISABLED_LOCK_TOKEN) return
+    if (!this.write) return
     await this.write.eval(RELEASE_LOCK_SCRIPT, { keys: [key], arguments: [token] }).catch(() => {})
   }
 
@@ -898,12 +820,11 @@ export class FileDocStore {
    * EFFICIENCY gate — it stops every task that opens the file at once from each fetching the seed. It does
    * NOT by itself guarantee a single seed: exactly-once is enforced by the atomic {@link seedIfEmpty} the
    * token-holder then calls (the split-brain guard), so a lock that expires mid-seed cannot cause a
-   * double-seed. Release the token with {@link releaseSeedLock}. Disabled → always a token (single-replica:
-   * seed locally).
+   * double-seed. Release the token with {@link releaseSeedLock}.
    */
   async shouldSeed(name: string): Promise<string | null> {
     const token = await this.acquireLock(`${SEED_LOCK_PREFIX}${name}`, SEED_LOCK_TTL_MS)
-    if (!token || token === DISABLED_LOCK_TOKEN) return token
+    if (!token) return null
     // The lock could be free yet the stream already seeded (a prior holder seeded then its lock
     // expired). Re-check so we skip the redundant seed fetch — the atomic seedIfEmpty would no-op anyway,
     // but this avoids the wasted app round-trip.
@@ -918,7 +839,7 @@ export class FileDocStore {
    * Build the file's current shared state from the stream, headless (no registered room), for a merge
    * that must reach the live doc regardless of which task holds it. Returns the encoded Yjs state, or
    * `null` when the stream is empty — i.e. no doc is (or was recently) live, so there is nothing to
-   * merge into and the caller should fall back to a direct file write. Disabled → always null.
+   * merge into and the caller should fall back to a direct file write.
    */
   async getStreamState(name: string, expectedGeneration?: string): Promise<Uint8Array | null> {
     return (await this.getStreamSnapshot(name, expectedGeneration))?.docState ?? null
@@ -929,7 +850,6 @@ export class FileDocStore {
     name: string,
     expectedGeneration?: string
   ): Promise<{ docState: Uint8Array; editor: FileDocEditor | null } | null> {
-    if (!this.enabled) return null
     if (!this.write) throw new Error('FileDocStore is not initialized')
     const doc = new Y.Doc()
     try {
@@ -1016,7 +936,7 @@ export class FileDocStore {
    * on this — it must always write.
    */
   async tryClaimPersistWindow(name: string, ttlMs: number): Promise<boolean> {
-    if (!this.enabled || !this.write) return true
+    if (!this.write) return true
     try {
       const won = await this.write.set(`${PERSIST_LOCK_PREFIX}${name}`, '1', {
         NX: true,
@@ -1033,7 +953,7 @@ export class FileDocStore {
    * merges per task; this extends that across tasks so two copilot edits to the same file landing on
    * different tasks don't each diff the SAME shared base and publish conflicting full-document rewrites.
    * The loser waits and retries so it diffs against the winner's RESULT (correct sequential merge).
-   * Returns a lock TOKEN (proceed) when disabled or once won; `null` otherwise (fails CLOSED on error, so
+   * Returns a lock TOKEN (proceed) once won; `null` otherwise (fails CLOSED on error, so
    * a merge never races when exclusivity can't be proven). Release with {@link releaseMergeSlot}.
    */
   async acquireMergeSlot(name: string, ttlMs: number): Promise<string | null> {
@@ -1048,7 +968,7 @@ export class FileDocStore {
    * another task. Returns `null` when unset/expired (persist then falls back to the local room's value).
    */
   async getSyncedVersion(name: string): Promise<number | null> {
-    if (!this.enabled || !this.write) return null
+    if (!this.write) return null
     try {
       const value = await this.write.get(`${SYNC_VERSION_PREFIX}${name}`)
       const parsed = value === null ? Number.NaN : Number(value)
@@ -1064,13 +984,13 @@ export class FileDocStore {
   /** Record the durable version the shared live doc is now synced to. MONOTONIC — writes only when the
    * new value exceeds the stored one ({@link SET_VERSION_IF_NEWER_SCRIPT}), so an out-of-order
    * fire-and-forget write can't regress the token. Best-effort; TTL-bounded like the stream so an idle
-   * file's key can't outlive its room. No-op when disabled (single-pod fallback). */
+   * file's key can't outlive its room. */
   async setSyncedVersion(
     name: string,
     version: number,
     expectedGeneration = this.rooms.get(name)?.generation ?? ''
   ): Promise<void> {
-    if (!this.enabled || !this.write) return
+    if (!this.write) return
     // Retry a transient failure (bounded) rather than swallow it: this token is the ONLY way a
     // peer-seeded task learns the durable version, so a dropped write would leave that peer's persists
     // deferring forever with the session's edits stranded in the TTL'd stream. The monotonic script makes
@@ -1095,9 +1015,9 @@ export class FileDocStore {
   }
 
   /** Mark (or refresh) that a client is actively streaming an agent edit into this live doc — a plain
-   *  `SET key "1" PX ttl`, so it self-clears when streaming stops. Best-effort; no-op when disabled. */
+   *  `SET key "1" PX ttl`, so it self-clears when streaming stops. Best-effort. */
   async markAgentStreaming(name: string, ttlMs: number): Promise<void> {
-    if (!this.enabled || !this.write) return
+    if (!this.write) return
     try {
       await this.write.set(`${AGENT_STREAM_PREFIX}${name}`, '1', { PX: ttlMs })
     } catch (error) {
@@ -1108,10 +1028,10 @@ export class FileDocStore {
   }
 
   /** Whether a client is currently streaming an agent edit into this live doc (see
-   *  {@link markAgentStreaming}). Best-effort; treats an error/disabled store as "not streaming" so a
-   *  merge never blocks on this check. */
+   *  {@link markAgentStreaming}). Best-effort; treats an error as "not streaming" so a merge never
+   *  blocks on this check. */
   async isAgentStreaming(name: string): Promise<boolean> {
-    if (!this.enabled || !this.write) return false
+    if (!this.write) return false
     try {
       return (await this.write.exists(`${AGENT_STREAM_PREFIX}${name}`)) === 1
     } catch (error) {
@@ -1183,10 +1103,10 @@ export class FileDocStore {
    * The single multiplexed tail loop: block-read every locally-open room's stream from its last id and
    * apply new entries. One blocking connection for the whole process regardless of open-file count.
    */
-  private async runReader(): Promise<void> {
+  private async runReader(generation: number): Promise<void> {
     let failures = 0
     let blockingBatchIndex = 0
-    while (this.running && this.read) {
+    while (this.running && this.read && generation === this.generation) {
       const snapshot = new Map(this.rooms)
       if (snapshot.size === 0) {
         await sleep(IDLE_POLL_MS)
@@ -1228,7 +1148,7 @@ export class FileDocStore {
         }
         failures = 0
       } catch (error) {
-        if (!this.running) break
+        if (!this.running || generation !== this.generation) break
         await this.recoverReader(++failures, error)
       }
     }
@@ -1349,18 +1269,6 @@ export class FileDocStore {
   }
 
   private async refreshTtls(): Promise<void> {
-    if (!this.write) {
-      const now = Date.now()
-      for (const [name, invalidation] of this.localInvalidations) {
-        if (this.rooms.has(name)) invalidation.expiresAt = now + STREAM_TTL_SEC * 1_000
-        else if (invalidation.expiresAt <= now) this.localInvalidations.delete(name)
-      }
-      if (this.localInvalidations.size === 0 && this.heartbeat) {
-        clearInterval(this.heartbeat)
-        this.heartbeat = null
-      }
-      return
-    }
     for (const name of this.rooms.keys()) {
       await this.refreshDocumentTtls(name).catch(() => {})
     }
@@ -1371,19 +1279,16 @@ let store: FileDocStore | null = null
 
 /**
  * Initialize the process-wide store from the realtime server bootstrap (alongside the socket adapter).
- * Authoritative: if a disabled placeholder was lazily created by an early {@link getFileDocStore} call,
- * this REPLACES it with the real, connected store — so the bootstrap can never silently no-op. A second
- * call once already initialized is a no-op.
+ * Idempotent: a second call reuses the existing store and re-connects it only if it was shut down.
  */
-export async function initFileDocStore(redisUrl: string | undefined): Promise<FileDocStore> {
-  if (store?.enabled) return store
-  store = new FileDocStore(redisUrl)
+export async function initFileDocStore(redisUrl: string): Promise<FileDocStore> {
+  store ??= new FileDocStore(redisUrl)
   await store.init()
   return store
 }
 
-/** The process-wide store. Returns a disabled instance if init was never called (e.g. in unit tests). */
+/** The process-wide store. Throws if {@link initFileDocStore} has not run. */
 export function getFileDocStore(): FileDocStore {
-  if (!store) store = new FileDocStore(undefined)
+  if (!store) throw new Error('FileDocStore is not initialized')
   return store
 }

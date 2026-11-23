@@ -1,4 +1,4 @@
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
+import { buildCanonicalIndex } from '@sim/workflow-code/catalog/canonical-index'
 import type { SubBlockConfig } from '@/blocks/types'
 
 export interface DependentSubBlock {

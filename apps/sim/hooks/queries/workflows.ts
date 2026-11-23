@@ -40,6 +40,7 @@ import {
   mapWorkflow,
   WORKFLOW_LIST_STALE_TIME,
 } from '@/hooks/queries/utils/workflow-list-query'
+import { workflowSourceKeys } from '@/hooks/queries/workflow-source'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -518,6 +519,8 @@ export function useUpdateWorkflow() {
       }
     },
     onSettled: (_data, _error, variables) => {
+      // The printed source carries the workflow's name and description.
+      queryClient.invalidateQueries({ queryKey: workflowSourceKeys.detail(variables.workflowId) })
       return invalidateWorkflowLists(queryClient, variables.workspaceId)
     },
   })

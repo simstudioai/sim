@@ -10,7 +10,6 @@ import {
   knowledgeBase,
   organization,
   outboxEvent,
-  rateLimitBucket,
   user,
   workspace,
 } from '@sim/db/schema'
@@ -30,6 +29,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 
 import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
+import { getRedisClient } from '@/lib/core/config/redis'
 import * as egress from '@/lib/core/security/input-validation.server'
 import { getMistralCapacityScope } from '@/lib/internal/mistral/capacity'
 import {
@@ -81,7 +81,7 @@ describe('OCR input failures stop without partial indexing or futile retries', (
     vi.unstubAllGlobals()
     Object.assign(env, prior)
     if (capacityKeys.length)
-      await db.delete(rateLimitBucket).where(inArray(rateLimitBucket.key, capacityKeys))
+      await getRedisClient().del(...capacityKeys.map((key) => `ratelimit:tb:${key}`))
     for (const ids of seeded) {
       await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))

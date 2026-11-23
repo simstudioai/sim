@@ -41,6 +41,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { createChatCompletionUsageMeter } from '@/providers/openai-compat/usage-meter'
 import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
@@ -62,7 +63,6 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  calculateCost,
   checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
@@ -244,22 +244,10 @@ async function executeChatCompletionsRequest(
             request,
             onComplete: ({ content, usage }) => {
               output.content = content
-              output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+              const streamUsage = createChatCompletionUsageMeter(request.model)
+              streamUsage.record(usage)
+              output.tokens = { ...streamUsage.tokens }
+              output.cost = streamUsage.cost()
 
               finalizeTiming()
             },
@@ -289,11 +277,8 @@ async function executeChatCompletionsRequest(
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = currentResponse.choices[0]?.message?.content || ''
-    const tokens = {
-      input: currentResponse.usage?.prompt_tokens || 0,
-      output: currentResponse.usage?.completion_tokens || 0,
-      total: currentResponse.usage?.total_tokens || 0,
-    }
+    const usageMeter = createChatCompletionUsageMeter(request.model)
+    usageMeter.record(currentResponse.usage)
     const toolCalls: FunctionCallResponse[] = []
     const toolResults: Record<string, unknown>[] = []
     const currentMessages = [...allMessages]
@@ -577,11 +562,7 @@ async function executeChatCompletionsRequest(
         content = currentResponse.choices[0].message.content
       }
 
-      if (currentResponse.usage) {
-        tokens.input += currentResponse.usage.prompt_tokens || 0
-        tokens.output += currentResponse.usage.completion_tokens || 0
-        tokens.total += currentResponse.usage.total_tokens || 0
-      }
+      usageMeter.record(currentResponse.usage)
 
       iterationCount++
     }
@@ -623,11 +604,7 @@ async function executeChatCompletionsRequest(
       modelTime += synthesisEndTime - synthesisStartTime
 
       content = synthesisResponse.choices[0]?.message?.content || content
-      if (synthesisResponse.usage) {
-        tokens.input += synthesisResponse.usage.prompt_tokens || 0
-        tokens.output += synthesisResponse.usage.completion_tokens || 0
-        tokens.total += synthesisResponse.usage.total_tokens || 0
-      }
+      usageMeter.record(synthesisResponse.usage)
 
       enrichLastModelSegmentFromChatCompletions(
         timeSegments,
@@ -640,8 +617,7 @@ async function executeChatCompletionsRequest(
     if (request.stream) {
       logger.info('Projecting settled response after tool processing')
 
-      const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
-      const toolCost = sumToolCosts(toolResults)
+      const accumulatedCost = usageMeter.cost(sumToolCosts(toolResults))
 
       return createStreamingExecution({
         model: request.model,
@@ -655,17 +631,8 @@ async function executeChatCompletionsRequest(
           iterations: timeSegments.filter((segment) => segment.type === 'model').length,
           timeSegments,
         },
-        initialTokens: {
-          input: tokens.input,
-          output: tokens.output,
-          total: tokens.total,
-        },
-        initialCost: {
-          input: accumulatedCost.input,
-          output: accumulatedCost.output,
-          toolCost: toolCost || undefined,
-          total: accumulatedCost.total + toolCost,
-        },
+        initialTokens: { ...usageMeter.tokens },
+        initialCost: accumulatedCost,
         toolCalls:
           toolCalls.length > 0
             ? {
@@ -689,7 +656,8 @@ async function executeChatCompletionsRequest(
     return {
       content,
       model: request.model,
-      tokens,
+      tokens: { ...usageMeter.tokens },
+      cost: usageMeter.cost(),
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       toolResults: toolResults.length > 0 ? toolResults : undefined,
       timing: {

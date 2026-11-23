@@ -14,8 +14,7 @@ import { envFlagsMock, resetEnvFlagsMock } from '@sim/testing/mocks/env-flags.mo
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   type Leg = { text: string; end: boolean }
   const worker = {
@@ -69,14 +68,11 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  if (url) process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
@@ -153,12 +149,6 @@ const payer = () => resolveBillingAttribution({ actorUserId: userId, workspaceId
 const chatIds: string[] = []
 const JOB_SECRETS = { secretScope: 'selected' as const, mountedSecrets: ['REPORT_TOKEN'] }
 
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
-  return client
-}
-
 async function jobChat() {
   const chatId = generateId()
   chatIds.push(chatId)
@@ -214,7 +204,10 @@ async function killController(chatId: string, streamId: string) {
   controller.abort(new StreamControllerSupersededError())
   worker.open.get(streamId)?.socket?.destroy()
   worker.open.delete(streamId)
-  await waitFor(async () => !(await redis().get(chatStreamLockKey(chatId))), 'the lock to lapse')
+  await waitFor(
+    async () => !(await getRedisClient().get(chatStreamLockKey(chatId))),
+    'the lock to lapse'
+  )
   await db
     .update(copilotRuns)
     .set({ updatedAt: sql`now() - interval '2 minutes'` })
@@ -226,7 +219,7 @@ async function takeOverUntilReattached(streamId: string) {
   const before = legsFor(streamId).length
   await waitFor(
     async () => {
-      await redis().del(ABANDONED_RUN_CURSOR_KEY)
+      await getRedisClient().del(ABANDONED_RUN_CURSOR_KEY)
       await takeOverAbandonedRuns()
       return legsFor(streamId).length > before
     },
@@ -243,7 +236,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached', () => {
+describe('an unattended turn with no browser attached', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
@@ -285,7 +278,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
     await db.delete(permissions).where(eq(permissions.userId, userId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
-    chatPubSub?.dispose()
+    chatPubSub.dispose()
     await closeRedisConnection()
   })
 
@@ -337,7 +330,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
       'the run to complete'
     )
     await waitFor(
-      async () => !(await redis().get(chatStreamLockKey(chatId))),
+      async () => !(await getRedisClient().get(chatStreamLockKey(chatId))),
       'the chat to be released'
     )
 
@@ -387,7 +380,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
   it('answers busy, admitting nothing, while another turn holds the chat', async () => {
     const chatId = await jobChat()
     const typedTurn = generateId()
-    await redis().set(chatStreamLockKey(chatId), `${typedTurn}\n${generateId()}`, 'EX', 60)
+    await getRedisClient().set(chatStreamLockKey(chatId), `${typedTurn}\n${generateId()}`, 'EX', 60)
     const occurrenceId = generateId()
     try {
       expect(
@@ -403,7 +396,7 @@ describe.runIf(Boolean(redisUrl))('an unattended turn with no browser attached',
         })
       ).toBe('busy')
     } finally {
-      await redis().del(chatStreamLockKey(chatId))
+      await getRedisClient().del(chatStreamLockKey(chatId))
     }
     expect(await storedRun(occurrenceId)).toBeUndefined()
     expect(await messagesOf(chatId)).toEqual([])

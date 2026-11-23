@@ -1,3 +1,4 @@
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { attachWorkflowRunWait } from './workflow-run-wait'
@@ -22,18 +23,7 @@ vi.mock('../../context', () => ({
   }),
 }))
 
-/**
- * Waiting is simulated rather than timed: the mock advances the same clock the
- * command reads its deadline from, so a `--wait-timeout 3600` test costs
- * nothing and the poll schedule is exactly what the assertions say it is.
- */
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: (ms: number) => {
-    sleeps.push(ms)
-    clock.now += ms
-    return Promise.resolve()
-  },
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 let logged: string[]
 let errored: string[]
@@ -53,6 +43,15 @@ beforeEach(() => {
   process.exitCode = undefined
   stderr.isTTY = false
 
+  /**
+   * Waiting is simulated rather than timed: the mock advances the same clock the
+   * command reads its deadline from, so a `--wait-timeout 3600` test costs
+   * nothing and the poll schedule is exactly what the assertions say it is.
+   */
+  utilsHelpersMockFns.mockSleep.mockImplementation(async (ms: number) => {
+    sleeps.push(ms)
+    clock.now += ms
+  })
   vi.spyOn(Date, 'now').mockImplementation(() => clock.now)
   vi.spyOn(console, 'log').mockImplementation((line: string) => {
     logged.push(line)

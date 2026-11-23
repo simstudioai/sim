@@ -13,7 +13,6 @@ import {
   ListChecks,
   Lock,
   LogIn,
-  Palette,
   PanelLeft,
   Send,
   Server,
@@ -66,7 +65,6 @@ export type OrganizationSettingsSection =
   | 'security'
   | 'data-retention'
   | 'data-drains'
-  | 'whitelabeling'
 
 export type WorkspaceSettingsSection =
   | 'requests'
@@ -117,7 +115,6 @@ export type UnifiedSettingsSection =
   | 'organization'
   | 'usage'
   | 'sso'
-  | 'whitelabeling'
   | 'forks'
   | 'mcp'
   | 'custom-tools'
@@ -758,21 +755,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     },
   },
   {
-    label: 'White-labeling',
-    icon: Palette,
-    docsLink: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
-    unified: {
-      id: 'whitelabeling',
-      description: 'Customize your workspace branding and appearance.',
-      group: 'organization',
-      order: 6,
-      requiresHosted: true,
-      requiresEnterprise: true,
-      selfHostedOverride: 'whitelabeling',
-      organizationSection: 'whitelabeling',
-    },
-  },
-  {
     label: 'Custom blocks',
     icon: HexSimple,
     docsLink: 'https://docs.sim.ai/platform/enterprise/custom-blocks',
@@ -913,7 +895,6 @@ const ORGANIZATION_SECTION_GROUPS: Record<OrganizationSettingsSection, Organizat
     members: 'organization',
     'connected-accounts': 'organization',
     usage: 'organization',
-    whitelabeling: 'organization',
     'recently-deleted': 'organization',
     requests: 'organization',
     'audit-logs': 'governance',
@@ -1087,7 +1068,6 @@ export function getOrganizationSettingsFeatures(
       'data-retention': features.dataRetention,
       'data-drains': features.dataDrains,
       usage: features.usageMonitoring,
-      whitelabeling: features.whitelabeling,
     },
   }
 }

@@ -1,0 +1,94 @@
+{
+  "name": "@sim/workflow-code",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.4.4",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./diagnostics": {
+      "types": "./src/diagnostics/index.ts",
+      "default": "./src/diagnostics/index.ts"
+    },
+    "./diagnostics/codes": {
+      "types": "./src/diagnostics/codes.ts",
+      "default": "./src/diagnostics/codes.ts"
+    },
+    "./code-files/references": {
+      "types": "./src/code-files/references.ts",
+      "default": "./src/code-files/references.ts"
+    },
+    "./layout": {
+      "types": "./src/layout.ts",
+      "default": "./src/layout.ts"
+    },
+    "./limits": {
+      "types": "./src/limits.ts",
+      "default": "./src/limits.ts"
+    },
+    "./source-meta": {
+      "types": "./src/source-meta.ts",
+      "default": "./src/source-meta.ts"
+    },
+    "./catalog/canonical-index": {
+      "types": "./src/catalog/canonical-index/index.ts",
+      "default": "./src/catalog/canonical-index/index.ts"
+    },
+    "./catalog/conditions": {
+      "types": "./src/catalog/conditions.ts",
+      "default": "./src/catalog/conditions.ts"
+    },
+    "./catalog/defaults": {
+      "types": "./src/catalog/defaults.ts",
+      "default": "./src/catalog/defaults.ts"
+    },
+    "./catalog/surface": {
+      "types": "./src/catalog/surface.ts",
+      "default": "./src/catalog/surface.ts"
+    },
+    "./catalog/view": {
+      "types": "./src/catalog/view.ts",
+      "default": "./src/catalog/view.ts"
+    },
+    "./sdk": {
+      "types": "./src/sdk.ts",
+      "default": "./src/sdk.ts"
+    },
+    "./start-inputs": {
+      "types": "./src/start-inputs.ts",
+      "default": "./src/start-inputs.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@babel/parser": "7.29.9",
+    "@noble/hashes": "2.2.0",
+    "@sim/utils": "workspace:*",
+    "@sim/workflow-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@babel/types": "7.29.8",
+    "@sim/testing": "workspace:*",
+    "@sim/tsconfig": "workspace:*",
+    "@xyflow/react": "12.12.1",
+    "fast-check": "3.23.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

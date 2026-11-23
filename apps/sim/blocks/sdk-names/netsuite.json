@@ -1,0 +1,37 @@
+{
+  "namespace": "netsuite",
+  "methods": {
+    "netsuite_attach_record": "attachRecordOrFile",
+    "netsuite_batch_create_records": "batchCreateRecords",
+    "netsuite_batch_delete_records": "batchDeleteRecords",
+    "netsuite_batch_get_records": "batchGetRecords",
+    "netsuite_batch_update_records": "batchUpdateRecords",
+    "netsuite_batch_upsert_records": "batchUpsertRecords",
+    "netsuite_create_record": "createRecord",
+    "netsuite_delete_record": "deleteRecord",
+    "netsuite_detach_record": "detachRecordOrFile",
+    "netsuite_execute_action": "executeRecordAction",
+    "netsuite_execute_dataset": "executeSuiteAnalyticsDataset",
+    "netsuite_execute_suiteql": "executeSuiteQl",
+    "netsuite_get_async_result": "getAsyncOperationResult",
+    "netsuite_get_async_status": "getAsyncStatus",
+    "netsuite_get_governance_limits": "getGovernanceLimits",
+    "netsuite_get_record": "getRecord",
+    "netsuite_get_record_form": "getRecordForm",
+    "netsuite_get_record_metadata": "getRecordMetadata",
+    "netsuite_get_select_options": "getSelectOptions",
+    "netsuite_get_server_time": "getServerTime",
+    "netsuite_get_subresource": "getSubresource",
+    "netsuite_list_datasets": "listSuiteAnalyticsDatasets",
+    "netsuite_list_record_types": "listRecordTypes",
+    "netsuite_list_records": "listSearchRecords",
+    "netsuite_transform_record": "transformRecord",
+    "netsuite_update_record": "updateRecord",
+    "netsuite_upsert_record": "upsertRecord"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

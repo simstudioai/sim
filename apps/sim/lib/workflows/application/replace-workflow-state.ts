@@ -7,8 +7,10 @@ import {
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { principalAuditSource } from '@/lib/core/application'
+import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -29,15 +31,13 @@ import {
 } from '@/lib/workflows/persistence/replace-normalized-state'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
-import {
-  buildSubBlockValues,
-  evaluateSubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import {
   getToolBindingAuthoringSchema,
   validateToolBindingAuthoring,
 } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
+import { isHiddenUnder } from '@/blocks/visibility/context'
 
 const logger = createLogger('ReplaceWorkflowState')
 
@@ -60,6 +60,36 @@ function humanSubjectUserId(principal: Principal): string | null {
   } catch (error) {
     if (error instanceof PrincipalSubjectUserRequiredError) return null
     throw error
+  }
+}
+
+/**
+ * Refuses a graph that places a block type the acting user cannot see (an unrevealed `preview`
+ * block or a kill-switched one): on a block the stored graph lacks, or one it holds with another
+ * type. The editing operations and source apply refuse the same placement through their
+ * visibility gate; a block the stored graph already holds with that type stays writable, so a
+ * workflow keeps saving after its type is hidden. The stored graph is read only when the body
+ * names a hidden type at all.
+ */
+async function assertNoHiddenPlacement(
+  blocks: Record<string, BlockState>,
+  context: { workflowId: string; workspaceOrganizationId: string | null },
+  subjectUserId: string | null,
+  previous: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> | undefined
+): Promise<void> {
+  const visibility = await getBlockVisibility({
+    ...(subjectUserId ? { userId: subjectUserId } : {}),
+    ...(context.workspaceOrganizationId ? { orgId: context.workspaceOrganizationId } : {}),
+  })
+  const hidden = Object.values(blocks).filter((block) => {
+    const config = getBlock(block.type)
+    return config !== undefined && isHiddenUnder(visibility, config)
+  })
+  if (hidden.length === 0) return
+  const stored = previous ?? (await loadWorkflowFromNormalizedTables(context.workflowId))
+  const placed = hidden.find((block) => stored?.blocks[block.id]?.type !== block.type)
+  if (placed) {
+    throw new OrchestrationError('forbidden', `Block type "${placed.type}" is not available to you`)
   }
 }
 
@@ -179,6 +209,9 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         }
       }
 
+      const subjectUserId = humanSubjectUserId(principal)
+      await assertNoHiddenPlacement(blocks, context, subjectUserId, previous)
+
       const graph = {
         blocks,
         edges: sanitized.edges as WorkflowState['edges'],
@@ -191,8 +224,6 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
        * the reference pass is skipped for them rather than resolved against the
        * billing owner. See {@link buildWorkflowLintReport}.
        */
-      const subjectUserId = humanSubjectUserId(principal)
-
       const lint = await buildWorkflowLintReport(graph, {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,

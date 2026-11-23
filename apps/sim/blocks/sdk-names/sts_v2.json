@@ -1,0 +1,16 @@
+{
+  "namespace": "sts",
+  "methods": {
+    "assume_role": "assumeRole",
+    "assume_role_with_saml": "assumeRoleWithSaml",
+    "assume_role_with_web_identity": "assumeRoleWithWebIdentity",
+    "get_access_key_info": "getAccessKeyInfo",
+    "get_caller_identity": "getCallerIdentity",
+    "get_session_token": "getSessionToken"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

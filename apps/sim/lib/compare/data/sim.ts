@@ -978,19 +978,6 @@ export const simProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'Yes: Enterprise orgs can replace the logo, wordmark, brand name, and primary/accent theme colors across the workspace UI with their own',
-        shortValue: 'Custom logo, name, and theme colors (Enterprise)',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.sim.ai/platform/enterprise/whitelabeling',
-            label: 'Sim Docs: Whitelabeling',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes: Enterprise orgs can independently configure log retention, soft-deletion cleanup, and Chat/Copilot task cleanup (chats, runs, checkpoints, Inbox tasks) at 1 day to 5 years or Forever, applied org-wide with no per-workspace override',

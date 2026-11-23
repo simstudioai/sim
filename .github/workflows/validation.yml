@@ -10,4 +10,8 @@ permissions:
 jobs:
   checks:
     name: checks
+    # `actions: read` lets each e2e job watch this run's build (e2e) job.
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/checks.yml

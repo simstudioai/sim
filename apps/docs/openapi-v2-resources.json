@@ -6360,12 +6360,12 @@
             "name": "blockId",
             "in": "path",
             "required": true,
-            "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.",
+            "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 255,
-              "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID."
+              "description": "Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it."
             }
           },
           {
@@ -6874,7 +6874,7 @@
       "post": {
         "operationId": "executeTool",
         "summary": "Run tool",
-        "description": "Run a built-in tool using published parameter IDs. Requires workspace read access. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references in `user-only` parameters; other values pass through unchanged. Send connected credentials as top-level `credentialId`, not inside `input`. Third-party refusal returns `200` with `status: \"failed\"`; API failures use the error envelope. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key usage is billed to the workspace. A call that would use a hosted key returns `402` when the workspace exceeds usage or billing limits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Run a built-in tool using published parameter IDs. Requires workspace read access. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references in `user-only` parameters; other values pass through unchanged. Send connected credentials as top-level `credentialId`, not inside `input`. Third-party refusal returns `200` with `status: \"failed\"`; API failures use the error envelope. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. A `credentialId` you cannot use in this workspace returns `403`. Hosted-key usage is billed to the workspace. A call that would use a hosted key returns `402` when the workspace exceeds usage or billing limits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tools.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Catalog"],
@@ -15695,6 +15695,171 @@
           }
         }
       }
+    },
+    "/api/v2/workspaces/{workspaceId}/workflows/source/catalog": {
+      "get": {
+        "operationId": "getSourceCatalog",
+        "summary": "Get source catalog",
+        "description": "Get the source catalog, the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.source.catalog.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains."
+            }
+          },
+          {
+            "name": "workflowId",
+            "in": "query",
+            "required": false,
+            "description": "Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.",
+            "schema": {
+              "description": "Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "if-none-match",
+            "in": "header",
+            "required": false,
+            "description": "A catalog `hash` (quoted, as sent in `ETag`) the caller already holds.",
+            "schema": {
+              "description": "A catalog `hash` (quoted, as sent in `ETag`) the caller already holds.",
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The source catalog.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSourceCatalogResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "catalogVersion": 1,
+                        "hash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
+                        "sdkMajor": 1,
+                        "blocks": {
+                          "slack_v2": {
+                            "type": "slack_v2",
+                            "name": "Slack",
+                            "category": "tools",
+                            "subBlocks": [
+                              {
+                                "id": "operation",
+                                "type": "dropdown",
+                                "valueKind": "string",
+                                "storage": "native",
+                                "options": [
+                                  {
+                                    "id": "send",
+                                    "label": "Send Message"
+                                  }
+                                ]
+                              }
+                            ],
+                            "tools": {
+                              "access": ["slack_message"],
+                              "selector": "operation"
+                            },
+                            "outputs": {
+                              "ts": {
+                                "type": "string",
+                                "description": "Message timestamp"
+                              }
+                            },
+                            "graph": {
+                              "canBeTarget": true,
+                              "errorPort": true,
+                              "container": null,
+                              "annotationOnly": false
+                            }
+                          }
+                        },
+                        "triggers": {},
+                        "builders": {
+                          "slack.sendMessage": {
+                            "type": "slack_v2",
+                            "operation": "send"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The caller already holds the current catalog: `If-None-Match` names the current `ETag`. The response has no body.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -15770,6 +15935,15 @@
           "minLength": 1,
           "title": "Run identifier",
           "description": "Identifier assigned to the workflow run."
+        }
+      },
+      "ETag": {
+        "description": "The catalog `hash`, quoted. Send it back in `If-None-Match` to revalidate the catalog.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Entity tag",
+          "description": "The catalog `hash`, quoted. Send it back in `If-None-Match` to revalidate the catalog."
         }
       }
     },
@@ -16012,7 +16186,8 @@
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
           "READ_ONLY_API_KEY",
-          "SCIM_MANAGED_MEMBERSHIP"
+          "SCIM_MANAGED_MEMBERSHIP",
+          "FEATURE_NOT_ENABLED"
         ],
         "title": "Forbidden detail code",
         "description": "Stable cause code for an actionable `403` response."
@@ -31687,6 +31862,2934 @@
         "examples": [
           {
             "allowRequests": false
+          }
+        ]
+      },
+      "GetSourceCatalogResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "catalogVersion": {
+                "type": "number",
+                "const": 1,
+                "description": "Catalog format version."
+              },
+              "hash": {
+                "type": "string",
+                "description": "SHA-256 of the catalog content; the response `ETag`."
+              },
+              "sdkMajor": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Workflow SDK major version this catalog serves."
+              },
+              "blocks": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Block type id."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Display name."
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": ["blocks", "tools", "triggers"],
+                      "description": "Block category."
+                    },
+                    "addable": {
+                      "description": "Present when new blocks of this type are refused; existing ones still compile.",
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "lifecycle": {
+                      "description": "Lifecycle flags.",
+                      "type": "object",
+                      "properties": {
+                        "hidden": {
+                          "description": "Hidden from the toolbar.",
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "preview": {
+                          "description": "Unreleased preview block.",
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "sunset": {
+                          "description": "Post-GA lifecycle state.",
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": ["legacy", "deprecated"],
+                              "description": "Lifecycle state."
+                            },
+                            "replacedBy": {
+                              "description": "Successor block type.",
+                              "type": "string"
+                            }
+                          },
+                          "required": ["status"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "triggerAllowed": {
+                      "description": "Whether the block can start a workflow.",
+                      "type": "boolean"
+                    },
+                    "triggers": {
+                      "description": "Trigger mode support.",
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean",
+                          "description": "Whether trigger mode is available."
+                        },
+                        "available": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Trigger ids the block supports."
+                        }
+                      },
+                      "required": ["enabled", "available"],
+                      "additionalProperties": false
+                    },
+                    "singleInstance": {
+                      "description": "At most one per workflow.",
+                      "type": "boolean"
+                    },
+                    "subBlocks": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Field id; the param name unless the field is in a basic/advanced pair."
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "Editor control type, e.g. `short-input`."
+                              },
+                              "title": {
+                                "description": "Display title.",
+                                "type": "string"
+                              },
+                              "mode": {
+                                "description": "Which editor mode shows the field.",
+                                "type": "string",
+                                "enum": ["basic", "advanced", "both", "trigger", "trigger-advanced"]
+                              },
+                              "canonicalParamId": {
+                                "description": "Shared param name of a basic/advanced pair.",
+                                "type": "string"
+                              },
+                              "surface": {
+                                "description": "Whether this declaration belongs to action or trigger mode.",
+                                "type": "string",
+                                "enum": ["action", "trigger"]
+                              },
+                              "condition": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "field": {
+                                        "type": "string",
+                                        "description": "Sibling field id whose value decides the condition."
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "array",
+                                            "items": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "list": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991,
+                                                "description": "Index into the catalog `lists` table."
+                                              }
+                                            },
+                                            "required": ["list"],
+                                            "additionalProperties": false,
+                                            "description": "A value list stored once in the catalog `lists` table."
+                                          }
+                                        ],
+                                        "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                      },
+                                      "not": {
+                                        "description": "Invert the match.",
+                                        "type": "boolean"
+                                      },
+                                      "and": {
+                                        "description": "A second clause that must hold as well.",
+                                        "type": "object",
+                                        "properties": {
+                                          "field": {
+                                            "type": "string",
+                                            "description": "Second field id."
+                                          },
+                                          "value": {
+                                            "anyOf": [
+                                              {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "type": "array",
+                                                "items": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "list": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 9007199254740991,
+                                                    "description": "Index into the catalog `lists` table."
+                                                  }
+                                                },
+                                                "required": ["list"],
+                                                "additionalProperties": false,
+                                                "description": "A value list stored once in the catalog `lists` table."
+                                              }
+                                            ],
+                                            "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                          },
+                                          "not": {
+                                            "description": "Invert the second match.",
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "required": ["field"],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": ["field", "value"],
+                                    "additionalProperties": false,
+                                    "description": "Holds when `field` holds `value`."
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "opaque": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      }
+                                    },
+                                    "required": ["opaque"],
+                                    "additionalProperties": false,
+                                    "description": "A function the catalog could not evaluate to data."
+                                  }
+                                ],
+                                "description": "A condition clause, or `{ opaque: true }` (treat as possibly holding)."
+                              },
+                              "visibleFor": {
+                                "description": "Per operation id: whether an opaque condition can show this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "visibleWhen": {
+                                "description": "Per operation id: the clause on other fields an opaque condition still asks to show this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "field": {
+                                      "type": "string",
+                                      "description": "Sibling field id whose value decides the condition."
+                                    },
+                                    "value": {
+                                      "anyOf": [
+                                        {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "list": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "description": "Index into the catalog `lists` table."
+                                            }
+                                          },
+                                          "required": ["list"],
+                                          "additionalProperties": false,
+                                          "description": "A value list stored once in the catalog `lists` table."
+                                        }
+                                      ],
+                                      "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                    },
+                                    "not": {
+                                      "description": "Invert the match.",
+                                      "type": "boolean"
+                                    },
+                                    "and": {
+                                      "description": "A second clause that must hold as well.",
+                                      "type": "object",
+                                      "properties": {
+                                        "field": {
+                                          "type": "string",
+                                          "description": "Second field id."
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "array",
+                                              "items": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "list": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "description": "Index into the catalog `lists` table."
+                                                }
+                                              },
+                                              "required": ["list"],
+                                              "additionalProperties": false,
+                                              "description": "A value list stored once in the catalog `lists` table."
+                                            }
+                                          ],
+                                          "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                        },
+                                        "not": {
+                                          "description": "Invert the second match.",
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": ["field"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": ["field", "value"],
+                                  "additionalProperties": false,
+                                  "description": "Holds when `field` holds `value`."
+                                }
+                              },
+                              "visibleForModel": {
+                                "description": "Per model id: whether an opaque condition shows this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": {
+                                "description": "Whether a value is required, or the condition under which it is.",
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "field": {
+                                            "type": "string",
+                                            "description": "Sibling field id whose value decides the condition."
+                                          },
+                                          "value": {
+                                            "anyOf": [
+                                              {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "type": "array",
+                                                "items": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "list": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 9007199254740991,
+                                                    "description": "Index into the catalog `lists` table."
+                                                  }
+                                                },
+                                                "required": ["list"],
+                                                "additionalProperties": false,
+                                                "description": "A value list stored once in the catalog `lists` table."
+                                              }
+                                            ],
+                                            "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                          },
+                                          "not": {
+                                            "description": "Invert the match.",
+                                            "type": "boolean"
+                                          },
+                                          "and": {
+                                            "description": "A second clause that must hold as well.",
+                                            "type": "object",
+                                            "properties": {
+                                              "field": {
+                                                "type": "string",
+                                                "description": "Second field id."
+                                              },
+                                              "value": {
+                                                "anyOf": [
+                                                  {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "string"
+                                                      },
+                                                      {
+                                                        "type": "number"
+                                                      },
+                                                      {
+                                                        "type": "boolean"
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "string"
+                                                        },
+                                                        {
+                                                          "type": "number"
+                                                        },
+                                                        {
+                                                          "type": "boolean"
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "list": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 9007199254740991,
+                                                        "description": "Index into the catalog `lists` table."
+                                                      }
+                                                    },
+                                                    "required": ["list"],
+                                                    "additionalProperties": false,
+                                                    "description": "A value list stored once in the catalog `lists` table."
+                                                  }
+                                                ],
+                                                "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                              },
+                                              "not": {
+                                                "description": "Invert the second match.",
+                                                "type": "boolean"
+                                              }
+                                            },
+                                            "required": ["field"],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": ["field", "value"],
+                                        "additionalProperties": false,
+                                        "description": "Holds when `field` holds `value`."
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "opaque": {
+                                            "type": "boolean",
+                                            "const": true,
+                                            "description": "Always true."
+                                          }
+                                        },
+                                        "required": ["opaque"],
+                                        "additionalProperties": false,
+                                        "description": "A function the catalog could not evaluate to data."
+                                      }
+                                    ],
+                                    "description": "A condition clause, or `{ opaque: true }` (treat as possibly holding)."
+                                  }
+                                ]
+                              },
+                              "dependsOn": {
+                                "description": "Editor clearing and fetch ordering hints; never visibility.",
+                                "type": "object",
+                                "properties": {
+                                  "all": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Fields that must all hold values."
+                                  },
+                                  "any": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Fields of which one must hold a value."
+                                  }
+                                },
+                                "required": ["all", "any"],
+                                "additionalProperties": false
+                              },
+                              "defaultValue": {
+                                "description": "Editor default value (any JSON)."
+                              },
+                              "valueDefault": {
+                                "description": "The registry value thunk, evaluated where it is constant.",
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "computed": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      },
+                                      "initial": {
+                                        "description": "What the thunk returns for a new block with no values (any JSON), when stable."
+                                      }
+                                    },
+                                    "required": ["computed"],
+                                    "additionalProperties": false,
+                                    "description": "A value thunk derived from other params."
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "constant": {
+                                        "description": "The constant value (any JSON)."
+                                      }
+                                    },
+                                    "required": ["constant"],
+                                    "additionalProperties": false,
+                                    "description": "A value thunk that always returns this."
+                                  }
+                                ]
+                              },
+                              "options": {
+                                "description": "Selectable options.",
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "description": "Stored option id."
+                                        },
+                                        "label": {
+                                          "description": "Display label; absent when it equals `id`, and on a block's non-`operation` fields.",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": ["id"],
+                                      "additionalProperties": false,
+                                      "description": "One static option."
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "dynamic": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      }
+                                    },
+                                    "required": ["dynamic"],
+                                    "additionalProperties": false,
+                                    "description": "Options fetched per workspace through `selectorKey`."
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "opaque": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      }
+                                    },
+                                    "required": ["opaque"],
+                                    "additionalProperties": false,
+                                    "description": "A function the catalog could not evaluate to data."
+                                  }
+                                ]
+                              },
+                              "optionsVary": {
+                                "description": "The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.",
+                                "type": "boolean",
+                                "const": true
+                              },
+                              "hidden": {
+                                "description": "Hidden from the editor.",
+                                "type": "boolean"
+                              },
+                              "readOnly": {
+                                "description": "Display-only.",
+                                "type": "boolean"
+                              },
+                              "password": {
+                                "description": "Holds a secret.",
+                                "type": "boolean"
+                              },
+                              "hideFromCopilot": {
+                                "description": "Not offered to Copilot.",
+                                "type": "boolean"
+                              },
+                              "context": {
+                                "description": "Only meaningful as an agent tool.",
+                                "type": "string",
+                                "const": "tool-input"
+                              },
+                              "paramVisibility": {
+                                "description": "Tool param visibility override.",
+                                "type": "string"
+                              },
+                              "emptyIsValid": {
+                                "description": "An empty value satisfies `required`.",
+                                "type": "boolean"
+                              },
+                              "language": {
+                                "description": "Code field language.",
+                                "type": "string"
+                              },
+                              "multiple": {
+                                "description": "Accepts several files.",
+                                "type": "boolean"
+                              },
+                              "min": {
+                                "description": "Minimum numeric value.",
+                                "type": "number"
+                              },
+                              "max": {
+                                "description": "Maximum numeric value.",
+                                "type": "number"
+                              },
+                              "step": {
+                                "description": "Slider increment.",
+                                "type": "number"
+                              },
+                              "integer": {
+                                "description": "Integers only.",
+                                "type": "boolean"
+                              },
+                              "columns": {
+                                "description": "Table column headers.",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "selectorKey": {
+                                "description": "Selector that lists the options.",
+                                "type": "string"
+                              },
+                              "serviceId": {
+                                "description": "OAuth service the field binds.",
+                                "type": "string"
+                              },
+                              "credentialProviders": {
+                                "description": "Provider ids of the saved credentials the field accepts.",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "valueKind": {
+                                "type": "string",
+                                "enum": [
+                                  "string",
+                                  "number",
+                                  "boolean",
+                                  "array",
+                                  "object",
+                                  "json",
+                                  "code",
+                                  "branches",
+                                  "tools",
+                                  "resource",
+                                  "picked",
+                                  "upload",
+                                  "none"
+                                ],
+                                "description": "How a value for this field is written in source."
+                              },
+                              "resourceKind": {
+                                "description": "Workspace resource kind, for `resource` fields.",
+                                "type": "string"
+                              },
+                              "storage": {
+                                "type": "string",
+                                "enum": ["native", "json-string"],
+                                "description": "Encoding a new value is stored with."
+                              },
+                              "structured": {
+                                "description": "Structured value the canonical model decodes.",
+                                "type": "string",
+                                "enum": [
+                                  "tools",
+                                  "branches",
+                                  "tableRows",
+                                  "inputFormat",
+                                  "variables",
+                                  "skills"
+                                ]
+                              },
+                              "acceptsNumber": {
+                                "description": "Free text that also takes a number, which the runtime coerces.",
+                                "type": "boolean"
+                              },
+                              "neverDecoded": {
+                                "description": "User text whose JSON-looking content is never decoded.",
+                                "type": "boolean"
+                              },
+                              "tableFilter": {
+                                "description": "A table filter: builder rows or a predicate.",
+                                "type": "boolean"
+                              },
+                              "valueShape": {
+                                "description": "Shape of the value in an agent tool entry; absent means string.",
+                                "type": "string",
+                                "enum": ["number", "boolean", "json"]
+                              }
+                            },
+                            "required": ["id", "type", "valueKind", "storage"],
+                            "additionalProperties": false,
+                            "description": "One configuration field, in declared order; duplicate ids are kept with `surface`."
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "shared": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "Index into the catalog `subBlocks` table."
+                              }
+                            },
+                            "required": ["shared"],
+                            "additionalProperties": false,
+                            "description": "A field stored once in the catalog `subBlocks` table."
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "trigger": {
+                                "type": "string",
+                                "description": "Trigger id in the catalog `triggers` table."
+                              },
+                              "start": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "First of that trigger’s fields in the run."
+                              },
+                              "count": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "How many consecutive fields the run holds."
+                              }
+                            },
+                            "required": ["trigger", "start", "count"],
+                            "additionalProperties": false,
+                            "description": "A run of a shared trigger’s fields, spliced in place, each with `surface: \"trigger\"`."
+                          }
+                        ]
+                      },
+                      "description": "Configuration fields in declared order, inline or by reference."
+                    },
+                    "tools": {
+                      "type": "object",
+                      "properties": {
+                        "access": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Tool ids the block can call."
+                        },
+                        "selector": {
+                          "type": "string",
+                          "enum": ["single", "operation", "opaque"],
+                          "description": "How the tool is chosen: fixed, by operation, or by an unevaluated function."
+                        }
+                      },
+                      "required": ["access", "selector"],
+                      "additionalProperties": false,
+                      "description": "Tools the block calls."
+                    },
+                    "outputs": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Output value type."
+                          },
+                          "description": {
+                            "description": "What the output holds.",
+                            "type": "string"
+                          },
+                          "condition": {
+                            "description": "When the output is present: `{ field, value, not?, and? }`."
+                          },
+                          "hiddenFromDisplay": {
+                            "description": "Hidden from the output picker.",
+                            "type": "boolean"
+                          },
+                          "properties": {
+                            "description": "Nested outputs by name, each of this same shape.",
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "description": "A nested output, of this same shape."
+                            }
+                          },
+                          "sharedProperties": {
+                            "description": "In place of `properties`: index of the nested outputs in the catalog `outputs`.",
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "items": {
+                            "description": "Array element output, of this same shape."
+                          }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false,
+                        "description": "One output field."
+                      },
+                      "description": "Declared outputs by name."
+                    },
+                    "sharedOutputs": {
+                      "description": "In place of `outputs`: index of the outputs in the catalog `outputs` table.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "operationOutputs": {
+                      "description": "Per operation id: the outputs its tool returns, where they differ.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Block outputs the operation returns, in order."
+                          },
+                          "nullable": {
+                            "description": "Those of them the operation may return as null.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["names"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "dynamicOutputs": {
+                      "description": "Present when outputs derive from a param at run time.",
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string",
+                          "enum": ["responseFormat", "inputFormat", "humanForm", "tableRows"],
+                          "description": "What shapes the outputs."
+                        },
+                        "param": {
+                          "type": "string",
+                          "description": "Param holding that shape."
+                        }
+                      },
+                      "required": ["source", "param"],
+                      "additionalProperties": false
+                    },
+                    "graph": {
+                      "type": "object",
+                      "properties": {
+                        "canBeTarget": {
+                          "type": "boolean",
+                          "description": "Whether an edge may connect into the block."
+                        },
+                        "errorPort": {
+                          "type": "boolean",
+                          "description": "Whether the block has an error port."
+                        },
+                        "container": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": ["loop", "parallel"]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The subflow kind for a container, else null."
+                        },
+                        "annotationOnly": {
+                          "type": "boolean",
+                          "description": "A canvas note: no edges at all."
+                        },
+                        "branches": {
+                          "description": "The field lifted into named branches.",
+                          "type": "object",
+                          "properties": {
+                            "subBlockId": {
+                              "type": "string",
+                              "description": "Field holding the branches."
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": ["condition", "router"],
+                              "description": "Branch kind."
+                            }
+                          },
+                          "required": ["subBlockId", "kind"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["canBeTarget", "errorPort", "container", "annotationOnly"],
+                      "additionalProperties": false,
+                      "description": "Edge rules for the block."
+                    },
+                    "legacyIds": {
+                      "description": "Field id renames applied on load.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "description": "Legacy field id."
+                          },
+                          "to": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Current field id, or null when removed."
+                          },
+                          "whenOperation": {
+                            "description": "Operations the rename applies to.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "conditional": {
+                            "description": "Applies only to some values.",
+                            "type": "boolean",
+                            "const": true
+                          }
+                        },
+                        "required": ["from", "to"],
+                        "additionalProperties": false,
+                        "description": "One field id rename."
+                      }
+                    },
+                    "legacyCanonicalIds": {
+                      "description": "Basic/advanced pair id renames applied on load.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "description": "Legacy pair id."
+                          },
+                          "to": {
+                            "type": "string",
+                            "description": "Current pair id."
+                          }
+                        },
+                        "required": ["from", "to"],
+                        "additionalProperties": false,
+                        "description": "One pair id rename."
+                      }
+                    },
+                    "paramAliases": {
+                      "description": "The name source writes for a param, by param name: oauthCredential → credential.",
+                      "type": "object",
+                      "properties": {
+                        "action": {
+                          "description": "Action-surface aliases.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "trigger": {
+                          "description": "Trigger-surface aliases.",
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "custom": {
+                      "description": "Present for organization custom blocks.",
+                      "type": "object",
+                      "properties": {
+                        "sourceWorkflowId": {
+                          "description": "Workflow the custom block runs.",
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "name", "category", "subBlocks", "tools", "graph"],
+                  "additionalProperties": false,
+                  "description": "One placeable block type."
+                },
+                "description": "Placeable block types by type id."
+              },
+              "triggers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Trigger id."
+                    },
+                    "provider": {
+                      "type": "string",
+                      "description": "Provider the trigger belongs to."
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Display name."
+                    },
+                    "polling": {
+                      "description": "Poll-based rather than webhook-based.",
+                      "type": "boolean"
+                    },
+                    "webhook": {
+                      "description": "Receives webhooks.",
+                      "type": "boolean"
+                    },
+                    "subBlocks": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Field id; the param name unless the field is in a basic/advanced pair."
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "Editor control type, e.g. `short-input`."
+                              },
+                              "title": {
+                                "description": "Display title.",
+                                "type": "string"
+                              },
+                              "mode": {
+                                "description": "Which editor mode shows the field.",
+                                "type": "string",
+                                "enum": ["basic", "advanced", "both", "trigger", "trigger-advanced"]
+                              },
+                              "canonicalParamId": {
+                                "description": "Shared param name of a basic/advanced pair.",
+                                "type": "string"
+                              },
+                              "surface": {
+                                "description": "Whether this declaration belongs to action or trigger mode.",
+                                "type": "string",
+                                "enum": ["action", "trigger"]
+                              },
+                              "condition": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "field": {
+                                        "type": "string",
+                                        "description": "Sibling field id whose value decides the condition."
+                                      },
+                                      "value": {
+                                        "anyOf": [
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "array",
+                                            "items": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "list": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991,
+                                                "description": "Index into the catalog `lists` table."
+                                              }
+                                            },
+                                            "required": ["list"],
+                                            "additionalProperties": false,
+                                            "description": "A value list stored once in the catalog `lists` table."
+                                          }
+                                        ],
+                                        "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                      },
+                                      "not": {
+                                        "description": "Invert the match.",
+                                        "type": "boolean"
+                                      },
+                                      "and": {
+                                        "description": "A second clause that must hold as well.",
+                                        "type": "object",
+                                        "properties": {
+                                          "field": {
+                                            "type": "string",
+                                            "description": "Second field id."
+                                          },
+                                          "value": {
+                                            "anyOf": [
+                                              {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "type": "array",
+                                                "items": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "list": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 9007199254740991,
+                                                    "description": "Index into the catalog `lists` table."
+                                                  }
+                                                },
+                                                "required": ["list"],
+                                                "additionalProperties": false,
+                                                "description": "A value list stored once in the catalog `lists` table."
+                                              }
+                                            ],
+                                            "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                          },
+                                          "not": {
+                                            "description": "Invert the second match.",
+                                            "type": "boolean"
+                                          }
+                                        },
+                                        "required": ["field"],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": ["field", "value"],
+                                    "additionalProperties": false,
+                                    "description": "Holds when `field` holds `value`."
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "opaque": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      }
+                                    },
+                                    "required": ["opaque"],
+                                    "additionalProperties": false,
+                                    "description": "A function the catalog could not evaluate to data."
+                                  }
+                                ],
+                                "description": "A condition clause, or `{ opaque: true }` (treat as possibly holding)."
+                              },
+                              "visibleFor": {
+                                "description": "Per operation id: whether an opaque condition can show this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "visibleWhen": {
+                                "description": "Per operation id: the clause on other fields an opaque condition still asks to show this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "object",
+                                  "properties": {
+                                    "field": {
+                                      "type": "string",
+                                      "description": "Sibling field id whose value decides the condition."
+                                    },
+                                    "value": {
+                                      "anyOf": [
+                                        {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "list": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "description": "Index into the catalog `lists` table."
+                                            }
+                                          },
+                                          "required": ["list"],
+                                          "additionalProperties": false,
+                                          "description": "A value list stored once in the catalog `lists` table."
+                                        }
+                                      ],
+                                      "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                    },
+                                    "not": {
+                                      "description": "Invert the match.",
+                                      "type": "boolean"
+                                    },
+                                    "and": {
+                                      "description": "A second clause that must hold as well.",
+                                      "type": "object",
+                                      "properties": {
+                                        "field": {
+                                          "type": "string",
+                                          "description": "Second field id."
+                                        },
+                                        "value": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "boolean"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "array",
+                                              "items": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              }
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "list": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991,
+                                                  "description": "Index into the catalog `lists` table."
+                                                }
+                                              },
+                                              "required": ["list"],
+                                              "additionalProperties": false,
+                                              "description": "A value list stored once in the catalog `lists` table."
+                                            }
+                                          ],
+                                          "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                        },
+                                        "not": {
+                                          "description": "Invert the second match.",
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": ["field"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": ["field", "value"],
+                                  "additionalProperties": false,
+                                  "description": "Holds when `field` holds `value`."
+                                }
+                              },
+                              "visibleForModel": {
+                                "description": "Per model id: whether an opaque condition shows this field.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": {
+                                "description": "Whether a value is required, or the condition under which it is.",
+                                "anyOf": [
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "field": {
+                                            "type": "string",
+                                            "description": "Sibling field id whose value decides the condition."
+                                          },
+                                          "value": {
+                                            "anyOf": [
+                                              {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "number"
+                                                  },
+                                                  {
+                                                    "type": "boolean"
+                                                  }
+                                                ]
+                                              },
+                                              {
+                                                "type": "array",
+                                                "items": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "string"
+                                                    },
+                                                    {
+                                                      "type": "number"
+                                                    },
+                                                    {
+                                                      "type": "boolean"
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "type": "object",
+                                                "properties": {
+                                                  "list": {
+                                                    "type": "integer",
+                                                    "minimum": 0,
+                                                    "maximum": 9007199254740991,
+                                                    "description": "Index into the catalog `lists` table."
+                                                  }
+                                                },
+                                                "required": ["list"],
+                                                "additionalProperties": false,
+                                                "description": "A value list stored once in the catalog `lists` table."
+                                              }
+                                            ],
+                                            "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                          },
+                                          "not": {
+                                            "description": "Invert the match.",
+                                            "type": "boolean"
+                                          },
+                                          "and": {
+                                            "description": "A second clause that must hold as well.",
+                                            "type": "object",
+                                            "properties": {
+                                              "field": {
+                                                "type": "string",
+                                                "description": "Second field id."
+                                              },
+                                              "value": {
+                                                "anyOf": [
+                                                  {
+                                                    "anyOf": [
+                                                      {
+                                                        "type": "string"
+                                                      },
+                                                      {
+                                                        "type": "number"
+                                                      },
+                                                      {
+                                                        "type": "boolean"
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "anyOf": [
+                                                        {
+                                                          "type": "string"
+                                                        },
+                                                        {
+                                                          "type": "number"
+                                                        },
+                                                        {
+                                                          "type": "boolean"
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "list": {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 9007199254740991,
+                                                        "description": "Index into the catalog `lists` table."
+                                                      }
+                                                    },
+                                                    "required": ["list"],
+                                                    "additionalProperties": false,
+                                                    "description": "A value list stored once in the catalog `lists` table."
+                                                  }
+                                                ],
+                                                "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                              },
+                                              "not": {
+                                                "description": "Invert the second match.",
+                                                "type": "boolean"
+                                              }
+                                            },
+                                            "required": ["field"],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": ["field", "value"],
+                                        "additionalProperties": false,
+                                        "description": "Holds when `field` holds `value`."
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "opaque": {
+                                            "type": "boolean",
+                                            "const": true,
+                                            "description": "Always true."
+                                          }
+                                        },
+                                        "required": ["opaque"],
+                                        "additionalProperties": false,
+                                        "description": "A function the catalog could not evaluate to data."
+                                      }
+                                    ],
+                                    "description": "A condition clause, or `{ opaque: true }` (treat as possibly holding)."
+                                  }
+                                ]
+                              },
+                              "dependsOn": {
+                                "description": "Editor clearing and fetch ordering hints; never visibility.",
+                                "type": "object",
+                                "properties": {
+                                  "all": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Fields that must all hold values."
+                                  },
+                                  "any": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Fields of which one must hold a value."
+                                  }
+                                },
+                                "required": ["all", "any"],
+                                "additionalProperties": false
+                              },
+                              "defaultValue": {
+                                "description": "Editor default value (any JSON)."
+                              },
+                              "valueDefault": {
+                                "description": "The registry value thunk, evaluated where it is constant.",
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "computed": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      },
+                                      "initial": {
+                                        "description": "What the thunk returns for a new block with no values (any JSON), when stable."
+                                      }
+                                    },
+                                    "required": ["computed"],
+                                    "additionalProperties": false,
+                                    "description": "A value thunk derived from other params."
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "constant": {
+                                        "description": "The constant value (any JSON)."
+                                      }
+                                    },
+                                    "required": ["constant"],
+                                    "additionalProperties": false,
+                                    "description": "A value thunk that always returns this."
+                                  }
+                                ]
+                              },
+                              "options": {
+                                "description": "Selectable options.",
+                                "anyOf": [
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "description": "Stored option id."
+                                        },
+                                        "label": {
+                                          "description": "Display label; absent when it equals `id`, and on a block's non-`operation` fields.",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": ["id"],
+                                      "additionalProperties": false,
+                                      "description": "One static option."
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "dynamic": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      }
+                                    },
+                                    "required": ["dynamic"],
+                                    "additionalProperties": false,
+                                    "description": "Options fetched per workspace through `selectorKey`."
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "opaque": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Always true."
+                                      }
+                                    },
+                                    "required": ["opaque"],
+                                    "additionalProperties": false,
+                                    "description": "A function the catalog could not evaluate to data."
+                                  }
+                                ]
+                              },
+                              "optionsVary": {
+                                "description": "The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.",
+                                "type": "boolean",
+                                "const": true
+                              },
+                              "hidden": {
+                                "description": "Hidden from the editor.",
+                                "type": "boolean"
+                              },
+                              "readOnly": {
+                                "description": "Display-only.",
+                                "type": "boolean"
+                              },
+                              "password": {
+                                "description": "Holds a secret.",
+                                "type": "boolean"
+                              },
+                              "hideFromCopilot": {
+                                "description": "Not offered to Copilot.",
+                                "type": "boolean"
+                              },
+                              "context": {
+                                "description": "Only meaningful as an agent tool.",
+                                "type": "string",
+                                "const": "tool-input"
+                              },
+                              "paramVisibility": {
+                                "description": "Tool param visibility override.",
+                                "type": "string"
+                              },
+                              "emptyIsValid": {
+                                "description": "An empty value satisfies `required`.",
+                                "type": "boolean"
+                              },
+                              "language": {
+                                "description": "Code field language.",
+                                "type": "string"
+                              },
+                              "multiple": {
+                                "description": "Accepts several files.",
+                                "type": "boolean"
+                              },
+                              "min": {
+                                "description": "Minimum numeric value.",
+                                "type": "number"
+                              },
+                              "max": {
+                                "description": "Maximum numeric value.",
+                                "type": "number"
+                              },
+                              "step": {
+                                "description": "Slider increment.",
+                                "type": "number"
+                              },
+                              "integer": {
+                                "description": "Integers only.",
+                                "type": "boolean"
+                              },
+                              "columns": {
+                                "description": "Table column headers.",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "selectorKey": {
+                                "description": "Selector that lists the options.",
+                                "type": "string"
+                              },
+                              "serviceId": {
+                                "description": "OAuth service the field binds.",
+                                "type": "string"
+                              },
+                              "credentialProviders": {
+                                "description": "Provider ids of the saved credentials the field accepts.",
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "valueKind": {
+                                "type": "string",
+                                "enum": [
+                                  "string",
+                                  "number",
+                                  "boolean",
+                                  "array",
+                                  "object",
+                                  "json",
+                                  "code",
+                                  "branches",
+                                  "tools",
+                                  "resource",
+                                  "picked",
+                                  "upload",
+                                  "none"
+                                ],
+                                "description": "How a value for this field is written in source."
+                              },
+                              "resourceKind": {
+                                "description": "Workspace resource kind, for `resource` fields.",
+                                "type": "string"
+                              },
+                              "storage": {
+                                "type": "string",
+                                "enum": ["native", "json-string"],
+                                "description": "Encoding a new value is stored with."
+                              },
+                              "structured": {
+                                "description": "Structured value the canonical model decodes.",
+                                "type": "string",
+                                "enum": [
+                                  "tools",
+                                  "branches",
+                                  "tableRows",
+                                  "inputFormat",
+                                  "variables",
+                                  "skills"
+                                ]
+                              },
+                              "acceptsNumber": {
+                                "description": "Free text that also takes a number, which the runtime coerces.",
+                                "type": "boolean"
+                              },
+                              "neverDecoded": {
+                                "description": "User text whose JSON-looking content is never decoded.",
+                                "type": "boolean"
+                              },
+                              "tableFilter": {
+                                "description": "A table filter: builder rows or a predicate.",
+                                "type": "boolean"
+                              },
+                              "valueShape": {
+                                "description": "Shape of the value in an agent tool entry; absent means string.",
+                                "type": "string",
+                                "enum": ["number", "boolean", "json"]
+                              }
+                            },
+                            "required": ["id", "type", "valueKind", "storage"],
+                            "additionalProperties": false,
+                            "description": "One configuration field, in declared order; duplicate ids are kept with `surface`."
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "shared": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "Index into the catalog `subBlocks` table."
+                              }
+                            },
+                            "required": ["shared"],
+                            "additionalProperties": false,
+                            "description": "A field stored once in the catalog `subBlocks` table."
+                          }
+                        ]
+                      },
+                      "description": "Configuration fields in declared order, inline or by reference."
+                    },
+                    "outputs": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Output value type."
+                          },
+                          "description": {
+                            "description": "What the output holds.",
+                            "type": "string"
+                          },
+                          "condition": {
+                            "description": "When the output is present: `{ field, value, not?, and? }`."
+                          },
+                          "hiddenFromDisplay": {
+                            "description": "Hidden from the output picker.",
+                            "type": "boolean"
+                          },
+                          "properties": {
+                            "description": "Nested outputs by name, each of this same shape.",
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "description": "A nested output, of this same shape."
+                            }
+                          },
+                          "sharedProperties": {
+                            "description": "In place of `properties`: index of the nested outputs in the catalog `outputs`.",
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "items": {
+                            "description": "Array element output, of this same shape."
+                          }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false,
+                        "description": "One output field."
+                      },
+                      "description": "Declared outputs by name."
+                    },
+                    "sharedOutputs": {
+                      "description": "In place of `outputs`: index of the outputs in the catalog `outputs` table.",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["id", "provider", "name", "subBlocks"],
+                  "additionalProperties": false,
+                  "description": "One trigger a block can run in trigger mode."
+                },
+                "description": "Triggers the listed blocks can run, by trigger id."
+              },
+              "builders": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Block type the builder creates."
+                    },
+                    "operation": {
+                      "description": "Stored operation id the builder pins.",
+                      "type": "string"
+                    },
+                    "triggerMode": {
+                      "description": "Whether the builder creates a trigger-mode block.",
+                      "type": "boolean"
+                    },
+                    "fixed": {
+                      "description": "Other field values the builder pins, such as the selected trigger.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["type"],
+                  "additionalProperties": false,
+                  "description": "One SDK builder method."
+                },
+                "description": "SDK builder methods keyed by dotted path, e.g. `slack.sendMessage`."
+              },
+              "subBlocks": {
+                "description": "Fields declared identically by several blocks or triggers, stored once.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Field id; the param name unless the field is in a basic/advanced pair."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Editor control type, e.g. `short-input`."
+                    },
+                    "title": {
+                      "description": "Display title.",
+                      "type": "string"
+                    },
+                    "mode": {
+                      "description": "Which editor mode shows the field.",
+                      "type": "string",
+                      "enum": ["basic", "advanced", "both", "trigger", "trigger-advanced"]
+                    },
+                    "canonicalParamId": {
+                      "description": "Shared param name of a basic/advanced pair.",
+                      "type": "string"
+                    },
+                    "surface": {
+                      "description": "Whether this declaration belongs to action or trigger mode.",
+                      "type": "string",
+                      "enum": ["action", "trigger"]
+                    },
+                    "condition": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "field": {
+                              "type": "string",
+                              "description": "Sibling field id whose value decides the condition."
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "boolean"
+                                      }
+                                    ]
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "list": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "description": "Index into the catalog `lists` table."
+                                    }
+                                  },
+                                  "required": ["list"],
+                                  "additionalProperties": false,
+                                  "description": "A value list stored once in the catalog `lists` table."
+                                }
+                              ],
+                              "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                            },
+                            "not": {
+                              "description": "Invert the match.",
+                              "type": "boolean"
+                            },
+                            "and": {
+                              "description": "A second clause that must hold as well.",
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string",
+                                  "description": "Second field id."
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "list": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "description": "Index into the catalog `lists` table."
+                                        }
+                                      },
+                                      "required": ["list"],
+                                      "additionalProperties": false,
+                                      "description": "A value list stored once in the catalog `lists` table."
+                                    }
+                                  ],
+                                  "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                },
+                                "not": {
+                                  "description": "Invert the second match.",
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": ["field"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["field", "value"],
+                          "additionalProperties": false,
+                          "description": "Holds when `field` holds `value`."
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "opaque": {
+                              "type": "boolean",
+                              "const": true,
+                              "description": "Always true."
+                            }
+                          },
+                          "required": ["opaque"],
+                          "additionalProperties": false,
+                          "description": "A function the catalog could not evaluate to data."
+                        }
+                      ],
+                      "description": "A condition clause, or `{ opaque: true }` (treat as possibly holding)."
+                    },
+                    "visibleFor": {
+                      "description": "Per operation id: whether an opaque condition can show this field.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "boolean"
+                      }
+                    },
+                    "visibleWhen": {
+                      "description": "Per operation id: the clause on other fields an opaque condition still asks to show this field.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "description": "Sibling field id whose value decides the condition."
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "list": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "description": "Index into the catalog `lists` table."
+                                  }
+                                },
+                                "required": ["list"],
+                                "additionalProperties": false,
+                                "description": "A value list stored once in the catalog `lists` table."
+                              }
+                            ],
+                            "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                          },
+                          "not": {
+                            "description": "Invert the match.",
+                            "type": "boolean"
+                          },
+                          "and": {
+                            "description": "A second clause that must hold as well.",
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "description": "Second field id."
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "boolean"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "list": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991,
+                                        "description": "Index into the catalog `lists` table."
+                                      }
+                                    },
+                                    "required": ["list"],
+                                    "additionalProperties": false,
+                                    "description": "A value list stored once in the catalog `lists` table."
+                                  }
+                                ],
+                                "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                              },
+                              "not": {
+                                "description": "Invert the second match.",
+                                "type": "boolean"
+                              }
+                            },
+                            "required": ["field"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["field", "value"],
+                        "additionalProperties": false,
+                        "description": "Holds when `field` holds `value`."
+                      }
+                    },
+                    "visibleForModel": {
+                      "description": "Per model id: whether an opaque condition shows this field.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": {
+                      "description": "Whether a value is required, or the condition under which it is.",
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "field": {
+                                  "type": "string",
+                                  "description": "Sibling field id whose value decides the condition."
+                                },
+                                "value": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "boolean"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "boolean"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "list": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "description": "Index into the catalog `lists` table."
+                                        }
+                                      },
+                                      "required": ["list"],
+                                      "additionalProperties": false,
+                                      "description": "A value list stored once in the catalog `lists` table."
+                                    }
+                                  ],
+                                  "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                },
+                                "not": {
+                                  "description": "Invert the match.",
+                                  "type": "boolean"
+                                },
+                                "and": {
+                                  "description": "A second clause that must hold as well.",
+                                  "type": "object",
+                                  "properties": {
+                                    "field": {
+                                      "type": "string",
+                                      "description": "Second field id."
+                                    },
+                                    "value": {
+                                      "anyOf": [
+                                        {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "boolean"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "array",
+                                          "items": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "boolean"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "list": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991,
+                                              "description": "Index into the catalog `lists` table."
+                                            }
+                                          },
+                                          "required": ["list"],
+                                          "additionalProperties": false,
+                                          "description": "A value list stored once in the catalog `lists` table."
+                                        }
+                                      ],
+                                      "description": "Value, or set of accepted values, the named field must hold; a set may be a `lists` reference."
+                                    },
+                                    "not": {
+                                      "description": "Invert the second match.",
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": ["field"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": ["field", "value"],
+                              "additionalProperties": false,
+                              "description": "Holds when `field` holds `value`."
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "opaque": {
+                                  "type": "boolean",
+                                  "const": true,
+                                  "description": "Always true."
+                                }
+                              },
+                              "required": ["opaque"],
+                              "additionalProperties": false,
+                              "description": "A function the catalog could not evaluate to data."
+                            }
+                          ],
+                          "description": "A condition clause, or `{ opaque: true }` (treat as possibly holding)."
+                        }
+                      ]
+                    },
+                    "dependsOn": {
+                      "description": "Editor clearing and fetch ordering hints; never visibility.",
+                      "type": "object",
+                      "properties": {
+                        "all": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Fields that must all hold values."
+                        },
+                        "any": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Fields of which one must hold a value."
+                        }
+                      },
+                      "required": ["all", "any"],
+                      "additionalProperties": false
+                    },
+                    "defaultValue": {
+                      "description": "Editor default value (any JSON)."
+                    },
+                    "valueDefault": {
+                      "description": "The registry value thunk, evaluated where it is constant.",
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "computed": {
+                              "type": "boolean",
+                              "const": true,
+                              "description": "Always true."
+                            },
+                            "initial": {
+                              "description": "What the thunk returns for a new block with no values (any JSON), when stable."
+                            }
+                          },
+                          "required": ["computed"],
+                          "additionalProperties": false,
+                          "description": "A value thunk derived from other params."
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "constant": {
+                              "description": "The constant value (any JSON)."
+                            }
+                          },
+                          "required": ["constant"],
+                          "additionalProperties": false,
+                          "description": "A value thunk that always returns this."
+                        }
+                      ]
+                    },
+                    "options": {
+                      "description": "Selectable options.",
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Stored option id."
+                              },
+                              "label": {
+                                "description": "Display label; absent when it equals `id`, and on a block's non-`operation` fields.",
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id"],
+                            "additionalProperties": false,
+                            "description": "One static option."
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "dynamic": {
+                              "type": "boolean",
+                              "const": true,
+                              "description": "Always true."
+                            }
+                          },
+                          "required": ["dynamic"],
+                          "additionalProperties": false,
+                          "description": "Options fetched per workspace through `selectorKey`."
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "opaque": {
+                              "type": "boolean",
+                              "const": true,
+                              "description": "Always true."
+                            }
+                          },
+                          "required": ["opaque"],
+                          "additionalProperties": false,
+                          "description": "A function the catalog could not evaluate to data."
+                        }
+                      ]
+                    },
+                    "optionsVary": {
+                      "description": "The options depend on deployment settings and were evaluated where this catalog was built; the write-time check evaluates them again.",
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "hidden": {
+                      "description": "Hidden from the editor.",
+                      "type": "boolean"
+                    },
+                    "readOnly": {
+                      "description": "Display-only.",
+                      "type": "boolean"
+                    },
+                    "password": {
+                      "description": "Holds a secret.",
+                      "type": "boolean"
+                    },
+                    "hideFromCopilot": {
+                      "description": "Not offered to Copilot.",
+                      "type": "boolean"
+                    },
+                    "context": {
+                      "description": "Only meaningful as an agent tool.",
+                      "type": "string",
+                      "const": "tool-input"
+                    },
+                    "paramVisibility": {
+                      "description": "Tool param visibility override.",
+                      "type": "string"
+                    },
+                    "emptyIsValid": {
+                      "description": "An empty value satisfies `required`.",
+                      "type": "boolean"
+                    },
+                    "language": {
+                      "description": "Code field language.",
+                      "type": "string"
+                    },
+                    "multiple": {
+                      "description": "Accepts several files.",
+                      "type": "boolean"
+                    },
+                    "min": {
+                      "description": "Minimum numeric value.",
+                      "type": "number"
+                    },
+                    "max": {
+                      "description": "Maximum numeric value.",
+                      "type": "number"
+                    },
+                    "step": {
+                      "description": "Slider increment.",
+                      "type": "number"
+                    },
+                    "integer": {
+                      "description": "Integers only.",
+                      "type": "boolean"
+                    },
+                    "columns": {
+                      "description": "Table column headers.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "selectorKey": {
+                      "description": "Selector that lists the options.",
+                      "type": "string"
+                    },
+                    "serviceId": {
+                      "description": "OAuth service the field binds.",
+                      "type": "string"
+                    },
+                    "credentialProviders": {
+                      "description": "Provider ids of the saved credentials the field accepts.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "valueKind": {
+                      "type": "string",
+                      "enum": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "array",
+                        "object",
+                        "json",
+                        "code",
+                        "branches",
+                        "tools",
+                        "resource",
+                        "picked",
+                        "upload",
+                        "none"
+                      ],
+                      "description": "How a value for this field is written in source."
+                    },
+                    "resourceKind": {
+                      "description": "Workspace resource kind, for `resource` fields.",
+                      "type": "string"
+                    },
+                    "storage": {
+                      "type": "string",
+                      "enum": ["native", "json-string"],
+                      "description": "Encoding a new value is stored with."
+                    },
+                    "structured": {
+                      "description": "Structured value the canonical model decodes.",
+                      "type": "string",
+                      "enum": [
+                        "tools",
+                        "branches",
+                        "tableRows",
+                        "inputFormat",
+                        "variables",
+                        "skills"
+                      ]
+                    },
+                    "acceptsNumber": {
+                      "description": "Free text that also takes a number, which the runtime coerces.",
+                      "type": "boolean"
+                    },
+                    "neverDecoded": {
+                      "description": "User text whose JSON-looking content is never decoded.",
+                      "type": "boolean"
+                    },
+                    "tableFilter": {
+                      "description": "A table filter: builder rows or a predicate.",
+                      "type": "boolean"
+                    },
+                    "valueShape": {
+                      "description": "Shape of the value in an agent tool entry; absent means string.",
+                      "type": "string",
+                      "enum": ["number", "boolean", "json"]
+                    }
+                  },
+                  "required": ["id", "type", "valueKind", "storage"],
+                  "additionalProperties": false,
+                  "description": "One configuration field, in declared order; duplicate ids are kept with `surface`."
+                }
+              },
+              "lists": {
+                "description": "Condition value lists used by several fields, stored once.",
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      }
+                    ]
+                  }
+                }
+              },
+              "outputs": {
+                "description": "Output records repeated across blocks and triggers, stored once.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "Output value type."
+                      },
+                      "description": {
+                        "description": "What the output holds.",
+                        "type": "string"
+                      },
+                      "condition": {
+                        "description": "When the output is present: `{ field, value, not?, and? }`."
+                      },
+                      "hiddenFromDisplay": {
+                        "description": "Hidden from the output picker.",
+                        "type": "boolean"
+                      },
+                      "properties": {
+                        "description": "Nested outputs by name, each of this same shape.",
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "A nested output, of this same shape."
+                        }
+                      },
+                      "sharedProperties": {
+                        "description": "In place of `properties`: index of the nested outputs in the catalog `outputs`.",
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "items": {
+                        "description": "Array element output, of this same shape."
+                      }
+                    },
+                    "required": ["type"],
+                    "additionalProperties": false,
+                    "description": "One output field."
+                  },
+                  "description": "Declared outputs by name."
+                }
+              },
+              "scope": {
+                "description": "Present when the catalog includes an organization’s custom blocks.",
+                "type": "object",
+                "properties": {
+                  "organizationId": {
+                    "type": "string",
+                    "description": "Organization whose custom blocks are included."
+                  }
+                },
+                "required": ["organizationId"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["catalogVersion", "hash", "sdkMajor", "blocks", "triggers", "builders"],
+            "additionalProperties": false,
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get source catalog response",
+        "description": "The source catalog core shard.",
+        "examples": [
+          {
+            "data": {
+              "catalogVersion": 1,
+              "hash": "3f0c1a9e5b7d2c4f6a8e0b1d3c5f7a9e2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a",
+              "sdkMajor": 1,
+              "blocks": {
+                "slack_v2": {
+                  "type": "slack_v2",
+                  "name": "Slack",
+                  "category": "tools",
+                  "subBlocks": [
+                    {
+                      "id": "operation",
+                      "type": "dropdown",
+                      "valueKind": "string",
+                      "storage": "native",
+                      "options": [
+                        {
+                          "id": "send",
+                          "label": "Send Message"
+                        }
+                      ]
+                    }
+                  ],
+                  "tools": {
+                    "access": ["slack_message"],
+                    "selector": "operation"
+                  },
+                  "outputs": {
+                    "ts": {
+                      "type": "string",
+                      "description": "Message timestamp"
+                    }
+                  },
+                  "graph": {
+                    "canBeTarget": true,
+                    "errorPort": true,
+                    "container": null,
+                    "annotationOnly": false
+                  }
+                }
+              },
+              "triggers": {},
+              "builders": {
+                "slack.sendMessage": {
+                  "type": "slack_v2",
+                  "operation": "send"
+                }
+              }
+            }
           }
         ]
       }

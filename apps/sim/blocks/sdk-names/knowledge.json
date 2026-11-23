@@ -1,0 +1,19 @@
+{
+  "namespace": "knowledge",
+  "methods": {
+    "create_document": "createDocument",
+    "delete_chunk": "deleteChunk",
+    "delete_document": "deleteDocument",
+    "get_connector": "getConnector",
+    "get_document": "getDocument",
+    "list_chunks": "listChunks",
+    "list_connectors": "listConnectors",
+    "list_documents": "listDocuments",
+    "list_tags": "listTags",
+    "search": "search",
+    "trigger_sync": "triggerSync",
+    "update_chunk": "updateChunk",
+    "upload_chunk": "uploadChunk",
+    "upsert_document": "upsertDocument"
+  }
+}

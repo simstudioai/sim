@@ -1,0 +1,16 @@
+{
+  "namespace": "googleMeet",
+  "methods": {
+    "create_space": "createSpace",
+    "end_conference": "endConference",
+    "get_conference_record": "getConferenceRecord",
+    "get_space": "getSpace",
+    "list_conference_records": "listConferenceRecords",
+    "list_participants": "listParticipants"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

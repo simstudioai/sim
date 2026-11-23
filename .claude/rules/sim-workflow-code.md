@@ -1,0 +1,226 @@
+---
+description: Workflows and workspaces as code (workflow source, workspace source, the workflow SDK, the Code tab)
+paths:
+  - "packages/workflow-code/**"
+  - "packages/workspace-code/**"
+  - "packages/workflow-sdk/**"
+  - "packages/table-cells/**"
+  - "packages/workflow-persistence/src/save.ts"
+  - "packages/sim-cli/src/commands/protocol/*source*"
+  - "packages/sim-cli/src/commands/protocol/source-dir/**"
+  - "packages/sim-cli/src/commands/protocol/workflow-dir.ts"
+  - "packages/sim-cli/src/commands/protocol/stored-edges.ts"
+  - "packages/sim-cli/src/commands/protocol/local-errors.ts"
+  - "apps/sim/lib/workflows/code/**"
+  - "apps/sim/lib/workflows/application/*source*"
+  - "apps/sim/lib/workflows/application/source-pipeline/**"
+  - "apps/sim/lib/workflows/api/source-*"
+  - "apps/sim/lib/workspace-source/**"
+  - "apps/sim/blocks/sdk-names/**"
+  - "apps/sim/app/workspace/**/panel/components/code/**"
+  - "apps/sim/app/api/workflows/*/source/**"
+  - "apps/sim/app/api/v2/**/source/**"
+  - "apps/sim/lib/api/contracts/workflow-source.ts"
+  - "apps/sim/lib/api/contracts/v2/*source*"
+  - "apps/sim/app/api/cron/cleanup-source-staging/**"
+---
+
+# Workflows and Workspaces as Code
+
+A workflow prints to TypeScript and compiles back; a workspace prints to a directory of
+declarations and applies back. Read the design docs before changing an engine or a format:
+`packages/workflow-code/DESIGN.md` (one workflow) and `packages/workspace-code/DESIGN.md` (the
+workspace directory).
+
+## Where things live
+
+| Where | What |
+|---|---|
+| `packages/workflow-types` | Shared workflow, block and resource-kind types (`WORKFLOW_RESOURCE_KINDS`) |
+| `packages/workflow-code` | Pure engines for one workflow: catalog types, canonicalize, print, compile, materialize, lock, diagnostics |
+| `packages/workspace-code` | Pure workspace half: `KIND_DIRS`, `APPLY_ORDER`, one codec per kind (`src/kinds/`), `.sim/base.json`, `rf1:` fingerprints, limits |
+| `packages/table-cells` | Pure table cell rules (coerce, validate, currency/date/ttl parsing) shared by the table codec's offline row check and the server's writes |
+| `packages/workflow-sdk` | Authoring declarations (`src/core.d.ts`, `src/workspace/*.d.ts`), type codegen from the catalog (`src/codegen/`), the cookbook |
+| `packages/sim-cli/src/commands/protocol/` | `workflow-source-*` and `workspace-source-*` commands, which never import each other's command modules; `source-dir/`, `workflow-dir.ts`, `source-check.ts`, `source-write.ts`, `source-tree.ts`, `source-ui.ts` and `workspace-source-dir.ts` (the workspace directory reader a workflow check also reads declarations through) are shared |
+| `apps/sim/lib/workflows/code/` | Server glue: catalog projection from the registry (`catalog/`), source-apply gates (`apply/`), stored canonical form, the feature flag, the proof corpus (`corpus/`) |
+| `apps/sim/lib/workflows/application/*source*` | Workflow source use cases: read, apply, create, catalog, resources; `source-pipeline/` holds the one plan → preview/commit flow an apply and a create share |
+| `apps/sim/lib/workspace-source/` | Workspace source use cases (`application/`), one adapter per kind (`application/kinds/<kind>/`), route policies (`api/`) |
+| `apps/sim/blocks/sdk-names/<type>.json` | Frozen SDK builder names, one file per block type |
+| `apps/sim/app/workspace/**/panel/components/code/` | The read-only Code tab |
+
+Dependencies point one way: `packages/workflow-types` → `packages/workflow-code` →
+`packages/workspace-code` and `packages/workflow-sdk` → the CLI and `apps/sim`. `check:boundaries` keeps both engines and `packages/table-cells` pure (no
+Node built-ins, `eval`, `globalThis`, dynamic import): they run in the browser, the CLI and the
+server unchanged.
+
+## Naming: "code" and "source"
+
+Both words name the same feature, split by role; follow the split rather than rename:
+
+- **code** names the feature and its engines: the packages (`workflow-code`, `workspace-code`), the
+  server glue folder `lib/workflows/code/`, the `workflow-code` flag, the Code tab.
+- **source** names the artifact and the operations on it: the files themselves, the use cases
+  (`readWorkflowSource`, `applyWorkspaceSource`), the routes (`/source`), the CLI
+  (`sim workflows source get`), `lib/workspace-source/`.
+
+A fingerprint of what the server stores now is a **stored fingerprint**: `storedFingerprint`
+(`rf1:`, a resource) and `storedSourceFingerprint` (`sf1:`, a workflow); a plan records it as
+`PlannedChange.storedFingerprint` and the apply re-reads it with `storedFingerprintNow`. The base
+records the fingerprint the directory last read (`base.fingerprint`).
+
+A new module goes where its neighbours are: an engine or engine glue under a `code` folder, a use
+case or surface under a `source` name.
+
+## The canonical model
+
+Every engine meets at the canonical workflow model (CWM): id-free, keyed by normalized block name,
+with the executable view separated from preserved state. Print and compile are inverses over it;
+canonicalize and materialize convert between it and stored state, with identity carried by the
+lock. The catalog (built from the block registry, `lib/workflows/code/catalog/`) is the only way an
+engine learns about blocks; engines never import the registry. See DESIGN.md "The canonical model"
+and "The catalog".
+
+## Feature flag
+
+One global flag, `workflow-code` (`lib/core/config/feature-flags.ts`, env fallback
+`WORKFLOW_CODE`), gates workflow source, workspace source, the source catalog and resources, and
+the Code tab. Every source operation (the workflow source ones in
+`lib/workflows/application/operations.ts` and the workspace source ones in
+`lib/workspace-source/application/operations.ts`) declares `feature: WORKFLOW_CODE_FEATURE`, which
+the shared use-case wrapper checks after authorization (`FEATURE_NOT_ENABLED`); a new source
+operation declares the same feature, never its own check. A surface outside an operation (the Code
+tab, Copilot entitlements) calls `isWorkflowCodeEnabled()` (`lib/workflows/code/feature-flag.ts`);
+the UI reads it from the workspace layout's flags.
+
+## Adding things
+
+### A block type
+
+Normal integration work, then `bun run generate:sdk-names`, which adds
+`apps/sim/blocks/sdk-names/<type>.json` and regenerates `sdk-names.generated.ts`. Nothing else: the
+catalog projection, SDK codegen, the corpus and default parity derive from the registry.
+`check:sdk-names` fails until the generator runs. Names are add-only (`check:sdk-names-frozen`):
+never edit or delete an existing entry; a collision gets a hand-picked name for the new entry.
+Goldens (`packages/workflow-code/src/print/__golden__`) print real blocks, so an edit to one of
+those blocks can change a golden: refresh with
+`bun run --cwd apps/sim test lib/workflows/code/goldens.test.ts -u`, never by hand.
+
+A block whose `value()` or condition the probe cannot evaluate (`catalog/probe.ts`) degrades to an
+opaque type: it works, with weaker SDK typing.
+
+### A subBlock type
+
+1. `SubBlockType` (`apps/sim/blocks/types.ts` and `@sim/workflow-types/blocks`).
+2. `TYPE_RULES` in `lib/workflows/code/catalog/value-kind.ts` (a total `Record`, so type-checked).
+3. `mapSubBlock` in `packages/workflow-sdk/src/codegen/map-subblock.ts` (a `never` arm).
+4. `getSubBlockValueShape` in `apps/sim/tools/param-shape.ts`, which defaults to `string`.
+5. `packages/workflow-code/src/compile/catalog.test-helpers.ts` restates the rule flags for package tests.
+6. A **structured** value (`CatalogStructuredKind`): add an entry to `STRUCTURED_CODECS`
+   (`packages/workflow-code/src/structured/index.ts`); the record is total over the kinds, so tsc
+   fails until the kind has a codec, and `StructuredCodec` (`structured/codec.ts`) lists the hook
+   each stage calls. Add corpus coverage. Only a kind lifted out of the param value into its own
+   model shape (`tools`, `branches`, the `LIFTED_STRUCTURED_KINDS`) skips the record and has its
+   own stage modules.
+7. A **selector to a workspace resource**: the resource kind (`WORKFLOW_RESOURCE_KINDS`), its live
+   loader in `lib/workspaces/resource-keys.ts`, the SDK `*Ref` type in `core.d.ts`, and the
+   manifest (`lib/workflows/application/read-source-resources.ts`,
+   `packages/workflow-sdk/src/codegen/workspace.ts`).
+
+### A table column type
+
+Follow `/add-column-type`. The workspace codec reads the column registry
+(`lib/workspace-source/application/kinds/table/codec.ts`), but three places restate it:
+
+- the `column.<type>()` helper in `packages/workflow-sdk/src/workspace/table.d.ts`
+  (`kinds/table/codec.test.ts` fails until it exists), then regenerate the embedded text
+  (`bun packages/workflow-sdk/scripts/generate-embedded-text.ts`);
+- `valueType()` in `packages/workflow-sdk/src/codegen/workspace.ts`, the row type `table('k')`
+  gives, which defaults to `string`;
+- a type that owns metadata: `TABLE_COLUMN_METADATA_KEYS` in
+  `packages/workspace-code/src/kinds/table.ts` plus the reader and printer there.
+
+### A workspace resource kind
+
+The kinds: secrets (`secrets.ts`), credentials (`credentials.ts`), custom tools, skills, MCP servers
+(`mcp/<key>.ts`), tables (with opt-in rows in `tables/<key>.rows.jsonl`, see DESIGN.md "Table
+rows"), knowledge bases, files, workflows and deployments
+(`deployments/<workflow key>.ts`, applied after workflows; see DESIGN.md "The deployment kind").
+Secrets and credentials are reference kinds declared whole in one root file (`FILE_KINDS`): see
+DESIGN.md "Reference kinds" for holding back the workflows that use an entry the workspace cannot
+satisfy.
+
+1. `APPLY_ORDER` and `KIND_DIRS` (`packages/workspace-code/src/kind.ts`) and its
+   `WORKSPACE_KIND_SPECS` entry (`src/specs.ts`: `resourceKind` is the key-table kind a workflow
+   names it by and a write claims, `null` for a kind with no key row of its own: a secret, a file
+   keyed by path, a deployment keyed by its workflow's key); every `Record<WorkspaceKind, …>` then
+   fails to type-check until it has the kind.
+2. A codec `packages/workspace-code/src/kinds/<kind>.ts` with tests; `KIND_LAYOUTS`, and
+   `BLOB_KIND_CODECS` if it holds blobs (`src/kinds/registry.ts`); its diagnostic codes.
+3. An adapter `apps/sim/lib/workspace-source/application/kinds/<kind>/adapter.ts` calling the
+   kind's own use cases; `KIND_ADAPTERS` (`application/registry.ts`); an integration test.
+4. If workflows name it by key: `WORKFLOW_RESOURCE_KINDS`, the live loader in
+   `lib/workspaces/resource-keys.ts`, the manifest in `read-source-resources.ts` and
+   `codegen/workspace.ts`, and `PENDABLE_REFERENCES` in
+   `lib/workflows/application/source-pipeline/evaluate/finalize.ts`.
+5. SDK: `packages/workflow-sdk/src/workspace/<kind>.d.ts` plus `index.d.ts`, a cookbook example
+   under `cookbook/workspace/`, then regenerate the embedded text.
+6. CLI (`workspace-source-dir.ts`): `workspaceTsconfig` includes, the `AGENTS_GUIDE` section and
+   `localDeclarations`.
+7. Contracts: regenerate the OpenAPI specs and `packages/sim-cli/src/generated/v2-api.ts`.
+
+Steps 4 to 6 have no compile-time guard: a miss ships a kind that the CLI never type-checks or
+that a workflow cannot reference.
+
+A kind whose resources workflows name a member of (an MCP server's
+tools) carries the member on the workflow change's `refs` and checks it in its adapter's
+`checkRefs`, which runs once every kind is planned. A secret-bearing field prints `stored()` or an
+env reference, never a value, and a literal secret in source is refused (`E_MCP_LITERAL_SECRET`).
+
+### A field on an existing kind
+
+Add it to the declaration type and to the kind's field table (`DeclFields`,
+`declaration/field-table.ts`: `KNOWLEDGE_FIELDS`, `MCP_FIELDS`, `SECRET_FIELDS`, …). The table is
+typed over every field of the declaration, so tsc fails until the field has an entry, and that one
+entry is how the kind reads, prints and fingerprints it. Then the server's stored → declaration
+mapping and diff, and the SDK `.d.ts`. Custom tools (`TOOL_FIELDS`) and skills
+(`FRONTMATTER_FIELDS`) use the same tables; only a tool's `code` and a skill's `content` are read,
+printed and fingerprinted by hand. A field left out of the fingerprint
+makes an edit fingerprint as unchanged and silently drops it; the kind's test fixture must set the
+field so the "reads back every declaration it prints" test covers it. A default mirrored from
+`apps/sim` (`DEFAULT_CHUNKING`) must match the server's, or every undeclared resource reads as
+changed.
+
+## Formats and versions
+
+| Artifact | Marker | Rule |
+|---|---|---|
+| `.sim/lock.json` (workflow) | `version: 1` | Add optional fields without a bump; validators learn a field before writers emit it; unknown data goes under `x-` keys |
+| `.sim/base.json` (workspace) | `version: 1` | Same policy |
+| `workflow_source_meta` | `version: 1` | Same policy; a bump needs a data migration |
+| Fingerprints | `sf1:` (workflow), `rf1:` (resource) | Any change to canonicalize or a kind's `canonical()` output changes every stored fingerprint and makes every checkout stale; treat it as a format change |
+| SDK surface | `// @sim-sdk 1`, `SDK_MAJOR`, `OLDEST_SDK_MAJOR` | Compile refuses a newer major and reads down to the floor |
+| `apps/sim/blocks/sdk-names/` | append-only | Never rename or remove a name |
+
+Nothing upgrades an old version: a bump is a hard refusal until a migration exists. A lock or base
+field also appears in the zod contracts (`workflowLockSchema`, `sourceBaseSchema` in
+`lib/api/contracts/workflow-source.ts`), so keep both in step.
+
+## Proof
+
+Behaviour is proven by properties over the real registry, not restated unit tests:
+
+- `bun run --cwd apps/sim test lib/workflows/code` runs the default corpus (sampled per block type,
+  under 60 s): round trip (`corpus/roundtrip.corpus.test.ts`, properties P0–P7 and O1–O3 in
+  DESIGN.md "Proof"), inactive params, stale outputs, secrets, default parity, goldens and SDK
+  examples.
+- `ROUNDTRIP_CORPUS_FULL=1` runs every case; `ROUNDTRIP_CORPUS_EXTRA_DIR` adds redacted production
+  states; `ROUNDTRIP_CORPUS_REPORT_PATH` writes a report. `corpus/typecheck.corpus.test.ts` with
+  `ROUNDTRIP_CORPUS_FULL=1` type-checks every printed case against the generated SDK.
+- Apply behaviour is proven against Postgres: `apps/sim/lib/workflows/application/*.integration.ts`
+  and `apps/sim/lib/workspace-source/application/*.integration.ts`.
+- The Code tab and the CLI have HTTP e2e scripts (`apps/sim/scripts/test-workflow-code-ui-e2e.ts`,
+  `test-workflow-source-e2e.ts`, `test-workspace-source-e2e.ts`).
+- Generated artifacts and their checks: `generate:sdk-names` (`check:sdk-names`,
+  `check:sdk-names-frozen`), `generate:workflow-sdk-embedded-text`
+  (`check:workflow-sdk-embedded-text`), `generate:sdk-fixture-catalog`
+  (`check:sdk-fixture-catalog`), goldens (`check:workflow-code-golden`).

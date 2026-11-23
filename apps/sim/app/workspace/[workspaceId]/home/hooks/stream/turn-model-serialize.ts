@@ -349,10 +349,7 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
             kind: 'subagent',
             event: 'start',
             agent: block.content,
-            data: {
-              ...(block.parentToolCallId ? { tool_call_id: block.parentToolCallId } : {}),
-              ...(block.subagentName ? { name: block.subagentName } : {}),
-            },
+            data: block.subagentName ? { name: block.subagentName } : {},
           },
           scopeFor(block),
           block.timestamp

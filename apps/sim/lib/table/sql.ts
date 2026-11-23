@@ -5,6 +5,7 @@
  * Uses text extraction (->>) for comparisons and pattern matching.
  */
 
+import { normalizeDateCellValue } from '@sim/table-cells/dates'
 import { isRecordLike } from '@sim/utils/object'
 import { escapeLikePattern, truncate } from '@sim/utils/string'
 import type { SQL } from 'drizzle-orm'
@@ -21,7 +22,6 @@ import {
 } from '@/lib/table/column-types'
 import { columnTextForEquality, equalityCast } from '@/lib/table/column-types/comparison-sql'
 import { NAME_PATTERN } from '@/lib/table/constants'
-import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
   ColumnDefinition,

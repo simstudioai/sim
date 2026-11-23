@@ -123,7 +123,7 @@ app:
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate with: openssl rand -hex 32 (produces the required 64-hex-char / 32-byte value).
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest; if unset, keys are stored in plain text
-    REDIS_URL: ""           # OPTIONAL - external Redis connection string. Overrides the bundled Redis (see the `redis:` section) and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
+    REDIS_URL: ""           # REQUIRED when redis.enabled=false - external Redis connection string (redis:// or rediss://). Sim requires Redis; leave empty to use the bundled one (see the `redis:` section). When set, it overrides the bundled Redis and suppresses its Deployment. A REDIS_URL from a pre-created Secret or External Secrets also wins, without needing to be repeated here.
 
     # Email & Communication
     # Configure one provider — the mailer auto-detects in priority order:
@@ -191,24 +191,8 @@ app:
     PII_URL: ""                                           # Presidio PII service URL; auto-computed when pii.enabled, override here otherwise
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
 
-    # UI Branding & Whitelabeling Configuration
-    NEXT_PUBLIC_BRAND_NAME: ""                            # Custom brand name (default "Sim" via envDefaults)
-    NEXT_PUBLIC_BRAND_LOGO_URL: ""                        # Custom logo URL — square icon, shown in collapsed sidebar
-    NEXT_PUBLIC_BRAND_WORDMARK_URL: ""                    # Custom wordmark URL — wide image, shown in expanded sidebar
-    NEXT_PUBLIC_BRAND_FAVICON_URL: ""                     # Custom favicon URL (leave empty for default)
-    NEXT_PUBLIC_BRAND_PRIMARY_COLOR: ""                   # Primary brand color (hex, e.g., "#701a75")
-    NEXT_PUBLIC_BRAND_ACCENT_COLOR: ""                    # Accent color (hex, e.g., "#9333ea")
-    NEXT_PUBLIC_BRAND_BACKGROUND_COLOR: ""                # Background color (hex, e.g., "#ffffff")
-    NEXT_PUBLIC_CUSTOM_CSS_URL: ""                        # Custom stylesheet URL (leave empty for none)
-    NEXT_PUBLIC_SUPPORT_EMAIL: ""                        # Support email address (default "help@sim.ai" via envDefaults)
-    NEXT_PUBLIC_DOCUMENTATION_URL: ""                    # Documentation URL (leave empty for none)
-    NEXT_PUBLIC_TERMS_URL: ""                            # Terms of service URL (leave empty for none)
-    NEXT_PUBLIC_PRIVACY_URL: ""                          # Privacy policy URL (leave empty for none)
-
     # Registration Control
-    DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
-    EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
-    NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: ""         # Set to "false" to hide email/password login form (UI-side)
+    REGISTRATION_MODE: ""                                 # open (default) | no-email-signup | closed | no-email | closed-no-email; no-email* also disables email/password login. Replaces DISABLE_REGISTRATION, DISABLE_EMAIL_SIGNUP, EMAIL_PASSWORD_SIGNUP_ENABLED
 
     # Bot Protection (Cloudflare Turnstile)
     TURNSTILE_SECRET_KEY: ""                              # Cloudflare Turnstile secret key (leave empty to disable captcha)
@@ -221,11 +205,11 @@ app:
     # Admin API Configuration
     ADMIN_API_KEY: ""                                    # Admin API key for organization/user management (generate with: openssl rand -hex 32)
 
-    # Enterprise feature set (defaults to "false" via envDefaults — set "true" here to enable)
-    # ENTERPRISE_ENABLED turns on every enterprise feature; the per-feature flags
-    # below override it either way. See docs: /platform/enterprise/self-hosted
+    # Enterprise feature set. ENTERPRISE_ENABLED turns on every enterprise feature; the
+    # per-feature flags below override it either way. Each feature is one server variable:
+    # the browser reads the server-resolved state, so there are no NEXT_PUBLIC_ twins.
+    # See docs: /platform/enterprise/self-hosted
     ENTERPRISE_ENABLED: ""                               # Enable all enterprise features ("true" to enable)
-    NEXT_PUBLIC_ENTERPRISE_ENABLED: ""                   # Show all enterprise UI ("true" to enable)
 
     # Instance-tier organization — every user auto-joins this one org at signup
     INSTANCE_ORG_NAME: ""                                # Organization name; setting it turns instance-org mode on
@@ -233,10 +217,8 @@ app:
     INSTANCE_ORG_OWNER_EMAIL: ""                         # Optional owner email (defaults to the first user to sign up)
 
     # Organizations & Permission Groups (per-feature overrides)
-    ACCESS_CONTROL_ENABLED: ""                           # Enable permission groups feature ("true" to enable)
+    ACCESS_CONTROL_ENABLED: ""                           # Enable permission groups feature ("true" to enable; implies organizations)
     ORGANIZATIONS_ENABLED: ""                            # Enable organizations feature ("true" to enable)
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""               # Show permission groups UI ("true" to enable)
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""                # Show organizations UI ("true" to enable)
 
     # LLM Provider/Model Restrictions (leave empty if not restricting)
     BLACKLISTED_PROVIDERS: ""                            # Comma-separated provider IDs to hide from UI (e.g., "openai,anthropic,google")
@@ -257,7 +239,7 @@ app:
     # SSO Configuration (Enterprise Single Sign-On)
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
-    NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+    SCIM_ENABLED: ""                                      # Enable SCIM directory provisioning; needs SSO ("true" to enable)
     # Self-hosted only: trust every organization owner/admin to verify domains without DNS proof.
     # Requires a compatible app image; see https://docs.sim.ai/platform/enterprise/verified-domains#skip-dns-verification
     SSO_SKIP_DOMAIN_VERIFICATION: ""                      # Opt in with "true"; unset/"false" requires DNS
@@ -266,17 +248,18 @@ app:
     # assert email_verified (trustEmailVerified already handles those that do). Resolved at startup — restart after editing.
     SSO_TRUSTED_PROVIDER_IDS: ""
 
-    # Enterprise Feature Overrides (self-hosted)
-    INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
-    NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
-    WHITELABELING_ENABLED: ""                             # Enable whitelabeling on self-hosted ("true" to enable)
-    NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
+    # Enterprise Feature Overrides (self-hosted). Empty means unset, which lets
+    # ENTERPRISE_ENABLED (or the feature's default) decide; "false" switches one off.
+    INBOX_ENABLED: ""                                     # Sim Mailer; on by default without billing ("false" to disable)
+    SESSION_POLICIES_ENABLED: ""                          # Org session policies; on by default without billing ("false" to disable)
     AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
-    NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
     CUSTOM_BLOCKS_ENABLED: ""                             # Enable custom blocks on self-hosted ("true" to enable)
-    NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED: ""                 # Show custom blocks settings page ("true" to enable)
     DATA_DRAINS_ENABLED: ""                               # Enable data drains on self-hosted ("true" to enable)
-    NEXT_PUBLIC_DATA_DRAINS_ENABLED: ""                   # Show data drains settings page ("true" to enable)
+    DATA_RETENTION_ENABLED: ""                            # Run retention deletion on self-hosted ("true" to enable)
+    USAGE_MONITORING_ENABLED: ""                          # Enable org usage monitoring on self-hosted ("true" to enable)
+    FORKING_ENABLED: ""                                   # Enable workspace forks on self-hosted ("true" to enable)
+    CREDENTIAL_GROUPS: ""                                 # Enable Credential Groups on self-hosted ("true" to enable)
+    SANDBOXES_ENABLED: ""                                 # Entitle custom sandboxes; also needs a remote sandbox provider ("true" to enable)
 
     # AWS Bedrock Credential Mode
     # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
@@ -363,20 +346,6 @@ app:
 
     # Vertex AI defaults
     VERTEX_LOCATION: "us-central1"
-
-    # Branding defaults
-    NEXT_PUBLIC_BRAND_NAME: "Sim"
-    NEXT_PUBLIC_SUPPORT_EMAIL: "help@sim.ai"
-
-    # Feature flags — left EMPTY, not "false", on purpose.
-    # A per-feature flag set to "false" is an explicit override that wins over
-    # ENTERPRISE_ENABLED, so hardcoding "false" here would silently prevent the
-    # master switch from ever enabling these. Empty means "unset", which lets
-    # ENTERPRISE_ENABLED decide. Set "true"/"false" in app.env to override.
-    ACCESS_CONTROL_ENABLED: ""
-    ORGANIZATIONS_ENABLED: ""
-    NEXT_PUBLIC_ACCESS_CONTROL_ENABLED: ""
-    NEXT_PUBLIC_ORGANIZATIONS_ENABLED: ""
 
     # Admission Gate
     ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
@@ -477,7 +446,7 @@ app:
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Additional volumes for app deployment (e.g., branding assets, custom configs)
+  # Additional volumes for app deployment (e.g., custom configs)
   extraVolumes: []
   extraVolumeMounts: []
 
@@ -589,12 +558,15 @@ realtime:
   extraVolumes: []
   extraVolumeMounts: []
 
-# Redis — pub/sub, the Socket.IO adapter, and the idempotency/progress stores.
-# Bundled by default so a chart install matches the Docker Compose stack.
-# REQUIRED once app.replicaCount or realtime.replicaCount exceeds 1: without it
-# cross-pod events are silently dropped. For production prefer a managed
-# instance (ElastiCache, Memorystore, Azure Cache) — set enabled: false and put
-# its connection string in app.env.REDIS_URL, which then takes over.
+# Redis — REQUIRED. Backs rate limiting, pub/sub, the Socket.IO adapter, OTPs,
+# and the idempotency/progress stores; the app refuses to start without it.
+# Bundled by default so a chart install matches the Docker Compose stack. For
+# production prefer a managed instance (ElastiCache, Memorystore, Azure Cache) —
+# set enabled: false and supply its connection string as app.env.REDIS_URL (or
+# realtime.env.REDIS_URL), a REDIS_URL entry in extraEnvVars, a pre-created app
+# Secret, or externalSecrets.remoteRefs.app.REDIS_URL. app.envDefaults and
+# realtime.envDefaults each reach only their own pod. The chart fails to render
+# when enabled: false and no source reaches every enabled app/realtime pod.
 redis:
   enabled: true
 
@@ -1122,12 +1094,10 @@ serviceAccount:
 # if you use customMetrics) installed in the cluster.
 autoscaling:
   enabled: false
-  # Also scale the realtime Deployment with the same HPA settings. Multi-replica
-  # realtime REQUIRES Redis past one replica (Socket.IO adapter) — without it,
-  # cross-pod collaboration events are silently dropped. The chart bundles Redis
-  # by default, so this is satisfied unless you set redis.enabled=false without
-  # supplying app.env.REDIS_URL. Set false to
-  # keep realtime pinned at realtime.replicaCount while the app still scales.
+  # Also scale the realtime Deployment with the same HPA settings. Realtime
+  # bridges cross-pod collaboration events through Redis (always present: the
+  # chart bundles it or you supply REDIS_URL). Set false to keep realtime pinned
+  # at realtime.replicaCount while the app still scales.
   realtime:
     enabled: true
   minReplicas: 1
@@ -1180,31 +1150,6 @@ podDisruptionBudget:
   # Set to null to use K8s default (IfHealthyBudget)
   unhealthyPodEvictionPolicy: null
 
-# Prometheus monitoring integration.
-# Creates a ServiceMonitor CR scraped by the Prometheus Operator. Requires
-# the kube-prometheus-stack (or prometheus-operator) CRDs to be installed
-# in the cluster — otherwise the manifest is rejected by the API server.
-monitoring:
-  # ServiceMonitor for Prometheus
-  serviceMonitor:
-    enabled: false
-    # Additional labels for ServiceMonitor
-    labels: {}
-    # Additional annotations for ServiceMonitor
-    annotations: {}
-    # Metrics path
-    path: /metrics
-    # Scrape interval
-    interval: 30s
-    # Scrape timeout
-    scrapeTimeout: 10s
-    # Target labels to be added to scraped metrics
-    targetLabels: []
-    # Metric relabeling configurations
-    metricRelabelings: []
-    # Relabeling configurations
-    relabelings: []
-
 # NetworkPolicy for east-west and egress isolation.
 # When enabled, the chart creates policies that allow Sim components to talk
 # to each other and to required external services (DNS, HTTPS) while blocking
@@ -1253,67 +1198,9 @@ networkPolicy:
   # selector and do not need it.
   allowExternalEgress: false
 
-# Shared storage for enterprise workflows requiring data sharing between pods
-sharedStorage:
-  enabled: false
-  # Storage class for shared volumes (must support ReadWriteMany access)
-  storageClass: ""
-  # Default access modes for shared volumes (ReadWriteMany required for multi-pod access)
-  defaultAccessModes:
-    - ReadWriteMany
-  # Define shared volumes for your workflows (uncomment and customize as needed)
-  # Example volume configurations:
-  # volumes:
-  #   - name: output-share
-  #     size: 100Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  #     annotations: {}
-  #   - name: rawdata-share
-  #     size: 500Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  #   - name: model-share
-  #     size: 200Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  #   - name: logs-share
-  #     size: 50Gi
-  #     accessModes:
-  #       - ReadWriteMany
-  volumes: []
-
 # Additional volumes for custom configurations (advanced users)
 extraVolumes: []
 extraVolumeMounts: []
-
-# Branding configuration
-# Use this to inject custom branding assets (logos, CSS, etc.) into the application
-branding:
-  # Enable/disable branding ConfigMap
-  enabled: false
-
-  # Mount path in the container where branding files will be available
-  # Must sit inside the image's public directory, which the standalone build
-  # places at /app/apps/sim/public — a path outside it serves nothing.
-  mountPath: "/app/apps/sim/public/branding"
-
-  # Text files (CSS, JSON, HTML, etc.) - values are plain text
-  # Example:
-  #   files:
-  #     custom.css: |
-  #       .logo { background-color: #ff0000; }
-  #     config.json: |
-  #       {"theme": "dark"}
-  files: {}
-
-  # Binary files (PNG, JPG, ICO, etc.) - values must be base64 encoded
-  # Generate base64 with: base64 -i logo.png | tr -d '\n'
-  # Example:
-  #   binaryFiles:
-  #     logo.png: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk..."
-  #     favicon.ico: "AAABAAEAEBAAAAEAIABoBAAAFgAAAA..."
-  binaryFiles: {}
 
 # Additional environment variables for custom integrations
 extraEnvVars: []
@@ -1551,6 +1438,16 @@ cronjobs:
       name: cleanup-oauth-tokens
       schedule: "0 * * * *"
       path: "/api/cron/cleanup-oauth-tokens"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    # Deletes workspace source blobs staged for an apply that never came (a day after last use).
+    cleanupSourceStaging:
+      enabled: true
+      name: cleanup-source-staging
+      schedule: "30 * * * *"
+      path: "/api/cron/cleanup-source-staging"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
@@ -2051,7 +1948,7 @@ externalSecrets:
       ENCRYPT_ACCOUNT_TOKENS: ""
       # Path to MSHIP_SYSPROMPT_OVERRIDE in external store (optional)
       MSHIP_SYSPROMPT_OVERRIDE: ""
-      # Path to REDIS_URL in external store (optional)
+      # Path to REDIS_URL in external store (required when redis.enabled=false; overrides the bundled Redis)
       REDIS_URL: ""
 
     # PostgreSQL password (for internal PostgreSQL)

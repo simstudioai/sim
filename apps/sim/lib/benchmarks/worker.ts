@@ -119,7 +119,7 @@ export async function executeBenchmarkJson<S extends z.ZodType>(input: {
       { ...payload },
       {
         benchmark: input.profile?.stage ?? 'tool-free',
-        goRoute: '/api/mothership/execute',
+        workerRoute: '/api/mothership/execute',
         userId: executionUserId,
         ...scope,
         chatId: payload.chatId,
@@ -187,7 +187,7 @@ export async function executeBenchmarkPlan(input: {
   try {
     result = await runHeadlessCopilotLifecycle(payload, {
       benchmark: 'plan',
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       userId: executionUserId,
       organizationId: input.benchmark.organizationId,
       chatId: target.chatId,

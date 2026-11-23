@@ -1,0 +1,62 @@
+{
+  "namespace": "fivetran",
+  "methods": {
+    "cancel_transformation": "cancelTransformation",
+    "create_connect_card": "createConnectCard",
+    "create_connection": "createConnection",
+    "create_destination": "createDestination",
+    "create_group": "createGroup",
+    "delete_connection": "deleteConnection",
+    "get_account_info": "getAccountInfo",
+    "get_connection": "getConnection",
+    "get_connection_schema_config": "getSchemaConfig",
+    "get_connection_warnings": "getConnectionWarnings",
+    "get_connector_type": "getConnectorType",
+    "get_destination": "getDestination",
+    "get_group": "getGroup",
+    "get_sync_history": "getSyncHistory",
+    "get_transformation": "getTransformation",
+    "list_connections": "listConnections",
+    "list_connector_types": "listConnectorTypes",
+    "list_destinations": "listDestinations",
+    "list_groups": "listGroups",
+    "list_transformations": "listTransformations",
+    "list_users": "listUsers",
+    "pause_connection": "pauseConnection",
+    "reload_connection_schema": "reloadSchema",
+    "resume_connection": "resumeConnection",
+    "resync_connection": "reSyncConnection",
+    "resync_tables": "reSyncTables",
+    "run_connection_setup_tests": "runConnectionSetupTests",
+    "run_destination_setup_tests": "runDestinationSetupTests",
+    "run_transformation": "runTransformation",
+    "sync_connection": "syncConnection",
+    "update_connection": "updateConnection",
+    "update_connection_schema": "updateSchemaSync",
+    "update_connection_table": "updateTableSync",
+    "update_schema_config": "updateSchemaConfig"
+  },
+  "triggers": {
+    "fivetran_connection_failure": "connectionFailure",
+    "fivetran_connection_successful": "connectionSuccessful",
+    "fivetran_create_connector": "createConnector",
+    "fivetran_delete_connector": "deleteConnector",
+    "fivetran_edit_connector": "editConnector",
+    "fivetran_force_update_connector": "forceUpdateConnector",
+    "fivetran_pause_connector": "pauseConnector",
+    "fivetran_resume_connector": "resumeConnector",
+    "fivetran_resync_connector": "resyncConnector",
+    "fivetran_resync_table": "resyncTable",
+    "fivetran_sync_end": "syncEnd",
+    "fivetran_sync_start": "syncStart",
+    "fivetran_transformation_failed": "transformationFailed",
+    "fivetran_transformation_start": "transformationStart",
+    "fivetran_transformation_succeeded": "transformationSucceeded",
+    "fivetran_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

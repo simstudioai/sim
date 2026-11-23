@@ -98,7 +98,7 @@ import {
   settleClientWorkflowToolExecution,
 } from '@/lib/mothership/async-runs/repository'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
-import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { CopilotDegradedReason } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import {
   reportQueuedClientWorkflowTool,
@@ -151,7 +151,10 @@ import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
 } from '@/lib/workflows/streaming/forward-agent-stream-events'
-import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
+import {
+  resolveOutputSelectors,
+  resolveOutputSelectorsLeniently,
+} from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
@@ -1460,6 +1463,20 @@ async function handleExecutePost(
       }
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
+      /**
+       * The executor reads only the internal selector form; a public `block.path` reaching
+       * a child-workflow block would read as `workflow.block`. The sync response has never
+       * refused a stale selector, so one that names no block is dropped, not answered with 400.
+       */
+      const syncSelection = resolveOutputSelectorsLeniently({
+        selectedOutputs,
+        currentBlocks: effectiveWorkflowStateOverride?.blocks ?? {},
+      })
+      if (syncSelection.rejected.length > 0) {
+        reqLogger.warn('Ignoring selected outputs that name no block', {
+          rejected: syncSelection.rejected,
+        })
+      }
 
       const timeoutController = createTimeoutAbortController(getEffectiveSyncTimeoutMs())
       const didExecutionTimeOut = (error?: unknown) =>
@@ -1484,7 +1501,7 @@ async function handleExecutePost(
           workflow,
           processedInput,
           executionVariables,
-          selectedOutputs
+          syncSelection.selectedOutputs
         )
 
         const result = await executeWorkflowCore({

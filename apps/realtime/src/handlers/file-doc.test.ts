@@ -30,6 +30,11 @@ const {
 
 vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: vi.fn() }))
 
+vi.mock('redis', async () => {
+  const { makeClient } = await import('@/handlers/fixtures/redis.fixture')
+  return { createClient: () => makeClient() }
+})
+
 vi.mock('@/handlers/file-doc-app', () => ({
   fetchFileDocAccess: mockFetchFileDocAccess,
   fetchFileDocSeed: mockFetchFileDocSeed,
@@ -44,7 +49,12 @@ import {
   invalidateLiveFileDocument,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
-import { FileDocInvalidatedError, getFileDocStore } from '@/handlers/file-doc-store'
+import {
+  FileDocInvalidatedError,
+  getFileDocStore,
+  initFileDocStore,
+} from '@/handlers/file-doc-store'
+import { createBacking, fakeRedis } from '@/handlers/fixtures/redis.fixture'
 import { publishRoomPermission } from '@/handlers/room-permission'
 import * as permissions from '@/middleware/permissions'
 import {
@@ -87,7 +97,7 @@ function createIo(
       left.push({ socketId, room })
     },
   }))
-  // With the shared store disabled, local and adapter broadcasts reach the same clients.
+  // A single replica: local and adapter broadcasts reach the same clients.
   return {
     io: {
       to,
@@ -158,9 +168,8 @@ function setup(id: string, io: IRoomManager['io'], socketOverrides?: Record<stri
 
 const FILE_DOC_FIELD = 'default'
 
-/** Let a fire-and-forget `void ensureServerSeed(...)` chain settle (mock resolves synchronously). */
-/** Enough turns to drain the fire-and-forget seed chain (shouldSeed → fetch → fence → publish → apply). */
-const SEED_CHAIN_TICKS = 8
+/** Enough turns to drain a fire-and-forget chain (seed, append, persist) through the fake Redis store. */
+const SEED_CHAIN_TICKS = 200
 
 /**
  * An encoded Yjs update shaped like the server seed builder's output: some content in the shared
@@ -215,7 +224,9 @@ function joinSuccessFileId(socket: { emit: ReturnType<typeof vi.fn> }) {
 }
 
 describe('setupWorkspaceFileDocHandlers', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    fakeRedis.backing = createBacking()
+    await initFileDocStore('redis://fake')
     mockFetchFileDocAccess.mockResolvedValue({
       allowed: true,
       status: 200,
@@ -554,12 +565,18 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const { io } = createIo()
     const { handlers } = setup('socket-closing-update', io)
     await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const store = getFileDocStore()
+    const appendToStream = store.publishClientUpdateAndWait.bind(store)
     let finishAppend!: () => void
-    const append = vi.spyOn(getFileDocStore(), 'publishClientUpdateAndWait').mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        finishAppend = resolve
+    const appendGate = new Promise<void>((resolve) => {
+      finishAppend = resolve
+    })
+    const append = vi
+      .spyOn(store, 'publishClientUpdateAndWait')
+      .mockImplementationOnce(async (...args) => {
+        await appendGate
+        return appendToStream(...args)
       })
-    )
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'accepted before socket close')
     const ack = vi.fn()

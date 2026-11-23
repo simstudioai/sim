@@ -938,7 +938,7 @@ describe('handleUnifiedChatPost', () => {
         workspaceId: 'ws-1',
         orchestrateOptions: expect.objectContaining({
           workflowId: 'wf-1',
-          goRoute: '/api/copilot',
+          workerRoute: '/api/copilot',
           executionContext: expect.objectContaining({
             userId: 'user-1',
             workflowId: 'wf-1',
@@ -1007,7 +1007,7 @@ describe('handleUnifiedChatPost', () => {
         workspaceId: 'ws-1',
         orchestrateOptions: expect.objectContaining({
           workspaceId: 'ws-1',
-          goRoute: '/api/mothership',
+          workerRoute: '/api/mothership',
           executionContext: expect.objectContaining({
             userId: 'user-1',
             workflowId: '',

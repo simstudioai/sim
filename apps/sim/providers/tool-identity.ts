@@ -4,6 +4,17 @@ import type { ProviderResponse, ProviderToolConfig } from '@/providers/types'
 
 const MAX_PROVIDER_TOOL_ID_LENGTH = 64
 const PROVIDER_ALIAS_MARKER = '__sim_'
+/** Characters outside every provider's function-name alphabet (Anthropic: `^[a-zA-Z0-9_-]{1,128}$`). */
+const PROVIDER_UNSAFE_TOOL_ID_CHARS = /[^a-zA-Z0-9_-]/g
+
+/**
+ * The id with every character no provider accepts in a function name replaced by `_`. A custom
+ * tool's canonical id carries its display title (`custom_Get Weather`), which execution resolves by
+ * title, so only the wire id is made safe and the canonical id keeps the title.
+ */
+function toProviderSafeToolId(toolId: string): string {
+  return toolId.replace(PROVIDER_UNSAFE_TOOL_ID_CHARS, '_')
+}
 
 export interface ProviderToolIdentityMap {
   /** Provider-only tool id to the canonical registry id used for execution and observability. */
@@ -18,10 +29,12 @@ function buildProviderAlias(toolId: string, occurrence: number, attempt: number)
 }
 
 /**
- * Gives duplicate configured tools deterministic provider-safe wire ids.
+ * Gives configured tools deterministic provider-safe wire ids.
  *
- * The first occurrence and every already-unique tool keep their existing id for backwards
- * compatibility. Later occurrences receive opaque ordinal aliases; resource and credential ids
+ * The first occurrence and every already-unique tool with a provider-safe id keep it for backwards
+ * compatibility. An id with characters no provider accepts (a custom tool titled `Get Weather`) is
+ * sent with them replaced by `_`, and one longer than the strictest provider limit is cut to it;
+ * when either collides with another tool's id it is aliased like a later occurrence. Later occurrences receive opaque ordinal aliases; resource and credential ids
  * never enter the provider-visible name. Tool objects are updated in place so their instance-bound
  * params and secret provenance remain attached to the exact object selected by provider adapters.
  */
@@ -46,11 +59,12 @@ export function assignProviderToolIdentities<
     const occurrence = (occurrences.get(canonicalId) ?? 0) + 1
     occurrences.set(canonicalId, occurrence)
 
-    let wireId = canonicalId
-    if (usedWireIds.has(wireId)) {
+    const safeId = toProviderSafeToolId(canonicalId)
+    let wireId = safeId.slice(0, MAX_PROVIDER_TOOL_ID_LENGTH)
+    if (usedWireIds.has(wireId) || (wireId !== canonicalId && reservedIds.has(wireId))) {
       let attempt = 0
       do {
-        wireId = buildProviderAlias(canonicalId, occurrence, attempt)
+        wireId = buildProviderAlias(safeId, occurrence, attempt)
         attempt += 1
       } while (reservedIds.has(wireId) || usedWireIds.has(wireId))
     }

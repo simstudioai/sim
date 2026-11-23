@@ -1,0 +1,10 @@
+{
+  "namespace": "exa",
+  "methods": {
+    "exa_agent": "agent",
+    "exa_answer": "answer",
+    "exa_find_similar_links": "findSimilarLinks",
+    "exa_get_contents": "getContents",
+    "exa_search": "search"
+  }
+}

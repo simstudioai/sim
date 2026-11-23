@@ -73,28 +73,17 @@ export const handleRunEvent: StreamHandler = (event, context) => {
   }
 
   if (event.payload.kind === MothershipStreamV1RunKind.checkpoint_pause) {
-    const frames = (event.payload.frames ?? []).map((frame) => ({
-      parentToolCallId: frame.parentToolCallId,
-      parentToolName: frame.parentToolName,
-      pendingToolIds: frame.pendingToolIds,
-      // Carried through for the per-subagent resume fan-out; undefined under the
-      // legacy bundled-frame model (all frames share the top-level checkpointId).
-      ...(frame.checkpointId ? { checkpointId: frame.checkpointId } : {}),
-    }))
-
     context.awaitingAsyncContinuation = {
       checkpointId: event.payload.checkpointId,
       executionId: event.payload.executionId || context.executionId,
       runId: event.payload.runId || context.runId,
       pendingToolCallIds: event.payload.pendingToolCallIds,
-      frames: frames.length > 0 ? frames : undefined,
     }
     logger.info('Received checkpoint pause', {
       checkpointId: context.awaitingAsyncContinuation.checkpointId,
       executionId: context.awaitingAsyncContinuation.executionId,
       runId: context.awaitingAsyncContinuation.runId,
       pendingToolCallIds: context.awaitingAsyncContinuation.pendingToolCallIds,
-      frameCount: frames.length,
     })
     context.streamComplete = true
     return
@@ -104,13 +93,6 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     if (!findActiveCompactionBlock(context, event)) {
       addCompactionBlock(context, event, 'executing')
     }
-    return
-  }
-
-  if (event.payload.kind === MothershipStreamV1RunKind.resumed) {
-    context.awaitingAsyncContinuation = undefined
-    context.streamComplete = false
-    logger.info('Received run resumed event')
     return
   }
 

@@ -1,25 +1,18 @@
 import { Body, Container, Font, Head, Html, Img, Preview, Section } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailFooter } from '@/components/emails/components/email-footer'
-import { EMAIL_WORDMARK_SIZE } from '@/lib/branding/wordmark'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 /**
- * Sim's own wordmark: a committed raster export of the brand outlines in
- * `@/lib/branding/wordmark`, since email clients strip inline SVG. Both
- * dimensions are pinned because they do no responsive image selection either.
+ * Display box for `public/brand/color/email/wordmark.png`, a raster export of the
+ * brand outlines since email clients strip inline SVG. Both dimensions are pinned
+ * because email clients do no responsive image selection.
+ *
+ * The PNG's 272x164 canvas is frozen: sent mail refetches that URL forever with
+ * the size it was sent with, so re-export onto the same canvas. This box is safe
+ * to retune on its own; the canvas is 6x it, so the mark stays crisp.
  */
-const WORDMARK_SIZE = {
-  width: String(EMAIL_WORDMARK_SIZE.width),
-  height: String(EMAIL_WORDMARK_SIZE.height),
-} as const
-
-/**
- * Whitelabeled logos are arbitrary aspect ratios, so only height is pinned —
- * matched to the wordmark so both marks read at the same weight.
- */
-const CUSTOM_LOGO_SIZE = { height: String(EMAIL_WORDMARK_SIZE.height) } as const
+const WORDMARK_SIZE = { width: '43', height: '26' } as const
 
 interface EmailLayoutProps {
   /** Preview text shown in email client list view */
@@ -45,9 +38,7 @@ export function EmailLayout({
   hideFooter = false,
   showUnsubscribe,
 }: EmailLayoutProps) {
-  const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
-  const hasCustomLogo = Boolean(brand.logoUrl)
 
   return (
     <Html>
@@ -75,10 +66,10 @@ export function EmailLayout({
         <Container style={baseStyles.container}>
           <Section style={baseStyles.header}>
             <Img
-              src={brand.logoUrl || `${baseUrl}/brand/color/email/wordmark.png`}
-              alt={brand.name}
-              {...(hasCustomLogo ? CUSTOM_LOGO_SIZE : WORDMARK_SIZE)}
-              style={hasCustomLogo ? { display: 'block', width: 'auto' } : { display: 'block' }}
+              src={`${baseUrl}/brand/color/email/wordmark.png`}
+              alt='Sim'
+              {...WORDMARK_SIZE}
+              style={{ display: 'block' }}
             />
           </Section>
 

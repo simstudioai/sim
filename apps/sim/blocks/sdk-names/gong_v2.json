@@ -1,0 +1,43 @@
+{
+  "namespace": "gong",
+  "methods": {
+    "aggregate_activity": "aggregateActivity",
+    "aggregate_by_period": "aggregateByPeriod",
+    "answered_scorecards": "answeredScorecards",
+    "ask_anything": "askAnything",
+    "assign_flow_prospects": "assignFlowProspects",
+    "create_call": "createCall",
+    "day_by_day_activity": "dayByDayActivity",
+    "get_brief": "getBrief",
+    "get_call": "getCall",
+    "get_call_transcript": "getCallTranscript",
+    "get_coaching": "getCoaching",
+    "get_extensive_calls": "getExtensiveCalls",
+    "get_folder_content": "getFolderContent",
+    "get_logs": "getLogs",
+    "get_prospect_flows": "getProspectFlows",
+    "get_user": "getUser",
+    "interaction_stats": "interactionStats",
+    "list_calls": "listCalls",
+    "list_flows": "listFlows",
+    "list_library_folders": "listLibraryFolders",
+    "list_scorecards": "listScorecards",
+    "list_trackers": "listTrackers",
+    "list_users": "listUsers",
+    "list_workspaces": "listWorkspaces",
+    "lookup_email": "lookupEmail",
+    "lookup_phone": "lookupPhone",
+    "purge_email_address": "purgeEmailAddress",
+    "purge_phone_number": "purgePhoneNumber",
+    "unassign_flow_prospects": "unassignFlowProspects"
+  },
+  "triggers": {
+    "gong_call_completed": "callCompleted",
+    "gong_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -11,12 +11,13 @@ import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
-  resolveWorkspaceBillingPayer,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
-import { payerHasPaidAccess } from '@/lib/billing/core/chat-access'
-import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import {
+  HostedKeyRequiresPaidPlanError,
+  mayUseHostedKey,
+} from '@/lib/billing/core/hosted-key-access'
+import { isHosted } from '@/lib/core/config/env-flags'
 import {
   findDatabaseQueryError,
   getUserFacingErrorMessage,
@@ -100,6 +101,11 @@ import {
   recordServiceCost,
   recordServiceMeteringFailure,
 } from '@/lib/mothership/billing/service-observer'
+import {
+  applySecretMountPolicy,
+  filterSecretNamesByMountPolicy,
+  type SecretMountPolicy,
+} from '@/lib/mothership/secret-mount-policy'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { isFalAICostSource } from '@/lib/tools/falai-pricing'
@@ -119,11 +125,7 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
-import {
-  HostedKeyRateLimitedError,
-  HostedKeyRequiresPaidPlanError,
-  HostedKeyUnavailableError,
-} from '@/tools/errors'
+import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
 import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
@@ -189,6 +191,8 @@ interface ToolExecutionScope {
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
   envReferenceMode?: ToolEnvReferenceMode
+  /** A Copilot turn's secret allowlist; names outside it never resolve into a param. */
+  secretMountPolicy?: SecretMountPolicy
   billingAttribution?: BillingAttributionSnapshot
 }
 
@@ -222,6 +226,7 @@ function resolveToolScope(
       ((executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution)
         ? 'explicit-and-bare'
         : 'off'),
+    secretMountPolicy: ctx?.secretMountPolicy as SecretMountPolicy | undefined,
     billingAttribution: (executionContext?.metadata.billingAttribution ??
       ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
   }
@@ -462,7 +467,15 @@ async function resolveToolEnvReferences(
     const environmentScope = { userId: scope.userId, workspaceId: scope.workspaceId }
     const { getEffectiveEnvironmentSnapshot } = await import('@/lib/environment/utils')
     const environment = await getEffectiveEnvironmentSnapshot(scope.userId, scope.workspaceId)
-    const envVars = { ...environment.personalDecrypted, ...environment.workspaceDecrypted }
+    const availableEnvVars = {
+      ...environment.personalDecrypted,
+      ...environment.workspaceDecrypted,
+    }
+    const envVars = Object.fromEntries(
+      filterSecretNamesByMountPolicy(Object.keys(availableEnvVars), scope.secretMountPolicy).map(
+        (name) => [name, availableEnvVars[name]]
+      )
+    )
 
     for (const { paramId, value, soft } of pending) {
       const missingKeys: string[] = []
@@ -482,6 +495,9 @@ async function resolveToolEnvReferences(
         // A bare name that matches no variable is treated as the literal
         // credential it probably is; only explicit reference forms error.
         if (soft) continue
+        if (Object.hasOwn(availableEnvVars, missingKeys[0])) {
+          applySecretMountPolicy(missingKeys, scope.secretMountPolicy)
+        }
         const scopeHint = scope.workspaceId
           ? ''
           : ' (no workspace context — only personal variables are available here)'
@@ -586,40 +602,6 @@ async function registerAssistantCredentialSecrets(
   }
 }
 
-/**
- * Refuses a `requiresPaidPlan` hosted key to a run whose payer lacks paid access. The payer is
- * the run's admitted attribution, or the workspace's payer for a surface that carries none; a
- * workspace without a payer, or a free payer whose credit balance cannot be read, is refused.
- */
-async function assertPayerMayUseHostedKey(
-  tool: ToolDefinition,
-  workspaceId: string | undefined,
-  billingAttribution: BillingAttributionSnapshot | undefined
-): Promise<void> {
-  if (!isBillingEnabled) return
-
-  let payer: UsageUpgradePayer | null = billingAttribution ?? null
-  if (!payer && workspaceId) {
-    const workspacePayer = await resolveWorkspaceBillingPayer(workspaceId, {
-      onMissing: 'return-null',
-    })
-    if (workspacePayer) {
-      payer = {
-        billingEntity: workspacePayer.organizationId
-          ? { type: 'organization', id: workspacePayer.organizationId }
-          : { type: 'user', id: workspacePayer.billedAccountUserId },
-        payerSubscription: workspacePayer.payerSubscription,
-      }
-    }
-  }
-
-  if (payer && (await payerHasPaidAccess(payer, { onBalanceUnavailable: 'deny' }))) return
-
-  throw new HostedKeyRequiresPaidPlanError(
-    `${tool.name} with Sim's hosted key is available on paid plans. Upgrade your plan, or add your own API key under Settings > BYOK.`
-  )
-}
-
 /** Result from hosted key injection */
 interface HostedKeyInjectionResult {
   isUsingHostedKey: boolean
@@ -662,7 +644,8 @@ function applyCredentialParams(
 
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
- * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
+ * Checks BYOK workspace keys first, refuses Sim's key to a payer without paid access, then uses the
+ * HostedKeyRateLimiter for round-robin key selection.
  * Returns whether a hosted (billable) key was injected and which env var it came from.
  */
 async function injectHostedKeyIfNeeded(
@@ -701,8 +684,8 @@ async function injectHostedKeyIfNeeded(
     }
   }
 
-  if (tool.hosting.requiresPaidPlan) {
-    await assertPayerMayUseHostedKey(tool, workspaceId, billingAttribution)
+  if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
+    throw new HostedKeyRequiresPaidPlanError(tool.name)
   }
 
   const rateLimiter = getHostedKeyRateLimiter()
@@ -1007,9 +990,11 @@ interface HostedKeyCostResult {
  * Returns the cost and its metadata for the caller to attach to the tool
  * output. It does NOT write a usage-ledger row: the only `usageLog` insert is
  * `recordUsage` in `lib/billing/core/usage-log.ts`, which nothing on this path
- * calls. Cost reaches the ledger only through the `_serviceCost` field
- * `applyHostedKeyCostToResult` emits under `copilotToolExecution`, so any new
- * caller of `executeTool` that is not Copilot must arrange its own metering.
+ * calls. Under `copilotToolExecution`, `applyHostedKeyCostToResult` meters it
+ * with `recordServiceCost` inside `withToolServiceMeter`
+ * (`lib/mothership/request/tools/executor.ts`), which sends a receipt to the
+ * worker's `/api/billing/services`. Any new caller of `executeTool` that is not
+ * Copilot must arrange its own metering.
  */
 async function processHostedKeyCost(
   tool: ToolDefinition,
@@ -1147,11 +1132,10 @@ async function scheduleExactCostSettlement(
  * Billing capture differs by caller:
  * - Workflow executions bill `output.cost.total` through trace spans and the
  *   execution ledger (`recordUsage`), so the `cost` field alone suffices.
- * - Copilot tool executions have no execution ledger. Their only billing hook
- *   is Go's `extractServiceCost`, which reads a top-level `_serviceCost` field
- *   from the tool result and charges it through the per-round update-cost
- *   callback (the same path the media tools use). Without it, hosted-key spend
- *   from copilot-dispatched integration tools is never charged.
+ * - Copilot tool executions have no execution ledger. Their spend is recorded
+ *   by `recordServiceCost` inside `withToolServiceMeter`
+ *   (`lib/mothership/request/tools/executor.ts`), which sends a receipt to the
+ *   worker's `/api/billing/services` (the same path the media tools use).
  */
 async function applyHostedKeyCostToResult(
   finalResult: ToolResponse,
@@ -1197,17 +1181,15 @@ async function applyHostedKeyCostToResult(
   await scheduleExactCostSettlement(tool, metadata, scope, envVarName)
 
   if (hostedKeyCost > 0) {
-    const { copilotToolExecution } = scope
-    if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
+    // Copilot-only: workflow runs bill through the execution ledger, so a
+    // service receipt for them would bill the cost twice.
+    if (scope.copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
     finalResult.output = {
       ...finalResult.output,
       cost: {
         ...metadata,
         total: hostedKeyCost,
       },
-      // Copilot-only: workflow runs must not emit _serviceCost or the cost
-      // would be billed twice (execution ledger + Go service charge).
-      ...(copilotToolExecution ? { _serviceCost: { service: provider, cost: hostedKeyCost } } : {}),
     }
   }
 }

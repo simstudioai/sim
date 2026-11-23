@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toWellFormed, truncate } from '@sim/utils/string'
 import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,

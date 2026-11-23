@@ -13,11 +13,9 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@sim/emcn'
-import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
+import { ArrowDown, ArrowUp, Download, MoreHorizontal, Trash } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import Link from 'next/link'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
@@ -596,8 +594,6 @@ export const Terminal = memo(function Terminal() {
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
   const [isMobileExpanded, setIsMobileExpanded] = useState(false)
   const isExpanded = isMobile ? isMobileExpanded : isDesktopExpanded
-
-  const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
   const { handlePointerDown } = useTerminalResize()
   const { handlePointerDown: handleOutputPanelResizePointerDown } = useOutputPanelResize()
@@ -1253,26 +1249,6 @@ export const Terminal = memo(function Terminal() {
                     </Tooltip.Root>
                   )}
 
-                  {isPlaygroundEnabled && (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <Link href='/playground'>
-                          <Button
-                            variant='ghost'
-                            aria-label='Component Playground'
-                            iconPadding='md'
-                            className='-m-1.5'
-                          >
-                            <Palette className='size-[14px]' />
-                          </Button>
-                        </Link>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        <span>Component Playground</span>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  )}
-
                   {filteredEntries.length > 0 && (
                     <>
                       <Tooltip.Root>
@@ -1387,7 +1363,6 @@ export const Terminal = memo(function Terminal() {
               showInput={showInput}
               setShowInput={setShowInput}
               hasInputData={hasInputData}
-              isPlaygroundEnabled={isPlaygroundEnabled}
               showCopySuccess={showCopySuccess}
               handleCopy={handleCopy}
               hasEntries={filteredEntries.length > 0}

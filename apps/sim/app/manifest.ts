@@ -1,25 +1,19 @@
 import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import type { MetadataRoute } from 'next'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 export const dynamic = 'force-dynamic'
 
 export default function manifest(): MetadataRoute.Manifest {
-  const brand = getBrandConfig()
-
   return {
-    name:
-      brand.name === 'Sim'
-        ? 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents'
-        : brand.name,
-    short_name: brand.name,
+    name: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',
+    short_name: 'Sim',
     description: `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM.`,
     start_url: '/',
     scope: '/',
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: brand.theme?.primaryColor || '#33C482',
+    theme_color: '#33C482',
     orientation: 'portrait-primary',
     icons: [
       {

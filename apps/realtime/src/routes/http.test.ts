@@ -21,7 +21,6 @@ function createMocks(req: Partial<IncomingMessage>) {
   const to = vi.fn(() => ({ emit }))
   const roomManager = {
     io: { to },
-    getTotalActiveConnections: vi.fn().mockResolvedValue(0),
     isReady: vi.fn().mockReturnValue(true),
     emitToRoom: vi.fn(),
   } as unknown as IRoomManager
@@ -55,6 +54,15 @@ function requestWithBody(url: string, body: unknown): Partial<IncomingMessage> {
 }
 
 describe('createHttpHandler', () => {
+  it('answers the public health probe with liveness only', async () => {
+    const { handler, req, res, writeHead, end } = createMocks({ method: 'GET', url: '/health' })
+
+    await handler(req, res)
+
+    expect(writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' })
+    expect(JSON.parse(end.mock.calls[0][0])).toEqual({ status: 'ok' })
+  })
+
   it('invalidates the shared generation before notifying every open editor', async () => {
     mockInvalidateDocument.mockResolvedValueOnce({ status: 'applied', docId: 'old-document' })
     const { handler, req, res, writeHead, to, emit } = createMocks(

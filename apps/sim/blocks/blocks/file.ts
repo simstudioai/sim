@@ -1277,7 +1277,7 @@ export const FileV5Block: BlockConfig = {
       title: 'Include Subfolders',
       type: 'switch' as SubBlockType,
       mode: 'advanced',
-      value: () => 'true',
+      value: () => true,
       description:
         'Whether the folder above reaches into nested folders. On by default; turn it off to take only its direct contents, which is also how a name shared with a file deeper in the tree is disambiguated.',
       condition: { field: 'operation', value: [...FOLDER_SCOPE_OPERATIONS] },

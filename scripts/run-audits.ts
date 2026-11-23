@@ -13,8 +13,7 @@
  *
  * Generated-artifact checks follow the same rule: name the pair `generate:<x>` / `check:<x>`
  * and the check runs here. The suffix form `<x>:check` is reserved for checks this job cannot
- * run: the mothership contracts (`mship*`, `trace-*`, `metrics`, `vfs`, `billing-protocol`)
- * need the sibling copilot repo, `images:check` renders the Helm chart (it runs in
+ * run: the mothership tool catalog (`mship-tools:check`) needs the sibling copilot repo, `images:check` renders the Helm chart (it runs in
  * `.github/workflows/helm.yml`), and `library:covers:check` is only deterministic per machine.
  */
 import path from 'node:path'
@@ -23,6 +22,7 @@ import path from 'node:path'
 const EXCLUDED: Record<string, string> = {
   'check:audits': 'this runner',
   'check:migrations': 'diffs against a git base ref (origin/staging by default)',
+  'check:sdk-names-frozen': 'diffs against a git base ref (origin/staging by default)',
   'check:api-validation': 'superseded by the :strict variant, which this runner does run',
   'check:test-types': 'type-checks all of apps/sim with its tests; its own `test-types` CI job',
 }

@@ -53,6 +53,10 @@ import {
   withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import {
+  SOURCE_CATALOG_HEADERS,
+  sourceCatalogOpenApiRoutes,
+} from '@/lib/api/contracts/v2/openapi/source-catalog'
 import { ssoOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/sso'
 import { workspaceInvitationOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-invitations'
 import { workspacePermissionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-permissions'
@@ -2430,7 +2434,7 @@ const declaredRoutes = [
       applicationOperation: toolExecutionOperations.execute,
       operationId: 'executeTool',
       summary: 'Run tool',
-      description: `Run a built-in tool using published parameter IDs. Requires workspace read access. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references in \`user-only\` parameters; other values pass through unchanged. Send connected credentials as top-level \`credentialId\`, not inside \`input\`. Third-party refusal returns \`200\` with \`status: "failed"\`; API failures use the error envelope. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key usage is billed to the workspace. A call that would use a hosted key returns \`402\` when the workspace exceeds usage or billing limits. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Run a built-in tool using published parameter IDs. Requires workspace read access. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references in \`user-only\` parameters; other values pass through unchanged. Send connected credentials as top-level \`credentialId\`, not inside \`input\`. Third-party refusal returns \`200\` with \`status: "failed"\`; API failures use the error envelope. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. A \`credentialId\` you cannot use in this workspace returns \`403\`. Hosted-key usage is billed to the workspace. A call that would use a hosted key returns \`402\` when the workspace exceeds usage or billing limits. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
       success: { description: 'The outcome of the tool call.' },
     }),
@@ -2502,6 +2506,7 @@ const declaredRoutes = [
   ...workspaceInvitationOpenApiRoutes,
   ...organizationUsageOpenApiRoutes,
   ...accessRequestOpenApiRoutes,
+  ...sourceCatalogOpenApiRoutes,
 ] as const
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
@@ -2580,7 +2585,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_AUTH_SECURITY,
   securitySchemes: V2_AUTH_SECURITY_SCHEMES,
-  headers: V2_COMMON_HEADERS,
+  headers: { ...V2_COMMON_HEADERS, ...SOURCE_CATALOG_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   /**
    * Most `409`s in this document are name collisions, but MCP tool discovery

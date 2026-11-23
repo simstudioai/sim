@@ -19,18 +19,21 @@ import {
 } from '@/lib/api/mcp/dispatch'
 import { createConcurrencyLimit } from '@/lib/core/utils/concurrency'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
-import { loadTypeScript } from '@/lib/execution/typescript'
+import { stripTypes } from '@/lib/execution/typescript'
 import { structuredToolResult, toolError } from '@/lib/mcp/tool-result'
 import { SIM_API_CODE_MAX_TIMEOUT_MS } from '@/sandboxes/sim-api-code'
 
 const logger = createLogger('SimMcpCodeMode')
 
-const DEFAULT_TIMEOUT_MS = 60_000
+/** Under the 60-second request timeout MCP clients default to, so a default run answers before its client gives up. */
+const DEFAULT_TIMEOUT_MS = 45_000
 /** API calls one program may make; each is a full v2 request against the caller's rate limit. */
 const MAX_CALLS_PER_RUN = 200
 /** Calls one program may have in flight at once, so a `Promise.all` cannot fan out a whole page of requests. */
 const MAX_CONCURRENT_CALLS = 8
 const MAX_CODE_CHARS = 100_000
+/** Slack past `timeoutMs` for the sandbox to start and hand back a run that ends on time. */
+const DEADLINE_GRACE_MS = 1000
 const NOT_SENT = 'The program ended before this call was sent.'
 
 export const codeModeInput = z
@@ -40,7 +43,7 @@ export const codeModeInput = z
       .min(1)
       .max(MAX_CODE_CHARS)
       .describe(
-        'The body of an async function. Call operations with `await sim.api.<operation>(input)`, where input is { params?, query?, body?, headers? } exactly as describe_operation’s signature declares, and `return` a JSON-serializable value: only that value comes back. TypeScript is accepted; types are stripped, not checked. A failed call throws SimApiError with status, code, message, and details.'
+        'The body of an async function. Call operations with `await sim.api.<operation>(input)`, where input is { params?, query?, body?, headers? } exactly as describe_operation’s signature declares, and `return` a JSON-serializable value: only that value comes back. TypeScript is accepted; types are stripped, not checked. A failed call throws SimApiError with status, code, message, details, and requestId. One call’s input may be at most 256 KB as JSON; send a larger body with call_write_operation.'
       ),
     timeoutMs: z
       .number()
@@ -125,24 +128,16 @@ function envelopeFailure(status: number, text: string): SimApiAnswer {
  * value or error, is recorded for `finalize` rather than lost to the worker.
  * Syntax errors come back with lines numbered as the caller wrote them.
  */
-async function compileProgram(code: string): Promise<{ script: string } | { error: string }> {
-  const ts = await loadTypeScript()
-  const { outputText, diagnostics } = ts.transpileModule(
-    `const __simProgram = async () => {\n${code}\n};`,
-    {
-      reportDiagnostics: true,
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-    }
-  )
-  const problems = (diagnostics ?? []).flatMap((diagnostic) => {
-    if (!diagnostic.file || diagnostic.start === undefined) return []
-    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-    const { line } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
-    return [`Line ${Math.max(1, line)}: ${message}`]
-  })
-  if (problems.length > 0) return { error: `The program does not parse.\n${problems.join('\n')}` }
+function compileProgram(code: string): { script: string } | { error: string } {
+  const stripped = stripTypes(`const __simProgram = async () => {\n${code}\n};`)
+  if ('errors' in stripped) {
+    const problems = stripped.errors.map(
+      ({ line, message }) => `Line ${Math.max(1, line - 1)}: ${message}`
+    )
+    return { error: `The program does not parse.\n${problems.join('\n')}` }
+  }
   return {
-    script: `${outputText}\ntry { __simCodeSettle(true, await __simProgram()); } catch (error) { __simCodeSettle(false, error); }`,
+    script: `${stripped.code}\ntry { __simCodeSettle(true, await __simProgram()); } catch (error) { __simCodeSettle(false, error); }`,
   }
 }
 
@@ -189,7 +184,7 @@ export async function runCodeMode(
       codeSha256: sha256Hex(input.code),
     })
 
-  const compiled = await compileProgram(input.code)
+  const compiled = compileProgram(input.code)
   if ('error' in compiled) {
     summary('syntax_error')
     return toolError(compiled.error)
@@ -257,6 +252,9 @@ export async function runCodeMode(
     }
   }
 
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  /** Bounds the whole run, time spent waiting for a sandbox worker included, so the caller hears back within its timeout. */
+  const deadline = AbortSignal.timeout(timeoutMs + DEADLINE_GRACE_MS)
   let bytes: Buffer | undefined
   let runError: unknown
   try {
@@ -266,8 +264,8 @@ export async function runCodeMode(
       {
         ownerKey,
         callSimApi,
-        signal: context.signal,
-        timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        signal: AbortSignal.any([context.signal, deadline]),
+        timeoutMs,
       }
     )
   } catch (error) {
@@ -287,6 +285,16 @@ export async function runCodeMode(
     if (context.signal.aborted) {
       summary('cancelled')
       return failure({ name: 'AbortError', message: 'The program was cancelled.' }, calls)
+    }
+    if (deadline.aborted) {
+      summary('timeout')
+      return failure(
+        {
+          name: 'TimeoutError',
+          message: `The program did not finish within ${timeoutMs}ms.`,
+        },
+        calls
+      )
     }
     if (runError instanceof SandboxUserCodeError) {
       summary(runError.name === 'TimeoutError' ? 'timeout' : 'error')

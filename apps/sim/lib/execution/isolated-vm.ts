@@ -7,7 +7,6 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env, envNumber } from '@/lib/core/config/env'
-import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
@@ -459,16 +458,7 @@ async function tryAcquireDistributedLease(
   leaseId: string,
   timeoutMs: number
 ): Promise<LeaseAcquireResult> {
-  if (getConfiguredCacheProvider() === 'database') return 'acquired'
-
   const redis = getRedisClient()
-  if (!redis) {
-    logger.warn('No Redis client for distributed lease acquisition; using local limits', {
-      ownerKey,
-    })
-    return 'undetermined'
-  }
-
   const now = Date.now()
   const leaseTtlMs = Math.max(
     timeoutMs + QUEUE_TIMEOUT_MS + DISTRIBUTED_LEASE_GRACE_MS,
@@ -525,8 +515,6 @@ async function tryAcquireDistributedLease(
 
 async function releaseDistributedLease(ownerKey: string, leaseId: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
-
   const key = ownerRedisKey(ownerKey)
   const script = `
     redis.call('ZREM', KEYS[1], ARGV[1])

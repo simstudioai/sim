@@ -6,6 +6,7 @@ import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
 import { writeStdout } from '#sim-cli/output/io'
+import { interruptsDeferred } from '#sim-cli/terminal/interrupts'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import {
@@ -125,6 +126,9 @@ function reRaise(signal: NodeJS.Signals): void {
  * The removal is synchronous because the termination that follows gives an
  * async `rm` no turn to run.
  *
+ * An interrupt held by {@link interruptsDeferred} is left alone: the deferral
+ * raises it again when its write is done, and the cleanup runs then.
+ *
  * Exported for its own test: driving it through a real interrupt would take the
  * test runner down with it.
  */
@@ -134,6 +138,7 @@ export function removeStagingOnSignal(
 ): () => void {
   const installed = STAGE_SIGNALS.map((signal) => {
     const onSignal = () => {
+      if (interruptsDeferred()) return
       process.off(signal, onSignal)
       const directory = stagingDirectory()
       if (directory) {

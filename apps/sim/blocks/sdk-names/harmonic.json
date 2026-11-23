@@ -1,0 +1,23 @@
+{
+  "namespace": "harmonic",
+  "methods": {
+    "harmonic_batch_get_people": "batchGetPeople",
+    "harmonic_clear_people_saved_search_net_new_results": "clearPeopleSavedSearchNetNewResults",
+    "harmonic_enrich_person": "enrichPerson",
+    "harmonic_get_company_employees": "getCompanyEmployees",
+    "harmonic_get_email_enrichment_job": "getEmailEnrichmentJob",
+    "harmonic_get_email_enrichment_usage": "getEmailEnrichmentUsage",
+    "harmonic_get_enrichment_status": "getEnrichmentStatus",
+    "harmonic_get_people_saved_search_net_new_results": "getPeopleSavedSearchNetNewResults",
+    "harmonic_get_people_saved_search_results": "getPeopleSavedSearchResults",
+    "harmonic_get_person": "getPerson",
+    "harmonic_list_people_saved_searches": "listPeopleSavedSearches",
+    "harmonic_search_people_scout": "searchPeopleWithScout",
+    "harmonic_submit_email_enrichment_job": "submitEmailEnrichmentJob"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -31,7 +31,6 @@ const mothershipEventsHandler = createWorkspaceSSE({
   subscriptions: [
     {
       subscribe: (workspaceId, send, viewerUserId) => {
-        if (!chatPubSub) return () => {}
         return chatPubSub.onStatusChanged((event) => {
           if (event.workspaceId !== workspaceId) return
           send('task_status', {
@@ -44,7 +43,7 @@ const mothershipEventsHandler = createWorkspaceSSE({
           })
         })
       },
-      ready: async () => chatPubSub?.ready(),
+      ready: () => chatPubSub.ready(),
     },
   ],
 })
@@ -73,7 +72,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       subscriptions: [
         {
           subscribe: (send) =>
-            chatPubSub?.onStatusChanged((event) => {
+            chatPubSub.onStatusChanged((event) => {
               if (event.organizationId !== organizationId || event.userId !== principal.userId)
                 return
               send('task_status', {
@@ -82,8 +81,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 ...(event.streamId ? { streamId: event.streamId } : {}),
                 timestamp: Date.now(),
               })
-            }) ?? (() => {}),
-          ready: async () => chatPubSub?.ready(),
+            }),
+          ready: () => chatPubSub.ready(),
         },
       ],
     })

@@ -899,26 +899,6 @@ export const pipedreamProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'No: Pipedream supports custom domains for HTTP endpoint URLs, but its documentation and community support state the authentication/consent experience is not white-label. Users always see Pipedream branding and are asked to consent to Pipedream processing their data during connect flows, so vendor branding cannot be fully replaced across the workspace or deployed-app UI.',
-        detail:
-          'Custom domains only rebrand webhook endpoint URLs (e.g. api.example.com instead of *.m.pipedream.net); the OAuth/consent UI and general product UI keep Pipedream branding.',
-        shortValue: 'No, endpoint domains only, auth stays branded',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://pipedream.com/docs/workflows/domains',
-            label: 'Custom Domains docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://pipedream.com/community/t/what-3rd-party-tool-can-i-use-to-white-label-my-endpoints-from-http-pipedream-com-pipedream-com-to-my-domain/7842',
-            label: 'Community: white-labeling endpoints limitation',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes: Pipedream documents account-level retention rules for event/execution data, and states Enterprise customers can turn off all data retention, while internal application logs are deleted within about 30 days by default.',

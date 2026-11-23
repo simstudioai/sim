@@ -34,6 +34,10 @@ jobs:
   checks:
     name: checks
     if: github.event_name == 'pull_request'
+    # `actions: read` lets each e2e job watch this run's build (e2e) job.
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/checks.yml
 
   push-checks:

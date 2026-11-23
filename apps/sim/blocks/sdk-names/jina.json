@@ -1,0 +1,7 @@
+{
+  "namespace": "jina",
+  "methods": {
+    "jina_read_url": "readUrl",
+    "jina_search": "search"
+  }
+}

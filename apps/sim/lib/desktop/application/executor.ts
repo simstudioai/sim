@@ -10,7 +10,6 @@ import {
   type CredentialUserAuditEntry,
   defineAuthorizedCredentialUserUseCase,
 } from '@/lib/credentials/application/authorized-user-use-case'
-import { isDesktopBackgroundExecutorAvailable } from '@/lib/desktop/executor/availability'
 import {
   DESKTOP_EXECUTOR_PROTOCOL_VERSION,
   DESKTOP_INBOX_RECONCILE_MS,
@@ -83,15 +82,13 @@ async function requireBoundDevice(principal: SessionPrincipal, deviceId: string)
 }
 
 /**
- * The device a new turn binds to: the composer's own, but only while this install can run the
- * executor and the device is registered to this very session as an executor. Anything else leaves
- * the turn to the chat view, as before the executor existed.
+ * The device a new turn binds to: the composer's own, but only while the device is registered to
+ * this very session as an executor. Anything else leaves the turn to the chat view.
  */
 export async function resolveTurnDesktopDevice(
   principal: SessionPrincipal,
   deviceId: string
 ): Promise<string | null> {
-  if (!isDesktopBackgroundExecutorAvailable()) return null
   const device = await getBoundDesktopDevice(
     { deviceId, userId: principal.userId, sessionId: principal.sessionId },
     { executor: true }
@@ -114,8 +111,7 @@ interface RegisterDesktopDeviceInput extends DeviceInput {
 }
 
 /**
- * Binds the install to this user and session. Where the executor is unavailable nothing is
- * written, and the device stays dormant.
+ * Binds the install to this user and session.
  */
 export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
   // permission-group-exempt: registering grants no access; each call's run was admitted under the Chat capability.
@@ -131,31 +127,28 @@ export const registerDesktopDevice = defineAuthorizedCredentialUserUseCase({
     principal: SessionPrincipal
     input: RegisterDesktopDeviceInput
   }) {
-    const enabled = isDesktopBackgroundExecutorAvailable()
-    if (enabled) {
-      const registered = await upsertDesktopDevice({
-        id: input.deviceId,
-        userId: principal.userId,
-        sessionId: principal.sessionId,
-        name: input.name,
-        appVersion: input.appVersion,
-        platform: input.platform,
-        capabilities: input.capabilities,
-      })
-      if (!registered)
-        throw new OrchestrationError(
-          'conflict',
-          'This device ID belongs to another account or was revoked. Generate a new device ID and register again.'
-        )
-      logger.info('Desktop device registered', {
-        userId: principal.userId,
-        deviceId: input.deviceId,
-        appVersion: input.appVersion,
-        platform: input.platform,
-      })
-    }
+    const registered = await upsertDesktopDevice({
+      id: input.deviceId,
+      userId: principal.userId,
+      sessionId: principal.sessionId,
+      name: input.name,
+      appVersion: input.appVersion,
+      platform: input.platform,
+      capabilities: input.capabilities,
+    })
+    if (!registered)
+      throw new OrchestrationError(
+        'conflict',
+        'This device ID belongs to another account or was revoked. Generate a new device ID and register again.'
+      )
+    logger.info('Desktop device registered', {
+      userId: principal.userId,
+      deviceId: input.deviceId,
+      appVersion: input.appVersion,
+      platform: input.platform,
+    })
     return {
-      enabled,
+      enabled: true,
       protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION,
       leaseMs: SIM_TOOL_EXECUTION_LEASE_SECONDS * 1000,
       leaseRenewMs: SIM_TOOL_EXECUTION_HEARTBEAT_MS,

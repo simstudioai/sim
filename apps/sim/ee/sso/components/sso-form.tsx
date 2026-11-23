@@ -16,7 +16,6 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { resolveSsoProviderContract } from '@/lib/api/contracts/auth'
 import { client } from '@/lib/auth/client'
-import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -58,11 +57,13 @@ const validateEmailField = (emailValue: string): string[] => {
 }
 
 interface SSOFormProps {
-  /** DISABLE_REGISTRATION. Hides the signup cross-link, which `/signup` blocks. */
+  /** `REGISTRATION_MODE` closes self-serve registration. Hides the signup cross-link, which `/signup` blocks. */
   registrationDisabled: boolean
+  /** `REGISTRATION_MODE` leaves email/password sign-in on. Hides the email links when off. */
+  emailPasswordEnabled: boolean
 }
 
-export default function SSOForm({ registrationDisabled }: SSOFormProps) {
+export default function SSOForm({ registrationDisabled, emailPasswordEnabled }: SSOFormProps) {
   const searchParams = useSearchParams()
   const errorCode = searchParams?.get('error') ?? null
   const initialError = errorCode
@@ -75,6 +76,7 @@ export default function SSOForm({ registrationDisabled }: SSOFormProps) {
     <SSOFormContent
       key={searchParams?.toString() ?? ''}
       registrationDisabled={registrationDisabled}
+      emailPasswordEnabled={emailPasswordEnabled}
       initialEmail={searchParams?.get('email') ?? ''}
       initialError={initialError}
       callbackParam={searchParams?.get('callbackUrl') ?? null}
@@ -93,6 +95,7 @@ interface SSOFormContentProps extends SSOFormProps {
 
 function SSOFormContent({
   registrationDisabled,
+  emailPasswordEnabled,
   initialEmail,
   initialError,
   callbackParam,
@@ -103,8 +106,6 @@ function SSOFormContent({
   const [formError, setFormError] = useState(initialError)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-
-  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
 
   /**
    * Derived during render rather than seeded into state from an effect: the
@@ -220,7 +221,7 @@ function SSOFormContent({
           Continue with SSO
         </AuthSubmitButton>
       </form>
-      {emailEnabled && (
+      {emailPasswordEnabled && (
         <>
           <AuthDivider label='Or' />
           <AuthLinkButton href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} fullWidth>
@@ -228,7 +229,7 @@ function SSOFormContent({
           </AuthLinkButton>
         </>
       )}
-      {emailEnabled && !registrationDisabled && (
+      {emailPasswordEnabled && !registrationDisabled && (
         <AuthNavPrompt
           prompt="Don't have an account?"
           href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}

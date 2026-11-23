@@ -1,14 +1,6 @@
 import { createHash } from 'node:crypto'
 import { generateShortId } from '@sim/utils/id'
-import { afterAll, describe, expect, it, vi } from 'vitest'
-
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
-
+import { afterAll, describe, expect, it } from 'vitest'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
@@ -33,11 +25,11 @@ function fixture() {
   return { session, machine, key }
 }
 afterAll(async () => {
-  if (keys.length) await getRedisClient()?.del(...keys)
+  if (keys.length) await getRedisClient().del(...keys)
   await closeRedisConnection()
 })
 
-describe.skipIf(!redisUrl)('physical workbench history with real Redis', () => {
+describe('physical workbench history with real Redis', () => {
   it('atomically retains distinct encrypted inputs under concurrent calls and retries', async () => {
     const { session, machine } = fixture()
     await initializeSessionFileProvenance(session, machine)

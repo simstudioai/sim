@@ -26,6 +26,10 @@
       "types": "./src/color.ts",
       "default": "./src/color.ts"
     },
+    "./concurrency": {
+      "types": "./src/concurrency.ts",
+      "default": "./src/concurrency.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"
@@ -77,6 +81,10 @@
     "./workflow-references": {
       "types": "./src/workflow-references.ts",
       "default": "./src/workflow-references.ts"
+    },
+    "./timezone": {
+      "types": "./src/timezone.ts",
+      "default": "./src/timezone.ts"
     }
   },
   "scripts": {

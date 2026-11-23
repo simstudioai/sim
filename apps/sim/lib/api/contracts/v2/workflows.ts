@@ -60,6 +60,7 @@ import {
   referenceOccurrenceSchema,
   workflowReferenceManifestSchema,
 } from '@/lib/api/contracts/workflow-references'
+import { sourceFingerprintSchema } from '@/lib/api/contracts/workflow-source'
 import {
   cancelWorkflowExecutionReasonSchema,
   workflowExecutionPausedDetailSchema,
@@ -74,6 +75,12 @@ import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
+
+/** The longest workflow name v2 create and update accept. */
+export const V2_WORKFLOW_NAME_MAX_LENGTH = 255
+
+/** The longest workflow description v2 create and update accept. */
+export const V2_WORKFLOW_DESCRIPTION_MAX_LENGTH = 50_000
 
 export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
@@ -452,13 +459,21 @@ const v2WorkflowLintSchema = z
             .union([z.string(), z.array(z.string())])
             .describe('The reference, or references, that did not resolve.'),
           kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
+            .enum([
+              'credential',
+              'resource',
+              'custom-tool',
+              'mcp-tool',
+              'skill',
+              'block-output',
+              'child-result',
+            ])
             .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
       )
       .describe(
-        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON. These values are still persisted; they are reported, not dropped.'
+        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON; `child-result` references to the `result.<key>` of a Workflow block whose child responds, so its result is the Response output (`{ data, status, headers }`) and the key reads nothing (the value meant is `result.data.<key>`). A deploy also reports, as `resource`, a called child workflow that is not deployed, which a deployed run cannot call. These values are still persisted; they are reported, not dropped.'
       ),
     tableFieldIssues: z
       .array(
@@ -710,11 +725,11 @@ export const v2CreateWorkflowBodySchema = z
       .string({ error: missingFieldError('name is required') })
       .trim()
       .min(1, 'name is required')
-      .max(255, 'name is too long')
+      .max(V2_WORKFLOW_NAME_MAX_LENGTH, 'name is too long')
       .describe('Workflow name.'),
     description: z
       .string()
-      .max(50_000, 'description is too long')
+      .max(V2_WORKFLOW_DESCRIPTION_MAX_LENGTH, 'description is too long')
       .nullable()
       .optional()
       .describe('Optional workflow description.'),
@@ -743,12 +758,12 @@ export const v2UpdateWorkflowBodySchema = z
       .string()
       .trim()
       .min(1, 'name cannot be empty')
-      .max(255, 'name is too long')
+      .max(V2_WORKFLOW_NAME_MAX_LENGTH, 'name is too long')
       .optional()
       .describe('Replacement workflow name.'),
     description: z
       .string()
-      .max(50_000, 'description is too long')
+      .max(V2_WORKFLOW_DESCRIPTION_MAX_LENGTH, 'description is too long')
       .nullable()
       .optional()
       .describe('Replacement workflow description; null clears it.'),
@@ -1072,6 +1087,11 @@ export const v2DeployWorkflowContract = defineRouteContract({
       description: v1DeployWorkflowBodySchema.shape.description.describe(
         'Optional release note for the deployment version.'
       ),
+      expectedDraftFingerprint: sourceFingerprintSchema('expectedDraftFingerprint')
+        .optional()
+        .describe(
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.'
+        ),
     })
     .strict()
     .optional()
@@ -1642,7 +1662,9 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
-                .describe('Saved workflow block at which manual execution should resume.'),
+                .describe(
+                  'Saved workflow block at which manual execution should resume: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
+                ),
               sourceRunId: z
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
@@ -1661,7 +1683,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .min(1, 'run.stopAfterBlockId cannot be empty')
         .optional()
         .describe(
-          'Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
+          'Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
         ),
     })
     .strict(),
@@ -2527,9 +2549,17 @@ export const v2CancelWorkflowRunDataSchema = z
         'Whether this request cancelled anything. `false` with an `already_*` reason means the run had already reached that terminal state, so there was nothing to cancel — still `200`, because a no-op is not an error. `false` with any other reason identifies a degraded or incomplete cancellation step.'
       ),
     runId: v2WorkflowRunIdSchema,
+    /**
+     * Kept for wire compatibility; it no longer reports Redis availability. False only when a
+     * cancellation that must publish its cancellation event (a paused run's, or a reconciled
+     * workflow-group run's) did not: the stop was not confirmed, the pause could not be reconciled,
+     * or the publish failed. True otherwise.
+     */
     redisAvailable: z
       .boolean()
-      .describe('Whether the distributed cancellation channel was available.'),
+      .describe(
+        'Kept for compatibility. False only when a cancellation that must publish its cancellation event did not.'
+      ),
     durablyRecorded: z
       .boolean()
       .describe(
@@ -3902,8 +3932,10 @@ const v2WorkflowOperationParamsSchema = z
   )
   .describe(
     'Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, ' +
-      `\`retry\`, \`triggerMode\`, and \`advancedMode\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
-      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges.'
+      `\`retry\`, \`triggerMode\`, \`advancedMode\`, and \`parentId\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
+      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges. ' +
+      '`parentId` moves the block, keeping its id, into the loop or parallel it names, or with ' +
+      '`null` out of its container.'
   )
 
 const v2AddWorkflowBlockParamsSchema = z

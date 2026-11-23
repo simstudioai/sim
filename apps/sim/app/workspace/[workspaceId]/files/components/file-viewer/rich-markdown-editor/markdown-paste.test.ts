@@ -94,6 +94,19 @@ describe('markdown paste', () => {
     expect(editor.getText()).toBe('')
   })
 
+  it.each(['List<String>', 'List<Code>', 'Use <em> for emphasis'])(
+    'preserves ordinary angle-bracket text %s on plain clipboard paste',
+    (text) => {
+      const editor = mount()
+      dispatchPaste(editor, text)
+      expect(editor.state.doc.textContent).toBe(text)
+      expect(editor.getJSON().content?.[0].content).toEqual([{ type: 'text', text }])
+      const reopened = mount()
+      reopened.commands.setContent(editor.getMarkdown(), { contentType: 'markdown' })
+      expect(reopened.getJSON()).toEqual(editor.getJSON())
+    }
+  )
+
   it('does not flatten a rich table containing literal Markdown-shaped cell text', () => {
     const editor = mount()
     dispatchPaste(
@@ -114,6 +127,44 @@ describe('markdown paste', () => {
       .filter((type) => type !== 'paragraph')
     expect(structural).toEqual(['heading', 'bulletList', 'blockquote'])
   })
+
+  it.each([
+    ['setext heading', 'Paste title\n===========', 'heading', 'Paste title'],
+    ['tilde fence', '~~~js\nconst answer = 42\n~~~', 'codeBlock', 'const answer = 42'],
+    ['indented code', '    const answer = 42', 'codeBlock', 'const answer = 42'],
+    ['parenthesized ordered list', '1) one\n2) two', 'orderedList', 'onetwo'],
+    ['thematic break', '---', 'horizontalRule', ''],
+    ['reference link', '[Guide][ref]\n\n[ref]: https://example.com', 'paragraph', 'Guide'],
+  ])(
+    'renders pasted %s as Markdown and preserves it after reopening',
+    (_, text, type, expectedText) => {
+      const editor = mount()
+      dispatchPaste(editor, text)
+      const first = editor.state.doc.firstChild
+      expect(first?.type.name).toBe(type)
+      if (type === 'paragraph') expect(editor.getHTML()).toContain('href="https://example.com"')
+      expect(first?.textContent).toBe(expectedText)
+      const reopened = mount()
+      reopened.commands.setContent(editor.getMarkdown(), { contentType: 'markdown' })
+      expect(reopened.getJSON()).toEqual(editor.getJSON())
+    }
+  )
+
+  it.each([
+    ['Paste title', 'Paste title\n===========', '<h1>Paste title</h1>'],
+    ['', 'Paste title\n===========', '<h1>Paste title</h1>'],
+    ['HTML source', '<em>Declared emphasis</em>', '<em>Declared emphasis</em>'],
+  ])(
+    'honors explicit Markdown provenance with plain fallback %j',
+    (fallback, markdown, expectedHtml) => {
+      const editor = mount()
+      dispatchPaste(editor, fallback, '<b>Wrong representation</b>', {
+        'text/markdown': markdown,
+      })
+      expect(editor.getHTML()).toContain(expectedHtml)
+      expect(editor.getText()).not.toContain('Wrong representation')
+    }
+  )
 
   it('strips <style>/<script> from pasted HTML so their text never leaks into the doc', () => {
     const editor = mount()

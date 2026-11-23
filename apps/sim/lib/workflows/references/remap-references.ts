@@ -1,7 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit, toRecord } from '@sim/utils/object'
-import type { SubBlockType } from '@sim/workflow-types/blocks'
+import {
+  buildCanonicalIndex,
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+  isCanonicalPair,
+  isNonEmptyValue,
+  reindexCanonicalModesByPosition,
+  resolveCanonicalMode,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
+import { CUSTOM_BLOCK_RESERVED_PARAMS, type SubBlockType } from '@sim/workflow-types/blocks'
+import type { WorkflowResourceKind } from '@sim/workflow-types/resources'
 import { isWorkflowAnnotationOnlyBlockType } from '@sim/workflow-types/workflow'
 import { readFolderPaths } from '@/lib/folders/selection'
 import { isMcpRuntimeReference, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
@@ -15,7 +26,6 @@ import {
   collectForkFileUploadKeys,
   remapForkFileUploadValue,
 } from '@/lib/workflows/references/remap-files'
-import type { WorkflowResourceKind } from '@/lib/workflows/references/types'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   getWorkflowSearchSubBlockResourceDefinition,
@@ -28,17 +38,9 @@ import {
   getTransitiveSubBlockDependents,
 } from '@/lib/workflows/subblocks/dependencies'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
-  isCanonicalPair,
-  isNonEmptyValue,
-  reindexCanonicalModesByPosition,
   resolveActiveCanonicalValue,
-  resolveCanonicalMode,
-  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import {
   buildToolParamVisibilityMap,
@@ -46,7 +48,7 @@ import {
   resolveToolParamRequired,
 } from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
-import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isEnvVarReference, isReference } from '@/executor/constants'
@@ -378,19 +380,19 @@ export function replaceCustomBlockInputs(
 ): SubBlockRecord {
   const next: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
-    if (RESERVED_PARAMS.has(key)) next[key] = subBlock
+    if (CUSTOM_BLOCK_RESERVED_PARAMS.has(key)) next[key] = subBlock
   }
   if (targetCurrent?.type === targetType) {
     for (const [key, subBlock] of Object.entries(targetCurrent.subBlocks)) {
       // Reserved wiring is taken from the SOURCE block above: it is recomputed by the
       // serializer, and the target's copy is stale the moment the mapping changes.
-      if (!RESERVED_PARAMS.has(key)) next[key] = subBlock
+      if (!CUSTOM_BLOCK_RESERVED_PARAMS.has(key)) next[key] = subBlock
     }
   }
   for (const [key, value] of values ?? []) {
     const parsed = parseCustomBlockInputStorageKey(key)
     if (!parsed || parsed.targetType !== targetType) continue
-    if (RESERVED_PARAMS.has(parsed.fieldId)) continue
+    if (CUSTOM_BLOCK_RESERVED_PARAMS.has(parsed.fieldId)) continue
     if (parsed.fieldType === 'boolean') {
       // A `boolean` field's sub-block is a `switch`, which the canvas stores as a real boolean
       // — but only `'true'`/`'false'` mean anything. An untouched optional flag submits `''`,

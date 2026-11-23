@@ -40,15 +40,6 @@ function isLocalhostUrl(url: string): boolean {
   }
 }
 
-function getHostnameFromUrl(url: string | undefined): string[] {
-  if (!url) return []
-  try {
-    return [`https://${new URL(url).hostname}`]
-  } catch {
-    return []
-  }
-}
-
 const IPV4_HOSTNAME = /^\d{1,3}(\.\d{1,3}){3}$/
 
 /**
@@ -100,6 +91,8 @@ interface CSPDirectives {
 const STATIC_SCRIPT_SRC = [
   "'self'",
   "'unsafe-inline'",
+  // Compiles WebAssembly and nothing else (no JS eval): the code editor's highlighter is Wasm.
+  "'wasm-unsafe-eval'",
   ...(isDev ? ["'unsafe-eval'"] : []),
   'https://*.google.com',
   'https://apis.google.com',
@@ -230,9 +223,6 @@ const buildTimeCSPDirectives: CSPDirectives = {
       : isDev
         ? [DEFAULT_SOCKET_URL, toWebSocketUrl(DEFAULT_SOCKET_URL)]
         : []),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
     ...getS3EndpointSources(env.S3_ENDPOINT, env.S3_FORCE_PATH_STYLE),
   ],
 
@@ -279,9 +269,6 @@ export function generateRuntimeCSP(frameAncestors?: string[]): string {
   const socketWsUrl = socketUrl ? toWebSocketUrl(socketUrl) : ''
   const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? DEFAULT_OLLAMA_URL : '')
 
-  const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
-  const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
-  const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
   const s3EndpointSources = getS3EndpointSources(
     getEnv('S3_ENDPOINT'),
     getEnv('S3_FORCE_PATH_STYLE')
@@ -302,9 +289,6 @@ export function generateRuntimeCSP(frameAncestors?: string[]): string {
       ollamaUrl,
       socketUrl,
       socketWsUrl,
-      ...brandLogoDomains,
-      ...privacyDomains,
-      ...termsDomains,
       ...s3EndpointSources,
     ],
   }

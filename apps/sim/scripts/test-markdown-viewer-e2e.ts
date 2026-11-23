@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import type { TiptapEditorHTMLElement } from '@tiptap/core'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 
@@ -43,6 +44,8 @@ const shareToken = generateShortId()
 const token = generateShortId()
 const cookie = `${token}.${await makeSignature(token, secret)}`
 const cookieHeader = `better-auth.session_token=${cookie}`
+// Keep the polling verifier's public content quota separate from browser visitors.
+const verifierIp = `2001:db8:${Array.from(crypto.getRandomValues(new Uint16Array(6)), (value) => value.toString(16)).join(':')}`
 const checks: { name: string; passed: boolean; durationMs: number; error?: string }[] = []
 const errors: string[] = []
 let fileId: string | undefined
@@ -117,7 +120,12 @@ async function request(
   // boundary-raw-fetch: standalone browser proof calls an explicitly supplied loopback app with its own session.
   const response = await fetch(new URL(path, base), {
     method,
-    headers: { Cookie: cookieHeader, Origin: base.origin, 'Content-Type': 'application/json' },
+    headers: {
+      Cookie: cookieHeader,
+      Origin: base.origin,
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': verifierIp,
+    },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(120_000),
   })
@@ -142,6 +150,8 @@ async function check(name: string, run: () => Promise<void>, page?: Page) {
         const selection = getSelection()
         const editable = document.querySelector('.rich-markdown-prose[contenteditable="true"]')
         return {
+          url: location.href,
+          body: document.body.innerText.slice(0, 2000),
           documentFocused: document.hasFocus(),
           editorFocused: document.activeElement === editable,
           activeTag: document.activeElement?.tagName,
@@ -365,7 +375,7 @@ async function editLastCell(page: Page, marker: string) {
   ]) {
     assert(saved.includes(preserved), `Saving lost ${preserved}`)
   }
-  await page.reload()
+  await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.locator('.rich-markdown-prose').filter({ visible: true })).toContainText(
     marker,
     { timeout: 120_000 }
@@ -382,19 +392,383 @@ async function editLastCell(page: Page, marker: string) {
   await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeFocused()
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Shift+ArrowRight')
-  assert(
-    await page.evaluate(() => Boolean(getSelection()?.toString().trim())),
-    'Keyboard selection did not select text'
-  )
+  await expect
+    .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''), {
+      message: 'Keyboard selection did not select text',
+    })
+    .not.toBe('')
   await proveToolbar(page, page.getByRole('toolbar', { name: 'Text formatting' }))
   await page.keyboard.press('ArrowRight')
+}
+
+async function provePastePersistence(page: Page, browserName: string) {
+  const created = toRecord(
+    toRecord(
+      await (
+        await request(`/api/workspaces/${workspaceId}/files`, {
+          name: `clipboard-${browserName}.md`,
+          content: 'Clipboard proof\n\nStart here.',
+          contentType: 'text/markdown',
+        })
+      ).json()
+    ).file
+  )
+  assert.equal(typeof created.id, 'string')
+  const pastedFileId = String(created.id)
+  const pastedShareId = generateId()
+  const pastedShareToken = generateShortId()
+  const readPasteSource = async () =>
+    (await request(`/api/files/public/${pastedShareToken}/content`)).text()
+  try {
+    await sql`insert into public_share (id, resource_type, resource_id, entity_type, entity_id, workspace_id, created_by, token) values (${pastedShareId}, 'file', ${pastedFileId}, 'workspace', ${workspaceId}, ${workspaceId}, ${userId}, ${pastedShareToken})`
+    await page.goto(new URL(`/workspace/${workspaceId}/files/${pastedFileId}`, base).href, {
+      waitUntil: 'domcontentloaded',
+    })
+    const editor = page.locator('.rich-markdown-prose[contenteditable="true"]')
+    await expect(editor).toBeVisible({ timeout: 120_000 })
+    await expect(editor).toContainText('Start here.')
+    const marker = `paste-${browserName}`
+    const focusLastParagraph = async () => {
+      await editor.locator(':scope > p').last().click()
+      await expect
+        .poll(() =>
+          editor.evaluate((element) => {
+            const state = (element as TiptapEditorHTMLElement).editor?.state
+            if (!state) return false
+            const { doc, selection } = state
+            return selection.$from.depth === 1 && selection.$from.index(0) === doc.childCount - 1
+          })
+        )
+        .toBe(true)
+    }
+    const paste = async (data: Record<string, string>, plain = false) => {
+      await focusLastParagraph()
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
+      await page.keyboard.press('Enter')
+      await editor.evaluate(
+        (element, { representations, plain }) => {
+          const key = { key: 'v', keyCode: 86, ctrlKey: true, shiftKey: true, bubbles: true }
+          if (plain) element.dispatchEvent(new KeyboardEvent('keydown', key))
+          try {
+            const clipboardData = new DataTransfer()
+            for (const [type, text] of Object.entries(representations))
+              clipboardData.setData(type, text)
+            element.dispatchEvent(
+              new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true })
+            )
+          } finally {
+            if (plain) element.dispatchEvent(new KeyboardEvent('keyup', key))
+          }
+        },
+        { representations: data, plain }
+      )
+    }
+    await paste({
+      'text/plain': [
+        `${marker} title\n==================`,
+        '~~~js\nconst pastedAnswer = 42\n~~~',
+        '1) Pasted first\n2) Pasted second',
+        `[${marker} guide][paste-ref]\n\n[paste-ref]: https://example.test/guide`,
+        `| ${marker} measure<br> | Value<br> |\n| --- | --- |\n| Quality<br> | **98.7**<br> |`,
+      ].join('\n\n'),
+    })
+    await expect(editor.locator('h1').filter({ hasText: `${marker} title` })).toBeVisible()
+    await expect(
+      editor.locator('pre').filter({ hasText: 'const pastedAnswer = 42' }).last()
+    ).toBeVisible()
+    await expect(
+      editor.locator(`a[href="https://example.test/guide"]`).filter({ hasText: `${marker} guide` })
+    ).toBeVisible()
+    const pastedTable = editor.locator('table').filter({ hasText: `${marker} measure` })
+    await expect(pastedTable.locator('strong')).toHaveText('98.7')
+    await expect(
+      pastedTable.locator('th').first().locator('br:not(.ProseMirror-trailingBreak)')
+    ).toHaveCount(1)
+    await paste({
+      'text/plain': 'Fallback representation',
+      'text/html': '<p>Wrong representation</p>',
+      'text/markdown': `## ${marker} explicit`,
+    })
+    await expect(editor.locator('h2').filter({ hasText: `${marker} explicit` })).toBeVisible()
+    await paste({
+      'text/plain': 'Label\tValue\n**literal**\t42',
+      'text/html': `<table><tr><th>${marker} HTML</th><th>Value</th></tr><tr><td>**literal**</td><td>42</td></tr></table>`,
+    })
+    const htmlTable = editor.locator('table').filter({ hasText: `${marker} HTML` })
+    await expect(htmlTable).toContainText('**literal**')
+    await expect(htmlTable.locator('strong')).toHaveCount(0)
+    await paste({
+      'text/plain': `const ${browserName}Clipboard = "<literal>"`,
+      'text/html': `<pre>const ${browserName}Clipboard = &quot;&lt;literal&gt;&quot;</pre>`,
+      'vscode-editor-data': JSON.stringify({ mode: 'javascript' }),
+    })
+    await expect(
+      editor.locator('pre').filter({ hasText: `const ${browserName}Clipboard` })
+    ).toContainText('"<literal>"')
+    await paste({ 'text/plain': 'List<Code>' })
+    const genericParagraph = editor.locator(':scope > p').filter({ hasText: /^List<Code>$/ })
+    await expect(genericParagraph).toHaveCount(1)
+    await paste(
+      { 'text/plain': `**${marker} literal**`, 'text/html': `<b>${marker} literal</b>` },
+      true
+    )
+    await expect(editor.locator(':scope > p').last()).toHaveText(`**${marker} literal**`)
+    await expect.poll(readPasteSource, { timeout: 30_000 }).toContain(`${marker} literal`)
+    const saved = await readPasteSource()
+    for (const preserved of [
+      `# ${marker} title`,
+      'const pastedAnswer = 42',
+      `[${marker} guide](https://example.test/guide)`,
+      `${marker} measure<br>`,
+      `## ${marker} explicit`,
+      `\\*\\*${marker} literal\\*\\*`,
+    ])
+      assert(saved.includes(preserved), `Pasted content did not persist: ${preserved}`)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(editor).toBeVisible({ timeout: 120_000 })
+    await expect(editor.locator('h1').filter({ hasText: `${marker} title` })).toBeVisible()
+    await expect(editor.locator('table').filter({ hasText: `${marker} measure` })).toContainText(
+      '98.7'
+    )
+    await expect(editor.locator(':scope > p').last()).toHaveText(`**${marker} literal**`)
+    await contained(page)
+    await expect(genericParagraph).toHaveCount(1)
+    await page.screenshot({ path: resolve(artifactDir, `${browserName}-paste-reopened.png`) })
+    const metadata = toRecord(
+      toRecord(await (await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`)).json())
+        .file
+    )
+    const remoteMarker = `${marker} external update`
+    await request(
+      `/api/workspaces/${workspaceId}/files/${pastedFileId}/content`,
+      {
+        content: `${await readPasteSource()}\n\n## ${remoteMarker}\n\nRemote paragraph.`,
+        expectedUpdatedAt: metadata.contentUpdatedAt ?? metadata.updatedAt,
+      },
+      'PUT'
+    )
+    await expect(editor.locator('h2').filter({ hasText: remoteMarker })).toBeVisible({
+      timeout: 30_000,
+    })
+    await focusLastParagraph()
+    await page.keyboard.press('End')
+    await page.keyboard.insertText(` ${marker} after external update`)
+    await expect
+      .poll(readPasteSource, { timeout: 30_000 })
+      .toContain(`${marker} after external update`)
+    const afterLocalEdit = await readPasteSource()
+    await expect(genericParagraph).toHaveCount(1)
+    assert(afterLocalEdit.includes(`## ${remoteMarker}`), 'Local edit lost the external update')
+    assert(
+      afterLocalEdit.includes(`${marker} measure<br>`),
+      'External update lost the pasted table'
+    )
+  } finally {
+    try {
+      await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`, undefined, 'DELETE')
+    } finally {
+      await sql`delete from public_share where id=${pastedShareId}`
+    }
+  }
+}
+
+/** Cached routes reconnect effects before useEditor replaces its disposed editor instance. */
+async function proveWarmNavigation(page: Page, browserName: string) {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const restoredShareId = generateId()
+  const restoredShareToken = generateShortId()
+  const folderName = `Navigation ${browserName}`
+  const createdFolder = toRecord(
+    toRecord(
+      await (
+        await request(`/api/workspaces/${workspaceId}/files/folders`, { name: folderName })
+      ).json()
+    ).folder
+  )
+  assert.equal(typeof createdFolder.id, 'string')
+  const folderId = String(createdFolder.id)
+  const files: { id: string; name: string }[] = []
+  const caughtErrors: string[] = []
+  const captureError = (message: import('@playwright/test').ConsoleMessage) => {
+    if (message.type() !== 'error') return
+    const text = message.text()
+    // Some WebKit builds log the existing viewport option at error severity.
+    if (
+      browserName === 'webkit' &&
+      text === 'Viewport argument key "interactive-widget" not recognized and ignored.'
+    )
+      return
+    caughtErrors.push(text)
+  }
+  page.on('console', captureError)
+  try {
+    for (const label of ['Origin', 'Destination']) {
+      const name = `navigation-${browserName}-${label.toLowerCase()}.md`
+      const created = toRecord(
+        toRecord(
+          await (
+            await request(`/api/workspaces/${workspaceId}/files`, {
+              name,
+              folderId,
+              content: `# ${label} document\n\nA stable [navigation link](https://example.test/navigation).\n\n| Name | Value |\n| --- | --- |\n| Original row | Kept |\n\nLast paragraph.`,
+              contentType: 'text/markdown',
+            })
+          ).json()
+        ).file
+      )
+      assert.equal(typeof created.id, 'string')
+      files.push({ id: String(created.id), name })
+    }
+    const origin = files[0]
+    const destination = files[1]
+    await sql`insert into public_share (id, resource_type, resource_id, entity_type, entity_id, workspace_id, created_by, token) values (${restoredShareId}, 'file', ${origin.id}, 'workspace', ${workspaceId}, ${workspaceId}, ${userId}, ${restoredShareToken})`
+    await page.goto(
+      new URL(`/workspace/${workspaceId}/files/${origin.id}?folderId=${folderId}`, base).href,
+      { waitUntil: 'domcontentloaded' }
+    )
+    const editor = page.locator('.rich-markdown-prose[contenteditable="true"]')
+    await expect(editor).toBeVisible({ timeout: 30_000 })
+    for (const keepFindOpen of [false, true]) {
+      await editor.evaluate((element) => {
+        const instance = (element as TiptapEditorHTMLElement).editor
+        if (!instance) throw new Error('The editable surface has no editor instance')
+        instance.commands.focus()
+        instance.commands.selectAll()
+      })
+      if (keepFindOpen) {
+        await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f')
+        const find = page.getByRole('textbox', { name: 'Find in document', exact: true })
+        await find.fill('stable')
+      }
+      for (const next of [destination, origin]) {
+        await page.getByRole('button', { name: folderName, exact: true }).click()
+        await page.locator('[data-resource-row]').filter({ hasText: next.name }).click()
+        await expect(editor).toBeVisible({ timeout: 30_000 })
+        await expect(editor.locator('h1')).toHaveText(
+          next === origin ? 'Origin document' : 'Destination document'
+        )
+      }
+    }
+    // Restored controls must bind to the replacement editor, including their keyboard listeners.
+    const find = page.getByRole('textbox', { name: 'Find in document', exact: true })
+    if (await find.isVisible())
+      await page.getByRole('button', { name: 'Close find', exact: true }).click()
+    const lastParagraph = editor.locator(':scope > p').filter({ hasText: /^Last paragraph\.$/ })
+    await lastParagraph.evaluate((element) => {
+      const instance = (element.closest('.rich-markdown-prose') as TiptapEditorHTMLElement).editor
+      if (!instance) throw new Error('The restored paragraph has no editor instance')
+      instance
+        .chain()
+        .focus()
+        .setTextSelection(instance.view.posAtDOM(element, element.childNodes.length))
+        .run()
+    })
+    await expect(editor).toBeFocused()
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('/h2')
+    const commands = page.getByRole('listbox', { name: 'Commands', exact: true })
+    await expect(commands.getByRole('option')).toHaveCount(1)
+    await expect(commands.getByRole('option')).toContainText('Heading 2')
+    await page.keyboard.press('Enter')
+    const restoredHeading = `Restored document controls ${browserName}`
+    await page.keyboard.insertText(restoredHeading)
+    const heading = editor.locator('h2').filter({ hasText: restoredHeading })
+    await expect(heading).toHaveText(restoredHeading)
+    await expect(commands).toHaveCount(0)
+
+    await lastParagraph.evaluate((element) => {
+      const instance = (element.closest('.rich-markdown-prose') as TiptapEditorHTMLElement).editor
+      if (!instance) throw new Error('The restored paragraph has no editor instance')
+      instance
+        .chain()
+        .focus()
+        .setTextSelection({
+          from: instance.view.posAtDOM(element, 0),
+          to: instance.view.posAtDOM(element, element.childNodes.length),
+        })
+        .run()
+    })
+    await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe('Last paragraph.')
+    await page.keyboard.press('Alt+F10')
+    const toolbar = page.getByRole('toolbar', { name: 'Text formatting', exact: true })
+    await expect
+      .poll(() => toolbar.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true)
+    await toolbar.getByRole('button', { name: 'Bold', exact: true }).click()
+    await expect(lastParagraph.locator('strong')).toHaveText('Last paragraph.')
+    await expect(editor).toBeFocused()
+
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f')
+    await find.fill('document')
+    await expect(page.getByText('1 of 2', { exact: true })).toBeVisible()
+    await expect(editor.locator('.rich-find-match')).toHaveCount(2)
+    await expect(editor.locator('h1 .rich-find-match-active')).toHaveText('document')
+    await find.press('Enter')
+    await expect(page.getByText('2 of 2', { exact: true })).toBeVisible()
+    await expect(heading.locator('.rich-find-match-active')).toHaveText('document')
+    await find.press('Shift+Enter')
+    await expect(page.getByText('1 of 2', { exact: true })).toBeVisible()
+    await expect(editor.locator('h1 .rich-find-match-active')).toHaveText('document')
+    await page.getByRole('button', { name: 'Close find', exact: true }).click()
+    await expect(editor.locator('.rich-find-match')).toHaveCount(0)
+
+    // The restored collaboration room persists both control edits and subsequent typing.
+    await heading.evaluate((element) => {
+      const instance = (element.closest('.rich-markdown-prose') as TiptapEditorHTMLElement).editor
+      if (!instance) throw new Error('The restored heading has no editor instance')
+      instance
+        .chain()
+        .focus()
+        .setTextSelection(instance.view.posAtDOM(element, element.childNodes.length))
+        .run()
+    })
+    await expect(editor).toBeFocused()
+    const marker = ` persisted after cached navigation ${browserName}`
+    await page.keyboard.insertText(marker)
+    const readRestoredSource = async () =>
+      (await request(`/api/files/public/${restoredShareToken}/content`)).text()
+    await expect.poll(readRestoredSource, { timeout: 30_000 }).toContain(marker)
+    const saved = await readRestoredSource()
+    assert.equal(
+      saved.match(/^# Origin document$/gm)?.length,
+      1,
+      'Navigation duplicated the document'
+    )
+    assert(saved.includes('[navigation link](https://example.test/navigation)'))
+    assert(saved.includes('Original row'))
+    assert(saved.includes('**Last paragraph.**'), 'Restored toolbar formatting did not persist')
+    assert(saved.includes(`## ${restoredHeading}`), 'Restored slash command did not persist')
+    assert(!saved.includes('/h2'), 'The slash query remained in the saved document')
+    await editor.getByRole('link', { name: 'navigation link' }).hover()
+    await expect(page.getByRole('dialog', { name: 'Link', exact: true })).toBeVisible()
+    assert.deepEqual(caughtErrors, [], 'Cached navigation raised a caught browser error')
+    await page.screenshot({ path: resolve(artifactDir, `navigation-${browserName}.png`) })
+  } finally {
+    page.off('console', captureError)
+    const deletions = await Promise.allSettled(
+      files.map((file) =>
+        request(`/api/workspaces/${workspaceId}/files/${file.id}`, undefined, 'DELETE')
+      )
+    )
+    const cleanup = await Promise.allSettled([
+      sql`delete from public_share where id=${restoredShareId}`,
+      sql`delete from folder where id=${folderId} and workspace_id=${workspaceId}`,
+    ])
+    for (const deletion of [...deletions, ...cleanup]) {
+      assert.equal(
+        deletion.status,
+        'fulfilled',
+        deletion.status === 'rejected' ? getErrorMessage(deletion.reason) : undefined
+      )
+    }
+  }
 }
 
 async function proveCollaborationCursor(page: Page) {
   const peer = await page.context().newPage()
   peer.on('pageerror', (error) => errors.push(error.message))
   try {
-    await peer.goto(page.url(), { timeout: 360_000 })
+    await peer.goto(page.url(), { waitUntil: 'domcontentloaded', timeout: 360_000 })
     await expect(peer.locator('.rich-markdown-prose[contenteditable="true"]')).toBeVisible({
       timeout: 120_000,
     })
@@ -493,7 +867,7 @@ async function proveCollaborationScroll(page: Page) {
   const peer = await page.context().newPage()
   peer.on('pageerror', (error) => errors.push(error.message))
   try {
-    await peer.goto(page.url(), { timeout: 360_000 })
+    await peer.goto(page.url(), { waitUntil: 'domcontentloaded', timeout: 360_000 })
     await expect(peer.locator('.rich-markdown-prose[contenteditable="true"]')).toBeVisible({
       timeout: 120_000,
     })
@@ -601,16 +975,29 @@ try {
       page.on('pageerror', (error) => errors.push(`${browserName}: ${error.message}`))
       for (const width of widths) {
         await page.setViewportSize({ width, height: 1000 })
-        await page.goto(new URL(`/f/${shareToken}`, base).href, { timeout: 360_000 })
-        await check(`${browserName} public ${width}: readable and reachable wide columns`, () =>
-          wideTableProof(page)
+        await page.goto(new URL(`/f/${shareToken}`, base).href, {
+          waitUntil: 'domcontentloaded',
+          timeout: 360_000,
+        })
+        await check(
+          `${browserName} public ${width}: readable and reachable wide columns`,
+          () => wideTableProof(page),
+          page
         )
-        await check(`${browserName} public ${width}: prose and long content stay contained`, () =>
-          contained(page)
+        await check(
+          `${browserName} public ${width}: prose and long content stay contained`,
+          () => contained(page),
+          page
         )
-        await check(`${browserName} public ${width}: long code scrolls`, () => proveCode(page))
-        await check(`${browserName} public ${width}: alignment, images, and diagrams`, () =>
-          proveFeatures(page)
+        await check(
+          `${browserName} public ${width}: long code scrolls`,
+          () => proveCode(page),
+          page
+        )
+        await check(
+          `${browserName} public ${width}: alignment, images, and diagrams`,
+          () => proveFeatures(page),
+          page
         )
         await page.locator('.rich-markdown-prose h1').scrollIntoViewIfNeeded()
         await page.screenshot({ path: resolve(artifactDir, `${browserName}-public-${width}.png`) })
@@ -625,6 +1012,7 @@ try {
         for (const width of widths) {
           await page.setViewportSize({ width, height: 1000 })
           await page.goto(new URL(`/workspace/${workspaceId}/files/${fileId}`, base).href, {
+            waitUntil: 'domcontentloaded',
             timeout: 360_000,
           })
           await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeVisible({
@@ -672,6 +1060,16 @@ try {
             page
           )
       }
+      await check(
+        `${browserName}: Markdown and rich HTML paste survive collaboration and reload`,
+        () => provePastePersistence(page, browserName),
+        page
+      )
+      await check(
+        `${browserName}: cached file navigation restores editing, menus, and persistence`,
+        () => proveWarmNavigation(page, browserName),
+        page
+      )
     } finally {
       await browser.close()
     }

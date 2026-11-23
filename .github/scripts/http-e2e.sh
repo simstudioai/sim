@@ -3,9 +3,10 @@
 # CI groups, which reuse the production build from `e2e-build`.
 # The job extracts it into apps/sim/.next before running these suites.
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|mobile|seo>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|search-permissions|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>   (run from apps/sim)
 #
-# The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
+# The job provides DATABASE_URL, BETTER_AUTH_SECRET, ENCRYPTION_KEY and a Redis on 127.0.0.1:6379
+# (Redis is required, so every app and realtime server gets REDIS_URL); each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
 #
 # Under `next dev` the first request cold-compiles the app under Turbopack, which takes 60-185s on
@@ -20,9 +21,10 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|mobile|seo>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|assistant-actions|organization-search|search-permissions|browser-extension|browser-extension-native|browser-extension-navigation|browser-extension-composer|browser-extension-access|project-files|markdown-viewer|workflow-code-ui|mobile|seo>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
+export REDIS_URL=${REDIS_URL:-redis://127.0.0.1:6379}
 mkdir -p "$report_dir"
 
 server_pid=''
@@ -34,6 +36,9 @@ realtime_tag=''
 realtime_log=''
 browsers_pid=''
 local_app_url=''
+extra_pids=()
+extra_tags=()
+extra_logs=()
 # `dev` or `start`; a group sets it before start_app.
 app_server=${E2E_APP_SERVER:-dev}
 
@@ -56,6 +61,13 @@ finish() {
       tail -n 200 "$server_log"
     fi
   fi
+  for i in "${!extra_pids[@]}"; do
+    bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "${extra_pids[$i]}" "${extra_tags[$i]}" || status=1
+    wait "${extra_pids[$i]}" 2>/dev/null || true
+    if [ "$status" -ne 0 ]; then
+      tail -n 100 "${extra_logs[$i]}"
+    fi
+  done
   if [ -n "$realtime_pid" ]; then
     bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$realtime_pid" "$realtime_tag" || status=1
     wait "$realtime_pid" 2>/dev/null || true
@@ -87,6 +99,7 @@ wait_for_browsers() {
     exit 1
   fi
   browsers_pid=''
+  grep -E '^(Installed system dependencies|Cache install failed|Stored [0-9]+ packages|Browser install took)' "$browsers_log" || true
 }
 
 # start_app <name> <port> <label> [record-http-status]
@@ -117,6 +130,27 @@ start_app() {
   fi
   server_pid=$!
   wait_ready "$server_pid" "$local_app_url/api/health" "$label app"
+}
+
+# start_extra_app <name> <port> <label> [env-argument...]: another `next start` of the same build on
+# the same database, beside the group's app, for a suite comparing two runtime configurations.
+# The `env` arguments adjust its environment (`-u WORKFLOW_CODE` turns that flag off).
+start_extra_app() {
+  local name=$1 port=$2 label=$3
+  shift 3
+  if [ "$app_server" != start ]; then
+    echo "::error::A second app needs the production build (next start)."
+    exit 1
+  fi
+  local tag="$name-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$$" url="http://127.0.0.1:$port"
+  local log="$report_dir/$name-next.log"
+  E2E_APP="$tag" NEXT_PUBLIC_APP_URL="$url" BETTER_AUTH_URL="$url" LOG_LEVEL=INFO setsid env "$@" \
+    node ../../node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port "$port" \
+    > "$log" 2>&1 &
+  extra_pids+=("$!")
+  extra_tags+=("$tag")
+  extra_logs+=("$log")
+  wait_ready "$!" "$url/api/health" "$label app"
 }
 
 # start_realtime <name> <port>: the Socket.IO server the app's browser clients connect to, so pages
@@ -155,14 +189,15 @@ case "$group" in
   scim)
     export NEXT_PUBLIC_FORCE_HOSTED=true
     export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
-    export ENTERPRISE_ENABLED=true NEXT_PUBLIC_ENTERPRISE_ENABLED=true
-    export SCIM_ENABLED=true NEXT_PUBLIC_SCIM_ENABLED=true
-    export SSO_ENABLED=true NEXT_PUBLIC_SSO_ENABLED=true
-    export ORGANIZATIONS_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+    export ENTERPRISE_ENABLED=true
+    export SCIM_ENABLED=true
+    export SSO_ENABLED=true
+    export ORGANIZATIONS_ENABLED=true
     export INTERNAL_API_SECRET=scim-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     export NEXT_PUBLIC_CHAT_DISABLED=true
     export SIM_LINKS=true
+    export WORKFLOW_CODE=true
     export PEOPLE=true
     export CRON_SECRET=people-directory-sync-local-e2e-secret
     start_browser_install people chromium
@@ -171,6 +206,7 @@ case "$group" in
     export PEOPLE_E2E_SCREENSHOT_DIR="$report_dir/people-ui-report.json.artifacts"
     SCIM_E2E_BASE_URL="$local_app_url" \
     SCIM_E2E_DATABASE_URL="$DATABASE_URL" \
+    SCIM_E2E_REDIS_URL="$REDIS_URL" \
     SCIM_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     SCIM_E2E_REPORT_PATH="$report_dir/scim-e2e-report.json" \
       bun run test:scim:e2e
@@ -179,6 +215,19 @@ case "$group" in
     VERSION_COMPARE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     VERSION_COMPARE_E2E_REPORT_PATH="$report_dir/version-compare-http-report.json" \
       bun run test:workflow-version-compare:e2e
+    WORKFLOW_SOURCE_E2E_BASE_URL="$local_app_url" \
+    WORKFLOW_SOURCE_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKFLOW_SOURCE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    WORKFLOW_SOURCE_E2E_REPORT_PATH="$report_dir/workflow-source-e2e-report.json" \
+      bun run test:workflow-source:e2e
+    WORKFLOW_SOURCE_APPLY_E2E_BASE_URL="$local_app_url" \
+    WORKFLOW_SOURCE_APPLY_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKFLOW_SOURCE_APPLY_E2E_REPORT_PATH="$report_dir/workflow-source-apply-e2e-report.json" \
+      bun run test:workflow-source-apply:e2e
+    WORKSPACE_SOURCE_E2E_BASE_URL="$local_app_url" \
+    WORKSPACE_SOURCE_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKSPACE_SOURCE_E2E_REPORT_PATH="$report_dir/workspace-source-e2e-report.json" \
+      bun run test:workspace-source:e2e
     SIM_LINKS_E2E_BASE_URL="$local_app_url" \
     SIM_LINKS_E2E_DATABASE_URL="$DATABASE_URL" \
     SIM_LINKS_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
@@ -192,8 +241,7 @@ case "$group" in
     ;;
 
   # The search suites serve their own fixtures in-process and need no app. They share this group
-  # because they finish in seconds. Self-hosted without billing: hosted billing admits runs through
-  # Redis, which the CLI app is not given.
+  # because they finish in seconds. Self-hosted, so runs are not admitted through hosted billing.
   cli)
     for search in google-content lucid zoom google-meet; do
       report_var="SEARCH_$(echo "$search" | tr 'a-z-' 'A-Z_')_REPORT_PATH"
@@ -216,7 +264,7 @@ case "$group" in
       bun run test:cli-run-latency:e2e
     ;;
 
-  # Self-hosted: hosted billing admits a run only through a Redis usage reservation.
+  # Self-hosted, so runs are not admitted through hosted billing's usage reservation.
   stop-after)
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export CRON_SECRET=stop-after-e2e-local-cron-secret
@@ -231,17 +279,16 @@ case "$group" in
       bun run test:workflow-stop-after:e2e
     ;;
 
-  desktop-inbox|assistant-actions|organization-search)
-    export REDIS_URL=redis://127.0.0.1:6379
+  desktop-inbox|assistant-actions|organization-search|search-permissions)
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export COPILOT_TOOL_PERMISSIONS_ENABLED=true
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
-    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
-    if [ "$group" != desktop-inbox ]; then start_browser_install "$group" --only-shell chromium; fi
+    case "$group" in assistant-actions|organization-search) needs_browser=true ;; *) needs_browser=false ;; esac
+    if [ "$needs_browser" = true ]; then start_browser_install "$group" --only-shell chromium; fi
     export INTERNAL_API_SECRET=desktop-inbox-http-ci-local-secret-at-least-32-characters
     export DB_TX_TRIPWIRE=throw
     start_app "$group" 3019 "$group" record-http-status
-    if [ "$group" != desktop-inbox ]; then wait_for_browsers; fi
+    if [ "$needs_browser" = true ]; then wait_for_browsers; fi
     case "$group" in
       desktop-inbox)
         DESKTOP_INBOX_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
@@ -258,11 +305,15 @@ case "$group" in
         ASSISTANT_ACTIONS_E2E_REPORT_PATH="$report_dir/assistant-actions-ui-report.json" \
           bun --no-env-file scripts/test-assistant-actions-e2e.ts
         ;;
-      organization-search)
+      # The 500,000-identity import uploads 700 parts in order, so it runs beside the browser
+      # suite rather than ahead of it.
+      search-permissions)
         GITLAB_CSV_E2E_BASE_URL="$local_app_url" \
         GITLAB_CSV_E2E_LARGE_IMPORT=1 \
         GITLAB_CSV_E2E_REPORT_PATH="$report_dir/gitlab-csv-permissions-http-report.json" \
           bun --no-env-file scripts/test-gitlab-csv-permissions-e2e.ts
+        ;;
+      organization-search)
         ORGANIZATION_SEARCH_E2E_BASE_URL="$local_app_url" \
         ORGANIZATION_SEARCH_E2E_DATABASE_URL="$DATABASE_URL" \
         ORGANIZATION_SEARCH_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
@@ -280,11 +331,9 @@ case "$group" in
       browser-extension-composer) extension_group=composer ;;
       browser-extension-access) extension_group=access ;;
     esac
-    export REDIS_URL=redis://127.0.0.1:6379
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true ACCESS_CONTROL_ENABLED=true
     export SIM_LINKS=true
-    export NEXT_PUBLIC_ACCESS_CONTROL_ENABLED=true
     export API_ENCRYPTION_KEY="$ENCRYPTION_KEY"
     start_browser_install "$group" --no-shell chromium
     extension_identity=$(bun - <<'JS'
@@ -309,7 +358,7 @@ JS
 
   project-files)
     PROJECT_FILES_E2E_ADMIN_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \
-    PROJECT_FILES_E2E_REDIS_URL=redis://127.0.0.1:6379 \
+    PROJECT_FILES_E2E_REDIS_URL="$REDIS_URL" \
     PROJECT_FILES_E2E_BASE_URL=http://127.0.0.1:3050 \
     PROJECT_FILES_E2E_RELAY_URL=http://127.0.0.1:3052 \
     PROJECT_FILES_E2E_REPORT_PATH="$report_dir/project-files/orchestration.json" \
@@ -330,6 +379,28 @@ JS
     MARKDOWN_VIEWER_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     MARKDOWN_VIEWER_E2E_REPORT_PATH="$report_dir/markdown-viewer-ui-report.json" \
       bun run test:markdown-viewer:e2e
+    ;;
+
+  # Two apps on one build and database: the Code tab's flag on (with realtime, so canvas edits
+  # persist) and off, for the suite's flag-off and flag-flip checks.
+  workflow-code-ui)
+    app_server=start
+    export NEXT_PUBLIC_FORCE_HOSTED=false
+    export NEXT_PUBLIC_CHAT_DISABLED=true
+    export INTERNAL_API_SECRET=workflow-code-ui-http-ci-local-secret-at-least-32-characters
+    export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3029 SOCKET_SERVER_URL=http://127.0.0.1:3029
+    export WORKFLOW_CODE=true
+    start_browser_install workflow-code-ui --only-shell chromium
+    start_app workflow-code-ui 3028 'workflow Code tab' record-http-status
+    start_realtime workflow-code-ui 3029
+    start_extra_app workflow-code-ui-flag-off 3030 'workflow Code tab (flag off)' -u WORKFLOW_CODE
+    wait_for_browsers
+    WORKFLOW_CODE_UI_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    WORKFLOW_CODE_UI_E2E_FLAG_OFF_BASE_URL=http://127.0.0.1:3030 \
+    WORKFLOW_CODE_UI_E2E_DATABASE_URL="$DATABASE_URL" \
+    WORKFLOW_CODE_UI_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
+    WORKFLOW_CODE_UI_E2E_REPORT_PATH="$report_dir/workflow-code-ui-report.json" \
+      bun run test:workflow-code-ui:e2e
     ;;
 
   # MOBILE_E2E_BROWSER (chromium or webkit) narrows the job to one browser; unset runs both.

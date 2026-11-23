@@ -1,0 +1,16 @@
+{
+  "namespace": "wealthbox",
+  "methods": {
+    "read_contact": "readContact",
+    "read_note": "readNote",
+    "read_task": "readTask",
+    "write_contact": "writeContact",
+    "write_note": "writeNote",
+    "write_task": "writeTask"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

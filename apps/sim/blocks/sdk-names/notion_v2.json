@@ -1,0 +1,39 @@
+{
+  "namespace": "notion",
+  "methods": {
+    "notion_add_database_row": "addDatabaseRow",
+    "notion_append_blocks": "appendBlockChildren",
+    "notion_create_comment": "createComment",
+    "notion_create_database": "createDatabase",
+    "notion_create_page": "createPage",
+    "notion_delete_block": "deleteBlock",
+    "notion_list_comments": "listComments",
+    "notion_list_users": "listUsers",
+    "notion_query_database": "queryDatabase",
+    "notion_read": "readPage",
+    "notion_read_database": "readDatabase",
+    "notion_retrieve_block": "retrieveBlock",
+    "notion_retrieve_block_children": "retrieveBlockChildren",
+    "notion_retrieve_user": "retrieveUser",
+    "notion_search": "searchWorkspace",
+    "notion_update_block": "updateBlock",
+    "notion_update_page": "updatePageProperties",
+    "notion_write": "appendContent"
+  },
+  "triggers": {
+    "notion_comment_created": "commentCreated",
+    "notion_database_created": "databaseCreated",
+    "notion_database_deleted": "databaseDeleted",
+    "notion_database_schema_updated": "databaseSchemaUpdated",
+    "notion_page_content_updated": "pageContentUpdated",
+    "notion_page_created": "pageCreated",
+    "notion_page_deleted": "pageDeleted",
+    "notion_page_properties_updated": "pagePropertiesUpdated",
+    "notion_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

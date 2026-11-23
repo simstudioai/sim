@@ -1,0 +1,24 @@
+{
+  "namespace": "webflow",
+  "methods": {
+    "create": "createItem",
+    "delete": "deleteItem",
+    "get": "getItem",
+    "list": "listItems",
+    "update": "updateItem"
+  },
+  "triggers": {
+    "webflow_collection_item_changed": "collectionItemChanged",
+    "webflow_collection_item_created": "collectionItemCreated",
+    "webflow_collection_item_deleted": "collectionItemDeleted",
+    "webflow_form_submission": "formSubmission"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

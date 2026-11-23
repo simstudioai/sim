@@ -182,6 +182,7 @@ Create a workflow with a Schedule trigger set to every minute, deploy it, and wa
 | Table row TTL cleanup | `/api/cron/cleanup-table-row-ttl` | `*/15 * * * *` | Deletes table rows whose TTL column has expired |
 | Stale execution cleanup | `/api/cron/cleanup-stale-executions` | `*/30 * * * *` | Fails runs whose worker died without finishing — workflow executions, background jobs, table jobs and table runs — so they stop showing as running |
 | OAuth token cleanup | `/api/cron/cleanup-oauth-tokens` | `0 * * * *` | Deletes access and refresh tokens after the retention tail |
+| Workspace source staging cleanup | `/api/cron/cleanup-source-staging` | `30 * * * *` | Deletes binary files staged for a workspace source apply a day after they were last staged |
 | SCIM reconciliation | `/api/cron/scim-reconcile` | `17 * * * *` | Re-applies directory group mappings |
 | Data drains | `/api/cron/run-data-drains` | `0 * * * *` | Enterprise data drains |
 | Renew subscriptions | `/api/cron/renew-subscriptions` | `0 */12 * * *` | Renews Microsoft Teams chat subscriptions (Graph caps them at ~3 days) |

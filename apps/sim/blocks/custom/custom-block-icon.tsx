@@ -49,23 +49,19 @@ export const DefaultCustomBlockIcon: BlockIcon = Box
 
 /**
  * Resolve a custom block's icon and the tile it sits on: the uploaded image, else
- * the org's whitelabel logo (`fallbackUrl`), else the default glyph. Both fall out
- * of the same precedence, so a block can never paint a tile its icon disagrees with.
+ * the default glyph. Both fall out of the same check, so a block can never paint a
+ * tile its icon disagrees with.
  */
-export function getCustomBlockTile(
-  iconUrl: string | null | undefined,
-  fallbackUrl?: string | null
-): { icon: BlockIcon; bgColor: string } {
-  const url = iconUrl || fallbackUrl
-  return url
-    ? { icon: makeImageIcon(url), bgColor: CUSTOM_BLOCK_IMAGE_TILE_COLOR }
+export function getCustomBlockTile(iconUrl: string | null | undefined): {
+  icon: BlockIcon
+  bgColor: string
+} {
+  return iconUrl
+    ? { icon: makeImageIcon(iconUrl), bgColor: CUSTOM_BLOCK_IMAGE_TILE_COLOR }
     : { icon: DefaultCustomBlockIcon, bgColor: CUSTOM_BLOCK_TILE_COLOR }
 }
 
 /** The icon half of {@link getCustomBlockTile}, for surfaces that paint no tile. */
-export function getCustomBlockIcon(
-  iconUrl: string | null | undefined,
-  fallbackUrl?: string | null
-): BlockIcon {
-  return getCustomBlockTile(iconUrl, fallbackUrl).icon
+export function getCustomBlockIcon(iconUrl: string | null | undefined): BlockIcon {
+  return getCustomBlockTile(iconUrl).icon
 }

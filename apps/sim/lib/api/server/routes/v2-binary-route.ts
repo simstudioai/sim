@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import {
   methodMatchesContract,
   requireBinaryRouteDefinition,
+  requireHeadAuthorizableUseCase,
 } from '@/lib/api/server/routes/definition'
 import type {
   BinaryApiRouteContract,
@@ -11,7 +12,6 @@ import type {
 } from '@/lib/api/server/routes/types'
 import {
   admitV2Request,
-  requireHeadAuthorizableUseCase,
   V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
   type V2RateLimitPolicy,

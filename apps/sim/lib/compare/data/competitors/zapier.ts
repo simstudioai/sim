@@ -948,26 +948,6 @@ export const zapierProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          "Yes, but partial and tiered: Zapier offers a White Label product for embedding automation UI into a customer's own product (currently limited access, contact sales). Separately, Team/Enterprise Forms customers can remove the 'Built on Zapier' label, while Professional/Team/Enterprise customers can apply custom brand colors and a logo to Forms (Free cannot). There is no platform-wide white-labeling of the core Zap editor or workspace itself.",
-        detail:
-          'White Label is a distinct embedded product for SaaS builders; branding removal on Forms is a separate, narrower feature gated behind paid plans, with label removal itself requiring Team/Enterprise.',
-        shortValue: 'Partial: White Label embed product, tiered branding removal',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://docs.zapier.com/white-label/getting-started',
-            label: 'White Label getting started',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://help.zapier.com/hc/en-us/articles/15932034572685-Customize-branding-and-colors-in-Zapier-Forms',
-            label: 'Customize branding and colors in Zapier Forms',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes, but Enterprise-only: Enterprise admins can customize Zap history retention to 7-30 days. Free, Professional, and Team plans keep the default retention window and cannot customize it.',

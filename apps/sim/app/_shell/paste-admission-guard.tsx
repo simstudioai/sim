@@ -6,7 +6,7 @@ import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/past
 import { readSelectionContextFromClipboard } from '@/lib/mothership/chat/selection-clipboard'
 
 const EDITABLE_TARGET_SELECTOR =
-  'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor, .xterm'
+  'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), textarea, [contenteditable]:not([contenteditable="false"]), [data-code-editor], .xterm'
 
 function finitePositiveAttribute(element: Element | null, name: string): number | undefined {
   const raw = element?.getAttribute(name)
@@ -29,7 +29,7 @@ function clipboardHasImageFile(data: DataTransfer | null): boolean {
  * crash-only fallback. This layer bounds only the clipboard payload, so a small paste into an already
  * large field keeps native behavior. Editors with a real result-size contract enforce it themselves.
  * Targets that explicitly handle clipboard images may claim those file events before the text guards.
- * The capture listener runs before React, ProseMirror, Monaco, and xterm parse the clipboard value.
+ * The capture listener runs before React, ProseMirror, the code editor, and xterm parse the clipboard value.
  */
 export function PasteAdmissionGuard() {
   const { toast: notify } = useToast()

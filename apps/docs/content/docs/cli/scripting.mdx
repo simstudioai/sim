@@ -112,7 +112,37 @@ Run the next command only when the cursor is non-null. `--limit` applies to each
 
 Results go to stdout; diagnostics go to stderr. JSON/YAML modes serialize API errors as `{error:{code,message,details?}}`. Display formats use `Error:` plus any supplied code/details. Configuration and argument-parser errors, run-wait outcome messages, and unexpected stack traces can remain text. Do not assume every stderr stream is a single JSON document.
 
-Most successful actions exit 0; API, configuration, or argument failures exit 1. Interactive secret entry cancelled with Ctrl-C exits 130. Other outcomes are command-specific:
+`sim workflows source check`, `sim workspaces source check` and both `source apply` commands (dry run or not) print their findings on stderr as `file:line:column` with the code frame. In JSON output (the [default](/cli/output)) or `--output yaml`, stdout is one document holding the counts and every finding as well:
+
+```json
+{
+  "checked": "compile",
+  "errors": 1,
+  "warnings": 0,
+  "diagnostics": [
+    {
+      "code": "W_UNKNOWN_OPTION",
+      "severity": "error",
+      "message": "method has no option FETCH; it is kept as written.",
+      "hint": "Options: GET, POST, PUT, DELETE, PATCH.",
+      "file": "workflow.ts",
+      "line": 12,
+      "column": 63
+    }
+  ]
+}
+```
+
+Each finding has `code`, `severity` and `message`, and when they apply `hint`, `file`, `line`, `column`, `endLine`, `endColumn`, `path` (a JSON path into a non-source file such as `.sim/lock.json`), and `kind` and `key` (the workspace resource it is about). A write the server refuses (stale, locked, too large, busy or rejected; exit 5, 6, 7, 10 or 1) prints nothing on stdout and the `{error:…}` document on stderr, whose `details` carries the refusal's own `code` (such as `SOURCE_STALE`) and its findings in the same shape: `{ "error": { "code", "message", "details": { "code", "diagnostics": [...] } } }`.
+
+Most successful actions exit 0; API, configuration, or argument failures exit 1. Two failures every command shares have codes of their own (both exited 1 in earlier CLI releases, so a script that compares with `1` should test for any non-zero code instead):
+
+| Code | Meaning |
+| --- | --- |
+| `13` | `AUTH_REQUIRED`: the profile has no credential, its OAuth login expired and could not be refreshed, or the server answered `401` (the server's own code is kept when it sends one). Nothing was done: run `sim login` and the same command again. |
+| `9` | Rate limited: the API answered `429` and the CLI gave up. Nothing more was sent: wait a minute and run the command again. |
+
+The CLI resends a request the API answers `429` only when sending it twice is safe: every `GET`, and the source writes that are all-or-nothing (`sim workflows source apply` and `create`, `sim workspaces source apply` and its file uploads, dry runs and the dry run `status` sends included). It resends up to 6 times, waiting each time for the longer of the server's `Retry-After` (honoured up to 60 seconds) and a backoff of about 1, 2, 4, 8, 16 and 30 seconds (each ±20%), so one wait is at most a minute. Any other write answered `429` exits 9 at once. Interactive secret entry cancelled with Ctrl-C exits 130. Other outcomes are command-specific:
 
 | Code | `sim whoami` |
 | --- | --- |
@@ -135,9 +165,65 @@ Most successful actions exit 0; API, configuration, or argument failures exit 1.
 | `3` | Committed operation requires configuration |
 | `4` | Wait timed out |
 
+| Code | `sim workflows source apply` or `create` |
+| --- | --- |
+| `0` | Applied or created, or a dry run with no errors |
+| `1` | The source has errors (each printed as `file:line:column` with its frame and hint), `create`'s workflow name is taken (`SOURCE_NAME_TAKEN`: pass `--name`), or command/request failure |
+| `5` | The workflow changed since the directory was read (`409 SOURCE_STALE`): get it again, reapply the edit, and retry |
+| `6` | The workflow or its folder is locked (`423`, `E_APPLY_LOCKED`); a locked block exits `1` (`E_APPLY_LOCKED_BLOCK`) |
+| `7` | The source is over the size limits (`413`) |
+| `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+| `10` | Busy, retry: another `sim` command is using `--dir`, or the workspace directory it is a workflow folder of (`SOURCE_DIR_BUSY`); nothing was read or written: run it again once the other finished |
+| `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `14` | Run without `--yes` and with no terminal to ask: the plan was printed with no errors and nothing was written; run the same command with `--yes` |
+| `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
+
+| Code | `sim workflows source status` or `sim workspaces source status` |
+| --- | --- |
+| `0` | Clean: nothing to apply, and the server changed nothing since the directory was read |
+| `1` | Command/request failure |
+| `7` | The source is too large for the server to read in one dry run |
+| `10` | `sim workspaces source status` only: another `sim workspaces source` command is using the directory (`SOURCE_DIR_BUSY`); nothing was read: run it again once the other finished |
+| `11` | Local changes only: applying writes them |
+| `12` | The server changed since the directory was read (drift, or a conflict with local changes) |
+| `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; the local changes are still shown |
+
+| Code | `sim workflows source check` or `sim workspaces source check` |
+| --- | --- |
+| `0` | No errors (warnings may still print) |
+| `1` | The source has errors, or a warning that fails the check on a block the edit added (see `--strict`), or no block catalog is cached: run the get once |
+| `10` | `sim workspaces source check` only: another `sim workspaces source` command is using the directory (`SOURCE_DIR_BUSY`); nothing was read: run it again once the other finished |
+
+| Code | `sim workflows source get --dir` or `sim workspaces source get` |
+| --- | --- |
+| `0` | Written |
+| `1` | The directory holds edits no apply has saved (`SOURCE_LOCAL_EDITS`) or another workflow's source (`SOURCE_WORKFLOW_MISMATCH`): apply them, get into another directory, or pass `--force`; it is the other kind of source directory (`SOURCE_DIR_KIND_MISMATCH`, even with `--force`); for a workspace, `--workspace` names another workspace than the one the directory was read from (`SOURCE_OTHER_WORKSPACE`) or a downloaded binary file does not match its listing (`SOURCE_BLOB_MISMATCH`); or command/request failure |
+| `7` | The workflow, or a kind of resource, is too large for one directory |
+| `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+| `10` | Busy, retry: another `sim` command is using the directory (or, for a workflow folder, its workspace directory) (`SOURCE_DIR_BUSY`); nothing was read or written: run it again once the other finished |
+| `13` | `AUTH_REQUIRED`: not logged in, the login expired, or the server refused the credential; nothing was read or written: run `sim login` and the get again |
+| `130` | Interrupted (Ctrl-C): run the get again |
+
+| Code | `sim workspaces source apply` |
+| --- | --- |
+| `0` | Applied, or a dry run with no errors |
+| `1` | The source has errors, every change it would write was held back for a secret or credential the workspace cannot satisfy (nothing was written; its dry run exits `1` too), or command/request failure |
+| `5` | A resource changed since the directory was read (`409 SOURCE_STALE`): get it again into a fresh directory, reapply the edit, and retry |
+| `6` | A resource (a workflow or its folder, a table) is locked (`423`); a locked block exits `1` (`E_APPLY_LOCKED_BLOCK`) |
+| `7` | The directory is over the size limits (`413`) |
+| `8` | The apply stopped part-way: what was written is saved into the directory; apply again |
+| `9` | Still rate limited (`429`) after the CLI's retries; nothing was written |
+| `10` | Busy, retry: another apply is writing the workspace (`409 SOURCE_BUSY`), or another `sim workspaces source` command is using the same directory (`SOURCE_DIR_BUSY`); nothing was written: run the command again once the other finished |
+| `13` | `AUTH_REQUIRED`: not logged in, or the server refused the credential; nothing was sent |
+| `14` | Run without `--yes` and with no terminal to ask: the plan was printed with no errors and nothing was written; run the same command with `--yes` |
+| `15` | Written in part: changes that use a declared secret with no value, or a credential key nothing binds to, were held back and the rest was applied and saved; set the secret or connect the credential, then apply again (a promotion with `--to` too). A dry run that would do so exits `15` too, having written nothing |
+| `130` | Interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check |
+
+Earlier CLI releases exited `1` when an apply held changes back, whether or not it wrote the rest, and its dry run exited `1` in either case. A script that reads `1` as "held back" should test for `15` too.
+
 Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
 
-A synchronous or followed workflow run prints its result before exiting 1 for failure/cancellation. A paused run is not failed and can return 0; use `runs wait` or inspect status if your script requires completion. Fetching a failed run or listing runs only reports their state.
+A synchronous or followed workflow run prints its result before exiting 1 for failure/cancellation. The result of a run that is not followed is the run record, whose `status` is `completed`, `failed`, `paused` or `cancelled`; it has no `success` field (a followed run's result is the stream's final frame, `success` and `output`), so branch on `status` or the exit code. A paused run is not failed and can return 0; use `runs wait` or inspect status if your script requires completion. Fetching a failed run or listing runs only reports their state.
 
 Capture a failure without losing its output:
 
@@ -292,6 +378,61 @@ case "$status" in
 esac
 exit "$status"
 ```
+
+## Workspace source in CI
+
+Keep a [workspace source directory](/workflows/workspace-code) in a repository, `.sim/` included, and let CI plan each pull request and apply each merge. The dry run exits `1` on errors, `5` when the workspace changed since the committed base, and `15` when the apply would hold back changes that use a secret with no value or a credential nothing binds to; `check` downloads the block catalog once on a fresh runner. On GitHub Actions (`GITHUB_ACTIONS=true`), every source command also annotates each error and warning at its file and line, so they show inline on the pull request, and `apply` (a dry run too) appends its plan and errors to the job's step summary.
+
+```yaml title=".github/workflows/sim-workspace.yml"
+on:
+  pull_request:
+    paths: ['workspace/**']
+  push:
+    branches: [main]
+    paths: ['workspace/**']
+
+concurrency: sim-workspace
+
+permissions:
+  contents: write
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    env:
+      SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
+      SIM_WORKSPACE: ${{ vars.SIM_WORKSPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: oven-sh/setup-bun@v2
+      - run: bun add -g sim
+      - run: sim workspaces source check --dir workspace
+      - run: bunx -p typescript@7.0.2 tsc -p workspace
+      - run: sim workspaces source apply --dir workspace --dry-run
+      - if: github.event_name == 'push'
+        run: sim workspaces source apply --dir workspace --yes
+      - if: ${{ !cancelled() && github.event_name == 'push' }}
+        run: |
+          git add -A workspace
+          if ! git diff --cached --quiet; then
+            git -c user.name=sim-bot -c user.email=sim-bot@users.noreply.github.com \
+              commit -m "chore(workspace): files the apply rewrote [skip ci]"
+            git push
+          fi
+```
+
+`check` runs first because it is offline and fast, and it regenerates `.sim/sdk/workspace.d.ts`, so the `tsc` step after it types resources the pull request adds. A workspace API key can apply tables, rows, knowledge bases, files, custom tools, MCP servers and credential bindings. Workflows, skills, secrets and deployments need a member's personal API key, and deployments need an admin. Apply rewrites files under the directory (each `.sim/base.json`, ids it allocated, values the server normalized), and the next apply compares with them, so the last step commits them back to the branch; `[skip ci]` keeps that commit from running the job again. That step runs even when the apply failed (`!cancelled()`), because an apply can fail having written part of its plan: exit `15` means it held back changes that use a secret with no value or a credential nothing binds to and applied the rest, and exit `8` means it stopped part-way. Either way the directory records what was written, so committing it keeps the next run from being refused as stale (exit `5`) for resources this run wrote; the job still fails, so set the secret, connect the credential or fix the failure, and push again. Where the branch is protected, run `sim workspaces source get --dir workspace` on a new branch instead and open a pull request. After merging two branches that each applied, a dry run with no changes means the files match the workspace. Exit `5` means a resource changed since this branch's base: get the workspace into a fresh directory and carry the edit over. Exit `10` means another apply is writing the workspace (or another command is using the directory), so retry; the `concurrency` key keeps two runs of this job from overlapping.
+
+To promote the same directory to a second workspace, add a step with `--to` before the step that commits the files back:
+
+```bash
+sim workspaces source apply --dir workspace --to "$PROD_WORKSPACE_ID" --yes
+```
+
+The promotion writes `workspace/.sim/targets/<workspaceId>.json`, what it left in that workspace. Committing it lets the next run tell a change made in that workspace since (kept, or exit `5` when the directory changed the same resource) from one to promote.
 
 ## Related docs
 

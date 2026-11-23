@@ -4,22 +4,6 @@
  * completion. Calls are persisted the way the run loop persists a bound run's desktop calls, and
  * Stop runs through the real `requestRunStop`.
  */
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { redisUrl, presence } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  /** The real Redis module reads this at import. */
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url, presence: { available: true } }
-})
-
-/** Redis is always configured here; `presence.available` stands in for an install without it. */
-vi.mock('@/lib/desktop/executor/presence', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/desktop/executor/presence')>()),
-  isDesktopPresenceAvailable: () => presence.available,
-}))
 
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -33,11 +17,13 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -66,7 +52,7 @@ afterAll(async () => {
   await closeRedisConnection()
 })
 
-describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => {
+describe('desktop background executor protocol', () => {
   const userIds: string[] = []
   const workspaceIds = new Map<string, string>()
   const chatIds: string[] = []
@@ -236,10 +222,6 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
     return settled
   }
 
-  beforeEach(() => {
-    presence.available = true
-  })
-
   afterAll(async () => {
     if (chatIds.length) await db.delete(copilotChats).where(inArray(copilotChats.id, chatIds))
     if (deviceIds.length) {
@@ -252,22 +234,10 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
   })
 
   describe('registration', () => {
-    it('reports the executor on wherever Sim can track presence', async () => {
+    it('reports the executor on', async () => {
       const desktop = await signedInDesktop()
       expect(desktop.enabled).toBe(true)
       await expect(inbox(desktop)).resolves.toEqual({ items: [] })
-    })
-
-    it('writes nothing and reports the executor off where Sim cannot track presence', async () => {
-      presence.available = false
-      const desktop = await signedInDesktop()
-      expect(desktop.enabled).toBe(false)
-      const [stored] = await db
-        .select()
-        .from(desktopDevices)
-        .where(eq(desktopDevices.id, desktop.deviceId))
-      expect(stored).toBeUndefined()
-      await expect(inbox(desktop)).rejects.toBeInstanceOf(DesktopDeviceUnrecognizedError)
     })
 
     it('refuses an install id that belongs to another account', async () => {
@@ -688,7 +658,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       expect(woken?.status).toBe('success')
       /** The wake-up itself: the confirmation every waiter's pub/sub wakes on, published durably. */
       await expect
-        .poll(() => getRedisClient()?.get(`copilot:tool-confirmation:${toolCallId}`))
+        .poll(() => getRedisClient().get(`copilot:tool-confirmation:${toolCallId}`))
         .toContain('"status":"success"')
       await expect(
         unsealClientToolCompletion(woken?.data, {
@@ -845,7 +815,6 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const run = await boundRun(desktop)
       const toolCallId = await pendingCall(run.runId)
       const redis = getRedisClient()
-      if (!redis) throw new Error('Redis is required')
       const writes = vi.spyOn(redis, 'set').mockRejectedValue(new Error('Redis unavailable'))
       try {
         expect((await inbox(desktop)).items).toMatchObject([{ kind: 'call', toolCallId }])

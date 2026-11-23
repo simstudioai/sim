@@ -360,7 +360,11 @@ function buildAppToolParams(
     requestMode: context.requestMode,
     currentAgentId: context.currentAgentId,
     enforceCredentialAccess: true,
-    ...(context.requestMode === 'assistant' ? { envReferenceMode: 'off' } : {}),
+    // The secret authority `function_execute` applies, always written so a model-supplied
+    // `_context` cannot set it: no secret actor resolves nothing; the policy bounds names.
+    envReferenceMode:
+      context.requestMode === 'assistant' || context.secretActorUserId === null ? 'off' : undefined,
+    secretMountPolicy: context.secretMountPolicy,
     ...(context.billingAttribution ? { billingAttribution: context.billingAttribution } : {}),
   }
 

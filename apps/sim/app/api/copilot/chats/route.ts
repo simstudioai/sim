@@ -153,7 +153,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createInternalServerErrorResponse('Failed to create chat')
     }
 
-    chatPubSub?.publishStatusChanged({ workspaceId, chatId: result.chatId, type: 'created' })
+    chatPubSub.publishStatusChanged({ workspaceId, chatId: result.chatId, type: 'created' })
 
     return NextResponse.json({ success: true, id: result.chatId })
   } catch (error) {

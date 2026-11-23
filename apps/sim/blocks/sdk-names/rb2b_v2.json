@@ -1,0 +1,25 @@
+{
+  "namespace": "rb2b",
+  "methods": {
+    "credit_check": "creditCheck",
+    "email_to_activity": "emailToLastActiveDate",
+    "hem_to_best_linkedin": "emailHemToBestLinkedInUrl",
+    "hem_to_business_profile": "emailHemToBusinessProfile",
+    "hem_to_linkedin": "emailHemToLinkedInSlug",
+    "hem_to_maid": "emailHemToMaid",
+    "ip_to_company": "ipToCompany",
+    "ip_to_hem": "ipToHem",
+    "ip_to_maid": "ipToMaid",
+    "linkedin_slug_search": "linkedInSlugSearch",
+    "linkedin_to_best_personal_email": "linkedInToBestPersonalEmail",
+    "linkedin_to_business_profile": "linkedInToBusinessProfile",
+    "linkedin_to_hashed_emails": "linkedInToHashedEmails",
+    "linkedin_to_mobile_phone": "linkedInToMobilePhone",
+    "linkedin_to_personal_email": "linkedInToPersonalEmail"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -61,14 +61,6 @@ export interface ApprovalGrant {
 
 export type PollResult = { status: 'pending' } | ({ status: 'approved' } & ApprovalGrant)
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('CLI authentication requires Redis. Set REDIS_URL to enable it.')
-  }
-  return redis
-}
-
 /**
  * `requestId` is the rendezvous handle the CLI puts in the browser URL, so it is
  * semi-public (OAuth's `user_code`, not its `device_code`). Hashing it as the
@@ -99,7 +91,7 @@ export async function createApproval(
     scope: 'copilot',
   }
 ): Promise<void> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const record: ApprovalRecord = {
     challenge,
     userId,
@@ -132,7 +124,7 @@ export async function createApproval(
  * {@link completeApproval} on success or {@link releaseMint} on failure.
  */
 export async function pollApproval(requestId: string, pollSecret: string): Promise<PollResult> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
 
   const raw = await redis.get(approvalKey(requestId))
   if (!raw) return { status: 'pending' }
@@ -156,12 +148,12 @@ export async function pollApproval(requestId: string, pollSecret: string): Promi
 
 /** Consumes the approval after a successful mint — single-use from here on. */
 export async function completeApproval(requestId: string): Promise<void> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   await redis.del(approvalKey(requestId), mintLockKey(requestId))
 }
 
 /** Releases the mint reservation after a failed mint so a later poll can retry. */
 export async function releaseMint(requestId: string): Promise<void> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   await redis.del(mintLockKey(requestId))
 }

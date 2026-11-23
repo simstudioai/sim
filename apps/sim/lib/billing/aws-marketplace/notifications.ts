@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { findAwsMarketplaceProduct } from '@/lib/billing/aws-marketplace/config'
 import {
   AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
@@ -19,7 +20,6 @@ import type { OutboxHandler, OutboxHandlerRegistry } from '@/lib/core/outbox/ser
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('AwsMarketplaceNotifications')
 
@@ -212,16 +212,15 @@ ${copy.next}
 async function renderBuyerNotice(notice: AwsMarketplaceBuyerNotice): Promise<RenderedEmail | null> {
   const [license] = await getLicensesByIds([notice.licenseId])
   if (!license?.contactEmail) return null
-  const brand = getBrandConfig()
   return {
     to: license.contactEmail,
-    subject: `Your ${brand.name} account is being set up`,
-    replyTo: brand.supportEmail,
-    text: `Thanks for subscribing to ${brand.name} through AWS Marketplace.
+    subject: `Your Sim account is being set up`,
+    replyTo: SIM_SUPPORT_EMAIL,
+    text: `Thanks for subscribing to Sim through AWS Marketplace.
 
 Your account is being set up. Please wait for us to contact you. We expect to finish ${AWS_MARKETPLACE_SETUP_TURNAROUND}.
 
-Questions? Contact ${brand.supportEmail}.
+Questions? Contact ${SIM_SUPPORT_EMAIL}.
 `,
   }
 }

@@ -120,7 +120,7 @@ export interface CostSummary {
   models: Record<string, CostSummaryModel>
   /**
    * Model costs owned by workflow finalization. Mothership spans remain in
-   * `models` and the display totals, but Go's cumulative update-cost path owns
+   * `models` and the display totals, but the worker's cumulative update-cost path owns
    * their usage ledger rows.
    */
   workflowLedgerModels: Record<string, CostSummaryModel>
@@ -138,7 +138,7 @@ function isModelBreakdownSpan(span: CostTraceSpan): boolean {
   return span.type === 'model'
 }
 
-/** Mothership model spend is ledgered cumulatively by Go update-cost. */
+/** Mothership model spend is ledgered cumulatively by the worker's update-cost callback. */
 function isMothershipUpdateCostOwned(span: CostTraceSpan): boolean {
   return span.type === 'mothership'
 }

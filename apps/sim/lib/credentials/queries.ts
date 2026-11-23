@@ -108,6 +108,29 @@ function visibleCredentialScope(workspaceId: string, userId?: string) {
   )
 }
 
+/** Joins the caller's active `credential_member` row, which {@link credentialAccessClause} reads. */
+export function credentialMembershipJoin(userId: string) {
+  return and(
+    eq(credentialMember.credentialId, credential.id),
+    eq(credentialMember.userId, userId),
+    eq(credentialMember.status, 'active')
+  )
+}
+
+/**
+ * Which credentials a user may see, over a query left-joined with
+ * {@link credentialMembershipJoin}: an explicit membership, the caller's own personal env
+ * credentials and personal tokens, and for a workspace admin every shared-type credential.
+ */
+export function credentialAccessClause(userId: string, canAdmin: boolean) {
+  return or(
+    isNotNull(credentialMember.id),
+    canAdmin ? inArray(credential.type, SHARED_CREDENTIAL_TYPES) : undefined,
+    eq(credential.envOwnerUserId, userId),
+    and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
+  )
+}
+
 /**
  * The credentials a user may see in a workspace.
  *
@@ -121,6 +144,8 @@ export async function listVisibleWorkspaceCredentials(params: {
   workspaceAccess: Pick<WorkspaceAccess, 'canAdmin'>
   types?: CredentialRow['type'][]
   providerId?: string
+  /** Only these credentials, of those visible. */
+  ids?: readonly string[]
   /** Case-insensitive substring match on the credential display name. */
   search?: string
   sortBy?: V2CredentialSortBy
@@ -161,6 +186,7 @@ export async function listVisibleWorkspaceCredentials(params: {
   ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+  if (params.ids) whereClauses.push(inArray(credential.id, [...params.ids]))
   const ownedEnvSecretsClause = params.ownedEnvSecretsOnly
     ? or(
         eq(credential.type, 'env_workspace'),
@@ -171,19 +197,7 @@ export async function listVisibleWorkspaceCredentials(params: {
   const keys = CREDENTIAL_SORTS[sortBy]
   const after = resumeKeyset(keys, params.cursorKeys, sortOrder)
 
-  const isWorkspaceAdmin = workspaceAccess.canAdmin
-  const accessClause = isWorkspaceAdmin
-    ? or(
-        isNotNull(credentialMember.id),
-        inArray(credential.type, SHARED_CREDENTIAL_TYPES),
-        eq(credential.envOwnerUserId, userId),
-        and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
-      )
-    : or(
-        isNotNull(credentialMember.id),
-        eq(credential.envOwnerUserId, userId),
-        and(eq(credential.type, 'personal_token'), eq(credential.createdBy, userId))
-      )
+  const accessClause = credentialAccessClause(userId, workspaceAccess.canAdmin)
 
   const query = db
     .select({
@@ -207,14 +221,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       memberRole: credentialMember.role,
     })
     .from(credential)
-    .leftJoin(
-      credentialMember,
-      and(
-        eq(credentialMember.credentialId, credential.id),
-        eq(credentialMember.userId, userId),
-        eq(credentialMember.status, 'active')
-      )
-    )
+    .leftJoin(credentialMember, credentialMembershipJoin(userId))
     .where(
       and(
         ...whereClauses,
@@ -244,7 +251,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       role:
         (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
         (rest.type === 'personal_token' && rest.createdBy === userId) ||
-        (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+        (workspaceAccess.canAdmin && isSharedCredentialType(rest.type))
           ? ('admin' as const)
           : (memberRole ?? ('member' as const)),
     }
@@ -265,6 +272,8 @@ export async function listWorkspacePrincipalCredentials(params: {
   workspaceId: string
   types: Array<'oauth' | 'service_account'>
   providerId?: string
+  /** Only these credentials, of those listed. */
+  ids?: readonly string[]
   search?: string
   sortBy?: V2CredentialSortBy
   sortOrder?: ListSortOrder
@@ -284,6 +293,7 @@ export async function listWorkspacePrincipalCredentials(params: {
 
   const whereClauses = [eq(credential.workspaceId, workspaceId), inArray(credential.type, types)]
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+  if (params.ids) whereClauses.push(inArray(credential.id, [...params.ids]))
 
   const keys = CREDENTIAL_SORTS[sortBy]
   const after = resumeKeyset(keys, params.cursorKeys, sortOrder)

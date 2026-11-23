@@ -27,7 +27,7 @@ interface ComputerUseServiceDeps {
   ) => Promise<'once' | 'always' | 'deny'>
   /** Confirms one app-command write. It shows the exact fields, since nothing happens on screen. */
   confirmAppCommand: (
-    request: { appName: string; summary: string },
+    request: { appName: string; summary: string; change: 'add' | 'update' },
     signal: AbortSignal
   ) => Promise<boolean>
   onActivity: (activity: ComputerUseActivity | null) => void
@@ -53,11 +53,17 @@ interface SnapshotOwnership {
 const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
   list_reminder_lists: 'com.apple.reminders',
   create_reminder: 'com.apple.reminders',
+  find_reminders: 'com.apple.reminders',
+  update_reminder: 'com.apple.reminders',
   list_calendars: 'com.apple.iCal',
   create_event: 'com.apple.iCal',
+  find_events: 'com.apple.iCal',
+  update_event: 'com.apple.iCal',
   list_contact_groups: 'com.apple.AddressBook',
   create_contact_group: 'com.apple.AddressBook',
   create_contact: 'com.apple.AddressBook',
+  find_contacts: 'com.apple.AddressBook',
+  update_contact: 'com.apple.AddressBook',
 }
 
 const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
@@ -76,9 +82,110 @@ function chosenDestination(
     return { id: command.listId, list: 'list_reminder_lists' }
   if (command.name === 'create_event' && command.calendarId)
     return { id: command.calendarId, list: 'list_calendars' }
-  if (command.name === 'create_contact' && command.groupId)
+  if ((command.name === 'create_contact' || command.name === 'update_contact') && command.groupId)
     return { id: command.groupId, list: 'list_contact_groups' }
   return null
+}
+
+type CommandResult = Extract<ComputerUseResult, { kind: 'command' }>
+type ReminderItem = NonNullable<CommandResult['reminders']>[number]
+type EventItem = NonNullable<CommandResult['events']>[number]
+type Change = [label: string, before: string | undefined, after: string]
+
+/**
+ * An update as the user approves it, and the values the helper must still find before it writes;
+ * a contact update only adds, so it has none to check.
+ */
+interface UpdateApproval {
+  summary: string
+  expected?: Record<string, unknown>
+}
+
+/**
+ * One line per value: a title or note from a shared calendar could otherwise add lines that read
+ * like extra fields in the confirmation.
+ */
+function oneLine(value: string): string {
+  // C0/C1 controls (NEL breaks a line too), line and paragraph separators, and bidi controls,
+  // which could reorder "current → new".
+  return value
+    .replace(
+      /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]+/g,
+      ' '
+    )
+    .trim()
+}
+
+/**
+ * A new date or time as the helper will save it. A time with an offset keeps that offset, which names
+ * exactly one moment even in an hour a daylight-saving change repeats, and adds this Mac's local time,
+ * the form the current value is shown in.
+ */
+function localTime(value: string): string {
+  if (!/T.*(Z|[+-]\d{2}:\d{2})$/.test(value)) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  return `${value} (${local} here)`
+}
+
+/**
+ * Which item, then each changed field's current and new value, then anything only added, since
+ * nothing happens on screen.
+ */
+function changeSummary(
+  header: Array<[label: string, value: string]>,
+  changes: Change[],
+  additions: Array<[label: string, value: string | undefined]> = []
+): string {
+  return [
+    ...header.map(([label, value]) => `${label}: ${oneLine(value)}`),
+    ...changes.map(
+      ([label, before, after]) => `${label}: ${oneLine(before || 'none')} → ${oneLine(after)}`
+    ),
+    ...additions.flatMap(([label, value]) => (value ? [`${label}: ${oneLine(value)}`] : [])),
+  ].join('\n')
+}
+
+function reminderChanges(
+  command: Extract<AppCommand, { name: 'update_reminder' }>,
+  current: ReminderItem
+): Change[] {
+  const priority = (value: number) =>
+    value === 0 ? 'None' : (PRIORITY_NAMES[value] ?? String(value))
+  const changes: Change[] = []
+  const title = command.title?.trim()
+  if (title !== undefined && title !== current.title) changes.push(['Title', current.title, title])
+  if (command.due !== undefined) changes.push(['Due', current.due, localTime(command.due)])
+  if (command.clearDue) changes.push(['Due', current.due, 'none'])
+  if (command.priority !== undefined)
+    changes.push(['Priority', priority(current.priority), priority(command.priority)])
+  if (command.completed !== undefined)
+    changes.push([
+      'Status',
+      current.completed ? 'Completed' : 'Open',
+      command.completed ? 'Completed' : 'Open',
+    ])
+  if (command.notes !== undefined)
+    changes.push(['Notes', current.notes, command.notes.trim() || 'none'])
+  return changes
+}
+
+function eventChanges(
+  command: Extract<AppCommand, { name: 'update_event' }>,
+  current: EventItem
+): Change[] {
+  const changes: Change[] = []
+  const title = command.title?.trim()
+  if (title !== undefined && title !== current.title) changes.push(['Title', current.title, title])
+  if (command.start !== undefined) changes.push(['Starts', current.start, localTime(command.start)])
+  if (command.end !== undefined) changes.push(['Ends', current.end, localTime(command.end)])
+  if (command.location !== undefined)
+    changes.push(['Location', current.location, command.location.trim() || 'none'])
+  if (command.notes !== undefined)
+    changes.push(['Notes', current.notes, command.notes.trim() || 'none'])
+  return changes
 }
 
 /**
@@ -91,7 +198,7 @@ function writeSummary(command: AppCommand, destination: string | undefined): str
     entries
       .map(([label, value]) => [label, typeof value === 'string' ? value.trim() : value] as const)
       .filter(([, value]) => value !== undefined && value !== '')
-      .map(([label, value]) => `${label}: ${value}`)
+      .map(([label, value]) => `${label}: ${typeof value === 'string' ? oneLine(value) : value}`)
       .join('\n')
   switch (command.name) {
     case 'create_reminder':
@@ -132,6 +239,14 @@ function writeSummary(command: AppCommand, destination: string | undefined): str
     default:
       return null
   }
+}
+
+function notFound(kind: string, read: string): ComputerUseError {
+  return new ComputerUseError({
+    code: 'not_found',
+    message: `No ${kind} has this id; call ${read}.`,
+    dispatchState: 'not_started',
+  })
 }
 
 /** Native snapshots cannot transfer authority between chats or restarted helpers. */
@@ -453,32 +568,119 @@ export class ComputerUseService {
       this.activity = { ...this.activity, appName }
       this.deps.onActivity(this.activity)
     }
-    const summary = writeSummary(command, await this.destinationName(command, work))
+    const update = await this.updateApproval(command, work)
+    const summary = update
+      ? update.summary
+      : writeSummary(command, await this.destinationName(command, work))
     if (summary !== null) {
       const confirmed = await this.deps.confirmAppCommand(
-        { appName, summary },
+        { appName, summary, change: update ? 'update' : 'add' },
         work.controller.signal
       )
       this.check(work)
       if (!confirmed)
         throw new ComputerUseError({
           code: 'user_declined',
-          message: 'The user declined to add this item. Do not retry it.',
+          message: 'The user declined this change. Do not retry it.',
           dispatchState: 'not_started',
         })
     }
     this.check(work)
-    return await this.appCommand(command)
+    // The helper refuses the update if a field it changes no longer has the value the user approved.
+    return await this.appCommand(command, update?.expected)
   }
 
   /** Runs one app command in the helper and checks the reply is for that command. */
   private async appCommand(
-    command: AppCommand
-  ): Promise<Extract<ComputerUseResult, { kind: 'command' }>> {
-    const result = await this.deps.native.request('app_command', { command })
+    command: AppCommand,
+    expected?: Record<string, unknown>
+  ): Promise<CommandResult> {
+    const result = await this.deps.native.request(
+      'app_command',
+      expected ? { command, expected } : { command }
+    )
     if (result.kind !== 'command' || result.command !== command.name)
       throw new Error('Computer Use returned a result for a different command.')
     return result
+  }
+
+  /**
+   * For an update, reads the item it names when it is confirmed. An unknown id, or a repeating
+   * event (whose occurrences the user must choose in Calendar), is refused before the user is asked.
+   */
+  private async updateApproval(
+    command: AppCommand,
+    work: ToolWork
+  ): Promise<UpdateApproval | undefined> {
+    if (command.name === 'update_reminder') {
+      const found = await this.appCommand({ name: 'find_reminders', id: command.id })
+      this.check(work)
+      const current = found.reminders?.find((item) => item.id === command.id)
+      if (!current) throw notFound('reminder', 'find_reminders')
+      return {
+        summary: changeSummary(
+          [
+            ['Reminder', current.title],
+            ['List', current.list],
+          ],
+          reminderChanges(command, current)
+        ),
+        expected: omit(current, ['id', 'list']),
+      }
+    }
+    if (command.name === 'update_event') {
+      const found = await this.appCommand({ name: 'find_events', id: command.id })
+      this.check(work)
+      const current = found.events?.find((item) => item.id === command.id)
+      if (!current) throw notFound('event', 'find_events')
+      if (current.recurring)
+        throw new ComputerUseError({
+          code: 'recurring_unsupported',
+          message: 'This event repeats; change it in Calendar so the user picks which occurrences.',
+          dispatchState: 'not_started',
+        })
+      // An all-day event takes dates and a timed one takes times; a mismatch is refused before asking.
+      for (const boundary of [command.start, command.end])
+        if (boundary !== undefined && boundary.includes('T') === current.allDay)
+          throw new ComputerUseError({
+            code: 'invalid_arguments',
+            message: current.allDay
+              ? 'This is an all-day event; pass start and end as YYYY-MM-DD.'
+              : 'This event has times; pass start and end as ISO 8601 date-times.',
+            dispatchState: 'not_started',
+          })
+      return {
+        summary: changeSummary(
+          [
+            ['Event', current.title],
+            ['Calendar', current.list],
+            ['When', `${current.start} – ${current.end}`],
+          ],
+          eventChanges(command, current)
+        ),
+        expected: omit(current, ['id', 'list', 'allDay', 'recurring']),
+      }
+    }
+    if (command.name === 'update_contact') {
+      const found = await this.appCommand({ name: 'find_contacts', id: command.id })
+      this.check(work)
+      const current = found.contacts?.find((item) => item.id === command.id)
+      if (!current) throw notFound('contact', 'find_contacts')
+      const header: Array<[string, string]> = [['Contact', current.title]]
+      if (current.organization) header.push(['Organization', current.organization])
+      return {
+        summary: changeSummary(
+          header,
+          [],
+          [
+            ['Add emails', command.emails?.map((email) => email.trim()).join(', ')],
+            ['Add phones', command.phones?.map((phone) => phone.trim()).join(', ')],
+            ['Add to group', await this.destinationName(command, work)],
+          ]
+        ),
+      }
+    }
+    return undefined
   }
 
   /**

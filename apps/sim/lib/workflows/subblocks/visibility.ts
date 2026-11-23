@@ -1,38 +1,19 @@
 import { isRecordLike, omit } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  type CanonicalIndex,
+  type CanonicalModeOverrides,
+  getCanonicalValues,
+  isCanonicalPair,
+  isNonEmptyValue,
+  reindexCanonicalModesByPosition,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { isEqual } from 'es-toolkit'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { SubBlockConfig } from '@/blocks/types'
-
-export type CanonicalMode = 'basic' | 'advanced'
-
-export interface CanonicalGroup {
-  canonicalId: string
-  basicId?: string
-  advancedIds: string[]
-}
-
-export interface CanonicalIndex {
-  groupsById: Record<string, CanonicalGroup>
-  canonicalIdBySubBlockId: Record<string, string>
-}
-
-export interface SubBlockCondition {
-  field: string
-  value: string | number | boolean | Array<string | number | boolean> | undefined
-  not?: boolean
-  and?: SubBlockCondition
-}
-
-export interface CanonicalModeOverrides {
-  [canonicalId: string]: CanonicalMode | undefined
-}
-
-export interface CanonicalValueSelection {
-  basicValue: unknown
-  advancedValue: unknown
-  advancedSourceId?: string
-}
 
 interface TriggerVisibilityBlockConfig {
   category?: string
@@ -107,38 +88,6 @@ export function withCanonicalModes(
 }
 
 /**
- * Build canonical group indices for a block's subblocks.
- */
-export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex {
-  const groupsById: Record<string, CanonicalGroup> = {}
-  const canonicalIdBySubBlockId: Record<string, string> = {}
-
-  subBlocks.forEach((subBlock) => {
-    if (!subBlock.canonicalParamId) return
-    const canonicalId = subBlock.canonicalParamId
-    if (!groupsById[canonicalId]) {
-      groupsById[canonicalId] = { canonicalId, advancedIds: [] }
-    }
-    const group = groupsById[canonicalId]
-    if (subBlock.mode === 'advanced' || subBlock.mode === 'trigger-advanced') {
-      // Deduplicate: trigger spreads may repeat the same advanced ID as the regular block
-      if (!group.advancedIds.includes(subBlock.id)) {
-        group.advancedIds.push(subBlock.id)
-      }
-    } else {
-      // A trigger-mode subblock must not overwrite a basicId already claimed by a non-trigger subblock.
-      // Blocks spread their trigger's subBlocks after their own, so the regular subblock always wins.
-      if (!group.basicId || subBlock.mode !== 'trigger') {
-        group.basicId = subBlock.id
-      }
-    }
-    canonicalIdBySubBlockId[subBlock.id] = canonicalId
-  })
-
-  return { groupsById, canonicalIdBySubBlockId }
-}
-
-/**
  * The subblocks that define a block's canonical groups on the surface it is being rendered or
  * resolved on.
  *
@@ -178,13 +127,6 @@ export function buildCanonicalIndexForSurface(
 }
 
 /**
- * Resolve if a canonical group is a swap pair (basic + advanced).
- */
-export function isCanonicalPair(group?: CanonicalGroup): boolean {
-  return Boolean(group?.basicId && group?.advancedIds?.length)
-}
-
-/**
  * Builds default canonical mode overrides for a block's subblocks.
  * All canonical pairs default to `'basic'`.
  */
@@ -199,99 +141,6 @@ export function buildDefaultCanonicalModes(
     }
   }
   return modes
-}
-
-/**
- * Determine the active mode for a canonical group.
- */
-export function resolveCanonicalMode(
-  group: CanonicalGroup,
-  values: Record<string, unknown>,
-  overrides?: CanonicalModeOverrides
-): CanonicalMode {
-  const override = overrides?.[group.canonicalId]
-  if (override === 'advanced' && group.advancedIds.length > 0) return 'advanced'
-  if (override === 'basic' && group.basicId) return 'basic'
-
-  const { basicValue, advancedValue } = getCanonicalValues(group, values)
-  const hasBasic = isNonEmptyValue(basicValue)
-  const hasAdvanced = isNonEmptyValue(advancedValue)
-
-  if (!group.basicId) return 'advanced'
-  if (!hasBasic && hasAdvanced) return 'advanced'
-  return 'basic'
-}
-
-/**
- * Evaluate a subblock condition against a map of raw values.
- */
-export function evaluateSubBlockCondition(
-  condition:
-    | SubBlockCondition
-    | ((values?: Record<string, unknown>) => SubBlockCondition)
-    | undefined,
-  values: Record<string, unknown>
-): boolean {
-  if (!condition) return true
-  const actual = typeof condition === 'function' ? condition(values) : condition
-  const fieldValue = values[actual.field]
-  const valueMatch = Array.isArray(actual.value)
-    ? fieldValue != null &&
-      (actual.not
-        ? !actual.value.includes(fieldValue as any)
-        : actual.value.includes(fieldValue as any))
-    : actual.not
-      ? fieldValue !== actual.value
-      : fieldValue === actual.value
-  const andMatch = !actual.and
-    ? true
-    : (() => {
-        const andFieldValue = values[actual.and!.field]
-        const andValueMatch = Array.isArray(actual.and!.value)
-          ? andFieldValue != null &&
-            (actual.and!.not
-              ? !actual.and!.value.includes(andFieldValue as any)
-              : actual.and!.value.includes(andFieldValue as any))
-          : actual.and!.not
-            ? andFieldValue !== actual.and!.value
-            : andFieldValue === actual.and!.value
-        return andValueMatch
-      })()
-
-  return valueMatch && andMatch
-}
-
-/**
- * Check if a value is considered set for advanced visibility/selection.
- */
-export function isNonEmptyValue(value: unknown): boolean {
-  if (value === null || value === undefined) return false
-  if (typeof value === 'string') return value.trim().length > 0
-  if (Array.isArray(value)) return value.length > 0
-  return true
-}
-
-/**
- * Resolve basic and advanced values for a canonical group.
- */
-export function getCanonicalValues(
-  group: CanonicalGroup,
-  values: Record<string, unknown>
-): CanonicalValueSelection {
-  const basicValue = group.basicId ? values[group.basicId] : undefined
-  let advancedValue: unknown
-  let advancedSourceId: string | undefined
-
-  group.advancedIds.forEach((advancedId) => {
-    if (advancedValue !== undefined) return
-    const candidate = values[advancedId]
-    if (isNonEmptyValue(candidate)) {
-      advancedValue = candidate
-      advancedSourceId = advancedId
-    }
-  })
-
-  return { basicValue, advancedValue, advancedSourceId }
 }
 
 /**
@@ -333,96 +182,6 @@ export function resolveActiveDependencyValue(
   const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
   if (!group) return values[dependencyKey]
   return resolveActiveCanonicalValue(group, values, overrides)
-}
-
-/** Extract override entries matching a `${prefix}` key into a bare-`canonicalId`-keyed object. */
-function extractPrefixedModes(
-  overrides: CanonicalModeOverrides,
-  prefix: string
-): CanonicalModeOverrides | undefined {
-  let scoped: CanonicalModeOverrides | undefined
-  for (const [key, value] of Object.entries(overrides)) {
-    if (key.startsWith(prefix) && value) {
-      scoped = scoped ?? {}
-      scoped[key.slice(prefix.length)] = value
-    }
-  }
-  return scoped
-}
-
-/**
- * Strip the `${toolIndex}:` prefix from canonical-mode override keys, returning the overrides for a
- * nested tool keyed by bare `canonicalId`. An agent block stores its nested tools' modes scoped as
- * `${toolIndex}:${canonicalId}` — keyed by the tool's position in the `tool-input` array, not its
- * `type` — so that two tool entries of the SAME type (e.g. two Table tools on one Agent block) get
- * independent canonical modes instead of colliding on a shared `${toolType}:${canonicalId}` key.
- *
- * The legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) is the BASELINE, with
- * index-scoped entries layered over it per canonical id, so an override saved before this scoping
- * change isn't silently dropped - it keeps applying (type-shared, the old behavior) until the user
- * re-toggles that specific canonical id, at which point the new index-scoped key wins for it alone.
- *
- * Merging per key rather than preferring one map wholesale is what keeps a PARTIALLY re-toggled
- * tool intact. Toggles are written one key at a time (`setBlockCanonicalMode`), so the first toggle
- * on a legacy tool produces a map holding both formats; returning only the index-scoped side there
- * would silently revert every canonical id the user had not yet re-toggled back to basic.
- *
- * Returns `undefined` when there are no overrides, no `toolIndex`, and no legacy match.
- */
-export function scopeCanonicalModesForTool(
-  overrides: CanonicalModeOverrides | undefined,
-  toolIndex: number | undefined,
-  legacyToolType?: string
-): CanonicalModeOverrides | undefined {
-  if (!overrides) return undefined
-  const scoped =
-    toolIndex !== undefined ? extractPrefixedModes(overrides, `${toolIndex}:`) : undefined
-  const legacy = legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
-  if (!scoped) return legacy
-  return legacy ? { ...legacy, ...scoped } : scoped
-}
-
-const INDEX_SCOPED_KEY = /^(\d+):(.+)$/
-
-/**
- * Canonical-mode overrides are keyed by a tool's position in its `tool-input` array
- * (`${toolIndex}:${canonicalId}`), so anything that reorders or removes tools - the editor
- * (drag-reorder, remove, delete), the workflow edit engine (a rewritten tool list), fork/promote
- * copy (dropping an unresolved custom-tool/MCP entry) - must carry each surviving tool's
- * overrides to its new position and DROP the vacated index. Otherwise a saved basic/advanced
- * choice can attach to whichever DIFFERENT tool later lands on that old index (e.g. a newly-added
- * tool, always appended at the end, can refill a slot a removal just freed).
- *
- * Returns the full replacement `canonicalModes` object (for an atomic whole-map write - a
- * per-key merge can't drop a key, and sequential per-key writes can clobber each other when
- * two tools swap positions), or `undefined` when nothing needs to change. A legacy,
- * non-index-scoped key (the `${toolType}:` fallback format) isn't tied to any array position,
- * so it's carried over unchanged.
- */
-export function reindexCanonicalModesByPosition(
-  newIndexByOldIndex: ReadonlyMap<number, number>,
-  overrides: CanonicalModeOverrides | undefined
-): Record<string, 'basic' | 'advanced'> | undefined {
-  if (!overrides) return undefined
-
-  let changed = false
-  const result: Record<string, 'basic' | 'advanced'> = {}
-  for (const [key, mode] of Object.entries(overrides)) {
-    if (!mode) continue
-    const match = INDEX_SCOPED_KEY.exec(key)
-    if (!match) {
-      result[key] = mode
-      continue
-    }
-    const newIndex = newIndexByOldIndex.get(Number(match[1]))
-    if (newIndex === undefined) {
-      changed = true // Tool removed (or an already-stale index) - drop the key.
-      continue
-    }
-    if (newIndex !== Number(match[1])) changed = true
-    result[`${newIndex}:${match[2]}`] = mode
-  }
-  return changed ? result : undefined
 }
 
 /**
@@ -677,11 +436,17 @@ function anyEnvSet(spec: string): boolean {
 }
 
 /**
- * Check if a subblock is gated by a feature flag.
+ * Check if a subblock is gated by a public env var or a deployment feature.
  */
 export function isSubBlockFeatureEnabled(
-  subBlock: Pick<SubBlockConfig, 'showWhenEnvSet'>
+  subBlock: Pick<SubBlockConfig, 'showWhenEnvSet' | 'showWhenFeature'>
 ): boolean {
+  if (
+    subBlock.showWhenFeature &&
+    getDeploymentShape().features[subBlock.showWhenFeature] !== true
+  ) {
+    return false
+  }
   if (!subBlock.showWhenEnvSet) return true
   return anyEnvSet(subBlock.showWhenEnvSet)
 }

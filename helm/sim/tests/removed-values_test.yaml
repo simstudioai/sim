@@ -1,0 +1,37 @@
+suite: removed values — fail before an upgrade deletes data
+templates:
+  - removed-values.yaml
+release:
+  name: t
+  namespace: sim
+
+tests:
+  - it: fails when sharedStorage is still enabled, naming the PVC selector to protect
+    set:
+      sharedStorage:
+        enabled: true
+        volumes:
+          - name: output-share
+            size: 100Gi
+    asserts:
+      - failedTemplate:
+          errorMessage: "sharedStorage was removed in chart 1.13.0: the chart created these PVCs but never mounted them, and upgrading would delete them. If you mount them through extraVolumes, first run: kubectl annotate pvc -n sim -l app.kubernetes.io/instance=t,sim.ai/volume-type=shared-storage helm.sh/resource-policy=keep, then set sharedStorage.enabled=false."
+
+  - it: renders when an older values file keeps sharedStorage disabled
+    set:
+      sharedStorage:
+        enabled: false
+        storageClass: ""
+        volumes: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when sharedStorage is enabled but declares no volumes, since no PVCs exist to lose
+    set:
+      sharedStorage:
+        enabled: true
+        volumes: []
+    asserts:
+      - hasDocuments:
+          count: 0

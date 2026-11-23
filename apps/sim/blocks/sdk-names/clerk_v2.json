@@ -1,0 +1,60 @@
+{
+  "namespace": "clerk",
+  "methods": {
+    "clerk_add_organization_member": "addOrganizationMember",
+    "clerk_ban_user": "banUser",
+    "clerk_create_actor_token": "createActorToken",
+    "clerk_create_allowlist_identifier": "createAllowlistIdentifier",
+    "clerk_create_blocklist_identifier": "createBlocklistIdentifier",
+    "clerk_create_organization": "createOrganization",
+    "clerk_create_organization_invitation": "createOrganizationInvitation",
+    "clerk_create_user": "createUser",
+    "clerk_delete_allowlist_identifier": "deleteAllowlistIdentifier",
+    "clerk_delete_blocklist_identifier": "deleteBlocklistIdentifier",
+    "clerk_delete_organization": "deleteOrganization",
+    "clerk_delete_user": "deleteUser",
+    "clerk_get_jwt_template": "getJwtTemplate",
+    "clerk_get_organization": "getOrganization",
+    "clerk_get_session": "getSession",
+    "clerk_get_user": "getUser",
+    "clerk_get_user_oauth_token": "getUserOauthToken",
+    "clerk_list_allowlist_identifiers": "listAllowlistIdentifiers",
+    "clerk_list_blocklist_identifiers": "listBlocklistIdentifiers",
+    "clerk_list_jwt_templates": "listJwtTemplates",
+    "clerk_list_organization_invitations": "listOrganizationInvitations",
+    "clerk_list_organization_memberships": "listOrganizationMemberships",
+    "clerk_list_organizations": "listOrganizations",
+    "clerk_list_sessions": "listSessions",
+    "clerk_list_users": "listUsers",
+    "clerk_lock_user": "lockUser",
+    "clerk_remove_organization_member": "removeOrganizationMember",
+    "clerk_revoke_actor_token": "revokeActorToken",
+    "clerk_revoke_session": "revokeSession",
+    "clerk_unban_user": "unbanUser",
+    "clerk_unlock_user": "unlockUser",
+    "clerk_update_organization": "updateOrganization",
+    "clerk_update_organization_membership": "updateOrganizationMembership",
+    "clerk_update_user": "updateUser"
+  },
+  "triggers": {
+    "clerk_organization_created": "organizationCreated",
+    "clerk_organization_deleted": "organizationDeleted",
+    "clerk_organization_membership_created": "organizationMembershipCreated",
+    "clerk_organization_membership_deleted": "organizationMembershipDeleted",
+    "clerk_organization_membership_updated": "organizationMembershipUpdated",
+    "clerk_organization_updated": "organizationUpdated",
+    "clerk_session_created": "sessionCreated",
+    "clerk_session_ended": "sessionEnded",
+    "clerk_session_removed": "sessionRemoved",
+    "clerk_session_revoked": "sessionRevoked",
+    "clerk_user_created": "userCreated",
+    "clerk_user_deleted": "userDeleted",
+    "clerk_user_updated": "userUpdated",
+    "clerk_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

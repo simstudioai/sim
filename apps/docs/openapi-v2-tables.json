@@ -318,11 +318,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -405,11 +405,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -492,11 +492,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -597,11 +597,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -702,11 +702,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -841,11 +841,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -945,11 +945,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -981,9 +981,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -1067,11 +1067,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -1172,11 +1172,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -1285,11 +1285,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -1389,11 +1389,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -1497,11 +1497,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -1612,11 +1612,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -1712,11 +1712,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -1820,11 +1820,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -1959,11 +1959,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -2064,11 +2064,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -2148,11 +2148,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -2266,11 +2266,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -2361,11 +2361,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -2472,11 +2472,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -2569,11 +2569,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -2653,11 +2653,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -2771,11 +2771,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -2877,11 +2877,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -2981,11 +2981,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -3080,11 +3080,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -3166,11 +3166,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -3286,11 +3286,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -3397,11 +3397,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -4039,11 +4039,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -4143,11 +4143,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -4239,11 +4239,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -4340,11 +4340,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -4441,11 +4441,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -5056,11 +5056,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names."
             }
           }
         ],
@@ -5159,11 +5159,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           }
         ],
@@ -5276,11 +5276,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -5372,11 +5372,11 @@
             "name": "tableId",
             "in": "path",
             "required": true,
-            "description": "Unique table identifier.",
+            "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Unique table identifier."
+              "description": "Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id)."
             }
           },
           {
@@ -5978,7 +5978,8 @@
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
           "READ_ONLY_API_KEY",
-          "SCIM_MANAGED_MEMBERSHIP"
+          "SCIM_MANAGED_MEMBERSHIP",
+          "FEATURE_NOT_ENABLED"
         ],
         "title": "Forbidden detail code",
         "description": "Stable cause code for an actionable `403` response."
@@ -7810,7 +7811,7 @@
             "maximum": 1000
           },
           "cursor": {
-            "description": "Opaque cursor returned by the previous query page.",
+            "description": "Opaque cursor returned by the previous query page. Send it back under the same table reference (its id or its name, as the first page used).",
             "type": "string",
             "minLength": 1
           },

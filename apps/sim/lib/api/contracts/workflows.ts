@@ -661,6 +661,7 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
   'already_cancelled',
   'already_completed',
   'already_failed',
+  /** Kept for wire compatibility; no longer produced now that Redis is required. */
   'redis_unavailable',
   'redis_write_failed',
   'paused_event_publish_failed',
@@ -673,6 +674,12 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
+  /**
+   * Kept for wire compatibility; it no longer reports Redis availability. False only when a
+   * cancellation that must publish its cancellation event (a paused run's, or a reconciled
+   * workflow-group run's) did not: the stop was not confirmed, the pause could not be reconciled,
+   * or the publish failed. True otherwise.
+   */
   redisAvailable: z.boolean(),
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),

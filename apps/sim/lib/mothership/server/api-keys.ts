@@ -1,6 +1,6 @@
 import { env } from '@/lib/core/config/env'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 /**
@@ -62,14 +62,14 @@ async function callValidateKey({
 }: ValidateKeyCall): Promise<unknown> {
   const mothershipBaseURL = await getMothershipBaseURL({ userId })
 
-  const res = await fetchGo(`${mothershipBaseURL}/api/validate-key/${path}`, {
+  const res = await fetchWorker(`${mothershipBaseURL}/api/validate-key/${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
     },
     body: JSON.stringify({ userId, ...body }),
-    spanName: `sim → go /api/validate-key/${path}`,
+    spanName: `sim → worker /api/validate-key/${path}`,
     operation,
     attributes: { [TraceAttr.UserId]: userId, ...attributes },
   })

@@ -70,7 +70,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'number',
       visibility: 'hidden',
       description:
-        'Number of retry attempts for retryable failures (timeouts, 429, 5xx). Default: 0 (no retries).',
+        'Number of retry attempts after a timeout, a connection reset, a 429 or a 5xx response. A host that does not resolve or refuses the connection fails without retrying. Default: 0 (no retries).',
     },
     retryDelayMs: {
       type: 'number',

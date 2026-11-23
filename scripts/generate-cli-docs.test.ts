@@ -30,6 +30,18 @@ describe('an option default rendered into the reference table', () => {
   })
 })
 
+describe('a command help paragraph rendered into its page', () => {
+  it('keeps a table laid out in columns as it reads in the terminal, and reflows prose', () => {
+    const page = guide('workflows')
+    expect(page).toMatch(
+      /```text\n[\s\S]*?Source handles:\n {2}source {15}the normal path\n[\s\S]*?```/
+    )
+    expect(page).toContain(
+      'These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind'
+    )
+  })
+})
+
 /**
  * The id shapes the CLI states in its own root help (`HELP_EPILOGUE`,
  * `packages/sim-cli/src/program.ts`): workflow, knowledge-base, workspace and

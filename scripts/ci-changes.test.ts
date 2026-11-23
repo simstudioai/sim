@@ -330,6 +330,7 @@ describe('CI task attribution through real Turborepo', () => {
       'mobile',
       'organization-search',
       'seo',
+      'workflow-code-ui',
     ])
     expect(plan.flags).toMatchObject({
       desktop_live: true,
@@ -496,6 +497,7 @@ describe('CI task attribution through real Turborepo', () => {
     ['test-desktop-inbox-e2e.ts', 'desktop-inbox'],
     ['test-assistant-actions-e2e.ts', 'assistant-actions'],
     ['test-organization-search-e2e.ts', 'organization-search'],
+    ['test-gitlab-csv-permissions-e2e.ts', 'search-permissions'],
   ])('selects the owning organization acceptance job for %s', (file, group) => {
     const plan = classifyFiles([`apps/sim/scripts/${file}`])
     expect(plan.fallback).toBeUndefined()
@@ -510,6 +512,7 @@ describe('CI task attribution through real Turborepo', () => {
   it.each([
     ['test-mobile-e2e.ts', 'mobile'],
     ['test-markdown-viewer-e2e.ts', 'markdown-viewer'],
+    ['test-workflow-code-ui-e2e.ts', 'workflow-code-ui'],
     ['test-project-file-sharing-e2e.ts', 'project-files'],
     ['test-scim-e2e.ts', 'scim'],
     ['test-landing-seo-e2e.ts', 'seo'],
@@ -558,8 +561,10 @@ describe('CI task attribution through real Turborepo', () => {
       'organization-search',
       'project-files',
       'scim',
+      'search-permissions',
       'seo',
       'stop-after',
+      'workflow-code-ui',
     ])
     expect(plan.typecheckPackages).toContain('@sim/app')
     expect(plan.typecheckPackages).toContain('@sim/realtime')
@@ -590,10 +595,10 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.fallback).toBeTruthy()
     expect(Object.values(plan.flags).every(Boolean)).toBe(true)
   })
-  it('keeps the implicit CLI embed dependency in HTTP acceptance', () => {
+  it('keeps the implicit CLI embed dependency in every acceptance group that runs the CLI', () => {
     const plan = classifyFiles(['packages/sim-cli/src/embed.ts'])
     expect(plan.fallback).toBeUndefined()
-    expect(groups(plan)).toEqual(['cli'])
+    expect(groups(plan)).toEqual(['cli', 'search-permissions'])
     expect(plan.testPackages).toEqual(['sim'])
     expect(plan.flags).toMatchObject({ e2e_build: true, integration: false, desktop_live: false })
   })

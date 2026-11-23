@@ -8,6 +8,11 @@ export const SUBFLOW_TYPES = {
 
 export type SubflowType = (typeof SUBFLOW_TYPES)[keyof typeof SUBFLOW_TYPES]
 
+/** Whether a block type is a subflow container (`loop` or `parallel`). */
+export function isSubflowType(type: string): type is SubflowType {
+  return type === SUBFLOW_TYPES.LOOP || type === SUBFLOW_TYPES.PARALLEL
+}
+
 export interface LoopConfig {
   nodes: string[]
   iterations: number
@@ -427,6 +432,52 @@ export function getWorkflowSubflowHandleIds(kind: 'loop' | 'parallel'): {
   return { start: `${kind}-start-source`, end: `${kind}-end-source` }
 }
 
+/** The block kinds whose output handles are one per branch row. */
+export type WorkflowBranchKind = 'condition' | 'router'
+
+/** The persisted output handle of one branch row: `condition-<rowId>` / `router-<rowId>`. */
+export function getWorkflowBranchHandleId(kind: WorkflowBranchKind, rowId: string): string {
+  return `${kind}-${rowId}`
+}
+
+/** The row id a branch handle names, or `null` when `handle` is not a `kind` branch handle. */
+export function getWorkflowBranchHandleRowId(
+  kind: WorkflowBranchKind,
+  handle: string
+): string | null {
+  const prefix = `${kind}-`
+  return handle.startsWith(prefix) ? handle.slice(prefix.length) : null
+}
+
+/** A persisted source handle, decoded by the port it leaves through. */
+type WorkflowSourceHandle =
+  | { kind: 'out' }
+  | { kind: 'error' }
+  | { kind: 'subflowStart' }
+  | { kind: 'subflowEnd' }
+  | { kind: 'branch'; rowId: string; handle: string }
+  | { kind: 'raw'; handle: string }
+
+/**
+ * Decodes a normalized source handle ({@link normalizeWorkflowEdgeSourceHandle}). A subflow port
+ * needs a container source and a branch port a `branchKind`; anything else is `raw`.
+ */
+export function parseWorkflowSourceHandle(
+  handle: string | null,
+  sourceType: string | undefined,
+  branchKind: WorkflowBranchKind | undefined
+): WorkflowSourceHandle {
+  if (handle === null || handle === WORKFLOW_SOURCE_HANDLE_ID) return { kind: 'out' }
+  if (handle === WORKFLOW_ERROR_HANDLE_ID) return { kind: 'error' }
+  if (sourceType !== undefined && isSubflowType(sourceType)) {
+    const { start, end } = getWorkflowSubflowHandleIds(sourceType)
+    if (handle === start) return { kind: 'subflowStart' }
+    if (handle === end) return { kind: 'subflowEnd' }
+  }
+  const rowId = branchKind ? getWorkflowBranchHandleRowId(branchKind, handle) : null
+  return rowId === null ? { kind: 'raw', handle } : { kind: 'branch', rowId, handle }
+}
+
 /**
  * Side-anchored handle ids (`source-right`, `target-left`, …) briefly existed
  * as a second vocabulary for the ports these two ids already name. They are
@@ -647,11 +698,116 @@ export function isKnownWorkflowTriggerBlock(block: WorkflowTriggerCapableBlock):
   return block.triggerMode === true || block.type === LEGACY_STARTER_BLOCK_TYPE
 }
 
+/** The Response block's type: a run that reaches one returns its output. */
+export const RESPONSE_BLOCK_TYPE = 'response'
+
+/** Whether a stored condition title names the else branch, as the executor finds it. */
+export function isElseConditionTitle(title: unknown): boolean {
+  return typeof title === 'string' && title.trim().toLowerCase() === 'else'
+}
+
+/** One block as {@link alwaysEndsAtResponse} reads it. */
+export interface ResponseGraphBlock {
+  type: string
+  enabled: boolean
+  /** The enclosing loop or parallel, or `null` at the root. */
+  parentId: string | null
+  /**
+   * Set on a condition or router block: the branches a run always takes one of, empty when a run
+   * can take none (a condition without an else branch, or branches never saved). A condition's
+   * end at its first else row: the rows after it never run.
+   */
+  branches?: readonly string[]
+}
+
+/**
+ * One edge as {@link alwaysEndsAtResponse} reads it, by the port it leaves through: `out`,
+ * `subflowEnd`, `branch:<branch>` for a condition or router branch, or any other port.
+ */
+export interface ResponseGraphEdge {
+  source: string
+  target: string
+  port: string
+}
+
+/** Whether the graph of `successors` (with each target's incoming count in `pending`) has a cycle. */
+function hasCycle(successors: Map<string, string[]>, pending: Map<string, number>): boolean {
+  const ready = [...successors.keys()].filter((id) => !pending.has(id))
+  let visited = 0
+  for (let id = ready.pop(); id !== undefined; id = ready.pop()) {
+    visited += 1
+    for (const next of successors.get(id) ?? []) {
+      const left = (pending.get(next) ?? 0) - 1
+      pending.set(next, left)
+      if (left === 0) ready.push(next)
+    }
+  }
+  const nodes = new Set([...successors.keys(), ...pending.keys()])
+  return visited < nodes.size
+}
+
+/**
+ * Whether every run of a workflow ends at an enabled Response block at its root, so a caller's
+ * `result` is always that block's output (`{ data, status, headers }`) rather than the output of
+ * whichever block the run ended at. True when there is a root Response and every other root block
+ * that runs always goes on to one that runs (its out edge, a container's end edge, or an edge from
+ * every branch it always takes one of), and the root graph is acyclic: every run then ends at a
+ * Response. A root cycle never runs (its blocks wait on each other), so it makes this false.
+ */
+export function alwaysEndsAtResponse(
+  blocks: Readonly<Record<string, ResponseGraphBlock>>,
+  edges: readonly ResponseGraphEdge[]
+): boolean {
+  const runs = (id: string) => {
+    const block = Object.hasOwn(blocks, id) ? blocks[id] : undefined
+    return block?.enabled === true && !isWorkflowAnnotationOnlyBlockType(block.type)
+  }
+  const isRoot = (id: string) => blocks[id]?.parentId === null
+  const portsBySource = new Map<string, Set<string>>()
+  const successors = new Map<string, string[]>()
+  const pending = new Map<string, number>()
+  for (const edge of edges) {
+    if (!runs(edge.source) || !runs(edge.target)) continue
+    const ports = portsBySource.get(edge.source) ?? new Set<string>()
+    ports.add(edge.port)
+    portsBySource.set(edge.source, ports)
+    if (!isRoot(edge.source) || !isRoot(edge.target)) continue
+    const next = successors.get(edge.source) ?? []
+    next.push(edge.target)
+    successors.set(edge.source, next)
+    pending.set(edge.target, (pending.get(edge.target) ?? 0) + 1)
+  }
+  if (hasCycle(successors, pending)) return false
+  let responds = false
+  for (const [id, block] of Object.entries(blocks)) {
+    if (!runs(id) || block.parentId !== null) continue
+    if (block.type === RESPONSE_BLOCK_TYPE) {
+      responds = true
+      continue
+    }
+    const ports = portsBySource.get(id)
+    if (block.branches !== undefined) {
+      const { branches } = block
+      if (branches.length === 0 || !branches.every((branch) => ports?.has(`branch:${branch}`))) {
+        return false
+      }
+    } else if (!ports?.has(isSubflowType(block.type) ? 'subflowEnd' : 'out')) {
+      return false
+    }
+  }
+  return responds
+}
+
 /**
  * Names reserved for reference-path prefixes (`<loop.index>`, `<parallel.currentItem>`,
  * `<variable.x>`) — a block cannot take one of these as its (normalized) name.
  */
 export const RESERVED_WORKFLOW_BLOCK_NAMES = ['loop', 'parallel', 'variable'] as const
+
+/** Whether a normalized name is one of {@link RESERVED_WORKFLOW_BLOCK_NAMES}. */
+export function isReservedWorkflowBlockName(name: string): boolean {
+  return (RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(name)
+}
 
 /**
  * Normalizes a block name into its reference-safe form: lowercased, whitespace
@@ -689,7 +845,7 @@ export function getWorkflowBlockNameConflict(
   )
   if (conflict) return { reason: 'duplicate', conflictingBlockId: conflict[0] }
 
-  if ((RESERVED_WORKFLOW_BLOCK_NAMES as readonly string[]).includes(normalized)) {
+  if (isReservedWorkflowBlockName(normalized)) {
     return { reason: 'reserved' }
   }
 
@@ -752,10 +908,21 @@ export interface Parallel {
   locked?: boolean
 }
 
+/** Every workflow variable type, in the order the editor lists them. */
+export const VARIABLE_TYPES = ['string', 'number', 'boolean', 'object', 'array', 'plain'] as const
+
+/** A workflow variable's type. */
+export type VariableType = (typeof VARIABLE_TYPES)[number]
+
+/** Whether `type` names a workflow variable type. */
+export function isVariableType(type: string): type is VariableType {
+  return (VARIABLE_TYPES as readonly string[]).includes(type)
+}
+
 export interface Variable {
   id: string
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+  type: VariableType
   value: unknown
 }
 

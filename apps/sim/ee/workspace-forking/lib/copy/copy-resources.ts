@@ -19,6 +19,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike, omit } from '@sim/utils/object'
@@ -41,7 +42,6 @@ import {
   resolveStorageBillingContext,
   type StorageBillingContext,
 } from '@/lib/billing/storage'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -926,9 +926,12 @@ async function createForkDocumentPlaceholders(params: {
  * untouched, so its reference is cleared as before. Connector-managed documents are excluded for
  * the reason given on {@link copyForkResourceContent} - and the exclusion matters MORE here, since
  * the target KB is an existing one that may already run its own connector over the same source.
+ * Candidates must live in `sourceWorkspaceId`: the ids come from workflow state and caller-supplied
+ * dependent values, so an id from another workspace is skipped rather than copied.
  */
 export async function planForkMappedKbDocumentCopies(params: {
   tx: DbOrTx
+  sourceWorkspaceId: string
   resolver: ForkReferenceResolver
   referencedDocumentIds: string[]
   alreadyCopiedSourceDocIds: Set<string>
@@ -938,7 +941,8 @@ export async function planForkMappedKbDocumentCopies(params: {
   docIdMap: Map<string, string>
   mappingEntries: ForkMappingUpsert[]
 }> {
-  const { tx, resolver, referencedDocumentIds, alreadyCopiedSourceDocIds, now } = params
+  const { tx, sourceWorkspaceId, resolver, referencedDocumentIds, alreadyCopiedSourceDocIds, now } =
+    params
   const documents: ForkContentDocumentEntry[] = []
   const docIdMap = new Map<string, string>()
   const mappingEntries: ForkMappingUpsert[] = []
@@ -964,6 +968,7 @@ export async function planForkMappedKbDocumentCopies(params: {
             .where(
               and(
                 eq(knowledgeBase.id, document.knowledgeBaseId),
+                eq(knowledgeBase.workspaceId, sourceWorkspaceId),
                 connectorIndexingCondition(),
                 isNull(knowledgeBase.deletedAt)
               )
@@ -1544,6 +1549,18 @@ export async function copyForkResourceContent(params: {
         .where(
           and(
             eq(document.id, docEntry.sourceDocId),
+            // A queued payload is re-scoped too: one planned before a deploy may name any document.
+            exists(
+              db
+                .select({ id: knowledgeBase.id })
+                .from(knowledgeBase)
+                .where(
+                  and(
+                    eq(knowledgeBase.id, document.knowledgeBaseId),
+                    eq(knowledgeBase.workspaceId, contentPlan.sourceWorkspaceId)
+                  )
+                )
+            ),
             isNull(document.deletedAt),
             isNull(document.archivedAt)
           )

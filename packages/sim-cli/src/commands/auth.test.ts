@@ -218,6 +218,7 @@ describe('login command', () => {
     mocks.createInterface.mockReturnValue({
       question: vi.fn(async () => 'yes'),
       close: vi.fn(),
+      once: vi.fn(),
     })
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
@@ -269,6 +270,7 @@ describe('login command', () => {
     mocks.createInterface.mockReturnValue({
       question: vi.fn(async () => 'no'),
       close: vi.fn(),
+      once: vi.fn(),
     })
 
     await login()
@@ -463,6 +465,7 @@ describe('profiles command', () => {
     mocks.createInterface.mockReturnValue({
       question: vi.fn(async () => '1'),
       close: vi.fn(),
+      once: vi.fn(),
     })
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })

@@ -1,0 +1,43 @@
+{
+  "namespace": "zendesk",
+  "methods": {
+    "autocomplete_organizations": "autocompleteOrganizations",
+    "create_organization": "createOrganization",
+    "create_organizations_bulk": "createOrganizationsBulk",
+    "create_ticket": "createTicket",
+    "create_tickets_bulk": "createTicketsBulk",
+    "create_user": "createUser",
+    "create_users_bulk": "createUsersBulk",
+    "delete_organization": "deleteOrganization",
+    "delete_ticket": "deleteTicket",
+    "delete_user": "deleteUser",
+    "get_current_user": "getCurrentUser",
+    "get_organization": "getOrganization",
+    "get_organizations": "getOrganizations",
+    "get_ticket": "getTicket",
+    "get_tickets": "getTickets",
+    "get_user": "getUser",
+    "get_users": "getUsers",
+    "merge_tickets": "mergeTickets",
+    "search": "search",
+    "search_count": "searchCount",
+    "search_users": "searchUsers",
+    "update_organization": "updateOrganization",
+    "update_ticket": "updateTicket",
+    "update_tickets_bulk": "updateTicketsBulk",
+    "update_user": "updateUser",
+    "update_users_bulk": "updateUsersBulk"
+  },
+  "triggers": {
+    "zendesk_ticket_comment_added": "ticketCommentAdded",
+    "zendesk_ticket_created": "ticketCreated",
+    "zendesk_ticket_priority_changed": "ticketPriorityChanged",
+    "zendesk_ticket_status_changed": "ticketStatusChanged",
+    "zendesk_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

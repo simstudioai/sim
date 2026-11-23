@@ -27,7 +27,6 @@ const {
   mockRedisClient,
   mockSetChatAuthCookie,
   mockIsEmailAllowed,
-  mockGetStorageMethod,
   mockZodParse,
   mockAfterResponse,
 } = vi.hoisted(() => {
@@ -41,7 +40,6 @@ const {
     const domain = email.slice(email.indexOf('@') + 1)
     return allowedEmails.includes(`@${domain}`)
   })
-  const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
   const mockAfterResponse = vi.fn()
 
@@ -50,7 +48,6 @@ const {
     mockRedisClient,
     mockSetChatAuthCookie,
     mockIsEmailAllowed,
-    mockGetStorageMethod,
     mockZodParse,
     mockAfterResponse,
   }
@@ -60,10 +57,6 @@ const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 const mockGetEnv = envMockFns.getEnv
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateCodedErrorResponse = workflowsApiUtilsMockFns.mockCreateCodedErrorResponse
-
-vi.mock('@/lib/core/storage', () => ({
-  getStorageMethod: mockGetStorageMethod,
-}))
 
 vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
@@ -166,8 +159,6 @@ describe('Chat OTP API Route', () => {
 
     mockGetRedisClient.mockReturnValue(mockRedisClient)
     mockRedisSet.mockResolvedValue('OK')
-
-    mockGetStorageMethod.mockReturnValue('redis')
 
     mockSendEmail.mockResolvedValue({ success: true })
     mockRenderOTPEmail.mockResolvedValue('<html>OTP Email</html>')

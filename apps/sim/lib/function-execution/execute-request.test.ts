@@ -11,6 +11,7 @@ import {
   workflowsUtilsMock,
 } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
@@ -42,7 +43,6 @@ import {
 import { SandboxExecutionTimeoutError } from '@/lib/execution/remote-sandbox/timeout'
 
 const {
-  mockExecuteInIsolatedVM,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
@@ -50,7 +50,6 @@ const {
   mockUnprovenancedMountCount,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
-  mockExecuteInIsolatedVM: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
@@ -61,9 +60,9 @@ const {
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: mockExecuteInIsolatedVM,
-}))
+const mockExecuteInIsolatedVM = isolatedVmMockFns.mockExecuteInIsolatedVM
+
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
@@ -823,6 +822,44 @@ describe('Function execution request', () => {
   })
 
   describe('Basic Function Execution', () => {
+    it('hoists every static import, with the comment above it, and keeps the body on its lines', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: [
+            'const label = "sep"',
+            '// joins paths',
+            'import path from "node:path"',
+            'return label + path.sep',
+          ].join('\n'),
+          language: 'javascript',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      const code: string = mockExecuteInSandbox.mock.calls.at(-1)?.[0].code
+      expect(code).toContain('// joins paths\nimport path from "node:path"\n')
+      expect(code).toContain('const label = "sep"\n      \n      \n      return label + path.sep')
+    })
+
+    it.each([
+      ['a require call', 'const path = require("node:path")\nreturn path.sep', 1],
+      ['an optional require call', 'const path = require?.("node:path")\nreturn path.sep', 1],
+      ['code that does not parse', 'import path from "node:path"\nreturn (', 0],
+      [
+        'code whose only error a parser can recover from',
+        'import path from "node:path"\nlet a = 1\nlet a = 2\nreturn path.sep',
+        0,
+      ],
+    ])('sends %s to the remote sandbox only when it loads modules', async (_, code, calls) => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      await POST(createMockRequest('POST', { code, language: 'javascript' }))
+
+      expect(mockExecuteInSandbox).toHaveBeenCalledTimes(calls)
+    })
+
     it('compacts large array result fields to manifests when execution context is durable', async () => {
       // Compaction cost scales with element count, so a few wide rows cross the threshold cheaply.
       const rowCount = 64
@@ -2774,6 +2811,39 @@ describe('Function execution request', () => {
       expect(data.success).toBe(false)
       expect(data.error).toContain('File secret provenance is unavailable')
       expect(JSON.stringify(data)).not.toContain('private file content')
+    })
+
+    it('tells user code how large a referenced value is when it is too large to load', async () => {
+      const ref = {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_loopresult01',
+        kind: 'array',
+        size: 28 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_loopresult01.json',
+        executionId: 'execution-1',
+      }
+      mockExecuteInIsolatedVM.mockImplementationOnce(async (_input, options) => ({
+        result: await options.brokers['sim.values.read']({ ref }).catch(
+          (error: Error) => error.message
+        ),
+        stdout: '',
+      }))
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 1',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        })
+      )
+
+      const data = await response.json()
+      expect(data.output.result).toBe(
+        'Execution memory limit exceeded: the data is 28.0 MB, more than the 16.0 MB limit. Pass a smaller field or file, or have the blocks that produce it output less.'
+      )
     })
   })
 

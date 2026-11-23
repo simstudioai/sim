@@ -34,9 +34,7 @@ const INSTRUCTIONS = `Sim is the AI workspace where teams build, deploy, and man
 2. Read its input schemas with describe_operation.
 3. Run it with the tool search_operations names: call_read_operation for operations that only read, call_write_operation for everything else.
 
-Most operations take a workspaceId; listWorkspaces returns the workspaces you can use. Put path parameters in params, query-string values in query, and the JSON request body in body. Responses use the Sim API envelope ({ "data": ... }); list operations page with limit and cursor. Streaming options are not supported over MCP.`
-
-const CODE_MODE_INSTRUCTIONS = `
+Most operations take a workspaceId; listWorkspaces returns the workspaces you can use. Put path parameters in params, query-string values in query, and the JSON request body in body. Responses use the Sim API envelope ({ "data": ... }); list operations page with limit and cursor. Streaming options are not supported over MCP.
 
 For a task that takes more than one or two calls (paging, filtering, joining, or changing many items), write one program instead: describe_operation returns each operation's TypeScript signature, and ${CODE_TOOL_NAMES.read} or ${CODE_TOOL_NAMES.write} runs an async function body that calls await sim.api.<operation>(input) and returns only what you need. Intermediate results stay out of your context. ${CODE_TOOL_NAMES.read} refuses every operation that needs write access.`
 
@@ -80,26 +78,20 @@ const describeInput = z.object({ operation: operationName }).strict()
 /** Shared because a read is not always a GET: searching and querying post their filter as JSON. */
 const callInput = operationRequestInput.extend({ operation: operationName }).strict()
 
-interface SimMcpServerOptions {
-  /**
-   * Registers the code-mode tools for this caller; `ownerKey` names the caller
-   * for the sandbox pool's per-caller fairness. `null` leaves them out.
-   */
-  codeMode: { ownerKey: string } | null
-}
-
 /**
  * The Sim MCP server for one HTTP request. A request owns its server, so no
  * credential outlives the request that presented it.
  *
- * Four tools cover the whole v2 API instead of one tool per operation: a
- * catalog of 200-odd tools would overflow most clients' tool limits and spend
+ * A handful of tools cover the whole v2 API instead of one tool per operation:
+ * a catalog of 200-odd tools would overflow most clients' tool limits and spend
  * the model's context on schemas it never uses. Reads and writes are separate
- * tools so a client can approve reads once and still confirm every change.
+ * tools, for single calls and for programs alike, so a client can approve reads
+ * once and still confirm every change. `ownerKey` names the caller for the
+ * sandbox pool's per-caller fairness when it runs a program.
  */
 export function createSimMcpServer(
   context: Omit<McpDispatchContext, 'signal'>,
-  options: SimMcpServerOptions
+  ownerKey: string
 ): McpServer {
   const baseUrl = getBaseUrl()
   const server = new McpServer(
@@ -122,7 +114,7 @@ export function createSimMcpServer(
         },
       ],
     },
-    { instructions: options.codeMode ? INSTRUCTIONS + CODE_MODE_INSTRUCTIONS : INSTRUCTIONS }
+    { instructions: INSTRUCTIONS }
   )
 
   async function call(
@@ -211,7 +203,7 @@ export function createSimMcpServer(
     {
       title: 'Write to Sim',
       description:
-        'Run a Sim API operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as createTable, executeWorkflow, or deleteFile. Changes apply immediately, with no preview or undo. A workflow run executes its blocks, which can call external services and use credits, so confirm deletions and runs with the user first.',
+        'Run a Sim API operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as createTable, executeWorkflow, or deleteFile. Changes apply immediately and cannot be undone; the few operations that take dryRun, such as applyWorkflowSource and applyWorkspaceSource, can check a change first. A workflow run executes its blocks, which can call external services and use credits, so confirm deletions and runs with the user first.',
       inputSchema: callInput,
       annotations: {
         title: 'Write to Sim',
@@ -223,9 +215,6 @@ export function createSimMcpServer(
     },
     async (input, extra) => call('write', input, extra.signal)
   )
-
-  if (!options.codeMode) return server
-  const { ownerKey } = options.codeMode
 
   async function runCode(
     kind: 'read' | 'write',

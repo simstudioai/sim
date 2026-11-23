@@ -120,7 +120,12 @@ type ValidateMcpServerUrlResult =
   | { ok: true; resolvedIP: string | null }
   | { ok: false; result: PerformMcpServerResult }
 
-async function validateMcpServerUrl(url: string): Promise<ValidateMcpServerUrlResult> {
+/**
+ * Checks an MCP server URL the way a create or URL change does before it writes: the domain
+ * allowlist and egress policy (`forbidden`) and DNS (`bad_gateway`), as the result a refused write
+ * returns. A URL whose hostname holds an env reference passes, checked again once resolved.
+ */
+export async function validateMcpServerUrl(url: string): Promise<ValidateMcpServerUrlResult> {
   try {
     validateMcpDomain(url)
     const resolvedIP = await validateMcpServerSsrf(url)

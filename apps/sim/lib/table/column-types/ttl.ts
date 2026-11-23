@@ -1,12 +1,12 @@
 import { TypeTtl } from '@sim/emcn/icons'
-import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import {
   isTtlTimestamp,
   normalizeTtlTimestamp,
   TTL_FORMAT_ERROR,
   TTL_TIMESTAMP_VALIDATION,
-  ttlInstantForComparison,
-} from '@/lib/table/ttl-values'
+} from '@sim/table-cells/ttl'
+import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const ttlColumnType: ColumnTypeDefinition = {
   id: 'ttl',
@@ -25,18 +25,7 @@ export const ttlColumnType: ColumnTypeDefinition = {
   typeaheadPattern: /\d/,
   parseErrorMessage: TTL_FORMAT_ERROR,
 
-  coerce(value) {
-    const normalized = normalizeTtlTimestamp(value)
-    return normalized === null ? { ok: false } : { ok: true, value: normalized }
-  },
-
-  valueForEquality(value) {
-    return ttlInstantForComparison(value) ?? value
-  },
-
-  validateCell(value, column) {
-    return isTtlTimestamp(value) ? null : `${column.name}: ${TTL_FORMAT_ERROR}`
-  },
+  ...CELL_RULES.ttl,
 
   validateFilterValue(value, column) {
     return isTtlTimestamp(value) ? null : `${column.name}: ${TTL_FORMAT_ERROR}`

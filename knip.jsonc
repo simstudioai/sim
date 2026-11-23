@@ -175,6 +175,27 @@
       "entry": ["src/index.ts", "src/runtime.ts", "scripts/*.ts"]
     },
     "packages/sim-setup": { "includeEntryExports": false },
+    // The SDK's main entry is `core.d.ts`, the authoring surface workflow files outside this
+    // monorepo import (the CLI writes it next to them as `CORE_DTS`), so no workspace imports its
+    // exports. `test/examples`, `test/negative` and `test/core` are type-check fixtures whose
+    // default export is the workflow: nothing imports them, because `test/typecheck-project.ts`
+    // globs them into a tsconfig that a test runs tsgo against. `cookbook/examples/*.ts` are
+    // the examples the CLI writes as text (`COOKBOOK_EXAMPLES`), type-checked by apps/sim's real-catalog test;
+    // `cookbook/workspace/**` is the example workspace directory it writes as `WORKSPACE_COOKBOOK`
+    // (its `tools/*.js` is custom tool code, which runs in a sandbox, not as a module).
+    "packages/workflow-sdk": {
+      "includeEntryExports": false,
+      "entry": [
+        "src/runtime.ts",
+        "src/codegen/index.ts",
+        "scripts/*.ts",
+        "cookbook/examples/*.ts",
+        "cookbook/workspace/**/*.{ts,js}",
+        "test/core/*.ts",
+        "test/examples/*.ts",
+        "test/negative/*.ts"
+      ]
+    },
     // This shared config is consumed by apps that own the Next dependency.
     "packages/tsconfig": { "ignoreUnresolved": ["next"] }
   }

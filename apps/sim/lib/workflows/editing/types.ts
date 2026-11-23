@@ -46,6 +46,12 @@ export const WORKFLOW_SKIPPED_ITEM_TYPES = [
   'invalid_edge_scope',
   'invalid_source_handle',
   'invalid_target_handle',
+  /**
+   * A new edge would close a cycle (a self-loop included): every block on one
+   * waits on the block before it, so none of them runs. An edge the workflow
+   * already stored is never refused for this, so a stored cycle survives edits.
+   */
+  'edge_cycle',
   'invalid_subblock_field',
   'missing_required_params',
   'invalid_subflow_parent',

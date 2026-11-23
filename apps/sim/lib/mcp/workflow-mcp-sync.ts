@@ -650,7 +650,7 @@ export async function removeMcpToolsForWorkflow(
  */
 /** Publishes affected servers synchronously so durable callers can observe failures. */
 export async function publishMcpToolServerChanges(serverIds: string[]): Promise<void> {
-  if (!mcpPubSub || !serverIds.length) return
+  if (!serverIds.length) return
   const servers = await db
     .select({ id: workflowMcpServer.id, workspaceId: workflowMcpServer.workspaceId })
     .from(workflowMcpServer)

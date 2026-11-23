@@ -1,5 +1,5 @@
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { ResolvedToolInputParamConfig } from '@/lib/workflows/search-replace/indexer'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { ParameterVisibility } from '@/tools/types'
 

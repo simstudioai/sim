@@ -9,11 +9,12 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { mcpPubsubMock } from '@sim/testing/mocks/mcp-pubsub.mock'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/mcp/pubsub', () => ({ mcpPubSub: null }))
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
 vi.mock('@/lib/mcp/service', () => ({
   mcpService: { clearCache: vi.fn().mockResolvedValue(undefined) },
 }))

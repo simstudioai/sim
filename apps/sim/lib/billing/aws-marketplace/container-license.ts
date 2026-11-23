@@ -1,4 +1,5 @@
 import { CheckoutLicenseCommand, LicenseManagerClient } from '@aws-sdk/client-license-manager'
+import { ENTERPRISE_MASTER_ENV_VAR } from '@sim/deployment-config/enterprise-features'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -58,8 +59,6 @@ const RESTART_SPREAD_MS = 10 * 60 * 1000
  * takes effect one re-check later.
  */
 const DOWNGRADE_CONFIRMATIONS = 2
-
-const ENTERPRISE_FLAGS = ['ENTERPRISE_ENABLED', 'NEXT_PUBLIC_ENTERPRISE_ENABLED'] as const
 
 /** License Manager's answers when the account holds no active license with the entitlement. */
 const NO_ENTITLEMENT_ERRORS = new Set([
@@ -132,7 +131,7 @@ async function checkLicense(
 }
 
 function setEnterpriseFlags(enabled: boolean): void {
-  for (const flag of ENTERPRISE_FLAGS) process.env[flag] = enabled ? 'true' : 'false'
+  process.env[ENTERPRISE_MASTER_ENV_VAR] = enabled ? 'true' : 'false'
 }
 
 function restartToApply(state: LicenseState): void {

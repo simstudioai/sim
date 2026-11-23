@@ -4,13 +4,16 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  resolveCanonicalMode,
+  type SubBlockCondition,
+} from '@sim/workflow-code/catalog/canonical-index'
+import { CUSTOM_BLOCK_RESERVED_PARAMS } from '@sim/workflow-types/blocks'
+import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isTriggerModeSubBlock,
-  resolveCanonicalMode,
-  type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
-import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type {
   BlockConfig as AppBlockConfig,
   SubBlockConfig as BlockSubBlockConfig,
@@ -788,11 +791,11 @@ export function getSubBlocksForToolInput(
 
     // Custom (deploy-as-block) blocks: render their own editable field sub-blocks
     // as `user-or-llm` (the hidden workflowId/inputMapping wiring is filtered by
-    // RESERVED_PARAMS — `isSubBlockHidden` does NOT honor `hidden: true`, so the
-    // explicit reserved filter is what keeps them out).
+    // CUSTOM_BLOCK_RESERVED_PARAMS — `isSubBlockHidden` does NOT honor `hidden: true`,
+    // so the explicit reserved filter is what keeps them out).
     if (blockType && isCustomBlockType(blockType)) {
       const fieldSubBlocks = ((blockConfig?.subBlocks ?? []) as BlockSubBlockConfig[])
-        .filter((sb) => !sb.hidden && !RESERVED_PARAMS.has(sb.id))
+        .filter((sb) => !sb.hidden && !CUSTOM_BLOCK_RESERVED_PARAMS.has(sb.id))
         .map((sb) => ({ ...sb, paramVisibility: 'user-or-llm' as ParameterVisibility }))
       return {
         toolConfig,

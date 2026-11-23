@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/server/routes'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
+import { TABLE_NOT_FOUND_MESSAGE } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
   v2CaughtOrchestrationError,
@@ -45,7 +46,7 @@ export const v2TableErrorPolicies = {
     render: renderTableError,
   } satisfies V2ErrorPolicy,
   concealTableAuthorization: createV2ResourceConcealmentPolicy({
-    notFoundMessage: 'Table not found',
+    notFoundMessage: TABLE_NOT_FOUND_MESSAGE,
     render: renderTableError,
   }),
   concealImportAuthorization: createV2ResourceConcealmentPolicy({
@@ -92,11 +93,11 @@ export const internalTableErrorPolicies = {
   bulk: internalTableGroupErrorPolicy,
   concealTableAuthorization: createInternalResourceConcealmentPolicy({
     base: internalOrchestrationErrorPolicy,
-    notFoundMessage: 'Table not found',
+    notFoundMessage: TABLE_NOT_FOUND_MESSAGE,
   }),
   concealTableGroupAuthorization: createInternalResourceConcealmentPolicy({
     base: internalTableGroupErrorPolicy,
-    notFoundMessage: 'Table not found',
+    notFoundMessage: TABLE_NOT_FOUND_MESSAGE,
   }),
   concealImportAuthorization: createInternalResourceConcealmentPolicy({
     base: internalOrchestrationErrorPolicy,

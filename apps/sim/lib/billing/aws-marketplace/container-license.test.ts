@@ -59,7 +59,6 @@ describe('applyAwsMarketplaceContainerLicense', () => {
     vi.useRealTimers()
     kill.mockRestore()
     Reflect.deleteProperty(process.env, 'ENTERPRISE_ENABLED')
-    Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_ENTERPRISE_ENABLED')
   })
 
   it('does nothing outside a Marketplace install', async () => {

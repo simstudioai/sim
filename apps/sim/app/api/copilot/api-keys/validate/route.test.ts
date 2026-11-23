@@ -431,7 +431,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
-  it('admits a direct-v1 key without Redis while ignoring a local workspace ID', async () => {
+  it('admits a direct-v1 key against the account payer, ignoring the workspace ID it sends', async () => {
     mockSerializeAccountBillingDecisionHeader.mockImplementation((decision: object) =>
       encodeURIComponent(JSON.stringify(decision))
     )

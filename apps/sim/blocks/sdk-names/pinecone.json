@@ -1,0 +1,16 @@
+{
+  "namespace": "pinecone",
+  "methods": {
+    "delete_vectors": "deleteVectors",
+    "describe_index": "describeIndex",
+    "describe_index_stats": "describeIndexStats",
+    "fetch": "fetchVectors",
+    "generate": "generateEmbeddings",
+    "list_indexes": "listIndexes",
+    "list_vector_ids": "listVectorIds",
+    "search_text": "searchWithText",
+    "search_vector": "searchWithVector",
+    "update_vector": "updateVector",
+    "upsert_text": "upsertText"
+  }
+}

@@ -24,16 +24,12 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { TitleRequest } from '@/lib/mothership/generated/protocol'
 import {
-  RequestTraceV1Outcome,
-  RequestTraceV1SpanStatus,
-} from '@/lib/mothership/generated/request-trace-v1'
-import {
   CopilotRequestCancelReason,
   type CopilotRequestCancelReasonValue,
   CopilotTransport,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
 import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
@@ -42,7 +38,7 @@ import {
   type CopilotLifecycleOptions,
   runCopilotLifecycle,
 } from '@/lib/mothership/request/lifecycle/run'
-import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/mothership/request/otel'
+import { startCopilotOtelRoot } from '@/lib/mothership/request/otel'
 import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
@@ -66,7 +62,7 @@ import {
 import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
 import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
 import { type StreamTurnFailure, turnFailure } from '@/lib/mothership/request/session/turn-failure'
-import { TraceCollector } from '@/lib/mothership/request/trace'
+import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
@@ -126,7 +122,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     otelRoot ??
     startCopilotOtelRoot({
       requestId,
-      route: orchestrateOptions.goRoute,
+      route: orchestrateOptions.workerRoute,
       chatId,
       workflowId: orchestrateOptions.workflowId,
       executionId,
@@ -228,8 +224,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     return cancelReason
   }
 
-  const collector = new TraceCollector()
-
   /**
    * The failure that ends this turn. Once the controller is aborted its reason is
    * authoritative, so a failure that follows a Stop stays a Stop.
@@ -289,7 +283,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       },
       publisher,
       runId,
-      RequestTraceV1Outcome.error,
+      RequestTraceOutcome.error,
       requestId
     )
     try {
@@ -314,7 +308,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       // Next handler → ReadableStream.start boundary.
       await otelContextApi.with(activeOtelRoot.context, async () => {
         const otelContext = activeOtelRoot.context
-        let rootOutcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+        let rootOutcome: RequestTraceOutcome = RequestTraceOutcome.error
         let rootError: unknown
         // `cancelReason` must be declared OUTSIDE the outer `try` so
         // it remains in scope for the outer `finally` that calls
@@ -326,12 +320,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         // orphan under a phantom parent. (Regression landed 2026-04-21.)
         let cancelReason: CopilotRequestCancelReasonValue | undefined
         try {
-          const requestSpan = collector.startSpan('Sim Agent Request', 'request', {
-            streamId,
-            chatId,
-            runId,
-          })
-          let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+          let outcome: RequestTraceOutcome = RequestTraceOutcome.error
           let lifecycleResult:
             | {
                 usage?: { prompt: number; completion: number }
@@ -373,7 +362,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                   requestContext: savedRequestContext,
                 }))
               if (run.status === 'cancelled') {
-                outcome = RequestTraceV1Outcome.cancelled
+                outcome = RequestTraceOutcome.cancelled
                 abortController.abort(AbortReason.UserStop)
                 cancelReason = recordCancelled()
                 await endTurn(
@@ -432,7 +421,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 !publisher.clientDisconnected || (await hasStreamViewer(streamId)),
               executionId,
               runId,
-              trace: collector,
               simRequestId: requestId,
               otelContext,
               abortSignal: abortController.signal,
@@ -483,13 +471,13 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             const failure = failureOf()
             // A completed result wins a late Stop; passive disconnection never cancels.
             outcome = result.success
-              ? RequestTraceV1Outcome.success
+              ? RequestTraceOutcome.success
               : failure
-                ? RequestTraceV1Outcome.error
+                ? RequestTraceOutcome.error
                 : result.cancelled || abortController.signal.aborted
-                  ? RequestTraceV1Outcome.cancelled
-                  : RequestTraceV1Outcome.error
-            if (outcome === RequestTraceV1Outcome.cancelled) {
+                  ? RequestTraceOutcome.cancelled
+                  : RequestTraceOutcome.error
+            if (outcome === RequestTraceOutcome.cancelled) {
               cancelReason = recordCancelled()
             }
             await assertControllerOwnership()
@@ -509,13 +497,13 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             await assertControllerOwnership()
             const failure = failureOf(error)
             if (failure) {
-              outcome = RequestTraceV1Outcome.error
+              outcome = RequestTraceOutcome.error
               await finalizeAfterTurnFailure(failure)
               return
             }
             const wasCancelled = abortController.signal.aborted
-            outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
-            if (outcome === RequestTraceV1Outcome.cancelled) {
+            outcome = wasCancelled ? RequestTraceOutcome.cancelled : RequestTraceOutcome.error
+            if (outcome === RequestTraceOutcome.cancelled) {
               cancelReason = recordCancelled(getErrorMessage(error))
             }
             if (publisher.clientDisconnected) {
@@ -527,7 +515,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             // Demote to warn when the throw came from a user-initiated
             // cancel — it isn't an "unexpected" failure then, and the
             // error-level log pollutes alerting on normal Stop presses.
-            const logFn = outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
+            const logFn = outcome === RequestTraceOutcome.cancelled ? logger.warn : logger.error
             logFn.call(logger, `Orchestration ended with ${outcome}:`, error, { requestId })
 
             const syntheticResult = {
@@ -539,15 +527,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             }
             await endTurn(syntheticResult, publisher, runId, outcome, requestId)
           } finally {
-            collector.endSpan(
-              requestSpan,
-              outcome === RequestTraceV1Outcome.success
-                ? RequestTraceV1SpanStatus.ok
-                : outcome === RequestTraceV1Outcome.cancelled
-                  ? RequestTraceV1SpanStatus.cancelled
-                  : RequestTraceV1SpanStatus.error
-            )
-
             clearInterval(abortPoller)
             try {
               await publisher.close()
@@ -590,7 +569,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             }
           }
         } catch (error) {
-          rootOutcome = RequestTraceV1Outcome.error
+          rootOutcome = RequestTraceOutcome.error
           rootError = error
           throw error
         } finally {
@@ -791,12 +770,12 @@ export async function requestChatTitle(params: {
       Object.assign(headers, billingRequest.headers)
     }
 
-    const { fetchGo } = await import('@/lib/mothership/request/go/fetch')
+    const { fetchWorker } = await import('@/lib/mothership/request/worker/fetch')
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
     // Title reads the user's message content, so an enterprise chat pins its key here too.
     const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
     const context = await buildChatTitleContext(params)
-    const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
+    const response = await fetchWorker(`${mothershipBaseURL}/api/generate-chat-title`, {
       method: 'POST',
       signal,
       headers,
@@ -812,7 +791,7 @@ export async function requestChatTitle(params: {
         })
       ),
       otelContext,
-      spanName: 'sim → go /api/generate-chat-title',
+      spanName: 'sim → worker /api/generate-chat-title',
       operation: 'generate_chat_title',
     })
 

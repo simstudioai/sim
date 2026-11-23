@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import { act, createElement, type ReactNode } from 'react'
+import { TTL_FORMAT_ERROR } from '@sim/table-cells/ttl'
 import { createRoot } from 'react-dom/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition } from '@/lib/table'
-import { TTL_FORMAT_ERROR } from '@/lib/table/ttl-values'
 import { InlineEditor } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/inline-editors'
 
 const { mockToastError, mockUseTimezoneState, mockCalendar } = vi.hoisted(() => ({

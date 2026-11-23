@@ -27,6 +27,9 @@ vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/core/utils/concurrency', () => ({
   MATERIALIZE_CONCURRENCY: 20,
+}))
+
+vi.mock('@sim/utils/concurrency', () => ({
   mapWithConcurrency: mockMapWithConcurrency,
 }))
 

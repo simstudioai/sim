@@ -1,3 +1,4 @@
+import { REGISTRATION_MODES } from '@sim/deployment-config/registration'
 import { z } from 'zod'
 import { nonEmptyIdSchema, organizationRoleSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
@@ -225,34 +226,40 @@ export const workspaceOwnerBillingSchema = z.object({
 export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
 
 /**
- * Enterprise features as this deployment's configuration resolves them (see
- * `enterpriseFeatureEnabled` in `@/lib/core/config/env-flags`). The browser consults
- * these only off-hosted, where no subscription plan exists to decide entitlement.
+ * Enterprise features as this deployment's configuration resolves them (the registry in
+ * `@sim/deployment-config/enterprise-features`, resolved in `@/lib/core/config/env-flags`).
+ * `sandboxes` is availability (entitlement and a ready provider), not the entitlement alone.
  */
 export const deploymentFeaturesSchema = z.object({
   accessControl: z.boolean(),
   auditLogs: z.boolean(),
+  /** Optional for rolling compatibility with app versions that predate projecting it. */
+  credentialGroups: z.boolean().optional(),
   customBlocks: z.boolean(),
   dataDrains: z.boolean(),
   dataRetention: z.boolean(),
+  /** Optional for rolling compatibility with app versions that predate projecting it. */
+  forking: z.boolean().optional(),
   inbox: z.boolean(),
+  /** Optional for rolling compatibility with app versions that predate projecting it. */
+  organizations: z.boolean().optional(),
   sandboxes: z.boolean(),
   scim: z.boolean(),
   sessionPolicies: z.boolean(),
   sso: z.boolean(),
   usageMonitoring: z.boolean(),
-  whitelabeling: z.boolean(),
 })
 
 export type DeploymentFeatures = z.output<typeof deploymentFeaturesSchema>
 
 /**
- * The deployment's shape, resolved on the server per request. Browser code reads it
- * from the workspace host context rather than from the `NEXT_PUBLIC_*` module
- * constants: those freeze at module init, and a document that never ran the root
- * layout — Next's bare `__next_error__` 404 shell, or `global-error` — leaves every
- * one of them unset for the life of the tab, including after the app recovers in
- * place. See `@/lib/core/config/deployment-shape`.
+ * The deployment's shape, resolved on the server. The root layout projects it onto
+ * `<html>` and the workspace host context carries it per request; browser code reads
+ * it from there rather than from the `env-flags` module constants, which freeze at
+ * module init, and on a document that never ran the root layout — Next's bare
+ * `__next_error__` 404 shell, or `global-error` — stay at self-hosted defaults for the
+ * life of the tab, including after the app recovers in place. See
+ * `@/lib/core/config/deployment-shape`.
  */
 export const deploymentShapeSchema = z.object({
   hosted: z.boolean(),
@@ -261,6 +268,11 @@ export const deploymentShapeSchema = z.object({
   azureConfigured: z.boolean(),
   cohereConfigured: z.boolean(),
   features: deploymentFeaturesSchema,
+  /**
+   * `REGISTRATION_MODE`, resolved on the server. Optional for rolling compatibility
+   * with app versions that predate projecting it; readers treat absent as `open`.
+   */
+  registrationMode: z.enum(REGISTRATION_MODES).optional(),
 })
 
 export type DeploymentShape = z.output<typeof deploymentShapeSchema>

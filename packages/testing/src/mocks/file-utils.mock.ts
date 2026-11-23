@@ -393,8 +393,12 @@ function isInternalFileUrl(fileUrl: string): boolean {
   return path.startsWith('/api/files/serve/')
 }
 
+function hasDotSegment(key: string): boolean {
+  return key.split(/[/\\]/).some((segment) => segment === '.' || segment === '..')
+}
+
 function tryInferContextFromKey(key: string): MockStorageContext | null {
-  if (!key) return null
+  if (!key || hasDotSegment(key)) return null
   if (key.startsWith('kb/') || key.startsWith('knowledge-base/')) return 'knowledge-base'
   if (key.startsWith('chat/')) return 'chat'
   if (key.startsWith('copilot/')) return 'copilot'
@@ -662,6 +666,7 @@ export const fileUtilsMockFns = {
     }
     return sanitized
   }),
+  mockHasDotSegment: vi.fn(hasDotSegment),
   mockSanitizeFileKey: vi.fn((key: string) => {
     if (!key.includes('/')) {
       throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
@@ -756,6 +761,7 @@ export const fileUtilsMock = {
   processFilesToUserFiles: fileUtilsMockFns.mockProcessFilesToUserFiles,
   sanitizeFilenameForMetadata: fileUtilsMockFns.mockSanitizeFilenameForMetadata,
   sanitizeStorageMetadata: fileUtilsMockFns.mockSanitizeStorageMetadata,
+  hasDotSegment: fileUtilsMockFns.mockHasDotSegment,
   sanitizeFileKey: fileUtilsMockFns.mockSanitizeFileKey,
   extractCleanFilename: fileUtilsMockFns.mockExtractCleanFilename,
   extractWorkspaceIdFromExecutionKey: fileUtilsMockFns.mockExtractWorkspaceIdFromExecutionKey,

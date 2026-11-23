@@ -33,6 +33,11 @@ use their documented arguments or `--to-version`.
 API schema links describe HTTP payloads. See [CLI output formats](/cli/output)
 for resource unwrapping, pagination envelopes, and display formats.
 
+Every command exits 13 when it needs a login it does not have (`AUTH_REQUIRED`) and 9
+when the API still answers `429` after the CLI resends it (every `GET` and the source
+writes, up to 6 times, at most a minute apart); see
+[Exit codes](/cli/scripting#exit-codes) for these and the command-specific codes.
+
 ## sim login
 
 Log in through the browser and store the login for the profile
@@ -417,9 +422,21 @@ sim blocks get <blockId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. |
+| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it. |
 
 </CommandTable>
+
+```text
+Reading it for `sim workflows operations apply`:
+  id                    the type to add: `blocks get table` answers table_v2 (an add of legacy
+                        table is refused)
+  inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
+  inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
+                        tableSelector and manualTableId) is accepted in place of the pair
+  outputs               what it outputs on success; a failed block outputs {"error":"…"}
+                        instead, read on its error path as <name.error>
+Block settings such as retry are not fields: `sim workflows operations apply --help`.
+```
 
 API request and response schemas: [getBlock](/api-reference/catalog/getBlock).
 
@@ -5863,7 +5880,7 @@ sim tables columns create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -5895,7 +5912,7 @@ sim tables columns delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -5926,7 +5943,7 @@ sim tables columns update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -5957,7 +5974,7 @@ sim tables groups create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -5992,7 +6009,7 @@ sim tables groups delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6023,7 +6040,7 @@ sim tables groups list <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6043,7 +6060,7 @@ sim tables groups update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6108,7 +6125,7 @@ sim tables rows update-each <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6138,7 +6155,7 @@ sim tables rows create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6171,7 +6188,7 @@ sim tables rows delete <tableId> <rowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `rowId` | Yes | Unique table row identifier. |
 
 </CommandTable>
@@ -6204,7 +6221,7 @@ sim tables rows batch-delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6237,7 +6254,7 @@ sim tables rows get <tableId> <rowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `rowId` | Yes | Unique table row identifier. |
 
 </CommandTable>
@@ -6269,7 +6286,7 @@ sim tables rows list <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6302,7 +6319,7 @@ sim tables rows query <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6337,7 +6354,7 @@ sim tables rows count <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6367,7 +6384,7 @@ sim tables rows enrich <tableId> <rowId> <groupId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `rowId` | Yes | Unique table row identifier. |
 | `groupId` | Yes | Workflow or enrichment group to run. |
 
@@ -6389,7 +6406,7 @@ sim tables rows search <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6423,7 +6440,7 @@ sim tables rows batch-update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6456,7 +6473,7 @@ sim tables rows update <tableId> <rowId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `rowId` | Yes | Unique table row identifier. |
 
 </CommandTable>
@@ -6489,7 +6506,7 @@ sim tables dispatches cancel <tableId> <dispatchId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `dispatchId` | Yes | Unique table run-dispatch identifier. |
 
 </CommandTable>
@@ -6520,7 +6537,7 @@ sim tables dispatches create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6555,7 +6572,7 @@ sim tables dispatches get <tableId> <dispatchId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `dispatchId` | Yes | Unique table run-dispatch identifier. |
 
 </CommandTable>
@@ -6576,7 +6593,7 @@ sim tables dispatches list <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6596,7 +6613,7 @@ sim tables exports cancel <tableId> <exportId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `exportId` | Yes | Unique table-export identifier. |
 
 </CommandTable>
@@ -6617,7 +6634,7 @@ sim tables exports create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6647,7 +6664,7 @@ sim tables exports get <tableId> <exportId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `exportId` | Yes | Unique table-export identifier. |
 
 </CommandTable>
@@ -6668,7 +6685,7 @@ sim tables exports download <tableId> <exportId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `exportId` | Yes | Unique table-export identifier. |
 
 </CommandTable>
@@ -6743,7 +6760,7 @@ sim tables cancel-runs <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6921,7 +6938,7 @@ sim tables views create <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -6954,7 +6971,7 @@ sim tables views delete <tableId> <viewId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `viewId` | Yes | Unique saved-view identifier. |
 
 </CommandTable>
@@ -6985,7 +7002,7 @@ sim tables views get <tableId> <viewId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `viewId` | Yes | Unique saved-view identifier. |
 
 </CommandTable>
@@ -7006,7 +7023,7 @@ sim tables views list <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -7026,7 +7043,7 @@ sim tables views update <tableId> <viewId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `viewId` | Yes | Unique saved-view identifier. |
 
 </CommandTable>
@@ -7063,7 +7080,7 @@ sim tables delete <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -7093,7 +7110,7 @@ sim tables enrichment get <tableId> <rowId> <groupId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `rowId` | Yes | Unique table row identifier. |
 | `groupId` | Yes | Workflow or enrichment group to run. |
 
@@ -7115,7 +7132,7 @@ sim tables get <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -7182,7 +7199,7 @@ sim tables restore <tableId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names. |
 
 </CommandTable>
 
@@ -7202,7 +7219,7 @@ sim tables update <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -7234,7 +7251,7 @@ sim tables mv <tableId> <folder>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 | `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
@@ -7255,7 +7272,7 @@ sim tables upsert <tableId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
+| `tableId` | Yes | Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id). |
 
 </CommandTable>
 
@@ -7741,7 +7758,7 @@ sim workflows operations apply <workflowId> [options]
 | --- | --- | --- |
 | `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
-| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
+| `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"source":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params &#123;"parentId":"&lt;loop-id&gt;"&#125;; &#123;"parentId":null&#125; moves it out (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
 | `--no-atomic` | No | Send --atomic as false. |
 | `--layout <value>` | No | Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied. Accepted values: `targeted`, `none`. |
@@ -7749,6 +7766,46 @@ sim workflows operations apply <workflowId> [options]
 | `-y, --yes` | Conditional | Confirm this operation (required unless --dry-run). |
 
 </CommandTable>
+
+```text
+Edges:
+  connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
+  or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
+  An add's connections create the new block's edges. An edit's connections REPLACE every
+  outgoing edge of that block, on every handle: list again each edge to keep.
+  To remove one edge, edit its source block with
+  {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
+  "source").
+Source handles:
+  source               the normal path
+  error                a failure (a block that has an error output)
+  if, else-if-0, else  a condition's branches, in order (else-if-1, … for more)
+  route-0, route-1, …  a router's routes, in order
+  loop-start-source    a loop into its body; loop-end-source after the loop
+  parallel-start-source, parallel-end-source  the same for a parallel
+Renames:
+  An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
+  other blocks' inputs and in a loop's or parallel's collection and condition.
+Inputs:
+  inputs takes the field ids `sim blocks get <type>` lists (inputSchema, operationInputSchema),
+  or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
+  manualTableId; a string goes to the typed field). Add the type it answers with: `blocks get
+  table` answers table_v2, and an add of legacy table is refused.
+  conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
+  {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
+  position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
+  inputFormat (Start): [{"name":"email","type":"string"}]; types string, number, boolean,
+  object, array, file[]; an optional default "value" as text.
+Block settings, beside inputs in an add's or edit's params:
+  "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
+  clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
+Outputs:
+  A block that fails outputs {"error":"<message>"}: connect its error handle and read
+  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  output; a child ending in a Response block gives {data, status, headers}, so read
+  <call.result.data.x>.
+```
 
 API request and response schemas: [applyWorkflowOperations](/api-reference/workflows/applyWorkflowOperations).
 
@@ -8104,6 +8161,8 @@ sim workflows create [options]
 
 </CommandTable>
 
+The new workflow's draft holds one Start block (start_trigger, named Start): connect the blocks you add from it.
+
 API request and response schemas: [createWorkflow](/api-reference/workflows/createWorkflowV2).
 
 ### sim workflows folders create
@@ -8363,6 +8422,8 @@ sim workflows deploy <workflowId> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Optional label for the deployment version. |
 | `--description <value>` | No | Optional release note for the deployment version. |
+| `--expected-draft-fingerprint <value>` | No | Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing. |
+| `-y, --yes` | No | Accepted and ignored: this command needs no confirmation. |
 
 </CommandTable>
 
@@ -8432,17 +8493,24 @@ sim workflows run <workflowId> [options]
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--trigger <blockId>` | No | Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual). |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual). |
 | `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
-| `--from-block <blockId>` | No | Run manually from this saved workflow block. |
+| `--from-block <block>` | No | Run manually from this saved workflow block: its id, display name or key. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
-| `--stop-after <blockId>` | No | Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). |
+| `--stop-after <block>` | No | Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty. |
+| `--dir <dir>` | No | This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running. |
 | `--wait-timeout <seconds>` | No | Wait at most this many seconds for a synchronous run (0 waits until it settles). A run still going then continues in the background under async limits: the command prints its run record and exits 4, and `sim workflows runs wait` keeps waiting. Not with --async or --follow. |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
 | `--include-thinking` | No | Show model reasoning while following (requires --follow). |
 | `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
 
 </CommandTable>
+
+Without --manual (or a flag that implies it) this runs the active deployment; a workflow never deployed has none. --manual runs the saved draft, as the source loop leaves it.
+
+The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the workflow's final output) and blockOutputs (what --select-output named). It has no success field: branch on status, or on the exit code. With --follow it is the stream's final frame instead: success and output.
+
+Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed first, then the error on stderr), or the command failed; 4 still running when --wait-timeout elapsed.
 
 API request and response schemas: [executeWorkflow](/api-reference/workflows/executeWorkflowV2).
 
@@ -8478,7 +8546,257 @@ sim workflows export <workflowId> [options]
 
 </CommandTable>
 
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless --include-workspace-bindings, and credentials always do: to read what a block is set to, use `sim workflows state get`.
+
 API request and response schemas: [exportWorkflow](/api-reference/workflows/exportWorkflow).
+
+### sim workflows source catalog
+
+Show the block catalog workflow source is checked against
+
+```bash
+sim workflows source catalog [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow-id <value>` | No | Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`. |
+
+</CommandTable>
+
+API request and response schemas: [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
+
+### sim workflows source resources
+
+List the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names source can name
+
+```bash
+sim workflows source resources
+```
+
+API request and response schemas: [getSourceResources](/api-reference/workflows/getSourceResources).
+
+### sim workflows source get
+
+Show a workflow’s draft as TypeScript source with its identity lock
+
+```bash
+sim workflows source get <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--function-code <value>` | No | Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates. Accepted values: `inline`, `files`. |
+| `--dir <dir>` | No | Write the source, its lock and SDK type declarations into this directory instead of printing them. |
+| `--force` | No | With --dir: replace another workflow's source or edits no apply has saved. |
+
+</CommandTable>
+
+Exit codes with --dir: 0 written; 1 the command failed, the directory is a workspace source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or it holds another workflow's source (SOURCE_WORKFLOW_MISMATCH) or edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force); 7 the workflow is too large to print as source; 9 rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
+
+API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
+
+### sim workflows source apply
+
+Apply a workflow source directory to a workflow draft
+
+```bash
+sim workflows source apply [workflowId] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | No | Workflow whose draft the source replaces (default: the workflowId in .sim/base.json) |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/*, .sim/lock.json and .sim/base.json. Defaults to `.`. |
+| `--dry-run` | No | Check the source and show the outcome without saving or writing files. |
+| `-y, --yes` | No | Apply without asking for confirmation. |
+| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
+| `--allow-delete` | No | Delete blocks and variables the source no longer declares; without it, an apply that deletes one is refused. |
+
+</CommandTable>
+
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint) or the command failed; 5 the workflow changed since the directory was read (SOURCE_STALE, on a dry run too: get it again, reapply the edit, retry); 6 the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was written: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it). Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+
+API request and response schemas: [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment), [getSourceResources](/api-reference/workflows/getSourceResources).
+
+### sim workflows source create
+
+Create a workflow from a workflow source directory
+
+```bash
+sim workflows source create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--dir <dir>` | Yes | Source directory: workflow.ts and functions/*. Without workflow.ts, writes a starter and the types instead (an error with --dry-run or --yes). |
+| `--dry-run` | No | Check the source and show the outcome without creating anything. |
+| `--name <name>` | No | The workflow name (default: the source's). |
+| `--folder <path>` | No | The folder to create it in (default: the root). |
+| `-y, --yes` | No | Create without asking for confirmation. |
+| `--deploy` | No | After the write is saved, deploy the workflow (as `sim workflows deploy <workflowId>` does). |
+
+</CommandTable>
+
+Exit codes: 0 created (or a clean dry run, or a starter written); 1 the source has errors (each printed as file:line:column with its frame and hint), the workflow name is taken (SOURCE_NAME_TAKEN: pass --name), or the command failed (a starter is created in the workspace its types were written for unless --workspace names another); 6 the folder is locked; 7 the source is too large; 9 rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again; 10 (busy, retry) another sim command is using --dir, or the workspace directory it is a workflow folder of (SOURCE_DIR_BUSY): nothing was read or written, run it again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was created (run the same command with --yes). Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+
+API request and response schemas: [createWorkflowFromSource](/api-reference/workflows/createWorkflowFromSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [deployWorkflow](/api-reference/workflows/deployWorkflow), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
+
+### sim workflows source check
+
+Compile a workflow source directory locally, without the server
+
+```bash
+sim workflows source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+| `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
+| `--no-strict` | No | Never fail on a warning an apply saves. |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+
+</CommandTable>
+
+Compiles workflow.ts (and the function files it names) with the compiler the server runs, against the workspace's block catalog the last get or create cached, and prints the findings as the dry run does. No request is made. It covers the source itself (syntax, builders, params, references, wiring). In a workflow folder of a workspace directory (workflows/&lt;key&gt;), it reads the workspace's .sim/base.json and also checks env names, resource keys and table columns against what the directory declares. The dry run still checks what only the server knows (stored values, deployment), so run it before applying. A check also adds the blocks the source now uses to the CLI's tsconfig.json, so tsc type-checks a block the edit added; in a workspace directory it also regenerates .sim/sdk/workspace.d.ts, so tsc types each workflow's inputs as its files declare them.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+
+### sim workflows source status
+
+Show what changed locally and on the server since the directory was read
+
+```bash
+sim workflows source status [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+| `--offline` | No | Report local changes only, without asking the server. |
+| `--json` | No | Print the machine-readable status (same as --output json). |
+
+</CommandTable>
+
+With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+
+API request and response schemas: [planWorkflowSource](/api-reference/workflows/planWorkflowSource), [applyWorkflowSource](/api-reference/workflows/applyWorkflowSource), [getSourceResources](/api-reference/workflows/getSourceResources).
+
+### sim workflows source diff
+
+Show the content of the changes in a workflow source directory
+
+```bash
+sim workflows source diff [paths...] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `paths...` | No | Files or folders to compare (default: every file) |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory: workflow.ts, functions/* and .sim/. Defaults to `.`. |
+| `--server` | No | Compare with the server's current source instead of the base. |
+| `--json` | No | Print the machine-readable diff (same as --output json). |
+
+</CommandTable>
+
+Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 7 the source is too large for the server to read; 1 the command failed.
+
+API request and response schemas: [getWorkflowSource](/api-reference/workflows/getWorkflowSource).
+
+### sim workflows source params
+
+Print a builder's params and outputs from the cached block catalog (offline)
+
+```bash
+sim workflows source params <builder> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `builder` | Yes | Builder path (table.upsertRow, agent, trigger.schedule) or namespace |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Source directory whose catalog to read. Defaults to `.`. |
+
+</CommandTable>
+
+Prints a builder's params (required first, with enums and defaults), the gate field that picks which others apply, and its outputs, from the block catalog the last get, create or check cached. No request is made. &lt;builder&gt; is the dotted builder path as source writes it: table.upsertRow, agent, trigger.schedule, slack.sendMessage (slack.tool.sendMessage names the same builder). A namespace (gmail, trigger.gmail) lists its builders; a block type prints the builder written for it (function is fn) or lists them (table_v2); a construct core.d.ts declares (loop, parallel, t, env) prints its declaration. Run it from a workflow or workspace source directory, or pass --dir.
+
+Exit codes: 0 printed; 1 no builder or namespace of that name (the closest one is named), or no cached catalog (run a get once).
 
 ### sim workflows get
 
@@ -9684,3 +10002,154 @@ sim workspaces sync-exclusions [options]
 </CommandTable>
 
 API request and response schemas: [updateWorkspaceForkExclusions](/api-reference/workspace-sync/updateWorkspaceForkExclusions).
+
+### sim workspaces source get
+
+Write a workspace as a source directory
+
+```bash
+sim workspaces source get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | Yes | Directory to write the workspace source into. |
+| `--only <kinds>` | No | Read only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--force` | No | Replace files with edits no apply has saved. |
+
+</CommandTable>
+
+A directory that already holds a .sim/base.json is refreshed from the workspace it was read from, whatever the profile's default workspace.
+
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
+
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
+
+### sim workspaces source apply
+
+Apply a workspace source directory
+
+```bash
+sim workspaces source apply [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--dry-run` | No | Plan and check without writing anything. |
+| `-y, --yes` | No | Apply without asking for confirmation. |
+| `--allow-delete` | No | Delete resources, columns and data the directory no longer declares (with --to, only what it deleted since the last promotion: the target's own resources are kept). |
+| `--delete-target-only` | No | With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning. |
+| `--only <kinds>` | No | Apply only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/&lt;workspaceId&gt;.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too. |
+
+</CommandTable>
+
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run of such an apply exits 1 too), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 15 written in part: changes that use a declared secret the workspace has no value for, or a declared credential key nothing binds to, were held back and the rest was applied and saved (set the secret or connect the credential, then apply again); a dry run that would do so exits 15 too, having written nothing. Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
+
+### sim workspaces source check
+
+Compile every workflow of a workspace source directory locally, without the server
+
+```bash
+sim workspaces source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
+| `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
+| `--no-strict` | No | Never fail on a warning an apply saves. |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+
+</CommandTable>
+
+Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached (in a fresh clone with no cache, such as CI, it downloads the catalog once with the profile's credentials). No other request is made. It checks, against what the directory declares: - env names (secrets.ts), with a did-you-mean - credential keys (credentials.ts) - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a did-you-mean, and a key holding a look-alike letter (a Cyrillic а) named by its code point - the columns and select options of a table row write - a child workflow call: an inputMapping key the child's Start trigger does not declare, and a child with no Start trigger - each tables/&lt;key&gt;.rows.jsonl: a malformed line, an undeclared column, a managed key two lines share, an empty required cell, a repeated unique value, a value its column's type or options cannot hold - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters The dry run still checks what only the server knows (stored values, MCP tool names, model ids, deployments, credential bindings), so run it before applying. A check also regenerates .sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
+
+### sim workspaces source status
+
+Show what changed locally and on the server since the directory was read
+
+```bash
+sim workspaces source status [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--only <kinds>` | No | Report only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--offline` | No | Report local changes only, without asking the server. |
+| `--json` | No | Print the machine-readable status (same as --output json). |
+
+</CommandTable>
+
+With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [planWorkspaceSource](/api-reference/workflows/planWorkspaceSource), [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+
+### sim workspaces source diff
+
+Show the content of the changes in a workspace source directory
+
+```bash
+sim workspaces source diff [paths...] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `paths...` | No | Files, folders or kind:key resources to compare (default: every file) |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--server` | No | Compare with the server's current source instead of the base. |
+| `--json` | No | Print the machine-readable diff (same as --output json). |
+
+</CommandTable>
+
+Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 7 the source is too large for the server to read; 1 the command failed.
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource).

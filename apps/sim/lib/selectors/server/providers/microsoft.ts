@@ -1,9 +1,9 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   validateMicrosoftGraphId,
   validatePathSegment,
   validateSharePointSiteId,
 } from '@/lib/core/security/input-validation'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { resolveSelectorOAuthAccessToken } from '@/lib/selectors/server/credentials'
 import {

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { normalizeEmail } from '@sim/utils/string'
 import { z } from 'zod'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { GoogleApiError } from '@/connectors/google-workspace/api-errors'
 import {
   type GoogleCompanyCursorAdapter,

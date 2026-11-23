@@ -26,7 +26,7 @@ interface ActivityWatcherProps {
 let shown: unknown
 
 function ActivityWatcher({ registered }: ActivityWatcherProps) {
-  shown = useDesktopActivity('ws-1', watchesDesktopActivity({ available: true, registered }))
+  shown = useDesktopActivity('ws-1', watchesDesktopActivity(registered))
   return null
 }
 

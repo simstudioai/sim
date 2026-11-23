@@ -1,0 +1,25 @@
+{
+  "namespace": "polymarket",
+  "methods": {
+    "get_activity": "getActivity",
+    "get_event": "getEvent",
+    "get_events": "getEvents",
+    "get_holders": "getMarketHolders",
+    "get_last_trade_price": "getLastTradePrice",
+    "get_leaderboard": "getLeaderboard",
+    "get_market": "getMarket",
+    "get_markets": "getMarkets",
+    "get_midpoint": "getMidpoint",
+    "get_orderbook": "getOrderbook",
+    "get_positions": "getPositions",
+    "get_price": "getPrice",
+    "get_price_history": "getPriceHistory",
+    "get_series": "getSeries",
+    "get_series_by_id": "getSeriesById",
+    "get_spread": "getSpread",
+    "get_tags": "getTags",
+    "get_tick_size": "getTickSize",
+    "get_trades": "getTrades",
+    "search": "search"
+  }
+}

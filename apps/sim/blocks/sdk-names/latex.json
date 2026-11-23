@@ -1,0 +1,9 @@
+{
+  "namespace": "latex",
+  "methods": {
+    "latex_compile": "compileDocument",
+    "latex_get_package": "getPackageDetails",
+    "latex_list_fonts": "listFonts",
+    "latex_search_packages": "searchPackages"
+  }
+}

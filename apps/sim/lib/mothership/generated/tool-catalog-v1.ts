@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
-// Generated from copilot/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts
+// Generated from the Mothership worker packages/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts
 //
 
 export interface ToolCatalogEntry {

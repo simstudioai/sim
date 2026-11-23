@@ -10,9 +10,10 @@ import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
 import { executeCopilotAssistantAction } from '@/lib/mothership/application/assistant-actions'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
-import type {
-  AsyncCompletionSignal,
-  AsyncTerminalCompletionSnapshot,
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionSignal,
+  type AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { getAsyncToolCall, upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
@@ -22,13 +23,12 @@ import {
   DESKTOP_TOOL_PICKUP_GRACE_MS,
 } from '@/lib/mothership/constants'
 import {
-  MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import {
   isToolArgsDeltaStreamEvent,
@@ -190,7 +190,7 @@ function handleToolArgsDelta(
 }
 
 /**
- * The model first streams the stable gateway call. Once Go resolves its exact
+ * The model first streams the stable gateway call. Once the worker resolves its exact
  * server-owned operation, a second authoritative frame with the same call id
  * carries the real executable tool name and arguments. Rebind atomically so
  * execution, persistence, branding, and results all use that operation while
@@ -337,7 +337,7 @@ export async function prePersistClientExecutableToolCall(
     }
   }
 
-  // Go stamps this for resolved integration operations; Sim stamps it below for
+  // The worker stamps this for resolved integration operations; Sim stamps it below for
   // catalog-declared tools. Normalizing here means the dispatch path only ever
   // has to read the frame.
   //
@@ -361,7 +361,7 @@ export async function prePersistClientExecutableToolCall(
   if (gated) {
     data.status = TOOL_AWAITING_APPROVAL_STATUS
   } else if (frameRequestsApproval) {
-    // Go asked for a prompt this surface will not hold — the feature is off,
+    // The worker asked for a prompt this surface will not hold — the feature is off,
     // the tool is internal, or the user already allowed it for good. Clear the
     // stamp so the row renders as an ordinary call.
     data.status = undefined
@@ -448,8 +448,8 @@ export async function prePersistClientExecutableToolCall(
         data.arguments,
         desktopClaimsLocalReads(options, desktopDeviceId)
       )
-        ? MothershipStreamV1AsyncToolRecordStatus.pending
-        : MothershipStreamV1AsyncToolRecordStatus.running,
+        ? ASYNC_TOOL_STATUS.pending
+        : ASYNC_TOOL_STATUS.running,
     permissionRequested: gated,
     executionDeadlineAt: toDeadlineDate(frameToolDeadlineAt(data.deadlineMs, Date.now())),
   }).catch((err) => {
@@ -783,7 +783,7 @@ async function handleCallPhase(
   // sim-routed — the worker runs some legacy-named tools in-process, and a stale-catalog
   // dispatch raced them with a second, handlerless execution ("No handler for tool").
   const staticSimExecuted = isSimExecuted(toolName) && data.executor !== 'go'
-  // Go executes inband-owned calls itself via /api/copilot/tools/execute
+  // The worker executes inband-owned calls itself via /api/copilot/tools/execute
   // (background lanes, and the main lane while background agents run); the
   // event exists only to draw the row. Dispatching it here would run the
   // tool a second time, racing the in-band execution on mutations.

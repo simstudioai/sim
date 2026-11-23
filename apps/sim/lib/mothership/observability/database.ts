@@ -1,8 +1,8 @@
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceEvent } from '@/lib/mothership/observability/trace-events'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 

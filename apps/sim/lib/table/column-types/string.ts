@@ -1,4 +1,5 @@
 import { TypeText } from '@sim/emcn/icons'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const stringColumnType: ColumnTypeDefinition = {
@@ -14,17 +15,7 @@ export const stringColumnType: ColumnTypeDefinition = {
   editor: 'text',
   expandable: true,
 
-  coerce(value) {
-    if (typeof value === 'string') return { ok: true, value }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return { ok: true, value: String(value) }
-    }
-    return { ok: false }
-  },
-
-  validateCell(value, column) {
-    return typeof value === 'string' ? null : `${column.name} must be string, got ${typeof value}`
-  },
+  ...CELL_RULES.string,
 
   formatForDisplay(value) {
     if (typeof value === 'string') return value

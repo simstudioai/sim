@@ -23,9 +23,9 @@ import {
   getClaimedWorkflowExecutionId,
   getRunSegment,
 } from '@/lib/mothership/async-runs/repository'
-import { CopilotConfirmOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotConfirmOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -33,7 +33,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import {
   type ClientToolSettlementGuard,
@@ -165,7 +165,7 @@ async function updateToolCallStatus(
 export const POST = withRouteHandler((req: NextRequest) => {
   const tracker = createRequestTracker()
 
-  return withIncomingGoSpan(
+  return withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotConfirmToolResult,
     { [TraceAttr.RequestId]: tracker.requestId },

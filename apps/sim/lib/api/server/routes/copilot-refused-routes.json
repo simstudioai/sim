@@ -323,5 +323,30 @@
     "method": "GET",
     "path": "/api/v2/workspaces",
     "operation": "workspaces.list_public"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v2/workspaces/[workspaceId]/source",
+    "operation": "workspaces.source.read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source",
+    "operation": "workspaces.source.apply"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/blobs",
+    "operation": "workspaces.source.blobs.stage"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/blobs/missing",
+    "operation": "workspaces.source.blobs.missing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v2/workspaces/[workspaceId]/source/plan",
+    "operation": "workspaces.source.plan"
   }
 ]

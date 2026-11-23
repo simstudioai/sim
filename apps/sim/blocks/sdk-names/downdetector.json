@@ -1,0 +1,20 @@
+{
+  "namespace": "downdetector",
+  "methods": {
+    "downdetector_get_company": "getCompany",
+    "downdetector_get_company_attribution": "getCompanyAttribution",
+    "downdetector_get_company_baseline": "getCompanyBaseline",
+    "downdetector_get_company_events": "getCompanyEvents",
+    "downdetector_get_company_incidents": "getCompanyIncidents",
+    "downdetector_get_company_indicators": "getCompanyIndicators",
+    "downdetector_get_company_last_15": "getCompanyLast15Minutes",
+    "downdetector_get_company_status": "getCompanyStatus",
+    "downdetector_get_provider": "getProvider",
+    "downdetector_get_reports": "getReports",
+    "downdetector_get_site_companies": "getSiteCompanies",
+    "downdetector_list_categories": "listCategories",
+    "downdetector_list_incidents": "listIncidents",
+    "downdetector_list_sites": "listSites",
+    "downdetector_search_companies": "searchCompanies"
+  }
+}

@@ -1,8 +1,8 @@
 import { Container, Img, Link, Section } from '@react-email/components'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { baseStyles, colors, spacing } from '@/components/emails/_styles'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 /**
  * Social mark display size. Every `static/*-icon.png` is 40×40, so 20px is a
@@ -32,7 +32,6 @@ const SOCIAL_LINKS = [
 
 interface EmailFooterProps {
   baseUrl?: string
-  messageId?: string
   /**
    * Whether to show unsubscribe link. Defaults to true.
    * Set to false for transactional emails where unsubscribe doesn't apply.
@@ -48,14 +47,7 @@ interface EmailFooterProps {
  * {{UNSUBSCRIBE_TOKEN}} and {{UNSUBSCRIBE_EMAIL}} which are replaced
  * by the mailer when sending.
  */
-export function EmailFooter({
-  baseUrl = getBaseUrl(),
-  messageId,
-  showUnsubscribe = true,
-}: EmailFooterProps) {
-  const brand = getBrandConfig()
-  const isWhitelabeled = brand.isWhitelabeled
-
+export function EmailFooter({ baseUrl = getBaseUrl(), showUnsubscribe = true }: EmailFooterProps) {
   return (
     <Section
       style={{
@@ -78,85 +70,51 @@ export function EmailFooter({
               </td>
             </tr>
 
-            {/* Social links row — hidden for whitelabeled instances */}
-            {!isWhitelabeled && (
-              <>
-                <tr>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                  <td>
-                    <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
-                      <tbody>
-                        <tr>
-                          {SOCIAL_LINKS.map(({ path, label, icon }) => (
-                            <td key={path} align='left' style={SOCIAL_CELL_STYLE}>
-                              <Link href={`${baseUrl}/${path}`} rel='noopener noreferrer'>
-                                <Img
-                                  src={`${baseUrl}/static/${icon}`}
-                                  width={SOCIAL_ICON_SIZE}
-                                  height={SOCIAL_ICON_SIZE}
-                                  alt={label}
-                                  style={socialIconStyle}
-                                />
-                              </Link>
-                            </td>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                </tr>
+            {/* Social links row */}
+            <tr>
+              <td style={baseStyles.gutter} width={spacing.gutter}>
+                &nbsp;
+              </td>
+              <td>
+                <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
+                  <tbody>
+                    <tr>
+                      {SOCIAL_LINKS.map(({ path, label, icon }) => (
+                        <td key={path} align='left' style={SOCIAL_CELL_STYLE}>
+                          <Link href={`${baseUrl}/${path}`} rel='noopener noreferrer'>
+                            <Img
+                              src={`${baseUrl}/static/${icon}`}
+                              width={SOCIAL_ICON_SIZE}
+                              height={SOCIAL_ICON_SIZE}
+                              alt={label}
+                              style={socialIconStyle}
+                            />
+                          </Link>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+              <td style={baseStyles.gutter} width={spacing.gutter}>
+                &nbsp;
+              </td>
+            </tr>
 
-                <tr>
-                  <td style={baseStyles.spacer} height={16}>
-                    &nbsp;
-                  </td>
-                </tr>
-              </>
-            )}
+            <tr>
+              <td style={baseStyles.spacer} height={16}>
+                &nbsp;
+              </td>
+            </tr>
 
-            {/* Address row — hidden for whitelabeled instances */}
-            {!isWhitelabeled && (
-              <>
-                <tr>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                  <td style={baseStyles.footerText}>
-                    {brand.name}
-                    {isHosted && <>, 80 Langton St, San Francisco, CA 94103, USA</>}
-                  </td>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                </tr>
-
-                <tr>
-                  <td style={baseStyles.spacer} height={8}>
-                    &nbsp;
-                  </td>
-                </tr>
-              </>
-            )}
-
+            {/* Address row */}
             <tr>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;
               </td>
               <td style={baseStyles.footerText}>
-                Questions?{' '}
-                {/*
-                  A raw anchor, not `<Link>`: react-email's Link hardcodes
-                  target="_blank", which on a mailto: opens a blank tab beside
-                  the compose window in most webmail clients.
-                */}
-                <a href={`mailto:${brand.supportEmail}`} style={baseStyles.footerLink}>
-                  {brand.supportEmail}
-                </a>
+                Sim
+                {isHosted && <>, 80 Langton St, San Francisco, CA 94103, USA</>}
               </td>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;
@@ -169,26 +127,31 @@ export function EmailFooter({
               </td>
             </tr>
 
-            {messageId && (
-              <>
-                <tr>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                  <td style={baseStyles.footerText}>
-                    Need to refer to this message? Use this ID: {messageId}
-                  </td>
-                  <td style={baseStyles.gutter} width={spacing.gutter}>
-                    &nbsp;
-                  </td>
-                </tr>
-                <tr>
-                  <td style={baseStyles.spacer} height={8}>
-                    &nbsp;
-                  </td>
-                </tr>
-              </>
-            )}
+            <tr>
+              <td style={baseStyles.gutter} width={spacing.gutter}>
+                &nbsp;
+              </td>
+              <td style={baseStyles.footerText}>
+                Questions?{' '}
+                {/*
+                  A raw anchor, not `<Link>`: react-email's Link hardcodes
+                  target="_blank", which on a mailto: opens a blank tab beside
+                  the compose window in most webmail clients.
+                */}
+                <a href={`mailto:${SIM_SUPPORT_EMAIL}`} style={baseStyles.footerLink}>
+                  {SIM_SUPPORT_EMAIL}
+                </a>
+              </td>
+              <td style={baseStyles.gutter} width={spacing.gutter}>
+                &nbsp;
+              </td>
+            </tr>
+
+            <tr>
+              <td style={baseStyles.spacer} height={8}>
+                &nbsp;
+              </td>
+            </tr>
 
             <tr>
               <td style={baseStyles.gutter} width={spacing.gutter}>
@@ -239,7 +202,7 @@ export function EmailFooter({
                 &nbsp;
               </td>
               <td style={baseStyles.footerText}>
-                © {new Date().getFullYear()} {brand.name}, All Rights Reserved
+                © {new Date().getFullYear()} Sim, All Rights Reserved
               </td>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;

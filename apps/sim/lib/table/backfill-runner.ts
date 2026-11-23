@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { tableRowExecutions, userTableRows, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getValueAtPath, isRecordLike } from '@sim/utils/object'
 import { and, asc, count, eq, gt, inArray } from 'drizzle-orm'
 import { dispatchBackgroundTask } from '@/lib/core/async-jobs/background-task'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   type FunctionalExecutionDataSource,

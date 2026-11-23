@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -13,9 +14,15 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
 } from '@/lib/execution/durable-secret-provenance'
 import type { SandboxSessionRequest } from '@/lib/execution/remote-sandbox/types'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createTrustedCopilotPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
+import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { WorkbenchBootstrap } from '@/lib/mothership/generated/workbench'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import {
   activeSandboxChatOwner,
@@ -78,7 +85,7 @@ async function workbenchCli(
   const baseURL =
     activeSandboxChatOwner()?.mothershipBaseURL ?? (await getMothershipBaseURL({ userId }))
   const deadline = AbortSignal.timeout(15_000)
-  const response = await fetchGo(`${baseURL}/api/workbench/bootstrap`, {
+  const response = await fetchWorker(`${baseURL}/api/workbench/bootstrap`, {
     headers: mothershipRequestHeaders(),
     redirect: 'error',
     signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
@@ -102,11 +109,78 @@ async function workbenchCli(
   }
 }
 
+type ExecutionPrincipal = DelegatedPrincipal | OrganizationDelegatedPrincipal
+
+/**
+ * The execution's own Copilot delegation, re-scoped from the Function audience to the
+ * `sim:workspaces` audience the availability use cases accept. Same actor, chat and delegation,
+ * never a longer lifetime; any other service keeps its principal and is refused there.
+ */
+function workspacesDelegation(principal: ExecutionPrincipal): ExecutionPrincipal | null {
+  if (principal.serviceId !== 'copilot') return null
+  const options = {
+    audience: 'sim:workspaces',
+    ttlMs: Math.max(
+      1,
+      Math.min(COPILOT_APPLICATION_DELEGATION_TTL_MS, principal.expiresAt.getTime() - Date.now())
+    ),
+  }
+  const chatId = principal.resourceScope?.chatId
+  if (principal.kind === 'organization_delegated') {
+    if (!chatId) return null
+    return createTrustedOrganizationCopilotPrincipal(
+      {
+        userId: principal.subjectUserId,
+        organizationId: principal.organizationId,
+        chatId,
+        delegationId: principal.delegationId,
+      },
+      options
+    )
+  }
+  return createTrustedCopilotPrincipal(
+    {
+      userId: principal.subjectUserId,
+      workspaceId: principal.workspaceId,
+      delegationId: principal.delegationId,
+      chatId,
+      executionId: principal.resourceScope?.executionId,
+    },
+    options
+  )
+}
+
+/**
+ * The owner's entitlements, read fresh for each execution, for the workbench CLI's
+ * `SIM_ENTITLEMENTS`. Visibility only: each gated use case re-checks its flag, so a
+ * failed read hides the gated commands rather than failing the execution.
+ */
+async function sandboxEntitlements(args: {
+  principal: ExecutionPrincipal
+  workspaceId?: string
+  organizationId?: string
+}): Promise<string> {
+  try {
+    const principal = workspacesDelegation(args.principal)
+    if (!principal) return ''
+    const { workspaceId, organizationId } = args
+    return (await computeEntitlements({ principal, workspaceId, organizationId })).join(',')
+  } catch (error) {
+    logger.warn('Session sandbox entitlements unavailable', {
+      workspaceId: args.workspaceId,
+      organizationId: args.organizationId,
+      error: getErrorMessage(error),
+    })
+    return ''
+  }
+}
+
 /**
  * Builds the session request for a Mothership chat's persistent sandbox: the
  * per-chat identity, the sim-CLI bootstrap, and the CLI's headless auth
  * environment (`SIM_API_KEY`/`SIM_WORKSPACE`/`SIM_ENDPOINT`, the CLI's
- * documented CI path). Only an opaque callback credential enters the workbench;
+ * documented CI path), plus the owner's `SIM_ENTITLEMENTS` so entitlement-gated
+ * CLI commands are visible. Only an opaque callback credential enters the workbench;
  * the active tool lease resolves the real user credential on the server. The
  * opaque credential cannot authenticate directly to ordinary v2 routes.
  *
@@ -119,6 +193,7 @@ export async function buildMothershipSandboxSession(args: {
   workspaceId?: string
   organizationId?: string
   userId: string
+  principal: ExecutionPrincipal
   signal?: AbortSignal
 }): Promise<SandboxSessionRequest> {
   args.signal?.throwIfAborted()
@@ -129,7 +204,10 @@ export async function buildMothershipSandboxSession(args: {
   try {
     const apiKey = `mothership-sandbox:${generateId()}`
     const endpoint = env.MOTHERSHIP_SANDBOX_CLI_ENDPOINT?.trim() || getBaseUrl()
-    const scopedEndpoint = await sandboxResourceEndpoint(endpoint, args, apiKey)
+    const [scopedEndpoint, entitlements] = await Promise.all([
+      sandboxResourceEndpoint(endpoint, args, apiKey),
+      sandboxEntitlements(args),
+    ])
     if (scopedEndpoint !== endpoint) {
       const provenance: DurableSecretProvenance = {
         status: 'exact',
@@ -155,6 +233,7 @@ export async function buildMothershipSandboxSession(args: {
         SIM_ENDPOINT: scopedEndpoint,
         ...(activeSandboxFileOwnerProtocol() === 1 ? { SIM_FILE_OWNER_PROTOCOL: '1' } : {}),
         ...(activeSandboxWorkspaceFileCopy() ? { SIM_WORKSPACE_FILE_COPY: '1' } : {}),
+        ...(entitlements ? { SIM_ENTITLEMENTS: entitlements } : {}),
       }
     }
   } catch (error) {

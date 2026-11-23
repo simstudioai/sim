@@ -6,7 +6,6 @@
 
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   type ConfiguredOAuthClient,
   type FallbackCapabilityDefinition,
   inspectCapability,
@@ -40,10 +39,6 @@ export function getSelectedSandboxProviderId() {
 
 export function getConfiguredAsyncJobsProvider() {
   return requireCapability(ASYNC_JOBS_CAPABILITY, env).providerId
-}
-
-export function getConfiguredCacheProvider() {
-  return requireCapability(CACHE_CAPABILITY, env).providerId
 }
 
 export function inspectConfiguredOAuthClient(serviceId: string) {

@@ -11,9 +11,9 @@
  * write that waited sees the change.
  */
 
+import { canonicalJson } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { sql } from 'drizzle-orm'
-import { canonicalJson } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { DbTransaction } from '@/lib/table/planner'

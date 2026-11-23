@@ -8,6 +8,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
+import Redis from 'ioredis'
 import postgres from 'postgres'
 
 /**
@@ -31,6 +32,7 @@ function requiredEnvironment(name: string): string {
 
 const baseUrl = new URL(requiredEnvironment('SCIM_E2E_BASE_URL'))
 const databaseUrl = new URL(requiredEnvironment('SCIM_E2E_DATABASE_URL'))
+const redisUrl = new URL(requiredEnvironment('SCIM_E2E_REDIS_URL'))
 const authSecret = requiredEnvironment('SCIM_E2E_AUTH_SECRET')
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
 assert(loopbackHosts.has(baseUrl.hostname), 'The app must use a loopback host')
@@ -40,9 +42,12 @@ assert.equal(baseUrl.pathname, '/', 'App URL must be an origin without a path')
 assert(loopbackHosts.has(databaseUrl.hostname), 'The database must use a loopback host')
 assert(['postgres:', 'postgresql:'].includes(databaseUrl.protocol), 'Expected a PostgreSQL URL')
 assert(/(?:test|scim)/i.test(databaseUrl.pathname), 'Use a dedicated test or SCIM database')
+assert(loopbackHosts.has(redisUrl.hostname), 'Redis must use a loopback host')
+assert(['redis:', 'rediss:'].includes(redisUrl.protocol), 'Expected a Redis URL')
 assert(authSecret.length >= 32, 'Use a local Better Auth secret of at least 32 characters')
 
 const sql = postgres(databaseUrl.toString(), { max: 2 })
+const redis = new Redis(redisUrl.toString(), { maxRetriesPerRequest: 2 })
 const fixtures: Fixture[] = []
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
@@ -213,6 +218,11 @@ async function permission(userId: string, workspaceId: string) {
   return rows[0]?.permission_type
 }
 
+/** The app's Redis token bucket for one SCIM connection's shared rate limit. */
+function connectionBucketKey(connectionId: string): string {
+  return `ratelimit:tb:route:scim:connection:${connectionId}`
+}
+
 async function cleanup() {
   for (const fixture of [...fixtures].reverse()) {
     await sql.begin(async (tx) => {
@@ -223,9 +233,11 @@ async function cleanup() {
         await tx`delete from workspace where owner_id in ${tx(userIds)} or billed_account_user_id in ${tx(userIds)}`
       }
       await tx`delete from subscription where reference_id = ${fixture.orgId}`
-      await tx`delete from rate_limit_bucket where key in (
-        select 'route:scim:connection:' || id from scim_connection where organization_id = ${fixture.orgId}
-      )`
+      const connections =
+        await tx`select id from scim_connection where organization_id = ${fixture.orgId}`
+      for (const connection of connections) {
+        await redis.del(connectionBucketKey(string(connection.id)))
+      }
       if (userIds.length) await tx`delete from project where owner_id in ${tx(userIds)}`
       await tx`delete from project where organization_id = ${fixture.orgId}`
       await tx`delete from organization where id = ${fixture.orgId}`
@@ -1855,10 +1867,13 @@ async function run() {
       const connectionId = string(
         (await sql`select id from scim_connection where organization_id = ${primary.orgId}`)[0]?.id
       )
-      const bucketKey = `route:scim:connection:${connectionId}`
-      const exhausted = await sql`update rate_limit_bucket set tokens = 0, last_refill_at = now()
-        where key = ${bucketKey} returning key`
-      assert.equal(exhausted.length, 1, 'Run the local app with PostgreSQL rate-limit storage')
+      const bucketKey = connectionBucketKey(connectionId)
+      assert.equal(
+        await redis.exists(bucketKey),
+        1,
+        'The connection bucket is missing; point the app and the harness at the same Redis'
+      )
+      await redis.hset(bucketKey, { tokens: 0, lastRefillAt: Date.now() })
       try {
         const limited = await scim(token, '/Users', { expected: 429 })
         assert(Number(limited.headers.get('retry-after')) >= 1)
@@ -1866,7 +1881,7 @@ async function run() {
         await scim(newToken, '/Users', { expected: 429 })
         await scim(otherToken, '/Users')
       } finally {
-        await sql`delete from rate_limit_bucket where key = ${bucketKey}`
+        await redis.del(bucketKey)
       }
       await admin(primary, `/credentials/${credentialId}`, { method: 'DELETE' })
       await scim(token, '/Users', { expected: 401 })
@@ -1907,11 +1922,13 @@ try {
     process.exitCode = 1
   }
   await sql.end()
+  redis.disconnect()
   const report = {
     startedAt,
     completedAt: new Date().toISOString(),
     status: process.exitCode ? 'failed' : 'passed',
-    transport: 'Real HTTP against a local Next.js app and PostgreSQL; provider payload emulation',
+    transport:
+      'Real HTTP against a local Next.js app, PostgreSQL, and Redis; provider payload emulation',
     requestCount,
     checks,
   }

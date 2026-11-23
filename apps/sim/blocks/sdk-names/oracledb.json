@@ -1,0 +1,16 @@
+{
+  "namespace": "oracledb",
+  "methods": {
+    "delete": "deleteData",
+    "execute": "executeSql",
+    "insert": "insertData",
+    "introspect": "introspectSchema",
+    "query": "querySelect",
+    "update": "updateData"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

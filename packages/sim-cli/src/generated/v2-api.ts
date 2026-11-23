@@ -590,6 +590,7 @@ type ApplyWorkflowOperationsResponseRef0 = {
     | 'invalid_edge_scope'
     | 'invalid_source_handle'
     | 'invalid_target_handle'
+    | 'edge_cycle'
     | 'invalid_subblock_field'
     | 'missing_required_params'
     | 'invalid_subflow_parent'
@@ -668,7 +669,14 @@ type ApplyWorkflowOperationsResponseRef2 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -704,6 +712,336 @@ type ApplyWorkflowOperationsResponseRef3 = {
 
 export type ApplyWorkflowOperationsResponse = {
   data: ApplyWorkflowOperationsResponseRef3
+}
+
+/** `POST /api/v2/workflows/[workflowId]/source` */
+export type ApplyWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowSourceQuery = {
+  dryRun?: boolean
+  allowDelete?: boolean
+}
+
+export type ApplyWorkflowSourceBody = {
+  files: Record<string, string>
+  lock: {
+    version: 1
+    blocks: Record<
+      string,
+      {
+        id: string
+        parent: string | null
+        branches?: Record<string, string>
+        items?: Record<
+          string,
+          Array<{
+            name: string
+            id: string
+          }>
+        >
+        ident: string
+        order: number
+        layout?: {
+          x: number
+          y: number
+          w?: number
+          h?: number
+          height?: number
+          horizontalHandles?: boolean
+          [key: string]: unknown
+        }
+        codeFile?: string
+        [key: string]: unknown
+      }
+    >
+    variables: Record<string, string>
+    [key: string]: unknown
+  }
+  base: {
+    version?: 1
+    workflowId: string
+    workspaceId: string
+    fingerprint: string
+    catalogHash: string
+    [key: string]: unknown
+  }
+  provenance?: {
+    client: 'cli' | 'copilot' | 'canvas' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type ApplyWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
 }
 
 /** `PATCH /api/v2/workflows/[workflowId]/variables` */
@@ -742,6 +1080,722 @@ type ApplyWorkflowVariablesResponseRef0 = {
 
 export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/source` */
+export type ApplyWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type ApplyWorkspaceSourceQuery = {
+  dryRun?: boolean
+}
+
+export type ApplyWorkspaceSourceBody = {
+  files: Record<string, string>
+  blobs?: Array<{
+    path: string
+    sha256: string
+    size: number
+  }>
+  base?: {
+    version: 1
+    workspaceId: string
+    resources: Record<
+      string,
+      {
+        id: string
+        fingerprint?: string
+        columns?: Record<
+          string,
+          {
+            id: string
+            options?: Record<string, string>
+          }
+        >
+        blobs?: Record<
+          string,
+          {
+            id: string
+            rev: number | string
+            sha256: string
+          }
+        >
+        rows?: {
+          fingerprint: string
+          version: number
+          [key: string]: unknown
+        }
+        [key: string]: unknown
+      }
+    >
+    [key: string]: unknown
+  }
+  kinds: Array<
+    | 'secret'
+    | 'credential'
+    | 'custom-tool'
+    | 'skill'
+    | 'mcp-server'
+    | 'table'
+    | 'knowledge-base'
+    | 'file'
+    | 'workflow'
+    | 'deployment'
+  >
+  options?: {
+    allowDelete?: boolean
+    only?: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+  }
+  provenance?: {
+    client: 'cli' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type ApplyWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    dryRun: boolean
+    plan: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    refuses?: boolean
+    applied: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    failed?: {
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      message: string
+    }
+    needBlobs: Array<string>
+    applyId?: string
+    files: Record<string, string>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: number | string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
 }
 
 /** `POST /api/v2/projects/[projectId]/files/archive` */
@@ -4172,6 +5226,300 @@ export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/workflows/source` */
+export type CreateWorkflowFromSourceParams = {
+  workspaceId: string
+}
+
+export type CreateWorkflowFromSourceQuery = {
+  dryRun?: boolean
+  allowDelete?: boolean
+}
+
+type CreateWorkflowFromSourceBodyRef0 = string
+
+export type CreateWorkflowFromSourceBody = {
+  files: Record<string, string>
+  name?: string
+  description?: string | null
+  folderPath?: CreateWorkflowFromSourceBodyRef0
+  provenance?: {
+    client: 'cli' | 'copilot' | 'canvas' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type CreateWorkflowFromSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
 /** `POST /api/v2/workflow-mcp-servers` */
 export type CreateWorkflowMcpServerQuery = Record<string, never>
 
@@ -5174,6 +6522,7 @@ export type DeployWorkflowQuery = Record<string, never>
 export type DeployWorkflowBody = {
   name?: string
   description?: string | null
+  expectedDraftFingerprint?: string
 }
 
 type DeployWorkflowResponseRef0 = {
@@ -5262,7 +6611,14 @@ type DeployWorkflowResponseRef4 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -5573,6 +6929,19 @@ export type DownloadFileVersionQuery = {
 
 /** Non-JSON response (`binary`). */
 export type DownloadFileVersionResponse = never
+
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content` */
+export type DownloadKnowledgeDocumentParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type DownloadKnowledgeDocumentQuery = {
+  workspaceId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadKnowledgeDocumentResponse = never
 
 /** `GET /api/v2/projects/[projectId]/files/bulk-download` */
 export type DownloadProjectFileItemsParams = {
@@ -5889,6 +7258,27 @@ type ExportWorkflowResponseRef0 = {
 
 export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/source/blobs/missing` */
+export type FindMissingWorkspaceSourceBlobsParams = {
+  workspaceId: string
+}
+
+export type FindMissingWorkspaceSourceBlobsQuery = Record<string, never>
+
+export type FindMissingWorkspaceSourceBlobsBody = {
+  blobs: Array<{
+    sha256: string
+    size: number
+  }>
+}
+
+export type FindMissingWorkspaceSourceBlobsResponse = {
+  data: {
+    workspaceId: string
+    missing: Array<string>
+  }
 }
 
 /** `POST /api/v2/workspaces/[workspaceId]/fork` */
@@ -7598,6 +8988,716 @@ export type GetSkillResponse = {
   data: GetSkillResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/workflows/source/catalog` */
+export type GetSourceCatalogParams = {
+  workspaceId: string
+}
+
+export type GetSourceCatalogQuery = {
+  workflowId?: string
+}
+
+export type GetSourceCatalogHeaders = {
+  'if-none-match'?: string
+}
+
+export type GetSourceCatalogResponse = {
+  data: {
+    catalogVersion: 1
+    hash: string
+    sdkMajor: number
+    blocks: Record<
+      string,
+      {
+        type: string
+        name: string
+        category: 'blocks' | 'tools' | 'triggers'
+        addable?: false
+        lifecycle?: {
+          hidden?: true
+          preview?: true
+          sunset?: {
+            status: 'legacy' | 'deprecated'
+            replacedBy?: string
+          }
+        }
+        triggerAllowed?: boolean
+        triggers?: {
+          enabled: boolean
+          available: Array<string>
+        }
+        singleInstance?: boolean
+        subBlocks: Array<
+          | {
+              id: string
+              type: string
+              title?: string
+              mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+              canonicalParamId?: string
+              surface?: 'action' | 'trigger'
+              condition?:
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              visibleFor?: Record<string, boolean>
+              visibleWhen?: Record<
+                string,
+                {
+                  field: string
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string | number | boolean>
+                    | {
+                        list: number
+                      }
+                  not?: boolean
+                  and?: {
+                    field: string
+                    value?:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                  }
+                }
+              >
+              visibleForModel?: Record<string, boolean>
+              required?:
+                | boolean
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              dependsOn?: {
+                all: Array<string>
+                any: Array<string>
+              }
+              defaultValue?: unknown
+              valueDefault?:
+                | {
+                    computed: true
+                    initial?: unknown
+                  }
+                | {
+                    constant: unknown
+                  }
+              options?:
+                | Array<{
+                    id: string
+                    label?: string
+                  }>
+                | {
+                    dynamic: true
+                  }
+                | {
+                    opaque: true
+                  }
+              optionsVary?: true
+              hidden?: boolean
+              readOnly?: boolean
+              password?: boolean
+              hideFromCopilot?: boolean
+              context?: 'tool-input'
+              paramVisibility?: string
+              emptyIsValid?: boolean
+              language?: string
+              multiple?: boolean
+              min?: number
+              max?: number
+              step?: number
+              integer?: boolean
+              columns?: Array<string>
+              selectorKey?: string
+              serviceId?: string
+              credentialProviders?: Array<string>
+              valueKind:
+                | 'string'
+                | 'number'
+                | 'boolean'
+                | 'array'
+                | 'object'
+                | 'json'
+                | 'code'
+                | 'branches'
+                | 'tools'
+                | 'resource'
+                | 'picked'
+                | 'upload'
+                | 'none'
+              resourceKind?: string
+              storage: 'native' | 'json-string'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
+              acceptsNumber?: boolean
+              neverDecoded?: boolean
+              tableFilter?: boolean
+              valueShape?: 'number' | 'boolean' | 'json'
+            }
+          | {
+              shared: number
+            }
+          | {
+              trigger: string
+              start: number
+              count: number
+            }
+        >
+        tools: {
+          access: Array<string>
+          selector: 'single' | 'operation' | 'opaque'
+        }
+        outputs?: Record<
+          string,
+          {
+            type: string
+            description?: string
+            condition?: unknown
+            hiddenFromDisplay?: boolean
+            properties?: Record<string, unknown>
+            sharedProperties?: number
+            items?: unknown
+          }
+        >
+        sharedOutputs?: number
+        operationOutputs?: Record<
+          string,
+          {
+            names: Array<string>
+            nullable?: Array<string>
+          }
+        >
+        dynamicOutputs?: {
+          source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
+          param: string
+        }
+        graph: {
+          canBeTarget: boolean
+          errorPort: boolean
+          container: 'loop' | 'parallel' | null
+          annotationOnly: boolean
+          branches?: {
+            subBlockId: string
+            kind: 'condition' | 'router'
+          }
+        }
+        legacyIds?: Array<{
+          from: string
+          to: string | null
+          whenOperation?: Array<string>
+          conditional?: true
+        }>
+        legacyCanonicalIds?: Array<{
+          from: string
+          to: string
+        }>
+        paramAliases?: {
+          action?: Record<string, string>
+          trigger?: Record<string, string>
+        }
+        custom?: {
+          sourceWorkflowId?: string
+        }
+      }
+    >
+    triggers: Record<
+      string,
+      {
+        id: string
+        provider: string
+        name: string
+        polling?: boolean
+        webhook?: boolean
+        subBlocks: Array<
+          | {
+              id: string
+              type: string
+              title?: string
+              mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+              canonicalParamId?: string
+              surface?: 'action' | 'trigger'
+              condition?:
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              visibleFor?: Record<string, boolean>
+              visibleWhen?: Record<
+                string,
+                {
+                  field: string
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string | number | boolean>
+                    | {
+                        list: number
+                      }
+                  not?: boolean
+                  and?: {
+                    field: string
+                    value?:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                  }
+                }
+              >
+              visibleForModel?: Record<string, boolean>
+              required?:
+                | boolean
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              dependsOn?: {
+                all: Array<string>
+                any: Array<string>
+              }
+              defaultValue?: unknown
+              valueDefault?:
+                | {
+                    computed: true
+                    initial?: unknown
+                  }
+                | {
+                    constant: unknown
+                  }
+              options?:
+                | Array<{
+                    id: string
+                    label?: string
+                  }>
+                | {
+                    dynamic: true
+                  }
+                | {
+                    opaque: true
+                  }
+              optionsVary?: true
+              hidden?: boolean
+              readOnly?: boolean
+              password?: boolean
+              hideFromCopilot?: boolean
+              context?: 'tool-input'
+              paramVisibility?: string
+              emptyIsValid?: boolean
+              language?: string
+              multiple?: boolean
+              min?: number
+              max?: number
+              step?: number
+              integer?: boolean
+              columns?: Array<string>
+              selectorKey?: string
+              serviceId?: string
+              credentialProviders?: Array<string>
+              valueKind:
+                | 'string'
+                | 'number'
+                | 'boolean'
+                | 'array'
+                | 'object'
+                | 'json'
+                | 'code'
+                | 'branches'
+                | 'tools'
+                | 'resource'
+                | 'picked'
+                | 'upload'
+                | 'none'
+              resourceKind?: string
+              storage: 'native' | 'json-string'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
+              acceptsNumber?: boolean
+              neverDecoded?: boolean
+              tableFilter?: boolean
+              valueShape?: 'number' | 'boolean' | 'json'
+            }
+          | {
+              shared: number
+            }
+        >
+        outputs?: Record<
+          string,
+          {
+            type: string
+            description?: string
+            condition?: unknown
+            hiddenFromDisplay?: boolean
+            properties?: Record<string, unknown>
+            sharedProperties?: number
+            items?: unknown
+          }
+        >
+        sharedOutputs?: number
+      }
+    >
+    builders: Record<
+      string,
+      {
+        type: string
+        operation?: string
+        triggerMode?: boolean
+        fixed?: Record<string, string>
+      }
+    >
+    subBlocks?: Array<{
+      id: string
+      type: string
+      title?: string
+      mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+      canonicalParamId?: string
+      surface?: 'action' | 'trigger'
+      condition?:
+        | {
+            field: string
+            value:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+            and?: {
+              field: string
+              value?:
+                | string
+                | number
+                | boolean
+                | Array<string | number | boolean>
+                | {
+                    list: number
+                  }
+              not?: boolean
+            }
+          }
+        | {
+            opaque: true
+          }
+      visibleFor?: Record<string, boolean>
+      visibleWhen?: Record<
+        string,
+        {
+          field: string
+          value:
+            | string
+            | number
+            | boolean
+            | Array<string | number | boolean>
+            | {
+                list: number
+              }
+          not?: boolean
+          and?: {
+            field: string
+            value?:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+          }
+        }
+      >
+      visibleForModel?: Record<string, boolean>
+      required?:
+        | boolean
+        | {
+            field: string
+            value:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+            and?: {
+              field: string
+              value?:
+                | string
+                | number
+                | boolean
+                | Array<string | number | boolean>
+                | {
+                    list: number
+                  }
+              not?: boolean
+            }
+          }
+        | {
+            opaque: true
+          }
+      dependsOn?: {
+        all: Array<string>
+        any: Array<string>
+      }
+      defaultValue?: unknown
+      valueDefault?:
+        | {
+            computed: true
+            initial?: unknown
+          }
+        | {
+            constant: unknown
+          }
+      options?:
+        | Array<{
+            id: string
+            label?: string
+          }>
+        | {
+            dynamic: true
+          }
+        | {
+            opaque: true
+          }
+      optionsVary?: true
+      hidden?: boolean
+      readOnly?: boolean
+      password?: boolean
+      hideFromCopilot?: boolean
+      context?: 'tool-input'
+      paramVisibility?: string
+      emptyIsValid?: boolean
+      language?: string
+      multiple?: boolean
+      min?: number
+      max?: number
+      step?: number
+      integer?: boolean
+      columns?: Array<string>
+      selectorKey?: string
+      serviceId?: string
+      credentialProviders?: Array<string>
+      valueKind:
+        | 'string'
+        | 'number'
+        | 'boolean'
+        | 'array'
+        | 'object'
+        | 'json'
+        | 'code'
+        | 'branches'
+        | 'tools'
+        | 'resource'
+        | 'picked'
+        | 'upload'
+        | 'none'
+      resourceKind?: string
+      storage: 'native' | 'json-string'
+      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables' | 'skills'
+      acceptsNumber?: boolean
+      neverDecoded?: boolean
+      tableFilter?: boolean
+      valueShape?: 'number' | 'boolean' | 'json'
+    }>
+    lists?: Array<Array<string | number | boolean>>
+    outputs?: Array<
+      Record<
+        string,
+        {
+          type: string
+          description?: string
+          condition?: unknown
+          hiddenFromDisplay?: boolean
+          properties?: Record<string, unknown>
+          sharedProperties?: number
+          items?: unknown
+        }
+      >
+    >
+    scope?: {
+      organizationId: string
+    }
+  }
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/workflows/source/resources` */
+export type GetSourceResourcesParams = {
+  workspaceId: string
+}
+
+export type GetSourceResourcesQuery = Record<string, never>
+
+export type GetSourceResourcesResponse = {
+  data: {
+    workspaceId: string
+    tables: Array<{
+      key: string
+      id: string
+      name: string
+      columns: Array<{
+        name: string
+        type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+        options?: Array<string>
+        multiple?: boolean
+        required?: boolean
+      }>
+    }>
+    knowledgeBases: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    credentials: Array<{
+      key: string
+      id: string
+      name: string
+      provider: string
+    }>
+    workflows: Array<{
+      key: string
+      id: string
+      name: string
+      inputs: Array<{
+        name: string
+        type: string
+      }>
+    }>
+    skills: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    customTools: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    mcpServers: Array<{
+      key: string
+      id: string
+      name: string
+      tools?: Array<string>
+    }>
+    env: Array<string>
+    truncated: boolean
+  }
+}
+
 /** `GET /api/v2/organizations/[organizationId]/sso/policy` */
 export type GetSsoPolicyParams = {
   organizationId: string
@@ -8256,6 +10356,235 @@ export type GetWorkflowRunResponse = {
   data: GetWorkflowRunResponseRef4
 }
 
+/** `GET /api/v2/workflows/[workflowId]/source` */
+export type GetWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type GetWorkflowSourceQuery = {
+  functionCode?: 'inline' | 'files'
+}
+
+export type GetWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    canonicalHash: string
+    sdkMajor: number
+    blockTypes: Array<string>
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `GET /api/v2/workflows/[workflowId]/state` */
 export type GetWorkflowStateParams = {
   workflowId: string
@@ -8601,6 +10930,363 @@ type GetWorkspacePermissionConfigResponseRef0 = {
 
 export type GetWorkspacePermissionConfigResponse = {
   data: GetWorkspacePermissionConfigResponseRef0
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/source` */
+export type GetWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceSourceQuery = {
+  kinds?: string
+}
+
+export type GetWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    kinds: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+    files: Record<string, string>
+    blobs: Array<{
+      path: string
+      sha256?: string
+      size: number
+      id: string
+      href: string
+      rev?: string
+    }>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: number | string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    skipped: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      reason: string
+    }>
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
 }
 
 /** `POST /api/v2/skills/[skillId]/editors` */
@@ -11657,6 +14343,1039 @@ export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
 }
 
+/** `POST /api/v2/workflows/[workflowId]/source/plan` */
+export type PlanWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type PlanWorkflowSourceQuery = {
+  allowDelete?: boolean
+}
+
+export type PlanWorkflowSourceBody = {
+  files: Record<string, string>
+  lock: {
+    version: 1
+    blocks: Record<
+      string,
+      {
+        id: string
+        parent: string | null
+        branches?: Record<string, string>
+        items?: Record<
+          string,
+          Array<{
+            name: string
+            id: string
+          }>
+        >
+        ident: string
+        order: number
+        layout?: {
+          x: number
+          y: number
+          w?: number
+          h?: number
+          height?: number
+          horizontalHandles?: boolean
+          [key: string]: unknown
+        }
+        codeFile?: string
+        [key: string]: unknown
+      }
+    >
+    variables: Record<string, string>
+    [key: string]: unknown
+  }
+  base: {
+    version?: 1
+    workflowId: string
+    workspaceId: string
+    fingerprint: string
+    catalogHash: string
+    [key: string]: unknown
+  }
+}
+
+export type PlanWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/source/plan` */
+export type PlanWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type PlanWorkspaceSourceQuery = Record<string, never>
+
+export type PlanWorkspaceSourceBody = {
+  files: Record<string, string>
+  blobs?: Array<{
+    path: string
+    sha256: string
+    size: number
+  }>
+  base?: {
+    version: 1
+    workspaceId: string
+    resources: Record<
+      string,
+      {
+        id: string
+        fingerprint?: string
+        columns?: Record<
+          string,
+          {
+            id: string
+            options?: Record<string, string>
+          }
+        >
+        blobs?: Record<
+          string,
+          {
+            id: string
+            rev: number | string
+            sha256: string
+          }
+        >
+        rows?: {
+          fingerprint: string
+          version: number
+          [key: string]: unknown
+        }
+        [key: string]: unknown
+      }
+    >
+    [key: string]: unknown
+  }
+  kinds: Array<
+    | 'secret'
+    | 'credential'
+    | 'custom-tool'
+    | 'skill'
+    | 'mcp-server'
+    | 'table'
+    | 'knowledge-base'
+    | 'file'
+    | 'workflow'
+    | 'deployment'
+  >
+  options?: {
+    allowDelete?: boolean
+    only?: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+  }
+}
+
+export type PlanWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    dryRun: boolean
+    plan: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    refuses?: boolean
+    applied: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    failed?: {
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      message: string
+    }
+    needBlobs: Array<string>
+    applyId?: string
+    files: Record<string, string>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: number | string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_SDK_MAJOR_OLD'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `POST /api/v2/organizations/[organizationId]/search/sources/prepare` */
 export type PrepareSearchSourcesParams = {
   organizationId: string
@@ -13567,7 +17286,14 @@ type ReplaceWorkflowStateResponseRef0 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -14728,6 +18454,23 @@ type SetSecretResponseRef0 = {
 
 export type SetSecretResponse = {
   data: SetSecretResponseRef0
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/source/blobs` */
+export type StageWorkspaceSourceBlobsParams = {
+  workspaceId: string
+}
+
+export type StageWorkspaceSourceBlobsQuery = Record<string, never>
+
+export type StageWorkspaceSourceBlobsResponse = {
+  data: {
+    workspaceId: string
+    staged: Array<{
+      sha256: string
+      size: number
+    }>
+  }
 }
 
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync` */
@@ -16852,7 +20595,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Add column',
     body: {
@@ -16864,7 +20610,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Add workflow group',
     body: {
@@ -16946,6 +20695,48 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  applyWorkflowSource: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/source',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Apply workflow source',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+      },
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      lock: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.',
+      },
+      base: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`, and `400` when `base.workflowId` names another workflow.',
+      },
+      provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
+    },
+  },
   applyWorkflowVariables: {
     method: 'PATCH',
     path: '/api/v2/workflows/[workflowId]/variables',
@@ -16959,6 +20750,47 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Variable changes to apply, in order.',
       },
+    },
+  },
+  applyWorkspaceSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Apply workspace source',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
+      },
+      blobs: {
+        kind: 'array',
+        describe:
+          'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+      },
+      base: {
+        kind: 'object',
+        describe:
+          '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.',
+      },
+      kinds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.',
+      },
+      options: { kind: 'object', describe: 'How far the apply may go.' },
+      provenance: { kind: 'object', describe: 'Where the directory came from, for the audit log.' },
     },
   },
   archiveProjectFileItems: {
@@ -17151,7 +20983,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/bulk-update',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Bulk update rows',
     body: {
@@ -17198,7 +21033,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
     pathParams: ['tableId', 'dispatchId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
@@ -17216,7 +21052,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -17254,7 +21091,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/cancel-runs',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Cancel column runs',
     body: {
@@ -18350,7 +22190,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/dispatches',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create run dispatch',
     body: {
@@ -18380,7 +22223,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/exports',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create table export',
     body: {
@@ -18459,7 +22305,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create rows',
     body: {
@@ -18471,7 +22320,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create view',
     body: {
@@ -18518,6 +22370,49 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the folder.',
       },
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
+    },
+  },
+  createWorkflowFromSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which to create the workflow.' },
+    responseMode: 'json',
+    summary: 'Create workflow from source',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+      },
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      name: {
+        kind: 'string',
+        describe: "Workflow name. Defaults to the name in the source's `workflow('…')` call.",
+      },
+      description: {
+        kind: 'string',
+        describe: 'Workflow description. Defaults to the description in the source.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as "New folder" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.',
+      },
+      provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
     },
   },
   createWorkflowMcpServer: {
@@ -18952,7 +22847,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete table',
     query: {
@@ -18963,7 +22861,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete column',
     body: {
@@ -19006,7 +22907,11 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete row',
     query: {
@@ -19017,7 +22922,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete rows',
     body: {
@@ -19035,7 +22943,11 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete view',
     query: {
@@ -19094,7 +23006,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete workflow group',
     body: {
@@ -19124,6 +23039,11 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'Optional release note for the deployment version.',
+      },
+      expectedDraftFingerprint: {
+        kind: 'string',
+        describe:
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.',
       },
     },
   },
@@ -19300,6 +23220,24 @@ export const V2_OPERATIONS = {
     summary: 'Download file version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  downloadKnowledgeDocument: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'binary',
+    summary: 'Download document',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   downloadProjectFileItems: {
@@ -19553,6 +23491,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  findMissingWorkspaceSourceBlobs: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/blobs/missing',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Find missing workspace source blobs',
+    body: {
+      blobs: { kind: 'array', required: true, describe: 'The binary files an apply will need.' },
+    },
+  },
   forkWorkspace: {
     method: 'POST',
     path: '/api/v2/workspaces/[workspaceId]/fork',
@@ -19618,7 +23567,7 @@ export const V2_OPERATIONS = {
     pathParams: ['blockId'] as const,
     pathParamDocs: {
       blockId:
-        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.',
+        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it.',
     },
     responseMode: 'json',
     summary: 'Get block',
@@ -20162,7 +24111,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       rowId: 'Unique table row identifier.',
       groupId: 'Workflow or enrichment group to run.',
     },
@@ -20382,6 +24332,38 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
   },
+  getSourceCatalog: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source/catalog',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: {
+      workspaceId:
+        'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.',
+    },
+    responseMode: 'json',
+    summary: 'Get source catalog',
+    query: {
+      workflowId: {
+        kind: 'string',
+        describe:
+          'Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.',
+      },
+    },
+    headers: {
+      'if-none-match': {
+        kind: 'string',
+        describe: 'A catalog `hash` (quoted, as sent in `ETag`) the caller already holds.',
+      },
+    },
+  },
+  getSourceResources: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source/resources',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace whose resources to list.' },
+    responseMode: 'json',
+    summary: 'Get source resources',
+  },
   getSsoPolicy: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/sso/policy',
@@ -20411,7 +24393,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Get table',
     query: {
@@ -20423,7 +24408,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
     pathParams: ['tableId', 'dispatchId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
@@ -20441,7 +24427,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -20479,7 +24466,11 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Get row',
     query: {
@@ -20495,7 +24486,11 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Get view',
     query: {
@@ -20593,6 +24588,22 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         maximum: 16777216,
         describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
+      },
+    },
+  },
+  getWorkflowSource: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/source',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get workflow source',
+    query: {
+      functionCode: {
+        kind: 'enum',
+        values: ['inline', 'files'] as const,
+        describe:
+          'Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates.',
       },
     },
   },
@@ -20707,6 +24718,20 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get workspace permission config',
     workspaceKeyUnsupported: true,
+  },
+  getWorkspaceSource: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Get workspace source',
+    query: {
+      kinds: {
+        kind: 'string',
+        describe: 'Comma-separated kinds to read; every kind the server supports when omitted.',
+      },
+    },
   },
   grantSkillEditor: {
     method: 'POST',
@@ -22960,7 +26985,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/dispatches',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List run dispatches',
     query: {
@@ -23007,7 +27035,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List rows',
     query: {
@@ -23022,7 +27053,7 @@ export const V2_OPERATIONS = {
       cursor: {
         kind: 'string',
         describe:
-          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+          'Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
       includeRunState: {
         kind: 'boolean',
@@ -23089,7 +27120,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List views',
     query: {
@@ -23189,7 +27223,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List workflow groups',
     query: {
@@ -23666,6 +27703,75 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  planWorkflowSource: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/source/plan',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Plan workflow source',
+    workspaceKeyUnsupported: true,
+    query: {
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      lock: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.',
+      },
+      base: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Where and when the source was read (`.sim/base.json`). A draft that no longer matches `base.fingerprint` is reported as `E_APPLY_STALE` in `diagnostics`.',
+      },
+    },
+  },
+  planWorkspaceSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/plan',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Plan workspace source',
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
+      },
+      blobs: {
+        kind: 'array',
+        describe:
+          'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+      },
+      base: {
+        kind: 'object',
+        describe:
+          '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.',
+      },
+      kinds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.',
+      },
+      options: { kind: 'object', describe: 'How far the apply may go.' },
+    },
+  },
   prepareSearchSources: {
     method: 'POST',
     path: '/api/v2/organizations/[organizationId]/search/sources/prepare',
@@ -23979,7 +28085,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Query rows',
     body: {
@@ -23996,7 +28105,11 @@ export const V2_OPERATIONS = {
         describe:
           'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.',
       },
-      cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor returned by the previous query page. Send it back under the same table reference (its id or its name, as the first page used).',
+      },
       includeRunState: {
         kind: 'boolean',
         default: false,
@@ -24009,7 +28122,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query/count',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Count rows',
     body: {
@@ -24551,7 +28667,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/restore',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names.',
+    },
     responseMode: 'json',
     summary: 'Restore table',
     body: {
@@ -24733,7 +28852,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       rowId: 'Unique table row identifier.',
       groupId: 'Workflow or enrichment group to run.',
     },
@@ -25189,7 +29309,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/search',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Search rows',
     body: {
@@ -25255,6 +29378,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  stageWorkspaceSourceBlobs: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/blobs',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Stage workspace source blobs',
+  },
   syncKnowledgeConnector: {
     method: 'POST',
     path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync',
@@ -25284,7 +29415,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]/download',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -25901,7 +30033,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update rows by filter',
     body: {
@@ -26028,7 +30163,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update table',
     body: {
@@ -26049,7 +30187,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update column',
     body: {
@@ -26066,7 +30207,11 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Update row',
     body: {
@@ -26082,7 +30227,11 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Update view',
     body: {
@@ -26122,7 +30271,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update workflow group',
     body: {
@@ -26390,7 +30542,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/upsert',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Upsert row',
     body: {

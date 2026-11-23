@@ -115,7 +115,7 @@ try {
       // Refetched whenever `language` changes, so the list is always scoped to
       // sandboxes this block can actually run in.
       dependsOn: ['language'],
-      showWhenEnvSet: 'NEXT_PUBLIC_SANDBOXES_ENABLED',
+      showWhenFeature: 'sandboxes',
       placeholder: 'Default image',
       description:
         'Sim sandbox dependencies, system packages, and managed CLIs available to this block. Shell can use Sim sandboxes from either language. Manage them in Settings > Sandboxes. Leaving this empty runs on the default image.',

@@ -62,7 +62,57 @@ const FILE_EDIT_HELP =
  * shape guessable, the same way `TABLE_FILTER_HELP` does for the predicate.
  */
 const WORKFLOW_OPERATIONS_HELP =
-  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"success":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId'
+  'Edits to apply, in a single batch, keyed by operation_type: [{"operation_type":"add","block_id":"my-fn","params":{"type":"function","name":"My Fn","inputs":{"code":"return {ok:true}"}}},{"operation_type":"edit","block_id":"<uuid>","params":{"name":"Renamed","connections":{"source":"my-fn"}}},{"operation_type":"delete","block_id":"<uuid>"}]. Also extract_from_subflow, whose params carry {"subflowId":"<loop-id>"}, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId. To move an existing block into a loop or parallel (keeping its id), edit it with params {"parentId":"<loop-id>"}; {"parentId":null} moves it out'
+/** How `--operations` wires and unwires edges, and what a rename rewrites. */
+const WORKFLOW_OPERATIONS_GUIDE = `
+Edges:
+  connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
+  or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
+  An add's connections create the new block's edges. An edit's connections REPLACE every
+  outgoing edge of that block, on every handle: list again each edge to keep.
+  To remove one edge, edit its source block with
+  {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
+  "source").
+Source handles:
+  source               the normal path
+  error                a failure (a block that has an error output)
+  if, else-if-0, else  a condition's branches, in order (else-if-1, … for more)
+  route-0, route-1, …  a router's routes, in order
+  loop-start-source    a loop into its body; loop-end-source after the loop
+  parallel-start-source, parallel-end-source  the same for a parallel
+Renames:
+  An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
+  other blocks' inputs and in a loop's or parallel's collection and condition.
+Inputs:
+  inputs takes the field ids \`sim blocks get <type>\` lists (inputSchema, operationInputSchema),
+  or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
+  manualTableId; a string goes to the typed field). Add the type it answers with: \`blocks get
+  table\` answers table_v2, and an add of legacy table is refused.
+  conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
+  {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
+  position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
+  inputFormat (Start): [{"name":"email","type":"string"}]; types string, number, boolean,
+  object, array, file[]; an optional default "value" as text.
+Block settings, beside inputs in an add's or edit's params:
+  "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
+  clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
+Outputs:
+  A block that fails outputs {"error":"<message>"}: connect its error handle and read
+  <name.error> there (without one, the run fails). A Workflow block's result is the child's
+  output; a child ending in a Response block gives {data, status, headers}, so read
+  <call.result.data.x>.`
+/** How to read `sim blocks get` for a `workflows operations apply` edit. */
+const BLOCK_DETAIL_GUIDE = `
+Reading it for \`sim workflows operations apply\`:
+  id                    the type to add: \`blocks get table\` answers table_v2 (an add of legacy
+                        table is refused)
+  inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
+  inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
+                        tableSelector and manualTableId) is accepted in place of the pair
+  outputs               what it outputs on success; a failed block outputs {"error":"…"}
+                        instead, read on its error path as <name.error>
+Block settings such as retry are not fields: \`sim workflows operations apply --help\`.`
 const WORKFLOW_SET_BLOCK_ENABLED_HELP =
   'Blocks to enable or disable, applied after --operations: [{"block_id":"<uuid>","enabled":false}]. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined'
 const WORKFLOW_VARIABLE_OPERATIONS_HELP =
@@ -638,14 +688,50 @@ export const CLI_CONTRACT: CliContract = {
   getWorkflowOutline: {
     command: 'workflows outline',
     describe: 'Show a workflow’s draft as a compact read-only outline',
+    dataKeys: true,
+  },
+  getWorkflowSource: {
+    command: 'workflows source get',
+    describe: 'Show a workflow’s draft as TypeScript source with its identity lock',
+  },
+  /** `workflows source apply --dir <dir>` reads and writes a source directory by hand. */
+  applyWorkflowSource: { hidden: true },
+  /** `workflows source status --dir <dir>` reads a plan of a source directory by hand. */
+  planWorkflowSource: { hidden: true },
+  // The ETag revalidation header is for a client that caches the catalog, as `workflows source
+  // get --dir` does by hand; a one-off read has no cached hash to send.
+  getSourceCatalog: {
+    command: 'workflows source catalog',
+    describe: 'Show the block catalog workflow source is checked against',
+    profileWorkspacePath: true,
+    flags: { 'if-none-match': { omit: true } },
+  },
+  /** `workflows source create --dir <dir>` reads and writes a source directory by hand. */
+  createWorkflowFromSource: { hidden: true },
+  /** `workspaces source get|apply --dir <dir>` read and write a workspace directory by hand. */
+  getWorkspaceSource: { hidden: true },
+  applyWorkspaceSource: { hidden: true },
+  /** `workspaces source status --dir <dir>` reads a plan of a workspace directory by hand. */
+  planWorkspaceSource: { hidden: true },
+  /** The staging `workspaces source apply` runs before its one apply. */
+  findMissingWorkspaceSourceBlobs: { hidden: true },
+  stageWorkspaceSourceBlobs: { hidden: true },
+  /** One document, not a page: a source get or create writes it as `workspace.d.ts`. */
+  getSourceResources: {
+    command: 'workflows source resources',
+    profileWorkspacePath: true,
+    describe:
+      'List the tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names source can name',
   },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',
   },
+  getBlock: { helpText: BLOCK_DETAIL_GUIDE },
   applyWorkflowOperations: {
     command: 'workflows operations apply',
     describe: 'Edit a workflow’s blocks, connections and settings with a batch of operations',
+    helpText: WORKFLOW_OPERATIONS_GUIDE,
     confirm:
       'This edits the draft graph: the batch adds, edits, or deletes blocks and their edges as written.',
     flags: {
@@ -668,6 +754,7 @@ export const CLI_CONTRACT: CliContract = {
   revertWorkflowVersion: {
     confirm: 'This overwrites the draft graph with the selected version and cannot be undone.',
   },
+  deployWorkflow: { acceptsYes: true },
   // A rollback is the deployed counterpart of that revert, and the more
   // consequential of the two: a revert only rewrites the draft, while this
   // changes which version production serves. Gating the draft write and not the
@@ -898,6 +985,9 @@ export const CLI_CONTRACT: CliContract = {
     flags: { folderPath: FOLDER_PATH_FLAG },
   },
   createWorkflow: {
+    helpText: `
+The new workflow's draft holds one Start block (start_trigger, named Start): connect the
+blocks you add from it.`,
     flags: {
       folderPath: {
         ...FOLDER_PATH_FLAG,
@@ -2217,6 +2307,10 @@ export const CLI_CONTRACT: CliContract = {
   // produce something `sim workflows import` accepts back.
   exportWorkflow: {
     describe: 'Print a workflow as a portable JSON document',
+    helpText: `
+Workspace bindings (a table, a child workflow, a knowledge base) print as null unless
+--include-workspace-bindings, and credentials always do: to read what a block is set to, use
+\`sim workflows state get\`.`,
     flags: {
       includeReferences: {
         boolean: true,

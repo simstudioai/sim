@@ -384,39 +384,6 @@
               "type": "string",
               "description": "Manual execution bypass value"
             },
-            "NEXT_PUBLIC_BRAND_NAME": {
-              "type": "string",
-              "description": "Custom brand name"
-            },
-            "NEXT_PUBLIC_BRAND_LOGO_URL": {
-              "type": "string",
-              "description": "Custom logo URL (leave empty for default)"
-            },
-            "NEXT_PUBLIC_BRAND_FAVICON_URL": {
-              "type": "string",
-              "description": "Custom favicon URL (leave empty for default)"
-            },
-            "NEXT_PUBLIC_CUSTOM_CSS_URL": {
-              "type": "string",
-              "description": "Custom stylesheet URL (leave empty for none)"
-            },
-            "NEXT_PUBLIC_SUPPORT_EMAIL": {
-              "type": "string",
-              "anyOf": [{ "format": "email" }, { "const": "" }],
-              "description": "Support email address (default help@sim.ai via envDefaults; set explicitly here to override in Secret)"
-            },
-            "NEXT_PUBLIC_DOCUMENTATION_URL": {
-              "type": "string",
-              "description": "Documentation URL"
-            },
-            "NEXT_PUBLIC_TERMS_URL": {
-              "type": "string",
-              "description": "Terms of service URL"
-            },
-            "NEXT_PUBLIC_PRIVACY_URL": {
-              "type": "string",
-              "description": "Privacy policy URL"
-            },
             "ALLOWED_LOGIN_EMAILS": {
               "type": "string",
               "description": "Comma-separated list of allowed email addresses for login"
@@ -510,11 +477,11 @@
     },
     "redis": {
       "type": "object",
-      "description": "In-cluster Redis for pub/sub, the Socket.IO adapter, and the idempotency/progress stores. Disable and set app.env.REDIS_URL to use a managed instance.",
+      "description": "In-cluster Redis. Sim requires Redis (rate limiting, pub/sub, the Socket.IO adapter, and the idempotency/progress stores). Disable only when you supply REDIS_URL for a managed instance via app.env, realtime.env, a top-level extraEnvVars entry, a pre-created app Secret, or externalSecrets.remoteRefs.app.",
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Deploy the bundled Redis. Skipped automatically when app.env.REDIS_URL is set or a secret-manager mode is active."
+          "description": "Deploy the bundled Redis. Skipped automatically when app.env.REDIS_URL is set. Setting false requires REDIS_URL from app.env, realtime.env, a top-level extraEnvVars entry, app.secrets.existingSecret, or externalSecrets.remoteRefs.app (or app/realtime envDefaults covering each enabled component); the chart fails to render otherwise."
         },
         "image": {
           "type": "object",
@@ -918,34 +885,6 @@
         "resources": { "type": "object" }
       }
     },
-    "sharedStorage": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Enable shared storage"
-        },
-        "volumes": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["name", "size"],
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Volume name"
-              },
-              "size": {
-                "type": "string",
-                "pattern": "^[0-9]+[KMGT]i$",
-                "description": "Volume size (e.g., 100Gi)"
-              }
-            }
-          }
-        }
-      }
-    },
     "copilot": {
       "type": "object",
       "properties": {
@@ -1263,7 +1202,7 @@
     },
     "branding": {
       "type": "object",
-      "description": "Whitelabel branding configuration (logos, names, colors)"
+      "description": "Removed in chart 1.12.0 and ignored; still accepted so older values files validate."
     },
     "certManager": {
       "type": "object",
@@ -1295,7 +1234,7 @@
     },
     "monitoring": {
       "type": "object",
-      "description": "Prometheus Operator ServiceMonitor configuration"
+      "description": "Removed in chart 1.13.0 and ignored; still accepted so older values files validate."
     },
     "networkPolicy": {
       "type": "object",
@@ -1316,6 +1255,10 @@
     "serviceAccount": {
       "type": "object",
       "description": "ServiceAccount creation, name, and annotations (e.g. Workload Identity)"
+    },
+    "sharedStorage": {
+      "type": "object",
+      "description": "Removed in chart 1.13.0; still accepted so older values files validate, but enabled=true with volumes fails the render (see templates/removed-values.yaml)."
     },
     "tolerations": {
       "type": "array",

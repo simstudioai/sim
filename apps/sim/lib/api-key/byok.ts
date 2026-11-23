@@ -7,6 +7,11 @@ import { backoffWithJitter } from '@sim/utils/retry'
 import { and, asc, eq, notExists } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { isOrganizationBYOKEntitledCached } from '@/lib/api-key/byok-entitlement'
+import {
+  HostedKeyRequiresPaidPlanError,
+  mayUseHostedKey,
+} from '@/lib/billing/core/hosted-key-access'
+import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
@@ -228,6 +233,30 @@ async function resolveBYOKKey(
 }
 
 /**
+ * Serves a catalogued hosted model: Sim's key from `keyPool` when the run's payer may use it
+ * ({@link mayUseHostedKey}), otherwise the caller's own key. A caller's key is not Sim's, so it is
+ * reported as `isBYOK` and its usage is never billed.
+ */
+async function resolveHostedModelKey(
+  keyPool: string,
+  model: string,
+  workspaceId: string | undefined | null,
+  userProvidedKey: string | undefined,
+  billingAttribution: UsageUpgradePayer | undefined
+): Promise<{ apiKey: string; isBYOK: boolean }> {
+  if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
+    if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: true }
+    throw new HostedKeyRequiresPaidPlanError(model)
+  }
+  try {
+    return { apiKey: getRotatingApiKey(keyPool), isBYOK: false }
+  } catch {
+    if (userProvidedKey) return { apiKey: userProvidedKey, isBYOK: true }
+    throw new Error(`No API key available for ${keyPool} ${model}`)
+  }
+}
+
+/**
  * Resolves credentials for the provider already selected by model routing.
  * Discovery lists must not override that provider and select a different key pool.
  *
@@ -240,7 +269,8 @@ export async function getApiKeyWithBYOK(
   model: string,
   workspaceId: string | undefined | null,
   userProvidedKey?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  billingAttribution?: UsageUpgradePayer
 ): Promise<{ apiKey: string; isBYOK: boolean; scope?: BYOKKeyScopeName }> {
   if (provider === 'ollama') {
     return { apiKey: 'empty', isBYOK: false }
@@ -274,15 +304,13 @@ export async function getApiKeyWithBYOK(
     if (isHosted) {
       const isModelHosted = getHostedModels().some((m) => m.toLowerCase() === model.toLowerCase())
       if (isModelHosted) {
-        try {
-          const serverKey = getRotatingApiKey('fireworks')
-          return { apiKey: serverKey, isBYOK: false }
-        } catch (_error) {
-          if (userProvidedKey) {
-            return { apiKey: userProvidedKey, isBYOK: false }
-          }
-          throw new Error(`No API key available for fireworks ${model}`)
-        }
+        return resolveHostedModelKey(
+          'fireworks',
+          model,
+          workspaceId,
+          userProvidedKey,
+          billingAttribution
+        )
       }
 
       if (userProvidedKey) {
@@ -440,15 +468,13 @@ export async function getApiKeyWithBYOK(
       logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
 
       if (isModelHosted) {
-        try {
-          const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
-          return { apiKey: serverKey, isBYOK: false }
-        } catch (_error) {
-          if (userProvidedKey) {
-            return { apiKey: userProvidedKey, isBYOK: false }
-          }
-          throw new Error(`No API key available for ${provider} ${model}`)
-        }
+        return resolveHostedModelKey(
+          isGeminiModel ? 'gemini' : provider,
+          model,
+          workspaceId,
+          userProvidedKey,
+          billingAttribution
+        )
       }
     }
   }

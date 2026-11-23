@@ -80,6 +80,145 @@ describe('setup coherence checks', () => {
       fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
     })
   })
+
+  it('accepts an enterprise feature set on the server alone', async () => {
+    const findings = await runChecks(
+      rootContext({ ENTERPRISE_ENABLED: 'true', CUSTOM_BLOCKS_ENABLED: 'false' }),
+      ['coherence']
+    )
+
+    expect(findings.filter((finding) => /ENTERPRISE|CUSTOM_BLOCKS/.test(finding.message))).toEqual(
+      []
+    )
+  })
+
+  it('points a leftover enterprise browser twin at the server variable it never set', async () => {
+    const findings = await runChecks(rootContext({ NEXT_PUBLIC_SSO_ENABLED: 'true' }), [
+      'coherence',
+    ])
+
+    expect(findings).toContainEqual({
+      group: 'coherence',
+      status: 'warn',
+      message:
+        'NEXT_PUBLIC_SSO_ENABLED is set but no longer does anything — the browser reads this from the server',
+      fix: 'set SSO_ENABLED=true and remove NEXT_PUBLIC_SSO_ENABLED',
+    })
+  })
+
+  it('asks only for removal when the server variable is already set', async () => {
+    const findings = await runChecks(
+      rootContext({ ENTERPRISE_ENABLED: 'true', NEXT_PUBLIC_ENTERPRISE_ENABLED: 'true' }),
+      ['coherence']
+    )
+
+    expect(findings).toContainEqual(
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'remove NEXT_PUBLIC_ENTERPRISE_ENABLED',
+      })
+    )
+  })
+})
+
+describe('registration mode checks', () => {
+  function registrationFindings(findings: Awaited<ReturnType<typeof runChecks>>) {
+    return findings.filter((finding) =>
+      /REGISTRATION|EMAIL_SIGNUP|EMAIL_PASSWORD_SIGNUP/.test(finding.message)
+    )
+  }
+
+  it('accepts a valid REGISTRATION_MODE alone', async () => {
+    const findings = await runChecks(rootContext({ REGISTRATION_MODE: 'closed' }), ['coherence'])
+
+    expect(registrationFindings(findings)).toEqual([])
+  })
+
+  it('fails an unknown REGISTRATION_MODE', async () => {
+    const findings = await runChecks(rootContext({ REGISTRATION_MODE: 'disabled' }), ['coherence'])
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'fail',
+        message: expect.stringContaining('REGISTRATION_MODE="disabled"'),
+      }),
+    ])
+  })
+
+  it('points deprecated variables at the equivalent mode', async () => {
+    const findings = await runChecks(
+      rootContext({ DISABLE_REGISTRATION: 'true', EMAIL_PASSWORD_SIGNUP_ENABLED: 'false' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'set REGISTRATION_MODE=closed-no-email and remove DISABLE_REGISTRATION, EMAIL_PASSWORD_SIGNUP_ENABLED',
+      }),
+    ])
+  })
+
+  it('never advises a mode less restrictive than the one in effect', async () => {
+    const findings = await runChecks(
+      rootContext({ REGISTRATION_MODE: 'closed', DISABLE_EMAIL_SIGNUP: 'false' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'set REGISTRATION_MODE=closed and remove DISABLE_EMAIL_SIGNUP',
+      }),
+    ])
+  })
+
+  it('no longer requires the retired browser twin of EMAIL_PASSWORD_SIGNUP_ENABLED', async () => {
+    const findings = await runChecks(rootContext({ EMAIL_PASSWORD_SIGNUP_ENABLED: 'true' }), [
+      'coherence',
+    ])
+
+    expect(findings.filter((finding) => finding.status === 'fail')).toEqual([])
+  })
+
+  it('maps a leftover browser twin like the server variable', async () => {
+    const findings = await runChecks(
+      rootContext({ NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: 'false' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toEqual([
+      expect.objectContaining({
+        status: 'warn',
+        fix: 'set REGISTRATION_MODE=no-email and remove NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED',
+      }),
+    ])
+  })
+
+  it('reports when deprecated variables tighten REGISTRATION_MODE', async () => {
+    const findings = await runChecks(
+      rootContext({ REGISTRATION_MODE: 'open', DISABLE_REGISTRATION: 'true' }),
+      ['coherence']
+    )
+
+    expect(registrationFindings(findings)).toContainEqual(
+      expect.objectContaining({
+        status: 'warn',
+        message: expect.stringContaining('REGISTRATION_MODE=open resolves to closed'),
+      })
+    )
+  })
+})
+
+describe('doctor live checks', () => {
+  beforeEach(() => rmSync(fakeRoot, { recursive: true, force: true }))
+
+  it('leaves the missing env file as the only report instead of failing Redis', async () => {
+    const findings = await runChecks(loadCheckContext(true), ['live'])
+
+    const redis = findings.filter((finding) => finding.message.startsWith('redis'))
+    expect(redis).toEqual([{ group: 'live', status: 'skip', message: 'redis: no env file yet' }])
+  })
 })
 
 describe('doctor --fix on env files', () => {

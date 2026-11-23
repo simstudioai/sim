@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/attribution'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { BillingLimitError } from '@/lib/mothership/request/go/stream'
+import { BillingLimitError } from '@/lib/mothership/request/worker/stream'
 import { authorizeLifecycleContinuation, restoreBillingAdmission } from './admission'
 
 const mocks = vi.hoisted(() => ({ authorize: vi.fn(), standing: vi.fn() }))

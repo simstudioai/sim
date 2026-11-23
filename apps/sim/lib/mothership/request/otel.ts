@@ -12,23 +12,23 @@ import {
 } from '@opentelemetry/api'
 import { setRequestTraceId } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
-import { RequestTraceV1Outcome } from '@/lib/mothership/generated/request-trace-v1'
 import {
   CopilotBranchKind,
   CopilotRequestCancelReason,
   type CopilotRequestCancelReasonValue,
   CopilotSurface,
   CopilotTransport,
-} from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
+  ToolExecutor,
+} from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { normalizeToolAgentId } from '@/lib/mothership/request/metrics'
 import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
+import { RequestTraceOutcome } from '@/lib/mothership/request/trace'
+import { contextFromRequestHeaders } from '@/lib/mothership/request/worker/propagation'
 
 // OTel GenAI content-capture env var (spec:
-// https://opentelemetry.io/docs/specs/semconv/gen-ai/). Mirrored on
-// the Go side so a single var controls both halves.
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 const GENAI_CAPTURE_ENV = 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
 
 // OTLP backends commonly reject attrs over 64 KiB; cap proactively.
@@ -45,9 +45,7 @@ function isGenAIMessageCaptureEnabled(): boolean {
 // Policy across the codebase: an explicit user stop leaves span
 // status UNSET; every other cancellation (client tab close,
 // network drop, internal timeout, uncategorized abort) escalates
-// to `status=error` so it shows up on error dashboards. This is
-// the Sim mirror of `requestctx.IsExplicitUserStop` on the Go
-// side; keep the two semantically aligned.
+// to `status=error` so it shows up on error dashboards.
 //
 // Detection modes:
 //
@@ -80,10 +78,6 @@ export function isExplicitUserStopError(err: unknown): boolean {
  * Everything else — in particular the 4xx flood from bot probes and
  * expected auth/validation rejections — stays UNSET on the span so
  * dashboards don't treat normal rejections as errors.
- *
- * Mirrored on the Go side in
- * `copilot/internal/http/middleware/telemetry.go`. Keep the two in
- * sync if you change the actionable set.
  */
 export function isActionableErrorStatus(code: number): boolean {
   if (code >= 500) return true
@@ -109,7 +103,7 @@ export function markSpanForError(span: Span, error: unknown): void {
   }
 }
 
-// OTel GenAI message shape (kept minimal). Mirror changes on the Go side.
+// OTel GenAI message shape (kept minimal).
 interface GenAIAgentPart {
   type: 'text' | 'tool_call' | 'tool_call_response'
   content?: string
@@ -128,9 +122,8 @@ function marshalAgentMessages(messages: GenAIAgentMessage[]): string | undefined
   if (messages.length === 0) return undefined
   const json = JSON.stringify(messages)
   if (json.length <= GENAI_MESSAGE_ATTR_MAX_BYTES) return json
-  // Simple tail-preserving truncation: drop from the front until we
-  // fit. Matches the Go side's behavior. The last message is
-  // usually the most diagnostic for span-level outcome.
+  // Simple tail-preserving truncation: drop from the front until we fit.
+  // The last message is usually the most diagnostic for span-level outcome.
   let remaining = messages.slice()
   while (remaining.length > 1) {
     remaining = remaining.slice(1)
@@ -208,9 +201,6 @@ function setAgentOutputMessages(span: Span, output: CopilotAgentOutputMessages):
   }
 }
 
-export type CopilotLifecycleOutcome =
-  (typeof RequestTraceV1Outcome)[keyof typeof RequestTraceV1Outcome]
-
 // Lazy tracer — Next 16/Turbopack can evaluate modules before NodeSDK
 // installs the real TracerProvider; resolving per call avoids a
 // cached NoOpTracer silently disabling OTel.
@@ -222,9 +212,9 @@ function getTracer() {
   return getCopilotTracer()
 }
 
-// Wrap an inbound handler that Go called into so its span parents
-// under the Go-side trace (via `traceparent`).
-export async function withIncomingGoSpan<T>(
+// Wrap an inbound handler the worker called so its span parents
+// under the worker's trace (via `traceparent`).
+export async function withIncomingWorkerSpan<T>(
   headers: Headers,
   spanName: string,
   attributes: Record<string, string | number | boolean> | undefined,
@@ -280,8 +270,7 @@ export async function withCopilotSpan<T>(
   return tracer.startActiveSpan(spanName, { attributes }, runBody)
 }
 
-// External OTel `tool.execute` span for Sim-side tool work (the Go
-// side's `tool.execute` is just the enqueue, stays ~0ms).
+// External OTel `tool.execute` span for Sim-side tool work.
 export async function withCopilotToolSpan<T>(
   input: {
     toolName: string
@@ -296,12 +285,12 @@ export async function withCopilotToolSpan<T>(
 ): Promise<T> {
   const tracer = getTracer()
   return tracer.startActiveSpan(
-    `tool.execute ${input.toolName}`,
+    `${TraceSpan.ToolExecute} ${input.toolName}`,
     {
       attributes: {
         [TraceAttr.ToolName]: input.toolName,
         [TraceAttr.ToolCallId]: input.toolCallId,
-        [TraceAttr.ToolExecutor]: 'sim',
+        [TraceAttr.ToolExecutor]: ToolExecutor.Sim,
         [TraceAttr.GenAiAgentName]: normalizeToolAgentId(input.agentName),
         ...(input.runId ? { [TraceAttr.RunId]: input.runId } : {}),
         ...(input.chatId ? { [TraceAttr.ChatId]: input.chatId } : {}),
@@ -421,7 +410,7 @@ interface CopilotOtelRoot {
    * for non-cancellation outcomes.
    */
   finish: (
-    outcome?: CopilotLifecycleOutcome,
+    outcome?: RequestTraceOutcome,
     error?: unknown,
     cancelReason?: CopilotRequestCancelReasonValue
   ) => void
@@ -463,7 +452,7 @@ export function startCopilotOtelRoot(
   span.setAttribute(TraceAttr.RequestId, requestId)
   span.setAttribute(TraceAttr.SimRequestId, requestId)
   // Stamp the trace id onto the route's log context so every sim log line in
-  // this request greps by the same id the Go copilot logs as trace_id.
+  // this request greps by the trace id its spans share.
   if (spanContext.traceId && spanContext.traceId.length === 32) {
     setRequestTraceId(spanContext.traceId)
   }
@@ -473,7 +462,7 @@ export function startCopilotOtelRoot(
   const finish: CopilotOtelRoot['finish'] = (outcome, error, cancelReason) => {
     if (finished) return
     finished = true
-    const resolvedOutcome = outcome ?? RequestTraceV1Outcome.success
+    const resolvedOutcome = outcome ?? RequestTraceOutcome.success
     span.setAttribute(TraceAttr.CopilotRequestOutcome, resolvedOutcome)
     // Policy: `explicit_stop` is the ONLY cancellation we treat as
     // expected (status unset → dashboards see it as OK). Everything
@@ -485,9 +474,9 @@ export function startCopilotOtelRoot(
       if (isExplicitStop || isExplicitUserStopError(error)) {
         span.setStatus({ code: SpanStatusCode.OK })
       }
-    } else if (resolvedOutcome === RequestTraceV1Outcome.success) {
+    } else if (resolvedOutcome === RequestTraceOutcome.success) {
       span.setStatus({ code: SpanStatusCode.OK })
-    } else if (resolvedOutcome === RequestTraceV1Outcome.cancelled) {
+    } else if (resolvedOutcome === RequestTraceOutcome.cancelled) {
       if (isExplicitStop) {
         span.setStatus({ code: SpanStatusCode.OK })
       } else {

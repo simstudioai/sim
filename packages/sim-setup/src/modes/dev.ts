@@ -61,16 +61,6 @@ async function runMigrations(dsn: string): Promise<void> {
   if (!proceed) throw new Error(`aborted: db:migrate failed:\n${error}`)
 }
 
-async function promptRedis(detection: Detection, existing?: string): Promise<string | null> {
-  const wants = await p.confirm({
-    message:
-      'Configure Redis? (powers live Chat status and table events; storage falls back to Postgres)',
-    initialValue: true,
-  })
-  if (!wants) return null
-  return resolveRedis(detection, existing)
-}
-
 export async function runDevMode(
   detection: Detection,
   quick: boolean
@@ -114,18 +104,13 @@ export async function runDevMode(
   Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
 
-  // Redis is set up in every mode, quick included. Storage falls back to
-  // PostgreSQL without it, but the pub/sub channels (live Chat task-status,
-  // table events) have no fallback — skipping it silently produces an install
-  // where live updates never arrive. Quick configures it with no questions at
-  // all; custom keeps the opt-out and the where-should-it-live ladder.
+  // Redis is required: quick adopts or starts one with no questions, custom
+  // walks the where-should-it-live ladder.
   const redisUrl = quick
     ? await ensureRedis(detection, simAfter.vars.get('REDIS_URL'))
-    : await promptRedis(detection, simAfter.vars.get('REDIS_URL'))
-  if (redisUrl) {
-    values.REDIS_URL = redisUrl
-    writeEnvValues('realtime', { REDIS_URL: redisUrl })
-  }
+    : await resolveRedis(detection, simAfter.vars.get('REDIS_URL'))
+  values.REDIS_URL = redisUrl
+  writeEnvValues('realtime', { REDIS_URL: redisUrl })
 
   const stagedVars = new Map(simAfter.vars)
   for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)

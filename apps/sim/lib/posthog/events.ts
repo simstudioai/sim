@@ -8,6 +8,22 @@
 
 import type { AttributionProperties } from '@/lib/analytics/attribution'
 
+/**
+ * Where a write to a workflow's graph came from. `canvas` is the web or desktop
+ * editor (its live edits are counted by the realtime server), `api` the HTTP
+ * APIs, `cli` the Sim CLI, `mcp` the Sim MCP server, `copilot` the in-app
+ * agent, and `import`, `duplicate` and `fork` the doors that copy a workflow in.
+ */
+export type WorkflowWriteSource =
+  | 'canvas'
+  | 'copilot'
+  | 'cli'
+  | 'api'
+  | 'mcp'
+  | 'import'
+  | 'duplicate'
+  | 'fork'
+
 export interface PostHogEventMap {
   user_created: {
     auth_method: 'email' | 'oauth' | 'sso'
@@ -131,6 +147,7 @@ export interface PostHogEventMap {
     workflow_id: string
     workspace_id: string
     name: string
+    source?: WorkflowWriteSource
   }
 
   workflow_deployed: {
@@ -912,6 +929,72 @@ export interface PostHogEventMap {
     subscription_id: string
     from_entity: 'user' | 'organization'
     to_entity: 'user' | 'organization'
+  }
+
+  /** The Code tab opened in the workflow panel. */
+  code_tab_opened: {
+    workflow_id: string
+    workspace_id: string
+  }
+
+  /**
+   * A workflow source write settled: an apply to an existing workflow, or a create. `ok: false`
+   * is a refusal (`error_kind` `stale`, `rejected` or `locked`); a refused create has an empty
+   * `workflow_id`.
+   */
+  workflow_source_applied: {
+    workflow_id: string
+    workspace_id: string
+    source: WorkflowWriteSource
+    operation: 'apply' | 'create'
+    ok: boolean
+    /** How many blocks, connections and variables the write added, removed or changed. */
+    ops: number
+    error_kind?: string
+  }
+
+  /**
+   * A workflow's source was read (`workflows source get`). A read carries no client, so `source`
+   * is `copilot` for a Copilot delegation and `api` for any key or token, the CLI's included.
+   */
+  workflow_source_read: {
+    workflow_id: string
+    workspace_id: string
+    source: WorkflowWriteSource
+  }
+
+  /**
+   * A workflow source dry run settled: every check of an apply or create, nothing written. `ok:
+   * false` is a run that found errors or was refused (`error_kind` `stale`, `rejected` or
+   * `locked`); `ops` counts the changes a commit would make. A dry-run create has an empty
+   * `workflow_id`.
+   */
+  workflow_source_dry_run: {
+    workflow_id: string
+    workspace_id: string
+    source: WorkflowWriteSource
+    operation: 'apply' | 'create'
+    ok: boolean
+    ops: number
+    error_kind?: string
+  }
+
+  /**
+   * A workspace source apply settled (dry runs are not recorded). `committed` wrote every change;
+   * `partial` stopped at a failed write, the changes before it committed; `refused` wrote nothing.
+   * `error_kind` is `rejected` (error findings) or `busy` (another apply held the workspace) for a
+   * refusal, and the failed write's diagnostic code for a partial apply. `kinds` are the resource
+   * kinds with a change planned; the counts are the changes written, by action.
+   */
+  workspace_source_applied: {
+    workspace_id: string
+    source: WorkflowWriteSource
+    outcome: 'committed' | 'partial' | 'refused'
+    kinds: string[]
+    created: number
+    updated: number
+    deleted: number
+    error_kind?: string
   }
 }
 

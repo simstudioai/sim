@@ -1,5 +1,18 @@
 import { toRecordOrNull } from '@sim/utils/object'
-import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import { collectStringLeaves, findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
+import {
+  didYouMean,
+  RESPONSE_OUTPUTS,
+  readsIterationOutOfScope,
+  type ScopeNode,
+} from '@sim/workflow-code'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
+import {
+  alwaysEndsAtResponse,
+  normalizeWorkflowEdgeSourceHandle,
+  parseWorkflowSourceHandle,
+  type ResponseGraphBlock,
+} from '@sim/workflow-types/workflow'
 import { MCP_STRUCTURED_CONTENT_OUTPUT } from '@/lib/mcp/output-schema'
 import {
   collectPredicateFieldNames,
@@ -11,8 +24,12 @@ import {
   getMcpStructuredContentOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/outputs'
+import {
+  getAlwaysTakenBranchHandles,
+  getDynamicHandleBranchKind,
+} from '@/lib/workflows/dynamic-handle-topology'
 import { quotedBlockLabel } from '@/lib/workflows/labels'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import { getWorkflowInvocationTarget } from '@/lib/workflows/streaming/nested-output-options'
 import type { ManualRunEntryIssue } from '@/lib/workflows/triggers/manual-run'
 import { getBlock } from '@/blocks'
 import {
@@ -22,7 +39,6 @@ import {
   SPECIAL_REFERENCE_PREFIXES,
 } from '@/executor/constants'
 import { isPathInSchema } from '@/executor/utils/block-reference'
-import { collectStringLeaves } from '@/executor/utils/reference-validation'
 import { splitLeadingBracketPath } from '@/executor/variables/resolvers/reference'
 import {
   collectBlockFieldIssues,
@@ -38,7 +54,7 @@ type BlockState = {
   name?: string
   triggerMode?: boolean
   subBlocks?: Record<string, { value?: unknown } | undefined>
-  data?: { canonicalModes?: CanonicalModeOverrides }
+  data?: { canonicalModes?: CanonicalModeOverrides; parentId?: unknown }
 }
 
 type EdgeState = {
@@ -94,7 +110,14 @@ export interface WorkflowLintFieldIssue extends WorkflowLintBlockRef {
 export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
   field: string
   value: string | string[]
-  kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+  kind:
+    | 'credential'
+    | 'resource'
+    | 'custom-tool'
+    | 'mcp-tool'
+    | 'skill'
+    | 'block-output'
+    | 'child-result'
   reason: string
 }
 
@@ -104,10 +127,17 @@ export interface WorkflowLintUnresolvedReference extends WorkflowLintBlockRef {
  * the block's error edge, because the field name is only checked at run time.
  */
 export interface WorkflowLintTableFieldIssue extends WorkflowLintBlockRef {
-  /** The filter or sort field that names no column. */
+  /** The filter or sort field, or row-write key, that names no column. */
   field: string
   /** Display name of the table the block is bound to. */
   tableName: string
+  /**
+   * The row write the key is in (`data` of an insert, upsert or update, `rows` of a batch insert);
+   * absent for a filter or sort field. A row write drops a key that names no column.
+   */
+  rowWrite?: 'data' | 'rows'
+  /** The nearest column name as a did-you-mean, else the table's columns. */
+  hint?: string
 }
 
 /**
@@ -339,6 +369,51 @@ const TABLE_ID_SUB_BLOCKS = ['manualTableId', 'tableSelector'] as const
 /** Fields every table row carries beyond its declared columns. */
 const IMPLICIT_TABLE_ROW_FIELDS = ['id', 'createdAt', 'updatedAt'] as const
 
+/** The sub-block holding the row data each row-writing operation writes. */
+const ROW_WRITE_SUB_BLOCKS: Readonly<Record<string, 'data' | 'rows'>> = {
+  insert_row: 'data',
+  upsert_row: 'data',
+  update_row: 'data',
+  update_rows_by_filter: 'data',
+  batch_insert_rows: 'rows',
+}
+
+/** Stands in for each reference token so row data with references in its values still parses. */
+const REFERENCE_STAND_IN = '1e999'
+
+/**
+ * The literal keys of a Table block's row write: the keys of `data`, or of each object in `rows`.
+ * Values may hold references (bare or quoted), which stand in as a number while parsing; a key
+ * holding one, and data that is a reference or not a JSON object, cannot be judged and is skipped.
+ */
+function rowWriteKeys(block: BlockState, site: 'data' | 'rows'): string[] {
+  const value = block.subBlocks?.[site]?.value
+  if (typeof value !== 'string') return value && typeof value === 'object' ? keysOf(value) : []
+  if (value.trim() === '') return []
+  let text = value
+  for (const token of findWorkflowReferenceTokens(value).reverse()) {
+    text = text.slice(0, token.start) + REFERENCE_STAND_IN + text.slice(token.end)
+  }
+  try {
+    return keysOf(JSON.parse(text))
+  } catch {
+    return []
+  }
+
+  function keysOf(parsed: unknown): string[] {
+    const rows = site === 'rows' ? (Array.isArray(parsed) ? parsed : []) : [parsed]
+    const keys = new Set<string>()
+    for (const row of rows) {
+      const record = toRecordOrNull(row)
+      if (!record) continue
+      for (const key of Object.keys(record)) {
+        if (!key.includes(REFERENCE_STAND_IN)) keys.add(key)
+      }
+    }
+    return [...keys]
+  }
+}
+
 /** What the table field check needs to know about one table. */
 export interface WorkflowLintTableSchema {
   name: string
@@ -383,11 +458,13 @@ const TABLE_FIELD_SUB_BLOCKS: ReadonlyArray<[id: string, collect: (root: unknown
 ]
 
 /**
- * Table-block `filter`/`order` fields that name no column of the bound table.
- * Resolved against the live schema the caller loaded (`tables`, keyed by table
- * id); a block whose table is not in the map — unset, a reference, or not
- * readable in this workspace — is skipped, as is a filter that holds a
- * reference or is not JSON, since neither can be judged at lint time.
+ * Table-block `filter`/`order` fields that name no column of the bound table,
+ * and keys of the block's row write (`data`, or `rows` for a batch insert) that
+ * are not exactly a column name, which the run drops. Resolved against the
+ * schema the caller loaded (`tables`, keyed by table id); a block whose table is
+ * not in the map — unset, a reference, or not readable in this workspace — is
+ * skipped, as is a filter that holds a reference or is not JSON, since neither
+ * can be judged at lint time.
  */
 export function collectTableBlockFieldIssues(
   blocks: WorkflowState['blocks'] | Record<string, unknown> | undefined,
@@ -419,6 +496,22 @@ export function collectTableBlockFieldIssues(
         reported.add(key)
         issues.push({ ...blockRef(blockId, block), field, tableName: table.name })
       }
+    }
+    const operation = literalSubBlockText(block, 'operation')
+    const rowWrite = operation ? ROW_WRITE_SUB_BLOCKS[operation] : undefined
+    if (!rowWrite) continue
+    const columns = new Set(table.columnNames)
+    for (const field of rowWriteKeys(block, rowWrite)) {
+      if (columns.has(field)) continue
+      issues.push({
+        ...blockRef(blockId, block),
+        field,
+        tableName: table.name,
+        rowWrite,
+        hint:
+          didYouMean(field, table.columnNames) ??
+          `The table's columns are ${table.columnNames.join(', ')}.`,
+      })
     }
   }
   return issues
@@ -455,6 +548,10 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
   const unresolved = lint.unresolvedReferences ?? []
   const renderRef = (ref: WorkflowLintUnresolvedReference) =>
     `${blockLabel(ref)}.${ref.field} (${ref.reason})`
+  const renderRefWithValue = (ref: WorkflowLintUnresolvedReference) =>
+    `${blockLabel(ref)}.${ref.field} ${
+      Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
+    } (${ref.reason})`
 
   return [
     lintSection(
@@ -509,21 +606,28 @@ function collectBlockingSections(lint: WorkflowLintIssueView): WorkflowLintSecti
     ),
     lintSection(
       'Block output references that will not work as written',
-      unresolved
-        .filter((ref) => ref.kind === 'block-output')
-        .map(
-          (ref) =>
-            `${blockLabel(ref)}.${ref.field} ${
-              Array.isArray(ref.value) ? ref.value.join(', ') : ref.value
-            } (${ref.reason})`
-        ),
+      unresolved.filter((ref) => ref.kind === 'block-output').map(renderRefWithValue),
+      '; '
+    ),
+    lintSection(
+      'Child workflow result paths that read nothing (a child that responds returns its Response output, { data, status, headers })',
+      unresolved.filter((ref) => ref.kind === 'child-result').map(renderRefWithValue),
       '; '
     ),
     lintSection(
       "Table filter/sort fields that are not columns of the referenced table (the run will fail in the block's error edge)",
-      (lint.tableFieldIssues ?? []).map(
-        (issue) => `${blockLabel(issue)}.${issue.field} (table "${issue.tableName}")`
-      )
+      (lint.tableFieldIssues ?? [])
+        .filter((issue) => !issue.rowWrite)
+        .map((issue) => `${blockLabel(issue)}.${issue.field} (table "${issue.tableName}")`)
+    ),
+    lintSection(
+      'Table row-write keys that are not columns of the referenced table (the run drops them)',
+      (lint.tableFieldIssues ?? [])
+        .filter((issue) => issue.rowWrite)
+        .map(
+          (issue) =>
+            `${blockLabel(issue)}.${issue.rowWrite}.${issue.field} (table "${issue.tableName}"; ${issue.hint})`
+        )
     ),
   ].filter((found) => found.count > 0)
 }
@@ -777,8 +881,45 @@ function referenceTarget(
   return targetByKey.get(head) ?? targetByKey.get(normalizeName(head)) ?? null
 }
 
+/** A block of the graph as the shared iteration-scope rule reads it. */
+function scopeNodeOf(blocks: Record<string, BlockState>, id: string): ScopeNode | undefined {
+  const block = blocks[id]
+  if (!block) return undefined
+  const parentId: unknown = block.data?.parentId
+  return {
+    kind: block.type === 'loop' || block.type === 'parallel' ? block.type : null,
+    parent: typeof parentId === 'string' && parentId.length > 0 ? parentId : null,
+  }
+}
+
+/**
+ * Whether a `head.path` token read from `blockId` is an iteration field of a container the block
+ * is not inside: a named loop or parallel (`targetId`), or the bare `loop`/`parallel` prefix.
+ */
+function readsTokenOutOfScope(
+  blocks: Record<string, BlockState>,
+  blockId: string,
+  token: string,
+  targetId: string | undefined
+): boolean {
+  const [head = '', field = ''] = token.split('.')
+  if (targetId === undefined && head !== 'loop' && head !== 'parallel') return false
+  return readsIterationOutOfScope(
+    blockId,
+    targetId === undefined ? (head as 'loop' | 'parallel') : { key: targetId },
+    splitLeadingBracketPath(field).property,
+    (id) => scopeNodeOf(blocks, id)
+  )
+}
+
+/**
+ * Dangling, unknown and out-of-scope block-output references. `iterationScope: false` leaves the
+ * iteration-scope rule to a caller that reports it itself (a source apply, whose compile reports
+ * it at the source line).
+ */
 export function collectDanglingBlockOutputReferences(
-  workflowState: Pick<WorkflowState, 'blocks'>
+  workflowState: Pick<WorkflowState, 'blocks'>,
+  { iterationScope = true }: { iterationScope?: boolean } = {}
 ): WorkflowLintUnresolvedReference[] {
   const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
   const targetByKey = referenceTargetIndex(blocks)
@@ -798,12 +939,21 @@ export function collectDanglingBlockOutputReferences(
       const leaves: string[] = []
       collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
       const dangling = new Set<string>()
+      const outOfScope = new Set<string>()
       const unknownByTarget = new Map<string, UnknownFieldGroup>()
       const undeclaredNested = new Map<string, { targetId: string } & UndeclaredNestedPath>()
       for (const leaf of leaves) {
         for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
           if (!token || !REF_TOKEN_SHAPE.test(token)) continue
           const targetId = referenceTarget(token, targetByKey)
+          if (
+            iterationScope &&
+            targetId !== null &&
+            readsTokenOutOfScope(blocks, blockId, token, targetId)
+          ) {
+            outOfScope.add(`<${token}>`)
+            continue
+          }
           if (targetId === undefined) continue
           if (targetId === null) {
             dangling.add(`<${token}>`)
@@ -836,6 +986,15 @@ export function collectDanglingBlockOutputReferences(
           kind: 'block-output',
           reason:
             'References a block that does not exist in this workflow — at run time the literal text is passed through (or the block fails), never the intended value.',
+        })
+      }
+      if (outOfScope.size > 0) {
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...outOfScope],
+          kind: 'block-output',
+          reason: `Reads a loop or parallel's iteration fields (index, currentItem, items) from outside that container — the run fails or reads nothing. Move the block into the container, or read the container's results after it finishes.`,
         })
       }
       for (const [targetId, group] of unknownByTarget) {
@@ -962,6 +1121,157 @@ export function collectUnquotedJsonStringReferences(
         kind: 'block-output',
         reason: `unquoted-json-string: these references resolve to text, which is inserted raw, so the field is not valid JSON at run time unless the text is itself JSON. Quoting, e.g. "${value[0]}", works only for text that never contains a double quote, backslash, line break, or other control character, such as an id. For free text such as a model reply, build the JSON in a Function block, which reads references as values, and set this field to only that block's result reference.`,
       })
+    }
+  }
+  return findings
+}
+
+/** What the lint knows of a workflow a Workflow block calls. */
+export interface WorkflowLintChildWorkflow {
+  name: string
+  /** Whether the child has an active deployment, which a deployed run of the caller calls. */
+  deployed: boolean
+  /**
+   * Whether every run of the child ends at an enabled Response block
+   * ({@link alwaysEndsAtResponseBlock}): it then returns that block's output,
+   * `{ data, status, headers }`, as the caller's `result`.
+   */
+  responds: boolean
+}
+
+/** The parts of a stored graph {@link alwaysEndsAtResponseBlock} reads. */
+export interface WorkflowResponseGraph {
+  blocks: Record<
+    string,
+    {
+      type: string
+      enabled?: boolean
+      data?: { parentId?: unknown } | null
+      subBlocks?: Record<string, { value: unknown }>
+    }
+  >
+  edges: ReadonlyArray<{ source: string; target: string; sourceHandle?: string | null }>
+}
+
+/**
+ * Whether every run of the stored graph ends at an enabled Response block at its root, so a
+ * Workflow block calling it reads that block's output as its `result`
+ * ({@link alwaysEndsAtResponse}).
+ */
+export function alwaysEndsAtResponseBlock(graph: WorkflowResponseGraph): boolean {
+  const blocks: Record<string, ResponseGraphBlock> = {}
+  for (const [id, block] of Object.entries(graph.blocks)) {
+    const branches = getAlwaysTakenBranchHandles({
+      id,
+      type: block.type,
+      subBlocks: block.subBlocks ?? {},
+    })
+    const parentId = block.data?.parentId
+    blocks[id] = {
+      type: block.type,
+      enabled: block.enabled !== false,
+      parentId: typeof parentId === 'string' && parentId !== '' ? parentId : null,
+      ...(branches !== undefined && { branches }),
+    }
+  }
+  const edges = graph.edges.map((edge) => {
+    const sourceType = graph.blocks[edge.source]?.type
+    const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
+    const port = parseWorkflowSourceHandle(
+      handle,
+      sourceType,
+      getDynamicHandleBranchKind(sourceType)
+    )
+    return {
+      source: edge.source,
+      target: edge.target,
+      port: port.kind === 'branch' ? `branch:${port.handle}` : port.kind,
+    }
+  })
+  return alwaysEndsAtResponse(blocks, edges)
+}
+
+/**
+ * Findings about the workflows the graph's Workflow blocks call, judged against what `children`
+ * (by workflow id) knows of each:
+ * - a reference to `<call.result.<key>>` whose key is not `data`, `status` or `headers` while the
+ *   child responds (`child-result`): its result is the Response output, so the key reads nothing,
+ *   and the value meant is almost always `<call.result.data.<key>>`;
+ * - with `deployed`, a child with no active deployment (`resource`): a deployed run of this
+ *   workflow calls each child's deployed version, so it fails at the block.
+ */
+export function collectChildWorkflowFindings(
+  workflowState: Pick<WorkflowState, 'blocks'>,
+  children: ReadonlyMap<string, WorkflowLintChildWorkflow>,
+  { deployed }: { deployed: boolean }
+): WorkflowLintUnresolvedReference[] {
+  const blocks = (workflowState.blocks || {}) as Record<string, BlockState>
+  const childOf = new Map<string, WorkflowLintChildWorkflow>()
+  const findings: WorkflowLintUnresolvedReference[] = []
+  for (const [blockId, stored] of Object.entries(workflowState.blocks || {})) {
+    const id = getWorkflowInvocationTarget(stored)
+    const child = id ? children.get(id) : undefined
+    if (!id || !child) continue
+    const block = blocks[blockId]
+    childOf.set(blockId, child)
+    if (deployed && !child.deployed) {
+      findings.push({
+        ...blockRef(blockId, block),
+        field: 'workflowId',
+        value: id,
+        kind: 'resource',
+        reason: `Workflow "${child.name}" is not deployed. A deployed run calls the deployed version of each child workflow, so it fails at this block until "${child.name}" is deployed.`,
+      })
+    }
+  }
+  if (childOf.size === 0) return findings
+
+  const targetByKey = referenceTargetIndex(blocks)
+  for (const [blockId, block] of Object.entries(blocks)) {
+    for (const [subBlockId, subBlock] of Object.entries(block.subBlocks ?? {})) {
+      const leaves: string[] = []
+      collectStringLeaves((subBlock as { value?: unknown })?.value, leaves)
+      const byTarget = new Map<
+        string,
+        {
+          child: WorkflowLintChildWorkflow
+          tokens: Set<string>
+          keys: Set<string>
+          meant: Set<string>
+        }
+      >()
+      for (const leaf of leaves) {
+        for (const token of referenceCandidates(leaf, subBlockId === 'code')) {
+          if (!token || !REF_TOKEN_SHAPE.test(token)) continue
+          const targetId = referenceTarget(token, targetByKey)
+          const child = targetId ? childOf.get(targetId) : undefined
+          if (!targetId || !child?.responds) continue
+          const [head, output = '', next, ...rest] = token.split('.')
+          if (output !== 'result' || !next) continue
+          const key = splitLeadingBracketPath(next).property
+          if (!key || RESPONSE_OUTPUTS.includes(key)) continue
+          const group = byTarget.get(targetId) ?? {
+            child,
+            tokens: new Set(),
+            keys: new Set(),
+            meant: new Set(),
+          }
+          group.tokens.add(`<${token}>`)
+          group.keys.add(key)
+          group.meant.add(`<${[head, output, 'data', next, ...rest].join('.')}>`)
+          byTarget.set(targetId, group)
+        }
+      }
+      for (const [targetId, { child, ...group }] of byTarget) {
+        const target = blocks[targetId]
+        findings.push({
+          ...blockRef(blockId, block),
+          field: subBlockId,
+          value: [...group.tokens],
+          kind: 'child-result',
+          reason: `Workflow "${child.name}" responds, so "${target?.name || targetId}".result is its Response output ({ data, status, headers }) and ${quoteList(group.keys)} under result reads nothing. Did you mean ${[...group.meant].join(', ')}?`,
+        })
+      }
     }
   }
   return findings

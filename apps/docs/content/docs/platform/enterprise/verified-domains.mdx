@@ -41,10 +41,9 @@ Enable SSO to expose **Domains** in the single sign-on settings:
 
 ```bash
 SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-You can instead enable the enterprise suite with both `ENTERPRISE_ENABLED=true` and `NEXT_PUBLIC_ENTERPRISE_ENABLED=true`. Set the browser twin too: the login page's SSO entry point reads it before a workspace loads. See [Self-hosted enterprise](/platform/enterprise/self-hosted).
+You can instead enable the enterprise suite with `ENTERPRISE_ENABLED=true`. The login page's SSO entry point reads the server's setting, so there is no browser variable to set. See [Self-hosted enterprise](/platform/enterprise/self-hosted).
 
 The older `/workspace/<workspaceId>/settings/domains` path still resolves to **Single sign-on → Domains**.
 

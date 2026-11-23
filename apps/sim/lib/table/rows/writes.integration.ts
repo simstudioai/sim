@@ -1,7 +1,7 @@
 /**
  * Row-write integration tests against the provisioned, disposable TEST_DATABASE_URL database (the
  * integration setup points DATABASE_URL at it too). The unique-value locks run for real
- * everywhere; the `rows_version` cases also need the migrated deferred trigger and skip without it.
+ * everywhere; the `rows_version` cases also need the deferred trigger and skip without it.
  */
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRowSecretProvenance, userTableRows } from '@sim/db/schema'
@@ -22,13 +22,14 @@ vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
+import { addTableColumn, deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import { selectExportRowPage } from '@/lib/table/jobs/service'
 import type { DbTransaction } from '@/lib/table/planner'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { decodeCursor } from '@/lib/table/rows/cursor'
+import { writeKeyedRowsWithTx } from '@/lib/table/rows/keyed-write'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
 import { loadTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import {
@@ -43,8 +44,9 @@ import {
   upsertRow,
 } from '@/lib/table/rows/service'
 import { lockUniqueColumns, lockUniqueValues } from '@/lib/table/rows/unique-locks'
-import { getTableById } from '@/lib/table/service'
+import { getTableById, withTableWriteTx } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
+import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb } from '@/lib/table/validation'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -59,11 +61,11 @@ const workspaceId = generateId()
 const userId = generateId()
 
 /**
- * `db:push` never installs the migration-only `rows_version` triggers, and a database migrated
- * only through 0240 has a statement-level UPDATE trigger under the same name. Only the deferred
- * constraint trigger satisfies the `rows_version` cases, so only it enables them.
+ * Whether `rows_version` advances at commit (0390; `db:push` installs it too). A database migrated
+ * only through 0240 has a statement-level UPDATE trigger under the same name, so only the deferred
+ * constraint trigger enables the `rows_version` cases.
  */
-const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
+const [{ bumpsAtCommit }] = await control<{ bumpsAtCommit: boolean }[]>`SELECT EXISTS (
   SELECT 1 FROM pg_trigger t
   JOIN pg_proc p ON p.oid = t.tgfoid
   WHERE t.tgrelid = 'user_table_rows'::regclass
@@ -72,7 +74,13 @@ const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
     AND t.tgdeferrable
     AND t.tginitdeferred
     AND p.proname = 'bump_user_table_rows_version_at_commit'
-) AS migrated`
+) AS "bumpsAtCommit"`
+
+/** Whether a cell write demotes the row's secret provenance (0283's migration-only trigger). */
+const [{ demotesProvenance }] = await control<{ demotesProvenance: boolean }[]>`SELECT EXISTS (
+  SELECT 1 FROM pg_trigger
+  WHERE tgrelid = 'user_table_rows'::regclass AND tgname = 'user_table_rows_secret_provenance_demote'
+) AS "demotesProvenance"`
 
 /** Whether the row triggers log to `user_table_row_changes` (0402) rather than lock the definition. */
 const [{ logsRowChanges }] = await control<{ logsRowChanges: boolean }[]>`SELECT EXISTS (
@@ -323,7 +331,7 @@ describe('table row writes against real PostgreSQL', () => {
           const shown = projectResolvedSecretModelContent(stored.data, registry)
           expect(shown).toMatchObject({ safe: true, value: { note: '{{ROW_TOKEN}}' } })
         }
-        if (migrated) {
+        if (demotesProvenance) {
           await write('changed content')
           const [changed] = await db.select().from(userTableRows).where(eq(userTableRows.id, rowId))
           expect(changed.data).toEqual({ key: 'stable', note: 'changed content' })
@@ -333,6 +341,56 @@ describe('table row writes against real PostgreSQL', () => {
       }
     }
   )
+
+  it('gives a keyed write that only patches and deletes the bulk statement timeout', async () => {
+    const table = await createTable([
+      { id: 'key', name: 'key', type: 'string', unique: true },
+      ...textColumns('note'),
+    ])
+    await seedRows(table.id, [
+      { id: generateId(), data: { key: 'kept', note: 'old' }, orderKey: 'a0' },
+      { id: generateId(), data: { key: 'gone', note: 'old' }, orderKey: 'a1' },
+    ])
+
+    const timeout = await withTableWriteTx(table.id, async (locked, tx) => {
+      const written = await writeKeyedRowsWithTx(
+        tx.trx,
+        locked,
+        {
+          keyColumnId: 'key',
+          columnIds: ['key', 'note'],
+          rows: [{ key: 'kept', note: 'new' }],
+          allowDelete: true,
+        },
+        { userId, capabilityGovernedUserId: null },
+        'keyed-timeout'
+      )
+      expect(written).toMatchObject({ inserted: 0, updated: 1, deleted: 1 })
+      const [setting] = await tx.trx.execute<{ timeout: string }>(
+        sql`SELECT current_setting('statement_timeout') AS timeout`
+      )
+      return setting?.timeout
+    })
+
+    // The reshape's own transaction opens at the 10s default; the row API's bulk writes run at 60s.
+    expect(timeout).toBe('1min')
+  })
+
+  it('keeps the timeouts of the transaction a column write joins', async () => {
+    const table = await createTable([{ id: 'key', name: 'key', type: 'string' }])
+
+    const timeouts = await withTableWriteTx(table.id, async (locked, tx) => {
+      await setTableTxTimeouts(tx.trx, { statementMs: 120_000, idleMs: 120_000 })
+      await addTableColumn(locked.id, { name: 'note', type: 'string' }, 'joined-timeouts', { tx })
+      const [setting] = await tx.trx.execute<{ statement: string; idle: string }>(
+        sql`SELECT current_setting('statement_timeout') AS statement,
+          current_setting('idle_in_transaction_session_timeout') AS idle`
+      )
+      return setting
+    })
+
+    expect(timeouts).toEqual({ statement: '2min', idle: '2min' })
+  })
 
   describe('unique columns under concurrent writes', () => {
     const uniqueColumns: ColumnDefinition[] = [
@@ -671,6 +729,137 @@ describe('table row writes against real PostgreSQL', () => {
         )
       ).rejects.toThrow(/must be unique/)
       expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(0)
+    })
+
+    it("swaps two rows' values in one batch update", async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+      ])
+
+      await batchUpdateRows(
+        {
+          tableId: table.id,
+          workspaceId,
+          updates: [
+            { rowId: `${table.id}-a`, data: { email: 'b@example.test' } },
+            { rowId: `${table.id}-b`, data: { email: 'a@example.test' } },
+          ],
+          capabilityGovernedUserId: null,
+        },
+        table,
+        'unique-batch-swap'
+      )
+
+      const rows = await control<{ id: string; email: string }[]>`
+        SELECT id, data->>'email' AS email FROM user_table_rows WHERE table_id = ${table.id}
+        ORDER BY id`
+      expect(rows).toEqual([
+        { id: `${table.id}-a`, email: 'b@example.test' },
+        { id: `${table.id}-b`, email: 'a@example.test' },
+      ])
+    })
+
+    it('refuses a batch update writing a value a row outside the batch holds', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+        { id: `${table.id}-c`, data: { email: 'c@example.test' }, orderKey: 'a2' },
+      ])
+
+      await expect(
+        batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { email: 'b@example.test' } },
+              { rowId: `${table.id}-b`, data: { email: 'c@example.test' } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-batch-outside'
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await storedCount(table.id, { email: 'c@example.test' })).toBe(1)
+    })
+
+    it('refuses a batch update writing the value of a batch row that keeps it', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test', score: 1 }, orderKey: 'a1' },
+      ])
+
+      await expect(
+        batchUpdateRows(
+          {
+            tableId: table.id,
+            workspaceId,
+            updates: [
+              { rowId: `${table.id}-a`, data: { email: 'b@example.test' } },
+              { rowId: `${table.id}-b`, data: { score: 2 } },
+            ],
+            capabilityGovernedUserId: null,
+          },
+          table,
+          'unique-batch-kept'
+        )
+      ).rejects.toThrow(/must be unique/)
+      expect(await storedCount(table.id, { email: 'b@example.test' })).toBe(1)
+    })
+
+    it('refuses a batch update writing a value a concurrent edit gives a batch row that keeps it', async () => {
+      const table = await createTable(uniqueColumns)
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { email: 'a@example.test' }, orderKey: 'a0' },
+        { id: `${table.id}-b`, data: { email: 'b@example.test' }, orderKey: 'a1' },
+      ])
+
+      const results = await raceUnderHeldDefinitionRow(
+        table.id,
+        [
+          () =>
+            updateRow(
+              {
+                tableId: table.id,
+                rowId: `${table.id}-a`,
+                workspaceId,
+                data: { email: 'dup@example.test' },
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            ),
+          async () => {
+            // Read row a before the edit commits, so the batch holds its old email.
+            expect(
+              await waitForLockWaiters(table.id, { onDefinitionRow: 1, onValueLock: 0 })
+            ).toEqual({ onDefinitionRow: 1, onValueLock: 0 })
+            return batchUpdateRows(
+              {
+                tableId: table.id,
+                workspaceId,
+                updates: [
+                  { rowId: `${table.id}-a`, data: { score: 5 } },
+                  { rowId: `${table.id}-b`, data: { email: 'dup@example.test' } },
+                ],
+                capabilityGovernedUserId: null,
+              },
+              table,
+              'unique-race'
+            )
+          },
+        ],
+        { onDefinitionRow: 1, onValueLock: 1 }
+      )
+
+      expect(fulfilled(results)).toBe(1)
+      expect(await storedCount(table.id, { email: 'dup@example.test' })).toBe(1)
     })
 
     it('rejects a batch update that writes one JSON value to two rows in different key orders', async () => {
@@ -1710,7 +1899,7 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
 
-  describe.skipIf(!migrated || !logsRowChanges)('a held definition row', () => {
+  describe.skipIf(!bumpsAtCommit || !logsRowChanges)('a held definition row', () => {
     it('lets every row write path commit while another session holds the definition row', async () => {
       const table = await createTable([
         { id: 'key', name: 'key', type: 'string', unique: true },
@@ -2044,7 +2233,7 @@ describe('table row writes against real PostgreSQL', () => {
     })
   })
 
-  describe.skipIf(!migrated)('rows_version', () => {
+  describe.skipIf(!bumpsAtCommit)('rows_version', () => {
     it('advances once for a transaction that edits cells across several statements', async () => {
       const table = await createTable(textColumns('name'))
       await seedRows(table.id, [
@@ -2480,6 +2669,73 @@ describe('table row writes against real PostgreSQL', () => {
       } finally {
         spy.mockRestore()
       }
+    })
+  })
+  describe('adding a required column', () => {
+    it('accepts a new required column on a table that has rows, as the table APIs always have', async () => {
+      const table = await createTable(textColumns('note'))
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
+      const updated = await addTableColumn(
+        table.id,
+        { name: 'owner', type: 'string', required: true },
+        'required-add'
+      )
+      expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
+    })
+
+    it('refuses a new required column that rows leave empty when workspace-source apply asks', async () => {
+      const table = await createTable(textColumns('note'))
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'kept' }, orderKey: 'a0' }])
+      await expect(
+        addTableColumn(
+          table.id,
+          { name: 'owner', type: 'string', required: true },
+          'required-add-source',
+          { refuseEmptyRequired: true }
+        )
+      ).rejects.toThrow(/cannot be added as required: 1 row\(s\) would have no value/)
+      expect((await getTableById(table.id))?.schema.columns.map((column) => column.name)).toEqual([
+        'note',
+      ])
+    })
+
+    it('adds a required column to an empty table', async () => {
+      const table = await createTable(textColumns('note'))
+      const updated = await addTableColumn(
+        table.id,
+        { name: 'owner', type: 'string', required: true },
+        'required-empty'
+      )
+      expect(updated.schema.columns.find((column) => column.name === 'owner')?.required).toBe(true)
+    })
+
+    it('restores a deleted required column under workspace-source apply only when no row leaves it empty', async () => {
+      const table = await createTable([
+        { id: 'owner', name: 'owner', type: 'string', required: true },
+        ...textColumns('note'),
+      ])
+      await seedRows(table.id, [
+        { id: generateId(), data: { owner: 'ana', note: 'a' }, orderKey: 'a0' },
+      ])
+      await deleteColumn({ tableId: table.id, columnName: 'owner' }, 'undo-delete')
+      // A row added after the delete never held the column, so an undo cannot restore it required.
+      await seedRows(table.id, [{ id: generateId(), data: { note: 'b' }, orderKey: 'a1' }])
+      await expect(
+        addTableColumn(
+          table.id,
+          { id: 'owner', name: 'owner', type: 'string', required: true },
+          'undo-required',
+          { refuseEmptyRequired: true }
+        )
+      ).rejects.toThrow(/cannot be added as required/)
+      const restored = await addTableColumn(
+        table.id,
+        { id: 'owner', name: 'owner', type: 'string' },
+        'undo-optional'
+      )
+      expect(restored.schema.columns.find((column) => column.name === 'owner')?.required).toBe(
+        false
+      )
     })
   })
 })

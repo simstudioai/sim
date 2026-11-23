@@ -287,7 +287,7 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
         runId: run.id,
         executionId: run.executionId,
         workflowId: run.workflowId ?? undefined,
-        goRoute: config.data.goRoute,
+        workerRoute: config.data.workerRoute,
         copilotResourceAdmission:
           config.data.resourceAuthoringVersion === RESOURCE_AUTHORING_VERSION
             ? createCopilotResourceAdmission({ userId, invocation: { kind: 'chat', chatId } })

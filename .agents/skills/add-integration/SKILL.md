@@ -111,8 +111,8 @@ service id:
    `mode: 'advanced'`. An existing block that already takes the secret inline is never edited in
    place: add a credential-only successor (`add-block` → Credential-only successor).
 
-Then run `generate-docs`, `generate:block-successors`, `generate:deployment-config`, and
-`generate:tool-metadata`, and `check-block-registry.ts origin/staging`. This pattern does not fit
+Then run `bun run generate` (every generated artifact, docs included) and
+`check-block-registry.ts origin/staging`. This pattern does not fit
 hosted-key tools, model-provider keys, two-secret or username/password logins, or a host chosen
 per call.
 
@@ -371,6 +371,8 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
 }
 ```
 
+Then run `bun run generate:sdk-names` and commit the new `apps/sim/blocks/sdk-names/<type>.json` and the regenerated `apps/sim/blocks/sdk-names.generated.ts` (names are add-only: never edit or delete an existing entry; on a merge conflict in the generated module, rerun the generator), so workflow source gets a typed builder for the new block (`check:sdk-names` fails CI until it runs).
+
 ### Trigger Registry (`apps/sim/triggers/registry.ts`) - If triggers exist
 
 ```typescript
@@ -436,7 +438,7 @@ a resolvable capability must fail validation; an independent service account use
 
 ## Step 8: Generate and Validate the Catalog
 
-Run `bun run generate:tool-metadata`, `bun run scripts/generate-docs.ts`,
+Run `bun run generate:tool-metadata`, `bun run generate:docs`,
 `bun run generate:deployment-config`, then `bun run check:audits` (see the `validate-integration`
 skill → Regenerate Derived Artifacts for the full list and what each check verifies).
 
@@ -462,7 +464,7 @@ In Sim, the {Service} block lets your agents {concrete workflow uses}.
 
 Group the bullets by what the user gets done, not one bullet per tool. Only describe operations the
 block actually ships. Follow `.claude/rules/constitution.md` for voice. Re-run
-`bun run scripts/generate-docs.ts` afterwards and confirm the section survived unchanged.
+`bun run generate:docs` afterwards and confirm the section survived unchanged.
 
 The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
 config generator projects service-account provider IDs from that catalog plus the canonical OAuth
@@ -580,7 +582,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Registered all triggers in `triggers/registry.ts`
 
 ### Docs and deployment metadata
-- [ ] Ran `bun run scripts/generate-docs.ts`
+- [ ] Ran `bun run generate:docs`
 - [ ] Ran `bun run generate:deployment-config` for OAuth or service-account changes
 - [ ] Verified docs file created
 - [ ] Wrote the `{/* MANUAL-CONTENT-START:intro */}` section under `<BlockInfoCard />` and confirmed it survives a regenerate

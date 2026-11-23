@@ -1,0 +1,7 @@
+{
+  "namespace": "legacy.twilioSms",
+  "triggers": {
+    "twilio_sms_received": "received",
+    "twilio_sms_status": "status"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "namespace": "legacy.box",
+  "methods": {
+    "copy_file": "copyFile",
+    "create_folder": "createFolder",
+    "delete_file": "deleteFile",
+    "delete_folder": "deleteFolder",
+    "download_file": "downloadFile",
+    "get_file_info": "getFileInfo",
+    "list_folder_items": "listFolderItems",
+    "search": "search",
+    "sign_cancel_request": "cancelSignRequest",
+    "sign_create_request": "createSignRequest",
+    "sign_get_request": "getSignRequest",
+    "sign_list_requests": "listSignRequests",
+    "sign_resend_request": "resendSignRequest",
+    "update_file": "updateFile",
+    "upload_file": "uploadFile"
+  }
+}

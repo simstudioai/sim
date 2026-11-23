@@ -1,9 +1,9 @@
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   CORE_CONFIGURATION_KEYS,
   EMAIL_CAPABILITY,
   EnvCapabilityConfigurationError,
+  getRedisConfigurationError,
   inspectCapability,
   inspectOAuthClientCapability,
   OAUTH_CLIENT_CAPABILITIES,
@@ -12,6 +12,7 @@ import {
   SANDBOX_CAPABILITY,
   STORAGE_CAPABILITY,
 } from '@sim/deployment-config/env-capabilities'
+import { REGISTRATION_MODES, resolveRegistrationMode } from '@sim/deployment-config/registration'
 import { getSetupCommand } from './capability-config'
 import { portOpen } from './detect'
 import {
@@ -29,7 +30,7 @@ import {
   writeEnvValues,
 } from './env-files'
 import { httpHealth, pgProbe, redisPing } from './probes'
-import { FLAG_TWINS, LOGIN_PROVIDERS } from './twins'
+import { FLAG_TWINS, INERT_BROWSER_FLAGS, LOGIN_PROVIDERS } from './twins'
 
 /**
  * Whether `key` is written with an unescaped `$`, a reference Next, Bun, and
@@ -120,6 +121,7 @@ const REQUIRED_KEYS: Partial<Record<EnvTarget, readonly string[]>> = {
     'BETTER_AUTH_SECRET',
     'INTERNAL_API_SECRET',
     'NEXT_PUBLIC_APP_URL',
+    'REDIS_URL',
   ],
   db: ['DATABASE_URL'],
   // Compose's single root .env only carries the secrets that have no safe
@@ -263,6 +265,17 @@ function checkSchema(ctx: CheckContext): Finding[] {
           })
         }
       }
+      if (key === 'REDIS_URL') {
+        const redisError = getRedisConfigurationError(file.vars)
+        if (redisError) {
+          findings.push({
+            group: 'schema',
+            status: 'fail',
+            message: `${rel(file)}: ${redisError}`,
+            fix: `correct the Redis settings in ${rel(file)}`,
+          })
+        }
+      }
     }
     if (missing.length === 0 && findings.every((f) => !f.message.startsWith(rel(file)))) {
       findings.push({
@@ -347,10 +360,6 @@ function checkCoherence(ctx: CheckContext): Finding[] {
       resolve: () => requireCapability(ASYNC_JOBS_CAPABILITY, sim.vars),
     },
     {
-      command: getSetupCommand(CACHE_CAPABILITY.id),
-      resolve: () => requireCapability(CACHE_CAPABILITY, sim.vars),
-    },
-    {
       command: getSetupCommand(SANDBOX_CAPABILITY.id),
       resolve: () => {
         const inspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
@@ -421,36 +430,18 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  /**
-   * Function sandbox visibility is not a 1:1 server/client twin. The selected
-   * provider is ready only when its credential and immutable Function base are
-   * valid, while the browser separately reads the public visibility flag.
-   */
-  const sandboxInspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
-  const sandboxProvider = sandboxInspection.providerId
-  const selectedSandboxProvider = sandboxInspection.providers.find(
-    (provider) => provider.id === sandboxProvider
-  )
-  const remoteSandboxAvailable =
-    !sandboxInspection.error && selectedSandboxProvider?.state === 'ready'
-  const publicSandboxEnabled = isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOXES_ENABLED'))
-  if (remoteSandboxAvailable && !publicSandboxEnabled) {
+  findings.push(...checkRegistrationMode(sim))
+
+  for (const { server, client } of INERT_BROWSER_FLAGS) {
+    const clientValue = sim.vars.get(client)
+    if (clientValue === undefined) continue
+    const needsServer =
+      server !== undefined && isTruthy(clientValue) && sim.vars.get(server) === undefined
     findings.push({
       group: 'coherence',
-      status: 'fail',
-      message:
-        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOXES_ENABLED is unset — the Function block will hide its language and sandbox controls',
-      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=true',
-      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'true' }),
-    })
-  } else if (!remoteSandboxAvailable && publicSandboxEnabled) {
-    findings.push({
-      group: 'coherence',
-      status: 'fail',
-      message:
-        'NEXT_PUBLIC_SANDBOXES_ENABLED is on but the selected provider lacks credentials or a valid immutable Function base — the UI exposes a runtime that will reject execution',
-      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=false; finish provider setup before enabling it',
-      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'false' }),
+      status: 'warn',
+      message: `${client} is set but no longer does anything — the browser reads this from the server`,
+      fix: needsServer ? `set ${server}=${clientValue} and remove ${client}` : `remove ${client}`,
     })
   }
 
@@ -581,6 +572,42 @@ function checkCoherence(ctx: CheckContext): Finding[] {
   return findings
 }
 
+/**
+ * Validates `REGISTRATION_MODE` and points the variables it replaced at their
+ * equivalent, using the same resolver the app runs so doctor and the server
+ * cannot disagree about what a file means.
+ */
+function checkRegistrationMode(sim: EnvFile): Finding[] {
+  const { mode, warnings } = resolveRegistrationMode((name) => sim.vars.get(name))
+  const findings: Finding[] = []
+  for (const warning of warnings) {
+    if (warning.code === 'invalid-mode') {
+      findings.push({
+        group: 'coherence',
+        status: 'fail',
+        message: `REGISTRATION_MODE="${warning.details.value}" is not a recognized value — the app closes self-serve registration until it is corrected`,
+        fix: `set REGISTRATION_MODE to one of ${REGISTRATION_MODES.join(', ')}`,
+      })
+    } else if (warning.code === 'deprecated-variables') {
+      const names = warning.details.variables.join(', ')
+      findings.push({
+        group: 'coherence',
+        status: 'warn',
+        message: `deprecated registration variables are set (${names}) — REGISTRATION_MODE replaces them`,
+        fix: `set REGISTRATION_MODE=${mode} and remove ${names}`,
+      })
+    } else {
+      findings.push({
+        group: 'coherence',
+        status: 'warn',
+        message: `REGISTRATION_MODE=${warning.details.configured} resolves to ${mode} because deprecated registration variables are more restrictive`,
+        fix: `set REGISTRATION_MODE=${mode} and remove the deprecated variables, or remove them to keep ${warning.details.configured}`,
+      })
+    }
+  }
+  return findings
+}
+
 async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
   const findings: Finding[] = []
   const dsn = sim.vars.get('DATABASE_URL')
@@ -655,10 +682,25 @@ async function checkDatabase(sim: EnvFile): Promise<Finding[]> {
 }
 
 async function checkRedis(sim: EnvFile): Promise<Finding[]> {
-  const inspection = inspectCapability(CACHE_CAPABILITY, sim.vars)
-  if (inspection.error || inspection.providerId !== 'redis') return []
+  // With no env file yet the files check already reports it; a Redis failure would only repeat it.
+  if (!sim.exists) {
+    return [{ group: 'live', status: 'skip', message: 'redis: no env file yet' }]
+  }
   const redisUrl = sim.vars.get('REDIS_URL')
-  if (!redisUrl) throw new Error('Redis resolved as ready without REDIS_URL')
+  // A Compose install's REDIS_URL comes from the service definition, not the root .env.
+  if (!redisUrl && sim.target === 'root') {
+    return [{ group: 'live', status: 'skip', message: 'redis: REDIS_URL is set by Compose' }]
+  }
+  if (!redisUrl || getRedisConfigurationError(sim.vars)) {
+    return [
+      {
+        group: 'live',
+        status: 'fail',
+        message: 'redis: REDIS_URL is missing or invalid',
+        fix: 'set REDIS_URL to a reachable redis:// or rediss:// URL (npx sim-setup can manage a Redis container)',
+      },
+    ]
+  }
   const ping = await redisPing(redisUrl)
   return [
     ping.ok
@@ -667,7 +709,7 @@ async function checkRedis(sim: EnvFile): Promise<Finding[]> {
           group: 'live',
           status: 'fail',
           message: `redis unreachable: ${ping.error}`,
-          fix: 'fix REDIS_URL or remove it (optional for single-replica)',
+          fix: 'start Redis (npx sim-setup can manage a Redis container) or fix REDIS_URL',
         },
   ]
 }

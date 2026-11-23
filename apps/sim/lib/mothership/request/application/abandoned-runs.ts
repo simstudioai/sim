@@ -115,11 +115,11 @@ export async function takeOverAbandonedRuns(): Promise<void> {
 }
 
 /**
- * Needs Redis, whose chat locks are the only proof a run is abandoned. Stops on shutdown, so a
- * draining process adopts no run it is about to abandon.
+ * Redis chat locks are the only proof a run is abandoned. Stops on shutdown, so a draining
+ * process adopts no run it is about to abandon.
  */
 export function startAbandonedRunTakeover(): void {
-  if (!env.COPILOT_API_KEY || !env.REDIS_URL || timer) return
+  if (!env.COPILOT_API_KEY || timer) return
   timer = setInterval(() => {
     void takeOverAbandonedRuns().catch((error) =>
       logger.warn('Abandoned run scan failed', { error: getErrorMessage(error) })

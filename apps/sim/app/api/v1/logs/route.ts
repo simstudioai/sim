@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import {

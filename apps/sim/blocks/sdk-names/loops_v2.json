@@ -1,0 +1,33 @@
+{
+  "namespace": "loops",
+  "methods": {
+    "check_contact_suppression": "checkContactSuppression",
+    "create_contact": "createContact",
+    "create_contact_property": "createContactProperty",
+    "delete_contact": "deleteContact",
+    "find_contact": "findContact",
+    "get_transactional_email": "getTransactionalEmail",
+    "list_contact_properties": "listContactProperties",
+    "list_mailing_lists": "listMailingLists",
+    "list_transactional_emails": "listTransactionalEmails",
+    "remove_contact_suppression": "removeContactSuppression",
+    "send_event": "sendEvent",
+    "send_transactional_email": "sendTransactionalEmail",
+    "update_contact": "updateContact"
+  },
+  "triggers": {
+    "loops_campaign_email_sent": "campaignEmailSent",
+    "loops_email_clicked": "emailClicked",
+    "loops_email_delivered": "emailDelivered",
+    "loops_email_hard_bounced": "emailHardBounced",
+    "loops_email_opened": "emailOpened",
+    "loops_email_soft_bounced": "emailSoftBounced",
+    "loops_loop_email_sent": "loopEmailSent",
+    "loops_transactional_email_sent": "transactionalEmailSent"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

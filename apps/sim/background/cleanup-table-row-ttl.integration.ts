@@ -22,13 +22,13 @@ vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: signalChanged }))
 vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: fireTrigger }))
 
 import { db } from '@sim/db'
+import { normalizeTtlTimestamp, TTL_TIMESTAMP_VALIDATION } from '@sim/table-cells/ttl'
 import { validatedTimestampSql } from '@/lib/table/column-types/timestamp-sql'
 import { updateColumnConstraints } from '@/lib/table/columns/service'
 import { getDeleteSnapshotBatchSize } from '@/lib/table/constants'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import { fieldPredicate } from '@/lib/table/sql'
-import { normalizeTtlTimestamp, TTL_TIMESTAMP_VALIDATION } from '@/lib/table/ttl-values'
 import type { TableSchema } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb, coerceRowToSchema } from '@/lib/table/validation'
 import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'

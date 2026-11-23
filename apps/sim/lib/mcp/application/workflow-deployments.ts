@@ -239,7 +239,7 @@ export const createWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
   }),
   afterSuccess: ({ context, result }) =>
     result.addedTools.length > 0
-      ? mcpPubSub?.publishWorkflowToolsChanged({
+      ? mcpPubSub.publishWorkflowToolsChanged({
           serverId: result.server.id,
           workspaceId: context.workspaceId,
         })
@@ -318,7 +318,7 @@ export const deleteWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
     metadata: { serverName: result.server.name },
   }),
   afterSuccess: ({ context, result }) =>
-    mcpPubSub?.publishWorkflowToolsChanged({
+    mcpPubSub.publishWorkflowToolsChanged({
       serverId: result.server.id,
       workspaceId: context.workspaceId,
     }),
@@ -417,7 +417,7 @@ export const deployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     },
   }),
   afterSuccess: ({ context, result }) =>
-    mcpPubSub?.publishWorkflowToolsChanged({
+    mcpPubSub.publishWorkflowToolsChanged({
       serverId: result.server.id,
       workspaceId: context.workspaceId,
     }),
@@ -464,7 +464,7 @@ export const undeployWorkflowMcpTool = defineAuthorizedWorkspaceUseCase({
     },
   }),
   afterSuccess: ({ context, result }) =>
-    mcpPubSub?.publishWorkflowToolsChanged({
+    mcpPubSub.publishWorkflowToolsChanged({
       serverId: result.server.id,
       workspaceId: context.workspaceId,
     }),

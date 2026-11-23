@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import {
   GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
@@ -7,12 +12,7 @@ import {
 } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
-import {
-  buildCanonicalIndex,
-  buildSubBlockValues,
-  isCanonicalPair,
-  resolveCanonicalMode,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -135,6 +135,8 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
   slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   /** Google Ads moved API access to the OAuth client's Cloud project and retired developer tokens. */
   google_ads: [{ from: 'developerToken', to: '_removed_developerToken' }],
+  /** Google shut down the Deep Research agent, the only model that read a previous interaction. */
+  agent: [{ from: 'previousInteractionId', to: '_removed_previousInteractionId' }],
   /** Help Scout triggers now register their own webhook and generate its signing secret. */
   helpscout: [{ from: 'webhookSecret', to: '_removed_webhookSecret' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],

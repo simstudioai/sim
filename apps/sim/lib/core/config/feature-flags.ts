@@ -56,6 +56,11 @@ const FEATURE_FLAGS = {
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
     fallback: 'WORKFLOW_TESTS',
   },
+  'workflow-code': {
+    description:
+      'Enable workflows and workspaces as code: the block catalog and resources for the workflow SDK, workflow and workspace source read and apply, and the read-only Code tab. Supports global, organization, workspace and user rollout; disabled by default.',
+    fallback: 'WORKFLOW_CODE',
+  },
   changelog: {
     description:
       'Enable the workspace Changelog: the Changelog page, changelog/<id>.md release bodies, and the Sim changelog tool. Supports global and organization rollout; disabled by default.',
@@ -70,11 +75,6 @@ const FEATURE_FLAGS = {
     description:
       'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
-  },
-  'mcp-code-mode': {
-    description:
-      'Add the code-mode tools (execute_read_code, execute_write_code) to the Sim MCP server. Supports user and workspace rollout; disabled by default.',
-    fallback: 'MCP_CODE_MODE',
   },
   'mothership-model-selector': {
     description:

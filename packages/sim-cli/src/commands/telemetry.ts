@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { printLine } from '#sim-cli/output/io'
 import {
   builtInIngestTarget,
   DO_NOT_TRACK_VARIABLE,
@@ -40,7 +41,7 @@ function currentStatus(): TelemetryStatus {
  */
 function setEnabled(enabled: boolean): void {
   writeTelemetryState({ ...loadTelemetryState(), enabled })
-  console.log(describe(currentStatus()))
+  printLine(describe(currentStatus()))
 }
 
 export function telemetryCommand(): Command {
@@ -54,8 +55,8 @@ export function telemetryCommand(): Command {
       'Telemetry commands always print text. DO_NOT_TRACK and SIM_TELEMETRY_DISABLED override the saved preference; a build without a reporting destination remains off. See the usage-data guide for the data collected.'
     )
     .action(() => {
-      console.log(describe(currentStatus()))
-      console.log(`Learn more: ${USAGE_DATA_DOCS_URL}`)
+      printLine(describe(currentStatus()))
+      printLine(`Learn more: ${USAGE_DATA_DOCS_URL}`)
     })
 
   telemetry

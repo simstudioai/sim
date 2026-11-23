@@ -1,21 +1,3 @@
-import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-/**
- * A browser claims a Chat workflow tool, the execute route runs it, and the browser may never
- * report back (tab closed, network lost, beacon dropped). Runs against real PostgreSQL and Redis:
- * the claim, settlement, execution log lookup, guarded completion, published confirmation and the
- * Chat-side waiter are production code.
- */
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-
-const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedEnv = { REDIS_URL: process.env.REDIS_URL }
-  /** The real Redis module and the confirmation channel read this at import. */
-  process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedEnv }
-})
-
 import { db } from '@sim/db'
 import {
   copilotAsyncToolCalls,
@@ -28,8 +10,16 @@ import {
   workflowExecutionSnapshots,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
+/**
+ * A browser claims a Chat workflow tool, the execute route runs it, and the browser may never
+ * report back (tab closed, network lost, beacon dropped). Runs against real PostgreSQL and Redis:
+ * the claim, settlement, execution log lookup, guarded completion, published confirmation and the
+ * Chat-side waiter are production code.
+ */
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import {
@@ -73,7 +63,6 @@ interface ResumeEngine {
  */
 async function publishedConfirmation(toolCallId: string) {
   const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
   const value = await client.get(`copilot:tool-confirmation:${toolCallId}`)
   return value === null ? null : JSON.parse(value)
 }
@@ -85,13 +74,9 @@ afterAll(async () => {
   channels._toolConfirmationChannel?.dispose()
   channels._toolConfirmationChannel = undefined
   await closeRedisConnection()
-  for (const [key, value] of Object.entries(inheritedEnv)) {
-    if (value === undefined) delete process.env[key]
-    else process.env[key] = value
-  }
 })
 
-describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () => {
+describe('settled client-claimed workflow tools', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const workflowId = generateId()

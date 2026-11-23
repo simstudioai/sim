@@ -12,9 +12,11 @@
  * policy, and bridge envelopes. Individual tool parameters and results are
  * still validated by the desktop driver rather than statically mapped here.
  *
- * Current tool names mirror the mothership tool catalog
- * (`copilot/internal/tools/catalog/browser` in the mothership repo). This
- * package also retains retired names needed to replay persisted chat history.
+ * Current tool names mirror the mothership worker's tool catalog
+ * (`worker/packages/contracts/tool-catalog-v1.json`, with desktop tool
+ * definitions in `worker/apps/server/src/protocol/desktop-tools.ts`, in the
+ * mothership repo). This package also retains retired names needed to replay
+ * persisted chat history.
  * The catalog is the source of truth for what the model can call; this package
  * is the source of truth for how current and compatible legacy calls travel to
  * the desktop main process.

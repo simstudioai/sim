@@ -8,7 +8,7 @@ import {
  * Comprehensive mock for `@sim/db/schema`, derived from `packages/db/schema.ts`.
  *
  * `schema-tables.generated.ts` lists every table's column names, every enum's values and every
- * literal constant (`bun run scripts/generate-schema-mock.ts`; `check:schema-mock` fails on drift),
+ * literal constant (`bun run generate:schema-mock`; `check:schema-mock` fails on drift),
  * so a column added to the real schema is present here without a hand edit. Only names are copied —
  * no drizzle table object is imported at runtime.
  *

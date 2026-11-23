@@ -613,11 +613,11 @@ export const isOrganizationGovernanceActive = cache(resolveOrganizationGovernanc
  * When billing runs, the organization's plan decides and every feature moves
  * together. When it does not, there is no plan to read, so deployment
  * configuration decides per feature — which is what lets an operator run, say,
- * audit logs without whitelabeling.
+ * audit logs without data drains.
  *
  * Pass the matching flag from `@/lib/core/config/env-flags` as
  * `selfHostEntitlement`; those already resolve the master switch and the
- * feature's legacy default.
+ * feature's self-hosted default (`@sim/deployment-config/enterprise-features`).
  *
  * Prefer this over calling {@link isOrganizationOnEnterprisePlan} directly in a
  * feature gate. That helper is feature-agnostic and answers `true` for
@@ -771,19 +771,20 @@ const hasMaxTierWorkspaceAccess = cache(
  *
  * Always false without `COPILOT_API_KEY` — inbox tasks are executed by the
  * mothership and answered with a link to the resulting chat, so neither half
- * works without it. That check comes first because the `!isBillingEnabled`
- * shortcut below would otherwise hand every self-hosted deployment a broken
- * Inbox.
+ * works without it. That check comes first because inbox defaults on for
+ * self-hosted deployments without billing, which would otherwise hand every one
+ * of them a broken Inbox.
  *
  * Otherwise returns true if:
- * - on self-hosted deployments, INBOX_ENABLED is set or billing is disabled, OR
+ * - on self-hosted deployments, inbox resolves on (`INBOX_ENABLED`, the
+ *   enterprise switch, or the billing-off default), OR
  * - the workspace belongs to an organization on a Max/enterprise plan (org-mode), OR
  * - the billed user has an individual Max/enterprise subscription (personal workspace).
  */
 export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<boolean> {
   try {
     if (!env.COPILOT_API_KEY) return false
-    if (!isHosted && (isInboxEnabled || !isBillingEnabled)) return true
+    if (!isHosted && isInboxEnabled) return true
     return await hasMaxTierWorkspaceAccess(workspaceId)
   } catch (error) {
     logger.error('Error checking workspace inbox access', { error, workspaceId })
@@ -805,6 +806,11 @@ export async function hasWorkspaceInboxAccess(workspaceId: string): Promise<bool
  */
 export async function hasWorkspaceInboxGraceAccess(workspaceId: string): Promise<boolean> {
   try {
+    /*
+     * Billing-free deployments always retain: turning `INBOX_ENABLED` off stops
+     * use through {@link hasWorkspaceInboxAccess}, but must not let the
+     * reconcile sweep destroy provisioned AgentMail resources.
+     */
     if (!isHosted && (isInboxEnabled || !isBillingEnabled)) return true
 
     return await hasWorkspaceTierAccess(workspaceId, isMaxTier, {

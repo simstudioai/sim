@@ -325,19 +325,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
         asOf: '2026-07-04',
       },
     },
-    {
-      title: 'No native white-labeling of the core builder or default chat UI',
-      description:
-        'Agent-level branding is limited to setting a name, icon, and accent color, or hosting a fully custom canvas web app for the chat window. There is no option to remove Microsoft/Copilot Studio branding from the authoring canvas or the default published chat surface, unlike a dedicated white-label offering.',
-      shortDescription:
-        'Branding is limited to name/icon/color or a custom-built chat canvas, not full white-label.',
-      source: {
-        url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/customize-default-canvas',
-        label:
-          'Customize the look and feel of an agent - Microsoft Copilot Studio | Microsoft Learn',
-        asOf: '2026-07-02',
-      },
-    },
   ],
   facts: {
     platform: {
@@ -1234,22 +1221,6 @@ export const microsoftCopilotProfile: CompetitorProfile = {
           {
             url: 'https://learn.microsoft.com/en-us/power-platform/admin/wp-data-loss-prevention',
             label: 'Data policies - Power Platform | Microsoft Learn',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
-      whiteLabeling: {
-        value:
-          'No: agent-level branding is limited to a custom name, icon, and accent color in Settings, or fully hosting a custom canvas web app for the chat window (via CSS/JavaScript or the Bot Framework SDK). There is no option to remove Microsoft/Copilot Studio branding from the authoring canvas or the default published chat UI itself.',
-        detail:
-          'A custom canvas gives full programmatic control over the embedded chat experience, but that is a developer-built replacement UI, not a native white-labeling setting inside the product.',
-        shortValue: 'No, only name/icon/color or a fully custom-built chat canvas',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/customize-default-canvas',
-            label:
-              'Customize the look and feel of an agent - Microsoft Copilot Studio | Microsoft Learn',
             asOf: '2026-07-02',
           },
         ],

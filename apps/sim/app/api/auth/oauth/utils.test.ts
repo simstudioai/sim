@@ -2,7 +2,7 @@
  * Tests for OAuth utility functions
  */
 
-import { redisConfigMockFns } from '@sim/testing'
+import { createMockRedis, redisConfigMockFns } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,7 +66,7 @@ function mockUpdateChain() {
 describe('OAuth Utils', () => {
   beforeEach(() => {
     __resetCoalesceLocallyForTests()
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(createMockRedis())
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
   })

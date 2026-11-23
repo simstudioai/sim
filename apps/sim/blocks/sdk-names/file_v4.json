@@ -1,0 +1,9 @@
+{
+  "namespace": "legacy.fileV4",
+  "methods": {
+    "file_append": "append",
+    "file_fetch": "fetch",
+    "file_read": "read",
+    "file_write": "write"
+  }
+}

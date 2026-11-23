@@ -617,7 +617,7 @@ interface RawBlock {
   name?: string
   subagentName?: string
   content?: string
-  /** Go persists text blocks with key "text" instead of "content" */
+  /** Messages the retired Go copilot persisted carry text blocks under "text", not "content". */
   text?: string
   channel?: string
   phase?: string

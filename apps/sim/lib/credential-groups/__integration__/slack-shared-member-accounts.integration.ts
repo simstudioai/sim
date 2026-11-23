@@ -24,7 +24,7 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -71,13 +71,6 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
   const redisUrl = readTestRedisUrl()
   let ids: { organization: string; otherOrganization: string; owner: string }
   let restoreSlackHttp: (() => void) | undefined
-
-  beforeAll(() => {
-    if (!redisUrl)
-      throw new Error(
-        'Set TEST_REDIS_URL to a disposable local Redis or use bun run test:integration'
-      )
-  })
 
   beforeEach(async () => {
     Object.assign(env, {

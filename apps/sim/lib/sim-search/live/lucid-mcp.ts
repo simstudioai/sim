@@ -1,6 +1,6 @@
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   dateSortDirection,
   hasDateBounds,

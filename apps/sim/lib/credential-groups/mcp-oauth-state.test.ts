@@ -107,14 +107,6 @@ describe('Credential Group MCP OAuth state', () => {
     await expect(consumeCredentialGroupMcpOAuthAttempt('mcp_cg_direct')).resolves.toBeNull()
   })
 
-  it('fails closed when Redis is unavailable', async () => {
-    vi.mocked(getRedisClient).mockReturnValue(null)
-
-    await expect(
-      createCredentialGroupMcpOAuthAttempt({ ...ATTEMPT, state: 'mcp_cg_state-1' })
-    ).rejects.toThrow('Credential Group MCP OAuth requires Redis')
-  })
-
   it('rejects state outside the managed MCP namespace', async () => {
     await expect(
       createCredentialGroupMcpOAuthAttempt({ ...ATTEMPT, state: 'ordinary-state' })

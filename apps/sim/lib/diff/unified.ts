@@ -16,6 +16,12 @@ export interface DiffHunk {
   heading: string
   /** The file a hunk belongs to, set only when a git diff spans several files. */
   file?: string
+  /**
+   * The `-start` and `+start` of the `@@` header, verbatim, when it carries line numbers. A
+   * side with no lines (a pure insertion or deletion) has no line to carry its position, so
+   * only the header knows it.
+   */
+  range?: { oldStart: number; newStart: number }
   lines: DiffLine[]
 }
 
@@ -105,10 +111,16 @@ export function parseUnifiedDiff(text: string): UnifiedDiff {
     if (!hunk && GIT_HEADER.test(row)) continue
     const header = HUNK_HEADER.exec(row)
     if (row.startsWith('@@') && header) {
-      hunk = { heading: header[3] ?? '', file: file ?? undefined, lines: [] }
-      hunks.push(hunk)
       oldLine = header[1] ? Number(header[1]) : undefined
       newLine = header[2] ? Number(header[2]) : undefined
+      hunk = {
+        heading: header[3] ?? '',
+        file: file ?? undefined,
+        ...(oldLine !== undefined &&
+          newLine !== undefined && { range: { oldStart: oldLine, newStart: newLine } }),
+        lines: [],
+      }
+      hunks.push(hunk)
       continue
     }
     if (row.startsWith('\\')) continue

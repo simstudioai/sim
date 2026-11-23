@@ -20,4 +20,15 @@ describe('tryInferContextFromKey', () => {
       expect(() => inferContextFromKey(key)).toThrow()
     }
   })
+
+  it('does not classify a dot-segment key by a prefix it escapes', () => {
+    for (const key of [
+      'og-images/../workspace/ws/a.pdf',
+      'og-images/..\\workspace\\ws/a.pdf',
+      'profile-pictures/./x',
+      'kb/..',
+    ]) {
+      expect(tryInferContextFromKey(key)).toBeNull()
+    }
+  })
 })

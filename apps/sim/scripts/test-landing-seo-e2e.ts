@@ -7,11 +7,13 @@ import {
 } from '@sim/deployment-config/integration-docs'
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SIM_SITE_URL } from '@sim/utils/site'
 import { load } from 'cheerio'
 import matter from 'gray-matter'
 import {
+  difyProfile,
   dustProfile,
   gumloopProfile,
   langflowProfile,
@@ -21,10 +23,10 @@ import {
   openClawProfile,
   type Prose,
   pipedreamProfile,
+  relevanceAiProfile,
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -494,6 +496,8 @@ async function run() {
       pipedreamProfile,
       openClawProfile,
       openaiAgentkitProfile,
+      difyProfile,
+      relevanceAiProfile,
     ]) {
       const { status, body } = await get(`/comparisons/${profile.id}`)
       if (status !== 200) {
@@ -501,9 +505,15 @@ async function run() {
         continue
       }
       const text = decodeHtml(body)
-      const lead = profile.leadAnswer?.map((part) => (typeof part === 'string' ? part : part.text))
-      const firstSection = text.indexOf('<h2')
-      const leadAt = lead ? text.indexOf(lead.join('')) : -1
+      const lead = profile.leadAnswer
+        ?.map((part) => (typeof part === 'string' ? part : part.text))
+        .join('')
+      const $ = load(body)
+      const blocks = $('p, h2').toArray()
+      const leadAt = lead
+        ? blocks.findIndex((el) => el.tagName === 'p' && $(el).text().includes(lead))
+        : -1
+      const firstSection = blocks.findIndex((el) => el.tagName === 'h2')
       if (leadAt < 0 || leadAt > firstSection) {
         failures.push(`${profile.id}: lead answer missing or below the first section`)
       }

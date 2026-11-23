@@ -1,13 +1,10 @@
 import { spawnSync } from 'node:child_process'
 import {
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
@@ -36,7 +33,7 @@ function fixture() {
 }
 
 function run(root: string, args: string[], maximum = '0.000001') {
-  return spawnSync(args.includes('--build') ? 'node' : 'bun', [script, ...args], {
+  return spawnSync('bun', [script, ...args], {
     cwd: root,
     encoding: 'utf8',
     timeout: 10_000,
@@ -48,58 +45,8 @@ afterEach(() => {
   for (const root of fixtures.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-describe('compiler cache maintenance through the real CLI', () => {
-  it.each(['size', 'force'])(
-    'clears only build contents by %s while preserving its mount',
-    (mode) => {
-      const { root, build, dev, outside } = fixture()
-      const inode = statSync(build).ino
-      const result = run(
-        root,
-        mode === 'force' ? ['--build', '--force'] : ['--build'],
-        mode === 'force' ? '1' : undefined
-      )
-      expect(result.status, result.stderr).toBe(0)
-      expect(existsSync(build)).toBe(true)
-      expect(statSync(build).ino).toBe(inode)
-      expect(readdirSync(build)).toEqual([])
-      expect(existsSync(join(dev, 'state'))).toBe(true)
-      expect(existsSync(join(outside, 'state'))).toBe(true)
-    }
-  )
-
-  it('retains useful build state without counting external symlink targets', () => {
-    const { root, build, dev, outside } = fixture()
-    const inode = statSync(build).ino
-    const buildBytes = readFileSync(join(build, 'state'))
-    const devBytes = readFileSync(join(dev, 'state'))
-    const outsideBytes = readFileSync(join(outside, 'state'))
-    expect(run(root, ['--build'], '0.000006').status).toBe(0)
-    expect(statSync(build).ino).toBe(inode)
-    expect(readFileSync(join(build, 'state'))).toEqual(buildBytes)
-    expect(readFileSync(join(dev, 'state'))).toEqual(devBytes)
-    expect(readFileSync(join(outside, 'state'))).toEqual(outsideBytes)
-  })
-
-  it('does not substitute dev state when the build cache is absent', () => {
-    const { root, build, dev } = fixture()
-    rmSync(build, { recursive: true })
-    expect(run(root, ['--build']).status).toBe(0)
-    expect(existsSync(join(dev, 'state'))).toBe(true)
-  })
-
-  it('rejects a non-directory ancestor instead of treating it as an absent build cache', () => {
-    const { root, outside } = fixture()
-    const parent = join(root, '.next')
-    rmSync(parent, { recursive: true })
-    writeFileSync(parent, 'unrelated parent file')
-    const result = run(root, ['--build'])
-    expect(result.status, result.stderr).not.toBe(0)
-    expect(readFileSync(parent, 'utf8')).toBe('unrelated parent file')
-    expect(existsSync(join(outside, 'state'))).toBe(true)
-  })
-
-  it('keeps the existing dev command scoped to dev state', () => {
+describe('dev cache maintenance through the real CLI', () => {
+  it('prunes only dev state, never the build cache or other directories', () => {
     const { root, build, dev, outside } = fixture()
     expect(run(root, []).status).toBe(0)
     expect(existsSync(dev)).toBe(false)
@@ -126,25 +73,10 @@ describe('compiler cache maintenance through the real CLI', () => {
     }
   )
 
-  it('leaves both caches intact for a build dry run', () => {
+  it('keeps dev state on a dry run over the cap', () => {
     const { root, build, dev } = fixture()
-    expect(run(root, ['--build', '--dry-run']).status).toBe(0)
-    expect(existsSync(join(build, 'state'))).toBe(true)
+    expect(run(root, ['--dry-run']).status).toBe(0)
     expect(existsSync(join(dev, 'state'))).toBe(true)
+    expect(existsSync(join(build, 'state'))).toBe(true)
   })
-
-  it.each([true, false])(
-    'refuses a symlink build root when target existence is %s',
-    (targetExists) => {
-      const { root, build, dev, outside } = fixture()
-      rmSync(build, { recursive: true })
-      symlinkSync(outside, build, process.platform === 'win32' ? 'junction' : 'dir')
-      if (!targetExists) rmSync(outside, { recursive: true })
-      const result = run(root, ['--build', '--force'])
-      expect(result.status, result.stderr).not.toBe(0)
-      expect(lstatSync(build).isSymbolicLink()).toBe(true)
-      expect(existsSync(join(outside, 'state'))).toBe(targetExists)
-      expect(existsSync(join(dev, 'state'))).toBe(true)
-    }
-  )
 })

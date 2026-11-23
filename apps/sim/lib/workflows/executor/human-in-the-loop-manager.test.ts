@@ -15,7 +15,10 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from '@sim/testing/mocks/execution-preprocessing.mock'
+import { deliverExecutionSignal } from '@sim/testing/mocks/execution-signal.mock'
 import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
+import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing/mocks/redis-config.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
@@ -2417,6 +2420,13 @@ describe('stopping an active resume from another replica', () => {
   })
 
   it('aborts the attempt when Stop records cancellation under the attempt id', async () => {
+    const redis = createMockRedis()
+    // Runs the cancellation script's PUBLISH: the durable key write is not what wakes a live attempt.
+    redis.eval.mockImplementation(async (...args: unknown[]) => {
+      deliverExecutionSignal(String(args[4]), 'cancelled')
+      return null
+    })
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
     let attemptSignal: AbortSignal | undefined
     const runSpy = vi
       .spyOn(PauseResumeManager as unknown as PauseResumeManagerInternals, 'runResumeExecution')
@@ -2450,6 +2460,7 @@ describe('stopping an active resume from another replica', () => {
       expect(attemptSignal?.aborted).toBe(true)
       expect(attemptSignal?.reason).toMatchObject({ name: 'AbortError', message: 'user' })
     } finally {
+      resetRedisConfigMock()
       runSpy.mockRestore()
       attemptFailedSpy.mockRestore()
       processSpy.mockRestore()

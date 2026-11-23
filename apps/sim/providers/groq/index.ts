@@ -24,6 +24,7 @@ import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
+import { createChatCompletionUsageMeter } from '@/providers/openai-compat/usage-meter'
 import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -43,7 +44,6 @@ import type {
 } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
 import {
-  calculateCost,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
@@ -251,22 +251,10 @@ export const groqProvider: ProviderConfig = {
               request,
               onComplete: ({ content, usage, thinking }) => {
                 output.content = content
-                output.tokens = {
-                  input: usage.prompt_tokens,
-                  output: usage.completion_tokens,
-                  total: usage.total_tokens,
-                }
-
-                const costResult = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                output.cost = {
-                  input: costResult.input,
-                  output: costResult.output,
-                  total: costResult.total,
-                }
+                const streamUsage = createChatCompletionUsageMeter(request.model)
+                streamUsage.record(usage)
+                output.tokens = { ...streamUsage.tokens }
+                output.cost = streamUsage.cost()
 
                 if (thinking) {
                   const segment = output.providerTiming?.timeSegments?.[0]
@@ -304,11 +292,8 @@ export const groqProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      const tokens = {
-        input: currentResponse.usage?.prompt_tokens || 0,
-        output: currentResponse.usage?.completion_tokens || 0,
-        total: currentResponse.usage?.total_tokens || 0,
-      }
+      const usageMeter = createChatCompletionUsageMeter(request.model)
+      usageMeter.record(currentResponse.usage)
       const toolCalls = []
       const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...formattedMessages]
@@ -571,11 +556,7 @@ export const groqProvider: ProviderConfig = {
             content = currentResponse.choices[0].message.content
           }
 
-          if (currentResponse.usage) {
-            tokens.input += currentResponse.usage.prompt_tokens || 0
-            tokens.output += currentResponse.usage.completion_tokens || 0
-            tokens.total += currentResponse.usage.total_tokens || 0
-          }
+          usageMeter.record(currentResponse.usage)
 
           iterationCount++
         }
@@ -608,7 +589,8 @@ export const groqProvider: ProviderConfig = {
       return {
         content,
         model: request.model,
-        tokens,
+        tokens: { ...usageMeter.tokens },
+        cost: usageMeter.cost(),
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         timing: {

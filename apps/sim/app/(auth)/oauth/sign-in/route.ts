@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { isAuthDisabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { isAuthDisabled, isSelfServeRegistrationClosed } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -33,9 +33,9 @@ function consumeInteractivePrompt(params: URLSearchParams): boolean {
  * client hooks to keep in step.
  *
  * Signup rather than login by default, for the same reason the CLI handoff
- * chooses it: this is reached from a terminal, often on a fresh install. Under
- * DISABLE_REGISTRATION nobody can create an account, so login is the only hop
- * that can succeed.
+ * chooses it: this is reached from a terminal, often on a fresh install. When
+ * `REGISTRATION_MODE` closes self-serve registration nobody can create an
+ * account, so login is the only hop that can succeed.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   /** Avoid sending a newly signed-in user to a disabled provider's JSON 404. */
@@ -49,7 +49,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
   const authorizeUrl = `/api/auth/oauth2/authorize?${params.toString()}`
   const destination = buildAuthCrossLink(
-    isRegistrationDisabled || requiresLogin ? '/login' : '/signup',
+    isSelfServeRegistrationClosed || requiresLogin ? '/login' : '/signup',
     {
       callbackUrl: authorizeUrl,
       isInviteFlow: false,

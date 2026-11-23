@@ -308,4 +308,15 @@ describe('documented error sets', () => {
   )('%s publishes the 413 its body read can raise', (_operationId, errors) => {
     expect(errors).toContain('PayloadTooLarge')
   })
+
+  /** The same body read refuses a request that is not sent as JSON with a 415. */
+  it.each(
+    DOCUMENTS.flatMap((document) =>
+      document.routes
+        .filter((route) => route.contract.body !== undefined)
+        .map((route) => [route.operation.operationId, route.operation.errors] as const)
+    )
+  )('%s publishes the 415 its body read can raise', (_operationId, errors) => {
+    expect(errors).toContain('UnsupportedMediaType')
+  })
 })

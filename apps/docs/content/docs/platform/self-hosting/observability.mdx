@@ -12,7 +12,7 @@ Use health checks, container logs, and infrastructure metrics to monitor your de
 | Service | Endpoint | Returns |
 |---|---|---|
 | app | `GET /api/health` | `{"status":"ok","timestamp":"..."}` |
-| realtime | `GET /health` on port 3002 | `{"status":"ok","timestamp":"...","connections":0}` |
+| realtime | `GET /health` on port 3002 | `{"status":"ok"}` |
 
 <Callout type="warn">
   `/api/health` is a **liveness** signal only. It returns `200` as long as the process is serving HTTP — it does not check the database, Redis, or object storage. A healthy response does not mean the app can serve traffic successfully, so do not treat it as a dependency check. Verify dependencies with the [smoke test](/platform/self-hosting/verify) instead.
@@ -71,7 +71,7 @@ Deploy the PII service, configure its internal network path, and enable the stor
 ## Metrics
 
 <Callout type="warn">
-  The default app and realtime images **do not expose a `/metrics` endpoint**. The chart's `monitoring.serviceMonitor` option exists for builds that do — enabling it against the stock images produces a ServiceMonitor that scrapes nothing.
+  The app and realtime images **do not expose a `/metrics` endpoint**, and the Helm chart ships no ServiceMonitor. There is nothing for Prometheus to scrape from the Sim pods directly.
 </Callout>
 
 Until an application metrics endpoint ships, build alerting from the signals that do exist:
@@ -95,7 +95,7 @@ Sim's hosted-key metrics recorder arms itself whenever `AWS_ACCESS_KEY_ID` is pr
 | Ingress 5xx rate above baseline | Broad user impact |
 | Postgres connections above 80% of `max_connections` | Next replica or traffic spike will start failing |
 | Postgres disk above 80% | Knowledge base embeddings grow steadily |
-| Redis unreachable | Live collaboration and status updates can stop; inspect app and realtime connection errors |
+| Redis unreachable | Redis is required: rate limiting, one-time passcodes, live collaboration, and status updates depend on it. Inspect app and realtime connection errors |
 | Certificate expiry within 14 days | Especially with manually managed certs |
 | Object storage 4xx/5xx rate | Broken uploads usually show here first |
 

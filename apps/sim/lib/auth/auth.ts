@@ -129,15 +129,15 @@ import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
   isBillingEnabled,
-  isEmailPasswordEnabled,
-  isEmailSignupDisabled,
+  isEmailPasswordAuthEnabled,
+  isEmailSignupAllowed,
   isEmailVerificationEnabled,
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
   isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
-  isRegistrationDisabled,
+  isSelfServeRegistrationClosed,
   isSignupMxValidationEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
@@ -891,7 +891,7 @@ export const auth = betterAuth({
           },
         }),
     },
-    isRegistrationDisabled
+    isSelfServeRegistrationClosed
   ),
   emailVerification: {
     autoSignInAfterVerification: true,
@@ -938,12 +938,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     /**
-     * Same flag that hides the email/password signup form (DISABLE_EMAIL_SIGNUP).
-     * Blocks /sign-up/email at the better-auth layer so ripping out the frontend
-     * form cannot be bypassed by calling the endpoint directly. Existing users
-     * can still sign in.
+     * Same `REGISTRATION_MODE` decision that hides the email/password signup form
+     * (anything but `open`). Blocks /sign-up/email at the better-auth layer so
+     * ripping out the frontend form cannot be bypassed by calling the endpoint
+     * directly. Existing users can still sign in unless the mode also turns
+     * email/password off (the `no-email*` gate in the before hook).
      */
-    disableSignUp: isEmailSignupDisabled,
+    disableSignUp: !isEmailSignupAllowed,
     requireEmailVerification: isEmailVerificationEffectivelyEnabled(),
     /**
      * When someone signs up with an already-registered email, better-auth returns a
@@ -1127,12 +1128,12 @@ export const auth = betterAuth({
           }
         }
 
-        if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
+        if (ctx.path.startsWith('/sign-up') && isSelfServeRegistrationClosed)
           throw new APIError('FORBIDDEN', {
             message: 'Registration is disabled, please contact your admin.',
           })
 
-        if (!isEmailPasswordEnabled) {
+        if (!isEmailPasswordAuthEnabled) {
           const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
           if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
             throw new APIError('FORBIDDEN', {
@@ -1493,13 +1494,13 @@ export const auth = betterAuth({
       /**
        * Without this, /sign-in/email-otp auto-registers any unknown email —
        * bypassing the signup gate entirely (no captcha, no /sign-up path).
-       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form (and by
-       * DISABLE_REGISTRATION, whose /sign-up path check has the same blind
-       * spot); when set, better-auth also silently skips sending OTPs to
-       * unknown emails (enumeration-safe) while existing users keep OTP
-       * sign-in.
+       * Gated by the same `REGISTRATION_MODE` decision as the signup form
+       * (anything but `open`, which covers the `closed*` modes whose /sign-up
+       * path check has the same blind spot); when set, better-auth also
+       * silently skips sending OTPs to unknown emails (enumeration-safe) while
+       * existing users keep OTP sign-in.
        */
-      disableSignUp: isEmailSignupDisabled || isRegistrationDisabled,
+      disableSignUp: !isEmailSignupAllowed,
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds

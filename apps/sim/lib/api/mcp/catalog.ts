@@ -41,10 +41,10 @@ export const operationRequestInput = z
         'Values for the bracketed segments of the operation’s path, by name, e.g. { "tableId": "..." }. IDs come from list operations such as listTables.'
       ),
     query: z
-      .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
       .optional()
       .describe(
-        'Query-string values by name, as the query schema from describe_operation lists them, e.g. { "limit": 50 } or the cursor from the previous page.'
+        'Query-string values by name, as the query schema from describe_operation lists them, e.g. { "limit": 50 } or the cursor from the previous page. A null value is left out, so the last page’s null cursor ends paging.'
       ),
     headers: z
       .record(z.string(), z.string())

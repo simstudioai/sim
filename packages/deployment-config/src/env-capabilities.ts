@@ -22,6 +22,7 @@ export const CORE_CONFIGURATION_KEYS = [
   'NEXT_PUBLIC_APP_URL',
   'ENCRYPTION_KEY',
   'INTERNAL_API_SECRET',
+  'REDIS_URL',
 ] as const
 
 export type EnvCapabilityValues =
@@ -1098,10 +1099,7 @@ export const SANDBOX_CAPABILITY = defineCapability({
           },
         })
       ),
-      optionalFields: [
-        envField('NEXT_PUBLIC_E2B_ENABLED'),
-        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
-      ],
+      optionalFields: [envField('NEXT_PUBLIC_E2B_ENABLED')],
     },
     {
       id: 'daytona',
@@ -1119,10 +1117,7 @@ export const SANDBOX_CAPABILITY = defineCapability({
           },
         })
       ),
-      optionalFields: [
-        envField('NEXT_PUBLIC_E2B_ENABLED'),
-        envField('NEXT_PUBLIC_SANDBOXES_ENABLED'),
-      ],
+      optionalFields: [envField('NEXT_PUBLIC_E2B_ENABLED')],
     },
   ],
 } as const)
@@ -1147,54 +1142,34 @@ export const ASYNC_JOBS_CAPABILITY = defineCapability({
   ],
 } as const)
 
-/** Validates the one provider dependency that cannot be expressed as a field-shape rule. */
-function validateRedisProvider(values: EnvCapabilityValues): readonly EnvProviderValidationIssue[] {
-  if (!hasValue(values, 'REDIS_URL')) return []
+const REDIS_URL_PROTOCOLS = ['redis:', 'rediss:'] as const
+
+/**
+ * Validates the required Redis configuration: REDIS_URL must be a `redis://` or
+ * `rediss://` URL, and a `rediss://` URL targeting a bare IPv4 address needs
+ * REDIS_TLS_SERVERNAME, because certificate hostname verification cannot match
+ * an IP. Returns the first problem, or `null` when the configuration is usable.
+ */
+export function getRedisConfigurationError(values: EnvCapabilityValues): string | null {
+  if (!hasValue(values, 'REDIS_URL')) return 'REDIS_URL is required'
   let redisUrl: URL
   try {
     redisUrl = new URL(String(readValue(values, 'REDIS_URL')))
   } catch {
-    return []
+    return 'REDIS_URL must be a valid redis:// or rediss:// URL'
+  }
+  if (!(REDIS_URL_PROTOCOLS as readonly string[]).includes(redisUrl.protocol)) {
+    return 'REDIS_URL must be a valid redis:// or rediss:// URL'
   }
   if (
     redisUrl.protocol === 'rediss:' &&
     /^\d+\.\d+\.\d+\.\d+$/.test(redisUrl.hostname) &&
     !hasValue(values, 'REDIS_TLS_SERVERNAME')
   ) {
-    return [
-      {
-        kind: 'missing',
-        fields: ['REDIS_TLS_SERVERNAME'],
-        message: 'REDIS_TLS_SERVERNAME is required for rediss:// IP addresses',
-      },
-    ]
+    return 'REDIS_TLS_SERVERNAME is required for rediss:// IP addresses'
   }
-  return []
+  return null
 }
-
-export const CACHE_CAPABILITY = defineCapability({
-  strategy: 'selected',
-  id: 'cache',
-  label: 'Cache',
-  whenUnset: 'first-ready',
-  defaultProvider: { id: 'database', kind: 'built-in', label: 'Postgres' },
-  providers: [
-    {
-      id: 'redis',
-      label: 'Redis',
-      activation: { mode: 'any-present', keys: ['REDIS_URL'] },
-      requires: envField('REDIS_URL', {
-        validation: {
-          kind: 'url',
-          protocols: ['redis:', 'rediss:'],
-          message: 'must be a valid redis:// or rediss:// URL',
-        },
-      }),
-      optionalFields: [envField('REDIS_TLS_SERVERNAME')],
-      validate: validateRedisProvider,
-    },
-  ],
-} as const)
 
 export const OCR_CAPABILITY = defineCapability({
   strategy: 'selected',
@@ -1522,7 +1497,6 @@ export const ENV_CAPABILITIES = [
   STORAGE_CAPABILITY,
   SANDBOX_CAPABILITY,
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   OCR_CAPABILITY,
   KNOWLEDGE_EMBEDDINGS_CAPABILITY,
 ] as const
@@ -1562,11 +1536,11 @@ export const DEPLOYMENT_CONFIGURATION_KEYS: readonly string[] = [
   ...new Set([
     ...CORE_CONFIGURATION_KEYS,
     ...ENV_CAPABILITIES.flatMap(capabilityKeys),
+    'REDIS_TLS_SERVERNAME',
     'COPILOT_API_KEY',
     'EMAIL_VERIFICATION_ENABLED',
     'NEXT_PUBLIC_CHAT_DISABLED',
     'NEXT_PUBLIC_E2B_ENABLED',
-    'NEXT_PUBLIC_SANDBOXES_ENABLED',
     'SIM_AGENT_API_URL',
     ...Object.values(LLM_KEY_POOLS).flatMap((pool) => [
       ...pool.keys,

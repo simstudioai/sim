@@ -1318,9 +1318,6 @@ afterAll(async () => {
     await db.execute(
       sql`DELETE FROM file_search_dispatch_queue WHERE (entity_type = 'project' AND entity_id = ${f.projectId}) OR (entity_type = 'workspace' AND entity_id = ${f.workspaceId})`
     )
-    await db.execute(
-      sql`DELETE FROM workspace_file_search_dispatch_queue WHERE workspace_id = ${f.workspaceId}`
-    )
     await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
     await db.delete(project).where(eq(project.id, f.projectId))

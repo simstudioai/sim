@@ -686,6 +686,149 @@ sim workspaces unlink [options]
 
 API request and response schemas: [unlinkWorkspaceFork](/api-reference/workspace-sync/unlinkWorkspaceFork).
 
+## Workspace as code
+
+### Write a workspace as a source directory
+
+```bash
+sim workspaces source get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | Yes | Directory to write the workspace source into. |
+| `--only <kinds>` | No | Read only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--force` | No | Replace files with edits no apply has saved. |
+
+</CommandTable>
+
+A directory that already holds a .sim/base.json is refreshed from the workspace it was read from, whatever the profile's default workspace.
+
+Exit codes: 0 written; 1 the command failed, the directory holds edits no apply has saved (SOURCE_LOCAL_EDITS: apply them, get into another directory, or pass --force), --workspace names another workspace than the one the directory was read from (SOURCE_OTHER_WORKSPACE), the directory is a workflow source directory (SOURCE_DIR_KIND_MISMATCH, even with --force), or a downloaded binary file does not match its listing (SOURCE_BLOB_MISMATCH: nothing was written); 7 the workspace has more resources of a kind than one directory holds; 9 rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest; 10 (busy, retry) another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY): nothing was read or written, run it again once it finished; 13 not logged in, the login expired, or the server refused the credential (AUTH_REQUIRED): nothing was read or written, run `sim login` and the get again.
+
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getSourceResources](/api-reference/workflows/getSourceResources), [downloadFile](/api-reference/files/downloadFile), [downloadKnowledgeDocument](/api-reference/knowledge-bases/downloadKnowledgeDocument).
+
+### Show what changed locally and on the server since the directory was read
+
+```bash
+sim workspaces source status [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--only <kinds>` | No | Report only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--offline` | No | Report local changes only, without asking the server. |
+| `--json` | No | Print the machine-readable status (same as --output json). |
+
+</CommandTable>
+
+With --json, `plan` is what applying would do as `apply --dry-run --allow-delete` reports it (its errors and warnings counted the same, a conflict as an error), and `next` the command to run (with --allow-delete only when the plan deletes something).
+
+Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was read); 11 local changes only (applying writes them); 12 the server changed since the directory was read: drift (a resource edited, added or deleted there that the directory leaves alone) or a conflict (also changed here, so applying it is refused as stale), with or without local changes; 7 the source is too large for the server to read in one dry run; 1 the command failed; 13 not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the local changes only, then run `sim login`. A server that cannot be reached is not a failure: the status shows the local changes only and says so (exit 0 or 11).
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [planWorkspaceSource](/api-reference/workflows/planWorkspaceSource), [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource).
+
+### Apply a workspace source directory
+
+```bash
+sim workspaces source apply [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--dry-run` | No | Plan and check without writing anything. |
+| `-y, --yes` | No | Apply without asking for confirmation. |
+| `--allow-delete` | No | Delete resources, columns and data the directory no longer declares (with --to, only what it deleted since the last promotion: the target's own resources are kept). |
+| `--delete-target-only` | No | With --to and --allow-delete, also delete the target's resources this directory never declared and no promotion from it left there (prod-only tables and their rows, skills made in prod). Without it a promotion keeps them, naming each with a warning. |
+| `--only <kinds>` | No | Apply only these kinds (comma-separated folders: secrets.ts, credentials.ts, tools, skills, mcp, tables, knowledge, files, workflows, deployments). |
+| `--to <workspaceId>` | No | Promote the directory to another workspace (dev to prod): its resources bind by key to that workspace's own and are updated in place. Only .sim/targets/&lt;workspaceId&gt;.json changes, the record the next promotion compares with: a resource changed there since is kept, or refused as stale (exit 5) when the directory changed it too. |
+
+</CommandTable>
+
+Exit codes: 0 applied (or a clean dry run); 1 the source has errors (each printed as file:line:column with its frame and hint), or every change it would write was held back because it uses a declared secret the workspace has no value for or a declared credential key nothing binds to (nothing was written; a dry run of such an apply exits 1 too), the directory was read from another workspace than the one --workspace names (SOURCE_OTHER_WORKSPACE: drop --workspace, or promote it with --to; without --workspace an apply targets the workspace the directory was read from), its base records binary files no get downloaded (SOURCE_BLOBS_NOT_FETCHED: get again first), or the command failed; 5 a resource changed or was deleted on the server since the directory was read (SOURCE_STALE: get it again into a fresh directory, reapply the edit, retry); 6 a resource (a workflow or its folder, a table) is locked (a locked block exits 1, E_APPLY_LOCKED_BLOCK); 7 the directory is too large; 8 the apply stopped part-way on a server failure: what was written is saved into the directory, and applying again continues. An apply a resource refused part-way (stale, locked, forbidden) saves what was written too, and exits as that refusal: 5, 6 or 1; 9 rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again); 10 another apply is writing the workspace (SOURCE_BUSY), or another command is using the directory (SOURCE_DIR_BUSY): nothing was written, run the command again once the other finished; 14 without --yes and with no terminal to ask: the plan was printed with no errors and nothing was written (run the same command with --yes to apply it); 15 written in part: changes that use a declared secret the workspace has no value for, or a declared credential key nothing binds to, were held back and the rest was applied and saved (set the secret or connect the credential, then apply again); a dry run that would do so exits 15 too, having written nothing. Exit 13: not logged in, or the server refused the credential (AUTH_REQUIRED); nothing was sent. Run `sim login`, or fix or unset SIM_API_KEY when the key comes from it. Exit 130: interrupted (Ctrl-C). A write already sent is finished and saved into the directory first, waiting up to 60s for its answer; a second Ctrl-C, or no answer by then, stops at once and prints that it may have been written and how to check.
+
+API request and response schemas: [applyWorkspaceSource](/api-reference/workflows/applyWorkspaceSource), [findMissingWorkspaceSourceBlobs](/api-reference/workflows/findMissingWorkspaceSourceBlobs), [stageWorkspaceSourceBlobs](/api-reference/workflows/stageWorkspaceSourceBlobs), [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource), [getSourceCatalog](/api-reference/catalog/getSourceCatalog), [getWorkflowDeployment](/api-reference/workflows/getWorkflowDeployment).
+
+### Compile every workflow of a workspace source directory locally, without the server
+
+```bash
+sim workspaces source check [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory: the kind folders and .sim/base.json. Defaults to `.`. |
+| `--strict` | No | Fail on the warnings listed below in every block, not only new ones. |
+| `--no-strict` | No | Never fail on a warning an apply saves. |
+| `--verbose` | No | Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display. |
+
+</CommandTable>
+
+Compiles every workflows/&lt;key&gt;/workflow.ts (and the function files each names) with the compiler the server runs, against the workspace's block catalog the last get cached (in a fresh clone with no cache, such as CI, it downloads the catalog once with the profile's credentials). No other request is made. It checks, against what the directory declares: - env names (secrets.ts), with a did-you-mean - credential keys (credentials.ts) - the keys of tables, knowledge bases, skills, custom tools, MCP servers and workflows, with a did-you-mean, and a key holding a look-alike letter (a Cyrillic а) named by its code point - the columns and select options of a table row write - a child workflow call: an inputMapping key the child's Start trigger does not declare, and a child with no Start trigger - each tables/&lt;key&gt;.rows.jsonl: a malformed line, an undeclared column, a managed key two lines share, an empty required cell, a repeated unique value, a value its column's type or options cannot hold - block names whose words mix Latin with Cyrillic, Greek, Armenian or Cherokee letters The dry run still checks what only the server knows (stored values, MCP tool names, model ids, deployments, credential bindings), so run it before applying. A check also regenerates .sim/sdk/workspace.d.ts from the declarations (so tsc types a key added since the get, and each workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
+
+Exit codes: 0 no errors; 1 errors (each printed as file:line:column with its frame and hint), or no cached catalog (run the get once). With --output json, stdout is one document that also lists every finding under diagnostics.
+
+These warnings, which an apply saves as written, fail the check as errors on every block the lock does not bind (a block added since the get, or every block of a new workflow): W_REQUIRED_MISSING, W_UNKNOWN_OPTION, W_UNKNOWN_OUTPUT_PATH, W_VALUE_KIND, W_OUT_OF_RANGE, W_LITERAL_SECRET, W_TABLE_UNKNOWN_COLUMN, W_CHILD_INPUT_UNKNOWN, W_CHILD_RESULT_PATH, W_BRANCH_UNWIRED, W_UNRESOLVED_REF, W_REF_OUT_OF_SCOPE, W_LOOP_CONDITION_SYNTAX. --strict fails on them in every block, except W_BRANCH_UNWIRED on a block the lock binds (the stored workflow may hold it, and the server then stays quiet); --no-strict fails on none of them. In every mode, as the server refuses them: W_REF_OUT_OF_SCOPE is the error E_APPLY_REF_OUT_OF_SCOPE in any file of a block the edit added or changed; W_LOOP_CONDITION_SYNTAX is the error E_APPLY_LOOP_CONDITION_SYNTAX in any file of a block the edit added or changed; W_UNKNOWN_OPTION is the error E_APPLY_INVALID_SUBBLOCK_FIELD in workflow.ts on a block the edit added or changed; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in workflow.ts on a block the edit added or changed; W_UNKNOWN_BLOCK_TYPE is the error E_APPLY_INVALID_BLOCK_TYPE in workflow.ts on a block the edit added or changed; W_TYPE_NOT_ADDABLE is the error E_APPLY_TYPE_NOT_ADDABLE in workflow.ts on a block the edit added or changed; W_UNRESOLVED_REF is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_UNKNOWN_OUTPUT_PATH is the error E_APPLY_UNRESOLVED_REF in a function file changed since the get; W_CODE_FILE_REF_SYNTAX is the error E_APPLY_CODE_FILE_REF_SYNTAX in a function file changed since the get. A block counts as changed when the lock does not bind it, when the source moved it into another container, or when it compiles differently than in the source the last get or apply printed (.sim/stored-edges.json records a digest of each block). That last comparison needs the catalog the source was printed with in the cache: without it, a bound block that did not move counts as unchanged, so the server may refuse what the check passes. A $ref in a function file to a block the lock binds that the source no longer declares stays a warning, unless a warning cap left findings out: the server may infer that block was renamed and rewrite the reference, and refuses it otherwise. W_JSON_REF_UNTYPED is reported only on blocks the lock does not bind, and with --strict on every block.
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [getSourceCatalog](/api-reference/catalog/getSourceCatalog).
+
+### Show the content of the changes in a workspace source directory
+
+```bash
+sim workspaces source diff [paths...] [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `paths...` | No | Files, folders or kind:key resources to compare (default: every file) |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--dir <dir>` | No | Workspace source directory written by `workspaces source get`. Defaults to `.`. |
+| `--server` | No | Compare with the server's current source instead of the base. |
+| `--json` | No | Print the machine-readable diff (same as --output json). |
+
+</CommandTable>
+
+Without --server, each file created, edited or deleted since the directory was read is shown against the text it was read at. The CLI records only each file's digest, so that text is the server's current text where it still matches the digest; a file the server changed since is named instead (compare it with --server). A binary file is shown by its sizes. Paths filter by file or folder (and in a workspace directory by kind:key, such as table:leads). Exit codes: 0 the differences were shown, whether or not there were any; 7 the source is too large for the server to read; 1 the command failed.
+
+Exit 10 (busy, retry): another sim workspaces source or workflows source command is using this directory or a workflow folder in it (SOURCE_DIR_BUSY); nothing was read or written. Run this one again once it finished.
+
+API request and response schemas: [getWorkspaceSource](/api-reference/workflows/getWorkspaceSource).
+
 ## Related docs
 
 - [Workspace sync](/cli/workflow-sync)

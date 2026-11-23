@@ -6,7 +6,6 @@
  */
 import {
   ASYNC_JOBS_CAPABILITY,
-  CACHE_CAPABILITY,
   type CapabilityDefinition,
   EMAIL_CAPABILITY,
   ENV_CAPABILITIES,
@@ -37,8 +36,6 @@ export type SetupCondition =
   | { kind: 'any'; conditions: readonly SetupCondition[] }
   | { kind: 'not'; condition: SetupCondition }
 
-export type SetupPromptCondition = SetupCondition | { kind: 'provider-missing-field'; key: string }
-
 export interface SetupFieldPrompt {
   type: 'field'
   key: string
@@ -48,7 +45,7 @@ export interface SetupFieldPrompt {
   required?: boolean
   defaultValue?: string
   validate?: boolean
-  when?: SetupPromptCondition
+  when?: SetupCondition
 }
 
 export interface SetupConfirmPrompt {
@@ -56,7 +53,7 @@ export interface SetupConfirmPrompt {
   key: string
   message: string
   defaultValue?: boolean
-  when?: SetupPromptCondition
+  when?: SetupCondition
 }
 
 export interface SetupChoiceOption {
@@ -73,7 +70,7 @@ export interface SetupChoicePrompt {
   id: string
   message: string
   options: readonly SetupChoiceOption[]
-  when?: SetupPromptCondition
+  when?: SetupCondition
 }
 
 export type SetupPrompt = SetupFieldPrompt | SetupConfirmPrompt | SetupChoicePrompt
@@ -129,14 +126,9 @@ function promptKeys(prompts: readonly SetupPrompt[] = []): string[] {
   })
 }
 
-function conditionKeys(condition: SetupPromptCondition | undefined): string[] {
+function conditionKeys(condition: SetupCondition | undefined): string[] {
   if (!condition) return []
-  if (
-    condition.kind === 'present' ||
-    condition.kind === 'truthy' ||
-    condition.kind === 'equals' ||
-    condition.kind === 'provider-missing-field'
-  ) {
+  if (condition.kind === 'present' || condition.kind === 'truthy' || condition.kind === 'equals') {
     return [condition.key]
   }
   if (condition.kind === 'all' || condition.kind === 'any') {
@@ -556,7 +548,6 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
       hint: 'local JavaScript execution only',
       env: {
         NEXT_PUBLIC_E2B_ENABLED: 'false',
-        NEXT_PUBLIC_SANDBOXES_ENABLED: 'false',
       },
       currentWhen: {
         kind: 'all',
@@ -579,7 +570,6 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
       hint: 'dedicated Function code and CLI sandboxes',
       env: {
         NEXT_PUBLIC_E2B_ENABLED: 'true',
-        NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
       },
       prompts: [
         { type: 'field', key: 'E2B_API_KEY', input: 'secret', required: true },
@@ -606,7 +596,6 @@ export const SANDBOX_SETUP = defineCapabilitySetup(SANDBOX_CAPABILITY, {
       hint: 'dedicated Function code and CLI sandboxes',
       env: {
         NEXT_PUBLIC_E2B_ENABLED: 'false',
-        NEXT_PUBLIC_SANDBOXES_ENABLED: 'true',
       },
       prompts: [
         {
@@ -654,36 +643,6 @@ export const JOBS_SETUP = defineCapabilitySetup(ASYNC_JOBS_CAPABILITY, {
     },
   },
   optionOrder: ['database', 'trigger-dev'],
-})
-
-export const CACHE_SETUP = defineCapabilitySetup(CACHE_CAPABILITY, {
-  label: 'Redis cache',
-  message: 'Cache and realtime coordination?',
-  actions: {},
-  defaultOption: { hint: 'built-in default' },
-  providers: {
-    redis: {
-      hint: 'recommended for multiple replicas',
-      prompts: [
-        {
-          type: 'field',
-          key: 'REDIS_URL',
-          input: 'text',
-          required: true,
-          defaultValue: 'redis://localhost:6379',
-          validate: true,
-        },
-        {
-          type: 'field',
-          key: 'REDIS_TLS_SERVERNAME',
-          input: 'text',
-          required: true,
-          when: { kind: 'provider-missing-field', key: 'REDIS_TLS_SERVERNAME' },
-        },
-      ],
-    },
-  },
-  optionOrder: ['database', 'redis'],
 })
 
 export const KNOWLEDGE_SETUP = defineCapabilitySetup(OCR_CAPABILITY, {
@@ -975,7 +934,6 @@ export const CAPABILITY_SETUPS = [
   STORAGE_SETUP,
   SANDBOX_SETUP,
   JOBS_SETUP,
-  CACHE_SETUP,
   KNOWLEDGE_SETUP,
   KNOWLEDGE_EMBEDDINGS_SETUP,
 ] as const

@@ -33,7 +33,7 @@ Keep keys and proxy credentials in [secrets](/platform/credentials), referenced 
 | Field | Default and limit |
 | --- | --- |
 | **Timeout (ms)** | 300,000 ms (5 minutes); maximum 600,000 ms (10 minutes). |
-| **Retries** | `0`. When enabled, retry network failures, timeouts, `429`, and `5xx` responses; not ordinary `400` or `404` errors. |
+| **Retries** | `0`. When enabled, retry timeouts, connection resets, `429`, and `5xx` responses; not a host that does not resolve or refuses the connection, and not ordinary `400` or `404` errors. |
 | **Retry delay (ms)** | `500`; exponential backoff starts here. |
 | **Max retry delay (ms)** | `30,000`; caps the backoff delay. |
 | **Retry non-idempotent methods** | Off. Enable POST/PATCH retries only when repeated requests are safe. |

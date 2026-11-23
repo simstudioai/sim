@@ -49,8 +49,20 @@ sim blocks get <blockId>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. |
+| `blockId` | Yes | Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it. |
 
 </CommandTable>
+
+```text
+Reading it for `sim workflows operations apply`:
+  id                    the type to add: `blocks get table` answers table_v2 (an add of legacy
+                        table is refused)
+  inputSchema           the field ids inputs takes; operationInputSchema, an operation's own
+  inputDefinitions      the block's inputs by name; one a pair of fields shares (tableId for
+                        tableSelector and manualTableId) is accepted in place of the pair
+  outputs               what it outputs on success; a failed block outputs {"error":"…"}
+                        instead, read on its error path as <name.error>
+Block settings such as retry are not fields: `sim workflows operations apply --help`.
+```
 
 API request and response schemas: [getBlock](/api-reference/catalog/getBlock).

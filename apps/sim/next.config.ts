@@ -69,36 +69,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
-      // Brand logo domain if configured
-      ...(process.env.NEXT_PUBLIC_BRAND_LOGO_URL
-        ? (() => {
-            try {
-              return [
-                {
-                  protocol: 'https' as const,
-                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_LOGO_URL!).hostname,
-                },
-              ]
-            } catch {
-              return []
-            }
-          })()
-        : []),
-      // Brand favicon domain if configured
-      ...(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL
-        ? (() => {
-            try {
-              return [
-                {
-                  protocol: 'https' as const,
-                  hostname: new URL(process.env.NEXT_PUBLIC_BRAND_FAVICON_URL!).hostname,
-                },
-              ]
-            } catch {
-              return []
-            }
-          })()
-        : []),
     ],
   },
   typescript: {
@@ -196,11 +166,10 @@ const nextConfig: NextConfig = {
      */
     turbopackFileSystemCacheForDev: true,
     /**
-     * Only qualified CI builds opt into persistent compiler state. Other builds
-     * remain cache-off until their own memory, invalidation and restore costs are
-     * qualified. CI keeps this state separate from complete build-output caches.
+     * Off, explicitly: Next enables it by default, and a CI build compiles code its cache has
+     * never seen, so it only pays for writing the cache back (15-37s) on a disk that is discarded.
      */
-    turbopackFileSystemCacheForBuild: isTruthy(env.NEXT_BUILD_PERSISTENT_CACHE),
+    turbopackFileSystemCacheForBuild: false,
     /**
      * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
      * checker cannot load it — this shells out to the project-local `tsc` instead.
@@ -226,7 +195,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
       '@radix-ui/react-select',
-      '@radix-ui/react-tabs',
       '@radix-ui/react-checkbox',
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
@@ -716,6 +684,12 @@ const nextConfig: NextConfig = {
           source: '/favicon.ico',
           destination: '/icon.svg',
         },
+        /**
+         * Serves Stop from browser tabs still on v0.9.64 or earlier, which call the old abort
+         * path. Remove in any release after the first one that ships the move (the release
+         * after v0.9.64).
+         */
+        { source: '/api/copilot/chat/abort', destination: '/api/mothership/chat/abort' },
       ],
       /**
        * Fallback rewrites run only after every page and dynamic route has failed to match, so

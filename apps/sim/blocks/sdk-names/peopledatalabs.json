@@ -1,0 +1,16 @@
+{
+  "namespace": "peopledatalabs",
+  "methods": {
+    "pdl_autocomplete": "autocomplete",
+    "pdl_bulk_company_enrich": "bulkCompanyEnrich",
+    "pdl_bulk_person_enrich": "bulkPersonEnrich",
+    "pdl_clean_company": "companyCleaner",
+    "pdl_clean_location": "locationCleaner",
+    "pdl_clean_school": "schoolCleaner",
+    "pdl_company_enrich": "companyEnrich",
+    "pdl_company_search": "companySearch",
+    "pdl_person_enrich": "personEnrich",
+    "pdl_person_identify": "personIdentify",
+    "pdl_person_search": "personSearch"
+  }
+}

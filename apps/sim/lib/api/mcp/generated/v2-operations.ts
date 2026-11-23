@@ -224,11 +224,13 @@ import {
   v2RevokeSkillEditorContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
+import { v2GetSourceCatalogContract } from '@/lib/api/contracts/v2/source-catalog'
 import {
   v2CompleteSourcePermissionImportContract,
   v2CreateSourcePermissionImportContract,
   v2PutSourcePermissionImportPartContract,
 } from '@/lib/api/contracts/v2/source-permission-imports'
+import { v2GetSourceResourcesContract } from '@/lib/api/contracts/v2/source-resources'
 import {
   v2AddOrganizationDomainContract,
   v2DeleteSsoProviderContract,
@@ -308,6 +310,12 @@ import {
   v2UpdateWorkflowMcpServerContract,
 } from '@/lib/api/contracts/v2/workflow-mcp-servers'
 import {
+  v2ApplyWorkflowSourceContract,
+  v2CreateWorkflowFromSourceContract,
+  v2GetWorkflowSourceContract,
+  v2PlanWorkflowSourceContract,
+} from '@/lib/api/contracts/v2/workflow-source'
+import {
   v2ActivateWorkflowVersionContract,
   v2ApplyWorkflowOperationsContract,
   v2ApplyWorkflowVariablesContract,
@@ -372,6 +380,12 @@ import {
   v2ListWorkspaceOperationsContract,
 } from '@/lib/api/contracts/v2/workspace-operations'
 import { v2GetWorkspacePermissionConfigContract } from '@/lib/api/contracts/v2/workspace-permissions'
+import {
+  v2ApplyWorkspaceSourceContract,
+  v2FindMissingWorkspaceSourceBlobsContract,
+  v2GetWorkspaceSourceContract,
+  v2PlanWorkspaceSourceContract,
+} from '@/lib/api/contracts/v2/workspace-source'
 import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
@@ -469,6 +483,15 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/operations/route').then((route) => route.POST),
   },
+  applyWorkflowSource: {
+    contract: v2ApplyWorkflowSourceContract,
+    summary: 'Apply workflow source',
+    description:
+      'Write TypeScript workflow source to the saved draft in one all-or-nothing write. Send the files, lock and `base` from Get Workflow Source with your edits. Requires workspace write access. The live deployment is unchanged.\n\nThe server compiles the files and checks them against the same rules as canvas and operation edits. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is saved; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. A `409` means the draft changed since the source was read (`details.currentFingerprint`): get the source again, reapply the edit and retry. A rename onto a name another workflow in the folder took meanwhile returns `409` with `details.code` `SOURCE_NAME_TAKEN`. A `base.workflowId` that names another workflow is refused with `400` (`E_APPLY_WORKFLOW_MISMATCH`). Locked blocks cannot be changed from source. Unchanged blocks keep their ids and stored values, renamed blocks keep their ids, and existing blocks keep their canvas positions. Source that matches the draft returns `applied: false` without saving. The response re-prints the saved source with its new lock and `base`. `dryRun=true` runs every check without saving and answers `200` with the findings in `diagnostics`, a stale `base` included (`E_APPLY_STALE`). A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `413` for a body over the size limit, and `423` for a locked workflow or folder. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/source/route').then((route) => route.POST),
+  },
   applyWorkflowVariables: {
     contract: v2ApplyWorkflowVariablesContract,
     summary: 'Update workflow variables',
@@ -476,6 +499,14 @@ export const V2_MCP_OPERATIONS = {
       'Add, edit, or delete variables by name with workspace write access. Operations run in order. Values are coerced to their declared type when possible and otherwise stored as supplied. A no-op batch returns `changed: false`; read current values with Get workflow.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/variables/route').then((route) => route.PATCH),
+  },
+  applyWorkspaceSource: {
+    contract: v2ApplyWorkspaceSourceContract,
+    summary: 'Apply workspace source',
+    description:
+      'Apply a workspace source directory: create and update what it declares, in dependency order (custom tools, skills, tables, knowledge bases and files before the workflows that use them). Send the files of every managed kind, `kinds` (the kind folders the directory holds), the binary-file manifest (path, SHA-256 and size), and the `base` from Get Workspace Source. Binary bytes are staged first and the apply names them by hash: `sim workspaces source apply` stages them itself, and other clients find the ones the server lacks (Find Missing Workspace Source Blobs) and upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs`, a binary upload MCP clients cannot send. A directory without binary files needs no staging; a write whose bytes are not staged refuses the whole apply with `E_BLOB_MISSING` before anything is written, and a dry run lists those paths in `needBlobs`. Requires workspace write access.\n\nThe whole plan is checked and authorized before anything is written: any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is written. A resource changed on the server since the directory was read returns `409` (`SOURCE_STALE`); another apply still writing the workspace `409` (`SOURCE_BUSY`: nothing was written, apply again once it finished; a dry run never waits on one); a schema-locked table `423`; a directory over a size limit `413` (at most 500 resources per kind, 100 workflows and 1000 changes per apply). A resource, table column or option the directory no longer declares is deleted only with `options.allowDelete`; without it, deleting one the base records is refused, and a server resource the base never recorded is kept with a warning. Each change is written by the operation that owns it and audited by it; workflow, skill, secret and deployment changes follow use cases a workspace API key cannot call, so a workspace API key gets `E_APPLY_FORBIDDEN` for those kinds (narrow the apply with `options.only`). Writes commit one by one: a write that fails mid-apply answers `200` with `failed` and the changes written before it, and applying the same directory again continues. The response carries the files re-printed from what was saved and the next `base`. `dryRun=true` plans, checks and authorizes without writing and answers `200` with the findings in `diagnostics`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/route').then((route) => route.POST),
   },
   bulkAddPermissionGroupMembers: {
     contract: v2BulkAddPermissionGroupMembersContract,
@@ -967,6 +998,17 @@ export const V2_MCP_OPERATIONS = {
       'Create a workflow folder at a non-root path with workspace write access. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/folders/route').then((route) => route.POST),
   },
+  createWorkflowFromSource: {
+    contract: v2CreateWorkflowFromSourceContract,
+    summary: 'Create workflow from source',
+    description:
+      "Create a workflow from TypeScript workflow source in one all-or-nothing write. Requires workspace write access. The source is compiled and checked against the same rules as Apply Workflow Source; every block is new. Any error returns `400` with `details.code` `SOURCE_REJECTED` and `details.diagnostics` (each with a file, line and column), and nothing is created; a source over a size limit (`E_LIMIT_EXCEEDED`) gets the same body with `413`. The name defaults to the one in the source's `workflow('…')` call; a name already used in the folder returns `409` with `details.code` `SOURCE_NAME_TAKEN`. The response carries the new `workflowId` and the source re-printed from what was saved, with its lock and `base`, ready for the next apply. The workflow is not deployed. `dryRun=true` runs every check without creating anything and answers `200` with the findings in `diagnostics`. A request refused before the source is evaluated is refused on a dry run too: `400` for an invalid body, `404` for a missing folder, `413` for a body over the size limit, and `423` for a locked folder. A taken name is checked after the source compiles and answers `409` (`SOURCE_NAME_TAKEN`) on a dry run as on a create. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route').then(
+        (route) => route.POST
+      ),
+  },
   createWorkflowMcpServer: {
     contract: v2CreateWorkflowMcpServerContract,
     summary: 'Create workflow MCP server',
@@ -1313,7 +1355,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExecuteToolContract,
     summary: 'Run tool',
     description:
-      'Run a built-in tool using published parameter IDs. Requires workspace read access. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references in `user-only` parameters; other values pass through unchanged. Send connected credentials as top-level `credentialId`, not inside `input`. Third-party refusal returns `200` with `status: "failed"`; API failures use the error envelope. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key usage is billed to the workspace. A call that would use a hosted key returns `402` when the workspace exceeds usage or billing limits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Run a built-in tool using published parameter IDs. Requires workspace read access. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references in `user-only` parameters; other values pass through unchanged. Send connected credentials as top-level `credentialId`, not inside `input`. Third-party refusal returns `200` with `status: "failed"`; API failures use the error envelope. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. A `credentialId` you cannot use in this workspace returns `403`. Hosted-key usage is billed to the workspace. A call that would use a hosted key returns `402` when the workspace exceeds usage or billing limits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/tools/[toolId]/execute/route').then((route) => route.POST),
   },
@@ -1332,6 +1374,16 @@ export const V2_MCP_OPERATIONS = {
       'Export the saved draft as portable workflow data with workspace read access. Registered credential fields and opaque table/tool values are cleared; environment references and ordinary workflow variables remain included. Review other configuration before sharing.\n\nDefault exports clear workspace bindings. Use `includeWorkspaceBindings=true` to retain non-secret bindings for a same-workspace import, or `includeReferences=true` for source identities and field occurrences used by mapped imports. Exporting records an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/export/route').then((route) => route.GET),
+  },
+  findMissingWorkspaceSourceBlobs: {
+    contract: v2FindMissingWorkspaceSourceBlobsContract,
+    summary: 'Find missing workspace source blobs',
+    description:
+      'List which binary files of a workspace source directory the caller has not staged in this workspace, by SHA-256, so a client stages only those; an interrupted upload resumes without resending what is already staged. Asking renews nothing: staged bytes expire a day after they were last staged, and one that expires within the hour is listed as missing, so the client stages it again before applying. Staging is per caller (a person, or one workspace API key). Requires workspace write access. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:write`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route').then(
+        (route) => route.POST
+      ),
   },
   forkWorkspace: {
     contract: v2ForkWorkspaceContract,
@@ -1617,6 +1669,26 @@ export const V2_MCP_OPERATIONS = {
       'Get a workspace or built-in skill, including its full instructions. Built-in skills are read-only. Requires workspace read access.\n\nOAuth scope: `api:read`.',
     handler: () => import('@/app/api/v2/skills/[skillId]/route').then((route) => route.GET),
   },
+  getSourceCatalog: {
+    contract: v2GetSourceCatalogContract,
+    summary: 'Get source catalog',
+    description:
+      'Get the source catalog, the block catalog that workflow source is compiled and type-checked against: every block type the caller may place in the workspace, with its fields, visibility conditions, outputs, triggers, and SDK builder names. Pass `workflowId` to add the block types already placed in that workflow. The response carries the catalog `hash` as an `ETag`; send it back in `If-None-Match` to receive `304 Not Modified` with no body when the catalog is unchanged. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/catalog/route').then(
+        (route) => route.GET
+      ),
+  },
+  getSourceResources: {
+    contract: v2GetSourceResourcesContract,
+    summary: 'Get source resources',
+    description:
+      'List the workspace resources workflow source can name, each with the key source uses for it: tables with their columns, knowledge bases, saved credentials with their provider, workflows with their start-block inputs, workspace skills and custom tools, MCP servers with the tool names they list, and the names (never values) of the environment variables a run can read. A resource keeps its key when renamed; one that no source has named yet is given its key by this call. Each kind lists its oldest 1000 resources, and `truncated` says when there were more. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route').then(
+        (route) => route.GET
+      ),
+  },
   getSsoPolicy: {
     contract: v2GetSsoPolicyContract,
     summary: 'Get SSO policy',
@@ -1744,6 +1816,14 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/route').then((route) => route.GET),
   },
+  getWorkflowSource: {
+    contract: v2GetWorkflowSourceContract,
+    summary: 'Get workflow source',
+    description:
+      "Read the saved draft as TypeScript source written against the workflow SDK, with its identity lock and its `base`. The lock binds each block key in the source to its stored id; `base` records the workflow, workspace, freshness fingerprint and block catalog the source was read at. The fingerprint ignores canvas positions, so moving blocks does not change it. Workspace resources such as tables and knowledge bases appear by their resource key: allocated from the resource's name the first time source names it, then never changed, so renaming the resource keeps its key. An id that matches no resource in the workspace prints as an unresolved reference. Function-block code goes to `functions/*` files unless `functionCode` is `inline`. A workflow too large to apply back as source (more than 2000 blocks or 2000 variables, over 4000000 bytes of files in all, or nested deeper than 200 levels) returns `413` naming the measured size. This read records no audit event. `HEAD` checks access as `GET` does and answers with no body, without reading the draft, so it never reports a too-large workflow. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/source/route').then((route) => route.GET),
+  },
   getWorkflowState: {
     contract: v2GetWorkflowStateContract,
     summary: 'Get workflow state',
@@ -1820,6 +1900,14 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route').then(
         (route) => route.GET
       ),
+  },
+  getWorkspaceSource: {
+    contract: v2GetWorkspaceSourceContract,
+    summary: 'Get workspace source',
+    description:
+      "Read the workspace as a source directory: `secrets.ts` (secret names, never values) and `credentials.ts` (credential keys, never tokens), one declaration file per MCP server (`mcp/<key>.ts`), per deployment (`deployments/<workflow key>.ts`), per table (`tables/<key>.ts`), per custom tool (`tools/<key>.ts`, its code in `tools/<key>.js`) and per skill (`skills/<key>.md`), one folder per knowledge base (`knowledge/<key>/`, its settings beside its documents in `docs/`) and per workflow (`workflows/<key>/`, exactly as Get Workflow Source prints it, with its lock and base), every workspace file under `files/`, the binary files (workspace files and knowledge documents) listed by hash with an `href` to download each, and `base`, which binds each resource key to its id and records each resource's fingerprint. Each resource appears by its resource key: allocated from its name the first time source names it, then never changed. `kinds` narrows the read; the directory then manages only those kinds. A resource left out (too large to read as source, not readable by the caller, or past the directory's declaration or binary-file budget) is listed in `skipped` with why, and a kind holding more than 500 resources is left out with `E_LIMIT_EXCEEDED`. A table's rows are part of source only when its declaration opts in with `rows` (`tables/<key>.rows.jsonl`, at most 10000 rows each); environment values and credentials never are. This read records no audit event. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.",
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/route').then((route) => route.GET),
   },
   grantSkillEditor: {
     contract: v2GrantSkillEditorContract,
@@ -2392,6 +2480,23 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Move up to 100 workflows to one folder with workspace write access. Each move succeeds or fails independently; missing, archived, or locked workflows appear in `failed`. Duplicate IDs are ignored. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/move/route').then((route) => route.POST),
+  },
+  planWorkflowSource: {
+    contract: v2PlanWorkflowSourceContract,
+    summary: 'Plan workflow source',
+    description:
+      'Report what Apply Workflow Source would do with this source, without writing: whether the draft changed since `base` (`E_APPLY_STALE`), the diff, and every finding, exactly as `dryRun=true` reports them, with `200`. A read: it needs only workspace read access, draws on the source-plan budget rather than the source-write budget (a server already running as many plans as it allows answers `429`), and records no audit or analytics event, so `sim workflows source status` never spends what an apply needs. `allowDelete=true` plans block and variable deletes instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`. Returns `403` while workflows as code is not enabled. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/source/plan/route').then((route) => route.POST),
+  },
+  planWorkspaceSource: {
+    contract: v2PlanWorkspaceSourceContract,
+    summary: 'Plan workspace source',
+    description:
+      'Report what Apply Workspace Source would do with this directory, without writing: every planned change and finding, exactly as `dryRun=true` reports them (a resource changed on the server since the directory was read included). A read: it needs only workspace read access, draws on the source-plan budget, one unit per workflow folder it evaluates as an apply does, takes no apply lease or apply slot and records no audit event, so `sim workspaces source status` never spends the source-write budget or holds up an apply. A server already running as many plans as it allows answers `429`. Each change is still checked by the operation that owns it, so a change the caller may not write is reported as refused. The body is an apply body without `provenance`. Returns `403` while workflows as code is not enabled.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workspaces/[workspaceId]/source/plan/route').then((route) => route.POST),
   },
   prepareSearchSources: {
     contract: v2PrepareSearchSourcesContract,

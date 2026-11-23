@@ -27,8 +27,8 @@ The block references actions by id in `tools.access`; the generator looks each o
 
 ## What the generator does
 
-Run with `cd apps/sim && bun run generate-docs` (or `bun run scripts/generate-docs.ts`
-from the repo root). One pass (`generateAllBlockDocs`):
+Run with `bun run generate:docs` from the repo root (`bun run generate` runs it with every
+other generator). One pass (`generateAllBlockDocs`):
 
 1. **Copies icons** `apps/sim/components/icons.tsx` → `apps/docs/components/icons.tsx` and
    builds `apps/docs/components/ui/icon-mapping.ts`.

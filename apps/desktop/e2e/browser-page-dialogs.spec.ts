@@ -215,9 +215,15 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       expect(result.ok, result.error).toBe(true)
       return result.ok ? result.result : undefined
     }
+    const pageDialog = () => shell.evaluate(() => (globalThis as Bridge).pageDialog ?? null)
     /** Browser-chrome actions are user gestures, so each follows a real click in Sim. */
     const panelAction = async (action: Record<string, unknown>) => {
-      if (action.action === 'respond-dialog' && (await shell.getByRole('dialog').count())) {
+      // The store holds a dialog before its modal finishes the native-surface handshake and
+      // renders, so a live dialog is answered through the modal once it appears.
+      if (
+        action.action === 'respond-dialog' &&
+        (await pageDialog())?.requestId === action.requestId
+      ) {
         await shell
           .getByRole('button', {
             name: action.allowed ? 'Leave' : 'Stay',
@@ -236,7 +242,6 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
         { action, scope: SCOPE }
       )
     }
-    const pageDialog = () => shell.evaluate(() => (globalThis as Bridge).pageDialog ?? null)
     const inPage = <T>(script: string) =>
       shellApp.evaluate(
         async ({ webContents }, { script, url }) =>

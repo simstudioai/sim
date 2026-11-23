@@ -1,0 +1,34 @@
+// @sim-sdk 1
+import { raw, setVariables, t, table, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow(
+  'Fixture',
+  {
+    variables: {
+      lastrun: { name: 'Last Run', type: 'string', value: 'never' },
+      retries: { type: 'number', value: 2 },
+    },
+  },
+  ({ vars }) => {
+    const start = trigger.start('Start', { inputFormat: {} })
+    const query = table.queryRows('Query', {
+      tableId: raw({ $sim: 'unresolved', kind: 'table', id: 'tbl_deleted' }),
+      limit: raw({
+        $sim: 'csv',
+        items: [
+          { $sim: 'resource', kind: 'knowledge-document', key: 'a' },
+          { $sim: 'unresolved', kind: 'knowledge-document', id: 'doc_9' },
+        ],
+      }),
+    })
+    const setVars = setVariables('Set vars', {
+      variables: [
+        { variableId: vars.retries, value: t`${vars.retries}` },
+        { variableId: vars.lastrun, value: t`${query.rows}` },
+      ],
+    })
+
+    start.to(query)
+    query.to(setVars)
+  }
+)

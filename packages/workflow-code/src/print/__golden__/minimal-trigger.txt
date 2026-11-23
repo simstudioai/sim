@@ -1,0 +1,6 @@
+// @sim-sdk 1
+import { trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Hello', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+})

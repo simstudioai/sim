@@ -1,7 +1,10 @@
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
-import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace/file-manager'
+import {
+  loadActiveWorkspaceContext,
+  type WorkspaceFileCreateHook,
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { encodeVfsPathSegments, encodeVfsSegment } from '@/lib/vfs/path'
 import {
@@ -23,6 +26,8 @@ export interface WriteWorkspaceFileBufferByPathInput {
   exactName?: boolean
   syncLiveDoc?: boolean
   secretProvenance?: WorkspaceFileSecretProvenance
+  /** A create's writes that commit with the file, in its transaction. In-process only. */
+  withinCreate?: WorkspaceFileCreateHook
 }
 
 export interface WriteWorkspaceFileByPathResult {
@@ -86,6 +91,7 @@ async function executeCreateBuffer({
       folderId,
       exactName: input.exactName ?? true,
       secretProvenance: input.secretProvenance,
+      ...(input.withinCreate ? { withinCreate: input.withinCreate } : {}),
     },
   })
   return toResult(result.file, 'create')

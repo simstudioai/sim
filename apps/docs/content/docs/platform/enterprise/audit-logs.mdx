@@ -104,7 +104,7 @@ Events use identifiers such as `resource.action`. These categories are represent
 | Links | `sim_link.created`, `sim_link.updated`, `sim_link.deleted` |
 | Exports and drains | `audit_logs.exported`, `data_drain.created`, `data_drain.updated`, `data_drain.ran`, `data_drain.tested` |
 
-Authentication failures and password-reset requests use an anonymous actor and record the target account separately. Impersonation and administrative session revocations identify the operator and target organization. Table-row mutations record summaries and counts without copying row contents.
+Authentication failures and password-reset requests use an anonymous actor and record the target account separately. Impersonation and administrative session revocations identify the operator and target organization. Table-row mutations record summaries and counts without copying row contents. A workflow or workspace written from source by the CLI (`workflow.created`, `workflow.updated` or `workspace.updated`) records `metadata.client` as `cli` and, when the source directory is in a git repository and `git` can read them, `metadata.gitSha` (the commit checked out) and `metadata.repo` (the `origin` remote URL, with any credentials removed). Either may be absent, for example `repo` in a repository with no `origin`.
 
 When a workflow run makes the same kind of change to a table many times in quick succession, such as inserting rows in a loop, the repeats are merged into one `table.updated` entry. The merged entry keeps every row ID in `metadata.rowIds`, sums the counts, and records in `metadata.rollup` how many changes it covers and when the first and last happened. The actor of any workflow-made entry names the workflow (`metadata.actor.workflowId`) and the run (`metadata.actor.executionId`). Credential use by a workflow run is merged the same way: one `credential.accessed` entry per credential, counting the repeats, that names the workflow (`metadata.workflowId`) and the run (`metadata.executionId`).
 
@@ -118,7 +118,6 @@ On billing-disabled deployments, enable audit logs through enterprise configurat
 
 ```bash
 AUDIT_LOGS_ENABLED=true
-NEXT_PUBLIC_AUDIT_LOGS_ENABLED=true
 ```
 
 Explicit feature values take precedence over the enterprise master setting. Billing-enabled self-hosted deployments retain the Enterprise gate. See [self-hosted enterprise setup](/platform/enterprise/self-hosted).

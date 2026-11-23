@@ -1,6 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
+import { reindexCanonicalModesByPosition } from '@sim/workflow-code/catalog/canonical-index'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
-import { reindexCanonicalModesByPosition } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 

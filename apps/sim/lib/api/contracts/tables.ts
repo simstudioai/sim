@@ -177,7 +177,22 @@ const descriptionSchema = z
 export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
-  tableId: z.string().min(1).describe('Unique table identifier.'),
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).'
+    ),
+})
+
+/** A restore's address: the id alone, since archived tables' names need not be unique. */
+export const archivedTableIdParamsSchema = z.object({
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names.'
+    ),
 })
 
 export const tableRowParamsSchema = tableIdParamsSchema.extend({
@@ -1011,7 +1026,7 @@ export const deleteTableContract = defineRouteContract({
 export const restoreTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/table/[tableId]/restore',
-  params: tableIdParamsSchema,
+  params: archivedTableIdParamsSchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),

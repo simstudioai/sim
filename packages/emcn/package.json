@@ -26,6 +26,10 @@
       "types": "./src/icons/index.ts",
       "default": "./src/icons/index.ts"
     },
+    "./syntax-theme": {
+      "types": "./src/components/code/syntax-theme.ts",
+      "default": "./src/components/code/syntax-theme.ts"
+    },
     "./*": {
       "types": "./src/*",
       "default": "./src/*"
@@ -58,7 +62,6 @@
     "@radix-ui/react-slider": "^1.6.1",
     "@radix-ui/react-slot": "^1.2.2",
     "@radix-ui/react-switch": "^1.4.1",
-    "@radix-ui/react-tabs": "^1.2.1",
     "@tanstack/react-virtual": "^3.13.24",
     "class-variance-authority": "^0.7.1",
     "framer-motion": "^12.5.0",
@@ -80,7 +83,6 @@
     "@radix-ui/react-slider": "1.6.1",
     "@radix-ui/react-slot": "1.5.0",
     "@radix-ui/react-switch": "1.4.1",
-    "@radix-ui/react-tabs": "1.2.1",
     "@sim/tsconfig": "workspace:*",
     "@tanstack/react-virtual": "3.14.26",
     "@types/prismjs": "^1.26.5",

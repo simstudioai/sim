@@ -1,11 +1,11 @@
 import type { db } from '@sim/db'
 import { resumeQueue, workflow, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { describeError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 import { enqueueOutboxEvents, MAX_BULK_ENQUEUE_EVENTS } from '@/lib/core/outbox/service'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
@@ -214,9 +214,6 @@ export async function recordExecutionStops(
  * worker. The deadline (`signal`, else {@link SIGNAL_DEADLINE_MS}) bounds only the Redis writes;
  * every execution this process runs is aborted first. Returns how many flags Redis refused or
  * the deadline left unsent; never throws.
- *
- * Without Redis at all the flag is process-local by design (`markExecutionCancelled`) and a
- * retry from any process could reach no further, so that outcome does not count as refused.
  */
 export async function signalExecutionStops(
   executions: readonly Pick<PlannedExecutionStop, 'executionId' | 'executionDeadlineAt'>[],
@@ -243,7 +240,7 @@ export async function signalExecutionStops(
       const result = await markExecutionCancelled(execution.executionId, {
         executionDeadlineAt: execution.executionDeadlineAt,
       })
-      if (!result.durablyRecorded && result.reason !== 'redis_unavailable') refused += 1
+      if (!result.durablyRecorded) refused += 1
     } catch (error) {
       refused += 1
       logger.warn('Failed to signal an execution being stopped', {

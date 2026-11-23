@@ -1,4 +1,5 @@
 process.env.DATABASE_URL ??= 'postgres://localhost/test'
+process.env.REDIS_URL ??= 'redis://localhost:6379'
 process.env.NODE_ENV ??= 'test'
 process.env.BETTER_AUTH_URL ??= 'http://localhost:3000'
 process.env.BETTER_AUTH_SECRET ??= 'test-better-auth-secret-at-least-32-chars'

@@ -2,7 +2,6 @@ import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface UsageLimitReachedEmailProps {
   userName?: string
@@ -27,9 +26,8 @@ export function UsageLimitReachedEmail({
   limit,
   ctaLink,
 }: UsageLimitReachedEmailProps) {
-  const brand = getBrandConfig()
   const isOrganization = scope === 'organization'
-  const previewText = `${brand.name}: You've reached your ${planName} usage limit`
+  const previewText = `Sim: You've reached your ${planName} usage limit`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>

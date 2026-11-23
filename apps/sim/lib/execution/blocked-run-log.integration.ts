@@ -1,7 +1,7 @@
 /**
  * The blocked-run log claim against a real Redis: concurrent refusals from several app
- * instances must agree on exactly one row per workflow, gate, and window. Skipped without
- * `TEST_REDIS_URL`. Each test claims a fresh workflow id, so no test sees another's key.
+ * instances must agree on exactly one row per workflow, gate, and window. Each test claims a
+ * fresh workflow id, so no test sees another's key.
  */
 
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
@@ -16,7 +16,7 @@ vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 import { BLOCKED_RUN_LOG_WINDOW_SECONDS, claimBlockedRunLog } from '@/lib/execution/blocked-run-log'
 
-describe.runIf(Boolean(redisUrl))('blocked-run log claim', () => {
+describe('blocked-run log claim', () => {
   let redis: Redis
   const workflowIds: string[] = []
 
@@ -27,7 +27,6 @@ describe.runIf(Boolean(redisUrl))('blocked-run log claim', () => {
   }
 
   beforeAll(async () => {
-    if (!redisUrl) throw new Error('TEST_REDIS_URL is required for this suite')
     redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
   })

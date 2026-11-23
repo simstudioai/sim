@@ -1,11 +1,14 @@
+import { getRegistrationPolicy, type RegistrationMode } from '@sim/deployment-config/registration'
 import { vi } from 'vitest'
 
 /**
  * Mutable value-export state for the shared `@/lib/core/config/env-flags` mock.
  * Defaults mirror the real module evaluated under the vitest environment
- * (NODE_ENV=test, no feature env vars set): only `isTest`,
- * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
- * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
+ * (NODE_ENV=test, no feature env vars set): `registrationMode` is `open`, and
+ * only `isTest`, `isChatEnabled` (opt-out, on unless `NEXT_PUBLIC_CHAT_DISABLED`
+ * is set), `isInboxEnabled`, and `isSessionPoliciesEnabled` are true. The
+ * registration booleans are not state: they derive from `registrationMode`
+ * (see {@link registrationFlagAccessors}), so set the mode instead.
  */
 interface EnvFlagsMockState {
   isProd: boolean
@@ -21,9 +24,7 @@ interface EnvFlagsMockState {
   isAuthDisabled: boolean
   egressAllowedHosts: string | undefined
   egressAllowedIpRanges: string | undefined
-  legacyPrivateDatabaseAccess: boolean
-  isRegistrationDisabled: boolean
-  isEmailPasswordEnabled: boolean
+  registrationMode: RegistrationMode
   isSignupMxValidationEnabled: boolean
   isAppConfigEnabled: boolean
   isSlackExtendedScopesEnabled: boolean
@@ -36,7 +37,6 @@ interface EnvFlagsMockState {
   isSandboxDeploymentEntitled: boolean
   isSandboxesEnabled: boolean
   isScimEnabled: boolean
-  isWhitelabelingEnabled: boolean
   isAuditLogsEnabled: boolean
   isCustomBlocksEnabled: boolean
   isCredentialGroupsEnabled: boolean
@@ -55,7 +55,6 @@ interface EnvFlagsMockState {
   isGoogleAuthDisabled: boolean
   isGithubAuthDisabled: boolean
   isMicrosoftAuthDisabled: boolean
-  isEmailSignupDisabled: boolean
   isReactGrabEnabled: boolean
   isReactScanEnabled: boolean
 }
@@ -74,27 +73,21 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAuthDisabled: false,
   egressAllowedHosts: undefined,
   egressAllowedIpRanges: undefined,
-  legacyPrivateDatabaseAccess: false,
-  isRegistrationDisabled: false,
-  isEmailPasswordEnabled: true,
+  registrationMode: 'open',
   isSignupMxValidationEnabled: false,
   isAppConfigEnabled: false,
   isSlackExtendedScopesEnabled: false,
   isTriggerDevEnabled: false,
   isSsoEnabled: false,
-  /** OAuth-aware route behavior is available unless a suite overrides it. */
   isUsageMonitoringEnabled: false,
   isAccessControlEnabled: false,
   isOrganizationsEnabled: false,
-  /** Live Search is the default Sim Search backend; indexed search is dormant. */
-  // True with billing off and no flags set — these carry a legacy default of
-  // `true` so upgrades do not remove a feature. See
-  // ENTERPRISE_FEATURE_LEGACY_DEFAULTS.
+  // True with billing off and no flags set: their `selfHostedDefault` is `true`
+  // in ENTERPRISE_FEATURES (`@sim/deployment-config/enterprise-features`).
   isInboxEnabled: true,
   isSandboxDeploymentEntitled: false,
   isSandboxesEnabled: false,
   isScimEnabled: false,
-  isWhitelabelingEnabled: true,
   isSessionPoliciesEnabled: true,
   isAuditLogsEnabled: false,
   isCustomBlocksEnabled: false,
@@ -113,7 +106,6 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isGoogleAuthDisabled: false,
   isGithubAuthDisabled: false,
   isMicrosoftAuthDisabled: false,
-  isEmailSignupDisabled: false,
   isReactGrabEnabled: false,
   isReactScanEnabled: false,
 }
@@ -141,14 +133,12 @@ export const envFlagsMockFns = {
   getEgressAllowedIpRanges: vi.fn<() => string | undefined>(() =>
     envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
   ),
-  isLegacyPrivateDatabaseAccessAllowed: vi.fn<() => boolean>(
-    () => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess
-  ),
   getAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(() => null),
   getPreviewBlocksFromEnv: vi.fn<() => string[]>(() => []),
   getBlacklistedProvidersFromEnv: vi.fn<() => string[]>(() => []),
   getAllowedMcpDomainsFromEnv: vi.fn<() => string[] | null>(() => null),
   getCostMultiplier: vi.fn<() => number>(() => 1),
+  getRegistrationMode: vi.fn<() => RegistrationMode>(() => envFlagsState.registrationMode),
 }
 
 /**
@@ -178,6 +168,9 @@ export function resetEnvFlagsMock(): void {
   envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReset().mockImplementation(() => [])
   envFlagsMockFns.getAllowedMcpDomainsFromEnv.mockReset().mockImplementation(() => null)
   envFlagsMockFns.getCostMultiplier.mockReset().mockImplementation(() => 1)
+  envFlagsMockFns.getRegistrationMode
+    .mockReset()
+    .mockImplementation(() => envFlagsState.registrationMode)
   envFlagsMockFns.getEgressAllowedHosts
     .mockReset()
     .mockImplementation(() =>
@@ -188,9 +181,6 @@ export function resetEnvFlagsMock(): void {
     .mockImplementation(() =>
       envFlagsState.isHosted ? undefined : envFlagsState.egressAllowedIpRanges
     )
-  envFlagsMockFns.isLegacyPrivateDatabaseAccessAllowed
-    .mockReset()
-    .mockImplementation(() => !envFlagsState.isHosted && envFlagsState.legacyPrivateDatabaseAccess)
 }
 
 /**
@@ -208,18 +198,49 @@ function flagAccessor<K extends keyof EnvFlagsMockState>(key: K): PropertyDescri
   }
 }
 
+/** Registration booleans derived from `registrationMode`, as the real module does. */
+interface RegistrationFlags {
+  readonly isSelfServeRegistrationClosed: boolean
+  readonly isEmailSignupAllowed: boolean
+  readonly isEmailPasswordAuthEnabled: boolean
+}
+
+/**
+ * Read-only accessors deriving the registration booleans from the current
+ * `registrationMode` through the same `getRegistrationPolicy` the real module uses.
+ */
+const registrationFlagAccessors: Record<keyof RegistrationFlags, PropertyDescriptor> = {
+  isSelfServeRegistrationClosed: {
+    enumerable: true,
+    get: () => getRegistrationPolicy(envFlagsState.registrationMode).selfServeRegistrationClosed,
+  },
+  isEmailSignupAllowed: {
+    enumerable: true,
+    get: () => getRegistrationPolicy(envFlagsState.registrationMode).emailSignupAllowed,
+  },
+  isEmailPasswordAuthEnabled: {
+    enumerable: true,
+    get: () => getRegistrationPolicy(envFlagsState.registrationMode).emailPasswordAuthEnabled,
+  },
+}
+
 /**
  * Complete, stateful mock module for `@/lib/core/config/env-flags`, installed
  * globally in `apps/sim/vitest.setup.ts`. Every export of the real module is
  * present. Flag reads are live: override via {@link setEnvFlags} (or direct
  * property assignment) and restore with {@link resetEnvFlagsMock}.
  */
-export const envFlagsMock: EnvFlagsMockState & typeof envFlagsMockFns = Object.defineProperties(
-  { ...envFlagsMockFns } as EnvFlagsMockState & typeof envFlagsMockFns,
-  Object.fromEntries(
-    (Object.keys(defaultEnvFlagsState) as (keyof EnvFlagsMockState)[]).map((key) => [
-      key,
-      flagAccessor(key),
-    ])
-  )
+type EnvFlagsMock = EnvFlagsMockState & RegistrationFlags & typeof envFlagsMockFns
+
+export const envFlagsMock: EnvFlagsMock = Object.defineProperties(
+  { ...envFlagsMockFns } as EnvFlagsMock,
+  {
+    ...Object.fromEntries(
+      (Object.keys(defaultEnvFlagsState) as (keyof EnvFlagsMockState)[]).map((key) => [
+        key,
+        flagAccessor(key),
+      ])
+    ),
+    ...registrationFlagAccessors,
+  }
 )

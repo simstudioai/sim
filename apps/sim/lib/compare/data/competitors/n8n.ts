@@ -1020,26 +1020,6 @@ export const n8nProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          "No: n8n's OEM/embed documentation states n8n branding stays visible in the editor when embedded, and full white-labeling is not supported through their OEM offering; only self-hosted customers doing manual source-code modification (editing design-system CSS/Vue components and i18n text) can rebrand it themselves.",
-        detail:
-          'n8n\'s docs say: "If full white-labeling is a hard requirement for your product, OEM isn\'t the right fit." A full rebrand is only possible via unsupported self-hosted source modification.',
-        shortValue: 'No, n8n branding stays visible even via OEM/embed',
-        confidence: 'verified',
-        sources: [
-          {
-            url: 'https://n8n.io/oem/',
-            label: 'OEM | Embedded IPaaS | n8n',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://community.n8n.io/t/white-label-incorporate-n8n-in-your-product/18146',
-            label: 'White label / Incorporate n8n in your product (n8n Community)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes: n8n lets self-hosted instances configure execution-data retention via environment variables (EXECUTIONS_DATA_MAX_AGE, EXECUTIONS_DATA_PRUNE_MAX_COUNT), and n8n Cloud Enterprise plans support up to 50,000 executions with unlimited retention versus fixed limits on lower tiers.',

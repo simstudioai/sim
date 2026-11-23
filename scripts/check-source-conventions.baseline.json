@@ -2,7 +2,6 @@
   "relative-import": {
     "apps/sim/app/(landing)/knowledge/components/knowledge-product-previews/index.ts": 1,
     "apps/sim/app/api/chat/[identifier]/otp/route.test.ts": 1,
-    "apps/sim/app/api/copilot/chat/stream/route.test.ts": 1,
     "apps/sim/app/api/copilot/confirm/route.test.ts": 1,
     "apps/sim/app/api/copilot/tool-permission/route.test.ts": 1,
     "apps/sim/app/api/cron/renew-subscriptions/route.test.ts": 1,
@@ -150,7 +149,6 @@
     "apps/sim/lib/billing/application/organization-settings-actor.test.ts": 1,
     "apps/sim/lib/billing/client/utils.ts": 1,
     "apps/sim/lib/billing/webhooks/enterprise.ts": 1,
-    "apps/sim/lib/branding/defaults.ts": 1,
     "apps/sim/lib/chunkers/regex-chunker.test.ts": 1,
     "apps/sim/lib/chunkers/sentence-chunker.test.ts": 1,
     "apps/sim/lib/chunkers/structured-data-chunker.test.ts": 1,
@@ -181,9 +179,7 @@
     "apps/sim/lib/mcp/error-diagnostics.test.ts": 1,
     "apps/sim/lib/mcp/oauth/revoke.test.ts": 1,
     "apps/sim/lib/mcp/oauth/storage.test.ts": 1,
-    "apps/sim/lib/mcp/storage/factory.ts": 3,
-    "apps/sim/lib/mcp/storage/memory-cache.test.ts": 1,
-    "apps/sim/lib/mcp/storage/memory-cache.ts": 1,
+    "apps/sim/lib/mcp/storage/factory.ts": 2,
     "apps/sim/lib/mcp/storage/redis-cache.ts": 1,
     "apps/sim/lib/mcp/tool-validation.test.ts": 2,
     "apps/sim/lib/mcp/workflow-mcp-sync.ts": 2,
@@ -203,7 +199,6 @@
     "apps/sim/lib/mothership/chat/selection-context.test.ts": 1,
     "apps/sim/lib/mothership/chat/sim-key-redaction.test.ts": 1,
     "apps/sim/lib/mothership/chat/terminal-state.test.ts": 1,
-    "apps/sim/lib/mothership/request/go/inline-images.test.ts": 1,
     "apps/sim/lib/mothership/request/handlers/complete.ts": 2,
     "apps/sim/lib/mothership/request/handlers/error.ts": 2,
     "apps/sim/lib/mothership/request/handlers/index.ts": 9,
@@ -235,7 +230,6 @@
     "apps/sim/lib/mothership/tool-executor/register-handlers.ts": 6,
     "apps/sim/lib/mothership/tools/client/run-tool-execution.test.ts": 1,
     "apps/sim/lib/mothership/tools/server/files/edit-content.ts": 3,
-    "apps/sim/lib/mothership/tools/server/files/intent-store.test.ts": 1,
     "apps/sim/lib/mothership/tools/server/files/workspace-file.ts": 3,
     "apps/sim/lib/mothership/tools/server/user/get-credentials.test.ts": 1,
     "apps/sim/lib/mothership/tools/workflow-tools.test.ts": 1,
@@ -289,8 +283,7 @@
     "apps/sim/lib/workflows/migrations/whatsapp-interactive-type.test.ts": 1,
     "apps/sim/lib/workflows/references/binding-credentials.test.ts": 2,
     "apps/sim/lib/workflows/schedules/deploy.test.ts": 4,
-    "apps/sim/lib/workflows/subblocks/context.test.ts": 2,
-    "apps/sim/lib/workflows/subblocks/visibility.test.ts": 1,
+    "apps/sim/lib/workflows/subblocks/context.test.ts": 1,
     "apps/sim/next.config.ts": 5,
     "apps/sim/providers/gemini/core.ts": 1,
     "apps/sim/providers/gemini/streaming-tool-loop.ts": 2,
@@ -619,7 +612,6 @@
     "apps/sim/app/api/v1/admin/organizations/[id]/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/session-policy/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/transfer-ownership/route.ts": 2,
-    "apps/sim/app/api/v1/admin/organizations/[id]/whitelabel/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/route.ts": 2,
     "apps/sim/app/api/v1/admin/outbox/[id]/requeue/route.ts": 2,
     "apps/sim/app/api/v1/admin/outbox/route.ts": 2,
@@ -663,8 +655,7 @@
     "apps/sim/app/api/workspaces/route.ts": 2
   },
   "bare-route-handler": {
-    "apps/sim/app/api/health/route.ts": 1,
-    "apps/sim/app/api/mothership/chat/stream/route.ts": 1
+    "apps/sim/app/api/health/route.ts": 1
   },
   "log-message-tag": {}
 }

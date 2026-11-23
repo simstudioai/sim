@@ -1,0 +1,71 @@
+{
+  "name": "@sim/workspace-code",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.4.4",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./diagnostics/codes": {
+      "types": "./src/diagnostics/codes.ts",
+      "default": "./src/diagnostics/codes.ts"
+    },
+    "./base": {
+      "types": "./src/base.ts",
+      "default": "./src/base.ts"
+    },
+    "./layout": {
+      "types": "./src/layout.ts",
+      "default": "./src/layout.ts"
+    },
+    "./promote": {
+      "types": "./src/promote.ts",
+      "default": "./src/promote.ts"
+    },
+    "./limits": {
+      "types": "./src/limits.ts",
+      "default": "./src/limits.ts"
+    },
+    "./status": {
+      "types": "./src/status.ts",
+      "default": "./src/status.ts"
+    },
+    "./kinds/*": {
+      "types": "./src/kinds/*.ts",
+      "default": "./src/kinds/*.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@babel/parser": "7.29.9",
+    "@sim/table-cells": "workspace:*",
+    "@sim/utils": "workspace:*",
+    "@sim/workflow-code": "workspace:*"
+  },
+  "devDependencies": {
+    "@babel/types": "7.29.8",
+    "@sim/testing": "workspace:*",
+    "@sim/tsconfig": "workspace:*",
+    "@types/js-yaml": "4.0.9",
+    "fast-check": "3.23.2",
+    "js-yaml": "4.3.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

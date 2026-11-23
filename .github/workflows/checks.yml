@@ -122,7 +122,7 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
-      TEST_REDIS_URL: redis://127.0.0.1:6379
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
       NEXT_PUBLIC_APP_URL: https://test.sim.ai
@@ -206,12 +206,19 @@ jobs:
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
   # All groups reuse the production build; compiling routes is not part of HTTP acceptance.
+  # Starts beside build (e2e) rather than after it: checkout, install, services and migrations
+  # (about a minute on a hosted runner) overlap the build, and the job then waits for the build's
+  # artifact. The wait and the suite each carry their own bound, so a slow build never shortens
+  # the suite's: the job's bound is their sum plus setup.
   e2e:
     name: e2e (${{ matrix.group }})
-    needs: [changes, e2e-build]
+    needs: changes
     if: needs.changes.outputs.http == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 48
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.http_matrix) }}
@@ -229,9 +236,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Desktop inbox, browser extension, and Project Files use Redis.
+      # Redis is required: every app server the suites start connects to it.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: redis:8.2-alpine
         ports:
           - 6379:6379
         options: >-
@@ -258,11 +265,39 @@ jobs:
         with:
           provider: github
 
+      # No suite survives a database crash; see the script for what this does and does not change.
+      - name: Turn off Postgres crash durability
+        working-directory: packages/db
+        run: bun scripts/tune-ci-postgres.ts
+
+      # Browser system libraries, as downloaded .deb files, per runner image and group (each group
+      # installs its own browsers); install-playwright.sh reads and fills it.
+      - name: Read the runner image
+        id: runner-image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      # Restores the newest saved set by prefix. A cache key is never overwritten, so a run that had
+      # to add packages saves a new one below.
+      - name: Restore browser system packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-
+
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
         if: matrix.group != 'project-files'
         working-directory: packages/db
         run: bun run db:migrate
+
+      # A failed or cancelled build fails this job here instead of leaving it waiting.
+      # build (e2e)'s own bound.
+      - name: Wait for the production build
+        timeout-minutes: 25
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-e2e-build.sh
 
       - &download-e2e-build
         name: Download the production build
@@ -297,11 +332,29 @@ jobs:
         if: matrix.group == 'scim'
         run: printf '127.0.0.1 scim-e2e.sim.ai\n' | sudo tee -a /etc/hosts
 
-      # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
-      # short of writing its report.
+      # The former 20-minute job bound less its setup; its slowest passing run took 18.3 minutes.
+      # Cut short, it fails the step, so the report and server-log uploads below still run.
       - name: Run end-to-end suites
+        timeout-minutes: 19
         working-directory: apps/sim
-        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+        run: PLAYWRIGHT_APT_CACHE="$HOME/.cache/playwright-apt" bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+
+      # Packages installed fine even when the suite then fails, so both steps run unless cancelled.
+      - name: Check for new browser system packages
+        id: apt-cache
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$HOME/.cache/playwright-apt/.updated" ]; then
+            rm "$HOME/.cache/playwright-apt/.updated"
+            echo 'updated=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save browser system packages
+        if: ${{ !cancelled() && steps.apt-cache.outputs.updated == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload acceptance timing and coverage reports
         if: always()
@@ -355,6 +408,16 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Redis is required: the app server refuses to start without it.
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
@@ -369,6 +432,11 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
+
+      # No suite survives a database crash; see the script for what this does and does not change.
+      - name: Turn off Postgres crash durability
+        working-directory: packages/db
+        run: bun scripts/tune-ci-postgres.ts
 
       - name: Provision the database through migrations
         working-directory: packages/db
@@ -488,6 +556,11 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
+
+      # No suite survives a database crash; see the script for what this does and does not change.
+      - name: Turn off Postgres crash durability
+        working-directory: packages/db
+        run: bun scripts/tune-ci-postgres.ts
 
       - name: Provision the database through migrations
         working-directory: packages/db
@@ -733,6 +806,10 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
+      # A builder name is public API once a workflow file uses it, so blocks/sdk-names is add-only.
+      - name: Frozen SDK names audit
+        run: bun run check:sdk-names-frozen "${{ steps.audit_base.outputs.ref }}"
+
       - name: Type-check ESM maintenance scripts
         run: bun run type-check:scripts:esm
 
@@ -937,7 +1014,7 @@ jobs:
           TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
           echo "Runner memory: ${TOTAL_GB} GB"
           if [ "$TOTAL_GB" -lt 40 ]; then
-            echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
+            echo "::warning::Runner has ${TOTAL_GB} GB. A build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal')."
           fi
 
       - name: Build application
@@ -966,9 +1043,6 @@ jobs:
     if: needs.changes.outputs.e2e_build == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 25
-    env:
-      NEXT_BUILD_PERSISTENT_CACHE: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) && 'true' || 'false' }}
-
     steps:
       - *checkout-mirror
       - *checkout-plain
@@ -987,10 +1061,8 @@ jobs:
             echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
           fi
 
-      - name: Plan incremental compiler state
-        id: compiler-cache-plan
-        if: env.NEXT_BUILD_PERSISTENT_CACHE == 'true'
-        env: &e2e-build-env
+      - name: Build application
+        env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
           DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/simstudio'
@@ -1005,37 +1077,7 @@ jobs:
           # already enforce.
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
           NEXT_BUILD_SKIP_SOURCE_MAPS: 'true'
-        run: |
-          echo "toolchain=bun$(bun --version)-node$(node --version)" >> "$GITHUB_OUTPUT"
-          if bunx turbo run build --filter=@sim/app --dry=json > "$RUNNER_TEMP/e2e-build-plan.json" &&
-            jq -e 'type == "object" and (.tasks | type) == "array" and ([.tasks[] | select(.taskId == "@sim/app#build")] | length == 1 and .[0].cache.status == "HIT")' "$RUNNER_TEMP/e2e-build-plan.json" > /dev/null; then
-            echo 'restore=false' >> "$GITHUB_OUTPUT"
-          else
-            echo 'restore=true' >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Mount incremental compiler state
-        id: compiler-cache
-        if: steps.compiler-cache-plan.outputs.restore == 'true'
-        uses: ./.github/actions/cache
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-next-build-e2e-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.event_name }}-${{ steps.compiler-cache-plan.outputs.toolchain }}-${{ hashFiles('bun.lock', 'package.json', 'patches/**', 'apps/sim/package.json', 'apps/sim/next.config.ts', 'apps/sim/lib/core/config/env.ts', '.github/workflows/checks.yml', '.github/actions/setup/action.yml') }}
-          path: ./apps/sim/.next/cache
-
-      - name: Bound restored compiler state
-        if: steps.compiler-cache.outcome == 'success'
-        working-directory: apps/sim
-        run: node ../../scripts/prune-turbopack-cache.mts --build
-
-      - name: Build application
-        env: *e2e-build-env
         run: bunx turbo run build --filter=@sim/app
-
-      - name: Bound compiler state before persistence
-        if: always() && !cancelled() && steps.compiler-cache.outcome == 'success'
-        working-directory: apps/sim
-        run: node ../../scripts/prune-turbopack-cache.mts --build
 
       # Everything `next start` reads, including the spreadsheet parse worker it spawns (named, so a
       # missing bundle fails packaging as it fails docker/app.Dockerfile); node_modules and the source

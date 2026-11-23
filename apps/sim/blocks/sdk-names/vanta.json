@@ -1,0 +1,39 @@
+{
+  "namespace": "vanta",
+  "methods": {
+    "download_document_file": "downloadDocumentFile",
+    "get_control": "getControl",
+    "get_document": "getDocument",
+    "get_framework": "getFramework",
+    "get_person": "getPerson",
+    "get_policy": "getPolicy",
+    "get_risk_scenario": "getRiskScenario",
+    "get_test": "getTest",
+    "get_vendor": "getVendor",
+    "get_vulnerable_asset": "getVulnerableAsset",
+    "list_control_documents": "listControlDocuments",
+    "list_control_tests": "listControlTests",
+    "list_controls": "listControls",
+    "list_document_uploads": "listDocumentUploads",
+    "list_documents": "listDocuments",
+    "list_framework_controls": "listFrameworkControls",
+    "list_frameworks": "listFrameworks",
+    "list_monitored_computers": "listMonitoredComputers",
+    "list_people": "listPeople",
+    "list_policies": "listPolicies",
+    "list_risk_scenarios": "listRiskScenarios",
+    "list_test_entities": "listTestEntities",
+    "list_tests": "listTests",
+    "list_vendors": "listVendors",
+    "list_vulnerabilities": "listVulnerabilities",
+    "list_vulnerability_remediations": "listVulnerabilityRemediations",
+    "list_vulnerable_assets": "listVulnerableAssets",
+    "submit_document": "submitDocument",
+    "upload_document_file": "uploadDocumentFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

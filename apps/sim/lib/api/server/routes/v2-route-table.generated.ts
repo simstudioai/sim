@@ -225,6 +225,11 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       ),
   },
   {
+    pattern: '/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/content',
+    load: () =>
+      import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content/route'),
+  },
+  {
     pattern: '/api/v2/knowledge/{knowledgeBaseId}/documents/from-workspace-files',
     load: () =>
       import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files/route'),
@@ -884,6 +889,14 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/source',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/source/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/source/plan',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/source/plan/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/state',
     load: () => import('@/app/api/v2/workflows/[workflowId]/state/route'),
   },
@@ -1039,5 +1052,33 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workspaces/{workspaceId}/permission-config',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/blobs',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/blobs/missing',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/plan',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/plan/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source/catalog',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/catalog/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source/resources',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route'),
   },
 ]

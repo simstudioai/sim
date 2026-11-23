@@ -1,5 +1,74 @@
 #!/bin/sh
+# Checks only what this push changes against its merge base with origin/staging (the PR base):
+# biome format + lint on the changed files, type-check for the affected workspaces, then
+# `bun run generate` so no committed generated artifact is left stale.
+# CI runs the full lint, type-check and audit gate on every PR, so it stays the backstop.
 set -e
 
-bun run lint:check
-bun run type-check
+# A stale generated artifact would only fail CI's check:audits. Generators read the working tree,
+# so the result describes the pushed commit only when the tree is that commit; with uncommitted or
+# untracked files the check is left to CI rather than judging (or blocking) unrelated work.
+check_generated_artifacts() {
+  if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+    bun run generate >/dev/null
+    if ! git diff --quiet; then
+      echo "pre-push: generated artifacts were stale and have been regenerated:"
+      git diff --name-only
+      echo "pre-push: commit them and push again."
+      exit 1
+    fi
+  else
+    echo "pre-push: uncommitted changes; leaving generated-artifact freshness to CI"
+  fi
+}
+
+# git passes one "<local ref> <local sha> <remote ref> <remote sha>" line per pushed ref.
+zero=0000000000000000000000000000000000000000
+head=$(git rev-parse HEAD)
+pushes_head=false
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$local_sha" != "$head" ]; then
+    echo "pre-push: $local_sha is not the checked-out commit; leaving it to CI"
+    continue
+  fi
+  pushes_head=true
+done
+[ "$pushes_head" = true ] || exit 0
+
+# Lint and type-check read the working tree, so they judge the pushed commit only when nothing they
+# read differs from it: no uncommitted change to a tracked file and no untracked file the type-check
+# could read (TypeScript, JavaScript under `allowJs`, JSON under `resolveJsonModule`). Otherwise
+# they could fail a sound commit or pass a broken one.
+if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard -- \
+  '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json')" ]; then
+  echo "pre-push: uncommitted changes or untracked source files; leaving lint, type-check and generated artifacts to CI"
+  exit 0
+fi
+
+base=$(git merge-base HEAD origin/staging 2>/dev/null || true)
+if [ -z "$base" ]; then
+  echo "pre-push: origin/staging not found, running the full lint and type-check"
+  bun run lint:check
+  bun run type-check
+  check_generated_artifacts
+  exit 0
+fi
+
+# Deletions still decide the type-check (an import of a deleted module breaks); biome only
+# reads files that exist.
+changed=$(git diff --name-only "$base" HEAD)
+[ -z "$changed" ] && exit 0
+existing=$(git diff --name-only --diff-filter=ACMR "$base" HEAD)
+
+if [ -n "$existing" ]; then
+  # Word-splitting the list is deliberate; no path biome checks contains a space.
+  bunx biome check --no-errors-on-unmatched --files-ignore-unknown=true $existing
+fi
+
+if printf '%s\n' "$changed" | grep -qE '^scripts/'; then
+  bun run type-check:scripts:esm
+fi
+TURBO_SCM_BASE="$base" bunx turbo run type-check --affected --output-logs=errors-only
+
+check_generated_artifacts

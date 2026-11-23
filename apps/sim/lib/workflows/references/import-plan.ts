@@ -1,4 +1,5 @@
 import { isRecordLike, omit } from '@sim/utils/object'
+import type { PortableResourceKind } from '@sim/workflow-types/resources'
 import { workflowReferenceManifestSchema } from '@/lib/api/contracts/workflow-references'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -19,7 +20,6 @@ import {
 } from '@/lib/workflows/references/remap-references'
 import type {
   PortableReference,
-  PortableResourceKind,
   ReferenceOccurrence,
   WorkflowReferenceManifest,
 } from '@/lib/workflows/references/types'

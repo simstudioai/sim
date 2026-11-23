@@ -9,15 +9,21 @@ export interface BillingBlockState {
   blockedByOrgOwner: boolean
 }
 
+type PayerTarget = { type: 'user'; id: string } | { type: 'organization'; id: string }
+
+/** The `workspace` rows whose host billing identity is `payer`: an organization's, or a person's own. */
+export function workspacesPaidBy(payer: PayerTarget) {
+  return payer.type === 'organization'
+    ? eq(workspace.organizationId, payer.id)
+    : and(eq(workspace.billedAccountUserId, payer.id), isNull(workspace.organizationId))
+}
+
 /** Finds an active workspace whose host billing identity is the requested payer. */
 export async function getUpgradeWorkspaceId(
-  target: { type: 'user'; id: string } | { type: 'organization'; id: string },
+  target: PayerTarget,
   executor: DbClient = db
 ): Promise<string | null> {
-  const targetPredicate =
-    target.type === 'organization'
-      ? eq(workspace.organizationId, target.id)
-      : and(eq(workspace.billedAccountUserId, target.id), isNull(workspace.organizationId))
+  const targetPredicate = workspacesPaidBy(target)
 
   const [record] = await executor
     .select({ id: workspace.id })

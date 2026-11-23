@@ -1,5 +1,4 @@
 import { UPGRADE_REASON_COPY, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 /** Email subject type for all supported email templates */
 export type EmailSubjectType =
@@ -33,57 +32,55 @@ export type EmailSubjectType =
  * @returns The subject line for the email
  */
 export function getEmailSubject(type: EmailSubjectType): string {
-  const brandName = getBrandConfig().name
-
   switch (type) {
     case 'sign-in':
-      return `Sign in to ${brandName}`
+      return `Sign in to Sim`
     case 'email-verification':
-      return `Verify your email for ${brandName}`
+      return `Verify your email for Sim`
     case 'change-email':
-      return `Verify your new email for ${brandName}`
+      return `Verify your new email for Sim`
     case 'forget-password':
-      return `Reset your ${brandName} password`
+      return `Reset your Sim password`
     case 'reset-password':
-      return `Reset your ${brandName} password`
+      return `Reset your Sim password`
     case 'existing-account':
-      return `Sign-up attempt with your ${brandName} email`
+      return `Sign-up attempt with your Sim email`
     case 'invitation':
-      return `You've been invited to join a team on ${brandName}`
+      return `You've been invited to join a team on Sim`
     case 'enterprise-owner-invitation':
-      return `Activate your Enterprise organization on ${brandName}`
+      return `Activate your Enterprise organization on Sim`
     case 'batch-invitation':
-      return `You've been invited to join a team and workspaces on ${brandName}`
+      return `You've been invited to join a team and workspaces on Sim`
     case 'workspace-added':
-      return `You've been added to a workspace on ${brandName}`
+      return `You've been added to a workspace on Sim`
     case 'permission-access-request-created':
-      return `An access request needs review on ${brandName}`
+      return `An access request needs review on Sim`
     case 'permission-access-request-decided':
-      return `Your access request was updated on ${brandName}`
+      return `Your access request was updated on Sim`
     case 'enterprise-subscription':
-      return `Your Enterprise Plan is now active on ${brandName}`
+      return `Your Enterprise Plan is now active on Sim`
     case 'usage-threshold':
-      return `You're nearing your monthly budget on ${brandName}`
+      return `You're nearing your monthly budget on Sim`
     case 'free-tier-upgrade':
-      return `You're at 80% of your free credits on ${brandName}`
+      return `You're at 80% of your free credits on Sim`
     case 'payment-failed':
-      return `Payment failed on ${brandName} — action required`
+      return `Payment failed on Sim — action required`
     case 'credit-purchase':
-      return `Credits added to your ${brandName} account`
+      return `Credits added to your Sim account`
     case 'abandoned-checkout':
       return `Quick question`
     case 'free-tier-exhausted':
-      return `You've run out of free credits on ${brandName}`
+      return `You've run out of free credits on Sim`
     case 'schedule-disabled':
-      return `A schedule was turned off on ${brandName}`
+      return `A schedule was turned off on Sim`
     case 'subprocessor-change':
-      return `Upcoming change to ${brandName} sub-processors`
+      return `Upcoming change to Sim sub-processors`
     case 'onboarding-followup':
-      return `Quick question about ${brandName}`
+      return `Quick question about Sim`
     case 'welcome':
-      return `Welcome to ${brandName}`
+      return `Welcome to Sim`
     default:
-      return brandName
+      return 'Sim'
   }
 }
 
@@ -93,15 +90,14 @@ export function getEmailSubject(type: EmailSubjectType): string {
  * upgrade-page header the user lands on.
  */
 export function getLimitEmailSubject(reason: UpgradeReason, kind: 'warning' | 'reached'): string {
-  const brandName = getBrandConfig().name
   const copy = UPGRADE_REASON_COPY[reason]
   const subject = kind === 'reached' ? copy.reachedSubject : copy.warningSubject
-  return `${subject} on ${brandName}`
+  return `${subject} on Sim`
 }
 
 /** The plan's display name is resolved at send time; it carries tier qualifiers. */
 export function getPlanWelcomeSubject(planDisplayName: string): string {
-  return `Your ${planDisplayName} plan is now active on ${getBrandConfig().name}`
+  return `Your ${planDisplayName} plan is now active on Sim`
 }
 
 /** Echoes the sender's own subject line so the reply threads correctly. */
@@ -124,8 +120,7 @@ export function getCredentialGroupInvitationSubject(
   inviterName: string | undefined,
   workspaceName: string
 ): string {
-  const brandName = getBrandConfig().name
   return inviterName
-    ? `${inviterName} invited you to connect accounts for ${workspaceName} on ${brandName}`
-    : `You have been invited to connect accounts for ${workspaceName} on ${brandName}`
+    ? `${inviterName} invited you to connect accounts for ${workspaceName} on Sim`
+    : `You have been invited to connect accounts for ${workspaceName} on Sim`
 }

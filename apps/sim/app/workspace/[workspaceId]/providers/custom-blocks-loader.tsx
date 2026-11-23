@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 import { buildCustomBlockConfig } from '@/blocks/custom/build-config'
 import { hydrateClientCustomBlocks } from '@/blocks/custom/client-overlay'
 import { getCustomBlockTile } from '@/blocks/custom/custom-block-icon'
-import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 
 /**
@@ -24,9 +23,6 @@ export function CustomBlocksLoader({
   const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string | undefined)
   const { data } = useCustomBlocks(workspaceId)
 
-  /** No-icon blocks use the access-authorized workspace host logo, then the default glyph. */
-  const fallbackIconUrl = useOrgBrandConfig().logoUrl ?? null
-
   useEffect(() => {
     hydrateClientCustomBlocks(
       // Disabled blocks stay resolvable (so a still-placed instance renders on the
@@ -44,13 +40,13 @@ export function CustomBlocksLoader({
           },
           block.inputFields,
           {
-            ...getCustomBlockTile(block.iconUrl, fallbackIconUrl),
+            ...getCustomBlockTile(block.iconUrl),
             hideFromToolbar: !block.enabled,
           }
         )
       )
     )
-  }, [data, fallbackIconUrl])
+  }, [data])
 
   return null
 }

@@ -223,7 +223,17 @@ function readArgumentDescriptor(descriptor: number): string {
     chunks.push(Buffer.from(buffer.subarray(0, read)))
   }
 
-  return Buffer.concat(chunks).toString('utf8')
+  return decodeArgumentBytes(Buffer.concat(chunks))
+}
+
+/**
+ * Decodes UTF-8, or UTF-16LE when the bytes start with its byte-order mark, and drops the mark.
+ * Windows PowerShell 5.1 writes `>` redirects as UTF-16LE and `Out-File -Encoding utf8` with a
+ * UTF-8 mark, so a file saved from `sim … > workflow.json` would otherwise not parse as JSON.
+ */
+function decodeArgumentBytes(bytes: Buffer): string {
+  const utf16le = bytes[0] === 0xff && bytes[1] === 0xfe
+  return new TextDecoder(utf16le ? 'utf-16le' : 'utf-8').decode(bytes)
 }
 
 /**
@@ -595,7 +605,7 @@ export async function coerce(
  * floor rather than the wording a caller sees.
  */
 const NO_WORKSPACE_FALLBACK =
-  'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+  'No workspace set. Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --set-workspace <id>'
 
 export interface BuiltRequest {
   /** The values filling the operation's `[param]` path segments, encoded when routed. */

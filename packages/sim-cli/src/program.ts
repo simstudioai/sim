@@ -27,6 +27,15 @@ Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
 ~/.sim/credentials (0600), or under SIM_CONFIG_DIR when it is set. Select one
 with -P, --profile, or SIM_PROFILE.
 
+A command targets the profile's workspace unless -w <id> (--workspace <id>) or
+SIM_WORKSPACE names another. A source directory records its own: a workflow
+directory acts on the workflow its .sim/base.json names, a workspace directory
+on the workspace its base names (refusing a -w naming another), and a starter
+on the one .sim/starter.json names unless -w names another. In a script, export
+SIM_WORKSPACE=<id> once, or keep only the ID in a variable and write -w "$WS".
+A variable holding "--workspace <id>" is one argument: alone it is an unknown
+option, and after -w all of it is taken as the ID.
+
 Workflow, knowledge-base and workspace IDs are bare UUIDs. Table IDs carry a
 tbl_ prefix and file IDs a wf_ one, so wf_ never names a workflow. An audit-log
 or custom-tool ID can open with a dash, which reads as a flag; put -- in front
@@ -44,6 +53,7 @@ Examples:
   $ sim knowledge search --query "refund policy" --kb 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31
   $ sim workflows export 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 > wf.json
   $ sim workflows import --workflow @wf.json
+  $ sim workflows source get 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --dir ./wf
   $ sim knowledge export 4c1b7f60-2d55-4a3e-9c18-70b6ea2f9d31 -o ./kb.simkb.zip
   $ sim knowledge import ./kb.simkb.zip --name "Docs (copy)"
   $ sim whoami --profile dev

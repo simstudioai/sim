@@ -27,6 +27,7 @@ import {
   createOpenAICompatibleAgentEventStream,
   type OpenAICompatAssembledToolCall,
 } from '@/providers/openai-compat/stream-events'
+import { createChatCompletionUsageMeter } from '@/providers/openai-compat/usage-meter'
 import type { OpenRouterReasoningDetail } from '@/providers/openrouter/reasoning'
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
@@ -39,12 +40,7 @@ import {
 } from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type { ProviderRequest, TimeSegment } from '@/providers/types'
-import {
-  calculateCost,
-  prepareToolExecution,
-  sumToolCosts,
-  trackForcedToolUsage,
-} from '@/providers/utils'
+import { prepareToolExecution, sumToolCosts, trackForcedToolUsage } from '@/providers/utils'
 
 export type OpenAICompatCreateCompletion = (
   params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
@@ -117,7 +113,7 @@ export function createOpenAICompatStreamingToolLoopStream(
       let modelTime = 0
       let toolsTime = 0
       let firstResponseTime = 0
-      const tokens = { input: 0, output: 0, total: 0 }
+      const usageMeter = createChatCompletionUsageMeter(request.model)
       const toolCalls: unknown[] = []
       const toolResults: Record<string, unknown>[] = []
       const openToolStarts = new Map<string, string>()
@@ -127,17 +123,10 @@ export function createOpenAICompatStreamingToolLoopStream(
       let usedForcedTools: string[] = []
       let hasUsedForcedTool = false
       const reportProgress = () => {
-        const modelCost = calculateCost(request.model, tokens.input, tokens.output)
-        const toolCost = sumToolCosts(toolResults)
         onComplete({
           content,
-          tokens,
-          cost: {
-            input: modelCost.input,
-            output: modelCost.output,
-            total: modelCost.total + (toolCost || 0),
-            ...(toolCost ? { toolCost } : {}),
-          },
+          tokens: { ...usageMeter.tokens },
+          cost: usageMeter.cost(sumToolCosts(toolResults)),
           toolCalls:
             toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
           modelTime,
@@ -327,10 +316,7 @@ export function createOpenAICompatStreamingToolLoopStream(
               provider: providerName.toLowerCase(),
             }
           )
-          tokens.input += turnUsage.prompt_tokens
-          tokens.output += turnUsage.completion_tokens
-          tokens.total +=
-            turnUsage.total_tokens || turnUsage.prompt_tokens + turnUsage.completion_tokens
+          usageMeter.record(turnUsage)
 
           if (pendingTools.length === 0) {
             sawFinalTurn = true

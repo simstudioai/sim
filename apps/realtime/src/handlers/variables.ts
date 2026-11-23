@@ -279,11 +279,15 @@ async function flushVariableUpdate(
 
     let updateSuccessful = false
     await db.transaction(async (tx) => {
+      // Locked for the read-modify-write, as the subblock flush is: otherwise a writer that
+      // rewrites the variables under the row lock (a source apply) commits between this read and
+      // the update below, which then writes the stale variables back over its change.
       const [workflowRecord] = await tx
         .select({ variables: workflow.variables })
         .from(workflow)
         .where(eq(workflow.id, workflowId))
         .limit(1)
+        .for('no key update')
 
       if (!workflowRecord) {
         return

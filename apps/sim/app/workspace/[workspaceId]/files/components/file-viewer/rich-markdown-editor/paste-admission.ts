@@ -8,6 +8,7 @@ import {
 import { Extension } from '@tiptap/core'
 import { Plugin, type Transaction } from '@tiptap/pm/state'
 import { postProcessSerializedMarkdown } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
 
 export interface RichMarkdownPasteAdmissionOptions {
   maxResultBytes: number
@@ -101,7 +102,14 @@ export function createRichMarkdownPasteAdmission({
           props: {
             handleDOMEvents: {
               paste: (view, event) => {
-                const pastedText = event.clipboardData?.getData('text/plain') ?? ''
+                const literal =
+                  isPlainTextPaste(editor) ||
+                  editor.isActive('codeBlock') ||
+                  editor.isActive('code')
+                const pastedText =
+                  (!literal && event.clipboardData?.getData('text/markdown')) ||
+                  event.clipboardData?.getData('text/plain') ||
+                  ''
                 const pastedHtml = event.clipboardData?.getData('text/html') ?? ''
                 if (!pastedText && !pastedHtml) return false
 

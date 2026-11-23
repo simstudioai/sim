@@ -1,0 +1,7 @@
+{
+  "namespace": "icypeas",
+  "methods": {
+    "icypeas_find_email": "findEmail",
+    "icypeas_verify_email": "verifyEmail"
+  }
+}

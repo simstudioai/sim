@@ -38,6 +38,30 @@ const logger = createLogger('BrowserExtensionAppE2E')
 const expect = browserExpect.configure({ timeout: 30_000 })
 const ACCESS_REVALIDATION_TIMEOUT_MS = 35_000
 const ACCESS_POLL_INTERVAL_MS = 30_000
+/** The options a fixture API call takes, as `APIRequestContext.fetch` does. */
+type FixtureRequestOptions = Omit<
+  NonNullable<Parameters<BrowserContext['request']['fetch']>[1]>,
+  'method'
+>
+
+/**
+ * A fixture API call through `context`'s request context (its cookies, so its session), always on
+ * a connection of its own: `next start` on Node 24 destroys a keep-alive socket idle for 6s
+ * (keepAliveTimeout plus its 1s buffer), and a request reusing that socket as it closes hangs up
+ * (ECONNRESET). Every fixture call goes through here, so none can forget the header.
+ */
+function fixtureRequest(
+  context: BrowserContext,
+  method: 'GET' | 'POST' | 'PATCH',
+  url: string,
+  options: FixtureRequestOptions = {}
+) {
+  return context.request.fetch(url, {
+    ...options,
+    method,
+    headers: { ...options.headers, Connection: 'close' },
+  })
+}
 function required(name: string): string {
   const value = process.env[name]
   assert(value, `${name} must be explicitly provided`)
@@ -190,6 +214,23 @@ async function check(
 const checkNavigation = (name: string, run: () => Promise<void>) => check('navigation', name, run)
 const checkComposer = (name: string, run: () => Promise<void>) => check('composer', name, run)
 const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
+
+/**
+ * A screenshot taken once two consecutive captures match, so a pixel comparison between two
+ * renderings of an element is not decided by a frame captured mid-paint.
+ */
+async function settledScreenshot(
+  target: Locator,
+  options: Parameters<Locator['screenshot']>[0]
+): Promise<Buffer> {
+  let previous = await target.screenshot(options)
+  for (let capture = 0; capture < 10; capture++) {
+    const next = await target.screenshot(options)
+    if (next.equals(previous)) return next
+    previous = next
+  }
+  throw new Error('The element kept repainting across ten screenshots')
+}
 
 async function screenshot(name: string, target = panel) {
   if (!target) return
@@ -520,14 +561,19 @@ try {
     }
   })
   const signInAndSeed = async () => {
-    const signup = await browserContext.request.post(`${base.origin}/api/auth/sign-up/email`, {
-      headers: { origin: base.origin },
-      data: {
-        name: 'Extension QA',
-        email: `extension-${generateId()}@example.test`,
-        password: generateRandomHex(24),
-      },
-    })
+    const signup = await fixtureRequest(
+      browserContext,
+      'POST',
+      `${base.origin}/api/auth/sign-up/email`,
+      {
+        headers: { origin: base.origin },
+        data: {
+          name: 'Extension QA',
+          email: `extension-${generateId()}@example.test`,
+          password: generateRandomHex(24),
+        },
+      }
+    )
     assert.equal(signup.status(), 200, `Sign-up failed: ${await signup.text()}`)
     const payload: unknown = await signup.json()
     const id = toRecord(toRecord(payload).user).id
@@ -1110,7 +1156,9 @@ try {
     'Toolbar and authenticated chat align at 320/390 pixels in light and dark themes',
     async () => {
       for (const theme of ['light', 'dark'] as const) {
-        const settings = await browserContext.request.patch(
+        const settings = await fixtureRequest(
+          browserContext,
+          'PATCH',
           `${base.origin}/api/users/me/settings`,
           { data: { theme } }
         )
@@ -1163,8 +1211,8 @@ try {
             .toBe(true)
           if (width === 320) {
             const chip = attachments().first()
-            const visible = await chip.screenshot({ animations: 'disabled' })
-            const withoutEdgeMask = await chip.screenshot({
+            const visible = await settledScreenshot(chip, { animations: 'disabled' })
+            const withoutEdgeMask = await settledScreenshot(chip, {
               animations: 'disabled',
               style:
                 'div:has(> div > [aria-label="Page attached to next message"]) { mask-image: none !important; }',
@@ -2161,7 +2209,9 @@ try {
     }
   )
   const setActiveOrganization = async () => {
-    const active = await browserContext.request.post(
+    const active = await fixtureRequest(
+      browserContext,
+      'POST',
       `${base.origin}/api/auth/organization/set-active`,
       {
         headers: { origin: base.origin },
@@ -2871,7 +2921,9 @@ try {
           await input.fill('Keep text, but discard the page when Chat access is revoked.')
           await expect(attachments()).toHaveCount(1)
           await shell.bringToFront()
-          const discovery = await browserContext.request.get(
+          const discovery = await fixtureRequest(
+            browserContext,
+            'GET',
             `${base.origin}/api/access-requests/discovery?kind=workspace&workspaceId=${hostedWorkspaceId}&targetKind=feature`
           )
           assert.equal(discovery.status(), 200)
@@ -2879,7 +2931,9 @@ try {
           await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
             values (${permissionGroupId}, ${otherOrganizationId}, 'Revoked Chat access',
             ${sql.json({ hideCopilot: true })}, ${otherUserId}, true)`
-          const policy = await browserContext.request.get(
+          const policy = await fixtureRequest(
+            browserContext,
+            'GET',
             `${base.origin}/api/permission-groups/user?workspaceId=${hostedWorkspaceId}`
           )
           assert.equal(policy.status(), 200)
@@ -3320,10 +3374,15 @@ try {
     'Signing out removes authenticated chat and captured page context',
     async () => {
       await capture()
-      const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {
-        headers: { origin: base.origin },
-        data: {},
-      })
+      const response = await fixtureRequest(
+        browserContext,
+        'POST',
+        `${base.origin}/api/auth/sign-out`,
+        {
+          headers: { origin: base.origin },
+          data: {},
+        }
+      )
       assert.equal(response.status(), 200)
       await shell.clock.setFixedTime(Date.now() + 360_000)
       await reconnect()

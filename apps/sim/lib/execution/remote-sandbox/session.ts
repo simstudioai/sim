@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { mapSettledWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { createSandboxPricing } from '@/lib/billing/sandbox-pricing'
-import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import { type CreatedSandbox, createSelectedSandbox } from '@/lib/execution/remote-sandbox/create'
 import type { SandboxPhaseTimer } from '@/lib/execution/remote-sandbox/phase-timing'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'

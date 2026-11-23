@@ -1,0 +1,10 @@
+// @sim-sdk 1
+import { block, raw, todo, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const oldTableOp = block('table_v2', 'Old table op', {
+    operation: raw('delete_everything'),
+    tableId: todo(),
+  })
+})

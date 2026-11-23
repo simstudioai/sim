@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
+  type Principal,
   resolvePrincipalAttribution,
   resolvePrincipalSubjectUserId,
   toPrincipalActor,
@@ -18,6 +19,7 @@ import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/applicati
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
+import { draftSourceFingerprint } from '@/lib/workflows/application/read-workflow-source'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
@@ -33,6 +35,7 @@ import {
   loadWorkflowDeploymentVersionState,
   updateDeploymentVersionMetadata,
 } from '@/lib/workflows/persistence/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeployments')
 
@@ -49,6 +52,12 @@ export interface DeployWorkflowInput {
    * surface that presents the findings should pay for them.
    */
   lintDeployedVersion?: boolean
+  /**
+   * The `sf1:` fingerprint of the draft the caller means to publish (what a source apply answered
+   * with as `base.fingerprint`): a draft that no longer has it is refused with `conflict`, nothing
+   * deployed, so an edit made since the caller looked never goes live in its name.
+   */
+  expectedDraftFingerprint?: string
 }
 
 export interface UndeployWorkflowInput {
@@ -130,7 +139,8 @@ async function lintDeployedVersion(
               deploymentVersionId,
               context.workspaceId
             ),
-            { workflowId: context.workflowId, workspaceId: context.workspaceId, subjectUserId }
+            { workflowId: context.workflowId, workspaceId: context.workspaceId, subjectUserId },
+            { deployed: true }
           )
         ),
       Date.now() + DEPLOYED_VERSION_LINT_BUDGET_MS
@@ -144,6 +154,48 @@ async function lintDeployedVersion(
   }
 }
 
+/** A publish refused because the draft no longer has the fingerprint its caller expected. */
+export class WorkflowDraftChangedError extends OrchestrationError {
+  constructor() {
+    super(
+      'conflict',
+      'The workflow draft changed since it was applied, so it was not deployed. Read it again to review the change, then deploy.'
+    )
+    this.name = 'WorkflowDraftChangedError'
+  }
+}
+
+/** The draft gate a publish takes: absent when the caller holds no expected fingerprint. */
+interface DraftAdmission {
+  admitDraft?: (draft: WorkflowState) => Promise<string | null>
+}
+
+/**
+ * Runs a publish under a draft check: the snapshot it publishes must print with `expected`, the
+ * fingerprint of the draft the caller reviewed or wrote. Every path that may publish a draft for a
+ * caller holding such a fingerprint (a deploy, a chat write that redeploys) spreads the admission
+ * into its publish. Returns the publish's result, and throws {@link WorkflowDraftChangedError}
+ * when this check is what refused it. With no `expected`, the publish runs unchecked.
+ */
+export async function withExpectedDraft<R>(
+  principal: Principal,
+  context: ActiveWorkflowApplicationContext,
+  expected: string | undefined,
+  publish: (admission: DraftAdmission) => Promise<R>
+): Promise<R> {
+  if (expected === undefined) return publish({})
+  let refused = false
+  const result = await publish({
+    async admitDraft(draft) {
+      if ((await draftSourceFingerprint(principal, context, draft)) === expected) return null
+      refused = true
+      return new WorkflowDraftChangedError().message
+    },
+  })
+  if (refused) throw new WorkflowDraftChangedError()
+  return result
+}
+
 export const deployWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deploy,
   resolveContext: resolvePrincipalWorkflowContext<DeployWorkflowInput>,
@@ -152,17 +204,24 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const result = await performFullDeploy({
-      workflowId: context.workflowId,
-      userId: attribution.attributedUserId,
-      actorId: attribution.attributedUserId,
-      actor: toPrincipalActor(principal),
-      ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
-      versionName: input.name,
-      versionDescription: input.description,
-      requestId: input.requestId,
-      idempotencyKey: input.idempotencyKey,
-    })
+    const result = await withExpectedDraft(
+      principal,
+      context,
+      input.expectedDraftFingerprint,
+      (admission) =>
+        performFullDeploy({
+          workflowId: context.workflowId,
+          userId: attribution.attributedUserId,
+          actorId: attribution.attributedUserId,
+          actor: toPrincipalActor(principal),
+          ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
+          versionName: input.name,
+          versionDescription: input.description,
+          requestId: input.requestId,
+          idempotencyKey: input.idempotencyKey,
+          ...admission,
+        })
+    )
     if (!result.success) throwDeploymentFailure(result, 'Failed to deploy workflow')
     const lint =
       input.lintDeployedVersion && result.deploymentVersionId

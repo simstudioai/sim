@@ -3,7 +3,7 @@ import {
   evaluateSubBlockCondition,
   isNonEmptyValue,
   type SubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
+} from '@sim/workflow-code/catalog/canonical-index'
 import type { SubBlockConfig } from '@/blocks/types'
 
 type ConditionSubBlock = Pick<

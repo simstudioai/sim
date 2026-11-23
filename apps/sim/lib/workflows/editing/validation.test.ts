@@ -120,6 +120,18 @@ const canonicalCredBlockConfig = {
   ],
 }
 
+// Mirrors webflow: the action pair and the trigger field share the canonical param siteId.
+const dualSurfaceBlockConfig = {
+  type: 'dualsurface',
+  name: 'DualSurface',
+  outputs: {},
+  subBlocks: [
+    { id: 'siteSelector', type: 'project-selector', canonicalParamId: 'siteId', mode: 'basic' },
+    { id: 'manualSiteId', type: 'short-input', canonicalParamId: 'siteId', mode: 'advanced' },
+    { id: 'triggerSiteId', type: 'short-input', canonicalParamId: 'siteId', mode: 'trigger' },
+  ],
+}
+
 // Mirrors video_generator_v3: routes provider -> tool; only video_falai has hosting.
 const videoBlockConfig = {
   type: 'video_generator_v3',
@@ -244,6 +256,7 @@ const blockConfigsByType: Record<string, unknown> = {
   huggingface: huggingfaceBlockConfig,
   knowledge: knowledgeBlockConfig,
   canonicalcred: canonicalCredBlockConfig,
+  dualsurface: dualSurfaceBlockConfig,
   video_generator_v3: videoBlockConfig,
   custom_key_block: customKeyBlockConfig,
   image_generator_v2: imageBlockConfig,
@@ -382,6 +395,59 @@ describe('validateInputsForBlock', () => {
     })
   })
 
+  describe('canonical param names', () => {
+    it('writes a canonical name into the member it is stored in, as the catalog names it', () => {
+      const result = validateInputsForBlock('canonicalcred', { cred: 'cred_1' }, 'cred-1')
+
+      expect(result.errors).toEqual([])
+      expect(result.validInputs).toEqual({ manualCredential: 'cred_1' })
+    })
+
+    it('refuses a canonical name beside one of its own members', () => {
+      const result = validateInputsForBlock(
+        'canonicalcred',
+        { cred: 'cred_1', credential: 'cred_2' },
+        'cred-1'
+      )
+
+      expect(result.validInputs).toEqual({ credential: 'cred_2' })
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          field: 'cred',
+          error:
+            '"cred" is the shared name of "credential" (basic mode) and "manualCredential" (advanced mode), and this edit also sets "credential": set one of them, not both',
+        }),
+      ])
+    })
+
+    it("writes a canonical name on a trigger-mode block into the trigger's member, not a dormant action one", () => {
+      const trigger = validateInputsForBlock(
+        'dualsurface',
+        { siteId: 'site_1' },
+        'b',
+        {},
+        false,
+        true
+      )
+      const action = validateInputsForBlock('dualsurface', { siteId: 'site_1' }, 'b')
+
+      expect(trigger.errors).toEqual([])
+      expect(trigger.validInputs).toEqual({ triggerSiteId: 'site_1' })
+      expect(action.validInputs).toEqual({ manualSiteId: 'site_1' })
+    })
+
+    it('still names a key that is neither a field nor a canonical param as unknown', () => {
+      const result = validateInputsForBlock('canonicalcred', { credKey: 'cred_1' }, 'cred-1')
+
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          field: 'credKey',
+          error: 'Unknown input field "credKey" for block type "canonicalcred"',
+        }),
+      ])
+    })
+  })
+
   it('stores input-format rows with legacy or aliased types unchanged', () => {
     const rows = [
       { name: 'payload', type: 'json' },
@@ -473,6 +539,33 @@ describe('validateInputsForBlock', () => {
 
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.routes).toEqual(routes)
+  })
+
+  it('accepts a persisted branch key on condition and router rows', () => {
+    const conditions = [
+      { id: 'c-if', title: 'if', value: 'true', key: 'isVip' },
+      { id: 'c-else', title: 'else', value: '', key: 'otherwise' },
+    ]
+    const routes = [{ id: 'r-1', title: 'Billing', value: 'Invoices', key: 'billing' }]
+    const condition = validateInputsForBlock('condition', { conditions }, 'condition-1')
+    const router = validateInputsForBlock('router_v2', { routes }, 'router-1')
+
+    expect(condition.errors).toHaveLength(0)
+    expect(condition.validInputs.conditions).toEqual(conditions)
+    expect(router.errors).toHaveLength(0)
+    expect(router.validInputs.routes).toEqual(routes)
+  })
+
+  it('does not name a branch key as unknown when a route value is missing', () => {
+    const result = validateInputsForBlock(
+      'router_v2',
+      { routes: [{ id: 'r-1', title: 'Billing', key: 'billing' }] },
+      'router-1'
+    )
+
+    expect(result.errors[0]?.error).toBe(
+      'Invalid route at index 0: missing "value" — a route is {id?, title, value}; "value" holds the description the model reads'
+    )
   })
 
   /**

@@ -2,7 +2,6 @@ import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface UsageThresholdEmailProps {
   userName?: string
@@ -21,9 +20,7 @@ export function UsageThresholdEmail({
   limit,
   ctaLink,
 }: UsageThresholdEmailProps) {
-  const brand = getBrandConfig()
-
-  const previewText = `${brand.name}: You're at ${percentUsed}% of your ${planName} monthly budget`
+  const previewText = `Sim: You're at ${percentUsed}% of your ${planName} monthly budget`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>

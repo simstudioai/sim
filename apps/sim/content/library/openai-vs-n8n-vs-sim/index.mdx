@@ -5,7 +5,7 @@ description: 'Sim vs n8n vs OpenAI AgentKit: how an agent-first, an automation-f
 seoTitle: 'Sim vs n8n vs OpenAI AgentKit: Which to Use in 2026?'
 seoDescription: 'Sim, n8n and OpenAI AgentKit compared on model choice, self-hosting, licensing and pricing, with fit guidance for each type of team.'
 date: 2025-10-06
-updated: 2026-11-02
+updated: 2026-11-20
 authors:
   - emir
 readingTime: 18
@@ -87,13 +87,19 @@ faq:
     a: "Sim fits teams seeking an open-source n8n alternative for AI-agent workflows because Sim’s core uses the OSI-approved Apache 2.0 license while apps/sim/ee uses the separate Sim Enterprise License and n8n uses a source-available license."
   - q: "How does Sim compare with Gumloop?"
     a: "Sim emphasizes an open-source core, self-hosting, model flexibility, and agent workflows, while Gumloop focuses on a hosted visual automation experience."
+  - q: "How does Sim compare to building agents directly on the OpenAI Agents SDK?"
+    a: "The OpenAI Agents SDK is a code library: developers write the agent loop, tools, and handoffs in their own application and own its hosting, monitoring, and deployment. Sim provides those pieces as a visual workspace, with agents built from blocks, run traces, and deployment as a REST API, chat interface, or MCP server, and it can call OpenAI models alongside other providers. Teams that want full control in code and plan to stay on OpenAI fit the Agents SDK; teams that want non-developers to inspect and change agents, or that want to switch model providers, fit Sim."
+  - q: "How does Sim compare to the OpenAI Assistants API?"
+    a: "OpenAI shut down the Assistants API on August 26, 2026 and directs developers to the Responses API and Conversations API, so it is no longer an option for new agents. Teams replacing an Assistants API integration can rebuild on those OpenAI APIs in code, or rebuild the agent in Sim, which keeps OpenAI models available while adding a visual builder, other model providers, and self-hosting."
+  - q: "Is Sim worth it for building AI agents?"
+    a: "Sim is worth evaluating when agents need to act across business tools, when the team wants to build visually but keep API and code options, or when self-hosting and model choice matter. It is a weaker fit when a team is committed to a single model vendor's SDK, or when the job is mostly app-to-app automation that a larger connector ecosystem such as n8n's already covers. Sim also has no automatic importer for OpenAI Agent Builder workflows, so those migrations are manual rebuilds."
   - q: "What should enterprises evaluate before choosing Sim, n8n, or OpenAI AgentKit?"
     a: "Enterprises should evaluate Sim, n8n, and OpenAI AgentKit for deployment control, identity management, audit requirements, data handling, model portability, approval flows, expected usage, and license restrictions."
 ---
 
 Sim fits teams that want a visual, model-flexible workspace for AI agents. Sim's core uses Apache 2.0, while [`apps/sim/ee` uses the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). n8n fits integration-heavy business automation, while OpenAI AgentKit fits teams building directly around OpenAI's agent platform.
 
-The products overlap, but they are not interchangeable. Sim centers on portable agent workflows and open-source ownership; [n8n centers on workflow automation that combines AI with business processes](https://docs.n8n.io/); and [OpenAI's current agent stack offers the Agents API, Agents SDK, Responses API, and ChatKit](https://developers.openai.com/api/docs/guides/agents). OpenAI is winding down Agent Builder and its Evals platform, so teams evaluating AgentKit in October 2026 should plan around the current tools rather than those retiring products.
+The products overlap, but they are not interchangeable. Sim centers on portable agent workflows and open-source ownership; [n8n centers on workflow automation that combines AI with business processes](https://docs.n8n.io/); and [OpenAI's current agent stack offers the Agents API, Agents SDK, Responses API, and ChatKit](https://developers.openai.com/api/docs/guides/agents). OpenAI is winding down Agent Builder and its Evals platform, so teams evaluating AgentKit should plan around the current tools rather than those retiring products. Teams already running Agent Builder workflows can follow [How to Migrate From OpenAI Agent Builder Before the November 30, 2026 Shutdown](https://www.sim.ai/library/openai-agent-builder-migration-guide-2026).
 
 This page compares the three architectures. For a detailed two-way breakdown of features, pricing, and security, see [Sim vs n8n](https://www.sim.ai/comparisons/n8n); for a wider shortlist of tools that replace n8n, see [n8n alternatives](https://www.sim.ai/library/n8n-alternatives).
 
@@ -134,7 +140,7 @@ As of October 2026, each product fits a different center of gravity: Sim for vis
 
 The clearest differences are licensing, deployment boundaries, and what each product treats as the center of the workflow.
 
-- **Sim:** Sim's core uses the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), and its [self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers deployment on your own infrastructure. Features in `apps/sim/ee`, such as SSO, SCIM, access control, audit logs, and white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. Connected model and external-service usage remains subject to each provider's terms and billing.
+- **Sim:** Sim's core uses the [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), and its [self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers deployment on your own infrastructure. Features in `apps/sim/ee`, such as SSO, SCIM, access control, and audit logs, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which is free for development, testing, and internal non-production use, requires an Enterprise subscription for production use, and does not permit modification or redistribution. Connected model and external-service usage remains subject to each provider's terms and billing.
 - **n8n:** n8n is self-hostable and distributed under the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license), which is source-available but not on the [OSI list of approved open-source licenses](https://opensource.org/licenses).
 - **OpenAI AgentKit:** OpenAI's agent offering combines APIs, SDKs, and managed services, so licensing, hosting, and billing must be assessed by component. Its former visual centerpiece, Agent Builder, is [deprecated and scheduled to shut down on November 30, 2026](https://developers.openai.com/api/docs/guides/agent-builder).
 
@@ -206,7 +212,7 @@ OpenAI AgentKit is best understood as a family of OpenAI-native agent capabiliti
 
 ![OpenAI AgentKit workflow interface](/library/openai-vs-n8n-vs-sim/openai.png)
 
-This comparison requires an important qualification: OpenAI is deprecating Agent Builder and the Evals platform. Agent Builder is scheduled to shut down on November 30, 2026; existing evals became read-only on October 31, 2026, and the Evals dashboard and API are also scheduled to shut down on November 30. OpenAI recommends exporting Agent Builder workflows to the Agents SDK or moving to Workspace Agents. These dates and migration paths come from OpenAI's [Agent Builder migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder) and [deprecations page](https://developers.openai.com/api/docs/deprecations). For a head-to-head view and step-by-step migration to Sim, see the [Sim vs OpenAI AgentKit comparison](https://www.sim.ai/comparisons/openai-agentkit).
+This comparison requires an important qualification: OpenAI is deprecating Agent Builder and the Evals platform. Agent Builder is scheduled to shut down on November 30, 2026; existing evals became read-only on October 31, 2026, and the Evals dashboard and API are also scheduled to shut down on November 30. OpenAI recommends exporting Agent Builder workflows to the Agents SDK or moving to Workspace Agents. These dates and migration paths come from OpenAI's [Agent Builder migration guide](https://developers.openai.com/api/docs/guides/agent-builder/migrate-from-agent-builder) and [deprecations page](https://developers.openai.com/api/docs/deprecations). For a head-to-head view and step-by-step migration to Sim, see the [Sim vs OpenAI AgentKit comparison](https://www.sim.ai/comparisons/openai-agentkit); for an inventory, rebuild, and cutover plan, see the [OpenAI Agent Builder migration guide](https://www.sim.ai/library/openai-agent-builder-migration-guide-2026).
 
 OpenAI's remaining stack fits teams already using OpenAI models and services. Application code built with the Agents SDK may run in a team's own environment, while managed models, tools, and platform capabilities remain OpenAI services.
 
@@ -345,3 +351,4 @@ This article stays focused on the Sim, n8n, and OpenAI AgentKit decision. For re
 - [Apache 2.0 vs fair-code](https://www.sim.ai/library/apache-2-0-vs-fair-code): what each license allows for self-hosting and commercial products.
 - [The best AI agent platforms in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026): the broader market.
 - [Best self-hosted AI workflow automation platforms in 2026](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026): deployment-control options across the category.
+- [How to migrate from OpenAI Agent Builder](https://www.sim.ai/library/openai-agent-builder-migration-guide-2026): what to inventory, rebuild, and test before the November 30, 2026 shutdown.

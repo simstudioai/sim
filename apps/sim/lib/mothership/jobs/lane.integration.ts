@@ -10,8 +10,7 @@ import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   type Leg = { text: string; mode: 'end' | 'hang' | 'fail' }
   const worker = {
@@ -84,16 +83,13 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   }
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
     COPILOT_API_KEY: process.env.COPILOT_API_KEY,
   }
-  if (url) process.env.REDIS_URL = url
   process.env.COPILOT_API_KEY = 'job-lane-fixture-key'
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server, finish }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server, finish }) }
 })
 
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
@@ -191,12 +187,6 @@ const workspaceId = generateId()
 const payer = () => resolveBillingAttribution({ actorUserId: userId, workspaceId })
 const chatIds: string[] = []
 const scheduleIds: string[] = []
-
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
-  return client
-}
 
 async function waitFor(condition: () => Promise<boolean>, what: string, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs
@@ -318,7 +308,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
+describe('the scheduled job lane', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
@@ -371,7 +361,7 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     await db.delete(permissions).where(eq(permissions.userId, userId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
-    chatPubSub?.dispose()
+    chatPubSub.dispose()
     await closeRedisConnection()
   })
 
@@ -519,7 +509,10 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     controllers.get(occurrenceId)?.abort(new StreamControllerSupersededError())
     worker.open.get(occurrenceId)?.response.socket?.destroy()
     worker.open.delete(occurrenceId)
-    await waitFor(async () => !(await redis().get(chatStreamLockKey(chatId))), 'the lock to lapse')
+    await waitFor(
+      async () => !(await getRedisClient().get(chatStreamLockKey(chatId))),
+      'the lock to lapse'
+    )
     /** Before the takeover the turn is unfinished, so the occurrence stays running. */
     expect(await finalizeJobRun(occurrenceId)).toBe(false)
     await db
@@ -527,7 +520,7 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
       .set({ updatedAt: sql`now() - interval '2 minutes'` })
       .where(eq(copilotRuns.streamId, occurrenceId))
     await waitFor(async () => {
-      await redis().del(ABANDONED_RUN_CURSOR_KEY)
+      await getRedisClient().del(ABANDONED_RUN_CURSOR_KEY)
       await takeOverAbandonedRuns()
       return legsFor(occurrenceId).length === 2
     }, 'the takeover')
@@ -737,11 +730,16 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
 
   it('skips an occurrence while another turn holds the job chat', async () => {
     const { chatId, scheduleId, occurrenceId } = await seedJob()
-    await redis().set(chatStreamLockKey(chatId), `${generateId()}\n${generateId()}`, 'EX', 60)
+    await getRedisClient().set(
+      chatStreamLockKey(chatId),
+      `${generateId()}\n${generateId()}`,
+      'EX',
+      60
+    )
     try {
       await runJobLane(new Date())
     } finally {
-      await redis().del(chatStreamLockKey(chatId))
+      await getRedisClient().del(chatStreamLockKey(chatId))
     }
     expect(await runsOf(scheduleId)).toEqual([
       expect.objectContaining({ status: 'complete', outcome: 'skipped_busy' }),
@@ -826,7 +824,10 @@ describe.runIf(Boolean(redisUrl))('the scheduled job lane', () => {
     controllers.get(occurrenceId)?.abort(new StreamControllerSupersededError())
     worker.open.get(occurrenceId)?.response.socket?.destroy()
     worker.open.delete(occurrenceId)
-    await waitFor(async () => !(await redis().get(chatStreamLockKey(chatId))), 'the lock to lapse')
+    await waitFor(
+      async () => !(await getRedisClient().get(chatStreamLockKey(chatId))),
+      'the lock to lapse'
+    )
     await db.delete(copilotRuns).where(eq(copilotRuns.streamId, occurrenceId))
 
     await reconcileJobRuns(new Date(Date.now() + 6 * 60 * 60_000 + 60_000))

@@ -52,7 +52,6 @@ const DEPLOYMENT: DeploymentShape = {
     sessionPolicies: false,
     sso: false,
     usageMonitoring: false,
-    whitelabeling: false,
   },
 }
 

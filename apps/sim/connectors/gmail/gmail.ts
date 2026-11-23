@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { getGmailMailboxEmail, getGmailProfile, gmailThreadUrl } from '@/connectors/gmail/mailbox'

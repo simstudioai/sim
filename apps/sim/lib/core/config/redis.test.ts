@@ -305,10 +305,10 @@ describe('redis config', () => {
       ).rejects.toThrow('Command timed out')
     })
 
-    it('returns true as a no-op when the cache capability selects the database', async () => {
+    it('fails instead of pretending to hold the lock when REDIS_URL is unset', async () => {
       mockEnv.REDIS_URL = undefined
 
-      expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
+      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('REDIS_URL is required')
       expect(mockRedisInstance.set).not.toHaveBeenCalled()
     })
 
@@ -444,7 +444,14 @@ describe('redis config', () => {
     })
   })
 
-  describe('capability validation', () => {
+  describe('configuration validation', () => {
+    it('throws on call, not at import, when REDIS_URL is unset', () => {
+      mockEnv.REDIS_URL = undefined
+
+      expect(() => getRedisClient()).toThrow('REDIS_URL is required')
+      expect(MockRedisConstructor).not.toHaveBeenCalled()
+    })
+
     it('rejects a non-Redis URL before constructing a client', () => {
       mockEnv.REDIS_URL = 'https://cache.example.com'
 

@@ -1,0 +1,12 @@
+{
+  "namespace": "legacy.convex",
+  "methods": {
+    "action": "runAction",
+    "document_deltas": "documentDeltas",
+    "list_documents": "listDocuments",
+    "list_tables": "listTables",
+    "mutation": "runMutation",
+    "query": "runQuery",
+    "run_function": "runFunction"
+  }
+}

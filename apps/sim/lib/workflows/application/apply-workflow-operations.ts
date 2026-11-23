@@ -2,9 +2,6 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { sortObjectKeysDeep } from '@sim/utils/object'
-import { compareStrings } from '@sim/utils/string'
 import {
   generateLoopBlocks,
   generateParallelBlocks,
@@ -14,27 +11,24 @@ import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import {
+  asGraph,
+  assertStoredGraphUnchanged,
+  layoutChangedBlocks,
+  loadStoredGraph,
+  storedGraphFingerprint,
+} from '@/lib/workflows/application/graph-write'
 import { snapshotMcpToolOutputSchemas } from '@/lib/workflows/application/mcp-output-schemas'
 import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
-import {
-  applyTargetedLayout,
-  getTargetedLayoutImpact,
-  transferBlockHeights,
-} from '@/lib/workflows/autolayout'
-import {
-  DEFAULT_HORIZONTAL_SPACING,
-  DEFAULT_VERTICAL_SPACING,
-} from '@/lib/workflows/autolayout/constants'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   type BlockEnablementRefusal,
@@ -60,10 +54,8 @@ import {
   collectWorkflowGraphIds,
   replaceWorkflowNormalizedState,
 } from '@/lib/workflows/persistence/replace-normalized-state'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
-import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('ApplyWorkflowOperations')
 
@@ -136,51 +128,6 @@ export const DRY_RUN_PREVIEW_BLOCK_IDS_WARNING =
   'Dry run: block ids are previews — the real apply mints new ones; wire edges by slug within one batch or by the ids the real apply returns.'
 
 /**
- * The engine models a graph as an open record; the layout helpers want the
- * canonical shape. One conversion, named, rather than a cast at each call.
- */
-function asGraph(value: Record<string, unknown>): Pick<WorkflowState, 'blocks' | 'edges'> {
-  // double-cast-allowed: the edit engine models a graph as an open record; this is the one place it is read back as the canonical shape, and the layout helpers tolerate missing keys.
-  return value as unknown as Pick<WorkflowState, 'blocks' | 'edges'>
-}
-
-/**
- * Loads the editable graph after the workflow row has already been resolved.
- *
- * The normalized loader projects a legitimate blockless draft as an empty
- * graph. A null result therefore remains a hard failure rather than becoming a
- * fallback graph that a write could persist after a failed read.
- */
-async function loadStoredGraph(
-  workflowId: string,
-  lockedTx?: DbOrTx
-): Promise<Record<string, unknown>> {
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId, lockedTx)
-  if (!normalized) {
-    // The loader answers null for a failed query too. Under the row lock the
-    // workflow is known to exist, so that is the only meaning left.
-    if (lockedTx) {
-      throw new OrchestrationError('internal', `Failed to re-read workflow ${workflowId}`)
-    }
-    throw new OrchestrationError('validation', `Workflow ${workflowId} has no normalized state`)
-  }
-  const { state, warnings } = normalizeWorkflowState({
-    blocks: normalized.blocks,
-    edges: normalized.edges,
-    loops: normalized.loops || {},
-    parallels: normalized.parallels || {},
-  })
-  if (warnings.length > 0) {
-    logger.warn('Stored workflow state needed normalization before editing', {
-      workflowId,
-      warnings,
-    })
-  }
-  // double-cast-allowed: the edit engine takes an open record; `normalizeWorkflowState` returns the canonical interface, which has no index signature.
-  return state as unknown as Record<string, unknown>
-}
-
-/**
  * How each enablement refusal maps onto the machine-readable skip enum. Kept as
  * a total `Record` so a new refusal reason fails to compile until it is
  * classified, and kept aligned with `BLOCK_ENABLEMENT_REFUSAL_CODES`, which
@@ -228,20 +175,6 @@ function applyBlockEnabledChanges(
   return { blocks: current, applied }
 }
 
-/**
- * An order-insensitive identity for a stored graph, so two reads of the same
- * rows compare equal even though the loader neither orders its rows nor fixes
- * the key order of the records it builds.
- *
- * Only blocks and edges are compared: loops and parallels are rebuilt from the
- * blocks on every load, with child `nodes` in row order.
- */
-function storedGraphFingerprint(graph: Record<string, unknown>): string {
-  const { blocks, edges } = asGraph(graph)
-  const sortedEdges = [...(edges ?? [])].sort((a, b) => compareStrings(a.id, b.id))
-  return JSON.stringify(sortObjectKeysDeep({ blocks, edges: sortedEdges }))
-}
-
 interface BaseGraph {
   graph: Record<string, unknown>
   /** Set when the base was read from storage, so the write can prove it is still current. */
@@ -256,26 +189,6 @@ async function resolveBaseGraph(
   if (input.baseGraph && principal.kind === 'delegated') return { graph: input.baseGraph }
   const graph = await loadStoredGraph(context.workflowId)
   return { graph, storedFingerprint: storedGraphFingerprint(graph) }
-}
-
-/**
- * Refuses the write when the stored graph is no longer the one the batch was
- * applied to. Runs under the workflow row lock, so a concurrent edit that
- * committed after the base read surfaces as a conflict instead of being
- * silently overwritten by a graph that never saw it.
- */
-async function assertStoredGraphUnchanged(
-  workflowId: string,
-  storedFingerprint: string,
-  tx: DbOrTx
-): Promise<void> {
-  const current = await loadStoredGraph(workflowId, tx)
-  if (storedGraphFingerprint(current) !== storedFingerprint) {
-    throw new OrchestrationError(
-      'conflict',
-      'The workflow changed while these operations were being applied. Re-read it and retry.'
-    )
-  }
 }
 
 /**
@@ -573,43 +486,3 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
     return notifyWorkflowUpdated(context.workflowId)
   },
 })
-
-/**
- * Nudges only the blocks this batch touched, leaving the rest of the canvas
- * where the user put it. A layout failure is never fatal: the graph is already
- * correct, only its positions are less tidy.
- */
-function layoutChangedBlocks(
-  workflowId: string,
-  before: Pick<WorkflowState, 'blocks' | 'edges'>,
-  after: Pick<WorkflowState, 'blocks' | 'edges'>
-): Record<string, BlockState> {
-  const { layoutBlockIds, resizedBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
-    before,
-    after,
-  })
-  if (
-    layoutBlockIds.length === 0 &&
-    resizedBlockIds.length === 0 &&
-    shiftSourceBlockIds.length === 0
-  ) {
-    return after.blocks
-  }
-  try {
-    transferBlockHeights(before.blocks, after.blocks)
-    return applyTargetedLayout(after.blocks, after.edges, {
-      changedBlockIds: layoutBlockIds,
-      resizedBlockIds,
-      shiftSourceBlockIds,
-      horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
-      verticalSpacing: DEFAULT_VERTICAL_SPACING,
-      previousBlocks: before.blocks,
-    }) as Record<string, BlockState>
-  } catch (error) {
-    logger.warn('Targeted autolayout failed, using supplied positions', {
-      workflowId,
-      error: toError(error).message,
-    })
-    return after.blocks
-  }
-}

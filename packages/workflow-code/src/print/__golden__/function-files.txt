@@ -1,0 +1,13 @@
+// @sim-sdk 1
+import { codeFile, fn, raw, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { total: 'number' } })
+  const jsCode = fn('Js code', { code: codeFile('./functions/js-code.js') })
+  const pyCode = fn('Py code', { language: 'python', code: codeFile('./functions/py-code.py') })
+  const shCode = fn('Sh code', { language: raw('shell'), code: codeFile('./functions/sh-code.sh') })
+
+  start.to(jsCode)
+  jsCode.to(pyCode)
+  pyCode.to(shCode)
+})

@@ -3,7 +3,7 @@ import { getWorkspaceOrganizationAccounts } from '@/lib/credential-groups/applic
 import { listInternalCredentials } from '@/lib/credentials/application/crud'
 import { fetchOllamaEmbeddingModelCatalog } from '@/lib/embeddings/ollama-model-catalog.server'
 import { fetchOpenRouterEmbeddingModelCatalog } from '@/lib/embeddings/openrouter-model-catalog.server'
-import { getEffectiveEnvironmentVariableNames } from '@/lib/environment/utils'
+import { getWorkspaceEnvironmentVariableNames } from '@/lib/environment/utils'
 import {
   listKnowledgeDocuments,
   readKnowledgeDocument,
@@ -267,7 +267,7 @@ export const internalSelectorAttachments = {
     destination: 'fixed',
     async execute(args: ExecuteServerSelectorArgs) {
       if (!args.workspaceId) throw new SelectorContextUnavailableError()
-      const names = await getEffectiveEnvironmentVariableNames(
+      const names = await getWorkspaceEnvironmentVariableNames(
         args.requesterUserId,
         args.workspaceId
       )

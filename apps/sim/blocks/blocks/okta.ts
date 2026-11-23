@@ -507,7 +507,7 @@ export const OktaBlock: BlockConfig = {
       id: 'activate',
       title: 'Activate Immediately',
       type: 'switch',
-      value: () => 'true',
+      value: () => true,
       condition: { field: 'operation', value: 'okta_create_user' },
       mode: 'advanced',
     },
@@ -550,7 +550,7 @@ export const OktaBlock: BlockConfig = {
       id: 'sendEmail',
       title: 'Send Email',
       type: 'switch',
-      value: () => 'true',
+      value: () => true,
       condition: {
         field: 'operation',
         value: SEND_EMAIL_DEFAULT_ON_OPERATIONS,
@@ -745,7 +745,7 @@ export const OktaBlock: BlockConfig = {
        * Okta defaults this to true, so an unseeded switch would render off while
        * remembered factors were in fact being cleared.
        */
-      value: () => 'true',
+      value: () => true,
       condition: { field: 'operation', value: 'okta_clear_user_sessions' },
       mode: 'advanced',
     },

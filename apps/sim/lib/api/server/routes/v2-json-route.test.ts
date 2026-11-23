@@ -207,6 +207,50 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
+  it('lets a client cache a tagged success and revalidate it: no-cache on the 200 and the 304', async () => {
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async ({ input }) => input },
+      entityTag: (result) => `v-${result.value}`,
+      present: (result) => ({ data: result }),
+    })
+
+    const served = await handler(request())
+    expect(served.headers.get('ETag')).toBe('"v-ok"')
+    expect(served.headers.get('Cache-Control')).toBe('private, no-cache')
+
+    const revalidating = request()
+    revalidating.headers.set('if-none-match', 'W/"v-ok"')
+    const unchanged = await handler(revalidating)
+    expect(unchanged.status).toBe(304)
+    expect(unchanged.headers.get('Cache-Control')).toBe('private, no-cache')
+  })
+
+  it('never serves a cached body to a request whose input presents it differently', async () => {
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async () => ({ value: 'shared' }) },
+      entityTag: (result) => result.value,
+      present: (result, parsed) => ({ data: { value: `${result.value}:${parsed.body.value}` } }),
+    })
+
+    const first = await handler(request({ value: 'a' }))
+    const second = await handler(request({ value: 'b' }))
+
+    await expect(first.json()).resolves.toEqual({ data: { value: 'shared:a' } })
+    await expect(second.json()).resolves.toEqual({ data: { value: 'shared:b' } })
+  })
+
   it('fails closed before authentication when the IP bucket cannot admit the request', async () => {
     v2RouteMocks.preauthRate.mockResolvedValueOnce({
       allowed: false,
@@ -290,6 +334,40 @@ describe('defineV2JsonRoute', () => {
     expect(response.headers.get('X-RateLimit-Limit')).toBe('100')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('12')
     expect(response.headers.get('X-RateLimit-Reset')).toBe(restrictiveReset.toISOString())
+  })
+
+  it('charges a body-sized cost before the use case, capped at the bucket, and refuses past it', async () => {
+    const execute = vi.fn<Execute>(async ({ input }) => ({ value: input.value }))
+    const handler = defineV2JsonRoute({
+      contract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.sourceApply,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      rateLimitCost: (input) => input.value.length,
+      useCase: { operation, execute },
+      present: (result) => ({ data: result }),
+    })
+    const charged = () => v2RouteMocks.operationRate.mock.calls.map(([, , cost]) => cost)
+
+    const small = await handler(request({ value: 'abc' }))
+
+    expect(small.status).toBe(201)
+    expect(charged()).toEqual([1, 1, 2, 2])
+
+    v2RouteMocks.operationRate.mockClear()
+    v2RouteMocks.operationRate.mockImplementation(async (_key: string, _config: unknown, cost) =>
+      cost > 1
+        ? { allowed: false, remaining: 0, resetAt, retryAfterMs: 30_000 }
+        : { allowed: true, remaining: 39, resetAt }
+    )
+
+    const large = await handler(request({ value: 'x'.repeat(500) }))
+
+    expect(large.status).toBe(429)
+    expect(charged()).toEqual([1, 1, 39, 39])
+    expect(execute).toHaveBeenCalledTimes(1)
   })
 
   it('rejects when any rate subject is denied, regardless of other bucket capacity', async () => {

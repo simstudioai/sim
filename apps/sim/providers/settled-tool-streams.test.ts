@@ -236,6 +236,9 @@ const STRUCTURED_OUTPUT_PROVIDERS = [
   },
 ] as const
 
+/** Mocked cost of a three-call settled run: each call is priced at the mocked 1/2, plus tool cost 4. */
+const SETTLED_RUN_COST = { input: 3, output: 6, toolCost: 4, total: 13 }
+
 function toolCall(id: string, argumentsJson = '{}'): ToolCall {
   return {
     id,
@@ -400,7 +403,7 @@ describe('settled provider tool streams', () => {
       expect(result.execution.output).toMatchObject({
         content: '{"value":"found"}',
         tokens: { input: 15, output: 9, total: 24 },
-        cost: { input: 1, output: 2, toolCost: 4, total: 7 },
+        cost: SETTLED_RUN_COST,
         toolCalls: { count: 1 },
       })
       expectModelIterations(result, 3)
@@ -427,7 +430,7 @@ describe('settled provider tool streams', () => {
       expect(result.execution.output).toMatchObject({
         content: '{"value":"capped"}',
         tokens: { input: 15, output: 9, total: 24 },
-        cost: { input: 1, output: 2, toolCost: 4, total: 7 },
+        cost: SETTLED_RUN_COST,
       })
       expectModelIterations(result, 3)
     }

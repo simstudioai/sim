@@ -37,17 +37,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ preview: null })
   }
 
-  const redis = getRedisClient()
   const cacheKey = `${CACHE_KEY_PREFIX}${createHash('sha256').update(url).digest('hex')}`
-  if (redis) {
-    try {
-      const cached = await redis.get(cacheKey)
-      if (cached !== null) {
-        return NextResponse.json({ preview: JSON.parse(cached) })
-      }
-    } catch (error) {
-      logger.warn('Link preview cache read failed', { error })
+  try {
+    const cached = await getRedisClient().get(cacheKey)
+    if (cached !== null) {
+      return NextResponse.json({ preview: JSON.parse(cached) })
     }
+  } catch (error) {
+    logger.warn('Link preview cache read failed', { error })
   }
 
   let preview: LinkPreview = null
@@ -62,17 +59,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     })
   }
 
-  if (redis) {
-    const ttl = preview?.imageRetryable
-      ? RETRYABLE_CACHE_TTL_SECONDS
-      : preview
-        ? CACHE_TTL_SECONDS
-        : NEGATIVE_CACHE_TTL_SECONDS
-    try {
-      await redis.set(cacheKey, JSON.stringify(preview), 'EX', ttl)
-    } catch (error) {
-      logger.warn('Link preview cache write failed', { error })
-    }
+  const ttl = preview?.imageRetryable
+    ? RETRYABLE_CACHE_TTL_SECONDS
+    : preview
+      ? CACHE_TTL_SECONDS
+      : NEGATIVE_CACHE_TTL_SECONDS
+  try {
+    await getRedisClient().set(cacheKey, JSON.stringify(preview), 'EX', ttl)
+  } catch (error) {
+    logger.warn('Link preview cache write failed', { error })
   }
 
   return NextResponse.json({ preview })

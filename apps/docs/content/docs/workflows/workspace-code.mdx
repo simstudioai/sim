@@ -1,0 +1,124 @@
+---
+title: Workspace as code
+description: Keep a workspace's tables, knowledge bases, files, custom tools, skills and workflows in one directory, and apply it in one step.
+---
+
+import { Callout } from '@/components/ui/callout'
+
+A whole workspace can be read and written as a directory: one folder per kind of resource, with each workflow written exactly as [workflows as code](/workflows/code) writes it. One apply creates the resources before the workflows that use them, so a coding agent can build a working setup from scratch.
+
+<Callout type="info">
+Workspace as code is in preview, behind the [same setting](/platform/self-hosting/environment-variables#preview-features) as workflows as code. It adds the `sim workspaces source` commands to the [CLI](/cli/workspaces).
+</Callout>
+
+## The directory
+
+```
+secrets.ts                        the env variable names workflows read (never a value)
+credentials.ts                    the saved credentials workflows use, by provider
+tables/orders.ts                  a table: name, description, columns
+tables/plans.rows.jsonl           a table's rows, one JSON object per line (only when the table opts in)
+knowledge/policies/knowledge.ts   a knowledge base: name, chunking
+knowledge/policies/docs/*.md      one file per document
+files/templates/reply.md          a workspace file, at its folder path
+tools/lookup-order.ts             a custom tool: title and schema
+tools/lookup-order.js             the tool's code
+skills/tone.md                    a skill: name and description, then its content
+mcp/docs.ts                       an MCP server: url, headers
+workflows/support/workflow.ts     a workflow source directory
+deployments/support.ts            how workflows/support is deployed
+```
+
+A resource's key is its file or folder name, and a workflow names it by that key:
+
+```ts title="workflows/support/workflow.ts"
+const policy = knowledge.search('Policy Search', {
+  knowledgeBaseId: knowledgeBase('policies'),
+  query: start.question,
+})
+const answer = agent('Answer', {
+  model: 'claude-sonnet-4-6',
+  messages: [{ role: 'user', content: t`${policy.results}\n\n${start.question}` }],
+  tools: [customTool('lookup-order')],
+  skills: [skill('tone')],
+})
+const log = table.insertRow('Log Question', {
+  tableId: table('orders'),
+  data: { orderId: start.orderId, status: 'answered' },
+})
+```
+
+`get` prints a short primer for coding agents (in JSON output, its `primer` field) and writes it atop `.sim/AGENTS.md`, the guide, with deletes in depth, Git and CI, and promoting to another workspace in `.sim/GUIDE-advanced.md`. It also writes `.sim/examples/workspace/`, a complete example of every kind and the workflow that uses them.
+
+## Edit a workspace from the CLI
+
+```bash
+sim workspaces source get --dir ./my-workspace
+sim workspaces source check --dir ./my-workspace
+sim workspaces source status --dir ./my-workspace
+sim workspaces source apply --dir ./my-workspace --dry-run
+sim workspaces source apply --dir ./my-workspace --yes
+```
+
+`check` compiles every workflow on your machine, without a request, against what the directory declares: an unknown table, credential, knowledge base, skill, custom tool, MCP server or workflow key, a table row write naming a column the table does not declare, and a child workflow call whose `inputMapping` names an input the child's Start trigger does not declare, are reported, and an env name `secrets.ts` lacks is a warning. It checks each `tables/<key>.rows.jsonl` line against its table the way an apply writes it (a required cell, a unique value, a column's type and select options), so the dry run's `E_TABLE_ROWS` shows up offline at its line. It exits 1 on errors and, as `sim workflows source check` does, on a broken block you added. It also regenerates `.sim/sdk/workspace.d.ts` from the declarations, so run `bunx -p typescript@7.0.2 tsc -p ./my-workspace` after it to type-check every file, keys added since the get included. Run in a `workflows/<key>` folder, `sim workflows source check --dir .` checks that one workflow the same way.
+
+The dry run prints the plan (`+` create, `~` update, `=` adopt an existing resource with the same name, `-` delete) and every error with its file and line. `--only tables,workflows` limits a get or an apply to some kinds.
+
+An apply adopts a resource it never read (one made in Sim under the name a new declaration gives) only when the declaration matches it, or only adds to it: a column, rows into an empty table, a document. An adopt that would change or remove anything the resource holds is refused with `E_APPLY_NO_BASE`, even with `--allow-delete`. Run `get` into a new directory to read the resource, then make your edit there, or give the declaration another name.
+
+`status` shows what would happen if you applied, without writing anything: the files you created, edited, or deleted, grouped by resource; what changed in Sim since the `get` (a resource edited, added, or deleted there, a workflow edited in the editor included); the conflicts, where a resource changed on both sides; and the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unapplied, and `12` when something changed in Sim since the `get`, so a script or an agent can branch on it. Its JSON `plan` counts errors and warnings as the dry run of the apply it names next would, a conflict as an error. Without a connection it shows your edits only and says so; `--offline` skips the server. `diff [paths or kind:key…]` prints the edits as unified diffs (a binary file by its sizes), and `diff --server` compares the directory with what Sim holds now. Both take `--json` (or `--output json`).
+
+## Workspace API keys [#workspace-api-keys]
+
+A personal API key or an OAuth login can apply every kind its workspace role allows. A workspace API key cannot create or change workflows, skills, secrets or deployments. An apply with one that would is refused with `E_APPLY_FORBIDDEN`, naming each resource, before anything is written. A `get` with a workspace key leaves out the kinds it cannot read, such as `secrets.ts`, and names them with the same code.
+
+To apply the rest with a workspace key, such as in CI, narrow the apply to the kinds it can write: `sim workspaces source apply --dir ./my-workspace --only tables,knowledge,files,tools,mcp --yes`.
+
+## Deletes
+
+- A kind is managed only when its folder exists. A directory without `skills/` never touches a skill.
+- Removing the file of a resource the directory manages deletes it only with `--allow-delete`; without the flag the apply is refused. The flag also covers a removed table column, managed table row, knowledge base document, workspace file, workflow block or workflow variable.
+- A resource the directory never managed is kept, and the apply names it in a warning.
+- Something deleted in Sim is not re-created by an unchanged directory, and an edit to it is refused as stale.
+- Table rows are part of the directory only when the table's `rows` opts in (`tables/<key>.rows.jsonl`). Connector-synced documents and run history never are.
+- Seed rows (`rows: { mode: 'seed' }`) belong to the directory: `get` keeps the declaration and the rows file beside it, but Sim does not store them, so a get into a new directory has the declaration without the file.
+- A delete cannot be undone by applying an older copy of the directory, such as a reverted commit. The resource stays deleted, and its rows, documents, run history, webhook URLs and schedules are gone. The dry run marks each change that deletes data and counts them as `destructive`, a workflow update that removes blocks or variables included.
+
+## Promote to another workspace
+
+Apply a directory read from one workspace (dev) to another (prod) with `--to`:
+
+```bash
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --dry-run
+sim workspaces source apply --dir ./my-workspace --to "$PROD_WORKSPACE_ID" --yes
+```
+
+Each resource binds by key to the target's own. One the target holds under the same key is updated in place, so a workflow keeps its id and its webhook URLs. A key the target lacks is created. Secrets and credentials bind by name to the target's own, and no value is copied. A resource you deleted from the directory since the last promotion is deleted in the target too, and like any delete it needs `--allow-delete`. Resources only the target holds, such as a table created in prod and the rows its runs wrote, are kept, with or without `--allow-delete`: the plan names each with a `W_UNDECLARED` warning. To delete them as well, pass `--delete-target-only` beside `--allow-delete`; the plan then names each with a `W_PROMOTE_DELETES_TARGET_ONLY` warning, so run it with `--dry-run` first. The directory stays bound to the workspace it was read from. Without `--to`, `check`, `status`, `diff` and `apply` act on the workspace the directory was read from, whatever your default workspace; a `--workspace` naming another one is refused.
+
+Each promotion records what it left in the target in `.sim/targets/<workspaceId>.json`, and the next promotion compares with that record:
+
+- A resource changed in the target since the last promotion, such as a hotfix made in Sim, is kept when the directory left it alone.
+- When the directory changed it too, the promotion is refused as stale and exits `5`. Carry the target's change into the source workspace, or undo it in the target, then promote again.
+- A resource deleted in the target since the last promotion stays deleted, with a `W_PROMOTE_TARGET_DELETED` warning. Remove its entry from the record to create it again.
+- The first promotion, and any resource the record does not hold (one created in the target since), updates the target to match the directory. Review the dry run first.
+
+Commit the record with the rest of the directory, so a promotion from CI or another clone compares with it. Don't delete it to get past a stale refusal: without it, the next promotion overwrites every change made in the target since, including rows its workflows wrote.
+
+## Git and CI
+
+Commit the whole directory, including `.sim/`: its base files are what an apply compares with, from any clone. The generated `.gitignore` leaves out only temporary files. A fresh clone can run `check`, `apply --dry-run` and `apply` with nothing else. See [Workspace source in CI](/cli/scripting#workspace-source-in-ci) for a GitHub Actions setup.
+
+In a git repository, `apply` sends the commit checked out (`HEAD`) and the `origin` remote URL, with any credentials, query or fragment removed, as `provenance.gitSha` and `provenance.repo`, each only when `git` can read it (a repository with no `origin` sends only the commit). An apply that writes records what was sent in its `workspace.updated` [audit log](/platform/enterprise/audit-logs) entry. A directory outside a repository sends neither.
+
+## Good to know
+
+- Secret values never appear. Workflows read environment variables as `env.NAME`, tool code as `$env.NAME`, and credentials by key.
+- Renaming a skill does not rewrite the workflows that use it: each agent keeps the name it stored until its skills list is next edited.
+- One apply sends at most 100 edited workflows and makes at most 1,000 changes; a directory holds at most 500 resources of a kind, and a `tables/<key>.rows.jsonl` at most 10,000 rows. An apply over a limit is refused before anything is written.
+- A document or file over 10 MB, or whose name a directory cannot hold, is left out of `get` and listed in `.sim/skipped.json`. An apply never writes or deletes it.
+- Hidden files (a name starting with a dot, such as `files/.env`) and names with a character no workspace path holds (such as `:` or `?`) are never sent. An apply names each one in a `W_PATH_NOT_SENT` warning.
+- A knowledge base's `embeddingModel` is fixed when it is created. An apply that changes it is refused.
+- An apply that stops part-way exits `8`, prints the plan again with each change marked written or not written (`notWritten` in JSON), and saves what it wrote into the directory. Run the same apply again until it exits `0`. The dry run checks an MCP server's URL as the write does, so an unresolvable host is refused before anything is written.
+- An apply exits `5` when a resource changed in Sim after you read it. Run `get` into a new directory and reapply your edit.
+
+See [CLI workspace commands](/cli/workspaces) for every flag.

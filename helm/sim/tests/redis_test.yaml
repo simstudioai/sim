@@ -36,6 +36,8 @@ tests:
     template: deployment-redis.yaml
     set:
       redis.enabled: false
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-app-secrets
     asserts:
       - hasDocuments:
           count: 0
@@ -115,9 +117,288 @@ tests:
     template: configmap-redis.yaml
     set:
       redis.enabled: false
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-app-secrets
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: fails to render when redis.enabled=false and nothing supplies REDIS_URL
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      realtime.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Sim requires Redis: redis.enabled=false but no REDIS_URL reaches the app pod. Set app.env.REDIS_URL to your Redis (redis:// or rediss://), add a REDIS_URL entry to extraEnvVars (e.g. valueFrom.secretKeyRef), supply it via app.secrets.existingSecret or externalSecrets.remoteRefs.app.REDIS_URL, or set redis.enabled=true to deploy the bundled Redis."
+
+  - it: fails realtime too when redis.enabled=false and nothing supplies REDIS_URL
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Sim requires Redis: redis.enabled=false but no REDIS_URL reaches the realtime pod. Set app.env.REDIS_URL to your Redis (redis:// or rediss://), add a REDIS_URL entry to extraEnvVars (e.g. valueFrom.secretKeyRef), supply it via app.secrets.existingSecret or externalSecrets.remoteRefs.app.REDIS_URL, or set redis.enabled=true to deploy the bundled Redis."
+
+  - it: renders with redis.enabled=false when app.env.REDIS_URL is set
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      app.env.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: accepts an extraEnvVars REDIS_URL, which is inlined on the app pod
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      extraEnvVars:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: managed-redis
+              key: url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: managed-redis
+                key: url
+
+  - it: accepts an extraEnvVars REDIS_URL, which is inlined on the realtime pod
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      extraEnvVars:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: managed-redis
+              key: url
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: managed-redis
+                key: url
+
+  - it: rejects an extraEnvVars REDIS_URL entry with an empty value
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      realtime.enabled: false
+      extraEnvVars:
+        - name: REDIS_URL
+          value: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "no REDIS_URL reaches the app pod"
+
+  # realtime.env lands in the app Secret, which both the app and realtime pods envFrom.
+  - it: accepts realtime.env.REDIS_URL, written into the Secret both pods share
+    template: secrets-app.yaml
+    set:
+      redis.enabled: false
+      realtime.env.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - equal:
+          path: stringData.REDIS_URL
+          value: "rediss://:pw@managed.example.com:6380"
+
+  - it: renders the shared app Secret for a realtime-only release so realtime.env.REDIS_URL reaches it
+    template: secrets-app.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      realtime.env.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - equal:
+          path: stringData.REDIS_URL
+          value: "rediss://:pw@managed.example.com:6380"
+
+  - it: accepts app.envDefaults.REDIS_URL for an app-only release
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      realtime.enabled: false
+      app.envDefaults.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: "rediss://:pw@managed.example.com:6380"
+
+  # app.envDefaults is inlined on the app container only, so realtime is still uncovered.
+  - it: rejects app.envDefaults.REDIS_URL alone when realtime is enabled
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.envDefaults.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - failedTemplate:
+          errorPattern: "no REDIS_URL reaches the realtime pod"
+
+  - it: accepts app.envDefaults plus realtime.envDefaults REDIS_URL, one per pod
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.envDefaults.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+      realtime.envDefaults.REDIS_URL: "rediss://:pw@managed.example.com:6380"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: "rediss://:pw@managed.example.com:6380"
+
+  - it: fails a realtime-only External Secrets release when REDIS_URL is not mapped
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "Required key 'REDIS_URL' is missing for the realtime pod"
+
+  # External Secrets syncs only remoteRefs.app, and a disabled app's env is checked and synced nowhere.
+  - it: does not count an unmapped app.env.REDIS_URL for a realtime-only External Secrets release
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+      app.env.REDIS_URL: "redis://redis.example.com:6379"
+    asserts:
+      - failedTemplate:
+          errorPattern: "Required key 'REDIS_URL' is missing for the realtime pod"
+
+  # The realtime deployment skips inlining a default that app.env sets, so app.env masks it.
+  - it: does not count a realtime.envDefaults REDIS_URL that an unsynced app.env.REDIS_URL masks
+    template: deployment-realtime.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+      app.env.REDIS_URL: "redis://redis.example.com:6379"
+      realtime.envDefaults.REDIS_URL: "redis://redis.example.com:6379"
+    asserts:
+      - failedTemplate:
+          errorPattern: "Required key 'REDIS_URL' is missing for the realtime pod"
+
+  - it: syncs the mapped REDIS_URL for a realtime-only External Secrets release
+    template: external-secret-app.yaml
+    set:
+      redis.enabled: false
+      app.enabled: false
+      externalSecrets.remoteRefs.app.REDIS_URL: sim/app/redis-url
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+    asserts:
+      - contains:
+          path: spec.data
+          content:
+            secretKey: REDIS_URL
+            remoteRef:
+              key: sim/app/redis-url
+
+  - it: trusts a pre-created app Secret to carry REDIS_URL when redis.enabled=false
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      app.secrets.existingSecret.enabled: true
+      app.secrets.existingSecret.name: my-app-secrets
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: fails under External Secrets when redis.enabled=false and REDIS_URL is not mapped
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      realtime.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "Required key 'REDIS_URL' is missing"
+
+  - it: renders under External Secrets when redis.enabled=false and REDIS_URL is mapped
+    template: deployment-app.yaml
+    set:
+      redis.enabled: false
+      externalSecrets.enabled: true
+      externalSecrets.secretStoreRef.name: my-store
+      externalSecrets.remoteRefs.app.BETTER_AUTH_SECRET: sim/app/better-auth-secret
+      externalSecrets.remoteRefs.app.ENCRYPTION_KEY: sim/app/encryption-key
+      externalSecrets.remoteRefs.app.INTERNAL_API_SECRET: sim/app/internal-api-secret
+      externalSecrets.remoteRefs.app.CRON_SECRET: sim/app/cron-secret
+      externalSecrets.remoteRefs.app.REDIS_URL: sim/app/redis-url
+      externalSecrets.remoteRefs.postgresql.password: sim/postgresql/password
+      app.env.BETTER_AUTH_SECRET: ""
+      app.env.ENCRYPTION_KEY: ""
+      app.env.INTERNAL_API_SECRET: ""
+      app.env.CRON_SECRET: ""
+    asserts:
+      - isKind:
+          of: Deployment
 
   - it: does not preset free-tier plan caps, which are opt-in on a self-host
     template: deployment-app.yaml

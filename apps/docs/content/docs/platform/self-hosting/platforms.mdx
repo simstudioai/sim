@@ -16,7 +16,7 @@ The [Sim deployment template](https://railway.com/new/template/sim-studio) provi
 3. Retain generated secrets, set `API_ENCRYPTION_KEY`, and configure durable storage.
 4. Configure your domain under **Settings → Networking**. Set `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL` to that app origin; match `NEXT_PUBLIC_SOCKET_URL` to the realtime endpoint.
 5. Add a model provider key such as `OPENAI_API_KEY` and configure email if needed.
-6. Check Redis and the scheduler rather than assuming the template includes them.
+6. Confirm Redis and the scheduler rather than assuming the template includes them. Sim refuses to start without Redis, and the app and realtime services share one `REDIS_URL`.
 
 <Callout type="warn">
   Railway Cron Jobs run no more often than every five minutes. They cannot reproduce Sim's bundled minute-level scheduler cadence. Use a continuously running Sim scheduler service or another scheduler supporting the schedules in [Background jobs](/platform/self-hosting/background-jobs). See [Railway's cron requirements](https://docs.railway.com/cron-jobs).

@@ -22,7 +22,6 @@ import {
   getEgressAllowedHosts,
   getEgressAllowedIpRanges,
   isHosted,
-  isLegacyPrivateDatabaseAccessAllowed,
 } from '@/lib/core/config/env-flags'
 
 /**
@@ -94,12 +93,6 @@ interface ProfileSpec {
    * reachable configuration at all.
    */
   readonly schemeFixedByProtocol?: boolean
-  /**
-   * Whether the deprecated `ALLOW_PRIVATE_DATABASE_HOSTS` applies. Only
-   * `databaseHost` sets this, because that is the only thing the flag ever
-   * governed.
-   */
-  readonly honorsLegacyPrivateFlag?: boolean
 }
 
 const PROFILE_SPECS: Record<EgressProfile, ProfileSpec> = {
@@ -126,7 +119,6 @@ const PROFILE_SPECS: Record<EgressProfile, ProfileSpec> = {
     honorsAllowlist: true,
     insecureHttp: 'whenVouched',
     allowLoopbackOffHosted: false,
-    honorsLegacyPrivateFlag: true,
   },
   proxy: {
     honorsAllowlist: false,
@@ -144,7 +136,6 @@ const SOURCE_NAMES = {
 interface DeploymentConfig {
   readonly hosts: string | undefined
   readonly ranges: string | undefined
-  readonly legacyPrivate: boolean
   readonly hosted: boolean
 }
 
@@ -152,7 +143,6 @@ function readDeploymentConfig(): DeploymentConfig {
   return {
     hosts: getEgressAllowedHosts(),
     ranges: getEgressAllowedIpRanges(),
-    legacyPrivate: isLegacyPrivateDatabaseAccessAllowed(),
     hosted: isHosted,
   }
 }
@@ -176,7 +166,6 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
               ? 'whenVouched'
               : spec.insecureHttp,
           allowLoopback: spec.allowLoopbackOffHosted && !config.hosted,
-          allowPrivate: Boolean(spec.honorsLegacyPrivateFlag && config.legacyPrivate),
           sourceNames: SOURCE_NAMES,
         }),
       ]
@@ -185,12 +174,7 @@ function buildPolicies(config: DeploymentConfig): Record<EgressProfile, EgressPo
 }
 
 function sameConfig(a: DeploymentConfig, b: DeploymentConfig): boolean {
-  return (
-    a.hosts === b.hosts &&
-    a.ranges === b.ranges &&
-    a.legacyPrivate === b.legacyPrivate &&
-    a.hosted === b.hosted
-  )
+  return a.hosts === b.hosts && a.ranges === b.ranges && a.hosted === b.hosted
 }
 
 /**

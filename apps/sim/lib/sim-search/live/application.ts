@@ -2,6 +2,8 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { canonicalJson } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
@@ -15,7 +17,7 @@ import {
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
-import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
 import { admitContent } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
@@ -26,11 +28,7 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
-import {
-  createConcurrencyLimit,
-  mapWithConcurrency,
-  waitWithAbort,
-} from '@/lib/core/utils/concurrency'
+import { createConcurrencyLimit, waitWithAbort } from '@/lib/core/utils/concurrency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { MANAGED_MCP_CONNECTORS } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'

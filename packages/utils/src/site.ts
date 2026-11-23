@@ -10,3 +10,6 @@ export const SIM_SITE_URL = 'https://www.sim.ai'
 
 /** Canonical origin of the public Sim docs site. No trailing slash. */
 export const SIM_DOCS_URL = 'https://docs.sim.ai'
+
+/** Support inbox that every support link and transactional email points customers to. */
+export const SIM_SUPPORT_EMAIL = 'help@sim.ai'

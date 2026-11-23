@@ -1,8 +1,10 @@
-import { parseRetryAfter } from '@sim/utils/retry'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { ResolvedProfile, StoredCredential, StoredOAuthCredential } from '../config/index'
+import { AUTH_REQUIRED_CODE, AUTH_REQUIRED_EXIT_CODE, RATE_LIMITED_EXIT_CODE } from '../exit-codes'
 import { identityHeaders } from '../telemetry/client-info'
 import { warnIfCredentialOverCleartext, warnIfProxyIgnored } from './environment'
 
@@ -28,6 +30,23 @@ export class SimApiError extends Error {
   }
 }
 
+/** The code of a request the caller cancelled (its signal aborted): not an unreachable server. */
+export const REQUEST_CANCELLED = 'REQUEST_CANCELLED'
+
+/** Whether `error` is a request its caller cancelled, which no best-effort read may swallow. */
+export function isRequestCancelled(error: unknown): boolean {
+  return error instanceof SimApiError && error.code === REQUEST_CANCELLED
+}
+
+/**
+ * Whether a request got no answer from the server: no connection or a timeout (status 0 with no
+ * code, so never a cancellation), or one of the gateway `statuses` the caller treats as a gateway
+ * that gave up.
+ */
+export function noAnswer(error: SimApiError, statuses: ReadonlySet<number>): boolean {
+  return (error.status === 0 && error.code === null) || statuses.has(error.status)
+}
+
 /** `{ data, nextCursor }` — one page of a list. */
 export interface V2Page<T> {
   data: T[]
@@ -49,12 +68,21 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   query?: Record<string, QueryValue>
   body?: unknown
+  /** A multipart body, sent as is (its boundary sets the content type) in place of `body`. */
+  form?: FormData
   /** Contract-declared headers, e.g. the `upload-token` a transfer is bound to. */
   headers?: Record<string, string>
   /** Cancels both the initial request and any subsequent streaming body read. */
   signal?: AbortSignal
   /** Self-hosted, auth-disabled routes may deliberately omit a local API key. */
   auth?: AuthRequirement
+  /**
+   * Resend a write the server answered `429`, as every GET is. Only for a route that rate limits
+   * before it acts: a v2 route charges its bucket at admission, ahead of the use case, so the
+   * refused request did nothing and sending it again is sending it for the first time. `false`
+   * never resends, a GET included: for an optional read a caller would rather skip than wait on.
+   */
+  retryRateLimited?: boolean
 }
 
 export interface WorkspaceOptions {
@@ -86,6 +114,9 @@ export function buildUrl(
   }
   return url.toString()
 }
+
+/** The encodings the CLI asks for; Node's fetch would otherwise offer only gzip and deflate. */
+const ACCEPT_ENCODING = 'br, gzip'
 
 /**
  * Statuses `fetch` would otherwise follow for us, and must not.
@@ -355,6 +386,37 @@ const DEFAULT_TIMEOUT_SECONDS = 3600
  */
 const MAX_TIMEOUT_MS = 2 ** 31 - 1
 
+/** How many times a request answered `429` is resent before the CLI gives up on it. */
+const RATE_LIMIT_RETRIES = 6
+
+/**
+ * The wait before each resend: exponential with jitter, so the requests of one parallel download
+ * spread out instead of returning together, and never shorter than the server's `Retry-After`
+ * (honoured up to a minute, the longest refill window a plan's bucket has).
+ */
+const RATE_LIMIT_BACKOFF = { baseMs: 1_000, maxMs: 30_000 }
+const RATE_LIMIT_RETRY_AFTER_MAX_MS = 60_000
+
+/** Whether a request answered `429` may be sent again: a GET, or a write that opted in. */
+function resendsRateLimited(method: string, options: RequestOptions): boolean {
+  return options.retryRateLimited ?? method === 'GET'
+}
+
+/** The rate-limit refusal a command exits with, saying what to do about it. */
+function rateLimitedError(error: SimApiError, resends: number): SimApiError {
+  const tried = resends > 0 ? ` (still limited after ${resends} retries)` : ''
+  const refusal = new SimApiError(
+    `${error.message}${tried}. Nothing more was sent; wait a minute, then run the command again.`,
+    error.status,
+    error.code,
+    error.details,
+    RATE_LIMITED_EXIT_CODE,
+    error.requestId
+  )
+  refusal.retryAfterMs = error.retryAfterMs
+  return refusal
+}
+
 /** The one instruction that resolves an elapsed request bound, wherever it surfaces. */
 export const RAISE_TIMEOUT_HINT = 'Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.'
 
@@ -554,7 +616,10 @@ export class SimClient {
     if (auth === 'optional') return undefined
     throw new SimApiError(
       `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.authProfile}`,
-      0
+      0,
+      AUTH_REQUIRED_CODE,
+      undefined,
+      AUTH_REQUIRED_EXIT_CODE
     )
   }
 
@@ -567,7 +632,10 @@ export class SimClient {
     if (!refresh) {
       throw new SimApiError(
         `Your Sim login has expired. Run sim logout --profile ${this.profile.name}, then sim login --profile ${this.profile.name}.`,
-        401
+        401,
+        AUTH_REQUIRED_CODE,
+        undefined,
+        AUTH_REQUIRED_EXIT_CODE
       )
     }
     if (!this.refreshing) {
@@ -593,7 +661,7 @@ export class SimClient {
     const workspaceId = explicit ?? this.profile.workspaceId
     if (!workspaceId) {
       throw new SimApiError(
-        `No workspace set for profile "${this.profile.name}". Pass --workspace, or run: sim configure --profile ${this.profile.name} --set-workspace <id>`,
+        `No workspace set for profile "${this.profile.name}". Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --profile ${this.profile.name} --set-workspace <id>`,
         0
       )
     }
@@ -633,7 +701,8 @@ export class SimClient {
   private async send(
     path: string,
     options: RequestOptions,
-    retriedAfterRefresh = false
+    retriedAfterRefresh = false,
+    rateLimitResends = 0
   ): Promise<{ response: Response; url: string }> {
     let credential = this.resolveCredential(options.auth)
     if (
@@ -644,7 +713,7 @@ export class SimClient {
     }
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
-    const hasBody = options.body !== undefined
+    const hasBody = options.body !== undefined && options.form === undefined
     const method = options.method ?? 'GET'
 
     warnIfProxyIgnored()
@@ -655,7 +724,7 @@ export class SimClient {
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
     const caller = combineSignals(options.signal, this.profile.signal)
-    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0)
+    if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
     const signal = combineSignals(caller, timeout)
 
     const trace = debugEnabled()
@@ -671,18 +740,22 @@ export class SimClient {
             ? { authorization: `Bearer ${credential.oauth.accessToken}` }
             : {}),
           accept: 'application/json',
+          // A server or proxy that compresses answers may send the large ones (the block catalog,
+          // a workspace's source) as brotli or gzip; fetch decodes them. An in-process transport
+          // reads the handler's response as it is, so it never asks for an encoding.
+          ...(this.profile.transport ? {} : { 'accept-encoding': ACCEPT_ENCODING }),
           ...identityHeaders(),
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
-        body: hasBody ? JSON.stringify(options.body) : undefined,
+        body: options.form ?? (hasBody ? JSON.stringify(options.body) : undefined),
         signal,
         redirect: 'manual',
       })
     } catch (cause) {
       if (trace) traceRequest(method, url, 'failed', startedAt)
       if (caller?.aborted) {
-        throw new SimApiError('Request cancelled.', 0)
+        throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
       }
       if (timeout?.aborted) {
         throw new SimApiError(
@@ -714,23 +787,67 @@ export class SimClient {
     ) {
       await response.body?.cancel()
       await this.refreshOAuth(credential.oauth)
-      return this.send(path, options, true)
+      return this.send(path, options, true, rateLimitResends)
+    }
+
+    if (
+      response.status === 429 &&
+      rateLimitResends < RATE_LIMIT_RETRIES &&
+      resendsRateLimited(method, options)
+    ) {
+      await response.body?.cancel().catch(() => undefined)
+      const retryAfterMs = parseRetryAfter(
+        response.headers.get('retry-after'),
+        RATE_LIMIT_RETRY_AFTER_MAX_MS
+      )
+      const backoffMs = backoffWithJitter(rateLimitResends + 1, null, RATE_LIMIT_BACKOFF)
+      const waitMs = Math.max(retryAfterMs ?? 0, backoffMs)
+      // On a terminal, clear a `fetched N…` paging line first, so the notice starts its own line.
+      writeStderr(
+        `${hasProgressTerminal() ? '\r\u001b[K' : ''}${styles().dim(`Rate limited (HTTP 429); retrying in ${Math.ceil(waitMs / 1000)}s (retry ${rateLimitResends + 1} of ${RATE_LIMIT_RETRIES}).`)}\n`
+      )
+      await interruptibleSleep(waitMs, caller)
+      if (caller?.aborted) throw new SimApiError('Request cancelled.', 0, REQUEST_CANCELLED)
+      return this.send(path, options, retriedAfterRefresh, rateLimitResends + 1)
     }
 
     if (!response.ok) {
       const raw = await readResponseText(response)
-      const error = toApiError(url, response, raw)
+      const refused = toApiError(url, response, raw)
+      const error =
+        response.status === 401
+          ? new SimApiError(
+              `${refused.message} — ${this.credentialRemedy()}`,
+              refused.status,
+              refused.code ?? AUTH_REQUIRED_CODE,
+              refused.details,
+              AUTH_REQUIRED_EXIT_CODE,
+              refused.requestId
+            )
+          : refused
       error.retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), 300_000)
-      if (response.status === 401) {
-        error.message = `${error.message} — run: sim login --profile ${this.profile.authProfile}`
-      }
       if (namesKeyScopeRefusal(error)) {
-        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: sim login --profile ${this.profile.authProfile}`
+        error.message = `${error.message} — this operation does not support workspace API keys; use an OAuth login or personal API key: ${this.credentialRemedy()}`
       }
+      if (response.status === 429) throw rateLimitedError(error, rateLimitResends)
       throw error
     }
 
     return { response, url }
+  }
+
+  /**
+   * What to do about a credential the server refused, by where it came from: `sim login` replaces
+   * a stored login, but a key from `SIM_API_KEY` or `--api-key` overrides any login, so logging in
+   * again would change nothing.
+   */
+  private credentialRemedy(): string {
+    const login = `sim login --profile ${this.profile.authProfile}`
+    if (this.profile.sources.credential === 'env') {
+      return `the key comes from SIM_API_KEY, which overrides any login: fix it, or unset it and run ${login}`
+    }
+    if (this.profile.sources.credential === 'flag') return 'pass a valid key with --api-key'
+    return `run: ${login}`
   }
 
   /**

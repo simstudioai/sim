@@ -143,7 +143,12 @@ export type DesktopContext = z.infer<typeof DesktopContextSchema>;
  * the list travels in a forgeable payload. The wire accepts any name, so Sim can add one
  * before the worker learns it.
  */
-export const ENTITLEMENTS = { dashboards: "dashboards", tests: "tests", changelog: "changelog" } as const;
+export const ENTITLEMENTS = {
+  dashboards: "dashboards",
+  tests: "tests",
+  changelog: "changelog",
+  workflowCode: "workflow-code",
+} as const;
 export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
 export const Entitlements = z.array(z.string().min(1).max(64)).max(32);
 
@@ -591,15 +596,6 @@ export const SteerDispositionResponse = z.discriminatedUnion("status", [
 ]);
 export type SteerDispositionResponse = z.infer<typeof SteerDispositionResponse>;
 
-/** The `run`/`steering_applied` frame: a steer reached the run's model input. */
-export interface StreamSteeringApplied {
-  kind: "steering_applied";
-  steeringId: string;
-  /** As in SteerV2Response's `applied`; absent only on frames from workers without steer v2. */
-  eventSeq?: number | undefined;
-  textOffset?: number | undefined;
-}
-
 /** POST /api/chats/fork — copy a selected conversation snapshot, never live execution. */
 export const ForkChatRequest = z
   .strictObject({
@@ -690,32 +686,4 @@ export interface ExecuteRequest extends StreamResponseReceipt {
 export interface ExecuteMessage {
   role: "system" | "user" | "assistant";
   content: string;
-}
-
-/**
- * The response half of the wire: every SSE `data:` line is one StreamEnvelope (the
- * mothership-stream-v1 shape), terminated by a literal `data: [DONE]` line per leg. The
- * worker's emitter is compile-locked to this; sim's parser adopts it at the client rework.
- */
-export interface StreamEnvelope {
-  v: 1;
-  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "error" | "complete";
-  seq: number;
-  /** ISO timestamp. */
-  ts: string;
-  stream: { streamId: string; chatId?: string | undefined; cursor?: string | undefined };
-  trace?: { requestId?: string | undefined } | undefined;
-  /** Subagent-lane attribution (mothership-stream-v1 scope): frames carrying it render
-   * inside the named root-level lane instead of the main transcript. */
-  scope?: StreamScope | undefined;
-  payload: Record<string, unknown>;
-}
-
-/** One subagent lane: keyed by the delegating tool call; agentId/spanId identify the lane. */
-export interface StreamScope {
-  lane: "subagent";
-  agentId?: string | undefined;
-  parentToolCallId?: string | undefined;
-  spanId?: string | undefined;
-  parentSpanId?: string | undefined;
 }

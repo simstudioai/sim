@@ -1,30 +1,51 @@
 ---
 title: Redis
-description: When Redis is optional, when it is required, and how to configure it
+description: Why Sim requires Redis, what it backs, and how to configure it
 ---
 
 import { Tab, Tabs } from '@/components/ui/tabs'
 import { Callout } from '@/components/ui/callout'
 
-Configure Redis for shared coordination and live events. Compose and Helm bundle it by default; use this page to replace that instance or understand the fallback behavior.
+Redis is required. Every Sim deployment needs a reachable Redis, even with a single app replica. Compose and Helm bundle one by default; use this page to replace that instance with your own.
 
 ## What it backs
 
-| Use | Without Redis |
+There are no PostgreSQL or in-memory fallbacks: each of these runs only on Redis.
+
+| Use | Purpose |
 |---|---|
-| **Pub/sub** — live Chat task status, table events, execution cancellation, MCP tool-change notifications, Chat tool confirmations | Falls back to a **process-local** emitter: events never leave the pod that produced them |
-| **Socket.IO adapter** (realtime) | Collaboration events are not delivered across realtime pods |
-| Idempotency store | Falls back to PostgreSQL |
-| Execution progress markers | Falls back to PostgreSQL |
-| Distributed execution limits | Enforced per-pod instead of per-deployment |
-| CLI pairing-code approval store | **No fallback** — API-key login through pairing requires Redis regardless of replica count; OAuth login uses a separate path |
-| Collaborative document store (realtime) | Falls back to in-process state |
+| **Rate limiting** | API and execution rate-limit token buckets, shared across every app replica |
+| **Pub/sub** | Live Chat task status, table events, execution cancellation, MCP tool-change notifications, Chat tool confirmations |
+| **Socket.IO adapter** (realtime) | Delivers collaboration events across realtime pods |
+| One-time passcodes | Email OTPs for deployed chats and public file shares |
+| Idempotency store | Deduplicates webhook deliveries and retried operations |
+| Execution progress markers | Event buffers and progress for running executions |
+| Distributed execution limits | Per-deployment concurrency and provider admission limits |
+| CLI pairing-code approval store | API-key login through pairing; OAuth login uses a separate path |
+| OAuth flow state | Short-lived state for in-progress OAuth, MCP OAuth, and Slack OAuth connections |
+| Pending webhook verifications | Challenge state while a provider verifies a newly registered webhook |
+| Distributed locks | Leases that keep a job, schedule, or stream on one replica at a time |
+| Collaborative document store (realtime) | Shared state for collaboratively edited documents |
 
 <Callout type="error">
-  Configure Redis before running more than one app or realtime replica. Without it, process-local fallbacks cannot deliver edits and status across pods. A healthy HTTP response does not prove cross-pod collaboration works.
+  The app checks `REDIS_URL` when it starts and refuses to boot when it is missing or is not a `redis://` or `rediss://` URL. `next build` does not need Redis, so an image builds without it; the running server does not.
 </Callout>
 
-Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though: cancellation markers and the cross-pod half of execution streaming live here, so active runs stop streaming and a cancellation issued across the gap may not land. Completed work is unaffected.
+Everything Sim keeps in Redis is cache, coordination state, or an in-flight event — never committed data, which lives in PostgreSQL and object storage. Persistence is therefore not required. Losing or restarting the instance is not free, though:
+
+- Active runs stop streaming, and a cancellation issued across the gap may not land, because cancellation markers and the cross-pod half of execution streaming live here.
+- Pending email OTPs stop working and must be requested again.
+- OAuth, MCP OAuth, and Slack OAuth connections in progress fail and must be started again.
+- Pending webhook verifications are lost.
+- Rate-limit buckets reset.
+
+Completed work is unaffected.
+
+### Eviction policy
+
+Use `maxmemory-policy noeviction`, as the bundled Helm Redis does, and size the instance so it never fills. Alert on memory use well before the limit: with `noeviction`, a full Redis rejects writes instead of silently dropping keys.
+
+Most managed services default to an evicting policy such as `volatile-lru` or `allkeys-lru`. Under memory pressure, `volatile-*` policies evict only keys with a TTL and `allkeys-*` policies evict any key. Either way, the short-lived keys Sim depends on are at risk: OTPs, OAuth state, locks, and rate-limit buckets. An evicted key looks like an expired code, a failed OAuth connection, a duplicated job, or a reset limit. Change the policy in the service's parameter group or configuration.
 
 ## Configuration
 
@@ -34,12 +55,14 @@ REDIS_URL=redis://:password@redis-host:6379
 REDIS_URL=rediss://:password@redis-host:6380
 ```
 
-Both the app and the realtime service need it — they use it for different things.
+Both the app and the realtime service need it and must point at the same instance — they use it for different things.
 
 <Tabs items={['Docker Compose', 'Kubernetes (Helm)']}>
   <Tab value="Docker Compose">
 
 `docker-compose.prod.yml` already includes a `redis:7-alpine` service and wires `REDIS_URL=redis://redis:6379` into both the app and realtime containers. No additional Redis URL is needed for that bundled instance.
+
+That service sets no `maxmemory`, so Redis can grow until the host runs out of memory. Watch its memory use on a long-running host.
 
 The port is deliberately not published to the host, so a Redis already running locally will not collide. Override `REDIS_URL` in `.env` to point at an external instance instead.
 
@@ -48,7 +71,15 @@ The port is deliberately not published to the host, so a Redis already running l
 
 The chart deploys Redis by default, matching the Compose stack. No additional Redis URL is needed for that bundled instance.
 
-For production, prefer a managed instance — disable the bundled one and supply a URL:
+For production, prefer a managed instance — disable the bundled one and supply a URL. With `redis.enabled: false`, the chart refuses to render unless `REDIS_URL` reaches every enabled app and realtime pod. Accepted sources:
+
+- `app.env.REDIS_URL` or `realtime.env.REDIS_URL`, written into the app Secret that both pods load
+- A top-level `extraEnvVars` entry named `REDIS_URL`, such as one with `valueFrom.secretKeyRef`, which is set on both pods
+- A pre-created `app.secrets.existingSecret`, which the chart trusts because it cannot read it
+- `externalSecrets.remoteRefs.app.REDIS_URL` when External Secrets is enabled
+- `app.envDefaults.REDIS_URL` covers only the app pod, and `realtime.envDefaults.REDIS_URL` only the realtime pod, so set both when both are enabled
+
+The simplest form:
 
 ```yaml
 redis:

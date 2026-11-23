@@ -1,4 +1,4 @@
-import type ts from '@typescript/typescript6'
+import { parseUserJavaScript } from '@/lib/execution/javascript-syntax'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 export type DocumentSourceLanguage = 'javascript' | 'python'
@@ -23,59 +23,60 @@ const INPUT_PATH_PREFIX = '/home/user/inputs/'
  */
 const REFERENCE_MARKERS = [...FILE_HELPERS, INPUT_PATH_PREFIX]
 
-function* javascriptTokens(source: string): Generator<SourceToken> {
-  // The compiler is large and most sources carry no reference, so it loads on first parse.
-  const typescript = require('@typescript/typescript6') as typeof ts
-  const fileName = 'document.js'
-  const sourceFile = typescript.createSourceFile(
-    fileName,
-    source,
-    typescript.ScriptTarget.Latest,
-    true,
-    typescript.ScriptKind.JS
-  )
-  const program = typescript.createProgram(
-    [fileName],
-    { allowJs: true, noLib: true, noResolve: true },
-    {
-      getSourceFile: (name) => (name === fileName ? sourceFile : undefined),
-      getDefaultLibFileName: () => '',
-      writeFile: () => {},
-      getCurrentDirectory: () => '',
-      getDirectories: () => [],
-      fileExists: (name) => name === fileName,
-      readFile: (name) => (name === fileName ? source : undefined),
-      getCanonicalFileName: (name) => name,
-      useCaseSensitiveFileNames: () => true,
-      getNewLine: () => '\n',
-    }
-  )
-  const diagnostic = program.getSyntacticDiagnostics(sourceFile)[0]
-  if (diagnostic) {
-    throw new DocCompileUserError(
-      typescript.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-    )
-  }
+interface LexedToken {
+  label: string
+  start: number
+  end: number
+}
 
-  const pending: ts.Node[] = [sourceFile]
-  while (pending.length > 0) {
-    const node = pending.pop()
-    if (!node) break
-    if (typescript.isStringLiteralLike(node)) {
-      const start = node.getStart(sourceFile) + 1
-      yield { kind: 'string', value: source.slice(start, node.end - 1), start }
+/** A token Babel lexed, as opposed to a comment, which shares its token list. */
+function lexedToken(value: unknown): LexedToken | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const type: unknown = Reflect.get(value, 'type')
+  const label: unknown =
+    typeof type === 'object' && type !== null ? Reflect.get(type, 'label') : undefined
+  const start: unknown = Reflect.get(value, 'start')
+  const end: unknown = Reflect.get(value, 'end')
+  if (typeof label !== 'string' || typeof start !== 'number' || typeof end !== 'number')
+    return undefined
+  return { label, start, end }
+}
+
+function* javascriptTokens(source: string): Generator<SourceToken> {
+  let lexed: LexedToken[]
+  try {
+    lexed = (parseUserJavaScript(source, { tokens: true }).tokens ?? []).flatMap(
+      (token: unknown) => lexedToken(token) ?? []
+    )
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new DocCompileUserError(error.message)
+    throw error
+  }
+  for (let index = 0; index < lexed.length; index++) {
+    const token = lexed[index]
+    if (token.label === 'eof') continue
+    if (token.label === 'string') {
+      yield {
+        kind: 'string',
+        value: source.slice(token.start + 1, token.end - 1),
+        start: token.start + 1,
+      }
       continue
     }
-    const children = node.getChildren(sourceFile)
-    if (children.length > 0) {
-      for (let index = children.length - 1; index >= 0; index--) pending.push(children[index])
-    } else {
-      const start = node.getStart(sourceFile)
-      yield {
-        kind: typescript.isIdentifier(node) ? 'word' : 'punctuation',
-        value: source.slice(start, node.end),
-        start,
-      }
+    /*
+     * A template with nothing substituted into it is one string, as a quoted literal is: its
+     * backticks are not tokens of their own, so a call's `(` stays right before the string.
+     */
+    const chunk = lexed[index + 1]
+    if (token.label === '`' && chunk?.label === 'template' && lexed[index + 2]?.label === '`') {
+      yield { kind: 'string', value: source.slice(chunk.start, chunk.end), start: chunk.start }
+      index += 2
+      continue
+    }
+    yield {
+      kind: token.label === 'name' ? 'word' : 'punctuation',
+      value: source.slice(token.start, token.end),
+      start: token.start,
     }
   }
 }

@@ -8,14 +8,6 @@
 import { authMock } from '@sim/testing/mocks/auth.mock'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedRedisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  const inheritedRedisUrl = process.env.REDIS_URL
-  if (url) process.env.REDIS_URL = url
-  return { redisUrl: url, inheritedRedisUrl }
-})
-
 vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
@@ -175,7 +167,7 @@ async function seedQueuedJob(workspaceId: string, type = 'webhook-execution') {
 }
 
 async function isCancelled(executionId: string) {
-  return (await getRedisClient()?.exists(`execution:cancel:${executionId}`)) === 1
+  return (await getRedisClient().exists(`execution:cancel:${executionId}`)) === 1
 }
 
 async function jobStatus(jobId: string) {
@@ -202,16 +194,10 @@ async function runOutboxWorker(eventIds: string[]) {
   }
 }
 
-afterAll(async () => {
-  if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
-  else process.env.REDIS_URL = inheritedRedisUrl
-})
-
-describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan', () => {
+describe('removals stop the workflow runs they orphan', () => {
   afterAll(async () => {
-    const redis = getRedisClient()
-    if (redis && executionIds.length > 0) {
-      await redis.del(...executionIds.map((id) => `execution:cancel:${id}`))
+    if (executionIds.length > 0) {
+      await getRedisClient().del(...executionIds.map((id) => `execution:cancel:${id}`))
     }
     const scoped = [...executionIds, ...workspaceIds]
     for (const id of scoped) {

@@ -1,4 +1,5 @@
 import type { ComponentType, JSX, SVGProps } from 'react'
+import type { EnterpriseFeature } from '@sim/deployment-config/enterprise-features'
 import type {
   OutputCondition,
   OutputFieldDefinition,
@@ -411,6 +412,12 @@ export interface SubBlockConfig {
   hideFromCopilot?: boolean
   hideDividerBefore?: boolean // Visually group this field with the preceding visible subblock
   showWhenEnvSet?: string // Show this subblock only when a named NEXT_PUBLIC_ env var is truthy; comma-separated means any of them
+  /**
+   * Show this subblock only when the deployment shape turns on this enterprise feature.
+   * Read through `getDeploymentShape()`, so it follows the server-resolved shape in the
+   * browser and the deployment's own configuration on the server.
+   */
+  showWhenFeature?: EnterpriseFeature
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
@@ -419,8 +426,17 @@ export interface SubBlockConfig {
   /**
    * Default value. Returning `undefined` (for example when the default depends on an operation
    * the caller did not pass) defers to the field's own default, such as a dropdown's first option.
+   * The value is stored as returned, so it has the type the field stores: a boolean for a
+   * `switch`, a number for a `slider`, text otherwise.
    */
-  value?: (params: Record<string, any>) => string | undefined
+  value?: (params: Record<string, any>) => string | number | boolean | undefined
+  /**
+   * Where `value()` may run. `'viewer'` marks a default read from the viewer's own environment
+   * (the schedule timezone is the person's browser zone): only the editor evaluates it. Server-side
+   * creation, the serializer's null fallback and the source catalog leave the field unset rather
+   * than freeze the host's environment into a block, its run params or the catalog hash.
+   */
+  valueScope?: 'viewer'
   grouped?: boolean
   scrollable?: boolean
   maxHeight?: number

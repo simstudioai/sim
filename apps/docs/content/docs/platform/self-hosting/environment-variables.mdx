@@ -19,6 +19,7 @@ Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service d
 | `ENCRYPTION_KEY` | Encryption key, exactly 64 hex characters (32 bytes): `openssl rand -hex 32`. A key in any other format leaves [account token sealing](/platform/self-hosting/security#account-token-sealing) off |
 | `INTERNAL_API_SECRET` | Internal API secret, at least 32 characters: `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | Public app URL |
+| `REDIS_URL` | Redis connection string (`redis://` or `rediss://`), shared by the app and realtime services. The app refuses to start without it; there is no PostgreSQL or in-memory fallback. See [Redis](/platform/self-hosting/redis) |
 
 `openssl rand -hex 32` prints 64 hex characters. Encryption keys require that format. The app skips its env schema validation; individual consumers can reject invalid values when first used. Realtime validates `BETTER_AUTH_SECRET` and `INTERNAL_API_SECRET` at boot and rejects values shorter than 32 characters.
 
@@ -32,8 +33,7 @@ Production Compose derives `DATABASE_URL` and `BETTER_AUTH_URL` on its service d
 |----------|-------------|
 | `API_ENCRYPTION_KEY` | Encrypts stored Sim API-key material; use exactly 64 hex characters (`openssl rand -hex 32`). When unset, legacy API keys can be stored in plain text; the key getter logs a warning when called |
 | `CRON_SECRET` | Bearer token for the background job endpoints: `openssl rand -hex 32`. **Required whenever background jobs are enabled** — the Helm chart's default, and the chart will not render without it, unless it comes from `app.secrets.existingSecret` or External Secrets. See [Background jobs](/platform/self-hosting/background-jobs) |
-| `REDIS_URL` | Redis connection string. Required for cross-replica events and features with no fallback, such as CLI pairing approval. Some single-process storage paths can fall back to PostgreSQL or local state; see [Redis](/platform/self-hosting/redis) |
-| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws the first time it opens a Redis connection |
+| `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app refuses to start |
 | `NEXT_PUBLIC_SOCKET_URL` | Public WebSocket URL. Proxied deployments default to the page origin; a localhost page uses port 3002. Set it for a separate realtime host. |
 | `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
 | `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
@@ -174,7 +174,7 @@ See [AWS credentials](/integrations/aws-credentials#self-hosted-deployments) for
 
 ## Access control
 
-Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATION`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication).
+Who may sign up and sign in — the allowlists, blocklists, `REGISTRATION_MODE`, `DISABLE_INVITATIONS`, `DISABLE_PUBLIC_API`, and `DISABLE_AUTH` — is documented in [Authentication](/platform/self-hosting/authentication).
 
 ## Code execution
 
@@ -187,13 +187,19 @@ Who may sign up and sign in — the allowlists, blocklists, `DISABLE_REGISTRATIO
 | `E2B_FUNCTION_TEMPLATE_GENERATION` | Monotonic release generation printed by the same build. Required for E2B |
 | `DAYTONA_FUNCTION_SNAPSHOT_ID` | Immutable snapshot **ID** (not a name) for the Function base image. Required for Daytona |
 | `E2B_PI_TEMPLATE_ID` / `DAYTONA_PI_SNAPSHOT_ID` | The image Pi runs on. Separate from the Function base — configuring the provider and Function image alone leaves Pi failing closed |
-| `SANDBOXES_ENABLED` / `NEXT_PUBLIC_SANDBOXES_ENABLED` | Enable custom sandbox entitlement through deployment configuration where supported; see the [enterprise guide](/platform/enterprise/self-hosted) for billing-mode requirements. Neither is sufficient on its own — a provider key **and** an immutable Function base must also be configured. Set the `NEXT_PUBLIC_` twin only after the server side works; it enables nothing by itself — it reveals the Function block's Sandbox selector, and on a Compose install or source checkout `bunx sim-setup doctor` confirms it agrees with the selected provider's readiness |
+| `SANDBOXES_ENABLED` | Enable custom sandbox entitlement through deployment configuration where supported; see the [enterprise guide](/platform/enterprise/self-hosted) for billing-mode requirements. Not sufficient on its own — a provider key **and** an immutable Function base must also be configured. The Function block's Sandbox selector appears once the server confirms both |
 | `IVM_MAX_EXECUTIONS_PER_WORKER` | Executions before an isolated-vm worker is recycled |
 | `IVM_MAX_BROKERS_PER_EXECUTION` | Host-call brokers per execution |
 | `IVM_MAX_BROKER_ARGS_JSON_CHARS` | Max argument payload size |
 | `IVM_MAX_BROKER_RESULT_JSON_CHARS` | Max result payload size |
 
 Plain JavaScript without imports runs in isolated-vm within Node child workers in the app container. Python, Shell, imported JavaScript, sandbox/file-path execution, and Pi require the corresponding remote provider and image configuration. See [Sandboxes](/platform/self-hosting/sandboxes) for the base-image build and [Security](/platform/self-hosting/security) for the isolation comparison.
+
+## Preview features
+
+| Variable | Description |
+|----------|-------------|
+| `WORKFLOW_CODE` | Set to `true` to enable [workflows as code](/workflows/code) and [workspace as code](/workflows/workspace-code): the read-only **Code** tab in the workflow builder, and the source API and MCP operations that the `sim workflows source` and `sim workspaces source` CLI commands call. Off when unset; while off, those operations answer `403` |
 
 ## Chat and PII [#chat--pii]
 
@@ -210,10 +216,10 @@ On standard billing-disabled self-hosted deployments, configuration enables ente
 
 | Variable | Description |
 |----------|-------------|
-| `ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ENTERPRISE_ENABLED` | Enable the whole enterprise feature set |
-| `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
+| `ENTERPRISE_ENABLED` | Enable the whole enterprise feature set. Server variable only; see [the feature flag reference](/platform/enterprise/self-hosted#feature-flag-reference) |
+| `SSO_ENABLED` | Enable SAML and OIDC single sign-on on its own. See [Authentication](/platform/self-hosting/authentication#sso-saml-and-oidc) |
 | `SSO_SKIP_DOMAIN_VERIFICATION` | Skip the DNS challenge when an administrator clicks Verify on a domain. Off by default; self-hosted only. Trusts administrator claims for SSO and SCIM across the instance. See [Verified domains](/platform/enterprise/verified-domains#skip-dns-verification) |
-| `SCIM_ENABLED`, `NEXT_PUBLIC_SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
+| `SCIM_ENABLED` | Enable directory provisioning on its own. Needs SSO. See [Directory provisioning](/platform/enterprise/scim) |
 | `INSTANCE_ORG_NAME` | Name of the organization every user joins automatically at signup |
 | `INSTANCE_ORG_SLUG` | Slug for that organization (derived from the name when omitted) |
 | `INSTANCE_ORG_OWNER_EMAIL` | Owner of that organization (defaults to the first user to sign up) |
@@ -254,7 +260,6 @@ Configure at least one. Every configured provider stays active and is tried in o
 | `RESUME_EXECUTION_CONCURRENCY_LIMIT` | `50` | Trigger.dev resume task concurrency |
 | `EGRESS_ALLOWED_HOSTS` | unset | Comma-separated hostnames outbound requests may reach on a private network. Leading wildcard allowed, e.g. `host.docker.internal,*.svc.cluster.local`. Not honored for URLs harvested from content or a third-party response, nor for an HTTP block's `proxyUrl` |
 | `EGRESS_ALLOWED_IP_RANGES` | unset | Comma-separated CIDRs or IPs outbound requests may reach on a private network, e.g. `10.0.0.0/8`. Same exclusions |
-| `ALLOW_PRIVATE_DATABASE_HOSTS` | unset | **Deprecated.** Vouches for the entire private address space, for database, cache, and mail connector hosts only. Replace it with the two settings above naming specific destinations |
 | `DOMAIN_VERIFICATION_NAMESERVERS` | `1.1.1.1,8.8.8.8` | Comma-separated nameserver IPs that SSO domain verification sends its TXT lookup to. Set it when the network only allows DNS to an internal resolver. Entries that are not IP addresses are ignored |
 
 A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
@@ -334,7 +339,7 @@ INTERNAL_API_SECRET=<openssl rand -hex 32>
 API_ENCRYPTION_KEY=<openssl rand -hex 32>
 CRON_SECRET=<openssl rand -hex 32>
 
-# Coordination (required past one replica)
+# Redis (required)
 REDIS_URL=redis://redis:6379
 
 # Models — OPENAI_API_KEY also powers knowledge base embeddings

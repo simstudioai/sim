@@ -47,12 +47,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BillingInFlightCode } from '@/lib/mothership/generated/billing'
 import { BILLING_CALLBACK_OUTCOME } from '@/lib/mothership/generated/billing-protocol-v1'
-import { BillingRouteOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { recordJobRunSpend } from '@/lib/mothership/jobs/budget'
+import { BillingRouteOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('BillingUpdateCostAPI')
 /**
@@ -174,13 +174,13 @@ function getBillingResolution(
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
  *
- * Parented under the Go-side `sim.update_cost` span via W3C traceparent
- * propagation. Every mothership request that bills should therefore show
- * the Go client span AND this Sim server span sharing one trace, with
+ * Parented under the worker's span via W3C traceparent propagation. Every
+ * mothership request that bills should therefore show the worker's span AND
+ * this Sim server span sharing one trace, with
  * the actual usage/overage work nested below.
  */
 export const POST = withRouteHandler((req: NextRequest) =>
-  withIncomingGoSpan(
+  withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotBillingUpdateCost,
     {
@@ -417,7 +417,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     })
 
     /**
-     * Go sends cumulative cost across partial, terminal, and retry flushes.
+     * The worker sends cumulative cost across partial, terminal, and retry flushes.
      * Every accepted callback has a stable key, so the maximum cumulative cost
      * converges on one ledger event without underbilling or double-billing.
      */
@@ -456,7 +456,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
 
     // Reconcile the payer's ledger-backed threshold after every cumulative
     // callback, including duplicate retries after a prior settlement failure.
-    // Strict error handling lets Go retry until the committed usage is settled.
+    // Strict error handling lets the worker retry until the committed usage is settled.
     if (billingContext) {
       try {
         await checkAndBillPayerOverageThreshold(billingContext.billingEntity, {
@@ -492,7 +492,7 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
     const duration = Date.now() - startTime
 
     // Same-or-lower cumulative than already recorded: nothing new to bill.
-    // Reconciliation has completed, so preserve Go's established 409 outcome.
+    // Reconciliation has completed, so return the 409 the worker reads as already settled.
     if (!billed) {
       logger.info('Duplicate/non-increasing cumulative cost; no new charge', {
         idempotencyKey,

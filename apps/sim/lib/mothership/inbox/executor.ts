@@ -176,7 +176,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
               .returning({ id: copilotChats.id })
             // The rename won — do not announce a title the row no longer holds.
             if (stamped.length === 0) return
-            chatPubSub?.publishStatusChanged({
+            chatPubSub.publishStatusChanged({
               workspaceId: ws.id,
               chatId,
               type: 'renamed',
@@ -187,7 +187,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to generate chat title', { chatId, err })
         })
 
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'created',
@@ -197,7 +197,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     const userMessageId = generateId()
 
     if (chatId) {
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'started',
@@ -267,7 +267,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,
@@ -315,7 +315,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       .where(eq(mothershipInboxTask.id, taskId))
 
     if (chatId) {
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'completed',
@@ -385,9 +385,10 @@ async function resolveWorkspaceChatId(
 /**
  * Resolve the execution and raw-secret actors independently. Workspace members
  * whose address the provider authenticated execute and mount secrets as
- * themselves; an unauthenticated message naming a member is external. External
- * senders retain the existing owner execution fallback but receive no raw-secret
- * actor.
+ * themselves; any other admitted sender is external. The webhook already rejects
+ * unauthenticated senders, so the verdict check here is defense in depth: a task
+ * without it never runs as the member its From names. External senders retain
+ * the existing owner execution fallback but receive no raw-secret actor.
  *
  * The owner fallback exists because billing attribution and workspace reads need
  * a real user, not because an unknown sender should act as the owner. A null

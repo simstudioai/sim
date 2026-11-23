@@ -104,6 +104,21 @@ describe('output selector scoping', () => {
     expect(selection.targetsChildWorkflow).toBe(true)
   })
 
+  it('drops a selector it cannot apply instead of failing the child block', () => {
+    const selection = selectChildOutputSelectors(
+      CHILD_WORKFLOW_ID,
+      { [CHILD_BLOCK_ID]: block(CHILD_BLOCK_ID, 'Writer') },
+      ['done.data', formatInternalOutputSelector('missing', 'content', CHILD_WORKFLOW_ID)]
+    )
+
+    expect(selection.selectedOutputs).toEqual([])
+    expect(selection.targetsChildWorkflow).toBe(false)
+    expect(selection.ignored.map((entry) => entry.selector)).toEqual([
+      'done.data',
+      formatInternalOutputSelector('missing', 'content', CHILD_WORKFLOW_ID),
+    ])
+  })
+
   it.each([
     '',
     ' workflow.agent_content',
