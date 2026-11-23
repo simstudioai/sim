@@ -51,6 +51,7 @@ import {
   isCustomModelId,
   isEvaluationModel,
   isKnownModelId,
+  OLLAMA_MODEL_NAME,
   suggestModelIdsForUnknownModel,
 } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
@@ -588,9 +589,6 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
 function isStoredFile(value: unknown): boolean {
   return isPlainRecord(value) && Boolean(value.name) && Boolean(value.path)
 }
-
-/** An Ollama model name: `[namespace/]name[:tag]`, e.g. `llama3.1:8b` or `hf.co/org/model:Q4_K_M`. */
-const OLLAMA_MODEL_NAME = /^[\w.-]+(\/[\w.-]+)*(:[\w.-]+)?$/
 
 /**
  * Validates a value against its expected subBlock type

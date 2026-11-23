@@ -6915,6 +6915,9 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
     )
 }
 
+/** An Ollama model name, `[host/][namespace/]name[:tag]`: `llama3.1:8b`, `hf.co/org/model:Q4_K_M`. */
+export const OLLAMA_MODEL_NAME = /^[\w.-]+(\/[\w.-]+)*(:[\w.-]+)?$/
+
 /**
  * The provider that declares `model`, or `null` when none does. Resolves catalog entries and
  * provider patterns without guessing a fallback provider.
@@ -6944,6 +6947,14 @@ export function findProviderFromModel(model: string): ProviderId | null {
       return providerId as ProviderId
     }
   }
+
+  /**
+   * Provider patterns are cloud model-name prefixes, and no cloud model id carries an Ollama
+   * `:tag`. Ollama lists every installed model with its tag (`gpt-oss:20b`, `mistral:latest`),
+   * so a tagged name a pattern would claim is a local model that only shares a prefix with a
+   * cloud family. The server never holds the installed list, so the name itself has to say so.
+   */
+  if (normalizedModel.includes(':') && OLLAMA_MODEL_NAME.test(normalizedModel)) return null
 
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))) {
@@ -6995,17 +7006,8 @@ export function getModelCapabilities(modelId: string): ModelCapabilities | null 
     }
   }
 
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    if (provider.modelPatterns) {
-      for (const pattern of provider.modelPatterns) {
-        if (pattern.test(modelId.toLowerCase())) {
-          return provider.capabilities || null
-        }
-      }
-    }
-  }
-
-  return null
+  const providerId = findProviderFromModel(modelId)
+  return providerId ? PROVIDER_DEFINITIONS[providerId]?.capabilities || null : null
 }
 
 export function getProvidersWithToolUsageControl(): string[] {
