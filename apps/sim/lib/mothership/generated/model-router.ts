@@ -10,8 +10,19 @@ import { z } from "zod";
  * Internal-key only: customer keys never reach it.
  */
 export const ModelRouterCandidate = z.strictObject({
-  /** The token the classifier answers with, e.g. "1". */
-  id: z.string().trim().min(1).max(32).regex(/^\S+$/, "a candidate id is a single token"),
+  /**
+   * The token the classifier answers with, e.g. "1": ASCII letters, digits, `_` and `-`, starting
+   * and ending with a letter or digit. Edge punctuation is reserved for the wrapping a model puts
+   * around its answer (`"2".`, `**fast**`), so the worker strips it without ever turning one
+   * candidate's id into another's.
+   */
+  id: z
+    .string()
+    .max(32)
+    .regex(
+      /^[A-Za-z0-9](?:[\w-]*[A-Za-z0-9])?$/,
+      "a candidate id is letters, digits, _ and -, starting and ending with a letter or digit",
+    ),
   /** One line saying when this candidate fits. */
   hint: z.string().max(500),
 });
