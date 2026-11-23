@@ -1,0 +1,20 @@
+{
+  "title": "Workflows as code",
+  "pages": [
+    "index",
+    "get-started",
+    "---How-to guides---",
+    "edit",
+    "create",
+    "workspace",
+    "promote",
+    "ci",
+    "coding-agents",
+    "---Reference---",
+    "syntax",
+    "directory",
+    "exit-codes",
+    "diagnostics",
+    "limits"
+  ]
+}

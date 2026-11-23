@@ -20,7 +20,7 @@ const INTERRUPTED_EXIT_CODE = 130
 const DEFERRED_SECONDS = DEFERRED_INTERRUPT_BOUND_MS / 1000
 
 /** The command group a directory guide's exit-code table is for. */
-type SourceCommandGroup = 'sim workflows source' | 'sim workspaces source'
+export type SourceCommandGroup = 'sim workflows source' | 'sim workspaces source'
 
 /** A source command whose `--help` lists its exit codes from {@link sourceExitCodeRows}. */
 export type SourceHelpCommand =
@@ -54,7 +54,7 @@ const WORKFLOW_DIR_BUSY =
  * one table the directory guides and each command's `--help` are built from, so neither can
  * drift from the codes the CLI exits with. `prefix` is the command group a guide is for.
  */
-function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
+export function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
   return [
     {
       code: 0,
@@ -101,7 +101,7 @@ function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRow[] {
       code: SOURCE_LOCKED_EXIT_CODE,
       meaning:
         'A workflow or its folder is locked (`E_APPLY_LOCKED`); a locked block exits 1 instead',
-      next: 'Ask someone to unlock it in the editor',
+      next: 'Ask someone to unlock it in the workflow builder',
       help: {
         'workflows source apply':
           'the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK)',

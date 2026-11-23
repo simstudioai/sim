@@ -26,6 +26,7 @@ import {
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { isAutoModel } from '@/providers/models'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -95,7 +96,13 @@ async function authorizeVertexCredential(
   input: GuardrailsValidationInput,
   context: GuardrailsOperationContext
 ): Promise<void> {
-  if (!input.vertexCredential || !input.model || getProviderFromModel(input.model) !== 'vertex') {
+  if (
+    !input.vertexCredential ||
+    !input.model ||
+    // sim-auto has no provider to look up (the lookup throws for it), so it is never Vertex.
+    isAutoModel(input.model) ||
+    getProviderFromModel(input.model) !== 'vertex'
+  ) {
     return
   }
   const access = await authorizeCredentialUseForAuth(authenticatedCaller(context), {

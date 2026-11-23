@@ -356,7 +356,7 @@ use a personal API key or an OAuth login, since a workspace API key cannot save
 workflows.
 
 See [Workflows as code](https://docs.sim.ai/workflows/code) and
-[Workspace as code](https://docs.sim.ai/workflows/workspace-code).
+[Workspace as code](https://docs.sim.ai/workflows/code/workspace).
 
 ## CI and automation
 
@@ -369,7 +369,7 @@ export SIM_WORKSPACE="<workspaceId>"
 sim workflows run <workflowId> --input @input.json --output json
 ```
 
-Create and revoke API keys in Sim under **Settings → API keys**, and store them
+Create and revoke API keys in Sim under **Settings → Sim API keys**, and store them
 in your CI provider's secret store. `sim logout` only removes a stored key from
 the current machine; it does not revoke the key.
 

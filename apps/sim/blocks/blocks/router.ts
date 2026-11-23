@@ -3,11 +3,12 @@ import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
   BEDROCK_SAVED_CREDENTIAL_INPUTS,
-  getModelOptions,
+  getModelOptionsWithAuto,
   getProviderCredentialSubBlocks,
-  getSerializedModelProviderId,
   PROVIDER_CREDENTIAL_INPUTS,
+  resolveModelProviderId,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 
 interface TargetBlock {
   id: string
@@ -161,8 +162,8 @@ export const RouterBlock: BlockConfig = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
-      options: getModelOptions,
+      defaultValue: DEFAULT_BLOCK_MODEL,
+      options: getModelOptionsWithAuto,
     },
     ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
@@ -194,7 +195,7 @@ export const RouterBlock: BlockConfig = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
+      tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
     },
   },
   inputs: {
@@ -253,8 +254,8 @@ export const RouterV2Block: BlockConfig = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
-      options: getModelOptions,
+      defaultValue: DEFAULT_BLOCK_MODEL,
+      options: getModelOptionsWithAuto,
     },
     ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
@@ -269,7 +270,7 @@ export const RouterV2Block: BlockConfig = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
+      tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
     },
   },
   inputs: {

@@ -39,8 +39,10 @@ import {
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
   getProviderModels,
+  isAutoModel,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
+  SIM_AUTO_MODEL_ID,
   updateLiteLLMModels,
   updateOllamaModels,
   updateVLLMModels,
@@ -258,7 +260,19 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
+/**
+ * The provider that serves `model`, defaulting an unrecognised id to Ollama.
+ *
+ * Throws for a blacklisted provider or model, and for sim-auto: the pseudo-model has no
+ * provider of its own until the model router (`lib/model-router`) swaps in a concrete one at
+ * execution time, so answering Ollama for it would send `sim-auto` to a server that has
+ * never heard of it.
+ */
 export function getProviderFromModel(model: string): ProviderId {
+  if (isAutoModel(model)) {
+    throw new Error(`${SIM_AUTO_MODEL_ID} has no provider until the model router resolves it`)
+  }
+
   const normalizedModel = model.toLowerCase()
 
   let providerId = findProviderFromModel(model)

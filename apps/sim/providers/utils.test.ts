@@ -1527,6 +1527,13 @@ describe('Provider Management', () => {
       expect(getProviderFromModel('unknown-model')).toBe('ollama')
     })
 
+    it('refuses sim-auto rather than defaulting it to ollama, since only the router resolves it', () => {
+      expect(() => getProviderFromModel('sim-auto')).toThrow(
+        'sim-auto has no provider until the model router resolves it'
+      )
+      expect(() => getProviderFromModel(' Sim-Auto ')).toThrow('has no provider')
+    })
+
     it('should resolve gateway models that getBaseModelProviders deliberately omits', () => {
       // getBaseModelProviders() filters these providers out entirely, so a model
       // block that looked models up there rejected valid ids like these.
