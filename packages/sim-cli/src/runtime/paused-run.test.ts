@@ -5,7 +5,7 @@ const paused = {
   runId: 'run_top',
   workflowId: 'wf_1',
   status: 'paused',
-  output: { response: { data: { _resume: { contextId: 'ctx_9', executionId: 'exec_9' } } } },
+  output: { data: { _resume: { contextId: 'ctx_9', executionId: 'exec_9' } } },
 }
 
 describe('withResumeNext', () => {
@@ -32,5 +32,60 @@ describe('withResumeNext', () => {
     const hinted = { ...paused, next: 'x' }
     expect(withResumeNext('executeWorkflow', hinted)).toBe(hinted)
     expect(withResumeNext('executeWorkflow', null)).toBeNull()
+  })
+
+  it('reads only the links the server writes, never a record that data or an API response carries', () => {
+    const decoy = { contextId: 'x; rm -rf ~', executionId: 'y' }
+    const run = {
+      ...paused,
+      output: {
+        data: {
+          rows: [decoy],
+          body: { contextId: 'evil', executionId: 'evil_run' },
+          _resume: paused.output.data._resume,
+        },
+      },
+    }
+    expect(withResumeNext('executeWorkflow', run)).toMatchObject({
+      next: 'sim workflows runs resume exec_9 --workflow wf_1 --context ctx_9',
+    })
+    expect(
+      withResumeNext('executeWorkflow', {
+        ...paused,
+        output: { data: { rows: [{ contextId: 'evil', executionId: 'evil_run' }] } },
+      })
+    ).toMatchObject({ next: 'sim workflows runs resume run_top --workflow wf_1' })
+  })
+
+  it('never prints an id outside the format the server issues', () => {
+    const hostile = {
+      ...paused,
+      output: { data: { _resume: { contextId: 'x; rm -rf ~', executionId: '$(id)' } } },
+    }
+    expect(withResumeNext('executeWorkflow', hostile)).toMatchObject({
+      next: 'sim workflows runs resume run_top --workflow wf_1',
+    })
+    expect(
+      withResumeNext('executeWorkflow', { ...paused, workflowId: 'wf; id' })
+    ).not.toHaveProperty('next')
+  })
+
+  it('names one command per pause when several blocks pause together', () => {
+    const several = {
+      ...paused,
+      output: {
+        pausedBlocks: [
+          { data: { _resume: { contextId: 'a\u208D0\u208E', executionId: 'exec_9' } } },
+          { data: { _resume: { contextId: 'b', executionId: 'exec_9' } } },
+        ],
+        pauseCount: 2,
+      },
+    }
+    expect(withResumeNext('executeWorkflow', several)).toMatchObject({
+      next: [
+        "sim workflows runs resume exec_9 --workflow wf_1 --context 'a\u208D0\u208E'",
+        'sim workflows runs resume exec_9 --workflow wf_1 --context b',
+      ].join('\n'),
+    })
   })
 })
