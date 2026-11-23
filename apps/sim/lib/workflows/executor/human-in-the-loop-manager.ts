@@ -59,6 +59,7 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
+import { pausedRunIdOf } from '@/lib/workflows/executor/run-pause'
 import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
@@ -175,14 +176,6 @@ class ResumeAdmissionError extends Error {
 export type FailedResumeOutcome = 'pause_retained' | 'execution_failed' | 'execution_completed'
 
 /** Matches the paused execution mode to the deployment recorded on its durable root log. */
-/**
- * The run a resumed attempt's pause is recorded under: the execution the resumed engine ran as,
- * else the attempt's own id. Resume workflow run names this run to resume the pause.
- */
-export function pausedRunIdOf(result: ExecutionResult, resumeExecutionId: string): string {
-  return result.metadata?.executionId ?? resumeExecutionId
-}
-
 export function requireResumeDeploymentVersion(
   useDraftState: unknown,
   deploymentVersionId: string | null

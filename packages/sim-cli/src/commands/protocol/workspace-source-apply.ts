@@ -130,18 +130,13 @@ function failedExitCode(failed: NonNullable<ApplyData['failed']>): number {
     : refusedExitCode([{ code: failed.code, severity: 'error' }])
 }
 
-/** Whether a dry run's errors refuse the apply, as the server answers (`refuses`). */
-function refusesApply(data: ApplyData): boolean {
-  return data.refuses === true
-}
-
 /**
  * The exit status of a dry run with errors, as the apply would exit: one that holds changes back
  * and refuses nothing else writes the rest, so it exits `SOURCE_HELD_EXIT_CODE` as that apply
  * does, unless every change it would write is held (1, nothing written).
  */
 function previewExitCode(data: ApplyData): number {
-  if (refusesApply(data)) return refusedExitCode(data.diagnostics)
+  if (data.refuses === true) return refusedExitCode(data.diagnostics)
   const writesSome = data.plan.some((change) => change.action !== 'noop' && !change.held)
   return writesSome ? SOURCE_HELD_EXIT_CODE : 1
 }
@@ -875,7 +870,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               printPlan(preview.plan, preview.diagnostics)
               findings.print(preview.diagnostics)
             },
-            refuses: refusesApply,
+            refuses: (preview) => preview.refuses === true,
             previewExitCode,
             // Without a preview, stage the blobs the base does not hold as they are.
             beforeCommit: (preview) =>

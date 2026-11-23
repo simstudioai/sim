@@ -1,17 +1,17 @@
 import type { V2ExecuteWorkflowData } from '@/lib/api/contracts/v2/workflows'
-import type { PausePoint } from '@/executor/types'
+import type { RunPause } from '@/lib/workflows/executor/run-pause'
 
 /**
- * The v2 wire shape of where a run waits, shared by the execute and resume results: the run the
- * pause is recorded under (which Resume workflow run names) and each of its points.
+ * The v2 wire shape of where a run waits, shared by the execute and resume results; null when it
+ * is not paused.
  */
 export function presentV2RunPause(
-  runId: string,
-  points: readonly PausePoint[]
-): NonNullable<V2ExecuteWorkflowData['paused']> {
+  pause: RunPause | null | undefined
+): V2ExecuteWorkflowData['paused'] {
+  if (!pause) return null
   return {
-    runId,
-    points: points.map((point) => ({
+    runId: pause.runId,
+    points: pause.points.map((point) => ({
       contextId: point.contextId,
       kind: point.pauseKind,
       status: point.resumeStatus,

@@ -131,7 +131,7 @@ async function writeWorkspaceSource(
   dir: string,
   source: WorkspaceSource,
   force: boolean
-): Promise<{ written: number; removed: number; guide: string; primer: string }> {
+): Promise<{ written: number; removed: number; guide: string }> {
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
@@ -277,7 +277,6 @@ async function writeWorkspaceSource(
       written: summary.files,
       removed: gone.size,
       guide: summary.guide,
-      primer: summary.primer,
     }
   } finally {
     if (partial) await rm(partial, { recursive: true, force: true })

@@ -140,10 +140,7 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
     output: result.output ?? null,
     blockOutputs: result.blockOutputs ?? null,
-    paused:
-      result.status === 'paused'
-        ? presentV2RunPause(result.executionId, result.pausePoints ?? [])
-        : null,
+    paused: presentV2RunPause(result.paused),
   }
 }
 

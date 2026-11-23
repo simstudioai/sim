@@ -33,7 +33,7 @@ describe('workflowCodec', () => {
     expect(parsed.diagnostics.map((finding) => finding.code)).toEqual(['E_DECL_SHAPE'])
   })
 
-  it('reads a base written before bases carried a version', () => {
+  it('refuses a base with no version', () => {
     const base = { workflowId: 'wf_1', workspaceId: 'ws', fingerprint: 'sf1:a', catalogHash: 'c' }
     const parsed = workflowCodec.parse(
       'ingest',
@@ -44,6 +44,7 @@ describe('workflowCodec', () => {
       []
     )
 
-    expect(parsed.decl?.base).toEqual({ version: 1, ...base })
+    expect(parsed.decl?.base).toBeUndefined()
+    expect(parsed.diagnostics.map((finding) => finding.code)).toEqual(['E_DECL_SHAPE'])
   })
 })

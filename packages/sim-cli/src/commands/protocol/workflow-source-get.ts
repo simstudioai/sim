@@ -123,7 +123,7 @@ export function attachWorkflowSourceGet(source: Command): void {
         )
       assertPrintedSourcePaths(workflowSource.files)
       if (!force) await assertNoLocalEdits(dir, workflowSource)
-      const { primer: _, ...tree } = await writeSourceDirectory(
+      const tree = await writeSourceDirectory(
         client,
         dir,
         workflowSource,

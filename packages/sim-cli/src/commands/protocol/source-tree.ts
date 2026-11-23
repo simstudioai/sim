@@ -535,8 +535,6 @@ export interface SourceTree {
   workspaceTypes: boolean
   /** The agent guide to read before editing. */
   guide: typeof SOURCE_AGENTS_FILE
-  /** The primer atop the guide (`source-primer.ts`), printed so an agent needs no other read. */
-  primer: string
 }
 
 /** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
@@ -544,7 +542,7 @@ export function finishTree(
   dir: string,
   written: number,
   workspaceTypes: WorkspaceTypes | null,
-  tree: { ownsTsconfig: boolean; primer: string }
+  tree: { ownsTsconfig: boolean }
 ): SourceTree {
   if (!tree.ownsTsconfig) {
     printError(
@@ -555,14 +553,13 @@ export function finishTree(
     files: written,
     workspaceTypes: workspaceTypes !== null,
     guide: SOURCE_AGENTS_FILE,
-    primer: tree.primer,
   }
 }
 
 /**
  * Prints a tree write's result: the fields, then the primer as text when the result carries one
- * (in JSON or YAML it is the document's `primer` field). A get leaves the primer out: it is
- * already the top of `.sim/AGENTS.md`.
+ * (in JSON or YAML it is the document's `primer` field). Only a new directory's starter prints
+ * it; a get leaves it at the top of `.sim/AGENTS.md`.
  */
 export function printTreeResult(
   format: OutputFormat,

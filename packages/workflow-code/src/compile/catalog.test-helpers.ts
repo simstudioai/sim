@@ -31,6 +31,7 @@ function sub(
 
 const ANY: CatalogOutput = { type: 'json' }
 const TEXT: CatalogOutput = { type: 'string' }
+const MAY_BE_TEXT: CatalogOutput = { type: 'json', mayBeText: true }
 
 function graph(extra: Partial<CatalogBlockGraph> = {}): CatalogBlockGraph {
   return {
@@ -121,7 +122,7 @@ export const TEST_CATALOG: BlockCatalog = {
         sub('body', 'code', 'json', { language: 'json' }),
       ],
       {
-        data: ANY,
+        data: MAY_BE_TEXT,
         status: { type: 'number' },
         headers: { type: 'json', properties: { contentType: TEXT } },
       }
@@ -160,7 +161,7 @@ export const TEST_CATALOG: BlockCatalog = {
         }),
         sub('code', 'code', 'code', { required: true }),
       ],
-      { result: ANY, stdout: TEXT },
+      { result: MAY_BE_TEXT, stdout: TEXT },
       { errorOutputs: ['errorMessage'] }
     ),
     note: block(

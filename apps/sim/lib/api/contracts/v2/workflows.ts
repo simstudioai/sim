@@ -86,10 +86,6 @@ export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
-/**
- * The run a pause is recorded under, which Resume workflow run names. A resumed run that pauses
- * again records the pause under the run it resumed, not under the resume attempt's own id.
- */
 const v2PausedRunIdSchema = z
   .string()
   .describe(

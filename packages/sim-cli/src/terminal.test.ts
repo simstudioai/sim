@@ -135,7 +135,13 @@ describe('a refused source write in JSON output', () => {
     )
     writeFileSync(
       join(dir, '.sim/base.json'),
-      JSON.stringify({ workflowId, workspaceId: 'ws_1', fingerprint: 'sf1:a', catalogHash: 'h' })
+      JSON.stringify({
+        version: 1,
+        workflowId,
+        workspaceId: 'ws_1',
+        fingerprint: 'sf1:a',
+        catalogHash: 'h',
+      })
     )
     const finding = {
       code: 'E_APPLY_STALE',

@@ -27,13 +27,12 @@ function resumeCommand(runId: string, workflowId: string, contextId: string): st
  * server names the run to resume in `paused.runId` (for a resumed run that paused again, the run
  * it resumed, not the record's own `runId`) and each point's `contextId`. Null when nothing waits
  * or an id is not in the format the server issues, so no untrusted text reaches a printed
- * command. `workflowId` is used when the record omits its own.
+ * command.
  */
 export function resumeCommandFor(
   record: Record<string, unknown>,
-  fallback: { workflowId: string }
+  workflowId: string
 ): string | null {
-  const workflowId = typeof record.workflowId === 'string' ? record.workflowId : fallback.workflowId
   const paused = toRecordOrNull(record.paused)
   const runId = paused?.runId
   if (!issuedId(runId) || !issuedId(workflowId)) return null
@@ -54,6 +53,6 @@ export function withResumeNext(operation: V2OperationName, payload: unknown): un
   if (!RUN_OPERATIONS.has(operation) || !isRecordLike(payload)) return payload
   if (payload.status !== 'paused' || 'next' in payload) return payload
   if (typeof payload.workflowId !== 'string') return payload
-  const next = resumeCommandFor(payload, { workflowId: payload.workflowId })
+  const next = resumeCommandFor(payload, payload.workflowId)
   return next ? { ...payload, next } : payload
 }

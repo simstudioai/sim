@@ -118,9 +118,7 @@ export const POST = withRouteHandler(
           output: result.output ?? null,
           // Resume has no request body to name selectors in, so selection never applies here.
           blockOutputs: null,
-          paused: result.paused
-            ? presentV2RunPause(result.paused.runId, result.paused.points)
-            : null,
+          paused: presentV2RunPause(result.paused),
         },
         { headers }
       )
