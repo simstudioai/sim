@@ -11,14 +11,16 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { codeFrame } from '@sim/workflow-code'
 import { SOURCE_TYPESCRIPT_VERSION } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
 import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
+import { childProcessEnv } from '../../environment'
 import { printError } from '../../output/io'
-import { digest, readSourceText, readWritten } from './source-dir'
+import { digest, FILE_CONCURRENCY, readSourceText, readWritten } from './source-dir'
 import type { Diagnostic } from './source-ui'
 
 /** The `--types` / `--no-types` pair: absent runs the type check. */
@@ -42,8 +44,15 @@ export function typesFlag(command: Command): Command {
   )
 }
 
-/** Why the type check could not run, as the `W_TYPES_UNCHECKED` message says it. */
-class TypesUnavailable extends Error {}
+/** Why the type check could not run: the `W_TYPES_UNCHECKED` message and hint. */
+class TypesUnavailable extends Error {
+  constructor(
+    message: string,
+    readonly hint = 'Pass --no-types to skip the type check.'
+  ) {
+    super(message)
+  }
+}
 
 /** Neither process should take this long; a hung one (a stalled registry) is cut off. */
 const PROCESS_TIMEOUT_MS = 5 * 60_000
@@ -67,28 +76,35 @@ interface Finished {
   stderr: string
 }
 
-/** Runs `command` to its end, keeping the start of its output; a failure to start rejects. */
+/**
+ * Runs `command` (`label` names it) to its end, keeping the start of its output (`stdout: false`
+ * discards it). Neither child gets the Sim API key. A failure to start is a {@link TypesUnavailable}.
+ */
 function run(
+  label: string,
   command: string,
   args: readonly string[],
-  options: { cwd: string; shell?: boolean }
+  options: { cwd: string; shell?: boolean; stdout?: boolean }
 ): Promise<Finished> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
+      env: childProcessEnv(['sim_api_key']),
       shell: options.shell ?? false,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', options.stdout === false ? 'ignore' : 'pipe', 'pipe'],
       timeout: PROCESS_TIMEOUT_MS,
       killSignal: 'SIGKILL',
       windowsHide: true,
     })
     const output = { stdout: '', stderr: '' }
     for (const stream of ['stdout', 'stderr'] as const) {
-      child[stream].setEncoding('utf8').on('data', (chunk: string) => {
+      child[stream]?.setEncoding('utf8').on('data', (chunk: string) => {
         if (output[stream].length < MAX_OUTPUT_BYTES) output[stream] += chunk
       })
     }
-    child.once('error', reject)
+    child.once('error', (error) =>
+      reject(new TypesUnavailable(`${label} could not start (${getErrorMessage(error)}).`))
+    )
     child.once('close', (code, signal) => resolve({ code, signal, ...output }))
   })
 }
@@ -123,38 +139,38 @@ async function installedTsc(): Promise<string> {
   const parent = dirname(root)
   await mkdir(parent, { recursive: true })
   const staging = await mkdtemp(join(parent, `.${SOURCE_TYPESCRIPT_VERSION}-`))
+  const offline = `Run the check once with network access (TypeScript is kept in ${root}), or pass --no-types.`
   try {
     // A package.json makes the staging folder npm's prefix, so no path is passed on the command
     // line, which a Windows shell would split at a space.
     await writeFile(join(staging, 'package.json'), '{ "private": true }\n')
     printError(`Installing TypeScript ${SOURCE_TYPESCRIPT_VERSION} for the type check, once.`)
-    let finished: Finished
-    try {
-      finished = await run(
-        'npm',
-        [
-          'install',
-          '--no-save',
-          '--no-package-lock',
-          '--ignore-scripts',
-          '--no-audit',
-          '--no-fund',
-          '--update-notifier=false',
-          '--prefer-offline',
-          '--fetch-retries=0',
-          '--fetch-timeout=30000',
-          '--loglevel=error',
-          `typescript@${SOURCE_TYPESCRIPT_VERSION}`,
-        ],
-        // npm is a `.cmd` launcher on Windows; every argument above is fixed.
-        { cwd: staging, shell: process.platform === 'win32' }
-      )
-    } catch (error) {
-      throw new TypesUnavailable(`npm could not start (${getErrorMessage(error)}).`)
-    }
+    const finished = await run(
+      'npm',
+      'npm',
+      [
+        'install',
+        '--no-save',
+        '--no-package-lock',
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+        '--update-notifier=false',
+        '--prefer-offline',
+        '--fetch-retries=0',
+        '--fetch-timeout=30000',
+        '--loglevel=error',
+        `typescript@${SOURCE_TYPESCRIPT_VERSION}`,
+      ],
+      // npm is a `.cmd` launcher on Windows; every argument above is fixed.
+      { cwd: staging, shell: process.platform === 'win32', stdout: false }
+    ).catch((error: unknown) => {
+      throw error instanceof TypesUnavailable ? new TypesUnavailable(error.message, offline) : error
+    })
     if (finished.code !== 0) {
       throw new TypesUnavailable(
-        `npm could not install typescript@${SOURCE_TYPESCRIPT_VERSION}: ${npmReason(finished.stderr)}.`
+        `npm could not install typescript@${SOURCE_TYPESCRIPT_VERSION}: ${npmReason(finished.stderr)}.`,
+        offline
       )
     }
     if (!existsSync(tscPath(staging))) {
@@ -174,11 +190,11 @@ async function installedTsc(): Promise<string> {
   return tsc
 }
 
-/** One error tsc printed: at a file position, or about the project (`tsconfig.json`). */
-interface TscError {
-  file?: string
-  line?: number
-  column?: number
+/** An error tsc printed at a file position. */
+interface LocatedTscError {
+  file: string
+  line: number
+  column: number
   message: string
 }
 
@@ -186,31 +202,34 @@ const LOCATED_ERROR = /^(.+)\((\d+),(\d+)\): error (TS\d+): (.*)$/
 const PROJECT_ERROR = /^error (TS\d+): (.*)$/
 
 /**
- * The errors of `tsc --pretty false`: one line each, with the indented lines of a message chain
- * (`Types of property 'a' are incompatible.`) joined onto it.
+ * The errors of `tsc --pretty false`, at a file position or about the project (`tsconfig.json`):
+ * one line each, with the indented lines of a message chain (`Types of property 'a' are
+ * incompatible.`) joined onto it.
  */
-function parseTscOutput(stdout: string): TscError[] {
-  const errors: TscError[] = []
+function parseTscOutput(stdout: string): { located: LocatedTscError[]; project: string[] } {
+  const located: LocatedTscError[] = []
+  const project: string[] = []
+  let last: { message: string } | undefined
   for (const line of stdout.split(/\r?\n/)) {
-    const located = LOCATED_ERROR.exec(line)
-    if (located) {
-      errors.push({
-        file: located[1],
-        line: Number(located[2]),
-        column: Number(located[3]),
-        message: `${located[4]}: ${located[5]}`,
-      })
-      continue
+    const at = LOCATED_ERROR.exec(line)
+    const global = at ? null : PROJECT_ERROR.exec(line)
+    if (at) {
+      const error: LocatedTscError = {
+        file: at[1],
+        line: Number(at[2]),
+        column: Number(at[3]),
+        message: `${at[4]}: ${at[5]}`,
+      }
+      located.push(error)
+      last = error
+    } else if (global) {
+      last = { message: `${global[1]}: ${global[2]}` }
+      project.push(last.message)
+    } else if (last && /^\s/.test(line) && line.trim()) {
+      last.message += ` ${line.trim()}`
     }
-    const project = PROJECT_ERROR.exec(line)
-    if (project) {
-      errors.push({ message: `${project[1]}: ${project[2]}` })
-      continue
-    }
-    const last = errors.at(-1)
-    if (last && /^\s/.test(line) && line.trim()) last.message += ` ${line.trim()}`
   }
-  return errors
+  return { located, project }
 }
 
 /** The type check's outcome: whether it ran, and its findings. */
@@ -220,28 +239,48 @@ export interface TypeCheck {
 }
 
 /**
- * Type-checks the source directory `root` with its `tsconfig.json`. `scope` (a folder under
- * `root`, such as `workflows/<key>/`) keeps only that folder's errors, with files relative to it,
- * as a check of one workflow folder of a workspace reports them. Two kinds of type error are left
- * out: one on a line where `compiled` (the compile's findings) already has an error, the same
- * mistake, which the compile says better; and one in a file still as the last get or apply wrote
- * it (`.sim/written.json`), printed source the server accepted, where the declarations can lag
- * (a block the workspace's catalog withholds from the caller while a stored workflow holds it). An embedded run reads files through its host, which no
- * subprocess can, so it does not type-check.
+ * Runs the pinned tsc over `root`'s `tsconfig.json` and returns its errors; a {@link
+ * TypesUnavailable} when it cannot be installed, does not start, or stops without saying why.
+ */
+async function tscErrors(root: string): Promise<ReturnType<typeof parseTscOutput>> {
+  const tsc = await installedTsc()
+  const finished = await run(
+    'TypeScript',
+    process.execPath,
+    [tsc, '-p', '.', '--pretty', 'false'],
+    {
+      cwd: root,
+    }
+  )
+  const errors = parseTscOutput(finished.stdout)
+  if (finished.code !== 0 && errors.located.length === 0 && errors.project.length === 0) {
+    const said = (finished.stderr || finished.stdout).trim().split('\n')[0] ?? ''
+    throw new TypesUnavailable(
+      `TypeScript stopped (${finished.signal ?? `exit ${finished.code}`})${said ? `: ${said}` : '.'}`
+    )
+  }
+  return errors
+}
+
+/**
+ * Type-checks the source directory `root` with its `tsconfig.json`, unless `enabled` is false
+ * (`--no-types`). `scope` (a folder under `root`, such as `workflows/<key>/`) keeps only that
+ * folder's errors, with files relative to it, as a check of one workflow folder of a workspace
+ * reports them. Two kinds of type error are left out: one on a line where `compiled` (the
+ * compile's findings) already has an error, the same mistake, which the compile says better; and
+ * one in a file still as the last get or apply wrote it (`.sim/written.json`), printed source the
+ * server accepted, where the declarations can lag (a block the workspace's catalog withholds from
+ * the caller while a stored workflow holds it). An embedded run reads files through its host,
+ * which no subprocess can, so it does not type-check.
  */
 export async function typeCheck(
   root: string,
-  options: { scope?: string; compiled: readonly Diagnostic[] }
+  options: { enabled: boolean; scope?: string; compiled: readonly Diagnostic[] }
 ): Promise<TypeCheck> {
-  if (embedStore.getStore()) return { checked: false, findings: [] }
-  let finished: Finished
+  if (!options.enabled || embedStore.getStore()) return { checked: false, findings: [] }
+  let errors: Awaited<ReturnType<typeof tscErrors>>
   try {
-    const tsc = await installedTsc()
-    try {
-      finished = await run(process.execPath, [tsc, '-p', '.', '--pretty', 'false'], { cwd: root })
-    } catch (error) {
-      throw new TypesUnavailable(`TypeScript could not start (${getErrorMessage(error)}).`)
-    }
+    errors = await tscErrors(root)
   } catch (error) {
     if (!(error instanceof TypesUnavailable)) throw error
     return {
@@ -251,60 +290,51 @@ export async function typeCheck(
           code: 'W_TYPES_UNCHECKED',
           severity: 'warning',
           message: `Types were not checked: ${error.message}`,
-          hint: `Run the check once with network access (TypeScript is kept in ${typescriptRoot()}), or pass --no-types.`,
+          hint: error.hint,
         },
       ],
     }
   }
-  const errors = parseTscOutput(finished.stdout)
-  if (finished.code !== 0 && errors.length === 0) {
-    const said = (finished.stderr || finished.stdout).trim().split('\n')[0] ?? ''
-    return {
-      checked: false,
-      findings: [
-        {
-          code: 'W_TYPES_UNCHECKED',
-          severity: 'warning',
-          message: `Types were not checked: TypeScript stopped (${finished.signal ?? `exit ${finished.code}`})${said ? `: ${said}` : '.'}`,
-          hint: 'Pass --no-types to skip the type check.',
-        },
-      ],
-    }
-  }
+  const { scope = '' } = options
   const compiledErrorLines = new Set(
     options.compiled
       .filter((finding) => finding.severity === 'error' && finding.file !== undefined)
       .map((finding) => `${finding.file}:${finding.line}`)
   )
-  const written = (await readWritten(root)).digests
-  const texts = new Map<string, Promise<string | null>>()
-  const findings: Diagnostic[] = []
-  for (const error of errors) {
-    if (error.file === undefined) {
-      findings.push({ code: 'E_TYPE', severity: 'error', message: error.message })
-      continue
-    }
-    const { scope } = options
-    if (scope !== undefined && !error.file.startsWith(scope)) continue
-    const file = scope === undefined ? error.file : error.file.slice(scope.length)
-    if (compiledErrorLines.has(`${file}:${error.line}`)) continue
-    let text = texts.get(error.file)
-    if (!text) {
-      text = readSourceText(root, error.file)
-      texts.set(error.file, text)
-    }
-    const source = await text
-    if (source !== null && written[error.file] === digest(source)) continue
-    const line = error.line ?? 1
-    const column = error.column ?? 1
+  const located = errors.located.filter(
+    ({ file, line }) =>
+      file.startsWith(scope) && !compiledErrorLines.has(`${file.slice(scope.length)}:${line}`)
+  )
+  const files = [...new Set(located.map(({ file }) => file))]
+  const [written, texts] = await Promise.all([
+    located.length > 0 ? readWritten(root) : null,
+    mapWithConcurrency(files, FILE_CONCURRENCY, (file) => readSourceText(root, file)),
+  ])
+  const sources = new Map(
+    files.map((file, index) => {
+      const text = texts[index]
+      const printed = text !== null && written?.digests[file] === digest(text)
+      return [file, { text, printed }] as const
+    })
+  )
+  const findings: Diagnostic[] = errors.project.map((message) => ({
+    code: 'E_TYPE',
+    severity: 'error',
+    message,
+  }))
+  for (const { file, line, column, message } of located) {
+    const source = sources.get(file)
+    if (source?.printed) continue
     findings.push({
       code: 'E_TYPE',
       severity: 'error',
-      message: error.message,
-      file,
+      message,
+      file: file.slice(scope.length),
       line,
       column,
-      ...(source === null ? {} : { frame: codeFrame(source, { line, column }) }),
+      ...(source && source.text !== null
+        ? { frame: codeFrame(source.text, { line, column }) }
+        : {}),
     })
   }
   return { checked: true, findings }

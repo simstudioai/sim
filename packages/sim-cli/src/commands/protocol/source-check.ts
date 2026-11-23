@@ -48,6 +48,7 @@ import {
   type LocalDeclarations,
   refreshTsconfigs,
 } from './source-tree'
+import type { TypeCheck } from './source-types'
 import { type Diagnostic, findingsOutput } from './source-ui'
 import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
 import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
@@ -780,10 +781,11 @@ export function reportCheck(
     unlisted?: UnlistedCounts
     /** The source directory, which GitHub Actions annotations resolve finding files under. */
     dir?: string
-    /** Whether the type check ran after the compile (`source-types.ts`). */
-    typesChecked?: boolean
+    /** The type check that ran after the compile, whose findings join the compile's. */
+    types?: TypeCheck
   } = {}
 ): void {
+  findings = [...findings, ...(options.types?.findings ?? [])]
   const shown = findingsOutput(output, options.verbose, options.dir)
   const listed = boundAnswerFindings(findings, options.bound)
   shown.print(listed)
@@ -791,7 +793,7 @@ export function reportCheck(
   const errors = findings.filter((finding) => finding.severity === 'error').length + unlisted.errors
   if (errors > 0) setSoftExitCode(1)
   printProtocolResult(output, {
-    checked: options.typesChecked ? ['compile', 'types'] : ['compile'],
+    checked: options.types?.checked ? ['compile', 'types'] : ['compile'],
     errors,
     warnings:
       findings.filter((finding) => finding.severity === 'warning').length + unlisted.warnings,

@@ -174,18 +174,20 @@ export function attachWorkspaceSourceCheck(source: Command): void {
             withWorkflowInputs(declarations.local, declarations.workflowInputs)
           )
           await refreshWorkspaceTsconfigs(options.dir, workspaceId)
-          const types =
-            options.types === false ? null : await typeCheck(options.dir, { compiled: findings })
+          const types = await typeCheck(options.dir, {
+            enabled: options.types !== false,
+            compiled: findings,
+          })
           reportCheck(
             profile.output,
-            [...findings, ...(types?.findings ?? [])],
+            findings,
             { workflows: keys.length, catalogHash: catalog.hash },
             {
               verbose: options.verbose === true,
               bound: WORKSPACE_ANSWER_BOUND,
               unlisted,
               dir: options.dir,
-              typesChecked: types?.checked === true,
+              types,
             }
           )
         })

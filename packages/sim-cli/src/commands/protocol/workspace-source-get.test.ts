@@ -1313,6 +1313,33 @@ describe('the type check of workspaces source check', () => {
     expect(readdirSync(join(rootDir, 'config/cache/typescript'))).toEqual([])
   })
 
+  it('runs npm without the Sim API key', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    rmSync(join(rootDir, 'config/cache/typescript'), { recursive: true })
+    const bin = join(rootDir, 'bin')
+    mkdirSync(bin)
+    writeFileSync(
+      join(bin, 'npm'),
+      `#!/bin/sh\nenv > "${join(rootDir, 'npm-env')}"\necho "npm error offline" >&2\nexit 1\n`,
+      { mode: 0o755 }
+    )
+    vi.stubEnv('PATH', `${bin}:${process.env.PATH}`)
+    vi.stubEnv('SIM_API_KEY', 'sk-sim-secret')
+
+    await runWorkspaceSource('check', dir)
+
+    expect(result().diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'W_TYPES_UNCHECKED',
+        message: expect.stringContaining('offline'),
+      })
+    )
+    const env = readFileSync(join(rootDir, 'npm-env'), 'utf8')
+    expect(env).toContain(`PATH=${bin}`)
+    expect(env).not.toContain('sk-sim-secret')
+  })
+
   it('skips the type check with --no-types', async () => {
     serve({ 'tables/leads.ts': LEADS })
     await get()

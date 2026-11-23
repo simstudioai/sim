@@ -125,22 +125,20 @@ export function attachWorkflowSourceCheck(source: Command): void {
             { incremental: true }
           )
         }
-        const types =
-          options.types === false
-            ? null
-            : await typeCheck(workspace ? workspace.root : options.dir, {
-                ...(workspace ? { scope: `${KIND_DIRS.workflow}/${workspace.key}/` } : {}),
-                compiled: findings,
-              })
+        const types = await typeCheck(workspace ? workspace.root : options.dir, {
+          enabled: options.types !== false,
+          ...(workspace ? { scope: `${KIND_DIRS.workflow}/${workspace.key}/` } : {}),
+          compiled: findings,
+        })
         reportCheck(
           profile.output,
-          [...findings, ...(types?.findings ?? [])],
+          findings,
           { catalogHash: catalog.hash },
           {
             verbose: options.verbose === true,
             unlisted,
             dir: options.dir,
-            typesChecked: types?.checked === true,
+            types,
           }
         )
       }
