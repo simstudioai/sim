@@ -23,7 +23,7 @@ import {
   toBillingContext,
 } from '@/lib/billing/core/attribution'
 import {
-  isFreeRunPayer,
+  isCappedRunPayer,
   type MidRunUsageVerdict,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
@@ -88,7 +88,7 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * A duplicate callback answers too: it is often a retry whose first answer was lost. The charge
  * is already recorded when this runs.
  *
- * A free payer's spend past its limit is never billed, so its standing is read from the ledger
+ * A capped payer's spend past its limit is never billed, so its standing is read from the ledger
  * on every callback, and a standing that cannot be read (a gate that cannot answer, or a read
  * that outlasts {@link USAGE_STANDING_TIMEOUT_MS}) pauses the run. A paid payer's admission is
  * cached per payer and actor (briefly once near the limit) and a refusal is always re-read, so
@@ -101,7 +101,7 @@ async function readUsageStanding(
   billingAttribution: BillingAttributionSnapshot | undefined,
   accountDecision: AccountBillingDecision | undefined
 ): Promise<BillingUsageVerdict> {
-  const readOptions = { uncachedForFreePayer: true }
+  const readOptions = { uncachedForCappedPayer: true }
   const payer = billingAttribution ?? accountDecision
   const readVerdict = billingAttribution
     ? () => readMidRunUsageVerdict(billingAttribution, 0, readOptions)
@@ -109,12 +109,12 @@ async function readUsageStanding(
       ? () => readMidRunAccountUsageVerdict(accountDecision, readOptions)
       : null
   if (!isHosted || !payer || !readVerdict) return { usageExceeded: false }
-  const freePayer = isFreeRunPayer(payer)
+  const cappedPayer = isCappedRunPayer(payer)
   let verdict: MidRunUsageVerdict
   try {
     verdict = await withinDeadline(readVerdict, Date.now() + USAGE_STANDING_TIMEOUT_MS)
   } catch {
-    logger.warn('Usage standing read outlasted the callback budget', { freePayer })
+    logger.warn('Usage standing read outlasted the callback budget', { cappedPayer })
     verdict = { status: 'unknown' }
   }
   if (verdict.status === 'exceeded') {
@@ -129,7 +129,7 @@ async function readUsageStanding(
   }
   // A blocked account is refused at the run's next continuation or re-check, with
   // blocked-account copy rather than the upgrade card.
-  if (verdict.status !== 'unknown' || !freePayer) return { usageExceeded: false }
+  if (verdict.status !== 'unknown' || !cappedPayer) return { usageExceeded: false }
   return {
     usageExceeded: true,
     usageUpgrade: await resolveUsageUpgradePayload(userId, {

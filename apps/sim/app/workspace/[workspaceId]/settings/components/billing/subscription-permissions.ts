@@ -1,8 +1,13 @@
+import { isTrialingSubscription } from '@/lib/billing/subscriptions/utils'
+
 export interface SubscriptionPermissions {
   canUpgradeToPro: boolean
   canUpgradeToTeam: boolean
   canViewEnterprise: boolean
   canManageTeam: boolean
+  /** Manage payment method and cancel or restore the plan. */
+  canManageBilling: boolean
+  /** Change the usage limit or on-demand usage; a trial's allowance is fixed. */
   canEditUsageLimit: boolean
   canCancelSubscription: boolean
   showTeamMemberView: boolean
@@ -37,6 +42,7 @@ export function getSubscriptionPermissions(
   userRole: UserRole
 ): SubscriptionPermissions {
   const { isFree, isPro, isEnterprise, isPaid, isOrgScoped } = subscription
+  const isTrialing = isTrialingSubscription(subscription)
   const { isTeamAdmin } = userRole
 
   // Non-admin org members see the "team member" view: no edit / no cancel
@@ -45,14 +51,17 @@ export function getSubscriptionPermissions(
   const orgAdminOrSolo = !isOrgScoped || isTeamAdmin
 
   const isEnterpriseMember = isEnterprise && !isTeamAdmin
+  const canManageBilling = (isFree || (isPaid && !isEnterprise)) && orgAdminOrSolo
   const canViewUsageInfo = !isEnterpriseMember
 
   return {
     canUpgradeToPro: isFree,
-    canUpgradeToTeam: isFree || (isPro && !isOrgScoped),
+    // A trial becomes a team plan only after it converts.
+    canUpgradeToTeam: isFree || (isPro && !isOrgScoped && !isTrialing),
     canViewEnterprise: !isEnterprise && !orgMemberOnly,
     canManageTeam: isOrgScoped && isTeamAdmin && !isEnterprise,
-    canEditUsageLimit: (isFree || (isPaid && !isEnterprise)) && orgAdminOrSolo,
+    canManageBilling,
+    canEditUsageLimit: canManageBilling && !isTrialing,
     canCancelSubscription: isPaid && !isEnterprise && orgAdminOrSolo,
     showTeamMemberView: orgMemberOnly,
     showUpgradePlans:

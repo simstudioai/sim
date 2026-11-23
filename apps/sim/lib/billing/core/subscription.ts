@@ -3,11 +3,13 @@ import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import {
   isMaxTier,
   isOrgPlan,
@@ -22,6 +24,7 @@ import {
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
+  formatTrialEndDate,
   hasUsableSubscriptionAccess,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
@@ -904,9 +907,13 @@ export async function hasWorkspaceSandboxRetentionAccess(
 }
 
 /**
- * Send welcome email for Pro and Team plan subscriptions
+ * Send welcome email for Pro and Team plan subscriptions. `trialEnd` is passed when the plan
+ * starts with a free trial, so the email states when the card is first charged.
  */
-export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
+export async function sendPlanWelcomeEmail(
+  subscription: any,
+  options: { trialEnd?: Date | null } = {}
+): Promise<void> {
   try {
     const subPlan = subscription.plan
     if (isPlanPro(subPlan) || isPlanTeam(subPlan)) {
@@ -927,15 +934,23 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
         const displayName = getDisplayPlanName(subPlan)
 
+        const trial = options.trialEnd
+          ? {
+              endsOn: formatTrialEndDate(options.trialEnd),
+              credits: formatCredits(PRO_TRIAL_USAGE_LIMIT_DOLLARS),
+            }
+          : undefined
+
         const html = await renderPlanWelcomeEmail({
           planName: displayName,
           userName: users[0].name || undefined,
           loginLink: `${baseUrl}/login`,
+          trial,
         })
 
         await sendEmail({
           to: users[0].email,
-          subject: getPlanWelcomeSubject(displayName),
+          subject: getPlanWelcomeSubject(displayName, Boolean(trial)),
           html,
           emailType: 'updates',
         })

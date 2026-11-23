@@ -1842,9 +1842,9 @@ export const subscription = pgTable(
     ),
     /**
      * Partial index for the cycle-close sweep's keyset iteration: exactly the
-     * entitled subscriptions whose close marker lags the current period. The
+     * settled subscriptions whose close marker lags the current period. The
      * predicate must mirror the sweep query in `lib/billing/cycle-close.ts`
-     * (status list = ENTITLED_SUBSCRIPTION_STATUSES, hardcoded here because
+     * (status list = SETTLED_SUBSCRIPTION_STATUSES, hardcoded here because
      * packages cannot import from apps); a drifted predicate degrades to a
      * seq scan, never a wrong result. The index stays tiny — closes remove
      * rows from it — so the candidate scan is O(lagging), not O(fleet).
@@ -1860,6 +1860,18 @@ export const subscription = pgTable(
     ),
   })
 )
+
+/**
+ * Cards that have started a Pro free trial, keyed by Stripe's card fingerprint, so a card gets one
+ * trial across every account. A row outlives its account (`user_id` is nulled), so deleting the
+ * account and signing up again cannot reuse the card.
+ */
+export const trialCard = pgTable('trial_card', {
+  fingerprint: text('fingerprint').primaryKey(),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  stripeSubscriptionId: text('stripe_subscription_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
 
 export const chat = pgTable(
   'chat',

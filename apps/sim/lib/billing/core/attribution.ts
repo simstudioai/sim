@@ -106,6 +106,12 @@ export interface AccountBillingDecision {
    * verdict judges the payer's current one, so the limit can only be under-enforced.
    */
   readonly payerSubscriptionId?: string
+  /**
+   * Whether the payer's spend past its limit is billed as overage at admission
+   * (`billsOverage`): false for the free plan and a trial, whose limit is a hard cap.
+   * Absent in decisions minted before it existed, which judge by `payerSubscriptionId` alone.
+   */
+  readonly payerBillsOverage?: boolean
 }
 
 export interface ResolveBillingAttributionParams {
@@ -574,6 +580,10 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
   if (payerSubscriptionId !== undefined && !isNonEmptyString(payerSubscriptionId)) {
     throw new Error('Account billing decision must contain a valid payer subscription ID')
   }
+  const payerBillsOverage = value.payerBillsOverage
+  if (payerBillsOverage !== undefined && typeof payerBillsOverage !== 'boolean') {
+    throw new Error('Account billing decision must contain a valid overage flag')
+  }
 
   return Object.freeze({
     userId: value.userId,
@@ -587,6 +597,7 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
       ...(source !== undefined ? { source } : {}),
     }),
     ...(payerSubscriptionId !== undefined ? { payerSubscriptionId } : {}),
+    ...(payerBillsOverage !== undefined ? { payerBillsOverage } : {}),
   })
 }
 

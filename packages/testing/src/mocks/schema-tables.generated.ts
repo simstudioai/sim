@@ -444,6 +444,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'metadata',
     'lastClosedPeriodStart',
   ],
+  trialCard: ['fingerprint', 'userId', 'stripeSubscriptionId', 'createdAt'],
   chat: [
     'id',
     'workflowId',

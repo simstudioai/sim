@@ -20,7 +20,7 @@ import {
   USAGE_GATE_TTL_MS,
   usageAdmissionTtlMs,
 } from '@/lib/billing/core/usage-gate-cache'
-import { isFree } from '@/lib/billing/plan-helpers'
+import { billsOverage } from '@/lib/billing/subscriptions/utils'
 import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
@@ -36,7 +36,7 @@ const logger = createLogger('MidRunUsage')
  * - `blocked`: the account is blocked (payment failed, dispute); the run is refused as a blocked
  *   account, never with the upgrade card.
  * - `unknown`: usage, or the payer's current period, could not be read. Admission fails closed
- *   on an unreadable ledger. Callers stop a free payer's run on it (see {@link isFreeRunPayer}),
+ *   on an unreadable ledger. Callers stop a capped payer's run on it (see {@link isCappedRunPayer}),
  *   whose spend past the limit is never billed, and let a paid payer's run continue: a database
  *   blip must not end a paying user's long run, and the next step or re-check reads again.
  */
@@ -52,24 +52,26 @@ export type MidRunUsageVerdict =
 
 interface MidRunUsageReadOptions {
   /**
-   * Reads a free payer's standing from the ledger rather than a cached admission, for a caller
-   * that has just recorded a charge: a free payer is always near its limit, and a cached
+   * Reads a capped payer's standing from the ledger rather than a cached admission, for a caller
+   * that has just recorded a charge: a capped payer is always near its limit, and a cached
    * admission would let that charge run past it unseen. Paid payers keep the cached admission.
    */
-  uncachedForFreePayer?: boolean
+  uncachedForCappedPayer?: boolean
 }
 
 /**
- * Whether a run's payer is on the free plan, as admitted. An attributed run reads its payer
- * subscription (an organization payer without one is free). A direct-v1 decision records a
- * subscription only for a payer with an entitled one, and a free payer has none.
+ * Whether a run's payer has a hard usage cap, as admitted: the free plan or a paid plan's trial,
+ * whose spend past the limit is never billed ({@link billsOverage}). An attributed run reads its
+ * payer subscription (an organization payer without one is free); a direct-v1 decision records the
+ * verdict, or, when minted before it did, only whether the payer had a subscription.
  */
-export function isFreeRunPayer(
+export function isCappedRunPayer(
   payer: BillingAttributionSnapshot | AccountBillingDecision
 ): boolean {
-  return 'payerSubscription' in payer
-    ? isFree(payer.payerSubscription?.plan)
-    : !payer.payerSubscriptionId
+  if ('payerSubscription' in payer) return !billsOverage(payer.payerSubscription)
+  return payer.payerBillsOverage === undefined
+    ? !payer.payerSubscriptionId
+    : !payer.payerBillsOverage
 }
 
 /**
@@ -144,7 +146,7 @@ async function readGateVerdict(
   let usage: AttributedUsageLimitsResult
   try {
     usage =
-      options.uncachedForFreePayer && isFreeRunPayer(attribution)
+      options.uncachedForCappedPayer && isCappedRunPayer(attribution)
         ? await withinDeadline(
             () => checkAttributedUsageLimits(attribution),
             Date.now() + USAGE_GATE_SETTLE_TIMEOUT_MS
@@ -221,8 +223,8 @@ const accountVerdictCache = new LRUCache<string, MidRunUsageVerdict>({
  * payer, in the gate's order: a blocked actor or payer first, then the payer's spend. The payer
  * is the one saved in the decision at admission, never re-selected from the actor's current
  * memberships, and the period judged is the one its charges land in, as for attributed runs.
- * Whether {@link MidRunUsageReadOptions.uncachedForFreePayer} applies is judged by the plan the
- * run was admitted with, as {@link isFreeRunPayer} judges it.
+ * Whether {@link MidRunUsageReadOptions.uncachedForCappedPayer} applies is judged by the plan the
+ * run was admitted with, as {@link isCappedRunPayer} judges it.
  */
 export async function readMidRunAccountUsageVerdict(
   decision: AccountBillingDecision,
@@ -257,7 +259,7 @@ export async function readMidRunAccountUsageVerdict(
       subscription?.status ?? '',
       subscription?.seats ?? '',
     ].join(':')
-    const uncached = options.uncachedForFreePayer === true && isFreeRunPayer(decision)
+    const uncached = options.uncachedForCappedPayer === true && isCappedRunPayer(decision)
     const cached = uncached ? undefined : accountVerdictCache.get(key)
     if (cached) return cached
     const block = await checkAccountBillingBlocks(decision)
