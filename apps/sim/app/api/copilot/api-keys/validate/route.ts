@@ -28,13 +28,14 @@ import {
 } from '@/lib/billing/core/attribution'
 import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import {
-  isFreeRunPayer,
+  isCappedRunPayer,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
 } from '@/lib/billing/core/mid-run-usage'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { billsOverage } from '@/lib/billing/subscriptions/utils'
 import { resolveUsageUpgradePayload, type UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -292,6 +293,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
             : {}),
         },
         ...(subscription ? { payerSubscriptionId: subscription.id } : {}),
+        payerBillsOverage: billsOverage(subscription),
       },
     }
   }
@@ -431,7 +433,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
           })
           // A continuation, and a worker's periodic re-check of a long run, also reads the
           // original payer's spend through the cached execution usage gate. A read that fails
-          // refuses a free payer, whose spend past the limit is never billed, and admits a paid
+          // refuses a capped payer, whose spend past the limit is never billed, and admits a paid
           // one: the run is already under way, and the next re-check reads again.
           const verdict =
             !blocked?.blocked && purpose === COPILOT_VALIDATION_PURPOSE.continuation && billing
@@ -458,14 +460,14 @@ export const POST = withRouteHandler((req: NextRequest) =>
               { status: 402 }
             )
           }
-          const unreadFreePayer =
+          const unreadCappedPayer =
             verdict?.status === 'unknown' &&
             billing !== null &&
-            isFreeRunPayer(billing.kind === 'attributed' ? billing.attribution : billing.decision)
-          if (verdict?.status === 'exceeded' || unreadFreePayer) {
+            isCappedRunPayer(billing.kind === 'attributed' ? billing.attribution : billing.decision)
+          if (verdict?.status === 'exceeded' || unreadCappedPayer) {
             logger.info('[API VALIDATION] Continuation usage exceeded', {
               userId,
-              unread: unreadFreePayer,
+              unread: unreadCappedPayer,
             })
             span.setAttribute(
               TraceAttr.CopilotValidateOutcome,

@@ -10,6 +10,8 @@ interface UsageThresholdEmailProps {
   currentUsage: number
   limit: number
   ctaLink: string
+  /** Set during a free trial, whose allowance is fixed until the trial ends on this date. */
+  trialEndsOn?: string
 }
 
 export function UsageThresholdEmail({
@@ -19,16 +21,27 @@ export function UsageThresholdEmail({
   currentUsage,
   limit,
   ctaLink,
+  trialEndsOn,
 }: UsageThresholdEmailProps) {
-  const previewText = `Sim: You're at ${percentUsed}% of your ${planName} monthly budget`
+  const copy = trialEndsOn
+    ? {
+        preview: `Sim: You're at ${percentUsed}% of your ${planName} trial credits`,
+        status: `You're approaching the credits included in your ${planName} free trial.`,
+        remedy: `Your full ${planName} allowance starts when your trial ends on ${trialEndsOn}.`,
+        action: 'View Billing',
+      }
+    : {
+        preview: `Sim: You're at ${percentUsed}% of your ${planName} monthly budget`,
+        status: `You're approaching your monthly budget on the ${planName} plan.`,
+        remedy: 'To avoid interruptions, consider increasing your monthly limit.',
+        action: 'Review Limits',
+      }
 
   return (
-    <EmailLayout preview={previewText} showUnsubscribe={true}>
+    <EmailLayout preview={copy.preview} showUnsubscribe={true}>
       <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
-      <Text style={baseStyles.paragraph}>
-        You're approaching your monthly budget on the {planName} plan.
-      </Text>
+      <Text style={baseStyles.paragraph}>{copy.status}</Text>
 
       <Section style={baseStyles.infoBox}>
         <Text style={baseStyles.infoBoxTitle}>Usage</Text>
@@ -38,11 +51,9 @@ export function UsageThresholdEmail({
         </Text>
       </Section>
 
-      <Text style={baseStyles.paragraph}>
-        To avoid interruptions, consider increasing your monthly limit.
-      </Text>
+      <Text style={baseStyles.paragraph}>{copy.remedy}</Text>
 
-      <EmailButton href={ctaLink}>Review Limits</EmailButton>
+      <EmailButton href={ctaLink}>{copy.action}</EmailButton>
 
       <div style={baseStyles.divider} />
 

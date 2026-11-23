@@ -13,6 +13,7 @@ export const DEFAULT_PRO_TIER_COST_LIMIT = 20
 export const DEFAULT_TEAM_TIER_COST_LIMIT = 40
 export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
 export const CREDIT_MULTIPLIER = 200
+export const PRO_TRIAL_USAGE_LIMIT_DOLLARS = 10
 
 export function isPro(plan: Plan): boolean {
   return Boolean(plan) && (plan === 'pro' || Boolean(plan?.startsWith('pro_')))
@@ -32,6 +33,10 @@ function isFree(plan: Plan): boolean {
 
 export function isOrgPlan(plan: Plan): boolean {
   return isTeam(plan) || isEnterprise(plan)
+}
+
+export function isPaid(plan: Plan): boolean {
+  return isPro(plan) || isTeam(plan) || isEnterprise(plan)
 }
 
 export function getPlanTierCredits(plan: Plan): number {
@@ -55,4 +60,10 @@ export function getPlanPricing(plan: string): { basePrice: number } {
     }
   }
   return { basePrice: 0 }
+}
+
+/** Faithful port of the real `getPlanWeeklyRefreshDollars`: $10/week below Max, $20/week at Max. */
+export function getPlanWeeklyRefreshDollars(plan: Plan): number {
+  if (!isPaid(plan) || isEnterprise(plan)) return 0
+  return getPlanTierCredits(plan) >= 25000 ? 20 : 10
 }

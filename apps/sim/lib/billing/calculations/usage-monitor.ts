@@ -22,8 +22,11 @@ import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
-import { getPlanWeeklyRefreshDollars, isPaid } from '@/lib/billing/plan-helpers'
-import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { isPaid } from '@/lib/billing/plan-helpers'
+import {
+  getSubscriptionWeeklyRefreshDollars,
+  isOrgScopedSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('UsageMonitor')
@@ -73,7 +76,7 @@ async function computePooledOrgUsage(
     return readSoftGateUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+  const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(sub)
   if (weeklyRefreshDollars <= 0) {
     return readSoftGateUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
@@ -148,7 +151,7 @@ export async function checkUsageStatus(
     let refreshConsumed = 0
     let appliedWeeklyRefresh = false
     if (sub && isPaid(sub.plan) && sub.periodStart) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(sub)
       if (weeklyRefreshDollars > 0) {
         const usage = await computeBillingPeriodUsageWithWeeklyRefresh({
           billingEntity: { type: 'user', id: userId },

@@ -477,7 +477,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
       if (subscription.length > 0) {
         const sub = subscription[0]
         const newCreditBalance = await getCreditBalanceForEntity(entityType, entityId)
-        await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
+        await setUsageLimitForCredits(entityType, entityId, sub, sub.seats, newCreditBalance)
       }
     } catch (limitError) {
       // Limit bump is best-effort. Customer already got credits; if the

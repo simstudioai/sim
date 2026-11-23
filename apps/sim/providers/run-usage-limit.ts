@@ -1,6 +1,6 @@
 import { readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
 import { NEAR_LIMIT_USAGE_GATE_TTL_MS } from '@/lib/billing/core/usage-gate-cache'
-import { isPaid } from '@/lib/billing/plan-helpers'
+import { billsOverage } from '@/lib/billing/subscriptions/utils'
 import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 import { markFailureKind } from '@/lib/core/errors/failure-log'
 import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
@@ -61,11 +61,12 @@ export function recordModelStepCost(
 }
 
 /**
- * Stops a free-plan workflow run before its next model call once the payer's recorded usage plus
- * the run's own unrecorded model spend reaches its limit. A run's cost reaches the ledger only
- * with its log, so admission alone would let one run keep calling models long past the limit,
- * and a free plan's spend past its limit is never billed. A paid payer's overshoot is billed as
- * overage, so its runs are left to admission and never read here.
+ * Stops a capped workflow run (free plan or trial) before its next model call once the payer's
+ * recorded usage plus the run's own unrecorded model spend reaches its limit. A run's cost reaches
+ * the ledger only with its log, so admission alone would let one run keep calling models long past
+ * the limit, and a capped payer's spend past its limit is never billed. A paid payer's overshoot
+ * is billed as overage ({@link billsOverage}), so its runs are left to admission and never read
+ * here.
  *
  * Reads nothing until the run has spent, then the payer's ledger. A gate that cannot
  * answer stops the run as if the limit were spent. A blocked account lets the run continue and
@@ -85,7 +86,7 @@ export async function assertRunWithinUsageLimit(
     !attribution ||
     !unrecorded ||
     unrecorded.total <= 0 ||
-    isPaid(attribution.payerSubscription?.plan) ||
+    billsOverage(attribution.payerSubscription) ||
     executionContext.abortSignal?.aborted ||
     Date.now() < (unrecorded.readDeferredUntil ?? 0)
   ) {
@@ -93,7 +94,7 @@ export async function assertRunWithinUsageLimit(
   }
 
   const verdict = await readMidRunUsageVerdict(attribution, unrecorded.total, {
-    uncachedForFreePayer: true,
+    uncachedForCappedPayer: true,
   })
   // A run cancelled during the read keeps its cancellation; the provider call then aborts.
   if (verdict.status === 'within' || executionContext.abortSignal?.aborted) return

@@ -34,6 +34,7 @@ import {
   stableEventKey,
 } from '@/lib/billing/core/usage-log'
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import { isTrialingSubscription } from '@/lib/billing/subscriptions/utils'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
@@ -133,6 +134,8 @@ type UsageThresholdEmailContext =
       planName: string
       periodStart: Date
       before: Awaited<ReturnType<typeof checkResolvedUsageStatus>>
+      /** Set during a free trial, whose allowance is fixed until it ends. */
+      trialEnd: Date | null
     }
   | {
       scope: 'organization'
@@ -1273,6 +1276,7 @@ export class ExecutionLogger {
             planName: getDisplayPlanName(sub?.plan),
             periodStart: exactBillingContext.billingPeriod.start,
             before: await checkResolvedUsageStatus(usr.id, sub, exactBillingContext),
+            trialEnd: isTrialingSubscription(sub) ? (sub?.trialEnd ?? null) : null,
           }
         }
       } catch (e) {
@@ -1397,6 +1401,7 @@ export class ExecutionLogger {
             usageBefore: emailContext.before.currentUsage,
             costDelta,
             limit: emailContext.before.limit,
+            trialEnd: emailContext.trialEnd,
           })
         } else {
           await maybeSendUsageThresholdEmail({

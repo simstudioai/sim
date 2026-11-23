@@ -18,6 +18,19 @@ export const DEFAULT_TEAM_TIER_COST_LIMIT = 40
 export const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
 
 /**
+ * Length of the Pro free trial a new subscriber gets at checkout. Stripe collects a card up front
+ * and charges it when the trial ends unless the subscriber cancels first.
+ */
+export const PRO_TRIAL_DAYS = 14
+
+/**
+ * Usage a Pro trial may spend, in dollars (2,000 credits). A trial holds this fixed cap instead of
+ * the plan's included credits, with no weekly refresh and no on-demand usage, so a trial costs at
+ * most this much before the subscriber pays.
+ */
+export const PRO_TRIAL_USAGE_LIMIT_DOLLARS = 10
+
+/**
  * Base charge applied to every workflow execution
  * This charge is applied regardless of whether the workflow uses AI models
  */

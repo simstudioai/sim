@@ -3,22 +3,36 @@ import {
   DEFAULT_FREE_CREDITS,
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
+  PRO_TRIAL_USAGE_LIMIT_DOLLARS,
 } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
 import {
   getPlanTierCredits,
+  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isFree,
   isOrgPlan,
+  isPaid,
   isPro,
   isTeam,
 } from '@/lib/billing/plan-helpers'
 import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env, envNumber } from '@/lib/core/config/env'
 
-export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
+/**
+ * Statuses that hold a paid plan's entitlement. `trialing` is a free trial of a paid plan: it gets
+ * the plan's features under a capped allowance (see {@link isTrialingSubscription}).
+ */
+export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'] as const
 
-export const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
+export const USABLE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const
+
+/**
+ * Statuses whose billing periods Sim settles (cycle close, overage). A `trialing` period is left
+ * out: Stripe charges nothing for it and its usage is capped, so it never owes overage, and its
+ * close marker initializes on the first paid period instead.
+ */
+export const SETTLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 
 /**
  * Statuses where the subscription is finished and can no longer bill anyone.
@@ -27,14 +41,56 @@ export const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
  * `incomplete` — is still attached to a live Stripe subscription that can
  * convert or retry, even where it grants no entitlement today. Use this, not
  * {@link ENTITLED_SUBSCRIPTION_STATUSES}, when the question is "would removing
- * the thing this row points at strand live billing?" — a `trialing`
- * subscription is unentitled but very much alive.
+ * the thing this row points at strand live billing?" — an `incomplete` or
+ * `unpaid` subscription is unentitled but very much alive.
  *
  * Deliberately expressed as the terminal set rather than the live one, so a
  * status Stripe adds later is treated as live by default. For a destructive
  * operation that is the safe direction to be wrong in.
  */
 export const TERMINAL_SUBSCRIPTION_STATUSES = ['canceled', 'incomplete_expired'] as const
+
+/**
+ * Whether the subscription is in its free trial. A trial has the plan's features but spends a
+ * fixed allowance ({@link PRO_TRIAL_USAGE_LIMIT_DOLLARS}) with no weekly refresh, no on-demand
+ * usage, and no overage billing.
+ */
+export function isTrialingSubscription(
+  subscription: { status?: string | null } | null | undefined
+): boolean {
+  return subscription?.status === 'trialing'
+}
+
+/** A trial's end date as billing emails state it, in UTC so every recipient reads the same day. */
+export function formatTrialEndDate(trialEnd: Date): string {
+  return trialEnd.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+/**
+ * Whether spend past the usage limit is billed as overage: a paid plan outside its trial. Every
+ * other payer's limit is a hard cap.
+ */
+export function billsOverage(
+  subscription: { plan?: string | null; status?: string | null } | null | undefined
+): boolean {
+  return isPaid(subscription?.plan) && !isTrialingSubscription(subscription)
+}
+
+/**
+ * The weekly refresh allowance a subscription earns, in dollars per seat per week: the plan's
+ * allowance, or nothing during a trial.
+ */
+export function getSubscriptionWeeklyRefreshDollars(
+  subscription: { plan?: string | null; status?: string | null } | null | undefined
+): number {
+  if (isTrialingSubscription(subscription)) return 0
+  return getPlanWeeklyRefreshDollars(subscription?.plan)
+}
 
 /**
  * Returns true when a subscription should still count as a paid plan entitlement.
@@ -183,6 +239,8 @@ export function getPerUserMinimumLimit(subscription: any, freeTierEligible: bool
     return getFreeTierAllowance(freeTierEligible)
   }
 
+  if (isTrialingSubscription(subscription)) return PRO_TRIAL_USAGE_LIMIT_DOLLARS
+
   if (isPro(subscription.plan)) {
     const tierCredits = getPlanTierCredits(subscription.plan)
     if (tierCredits > 0) return tierCredits / CREDIT_MULTIPLIER
@@ -198,7 +256,7 @@ export function getPerUserMinimumLimit(subscription: any, freeTierEligible: bool
 
 /**
  * Check if a user can edit their usage limits based on their subscription
- * Free and Enterprise plans cannot edit limits
+ * Free, trialing, and Enterprise plans cannot edit limits
  * Pro and Team plans can increase their limits
  * @param subscription The subscription object
  * @returns Whether the user can edit their usage limits
@@ -207,6 +265,8 @@ export function canEditUsageLimit(subscription: any): boolean {
   if (!subscription || !hasUsableSubscriptionStatus(subscription.status)) {
     return false // Free plan users cannot edit limits
   }
+
+  if (isTrialingSubscription(subscription)) return false
 
   // Only Pro and Team plans can edit limits
   // Enterprise has a fixed, administrator-controlled contract-period limit.

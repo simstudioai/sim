@@ -12,8 +12,11 @@ import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/repo
 import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { getPlanWeeklyRefreshDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
-import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
+import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+import {
+  getEffectiveSeats,
+  getSubscriptionWeeklyRefreshDollars,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -105,7 +108,7 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
       ? resolveSubscriptionUsagePeriodOrDefault(entitledSubscription)
       : null
 
-    const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(entitledSubscription?.plan)
+    const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(entitledSubscription)
     const [ledgerUsage, weeklyRefreshConsumed] = billingPeriod
       ? await Promise.all([
           getBillingPeriodUsageCost(

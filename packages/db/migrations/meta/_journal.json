@@ -3291,6 +3291,13 @@
       "when": 1795345308196,
       "tag": "0470_contract_whitelabel_and_rate_limit_bucket",
       "breakpoints": true
+    },
+    {
+      "idx": 471,
+      "version": "7",
+      "when": 1795435350407,
+      "tag": "0471_pro_trial_card",
+      "breakpoints": true
     }
   ]
 }
