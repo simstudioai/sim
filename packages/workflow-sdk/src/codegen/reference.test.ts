@@ -11,6 +11,14 @@ const CATALOG = JSON.parse(
 ) as BlockCatalog
 
 describe('builder reference', () => {
+  it('says table.upsertRow replaces the row, and names update builders that exist', () => {
+    const upsert = describeBuilder(CATALOG, 'table.upsertRow')
+    expect(upsert?.doc).toContain('Replaces the matched row')
+    for (const [, name] of upsert?.doc?.matchAll(/`(table\.\w+)`/g) ?? []) {
+      expect(describeBuilder(CATALOG, name), name).not.toBeNull()
+    }
+  })
+
   it('gives each special builder the call core.d.ts declares, with its own params and return type', () => {
     expect(describeBuilder(CATALOG, 'condition')?.signature).toBe(
       "condition<const B extends Record<string, BranchExpression>>(name: string, branches: B & ConditionBranches<B>, meta?: BlockMeta): Block<SpecialOutput<'condition'>> & Branches<ConditionKeys<B>>"

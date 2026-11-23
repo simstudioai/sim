@@ -119,6 +119,22 @@ const CORE_TYPE_NAMES = [
 
 const HEADER_PREFIX = '// @sim-sdk'
 
+/**
+ * What a builder does at run time that its params cannot show, said in its doc comment and in
+ * `sim workflows source params`. `table.upsertRow`: `upsertRow` in
+ * `apps/sim/lib/table/rows/service.ts` writes the stored row's whole `data`, where the update
+ * builders merge cells (`jsonbMergePatch`).
+ */
+const BUILDER_NOTES: Readonly<Record<string, string>> = {
+  'table.upsertRow':
+    'Replaces the matched row: a column missing from `data` is cleared, not kept. To change some columns of existing rows, use `table.updateRowsByFilter` (or `table.updateRowById` for one row), which merge `data` into the stored row.',
+}
+
+/** The note on builder `key`, when it has one. */
+export function builderNote(key: string): string | undefined {
+  return Object.hasOwn(BUILDER_NOTES, key) ? BUILDER_NOTES[key] : undefined
+}
+
 function header(sdkMajor: number): string {
   return `${HEADER_PREFIX} ${sdkMajor} · generated from the block catalog; do not edit`
 }
@@ -498,10 +514,11 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
   ]
     .filter(Boolean)
     .join(' ')
+  const note = builderNote(entry.key)
   const signature = entry.special
     ? []
     : [
-        ...jsdoc([jsdocSummary], ''),
+        ...jsdoc(note ? [jsdocSummary, note] : [jsdocSummary], ''),
         `export function ${method}${typeParameterList(plan, true)}(name: string, params: ${paramsName}${genericArgs}, meta?: BlockMeta): Block<${outputType}${errorOutputs ? `, ${errorOutputs}` : ''}>`,
       ]
   const tool =

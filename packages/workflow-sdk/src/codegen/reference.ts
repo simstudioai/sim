@@ -16,7 +16,13 @@ import {
 } from '@sim/workflow-code/catalog/view'
 import { SDK_CORE_EXPORTS } from '@sim/workflow-code/sdk'
 import { CORE_DTS } from './core-text.generated'
-import { builderTypes, operationLabel, type ParamFact, type ParamFacts } from './generate'
+import {
+  builderNote,
+  builderTypes,
+  operationLabel,
+  type ParamFact,
+  type ParamFacts,
+} from './generate'
 import { isLegacyBuilder } from './layout'
 import { builderEntry, TOOL_NAMESPACE } from './names'
 
@@ -117,6 +123,8 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
     ? `${entry.path.slice(0, -1).join('.')}.${TOOL_NAMESPACE}.${(types.tool.at(-1) ?? '').replace(/^export function /, '')}`
     : null
   const replacement = replacementOf(catalog, entry.builder.type, entry.builder.operation)
+  const note = builderNote(key)
+  const noteDoc = note ? { doc: note } : {}
   return {
     key,
     blockType: entry.builder.type,
@@ -124,7 +132,7 @@ export function describeBuilder(catalog: BlockCatalog, key: string): BuilderRefe
     ...(entry.builder.operation ? { operation: entry.builder.operation } : {}),
     legacy: isLegacyBuilder(key),
     ...(replacement ? { replacement } : {}),
-    ...(entry.special ? docOf(key) : {}),
+    ...(entry.special ? docOf(key) : noteDoc),
     signature,
     tool,
     paramsName: types.paramsName,

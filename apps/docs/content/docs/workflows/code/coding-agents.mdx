@@ -7,7 +7,7 @@ Claude Code, Cursor, Codex and other coding agents work from a directory that `g
 
 ## What get gives an agent
 
-- A **primer**, which opens `.sim/AGENTS.md`. `get` prints a short summary instead (the files written, the guide, and the `editLoop` commands to run); `get --primer` also prints the primer (in JSON output, its `primer` field). It covers the edit loop, how block identity, references and renames work, failures and retries, test runs, deletes, deploy, exit codes, and the params of each builder the workflow already uses.
+- A **primer**, which opens `.sim/AGENTS.md`. `get` prints a short summary instead (the files written, the guide, and the `editLoop` command to run); `get --primer` also prints the primer (in JSON output, its `primer` field). It covers the edit loop, how block identity, references and renames work, failures and retries, test runs, deletes, deploy, exit codes, and the params of each builder the workflow already uses.
 - **`.sim/AGENTS.md`**: the primer followed by a reference, by task. A workspace directory also gets `.sim/GUIDE-advanced.md`.
 - **`.sim/examples/`**: one correct example of each common block to copy from.
 - **`.sim/sdk/`**: the type declarations, with `.sim/sdk/INDEX.md` listing the builders.
@@ -17,10 +17,14 @@ Point the agent at `.sim/AGENTS.md` before it edits.
 ## The loop
 
 1. `sim workflows source get <workflowId> --dir <dir>` writes the workflow and the guide.
-2. Edit `workflow.ts`.
-3. `sim workflows source check --dir <dir>` compiles it offline.
-4. `sim workflows source status --dir <dir>` shows what changed and what to run next.
-5. `sim workflows source apply --dir <dir> --dry-run`, then `--yes`, saves the draft.
+2. Write every file the change needs.
+3. Run one chained command, then fix whatever it reports in the next step:
+
+   ```bash
+   sim workflows source check --dir <dir> && sim workflows source apply --dir <dir> --yes && sim workflows run <workflowId> --manual --input '{...}'
+   ```
+
+   A non-zero exit code stops the chain at the first failure. `apply` compiles the source and compares it with the saved draft again, so an agent can skip `--dry-run`. People and CI use `apply --dry-run` to review the plan, and `status` shows what changed and what to run next. Add `bunx -p typescript@7.0.2 tsc -p <dir>` after `check` to catch type errors.
 
 For a whole workspace, use `sim workspaces source` with the same steps; see [Manage a workspace as code](/workflows/code/workspace).
 

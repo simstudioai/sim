@@ -34,12 +34,14 @@ export const WORKFLOW_SOURCE_LOOP_HELP = `
 The loop:
 ${loopRows([
   ['sim workflows source get <workflowId> --dir ./wf', 'write workflow.ts, functions/* and .sim/'],
-  ['edit ./wf/workflow.ts', ''],
+  ['edit ./wf/workflow.ts', 'every file first, then the one command below'],
   ['sim workflows source check --dir ./wf', 'offline: each error as file:line:column'],
-  [typecheckCommand('./wf'), 'type-check the edit'],
-  ['sim workflows source apply --dir ./wf --dry-run', 'the plan; nothing is written'],
-  ['sim workflows source apply --dir ./wf --yes', 'save the draft'],
+  ['  && sim workflows source apply --dir ./wf --yes', 'save the draft (it re-checks)'],
+  ['  && sim workflows run <workflowId> --manual', 'test the saved draft'],
 ])}
+Run those three as one chained command: a non-zero exit stops it at the first failure, and the next
+step fixes what it reported. For review, \`apply --dry-run\` prints the plan and writes nothing;
+\`${typecheckCommand('./wf')}\` adds type errors.
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
@@ -56,12 +58,13 @@ export const WORKSPACE_SOURCE_LOOP_HELP = `
 The loop:
 ${loopRows([
   ['sim workspaces source get --dir ./ws', 'write tables/, workflows/<key>/, … and .sim/'],
-  ['edit the files', 'a new workflow: workflows/<key>/workflow.ts'],
+  ['edit the files', 'every file first; a new workflow: workflows/<key>/workflow.ts'],
   ['sim workspaces source check --dir ./ws', 'offline: each error as file:line:column'],
-  [typecheckCommand('./ws'), 'type-check the edit'],
-  ['sim workspaces source apply --dir ./ws --dry-run', 'the plan; nothing is written'],
-  ['sim workspaces source apply --dir ./ws --yes', 'write it to the workspace'],
+  ['  && sim workspaces source apply --dir ./ws --yes', 'write it to the workspace (it re-checks)'],
 ])}
+Run those two as one chained command: a non-zero exit stops it at the first failure, and the next
+step fixes what it reported. For review, \`apply --dry-run\` prints the plan and writes nothing;
+\`${typecheckCommand('./ws')}\` adds type errors.
 Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry-run\`, then
 --yes.
 ${WORKSPACE_LINE}

@@ -27,7 +27,6 @@ import {
   SDK_MAJOR,
   SDK_MODELS_FILE,
   sdkIndexHeader,
-  typecheckCommand,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
@@ -601,17 +600,15 @@ export function primerOption(command: Command): void {
 }
 
 /**
- * The commands of a directory's edit loop, in order, for a get's result: what the primer's loop
- * says, runnable from anywhere because each names the directory.
+ * The edit loop of a directory for a get's result, as the one chained command the primer
+ * recommends: runnable from anywhere because it names the directory. Apply re-checks everything
+ * on the server, so a dry run is not a step of it. Still a list, so the JSON field keeps the shape
+ * earlier results had.
  */
 export function editLoop(kind: PrimerKind, dir: string): string[] {
   const group = kind === 'workflow' ? 'sim workflows source' : 'sim workspaces source'
   const at = shellWord(dir)
-  return [
-    `${group} check --dir ${at}`,
-    typecheckCommand(at),
-    `${group} apply --dir ${at} --dry-run`,
-  ]
+  return [`${group} check --dir ${at} && ${group} apply --dir ${at} --yes`]
 }
 
 /** What a directory's editable tree holds beside the printed source. */
