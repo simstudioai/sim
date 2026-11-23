@@ -3,7 +3,9 @@ import {
   findProviderFromModel,
   getBaseModelProviders,
   getHostedModels,
+  getModelCapabilities,
   getModelPricing,
+  getProviderFromModel,
   getProviderModels,
   getStaticProviderModels,
   isCustomModelId,
@@ -95,6 +97,28 @@ describe('custom cloud model routing', () => {
   it('keeps catalog name typos distinct from custom reseller IDs', () => {
     expect(isCustomModelId('claude-sonnet-4.6')).toBe(false)
     expect(isCustomModelId('gpt-100-ultra')).toBe(false)
+  })
+})
+
+describe('tagged Ollama model names that share a cloud prefix', () => {
+  it.each(['gpt-oss:20b', 'mistral:latest', 'GPT-OSS:120B', 'hf.co/org/gemini-like:Q4_K_M'])(
+    'leaves %s unclaimed, so it runs on Ollama with Ollama capabilities',
+    (model) => {
+      expect(findProviderFromModel(model)).toBeNull()
+      expect(getProviderFromModel(model)).toBe('ollama')
+      expect(getModelCapabilities(model)).toBeNull()
+    }
+  )
+
+  it('still resolves untagged cloud ids, namespaced tags, and catalog ids by their provider', () => {
+    expect(findProviderFromModel('gpt-oss-custom')).toBe('openai')
+    expect(findProviderFromModel('mistral-large-latest')).toBe('mistral')
+    expect(findProviderFromModel('ollama/gpt-oss:20b')).toBe('ollama')
+    expect(findProviderFromModel('openrouter/org/model:free')).toBe('openrouter')
+    expect(findProviderFromModel('bedrock/amazon.nova-lite-v1:0')).toBe('bedrock')
+    expect(getModelCapabilities('ollama/gpt-oss:20b')).toEqual(
+      PROVIDER_DEFINITIONS.ollama.capabilities
+    )
   })
 })
 

@@ -109,6 +109,15 @@ describe('model ids no provider declares', () => {
     expect(errors[0]?.error).toContain('Unknown model id')
   })
 
+  it.each(['gpt-oss:20b', 'mistral:latest'])(
+    'accepts %s, an installed Ollama model sharing a cloud prefix, where it runs on Ollama',
+    (model) => {
+      expect(validateModel('router_v2', model)).toEqual({ errors: [], model })
+      setEnvFlags({ isHosted: true })
+      expect(validateModel('router_v2', model).errors[0]?.error).toContain('Unknown model id')
+    }
+  )
+
   it.each(['hhao/qwen2.5-coder-tools', 'hf.co/bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M'])(
     'accepts a namespaced Ollama library name such as %s',
     (model) => {
