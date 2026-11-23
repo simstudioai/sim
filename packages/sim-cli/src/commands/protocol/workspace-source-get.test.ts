@@ -1205,6 +1205,18 @@ describe('the type check of workspaces source check', () => {
     }
   )
 
+  it('removes workspace.d.ts when a directory with no resource listing stops declaring anything', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    expect(existsSync(join(dir, '.sim/sdk/workspace.d.ts'))).toBe(true)
+    rmSync(join(dir, 'tables/leads.ts'))
+
+    await runWorkspaceSource('check', dir)
+
+    expect(existsSync(join(dir, '.sim/sdk/workspace.d.ts'))).toBe(false)
+    expect(result()).toMatchObject({ checked: ['compile', 'types'], errors: 0 })
+  })
+
   it('fails on a type error the compile only warns about, at its file and line, annotated in CI', async () => {
     serve({ 'tables/leads.ts': LEADS })
     await get()
