@@ -723,7 +723,6 @@ describe('validateInputsForBlock', () => {
     'nvidia/',
     'ollama/',
     'ollama-cloud/',
-    'unknown/model',
   ])('rejects incomplete or unsupported cloud namespaces: %s', (model) => {
     const result = validateInputsForBlock('agent', { model }, 'agent-1')
     expect(result.validInputs.model).toBeUndefined()

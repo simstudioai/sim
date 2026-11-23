@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { envMockFns, setEnv } from '@sim/testing/mocks/env.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +12,7 @@ import {
   getSocketUrl,
   isLocalhostUrl,
   isNonCanonicalSimHost,
+  isOllamaAvailable,
   isSafeHttpUrl,
   parseOriginList,
 } from '@/lib/core/utils/urls'
@@ -228,5 +230,28 @@ describe('isNonCanonicalSimHost', () => {
 
   it('does not throw on an empty host', () => {
     expect(isNonCanonicalSimHost('')).toBe(false)
+  })
+})
+
+describe('isOllamaAvailable', () => {
+  beforeEach(() => {
+    resetEnvFlagsMock()
+    setEnv({ OLLAMA_URL: undefined })
+  })
+
+  it('reaches the loopback default on a self-hosted deployment', () => {
+    expect(isOllamaAvailable()).toBe(true)
+  })
+
+  it('needs OLLAMA_URL on the hosted platform', () => {
+    setEnvFlags({ isHosted: true })
+    expect(isOllamaAvailable()).toBe(false)
+    setEnv({ OLLAMA_URL: 'http://ollama.internal:11434' })
+    expect(isOllamaAvailable()).toBe(true)
+  })
+
+  it('is never available when the provider is blacklisted', () => {
+    envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(['ollama'])
+    expect(isOllamaAvailable()).toBe(false)
   })
 })

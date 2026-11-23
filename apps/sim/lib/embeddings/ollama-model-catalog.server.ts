@@ -5,9 +5,8 @@ import {
   ollamaShowUpstreamResponseSchema,
   ollamaUpstreamResponseSchema,
 } from '@/lib/api/contracts/providers'
-import { isHosted } from '@/lib/core/config/env-flags'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
-import { getOllamaUrl, isOllamaUrlConfigured } from '@/lib/core/utils/urls'
+import { getOllamaUrl, isOllamaReachable } from '@/lib/core/utils/urls'
 import { isOllamaEmbeddingModel, ollamaEmbeddingModelName } from '@/lib/embeddings/catalog'
 
 const logger = createLogger('OllamaEmbeddingCatalog')
@@ -25,22 +24,6 @@ export interface OllamaEmbeddingModel {
   id: string
   /** Width the model emits, when its architecture publishes one. */
   dimensions?: number
-}
-
-/**
- * Whether this deployment has an Ollama server to talk to.
- *
- * Self-hosted deployments run alongside their own Ollama, so the loopback
- * default `getOllamaUrl` falls back to is a working configuration that needs no
- * env var — the same rule the chat provider's model route applies. Hosted Sim
- * runs none, so there the address must be stated or there is nothing to reach.
- *
- * Exported because the selector, this module's width lookup, and the embedding
- * client all have to answer it identically: a selector that lists models the
- * client then refuses to embed with is worse than either behaviour alone.
- */
-export function isOllamaServerConfigured(): boolean {
-  return !isHosted || isOllamaUrlConfigured()
 }
 
 export class OllamaEmbeddingModelNotFoundError extends Error {
@@ -127,7 +110,7 @@ async function loadOllamaEmbeddingModelCatalog(
   signal?: AbortSignal
 ): Promise<{ models: OllamaEmbeddingModel[]; unreachable?: string }> {
   /** Nothing to dial: an unconfigured hosted deployment has no server to reach. */
-  if (!isOllamaServerConfigured()) return { models: [] }
+  if (!isOllamaReachable()) return { models: [] }
 
   let names: string[]
   try {
@@ -191,7 +174,7 @@ export async function getOllamaEmbeddingModelMetadata(
   const name = isOllamaEmbeddingModel(model) ? ollamaEmbeddingModelName(model) : model
   if (!name) throw new OllamaEmbeddingModelNotFoundError(model)
   /** The same rule the selector and the embedding client apply. */
-  if (!isOllamaServerConfigured()) {
+  if (!isOllamaReachable()) {
     throw new OllamaUnreachableError('OLLAMA_URL is not configured')
   }
 

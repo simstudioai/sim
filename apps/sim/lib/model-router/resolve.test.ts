@@ -210,7 +210,9 @@ describe('resolveAutoModel', () => {
 
   it('falls back when every pool model is denied by workspace permissions', async () => {
     mockFetchWorker.mockResolvedValue(routerResponse({ choice: '1' }))
-    mockValidateModelProvider.mockRejectedValue(new Error('provider blocked'))
+    mockValidateModelProvider.mockImplementation(async (_userId, _workspaceId, model) => {
+      if (model !== 'sim-auto') throw new Error('provider blocked')
+    })
     const result = await resolveAutoModel({
       ctx,
       blockId: 'b1',
@@ -219,5 +221,37 @@ describe('resolveAutoModel', () => {
     })
     expect(result.model).toBe('claude-sonnet-5')
     expect(result.decidedBy).toBe('fallback')
+  })
+
+  it('refuses a denied sim-auto instead of running a pool or fallback model', async () => {
+    mockFetchWorker.mockResolvedValue(routerResponse({ choice: '1' }))
+    const denied = new Error('Model sim-auto is not allowed')
+    mockValidateModelProvider.mockImplementation(async (_userId, _workspaceId, model) => {
+      if (model === 'sim-auto') throw denied
+    })
+
+    await expect(
+      resolveAutoModel({
+        ctx,
+        blockId: 'b1',
+        signals: makeSignals(),
+        fallbackModel: 'claude-sonnet-5',
+      })
+    ).rejects.toBe(denied)
+    expect(mockFetchWorker).not.toHaveBeenCalled()
+
+    setEnvFlags({ isHosted: false })
+    try {
+      await expect(
+        resolveAutoModel({
+          ctx,
+          blockId: 'b1',
+          signals: makeSignals(),
+          fallbackModel: 'claude-sonnet-5',
+        })
+      ).rejects.toBe(denied)
+    } finally {
+      setEnvFlags({ isHosted: true })
+    }
   })
 })
