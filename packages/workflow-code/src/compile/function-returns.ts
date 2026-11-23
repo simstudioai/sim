@@ -280,6 +280,7 @@ class Inference {
   private call(callee: Node): JsKind | undefined {
     if (callee.type === 'Identifier') {
       if (callee.name === 'String') return this.isBuiltin(callee.name) ? 'string' : undefined
+      if (!this.isBuiltin(callee.name)) return undefined
       if (NUMBER_FUNCTIONS.has(callee.name)) return 'number'
       if (BOOLEAN_FUNCTIONS.has(callee.name)) return 'boolean'
       return undefined
@@ -287,7 +288,7 @@ class Inference {
     const method = memberName(callee)
     if (method === null || !('object' in callee)) return undefined
     if (callee.object.type === 'Identifier') {
-      if (callee.object.name === 'Math') return 'number'
+      if (callee.object.name === 'Math') return this.isBuiltin('Math') ? 'number' : undefined
       const known = STATIC_KINDS[`${callee.object.name}.${method}`]
       if (known) return this.isBuiltin(callee.object.name) ? known : undefined
     }
@@ -295,7 +296,7 @@ class Inference {
       return this.producesString(method, callee.object) ? 'string' : undefined
     if (SAME_KIND_METHODS.has(method)) {
       if (this.kind(callee.object) === 'string') return 'string'
-      return this.isArray(callee.object) ? 'typed' : undefined
+      return this.isArray(callee.object, true) ? 'typed' : undefined
     }
     if (BOOLEAN_METHODS.has(method)) return 'boolean'
     if (NUMBER_METHODS.has(method)) return 'number'
@@ -315,11 +316,15 @@ class Inference {
    */
   private producesString(method: string, receiver: Node): boolean {
     const kind = this.kind(receiver)
-    if (method === 'toString') return kind === 'string' || kind === 'number' || kind === 'boolean'
+    if (method === 'toString') {
+      return kind === 'string' || kind === 'number' || kind === 'boolean' || this.isDate(receiver)
+    }
     if (method === 'toFixed' || method === 'toPrecision') return kind === 'number'
-    if (method === 'join') return this.isArray(receiver)
+    if (method === 'join') return this.isArray(receiver, true)
     if (method === 'toISOString') return this.isDate(receiver)
-    if (method === 'toLocaleString') return kind === 'number' || this.isDate(receiver)
+    if (method === 'toLocaleString') {
+      return kind === 'number' || kind === 'string' || kind === 'boolean' || this.isDate(receiver)
+    }
     return kind === 'string'
   }
 
@@ -335,9 +340,10 @@ class Inference {
   /**
    * Whether `node` is certainly an array: a literal, an array method's result, `Object.keys`
    * (`values`, `entries`), or a local variable set to one and never reassigned. Any other object
-   * can hold anything under `length`.
+   * can hold anything under `length`. `strict` accepts only what the code proves: a call named
+   * like an array method (`map`) may be any object's own, so it proves nothing there.
    */
-  private isArray(node: Node): boolean {
+  private isArray(node: Node, strict = false): boolean {
     if (node.type === 'ArrayExpression') return true
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
       const method = memberName(node.callee)
@@ -348,14 +354,14 @@ class Inference {
           (method === 'keys' || method === 'values' || method === 'entries')
         )
       }
-      return ARRAY_METHODS.has(method)
+      return !strict && ARRAY_METHODS.has(method)
     }
     if (node.type !== 'Identifier') return false
     const init = this.bindings.initial.get(node.name)
     if (!init || this.bindings.writes.has(node.name) || this.resolving.has(node.name)) return false
     this.resolving.add(node.name)
     try {
-      return this.isArray(init)
+      return this.isArray(init, strict)
     } finally {
       this.resolving.delete(node.name)
     }
