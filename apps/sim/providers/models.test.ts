@@ -101,8 +101,8 @@ describe('custom cloud model routing', () => {
 })
 
 describe('tagged Ollama model names that share a cloud prefix', () => {
-  it.each(['gpt-oss:20b', 'mistral:latest', 'GPT-OSS:120B', 'hf.co/org/gemini-like:Q4_K_M'])(
-    'leaves %s unclaimed, so it runs on Ollama with Ollama capabilities',
+  it.each(['gpt-oss:20b', 'mistral:latest', 'GPT-OSS:120B', 'claude-local:7b'])(
+    'leaves %s unclaimed, so it runs on Ollama with no cloud capabilities',
     (model) => {
       expect(findProviderFromModel(model)).toBeNull()
       expect(getProviderFromModel(model)).toBe('ollama')

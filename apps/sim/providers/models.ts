@@ -6915,8 +6915,8 @@ export function getBaseModelProviders(): Record<string, ProviderId> {
     )
 }
 
-/** An Ollama model reference with its tag: `[host/][namespace/]name:tag`. */
-const OLLAMA_TAGGED_MODEL_NAME = /^[\w.-]+(\/[\w.-]+)*:[\w.-]+$/
+/** An Ollama model name, `[host/][namespace/]name[:tag]`: `llama3.1:8b`, `hf.co/org/model:Q4_K_M`. */
+export const OLLAMA_MODEL_NAME = /^[\w.-]+(\/[\w.-]+)*(:[\w.-]+)?$/
 
 /**
  * The provider that declares `model`, or `null` when none does. Resolves catalog entries and
@@ -6954,7 +6954,7 @@ export function findProviderFromModel(model: string): ProviderId | null {
    * so a tagged name a pattern would claim is a local model that only shares a prefix with a
    * cloud family. The server never holds the installed list, so the name itself has to say so.
    */
-  if (OLLAMA_TAGGED_MODEL_NAME.test(normalizedModel)) return null
+  if (normalizedModel.includes(':') && OLLAMA_MODEL_NAME.test(normalizedModel)) return null
 
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))) {
