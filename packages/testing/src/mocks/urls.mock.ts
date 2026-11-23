@@ -163,12 +163,8 @@ function getOllamaUrlImpl(): string {
   return (typeof value === 'string' && value) || DEFAULT_OLLAMA_URL
 }
 
-function isOllamaUrlConfiguredImpl(): boolean {
-  return Boolean(mockEnvObject.OLLAMA_URL)
-}
-
 function isOllamaReachableImpl(): boolean {
-  return !envFlagsMock.isHosted || urlsMockFns.mockIsOllamaUrlConfigured()
+  return !envFlagsMock.isHosted || Boolean(mockEnvObject.OLLAMA_URL)
 }
 
 function isOllamaAvailableImpl(): boolean {
@@ -206,7 +202,6 @@ export const urlsMockFns = {
   mockGetSocketServerUrl: vi.fn(getSocketServerUrlImpl),
   mockGetSocketUrl: vi.fn(getSocketUrlImpl),
   mockGetOllamaUrl: vi.fn(getOllamaUrlImpl),
-  mockIsOllamaUrlConfigured: vi.fn(isOllamaUrlConfiguredImpl),
   mockIsOllamaReachable: vi.fn(isOllamaReachableImpl),
   mockIsOllamaAvailable: vi.fn(isOllamaAvailableImpl),
 }
@@ -230,7 +225,6 @@ export function resetUrlsMock(): void {
   urlsMockFns.mockGetSocketServerUrl.mockReset().mockImplementation(getSocketServerUrlImpl)
   urlsMockFns.mockGetSocketUrl.mockReset().mockImplementation(getSocketUrlImpl)
   urlsMockFns.mockGetOllamaUrl.mockReset().mockImplementation(getOllamaUrlImpl)
-  urlsMockFns.mockIsOllamaUrlConfigured.mockReset().mockImplementation(isOllamaUrlConfiguredImpl)
   urlsMockFns.mockIsOllamaReachable.mockReset().mockImplementation(isOllamaReachableImpl)
   urlsMockFns.mockIsOllamaAvailable.mockReset().mockImplementation(isOllamaAvailableImpl)
 }
@@ -262,7 +256,6 @@ export const urlsMock = {
   getSocketServerUrl: urlsMockFns.mockGetSocketServerUrl,
   getSocketUrl: urlsMockFns.mockGetSocketUrl,
   getOllamaUrl: urlsMockFns.mockGetOllamaUrl,
-  isOllamaUrlConfigured: urlsMockFns.mockIsOllamaUrlConfigured,
   isOllamaReachable: urlsMockFns.mockIsOllamaReachable,
   isOllamaAvailable: urlsMockFns.mockIsOllamaAvailable,
 }

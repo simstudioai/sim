@@ -1,5 +1,5 @@
-import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import type { Mock } from 'vitest'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'

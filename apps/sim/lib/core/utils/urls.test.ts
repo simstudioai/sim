@@ -1,8 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+
 import { envMockFns, setEnv } from '@sim/testing/mocks/env.mock'
+import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/core/utils/urls')

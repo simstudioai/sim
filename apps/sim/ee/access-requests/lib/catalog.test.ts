@@ -17,7 +17,7 @@ import {
   providersModelsMockFns,
 } from '@sim/testing/mocks/providers-models.mock'
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
-import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { resetUrlsMock } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
@@ -111,7 +111,7 @@ setEnvFlags({
   isSandboxesEnabled: false,
   isSsoEnabled: false,
 })
-urlsMockFns.mockIsOllamaUrlConfigured.mockReturnValue(false)
+setEnv({ OLLAMA_URL: undefined })
 
 afterAll(() => {
   resetEnvMock()
