@@ -125,7 +125,4 @@ export interface IRoomManager {
 
   /** Number of unique users in a room. */
   getUniqueUserCount(room: RoomRef): Promise<number>
-
-  /** Total active connections tracked by this instance. */
-  getTotalActiveConnections(): Promise<number>
 }
