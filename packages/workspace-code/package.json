@@ -53,13 +53,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@babel/parser": "8.1.2",
+    "@babel/parser": "7.29.9",
     "@sim/table-cells": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-code": "workspace:*"
   },
   "devDependencies": {
-    "@babel/types": "8.1.2",
+    "@babel/types": "7.29.8",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@types/js-yaml": "4.0.9",
