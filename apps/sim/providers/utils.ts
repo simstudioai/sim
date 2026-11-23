@@ -42,7 +42,7 @@ import {
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
   updateLiteLLMModels,
-  updateOllamaModels as updateOllamaModelsInDefinitions,
+  updateOllamaModels,
   updateVLLMModels,
 } from '@/providers/models'
 import {
@@ -173,7 +173,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
-  updateOllamaModelsInDefinitions(models)
+  updateOllamaModels(models)
   providers.ollama.models = getProviderModels('ollama')
 }
 
