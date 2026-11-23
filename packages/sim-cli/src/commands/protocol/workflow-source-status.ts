@@ -246,6 +246,7 @@ export function attachWorkflowSourceStatus(source: Command): void {
           errors: plan?.errors ?? 0,
           deletes: (plan?.blocksRemoved ?? 0) + (plan?.variablesRemoved ?? 0) > 0,
           scope: '',
+          summaryFile: options.summaryFile,
           login,
         }),
       }

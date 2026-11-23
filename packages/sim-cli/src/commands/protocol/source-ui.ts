@@ -461,6 +461,11 @@ export function writeMode(options: { dryRun?: boolean; yes?: boolean }): WriteMo
   return canPrompt() ? 'ask' : 'plan'
 }
 
+/** ` --summary-file <path>` for a next command, so applying it writes the file the plan run was asked for; empty without one. */
+export function summaryFileFlag(path: string | undefined): string {
+  return path ? ` --summary-file ${shellWord(path)}` : ''
+}
+
 /** `value` as one shell word: as it is when it needs no quoting, else single-quoted. */
 export function shellWord(value: string): string {
   return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`

@@ -1789,6 +1789,20 @@ describe('workspaces source apply', () => {
     ])
   })
 
+  it('carries --summary-file onto the apply it names next, quoted', async () => {
+    const file = join(dir, 'my plan.md')
+    request.mockResolvedValue(
+      answer({ dryRun: true, plan: [{ kind: 'table', key: 'leads', action: 'create' }] })
+    )
+
+    await apply('--summary-file', file)
+
+    const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0]))
+    expect(printed.next.command).toBe(
+      `sim workspaces source apply --dir ${dir} --summary-file '${file}' --yes`
+    )
+  })
+
   it('writes the plan to --summary-file whatever CI runs it, opening with a marker a job can find', async () => {
     const file = join(dir, 'plan.md')
     writeFileSync(file, 'an earlier run\n')

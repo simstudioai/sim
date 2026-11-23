@@ -31,6 +31,7 @@ import {
   errorBullets,
   findingsOutput,
   markdownCell,
+  summaryFileFlag,
   summaryMarker,
 } from './source-ui'
 
@@ -494,6 +495,8 @@ interface NextStepInput {
    * scope the status was asked for (`--only`, `--workspace`), so the command acts on what it showed.
    */
   scope: string
+  /** `--summary-file`, carried onto the commands that write a summary (the dry run and apply). */
+  summaryFile?: string
   /**
    * The login command when the server was not checked because the profile has no login: nothing
    * else can be decided until it runs.
@@ -531,18 +534,18 @@ export function nextStep(status: SourceStatus, input: NextStepInput): NextStep |
   }
   if (input.server !== 'checked') {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
+      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: 'The dry run checks the changes against the server.',
     }
   }
   if (input.errors > 0) {
     return {
-      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}`,
+      command: `${prefix} apply --dir ${dir} --dry-run${input.scope}${summaryFileFlag(input.summaryFile)}`,
       reason: `It prints the ${input.errors} error(s) to fix before applying.`,
     }
   }
   return {
-    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}`,
+    command: `${prefix} apply --dir ${dir} --yes${input.deletes ? ' --allow-delete' : ''}${input.scope}${summaryFileFlag(input.summaryFile)}`,
     reason:
       status.drift.length > 0
         ? `Applies your changes; then \`${prefix} get ${input.getArgs}--dir ${dir}\` picks up the server's.`

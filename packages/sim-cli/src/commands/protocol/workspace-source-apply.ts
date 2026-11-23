@@ -66,6 +66,7 @@ import {
   refusedExitCode,
   SUMMARY_ROWS,
   shellWord,
+  summaryFileFlag,
   summaryFileOption,
   summaryMarker,
   verboseFlag,
@@ -1050,6 +1051,7 @@ function applyCommand(options: ApplyOptions): string {
     ...(options.to ? [`--to ${shellWord(options.to)}`] : []),
     ...(options.allowDelete ? ['--allow-delete'] : []),
     ...(options.deleteTargetOnly ? ['--delete-target-only'] : []),
+    ...(options.summaryFile ? [summaryFileFlag(options.summaryFile).trimStart()] : []),
   ].join(' ')
 }
 

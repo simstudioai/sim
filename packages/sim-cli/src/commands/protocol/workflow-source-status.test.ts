@@ -246,6 +246,23 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(11)
   })
 
+  it('carries --summary-file onto the apply it recommends', async () => {
+    const file = join(root, 'my plan.md')
+    write(
+      root,
+      'workflow.ts',
+      ENTRY.replace('})\n})', "})\n  fn('Rank', { code: codeFile('./functions/rank.js') })\n})")
+    )
+    write(root, 'functions/rank.js', 'return 2\n')
+    mockRequest.mockResolvedValue(dryRun([], 1))
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(printed().next).toMatchObject({
+      command: `sim workflows source apply --dir ${root} --yes --summary-file '${file}'`,
+    })
+  })
+
   it('names --allow-delete in the apply it recommends when the edit removes a variable', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     const plan = dryRun([], 1)

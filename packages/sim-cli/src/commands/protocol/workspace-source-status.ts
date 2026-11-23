@@ -461,6 +461,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
                 errors: plan?.errors ?? 0,
                 deletes: destructiveChanges(applyPlan) > 0,
                 scope: `${onlyScope}${workspaceScope}`,
+                summaryFile: options.summaryFile,
                 login,
               }),
           }

@@ -51,6 +51,7 @@ import {
   refusedExitCode,
   SUMMARY_ROWS,
   shellWord,
+  summaryFileFlag,
   summaryFileOption,
   summaryMarker,
   verboseFlag,
@@ -481,7 +482,7 @@ export function attachWorkflowSourceApply(source: Command): void {
             mode,
             creating: false,
             question: `Apply these changes to workflow ${workflowId}?`,
-            command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${options.deploy ? ' --deploy' : ''}`,
+            command: `sim workflows source apply --dir ${shellWord(options.dir)}${options.allowDelete ? ' --allow-delete' : ''}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
             output: profile.output,
             client,
             operation: 'applyWorkflowSource',
@@ -566,7 +567,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             const workspaceId = client.requireWorkspace()
             const tree = await writeSourceScaffold(client, options.dir, workspaceId)
             const next: NextStep = {
-              command: `${createCommand(shellWord(options.dir), workspaceId)} --yes`,
+              command: `${createCommand(shellWord(options.dir), workspaceId)} --yes${summaryFileFlag(options.summaryFile)}`,
               reason: `${options.dir} had no ${ENTRY_FILE}, so a starter, the SDK types for workspace ${workspaceId}, tsconfig.json, .sim/AGENTS.md and the examples in .sim/examples/ were written and nothing was created. Edit ${ENTRY_FILE}, check it, then create it.`,
             }
             const machine = isMachine(profile.output)
@@ -595,7 +596,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             mode,
             creating: true,
             question: 'Create this workflow?',
-            command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${options.deploy ? ' --deploy' : ''}`,
+            command: `${createCommand(shellWord(options.dir), workspaceId)}${options.name !== undefined ? ` --name ${shellWord(options.name)}` : ''}${options.folder !== undefined ? ` --folder ${shellWord(options.folder)}` : ''}${options.deploy ? ' --deploy' : ''}${summaryFileFlag(options.summaryFile)}`,
             output: profile.output,
             client,
             operation: 'createWorkflowFromSource',

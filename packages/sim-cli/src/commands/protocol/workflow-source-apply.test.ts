@@ -190,6 +190,20 @@ describe('sim workflows source apply', () => {
     expect(stderrLines().join('\n')).not.toContain('Blocks:')
   })
 
+  it('carries --summary-file onto the apply it names next, quoted', async () => {
+    setTerminal(false)
+    request.mockResolvedValue(outcome({ dryRun: true }))
+    const file = join(dir, 'my plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--summary-file', file)
+
+    expect(stdoutJson()).toMatchObject({
+      next: {
+        command: `sim workflows source apply --dir ${dir} --summary-file '${file}' --yes`,
+      },
+    })
+  })
+
   it('writes the plan to --summary-file: the counts, each block, the errors and a stale deployment', async () => {
     setTerminal(false)
     const dryRunAnswer = outcome({
