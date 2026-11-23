@@ -54,9 +54,11 @@ import {
   updateSourceDir,
   withMissingLines,
 } from './source-dir'
-import { type PrimerKind, primerFor } from './source-primer'
+import { AGENTS_POINTER_MARKER, agentsPointer, type PrimerKind, primerFor } from './source-primer'
 
 const TSCONFIG_FILE = 'tsconfig.json'
+/** Where agents look first: the nearest `AGENTS.md` above the file they edit. */
+const ROOT_AGENTS_FILE = 'AGENTS.md'
 /** Type-checks the source against every current block, for a block the default one leaves out. */
 export const TSCONFIG_FULL_FILE = 'tsconfig.full.json'
 /** The SDK file whose first line names the catalog the declarations were generated from. */
@@ -436,7 +438,7 @@ export function assertSdkMajor(catalog: BlockCatalog): void {
   if (catalog.sdkMajor === SDK_MAJOR) return
   throw new SourceDirError(
     catalog.sdkMajor > SDK_MAJOR
-      ? `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Upgrade the CLI (npm install -g sim@latest) and run the command again.`
+      ? `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Upgrade the CLI with sim update and run the command again.`
       : `This workspace uses workflow SDK ${catalog.sdkMajor}, but this CLI writes SDK ${SDK_MAJOR} declarations. Install a CLI release for SDK ${catalog.sdkMajor} to work with this server.`,
     { code: 'SDK_MAJOR_MISMATCH' }
   )
@@ -792,14 +794,19 @@ export async function sourceTreeChange(
     ...(profile.sdk ?? []),
   ]
   const remove: string[] = []
-  const [gitattributes, gitignore, index, tsconfig, tsconfigFull, cacheIndex] = await Promise.all([
-    readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
-    profile.gitignore ? readSourceText(dir, SOURCE_GITIGNORE_FILE) : null,
-    readSourceText(dir, SDK_INDEX_PATH),
-    readSourceText(dir, TSCONFIG_FILE),
-    readSourceText(dir, TSCONFIG_FULL_FILE),
-    sdkCacheIndex(catalog),
-  ])
+  const [gitattributes, gitignore, index, tsconfig, tsconfigFull, cacheIndex, rootAgents] =
+    await Promise.all([
+      readSourceText(dir, SOURCE_GITATTRIBUTES_FILE),
+      profile.gitignore ? readSourceText(dir, SOURCE_GITIGNORE_FILE) : null,
+      readSourceText(dir, SDK_INDEX_PATH),
+      readSourceText(dir, TSCONFIG_FILE),
+      readSourceText(dir, TSCONFIG_FULL_FILE),
+      sdkCacheIndex(catalog),
+      readSourceText(dir, ROOT_AGENTS_FILE),
+    ])
+  if (rootAgents === null || rootAgents.startsWith(AGENTS_POINTER_MARKER)) {
+    write.push([ROOT_AGENTS_FILE, agentsPointer(profile.kind)])
+  }
   const kept = options.incremental ? includedBlockTypes(tsconfig) : []
   const used = usedBlockTypes(catalog, {
     sources,

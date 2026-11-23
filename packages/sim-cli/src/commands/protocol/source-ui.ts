@@ -3,6 +3,7 @@
  * findings (each with its location, frame and hint), the confirmation prompt, the refusal of a
  * write nobody confirmed, and an API refusal re-thrown with the exit status a script branches on.
  */
+import { relative } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
@@ -25,6 +26,7 @@ import type {
   ApplyWorkspaceSourceResponse,
 } from '../../generated/v2-api'
 import { isRequestCancelled, noAnswer, SimApiError } from '../../http/client'
+import { safeOneLine } from '../../output/render'
 import { LocalRefusal } from './local-errors'
 
 /** One finding of a source write, as the workflow and workspace answers both carry it. */
@@ -294,6 +296,47 @@ export function verboseFlag(command: Command): Command {
     '--verbose',
     'Also list the info findings hidden by default: every one with --output json, blocks placed by autolayout in the display'
   )
+}
+
+/** Adds `--summary-file` to a source command that reports a plan (`publishSummary`). */
+export function summaryFileOption(command: Command): Command {
+  return command.option(
+    '--summary-file <path>',
+    'Also write the plan as Markdown to this file (or set SIM_SUMMARY_FILE), replacing it each run; its first line is a comment that names the directory, for a CI step that updates one pull-request comment'
+  )
+}
+
+/** At most this many changes and errors are listed in a summary; the rest are counted. */
+export const SUMMARY_ROWS = 50
+
+/** A Markdown table cell or list item: one line, with its pipes escaped. */
+export function markdownCell(text: string): string {
+  return safeOneLine(text).replaceAll('|', '\\|')
+}
+
+/** The error findings of a summary as list items, capped at {@link SUMMARY_ROWS}. */
+export function errorBullets(
+  diagnostics: ReadonlyArray<{
+    severity: string
+    code: string
+    message: string
+    file?: string
+    line?: number
+  }>
+): string[] {
+  return diagnostics
+    .filter((finding) => finding.severity === 'error')
+    .slice(0, SUMMARY_ROWS)
+    .map(
+      (finding) =>
+        `- \`${finding.code}\`${finding.file ? ` ${markdownCell(finding.file)}${finding.line ? `:${finding.line}` : ''}` : ''}: ${markdownCell(finding.message)}`
+    )
+}
+
+/** The first line of a summary file for `dir`: stable per directory, with no `--` to end a comment. */
+export function summaryMarker(dir: string): string {
+  const name = relative(process.cwd(), dir) || '.'
+  return `<!-- sim-plan:${name.replace(/[^A-Za-z0-9._/]+/g, '-')} -->`
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {

@@ -317,6 +317,20 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(12)
   })
 
+  it('writes the drift to --summary-file for a scheduled job to act on', async () => {
+    mockRequest.mockResolvedValue(dryRun([STALE]))
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/-]+ -->$/)
+    expect(markdown).toContain('**Changed on the server since the directory was read**')
+    expect(markdown).toContain(`- workflow ${WORKFLOW_ID}: changed on the server`)
+    expect(markdown).toContain(`Next: \`sim workflows source get ${WORKFLOW_ID} --dir ${root}\``)
+    expect(process.exitCode).toBe(12)
+  })
+
   it('reports a conflict when both sides changed, exit 12, and names a fresh get', async () => {
     write(root, 'workflow.ts', `${ENTRY}// edited\n`)
     mockRequest.mockResolvedValue(dryRun([STALE]))

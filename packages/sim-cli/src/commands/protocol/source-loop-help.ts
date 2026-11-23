@@ -18,6 +18,10 @@ command takes -w <id>, SIM_WORKSPACE or the profile's (export SIM_WORKSPACE once
 ID in a variable: one holding "--workspace <id>" is one argument, an unknown option alone and the
 whole ID after -w).`
 
+/** Where an author reads a run's result after running the workflow the source defines. */
+const RUN_LOGS_LINE = `Debug a run: \`sim workflows run <workflowId> --manual\`, then \`sim logs list --workflow <workflowId>\`
+and \`sim logs get <runId> --trace --no-include-workflow-state\` (each block's resolved inputs and errors).`
+
 /** The status line both groups end with, for a directory at `dir`. */
 function statusLine(group: string, dir: string): string {
   return `\`${group} status --dir ${dir}\` shows what applying would do and
@@ -40,6 +44,7 @@ A new workflow: \`sim workflows source create --dir ./new --workspace <workspace
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
 ${WORKSPACE_LINE}
+${RUN_LOGS_LINE}
 
 Flags the loop needs: --allow-delete (apply: an edit that removes a block or variable is refused
 without it), --deploy (apply, create: also deploy the saved draft), --force (get: replace another
@@ -60,6 +65,7 @@ ${loopRows([
 Promote dev to prod: \`sim workspaces source apply --dir ./ws --to <workspaceId> --dry-run\`, then
 --yes.
 ${WORKSPACE_LINE}
+${RUN_LOGS_LINE}
 
 Flags the loop needs: --allow-delete (apply: removing a resource, a column, rows or a document,
 or a workflow's block or variable, is refused without it), --force (get: replace edits no apply

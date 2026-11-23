@@ -1,6 +1,7 @@
 import { toRecord } from '@sim/utils/object'
 import { SOURCE_ENTRY_FILE as ENTRY_FILE } from '@sim/workflow-code/limits'
 import type { Command } from 'commander'
+import { publishSummary } from '#sim-cli/output/github-actions'
 import { printError } from '#sim-cli/output/io'
 import { setSoftExitCode } from '../../embed-context'
 import type {
@@ -40,13 +41,18 @@ import { cachedCatalogByHash, printTreeResult, refreshWorkflowWorkspaceTypes } f
 import {
   type CreatedResource,
   createdText,
+  errorBullets,
   type FindingsOutput,
   findingsOutput,
   fresh,
   isMachine,
+  markdownCell,
   printRefusal,
   refusedExitCode,
+  SUMMARY_ROWS,
   shellWord,
+  summaryFileOption,
+  summaryMarker,
   verboseFlag,
   type WriteMode,
   writeMode,
@@ -72,6 +78,7 @@ interface SourceWriteOptions {
   allowDelete?: boolean
   verbose?: boolean
   deploy?: boolean
+  summaryFile?: string
 }
 
 /**
@@ -169,6 +176,10 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
   const findings = findingsOutput(args.output, options.verbose, options.dir)
   const notes = new Set<string>()
   const report = (data: SourceApplyData, deployment: DeployOutcome = {}) => {
+    publishSummary(() => planMarkdown(data, creating, deployment), {
+      file: options.summaryFile,
+      marker: summaryMarker(options.dir),
+    })
     const result = { ...summarize(data, creating, findings.machine), ...deployment }
     printProtocolResult(
       args.output,
@@ -232,6 +243,56 @@ async function writeWorkflowSource<Operation extends SourceWriteOperation>(args:
     }
   }
   report(data, deployment)
+}
+
+/**
+ * The plan of a dry run or write as the Markdown a step summary or `--summary-file` holds: the
+ * counts, each block changed, each error, and whether the live deployment is now behind the draft.
+ */
+function planMarkdown(data: SourceApplyData, creating: boolean, deployment: DeployOutcome): string {
+  const { blocks, edges } = data.diff
+  const [added, removed, modified] = data.dryRun
+    ? ['to add', 'to remove', 'to modify']
+    : ['added', 'removed', 'modified']
+  const verb = creating ? 'create' : 'apply'
+  const changes = [
+    ...blocks.added.map(
+      ({ key, type }) => `| + | ${markdownCell(key)} (${markdownCell(type)}) | added |`
+    ),
+    ...blocks.removed.map(
+      ({ key, type }) => `| - | ${markdownCell(key)} (${markdownCell(type)}) | removed |`
+    ),
+    ...blocks.renamed.map(
+      ({ from, to }) => `| ~ | ${markdownCell(from)} → ${markdownCell(to)} | renamed |`
+    ),
+    ...blocks.modified.map(
+      ({ key, fields }) =>
+        `| ~ | ${markdownCell(key)} (${markdownCell(fields.join(', '))}) | modified |`
+    ),
+  ]
+  const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
+  const warnings = data.diagnostics.filter((finding) => finding.severity === 'warning').length
+  const needsRedeployment = deployment.needsRedeployment ?? data.needsRedeployment
+  return [
+    `### Sim workflow ${data.dryRun ? 'plan' : verb}: ${markdownCell(data.workflowId)}`,
+    '',
+    data.diff.noop
+      ? `No graph changes; ${errors.length} error(s), ${warnings} warning(s).`
+      : `${blocks.added.length} ${added}, ${blocks.removed.length} ${removed}, ${blocks.modified.length} ${modified}, ${blocks.renamed.length} renamed; connections +${edges.added} -${edges.removed}; ${errors.length} error(s), ${warnings} warning(s).`,
+    ...(changes.length > 0
+      ? [
+          '',
+          '| | Block | Change |',
+          '|---|---|---|',
+          ...changes.slice(0, SUMMARY_ROWS),
+          ...(changes.length > SUMMARY_ROWS
+            ? [`\n…and ${changes.length - SUMMARY_ROWS} more.`]
+            : []),
+        ]
+      : []),
+    ...(errors.length > 0 ? ['', '**Errors**', '', ...errorBullets(data.diagnostics)] : []),
+    ...(needsRedeployment ? ['', 'The live deployment now differs from the draft.'] : []),
+  ].join('\n')
 }
 
 /** What a write adds to its result about deploying: the deploy it ran, or the one to run. */
@@ -367,6 +428,7 @@ export function attachWorkflowSourceApply(source: Command): void {
   ])
   absoluteDirOption(command)
   verboseFlag(command)
+  summaryFileOption(command)
   command
     .argument(
       '[workflowId]',
@@ -452,6 +514,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
   ])
   absoluteDirOption(command)
   verboseFlag(command)
+  summaryFileOption(command)
   searchTasks(command, [
     'build a new workflow',
     'create a new workflow as code',

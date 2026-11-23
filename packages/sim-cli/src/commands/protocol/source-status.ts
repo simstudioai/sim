@@ -10,6 +10,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { stripTrailingSlashes } from '@sim/utils/string'
 import type { FileChange, SourceStatus } from '@sim/workspace-code/status'
 import { createTwoFilesPatch, FILE_HEADERS_ONLY } from 'diff'
+import { publishSummary } from '#sim-cli/output/github-actions'
 import type { OutputFormat } from '../../config/index'
 import {
   AUTH_REQUIRED_CODE,
@@ -24,7 +25,7 @@ import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { CliUsageError, LocalRefusal } from './local-errors'
-import { type Diagnostic, findingsOutput } from './source-ui'
+import { type Diagnostic, findingsOutput, markdownCell, summaryMarker } from './source-ui'
 
 /** One change of a workspace apply's plan. */
 type WorkspacePlanChange = ApplyWorkspaceSourceResponse['data']['plan'][number]
@@ -139,6 +140,51 @@ const SERVER_WORDS = {
 } as const
 
 /**
+ * A status as the Markdown a step summary or `--summary-file` holds: the local changes, what
+ * changed on the server (the drift a scheduled job opens an issue for), the plan's one line and
+ * the next command.
+ */
+function statusMarkdown<Plan>(
+  heading: string,
+  report: StatusReport<Plan>,
+  planLine: (plan: Plan) => string
+): string {
+  const lines = [`### Sim status: ${markdownCell(heading)}`, '']
+  if (report.local.length === 0) lines.push('No local changes.')
+  else {
+    lines.push('**Local changes**', '')
+    for (const entry of report.local) {
+      lines.push(`- ${entry.change} ${entry.kind} ${markdownCell(entry.key)}`)
+    }
+  }
+  lines.push('')
+  if (report.server === 'checked') {
+    if (report.drift.length === 0 && report.conflicts.length === 0) {
+      lines.push('The server changed nothing this directory read.')
+    }
+    if (report.drift.length > 0) {
+      lines.push('**Changed on the server since the directory was read**', '')
+      for (const entry of report.drift) {
+        lines.push(`- ${entry.kind} ${markdownCell(entry.key)}: ${SERVER_WORDS[entry.server]}`)
+      }
+    }
+    if (report.conflicts.length > 0) {
+      lines.push('**Conflicts (changed on both sides; applying them is refused)**', '')
+      for (const entry of report.conflicts) {
+        lines.push(
+          `- ${entry.kind} ${markdownCell(entry.key)}: ${SERVER_WORDS[entry.server]}, ${entry.change} here`
+        )
+      }
+    }
+  } else {
+    lines.push(`Server not checked${report.note ? `: ${markdownCell(report.note)}` : '.'}`)
+  }
+  if (report.plan) lines.push('', markdownCell(planLine(report.plan)))
+  if (report.next) lines.push('', `Next: \`${report.next.command}\``)
+  return lines.join('\n')
+}
+
+/**
  * Prints a status: the machine shape for `json` and `yaml`, with the plan's `findings` (from
  * {@link planFindings}) under `diagnostics`, else the findings on stderr as an apply prints them
  * and one screen naming each local change, each drifted and conflicting resource, the dry run's
@@ -149,8 +195,13 @@ export function printStatusReport<Plan>(
   heading: string,
   report: StatusReport<Plan>,
   planLine: (plan: Plan) => string,
-  findings: readonly Diagnostic[]
+  findings: readonly Diagnostic[],
+  summaryFile?: string
 ): void {
+  publishSummary(() => statusMarkdown(heading, report, planLine), {
+    file: summaryFile,
+    marker: summaryMarker(report.dir),
+  })
   const shown = findingsOutput(format, false, report.dir)
   shown.print(findings)
   if (shown.machine) {

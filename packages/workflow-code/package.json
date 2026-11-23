@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "engines": {
     "bun": ">=1.4.4",
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "exports": {
     ".": {

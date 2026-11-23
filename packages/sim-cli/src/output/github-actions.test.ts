@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { annotationLine, annotationPath } from './github-actions'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { embedStore } from '../embed-context'
+import { annotationLine, annotationPath, publishSummary } from './github-actions'
 
 describe('GitHub Actions workflow commands', () => {
   it('escapes a message and its properties as the runner unescapes them', () => {
@@ -24,5 +28,47 @@ describe('GitHub Actions workflow commands', () => {
     expect(annotationPath('/tmp/elsewhere', 'workflows/ingest/workflow.ts', env)).toBe(
       '/tmp/elsewhere/workflows/ingest/workflow.ts'
     )
+  })
+})
+
+describe('summaries', () => {
+  const dirs: string[] = []
+  const scratch = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sim-summary-'))
+    dirs.push(dir)
+    return dir
+  }
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('appends to the step summary on GitHub Actions and replaces the summary file anywhere', () => {
+    const dir = scratch()
+    const step = join(dir, 'step.md')
+    const file = join(dir, 'plan.md')
+    const env = { GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: step }
+
+    publishSummary(() => 'one', { file, marker: '<!-- m -->', env })
+    publishSummary(() => 'two', { file, marker: '<!-- m -->', env })
+
+    expect(readFileSync(step, 'utf8')).toBe('one\n\ntwo\n\n')
+    expect(readFileSync(file, 'utf8')).toBe('<!-- m -->\ntwo\n')
+  })
+
+  it('builds nothing when no summary is asked for', () => {
+    publishSummary(
+      () => {
+        throw new Error('built')
+      },
+      { env: {} }
+    )
+  })
+
+  it('writes no file inside an embedded host, whatever flags it was handed', () => {
+    const file = join(scratch(), 'plan.md')
+
+    embedStore.run({} as never, () => publishSummary(() => 'plan', { file, env: {} }))
+
+    expect(existsSync(file)).toBe(false)
   })
 })

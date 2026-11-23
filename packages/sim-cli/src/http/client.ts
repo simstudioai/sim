@@ -458,30 +458,14 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   return ms
 }
 
-/**
- * Aborts when either signal does.
- *
- * `AbortSignal.any` arrived in Node 20.3 and this package supports Node 20, so
- * on the earliest 20.x releases calling it would throw a bare `TypeError`
- * before the request was ever made — turning a supported runtime into a crash.
- */
+/** Aborts when either signal does; a missing one never does. */
 export function combineSignals(
   caller: AbortSignal | undefined,
   timeout: AbortSignal | undefined
 ): AbortSignal | undefined {
   if (!caller) return timeout
   if (!timeout) return caller
-  if (typeof AbortSignal.any === 'function') return AbortSignal.any([caller, timeout])
-
-  const controller = new AbortController()
-  for (const signal of [caller, timeout]) {
-    if (signal.aborted) {
-      controller.abort(signal.reason)
-      break
-    }
-    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
-  }
-  return controller.signal
+  return AbortSignal.any([caller, timeout])
 }
 
 /** Whether to trace requests to stderr. */

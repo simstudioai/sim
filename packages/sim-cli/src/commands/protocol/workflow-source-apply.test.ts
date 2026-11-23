@@ -190,6 +190,34 @@ describe('sim workflows source apply', () => {
     expect(stderrLines().join('\n')).not.toContain('Blocks:')
   })
 
+  it('writes the plan to --summary-file: the counts, each block, the errors and a stale deployment', async () => {
+    setTerminal(false)
+    const dryRunAnswer = outcome({
+      dryRun: true,
+      diagnostics: [
+        {
+          code: 'E_UNKNOWN_IDENTIFIER',
+          severity: 'error',
+          message: 'Nothing | named x.',
+          file: 'workflow.ts',
+          line: 4,
+        },
+      ],
+    })
+    request.mockResolvedValue(dryRunAnswer)
+    const file = join(dir, 'plan.md')
+
+    await apply(WORKFLOW_ID, '--dir', dir, '--dry-run', '--summary-file', file)
+
+    const markdown = readFileSync(file, 'utf8')
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/-]+ -->$/)
+    expect(markdown).toContain(`### Sim workflow plan: ${WORKFLOW_ID}`)
+    expect(markdown).toContain('1 to add, 0 to remove, 0 to modify, 0 renamed; connections +1 -0')
+    expect(markdown).toContain('| + | start (start_trigger) | added |')
+    expect(markdown).toContain('- `E_UNKNOWN_IDENTIFIER` workflow.ts:4: Nothing \\| named x.')
+    expect(markdown).toContain('The live deployment now differs from the draft.')
+  })
+
   it('prints the whole next command in a table, never clipping the flag it names', async () => {
     setTerminal(false)
     contextMockState.output = 'table'
