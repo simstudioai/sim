@@ -928,12 +928,12 @@ describe('desktop background executor protocol', () => {
       const desktop = await signedInDesktop()
       const presenceKey = `desktop:presence:${desktop.deviceId}`
       const redis = getRedisClient()
-      await redis?.del(presenceKey)
+      await redis.del(presenceKey)
       expect(await isDesktopPresent(desktop.deviceId)).toBe(false)
       await inbox(desktop)
       expect(await isDesktopPresent(desktop.deviceId)).toBe(true)
 
-      await redis?.del(presenceKey)
+      await redis.del(presenceKey)
       const stream = await openDesktopInboxStream.execute({
         principal: desktop.principal,
         input: { deviceId: desktop.deviceId },
@@ -942,7 +942,7 @@ describe('desktop background executor protocol', () => {
       /** A deploy or rotation closes the stream on the server; only the TTL ends presence. */
       stream.subscribe(() => {})()
       expect(await isDesktopPresent(desktop.deviceId)).toBe(true)
-      expect(await redis?.ttl(presenceKey)).toBeLessThanOrEqual(45)
+      expect(await redis.ttl(presenceKey)).toBeLessThanOrEqual(45)
     })
 
     it('rings only the device whose inbox changed', async () => {

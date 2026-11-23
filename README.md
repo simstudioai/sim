@@ -137,7 +137,7 @@ npx sim-setup reset                    # archive .env and wipe managed data
 
 The setup package detects how you're running and acts accordingly. Use `--dir <path>` to create or manage a deployment somewhere other than `./sim`.
 
-Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https://docs.vllm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
+Sim also supports local models via [Ollama](https://ollama.ai), [vLLM](https://docs.vllm.ai/), and [LiteLLM](https://docs.litellm.ai/). See the [self-hosting docs](https://docs.sim.ai/self-hosting/docker) for details.
 
 ## Chat API Keys
 

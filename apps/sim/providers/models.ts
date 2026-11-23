@@ -7067,40 +7067,22 @@ export function supportsForcedToolUse(modelId: string): boolean {
   return capabilities?.forcedToolUse ?? capabilities?.toolUsageControl ?? false
 }
 
+/** Discovered model ids as unpriced, capability-less catalog entries. */
+function toUnpricedModels(models: string[]): ModelDefinition[] {
+  const updatedAt = new Date().toISOString().split('T')[0]
+  return models.map((id) => ({ id, pricing: { input: 0, output: 0, updatedAt }, capabilities: {} }))
+}
+
 export function updateOllamaModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.ollama.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.ollama.models = toUnpricedModels(models)
 }
 
 export function updateVLLMModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.vllm.models = toUnpricedModels(models)
 }
 
 export function updateLiteLLMModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.litellm.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.litellm.models = toUnpricedModels(models)
 }
 
 /**
@@ -7116,66 +7098,24 @@ export function updateFireworksModels(models: string[]): void {
   const staticIds = new Set(STATIC_FIREWORKS_MODELS.map((model) => model.id.toLowerCase()))
   PROVIDER_DEFINITIONS.fireworks.models = [
     ...STATIC_FIREWORKS_MODELS,
-    ...models
-      .filter((modelId) => !staticIds.has(modelId.toLowerCase()))
-      .map((modelId) => ({
-        id: modelId,
-        pricing: {
-          input: 0,
-          output: 0,
-          updatedAt: new Date().toISOString().split('T')[0],
-        },
-        capabilities: {},
-      })),
+    ...toUnpricedModels(models.filter((modelId) => !staticIds.has(modelId.toLowerCase()))),
   ]
 }
 
 export function updateTogetherModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.together.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.together.models = toUnpricedModels(models)
 }
 
 export function updateBasetenModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.baseten.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.baseten.models = toUnpricedModels(models)
 }
 
 export function updateOllamaCloudModels(models: string[]): void {
-  PROVIDER_DEFINITIONS['ollama-cloud'].models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS['ollama-cloud'].models = toUnpricedModels(models)
 }
 
 export function updateOpenRouterModels(models: string[]): void {
-  PROVIDER_DEFINITIONS.openrouter.models = models.map((modelId) => ({
-    id: modelId,
-    pricing: {
-      input: 0,
-      output: 0,
-      updatedAt: new Date().toISOString().split('T')[0],
-    },
-    capabilities: {},
-  }))
+  PROVIDER_DEFINITIONS.openrouter.models = toUnpricedModels(models)
 }
 
 export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {

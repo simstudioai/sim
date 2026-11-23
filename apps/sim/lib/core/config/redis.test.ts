@@ -320,7 +320,7 @@ describe('redis config', () => {
       mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
       // Mutates the constructed client, not the shared instance it was copied from.
       mockRedisInstance.eval.mockImplementationOnce(async () => {
-        Object.assign(getRedisClient() ?? {}, { status: 'ready' })
+        Object.assign(getRedisClient(), { status: 'ready' })
         return 1
       })
 

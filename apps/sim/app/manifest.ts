@@ -2,8 +2,6 @@ import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-clai
 import type { MetadataRoute } from 'next'
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 
-export const dynamic = 'force-dynamic'
-
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',

@@ -431,7 +431,6 @@
   --auth-primary-btn-text: #000000;
   --auth-primary-btn-hover-bg: #e0e0e0;
   --auth-primary-btn-hover-border: #e0e0e0;
-  --auth-primary-btn-hover-text: #000000;
 
   /* z-index scale. The toast/notification stack is ambient: it sits above page
      content but BELOW the modal and the transient poppers (menus, selects,
