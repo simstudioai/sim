@@ -431,7 +431,8 @@ const SERIALIZATION_FALLBACK_PROVIDER: ProviderId = 'openai'
 
 /**
  * Best-effort provider id for a model a block has not executed yet, for serialization and
- * the editor's provider-dependent UI (API-key reset, tool-usage control, attachment cap).
+ * the editor's tool-usage control. Editor decisions about the provider the user configured
+ * use {@link findConfiguredModelProvider} instead.
  *
  * Serialization runs before variable resolution, and every model block's handler
  * re-derives the provider from the *resolved* model without ever reading this
@@ -459,6 +460,22 @@ export function resolveModelProviderId(model: unknown): ProviderId {
     return getProviderFromModel(candidate)
   } catch {
     return SERIALIZATION_FALLBACK_PROVIDER
+  }
+}
+
+/**
+ * The provider a model value names as written, or `null` when it names none yet: sim-auto,
+ * which the model router resolves at execution and may route to any pool provider, or a
+ * blacklisted model. Unlike {@link resolveModelProviderId} it never substitutes the default
+ * model, so a reference keeps its explicit namespace (`openrouter/<variable.x>`). The editor
+ * uses it for decisions that follow the configured provider: clearing the API key when the
+ * provider changes, and how large an attachment the model is known to accept.
+ */
+export function findConfiguredModelProvider(model: string): ProviderId | null {
+  try {
+    return getProviderFromModel(model)
+  } catch {
+    return null
   }
 }
 

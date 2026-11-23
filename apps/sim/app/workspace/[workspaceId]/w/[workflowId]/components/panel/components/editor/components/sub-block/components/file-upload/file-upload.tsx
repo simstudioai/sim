@@ -28,7 +28,7 @@ import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
-import { resolveModelProviderId } from '@/blocks/utils'
+import { findConfiguredModelProvider } from '@/blocks/utils'
 import { invalidateWorkspaceFileReads } from '@/hooks/queries/utils/workspace-file-cache'
 import {
   workspaceFileListParams,
@@ -322,7 +322,9 @@ export function FileUpload({
   const maxSizeInBytes = useMemo(() => {
     const fallback = maxSize * 1024 * 1024
     if (typeof modelValue !== 'string' || !modelValue) return fallback
-    return Math.max(fallback, getProviderAttachmentMaxBytes(resolveModelProviderId(modelValue)))
+    // sim-auto has no provider until routed, and may route images to an inline-only model.
+    const provider = findConfiguredModelProvider(modelValue)
+    return provider ? Math.max(fallback, getProviderAttachmentMaxBytes(provider)) : fallback
   }, [modelValue, maxSize])
   const maxSizeLabel = `${Math.round(maxSizeInBytes / (1024 * 1024))}MB`
 

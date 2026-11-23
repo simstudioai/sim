@@ -65,6 +65,7 @@ import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-
 import { S3Icon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import {
+  findConfiguredModelProvider,
   getAgentModelOptions,
   getApiKeyCondition,
   getModelOptions,
@@ -405,6 +406,29 @@ describe('resolveModelProviderId', () => {
   it('never throws when the resolver rejects the model', () => {
     expect(() => resolveModelProviderId('totally-unknown-model')).not.toThrow()
     expect(resolveModelProviderId('totally-unknown-model')).toBe('openai')
+  })
+})
+
+describe('findConfiguredModelProvider', () => {
+  const resolver = vi.mocked(getProviderFromModel)
+
+  beforeEach(() => {
+    resolver.mockReset()
+    resolver.mockImplementation(((model: string) => {
+      if (model.startsWith('openrouter/')) return 'openrouter'
+      if (model === 'sim-auto') throw new Error('sim-auto has no provider')
+      if (model === 'blacklisted-model') throw new Error('blacklisted')
+      return 'anthropic'
+    }) as unknown as typeof getProviderFromModel)
+  })
+
+  it('keeps the explicit namespace of a model reference', () => {
+    expect(findConfiguredModelProvider('openrouter/<variable.vllm>')).toBe('openrouter')
+  })
+
+  it('names no provider for sim-auto or a blacklisted model', () => {
+    expect(findConfiguredModelProvider('sim-auto')).toBeNull()
+    expect(findConfiguredModelProvider('blacklisted-model')).toBeNull()
   })
 })
 
