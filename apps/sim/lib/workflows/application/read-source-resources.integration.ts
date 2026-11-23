@@ -401,7 +401,7 @@ describe('source resources manifest', () => {
       { key: 'tone', id: ids.laterSkill, name: 'Tone' },
     ])
     expect(manifest.customTools).toEqual([
-      { key: 'lookup-order', id: ids.customTool, name: 'lookup_order' },
+      { key: 'lookup_order', id: ids.customTool, name: 'lookup_order' },
     ])
   })
 

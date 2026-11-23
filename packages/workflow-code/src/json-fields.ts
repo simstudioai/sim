@@ -62,6 +62,32 @@ export interface RefTypeScope {
 
 const STRING_VARIABLE_TYPES: ReadonlySet<string> = new Set(['string', 'plain'])
 
+/**
+ * Outputs the catalog types `json` whose value can still be text: a Function returns whatever its
+ * code does, and an HTTP response is parsed only when it says it is JSON. A reference to the whole
+ * of one is `untyped` unless the Function's code says what it returns. A path inside one is
+ * never declared, so it is `untyped` already.
+ */
+const TEXT_CAPABLE_OUTPUTS: ReadonlyMap<string, string> = new Map([
+  ['function', 'result'],
+  ['api', 'data'],
+])
+
+/** Whether the declared output `segments` of a `blockType` block may hold text at run time. */
+function mayHoldText(
+  blockType: string,
+  declared: CatalogOutput,
+  segments: readonly RefSegment[]
+): boolean {
+  if (declared.type === 'any') return true
+  const [first] = segments
+  return (
+    segments.length === 1 &&
+    first?.kind === 'name' &&
+    TEXT_CAPABLE_OUTPUTS.get(blockType) === first.name
+  )
+}
+
 function outputAt(
   outputs: Record<string, CatalogOutput>,
   segments: RefSegment[]
@@ -180,8 +206,9 @@ export function responseFormatFields(param: CanonicalParam | undefined): string[
  * and the workflow say: `string`, `typed` (any other declared type), or `untyped` when nothing
  * declares it (a path into untyped JSON, a loop item, an unknown block). An environment variable
  * is a string; a variable goes by its type; a block output by its declared output type, else by
- * the field its dynamic outputs declare, or for a Function's `result.<field>` by what its
- * JavaScript certainly returns there.
+ * the field its dynamic outputs declare, or for a Function's `result` by what its JavaScript
+ * certainly returns there. An output that can hold text though the catalog types it `json` or
+ * `any` (a Function's `result`, an HTTP `data`) is `untyped` unless the code says otherwise.
  */
 export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
   if (token.startsWith('{{')) return 'string'
@@ -215,10 +242,13 @@ export function refValueKind(token: string, scope: RefTypeScope): RefValueKind {
     },
   })
   const found = outputAt(outputs, segments)
-  if (found) return found.type === 'string' ? 'string' : 'typed'
-  // A Function's `result.<field>` is typed by the object literal its JavaScript returns.
+  // A Function's `result`, or `result.<field>`, is typed by what its JavaScript returns.
   const returned = referencedResultKind(token, scope.block)
   if (returned) return returned
+  if (found) {
+    if (found.type === 'string') return 'string'
+    return mayHoldText(block.type, found, segments) ? 'untyped' : 'typed'
+  }
   if (declared.dynamicOutputs) {
     const { source, param } = declared.dynamicOutputs
     const field = dynamicFieldName(source, segments)

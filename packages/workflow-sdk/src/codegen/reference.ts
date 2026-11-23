@@ -166,7 +166,8 @@ export function lookupBuilder(catalog: BlockCatalog, query: string): BuilderLook
   }
   const hint = suggestBuilder(
     key,
-    paths.filter((path) => !isLegacyBuilder(path))
+    paths.filter((path) => !isLegacyBuilder(path)),
+    catalog
   )
   return hint ? { kind: 'missing', hint } : { kind: 'missing' }
 }

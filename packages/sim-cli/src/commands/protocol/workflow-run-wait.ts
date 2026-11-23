@@ -10,6 +10,7 @@ import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
+import { resumeCommand } from '../../runtime/paused-run'
 import { renderResult } from '../../runtime/result'
 
 /**
@@ -197,8 +198,7 @@ function explain(
   if (outcome === 'completed') return null
   if (outcome === 'failed') return `Run ${runId} failed.`
   if (outcome === 'cancelled') return `Run ${runId} was cancelled.`
-  const context = snapshot.contextId ? ` --context ${snapshot.contextId}` : ''
-  return `Run ${runId} is paused waiting for input. Resume it: sim workflows runs resume ${runId} --workflow ${workflowId}${context}`
+  return `Run ${runId} is paused waiting for input. Resume it: ${resumeCommand(runId, workflowId, snapshot.contextId)}`
 }
 
 /**

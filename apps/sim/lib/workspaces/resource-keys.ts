@@ -13,7 +13,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { compareStrings, slugify } from '@sim/utils/string'
+import { compareStrings, escapeLikePattern } from '@sim/utils/string'
 import type { ResourceKind } from '@sim/workflow-code'
 import { and, asc, eq, inArray, isNull, like, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -203,12 +203,24 @@ function trimKey(value: string, maxLength: number): string {
 }
 
 /**
- * The key a resource is first offered: its name's slug, or the kind when the name has no slug
- * characters; prefixed with the kind when the slug starts with a digit, and cut to the key
- * length. Always matches the stored key format `^[a-z][a-z0-9_-]{0,63}$`.
+ * A name's key characters: lowercased, with every run of other characters one hyphen and no
+ * leading or trailing separator. Underscores stay, so a table named `daily_totals` is keyed
+ * `daily_totals`, the spelling its author will type.
+ */
+function keySlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '')
+}
+
+/**
+ * The key a resource is first offered: its name's slug (underscores kept), or the kind when the
+ * name has no slug characters; prefixed with the kind when the slug starts with a digit, and cut
+ * to the key length. Always matches the stored key format `^[a-z][a-z0-9_-]{0,63}$`.
  */
 export function resourceKeyBase(kind: ResourceKind, name: string): string {
-  const slug = slugify(name)
+  const slug = keySlug(name)
   const base = slug === '' ? kind : /^[a-z]/.test(slug) ? slug : `${kind}-${slug}`
   return trimKey(base, MAX_KEY_LENGTH)
 }
@@ -309,7 +321,11 @@ async function readTakenKeys(
       and(
         eq(workspaceResourceKey.workspaceId, workspaceId),
         eq(workspaceResourceKey.kind, kind),
-        or(...prefixes.map((prefix) => like(workspaceResourceKey.key, `${prefix}%`)))
+        or(
+          ...prefixes.map((prefix) =>
+            like(workspaceResourceKey.key, `${escapeLikePattern(prefix)}%`)
+          )
+        )
       )
     )
   return new Set(rows.map((row) => row.key))

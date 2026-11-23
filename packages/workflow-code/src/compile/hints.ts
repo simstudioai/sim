@@ -1,4 +1,7 @@
 import type { Node } from '@babel/types'
+import { stripVersionSuffix } from '@sim/utils/string'
+import type { BlockCatalog } from '../catalog/types'
+import { catalogBlock, catalogBlockTypes, catalogBuildersOfType } from '../catalog/view'
 
 /**
  * The supported form for each rejected construct. Tests assert
@@ -223,16 +226,71 @@ const BUILDER_ALIASES: Readonly<Record<string, string>> = {
   code: 'fn',
 }
 
+/** A name as its letters only, so `humanInTheLoop`, `human_in_the_loop` and `Human in the Loop` agree. */
+function spelling(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+/** Replacement hops followed from a legacy block type to the one that supersedes it. */
+const MAX_REPLACEMENT_HOPS = 3
+
+/**
+ * The builders `written` names under another spelling: a builder path in other letter case or
+ * separators (`table_upsert_row` for `table.upsertRow`), or a block type or display name whose
+ * builder is named otherwise (`humanInTheLoop`, `human_in_the_loop_v2` or "Human in the Loop" for
+ * `human`), following a legacy block to the one that replaces it. `paths` bounds the answer to
+ * builders the caller may write; empty when nothing matches.
+ */
+export function builderNamedLike(
+  catalog: BlockCatalog,
+  written: string,
+  paths: readonly string[]
+): string[] {
+  const wanted = spelling(written)
+  if (wanted === '') return []
+  const allowed = new Set(paths)
+  const sameSpelling = paths.filter((path) => spelling(path) === wanted)
+  if (sameSpelling.length > 0) return sameSpelling
+  const types = catalogBlockTypes(catalog).filter((type) => {
+    const block = catalogBlock(catalog, type)
+    return [type, stripVersionSuffix(type), block?.name ?? ''].some(
+      (name) => spelling(name) === wanted
+    )
+  })
+  const builders = new Set<string>()
+  for (const found of types) {
+    let type = found
+    for (let hop = 0; hop < MAX_REPLACEMENT_HOPS; hop++) {
+      const replacedBy = catalogBlock(catalog, type)?.lifecycle?.sunset?.replacedBy
+      if (!replacedBy || !catalogBlock(catalog, replacedBy)) break
+      type = replacedBy
+    }
+    for (const [path] of catalogBuildersOfType(catalog, type)) {
+      if (allowed.has(path)) builders.add(path)
+    }
+  }
+  return [...builders]
+}
+
 /** How many builder paths a hint lists when nothing is close. */
 const LISTED_BUILDERS = 15
 
 /**
  * The hint for a builder path no catalog builder has, from most to least specific: the builder a
- * common other name stands for (`http.request` → `api`), a builder of the same namespace whose method differs only by a synonymous verb (`postMessage` → `sendMessage`),
+ * block's or builder's other spelling names (`humanInTheLoop` → `human`, with a `catalog`), the
+ * builder a common other name stands for (`http.request` → `api`), a builder of the same namespace whose method differs only by a synonymous verb (`postMessage` → `sendMessage`),
  * the closest path by edit distance, the one builder of the namespace whose method starts with the
  * written one, the namespace's builders listed (those it starts first), else the closest namespace.
  */
-export function suggestBuilder(written: string, paths: readonly string[]): string | undefined {
+export function suggestBuilder(
+  written: string,
+  paths: readonly string[],
+  catalog?: BlockCatalog
+): string | undefined {
+  const named = catalog ? builderNamedLike(catalog, written, paths) : []
+  if (named.length > 0) {
+    return `Did you mean ${named.length === 1 ? named[0] : `one of ${named.slice(0, LISTED_BUILDERS).join(', ')}`}?`
+  }
   const alias = BUILDER_ALIASES[(written.split('.')[0] ?? written).toLowerCase()]
   if (alias !== undefined && paths.includes(alias)) return `Did you mean ${alias}?`
   const dot = written.lastIndexOf('.')

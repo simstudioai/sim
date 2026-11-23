@@ -30,7 +30,7 @@ import {
   type Scope,
   unsupported,
 } from './context'
-import { closest, HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
+import { builderNamedLike, closest, HINTS, hintForNode, nodeLabel, suggestBuilder } from './hints'
 import { calleePath, SDK_VALUE_FUNCTIONS } from './values'
 
 type CallClass =
@@ -71,7 +71,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
         'E_UNKNOWN_BUILDER',
         `${dotted} is not a block builder: ${path.root} is not an SDK namespace.`,
         rangeOf(ctx, call.callee),
-        { hint: suggestBuilder(dotted, catalogBuilderPaths(ctx.catalog)) }
+        { hint: suggestBuilder(dotted, catalogBuilderPaths(ctx.catalog), ctx.catalog) }
       )
     }
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
@@ -82,7 +82,12 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       ? [...catalogBuilderPaths(ctx.catalog), GENERIC_BUILDER, 'parallel']
       : null
   const imported = bareBuilderPaths?.includes(path.root) === true
-  if (bareBuilderPaths && (imported || closest(path.root, bareBuilderPaths) !== null)) {
+  if (
+    bareBuilderPaths &&
+    (imported ||
+      closest(path.root, bareBuilderPaths) !== null ||
+      builderNamedLike(ctx.catalog, path.root, bareBuilderPaths).length > 0)
+  ) {
     // `apii('Call', { ... })`: a bare, builder-shaped call nothing binds, naming a builder or close
     // to one (`fetch('x')` stays an unsupported call). It classifies as an unknown builder so the
     // const still binds and its wiring raises no E_UNKNOWN_IDENTIFIER.
@@ -93,7 +98,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
         'E_UNKNOWN_BUILDER',
         `${path.root} is not a block builder.`,
         rangeOf(ctx, call.callee),
-        { hint: suggestBuilder(path.root, bareBuilderPaths) }
+        { hint: suggestBuilder(path.root, bareBuilderPaths, ctx.catalog) }
       )
     }
     return { kind: 'builder', path: path.root, builder: { kind: 'unknown' } }
@@ -150,7 +155,7 @@ function classifyCall(ctx: CompileContext, scope: Scope, call: CallExpression): 
       'E_UNKNOWN_BUILDER',
       `${dotted} is not a block builder.`,
       rangeOf(ctx, call.callee),
-      { hint: suggestBuilder(dotted, candidates) }
+      { hint: suggestBuilder(dotted, candidates, ctx.catalog) }
     )
     return { kind: 'builder', path: dotted, builder: { kind: 'unknown' } }
   }
