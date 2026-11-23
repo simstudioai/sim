@@ -15,7 +15,7 @@
 
 import { parse } from '@babel/parser'
 import type { Expression, Node, ObjectExpression, PatternLike } from '@babel/types'
-import { childNodes, memberName } from '../babel'
+import { childNodes, isMemberAccess, memberName } from '../babel'
 import { parseStoredPath } from '../code-files/ref-path'
 import { toCodeFile } from '../code-files/to-file'
 import type { BlockKey, CanonicalBlock } from '../model'
@@ -295,8 +295,9 @@ class Inference {
       if (BOOLEAN_FUNCTIONS.has(callee.name)) return 'boolean'
       return undefined
     }
+    if (!isMemberAccess(callee)) return undefined
     const method = memberName(callee)
-    if (method === null || !('object' in callee)) return undefined
+    if (method === null) return undefined
     if (callee.object.type === 'Identifier') {
       if (callee.object.name === 'Math') return this.isBuiltin('Math') ? 'number' : undefined
       const known = STATIC_KINDS[`${callee.object.name}.${method}`]
@@ -356,8 +357,9 @@ class Inference {
   private isArray(node: Node, strict = false): boolean {
     if (node.type === 'ArrayExpression') return true
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      if (!isMemberAccess(node.callee)) return false
       const method = memberName(node.callee)
-      if (method === null || !('object' in node.callee)) return false
+      if (method === null) return false
       if (node.callee.object.type === 'Identifier' && node.callee.object.name === 'Object') {
         return (
           this.isBuiltin('Object') &&

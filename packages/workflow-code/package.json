@@ -77,13 +77,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@babel/parser": "7.29.9",
+    "@babel/parser": "8.1.2",
     "@noble/hashes": "2.2.0",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*"
   },
   "devDependencies": {
-    "@babel/types": "7.29.8",
+    "@babel/types": "8.1.2",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@xyflow/react": "12.12.1",

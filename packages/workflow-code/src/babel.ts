@@ -2,7 +2,7 @@
  * The Babel AST walk and error reading shared by the compiler and the code-file reader.
  */
 
-import type { MemberExpression, Node } from '@babel/types'
+import type { MemberExpression, Node, OptionalMemberExpression } from '@babel/types'
 import { isIndexSegment, isNameSegment, type RefSegment } from './code-files/ref-path'
 
 /** The fields a thrown or recovered Babel error may carry. */
@@ -47,9 +47,14 @@ export function childNodes(node: Node): Node[] {
   return children
 }
 
+/** Whether `node` is a member access, optional or not. */
+export function isMemberAccess(node: Node): node is MemberExpression | OptionalMemberExpression {
+  return node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
+}
+
 /** The name a member access reads: `.name` or `['name']` (optional or not); `null` otherwise. */
 export function memberName(node: Node): string | null {
-  if (node.type !== 'MemberExpression' && node.type !== 'OptionalMemberExpression') return null
+  if (!isMemberAccess(node)) return null
   if (!node.computed && node.property.type === 'Identifier') return node.property.name
   return node.property.type === 'StringLiteral' ? node.property.value : null
 }

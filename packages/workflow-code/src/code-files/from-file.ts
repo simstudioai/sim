@@ -1,5 +1,5 @@
 import { type ParserOptions, parse } from '@babel/parser'
-import type { Expression, MemberExpression, Node } from '@babel/types'
+import type { MemberExpression, Node } from '@babel/types'
 import { isLikelyWorkflowReferenceSegment } from '@sim/utils/workflow-references'
 import { babelErrorShape, childNodes, memberSegment } from '../babel'
 import { ENV_VAR_NAME, formatStoredPath, type RefSegment } from './ref-path'
@@ -106,7 +106,10 @@ function isParenthesized(node: Node): boolean {
 }
 
 /** The members of a chain, innermost first, and its root; stops at a parenthesized object. */
-function flattenChain(top: MemberExpression): { root: Expression; members: MemberExpression[] } {
+function flattenChain(top: MemberExpression): {
+  root: MemberExpression['object']
+  members: MemberExpression[]
+} {
   const members: MemberExpression[] = [top]
   let object = top.object
   while (object.type === 'MemberExpression' && !isParenthesized(object)) {
@@ -133,7 +136,7 @@ function envName(member: MemberExpression): string | null {
  * rooted at `$ref`/`$env` or maps no member.
  */
 function chainReplacement(
-  root: Expression,
+  root: MemberExpression['object'],
   members: MemberExpression[]
 ): { replacement: Replacement; consumed: number } | null {
   if (root.type !== 'Identifier' || members.length === 0) return null

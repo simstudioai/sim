@@ -254,27 +254,12 @@ function collectSqlBindings(program: SyntaxNode): SqlBindings {
   return bindings
 }
 
-/**
- * `import('drizzle-orm')`, with or without an `await`.
- *
- * Babel parses a dynamic import as a `CallExpression` whose callee is `Import`;
- * the `ImportExpression` spelling is accepted too so a parser upgrade cannot
- * silently reopen the hole this closes.
- */
+/** `import('drizzle-orm')`, with or without an `await`. */
 function isDrizzleImportCall(node: unknown): boolean {
   if (!isSyntaxNode(node)) return false
   const current = node.type === 'AwaitExpression' ? unwrapAwait(node) : node
-  if (!isSyntaxNode(current)) return false
-  const isImport =
-    current.type === 'ImportExpression' ||
-    (current.type === 'CallExpression' &&
-      isSyntaxNode(current.callee) &&
-      current.callee.type === 'Import')
-  if (!isImport) return false
-  const args = Array.isArray(current.arguments) ? current.arguments : []
-  const source = isSyntaxNode(current.source) ? current.source : args.find(isSyntaxNode)
-  const value = source?.value
-  return isDrizzleModule(value)
+  if (!isSyntaxNode(current) || current.type !== 'ImportExpression') return false
+  return isSyntaxNode(current.source) && isDrizzleModule(current.source.value)
 }
 
 const unwrapAwait = (node: SyntaxNode): unknown =>

@@ -112,7 +112,6 @@ export function hintForNode(node: Node): string {
     case 'YieldExpression':
     case 'ThisExpression':
     case 'Super':
-    case 'Import':
     case 'ImportExpression':
     case 'MetaProperty':
       return HINTS.calls
