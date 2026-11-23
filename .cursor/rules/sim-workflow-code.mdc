@@ -35,6 +35,9 @@ and per-kind layout tables of `exit-codes.mdx`, `diagnostics.mdx`, `limits.mdx` 
 `bun run generate:workflow-code-docs` (`check:workflow-code-docs` fails on drift, a diagnostic code a page names that
 no engine emits, a limit or diagnostic code with no docs entry, and a `typescript@x.y.z` pin other than the CLI's).
 A limit also needs a label in the generator's `WORKFLOW_LIMIT_LABELS` or `WORKSPACE_LIMIT_LABELS`.
+A new exit code also needs a `[#exit-<code>]` section in `troubleshooting.mdx`, which the same check requires
+for every non-zero code `sourceExitCodeRows` lists. Behaviour a user relies on (identity, stale, the three-way rule,
+promotion) is explained once, in `how-it-works.mdx`; change it there when an engine changes it.
 
 Dependencies point one way: `packages/workflow-types` → `packages/workflow-code` →
 `packages/workspace-code` and `packages/workflow-sdk` → the CLI and `apps/sim`. `check:boundaries` keeps both engines and `packages/table-cells` pure (no

@@ -148,6 +148,10 @@ Retain the original request/operation IDs and exact input. An operation may have
 
 A workflow wait timeout also leaves its run active. Inspect that run ID; do not assume another execution is a retry of the same work.
 
+## A `sim workflows source` or `sim workspaces source` command failed
+
+These commands exit with codes of their own, such as `5` when the workflow changed since it was read and `10` when another apply is running, and print each problem with its file, line and code. [Workflows as code troubleshooting](/workflows/code/troubleshooting) covers each exit code and the common diagnostic codes.
+
 ## Anything else
 
 For an unexpected stack trace, [open an issue](https://github.com/simstudioai/sim/issues) with the CLI version, command, sanitized trace, and relevant resolved settings. Remove credentials, sensitive inputs, and private file contents before posting. Debug output can contain request selectors.
@@ -158,3 +162,4 @@ For an unexpected stack trace, [open an issue](https://github.com/simstudioai/si
 - [Configuration](/cli/configuration)
 - [Output formats](/cli/output)
 - [Scripting](/cli/scripting)
+- [Workflows as code troubleshooting](/workflows/code/troubleshooting)

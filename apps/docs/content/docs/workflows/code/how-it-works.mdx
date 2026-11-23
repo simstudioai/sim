@@ -1,0 +1,100 @@
+---
+title: How it works
+description: How Sim turns a file into a saved workflow, keeps each block's identity, and refuses an apply that would overwrite someone else's change.
+---
+
+A source file is a declaration, not a program. Sim reads it, compares it with the stored workflow, and saves the difference. This page explains the rules behind `get`, `check` and `apply`, so their results and refusals are predictable.
+
+## Nothing in the file runs
+
+`workflow.ts` is TypeScript so that your editor can complete and type-check it, but no command executes it. Sim parses the file and reads each `const x = builder('Name', {…})` as one block, each `.to()` as one connection, and each param as one setting. That is why the file holds declarations only: a helper function, a loop that creates blocks, or an import has no value Sim could read without running it, so it is refused with `E_UNSUPPORTED_SYNTAX` and a hint.
+
+`check` runs this compiler on your machine, the same one the server runs, against the block catalog the last `get` cached. Function code under `functions/` is not run either: it is stored as the Function block's code and runs in Sim, like code typed into the workflow builder.
+
+## From a file to a saved draft
+
+An apply goes through three steps, and a dry run stops after the second:
+
+1. **Compile.** The file becomes the workflow's canonical form: its blocks keyed by name, their settings, connections, branches, loops and variables, with no IDs and no layout.
+2. **Evaluate.** Sim reads the stored draft into the same form, matches each compiled block to a stored one, and checks what a save would change: unknown settings, missing required fields, references, permissions, locked blocks, deletes and the workflow's lint. Every finding maps back to a line in your files.
+3. **Commit.** Sim writes the new draft in one transaction, after checking again that nobody saved the workflow meanwhile.
+
+Deploying is never part of an apply unless you pass `--deploy` (or, for a workspace directory, add a file under `deployments/`).
+
+## The canonical form
+
+The stored workflow and the file are two views of one canonical form, so a round trip changes nothing:
+
+- `get` prints the canonical form. An `apply` of an unchanged directory is a no-op, and the stored workflow stays byte for byte the same.
+- A setting equal to the value a block gets when you add it in the workflow builder is left out of the file. Writing it out has the same effect as leaving it out.
+- After a save, Sim prints the files again from what it stored. A value the server normalized, a resource key it allocated, or a reference it rewrote for a rename shows up in your files, so read them again before the next edit and commit what changed.
+
+Some state has no syntax in the file. Sim keeps it from the stored workflow on every apply:
+
+- **Layout.** Block positions stay in Sim. A new block is placed automatically. Moving blocks never makes a directory stale.
+- **Settings that do not run.** A value in a field that the block's current choices hide stays stored, so switching back in the workflow builder brings it back.
+- **Comments.** Comments in `workflow.ts` are stored with the workflow, by block, so a builder edit or a rename keeps them.
+
+## Block identity
+
+Each stored block has an ID that its webhook URL, schedules and run history hang on. The file names blocks by `const` name and display name instead, so Sim needs a way to tell an edited block from a new one.
+
+`.sim/lock.json` records, for each block in the file, the ID of the stored block it is. An apply matches each block in the file, in this order:
+
+1. by its block key in the lock, the display name lowercased with whitespace and dots removed;
+2. by its `const` name in the lock, so changing only the display name keeps the block;
+3. by its block key in the stored workflow, when the lock does not have it;
+4. by inference: when a block left and one of the same type appeared in the same place with the same connections or settings, it is a rename (`W_MAT_INFERRED_RENAME`).
+
+A block that matches nothing is new, and a stored block nothing matched is a delete, which an apply refuses without `--allow-delete` (`E_APPLY_BLOCK_DELETE`). Renaming two blocks of the same type in the same place in one save leaves the inference nothing to tell apart, so rename them one save at a time.
+
+Sim also stores each block's `const` name, its order in the file and its comments, by block ID. A `get` into a new directory, or after a builder edit, prints the same names in the same order, so a one-setting change stays a one-line diff.
+
+## Stale: what you read is not what Sim holds
+
+`.sim/base.json` records a fingerprint of the draft you read: a hash of its canonical form, its variables and its block IDs, without layout. An apply sends it, and Sim computes the fingerprint of the draft it holds now:
+
+- the same: the apply goes ahead;
+- different: someone saved the workflow since you read it. The apply is refused as stale with exit `5`, on a dry run too, and nothing is written; [Troubleshooting](/workflows/code/troubleshooting#exit-5) has the steps.
+
+The check is made again inside the write's transaction, so two applies that race cannot both win. `status` asks the same question with a dry run and reports it as drift (exit `12`) before you apply.
+
+The base also records the block catalog you read against. When a compile fails and the catalog changed since, for example after a block gained a setting, the apply adds `W_APPLY_CATALOG_MOVED`: run `get` again to pick up the new types.
+
+## Workspaces: one rule per resource
+
+A workspace directory adds tables, knowledge bases, files, custom tools, skills, MCP servers, secret names, credential keys and deployments. Each resource has a key, its file or folder name, which Sim stores and never changes: a rename in Sim keeps the key, and a workflow names the resource by it, as in `table('orders')`.
+
+`.sim/base.json` at the root records each resource's ID and fingerprint as the last `get` or apply saw it. An apply decides each declared resource by comparing three fingerprints: your file (local), the base, and what Sim holds now (server):
+
+| Your file vs the base | Sim vs the base | Outcome |
+| --- | --- | --- |
+| Same | Any | Nothing to do. When Sim changed it, the apply keeps Sim's version (`W_SERVER_CHANGED`) |
+| Changed | Same | Written |
+| Changed | Changed | Nothing to do when both made the same change; otherwise stale, exit `5` |
+
+A resource with no base entry is created, or **adopted** when Sim already holds one under the same name. An adopt only adds to what is there, such as a column or a document; one that would change or remove anything is refused with `E_APPLY_NO_BASE`. A resource the directory stops declaring is deleted only when the base recorded it and you pass `--allow-delete`; anything else Sim holds is kept and named in a `W_UNDECLARED` warning.
+
+Each workflow folder is applied exactly as a single workflow, with its own `.sim/lock.json` and `.sim/base.json`. An apply writes resources in dependency order, so a table exists before the workflow that writes to it, and deletes run in reverse.
+
+### Applying a workspace
+
+- **Whole or nothing at planning.** Every check runs before the first write. One error refuses the whole apply.
+- **One apply at a time.** An apply holds the workspace from planning to its last write. A second apply meanwhile exits `10` with nothing written. A dry run does not take part, so it never waits.
+- **Writes commit one by one.** If a write fails part-way, the apply stops, saves what it wrote into the directory and exits `8`. Applying the same directory again finishes the rest.
+- **Held back.** A change that uses a secret with no value in the workspace, or a credential key nothing binds to, is held back while the rest is written, and the apply exits `15`.
+- **Files travel separately.** Workspace files and knowledge base documents are uploaded before the apply, and only the ones Sim does not have yet, so a retry uploads nothing again.
+
+## Promotion
+
+`apply --to <workspaceId>` sends a directory read from one workspace to another. Sim sees an ordinary apply against the target's own IDs: each resource binds by key, so a workflow keeps its ID and webhook URLs in the target, and secrets and credentials bind by name to the target's own.
+
+The directory stays bound to the workspace it was read from. The only file a promotion writes is `.sim/targets/<workspaceId>.json`, a record of what it left in the target. The next promotion uses that record as the base for the three-way rule above, so a hotfix made in the target is kept when the directory left that resource alone, and refused as stale when the directory changed it too. See [Promote to another workspace](/workflows/code/promote).
+
+## Related docs
+
+- [Edit a workflow](/workflows/code/edit)
+- [Manage a workspace as code](/workflows/code/workspace)
+- [Directory layout](/workflows/code/directory)
+- [Troubleshooting](/workflows/code/troubleshooting)
+- [Diagnostic codes](/workflows/code/diagnostics)
