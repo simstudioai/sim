@@ -589,7 +589,12 @@ function centralMockName(
 
 /** A dynamic `import('@sim/testing/…')`. */
 function importsTesting(node: Node | undefined): boolean {
-  const source = node?.type === 'ImportExpression' ? (node.source as Node) : undefined
+  const source =
+    node?.type === 'CallExpression' && (node.callee as Node).type === 'Import'
+      ? (node.arguments as Node[])[0]
+      : node?.type === 'ImportExpression'
+        ? (node.source as Node)
+        : undefined
   return (
     source?.type === 'StringLiteral' &&
     (source as { value: string }).value.startsWith('@sim/testing')
