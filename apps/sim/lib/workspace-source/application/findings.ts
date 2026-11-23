@@ -467,7 +467,7 @@ export function planUndeclared<K extends WorkspaceKind, S>(
               {
                 hint:
                   kind === 'deployment'
-                    ? 'Pass --allow-delete to delete it, or restore its file or folder to keep it.'
+                    ? 'Pass --allow-delete to delete it, or restore its file to keep it.'
                     : 'Pass --allow-delete to delete it, or restore its file or folder to keep it. Run with --allow-delete --dry-run to see which workflows use it.',
               }
             )
