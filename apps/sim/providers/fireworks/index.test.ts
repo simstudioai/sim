@@ -121,7 +121,7 @@ describe('fireworksProvider', () => {
 
   it('sends the resolved wire model name while reporting the catalog id', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('ok'))
-    mockResolveFireworksWireModel.mockReturnValueOnce('accounts/fireworks/models/glm-5p2')
+    mockResolveFireworksWireModel.mockReturnValueOnce('accounts/fireworks/models/glm-5p3')
 
     const result = await fireworksProvider.executeRequest({
       ...baseRequest,
@@ -129,7 +129,7 @@ describe('fireworksProvider', () => {
     })
 
     expect(mockResolveFireworksWireModel).toHaveBeenCalledWith('glm-5.2')
-    expect(callBody(0).model).toBe('accounts/fireworks/models/glm-5p2')
+    expect(callBody(0).model).toBe('accounts/fireworks/models/glm-5p3')
     // The catalog id is the billing/logging identity: the central cost policy,
     // the usage ledger row, and the trace span all key on it.
     expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
