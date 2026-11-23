@@ -70,12 +70,11 @@ The table for the kind of directory you work in. Both are built from the table `
 
 {/* workflow-code-docs:exit-codes:end */}
 
-Earlier CLI releases exited `1` when an apply held changes back, whether or not it wrote the rest, and its dry run exited `1` in either case. A script that reads `1` as "held back" should test for `15` too.
-
 Exit `9` follows the CLI's retries: it resends a request the API answered `429` only when sending it twice is safe, which includes every `GET`, a source `apply` and a `create`. See [Scripting](/cli/scripting#exit-codes) for the retry schedule and the codes every command shares (`13` and `9`).
 
 ## Related docs
 
+- [Troubleshooting](/workflows/code/troubleshooting): the causes behind each code
 - [Run in CI](/workflows/code/ci)
 - [Diagnostic codes](/workflows/code/diagnostics)
 - [Limits](/workflows/code/limits)

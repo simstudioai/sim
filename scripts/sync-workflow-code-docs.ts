@@ -15,8 +15,9 @@
  *
  * Content is rewritten between the `workflow-code-docs:<region>` markers of the pages under
  * `apps/docs/content/docs/workflows/code/`. The check also fails on a diagnostic code a page
- * names that no engine emits, and on a `typescript@x.y.z` pin in the docs other than the release
- * the CLI type-checks a directory with.
+ * names that no engine emits, on a `typescript@x.y.z` pin in the docs other than the release
+ * the CLI type-checks a directory with, and on a `troubleshooting.mdx` without exactly one
+ * `[#exit-<code>]` section per non-zero code `sourceExitCodeRows` lists.
  *
  * Usage:
  *   bun run scripts/sync-workflow-code-docs.ts           # write
@@ -83,6 +84,11 @@ function cell(text: string): string {
   return mdx(text.replaceAll('\n', ' ')).replaceAll('|', '\\|')
 }
 
+const SOURCE_GROUPS: readonly SourceCommandGroup[] = [
+  'sim workflows source',
+  'sim workspaces source',
+]
+
 const indent = (block: string, spaces: number) =>
   block
     .split('\n')
@@ -105,12 +111,12 @@ function buildExitCodes(): string {
     "<Tabs items={['Workflow directory', 'Workspace directory']}>",
     '  <Tab>',
     '',
-    indent(exitCodeTable('sim workflows source'), 4),
+    indent(exitCodeTable(SOURCE_GROUPS[0]), 4),
     '',
     '  </Tab>',
     '  <Tab>',
     '',
-    indent(exitCodeTable('sim workspaces source'), 4),
+    indent(exitCodeTable(SOURCE_GROUPS[1]), 4),
     '',
     '  </Tab>',
     '</Tabs>',
@@ -487,6 +493,27 @@ function checkProse(errors: string[]): void {
   }
 }
 
+/**
+ * The troubleshooting page explains each exit code in depth, so it needs exactly one `#exit-<code>`
+ * section per non-zero code a source command exits with.
+ */
+function checkTroubleshooting(errors: string[]): void {
+  const file = path.join(PAGES_DIR, 'troubleshooting.mdx')
+  const expected = [
+    ...new Set(SOURCE_GROUPS.flatMap((group) => sourceExitCodeRows(group).map((row) => row.code))),
+  ]
+    .filter(Boolean)
+    .sort((a, b) => a - b)
+  const found = [...fs.readFileSync(file, 'utf8').matchAll(/^#+ .*\[#exit-(\d+)\]$/gm)]
+    .map((match) => Number(match[1]))
+    .sort((a, b) => a - b)
+  if (found.join() !== expected.join()) {
+    errors.push(
+      `${path.relative(rootDir, file)} needs one [#exit-<code>] section per source exit code: expected ${expected.join(', ')}, found ${found.join(', ')}`
+    )
+  }
+}
+
 function main(): void {
   const checkMode = process.argv.includes('--check')
   const errors: string[] = []
@@ -497,6 +524,7 @@ function main(): void {
     'directory-kinds': buildDirectoryKinds(),
   }
   checkProse(errors)
+  checkTroubleshooting(errors)
 
   const writes: Array<{ rel: string; file: string; next: string }> = []
   for (const region of Object.keys(REGIONS) as Region[]) {

@@ -10,11 +10,15 @@
     "promote",
     "ci",
     "coding-agents",
+    "adopt",
+    "troubleshooting",
     "---Reference---",
     "syntax",
     "directory",
     "exit-codes",
     "diagnostics",
-    "limits"
+    "limits",
+    "---Explanation---",
+    "how-it-works"
   ]
 }

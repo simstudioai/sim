@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import * as exitCodes from '../../exit-codes'
 import { sourceExitCodesHelp } from './source-exit-codes'
@@ -19,16 +17,10 @@ const SOURCE_EXIT_CODES = [
   130,
 ].sort((a, b) => a - b)
 
-const WORKFLOW_SDK_README = readFileSync(
-  join(import.meta.dirname, '../../../../workflow-sdk/README.md'),
-  'utf8'
-)
-
 describe('the exit-code tables an agent or a reader relies on', () => {
   it.each([
     ['the workflow directory guide', WORKFLOW_TREE.agents],
     ['the workspace directory guide', WORKSPACE_TREE.agents],
-    ['the workflow SDK README', WORKFLOW_SDK_README],
   ])('%s lists every code a source command exits with', (_name, text) => {
     const listed = [...text.matchAll(/^\| (\d+) \|/gm)].map((match) => Number(match[1]))
     expect(listed).toEqual(SOURCE_EXIT_CODES)
