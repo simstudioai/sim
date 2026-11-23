@@ -80,7 +80,6 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
     apiKeyParam: 'apiKey',
     byokProviderId: 'falai',
     exactCostSettlement: 'falai',
-    requiresPaidPlan: true,
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {

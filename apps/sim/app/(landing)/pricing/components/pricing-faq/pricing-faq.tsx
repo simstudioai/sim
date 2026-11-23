@@ -20,7 +20,7 @@ const formatCredits = (credits: number) => credits.toLocaleString('en-US')
 const PRICING_FAQS = [
   {
     question: 'Is Sim free?',
-    answer: `Yes. The Free plan costs $0 and includes ${formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR)} one-time credits, one workspace, and all ${INTEGRATION_COUNT_LABEL} integrations, with no credit card required. Sim is also open source, so you can self-host it for free.`,
+    answer: `Yes. The Free plan costs $0 and includes ${formatCredits(DEFAULT_FREE_CREDITS * CREDITS_PER_DOLLAR)} one-time credits, one workspace, and all ${INTEGRATION_COUNT_LABEL} integrations, with no credit card required. On Free, models and tools run on your own provider keys; Sim-hosted keys come with paid plans. Sim is also open source, so you can self-host it for free.`,
   },
   {
     question: 'How much does Sim cost?',

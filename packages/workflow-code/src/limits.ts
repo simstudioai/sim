@@ -1,3 +1,5 @@
+import { utf8ByteLength } from '@sim/utils/paste'
+
 /**
  * The limits workflow source shares across reading and writing. A get refuses to print a workflow
  * over them, and compile, the source contracts and the apply body cap enforce the same numbers, so
@@ -85,25 +87,6 @@ export interface SourceLimitExcess {
   max: number
 }
 
-function isLowSurrogate(code: number): boolean {
-  return code >= 0xdc00 && code <= 0xdfff
-}
-
-/** UTF-8 length of `text`, counting at most `cap + 1` bytes when a cap is given. */
-export function utf8Bytes(text: string, cap = Number.POSITIVE_INFINITY): number {
-  let bytes = 0
-  for (let i = 0; i < text.length && bytes <= cap; i++) {
-    const code = text.charCodeAt(i)
-    if (code < 0x80) bytes += 1
-    else if (code < 0x800) bytes += 2
-    else if (code >= 0xd800 && code <= 0xdbff && isLowSurrogate(text.charCodeAt(i + 1))) {
-      bytes += 4
-      i++
-    } else bytes += 3
-  }
-  return bytes
-}
-
 /**
  * Every size limit a printed source of a workflow with `counts` blocks, edges and variables
  * exceeds, in limit order; empty when it fits. Depth is `sourceDepthOverflow`'s.
@@ -131,7 +114,7 @@ export function sourceLimitExcesses(
     excesses.push({ limit: 'maxFiles', actual: paths.length, max: SOURCE_LIMITS.maxFiles })
   }
   let total = 0
-  for (const path of paths) total += utf8Bytes(files[path])
+  for (const path of paths) total += utf8ByteLength(files[path])
   if (total > SOURCE_LIMITS.maxTotalBytes) {
     excesses.push({ limit: 'maxTotalBytes', actual: total, max: SOURCE_LIMITS.maxTotalBytes })
   }

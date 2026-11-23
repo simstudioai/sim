@@ -1250,6 +1250,89 @@ describe('authorized fork and sync against PostgreSQL', () => {
     return { sourceWorkspaceId, childWorkspaceId, sourceId, childId, source }
   }
 
+  it('never copies a document from a workspace outside the fork edge into a mapped target KB', async () => {
+    const childId = await createChild()
+    const foreign = await seedKnowledgeCopy()
+    const attackerKbId = generateId()
+    await db
+      .insert(knowledgeBase)
+      .values({ id: attackerKbId, workspaceId: childId, userId, name: 'Attacker' })
+
+    const result = await syncWorkspace.execute({
+      principal,
+      input: {
+        workspaceId: sourceWorkspaceId,
+        otherWorkspaceId: childId,
+        direction: 'push',
+        mappings: [
+          { resourceType: 'knowledge_base', sourceId: foreign.sourceId, targetId: attackerKbId },
+        ],
+        dependentValues: [
+          {
+            workflowId: generateId(),
+            blockId: 'b1',
+            subBlockKey: 'documentId',
+            value: foreign.source.id,
+          },
+        ],
+      },
+    })
+
+    expect(result.redeployed).toBe(1)
+    expect(
+      await db.select().from(document).where(eq(document.knowledgeBaseId, attackerKbId))
+    ).toEqual([])
+    expect(
+      await db
+        .select()
+        .from(workspaceForkResourceMap)
+        .where(
+          and(
+            eq(workspaceForkResourceMap.childWorkspaceId, childId),
+            eq(workspaceForkResourceMap.resourceType, 'knowledge_document')
+          )
+        )
+    ).toEqual([])
+  })
+
+  it('refuses to fill a queued document copy from outside the source workspace', async () => {
+    const fixture = await seedKnowledgeCopy()
+    const foreign = await seedKnowledgeCopy()
+    const childDocId = generateId()
+    await db.insert(document).values({
+      ...foreign.source,
+      id: childDocId,
+      knowledgeBaseId: fixture.childId,
+      archivedAt: new Date(),
+    })
+    const result = await copyForkResourceContent({
+      contentPlan: {
+        sourceWorkspaceId: fixture.sourceWorkspaceId,
+        childWorkspaceId: fixture.childWorkspaceId,
+        userId,
+        tables: [],
+        knowledgeBases: [],
+        skills: [],
+        documents: [
+          {
+            sourceDocId: foreign.source.id,
+            childDocId,
+            childKnowledgeBaseId: fixture.childId,
+            storageKey: null,
+            fileUrl: '',
+            fileSize: 0,
+            filename: foreign.source.filename,
+            mimeType: foreign.source.mimeType,
+          },
+        ],
+      },
+      control: { progress: { completed: [], tables: {}, embeddings: {} } },
+    })
+    expect(result).toMatchObject({ copied: 0, failed: 1 })
+    const [placeholder] = await db.select().from(document).where(eq(document.id, childDocId))
+    expect(placeholder.archivedAt).not.toBeNull()
+  })
+
   it('copies ordinary knowledge containers but excludes retired Search containers', async () => {
     const fixture = await seedKnowledgeCopy()
     const retiredId = generateId()
@@ -1311,6 +1394,7 @@ describe('authorized fork and sync against PostgreSQL', () => {
         db.transaction((tx) =>
           planForkMappedKbDocumentCopies({
             tx,
+            sourceWorkspaceId: fixture.sourceWorkspaceId,
             resolver: (kind, id) =>
               kind === 'knowledge-base' && id === fixture.sourceId ? fixture.childId : null,
             referencedDocumentIds: [fixture.source.id],

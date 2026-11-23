@@ -41,6 +41,7 @@ import { setSoftExitCode } from '../../embed-context'
 import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
 import { digest, readFolderWritten, readSourceText } from './source-dir'
+import { STRICT_FINDINGS } from './source-strict'
 import {
   cachedCatalog,
   cachedSourceCatalog,
@@ -68,21 +69,7 @@ const SERVER_ONLY_CODES: ReadonlySet<string> = new Set(['E_STORED_VALUE_MISSING'
  * Warnings an apply saves as written although the block they name is broken: a strict check
  * fails on them (see {@link StrictMode}).
  */
-const STRICT_CODES: ReadonlySet<string> = new Set([
-  'W_REQUIRED_MISSING',
-  'W_UNKNOWN_OPTION',
-  'W_UNKNOWN_OUTPUT_PATH',
-  'W_VALUE_KIND',
-  'W_OUT_OF_RANGE',
-  'W_LITERAL_SECRET',
-  'W_TABLE_UNKNOWN_COLUMN',
-  'W_CHILD_INPUT_UNKNOWN',
-  'W_CHILD_RESULT_PATH',
-  'W_BRANCH_UNWIRED',
-  'W_UNRESOLVED_REF',
-  'W_REF_OUT_OF_SCOPE',
-  'W_LOOP_CONDITION_SYNTAX',
-])
+const STRICT_CODES: ReadonlySet<string> = new Set(STRICT_FINDINGS.keys())
 
 /**
  * {@link STRICT_CODES} warnings the stored workflow exempts, which a check never fails on a block

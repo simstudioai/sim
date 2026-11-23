@@ -137,8 +137,7 @@ satisfy.
 2. A codec `packages/workspace-code/src/kinds/<kind>.ts` with tests; `KIND_LAYOUTS`, and
    `BLOB_KIND_CODECS` if it holds blobs (`src/kinds/registry.ts`); its diagnostic codes.
 3. An adapter `apps/sim/lib/workspace-source/application/kinds/<kind>/adapter.ts` calling the
-   kind's own use cases; `KIND_ADAPTERS` (`application/registry.ts`) and `NOUNS`
-   (`application/findings.ts`); an integration test.
+   kind's own use cases; `KIND_ADAPTERS` (`application/registry.ts`); an integration test.
 4. If workflows name it by key: `WORKFLOW_RESOURCE_KINDS`, the live loader in
    `lib/workspaces/resource-keys.ts`, the manifest in `read-source-resources.ts` and
    `codegen/workspace.ts`, and `PENDABLE_REFERENCES` in
@@ -202,5 +201,6 @@ Behaviour is proven by properties over the real registry, not restated unit test
 - The Code tab and the CLI have HTTP e2e scripts (`apps/sim/scripts/test-workflow-code-ui-e2e.ts`,
   `test-workflow-source-e2e.ts`, `test-workspace-source-e2e.ts`).
 - Generated artifacts and their checks: `generate:sdk-names` (`check:sdk-names`,
-  `check:sdk-names-frozen`), the SDK embedded text (its `*-text.test.ts`), goldens
-  (`check:workflow-code-golden`).
+  `check:sdk-names-frozen`), `generate:workflow-sdk-embedded-text`
+  (`check:workflow-sdk-embedded-text`), `generate:sdk-fixture-catalog`
+  (`check:sdk-fixture-catalog`), goldens (`check:workflow-code-golden`).

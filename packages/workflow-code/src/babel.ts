@@ -47,6 +47,13 @@ export function childNodes(node: Node): Node[] {
   return children
 }
 
+/** The name a member access reads: `.name` or `['name']` (optional or not); `null` otherwise. */
+export function memberName(node: Node): string | null {
+  if (node.type !== 'MemberExpression' && node.type !== 'OptionalMemberExpression') return null
+  if (!node.computed && node.property.type === 'Identifier') return node.property.name
+  return node.property.type === 'StringLiteral' ? node.property.value : null
+}
+
 /**
  * The reference path segment a member access writes: `.name`, `['name']` or `[0]`; `null` for any
  * other property, which no stored reference path can spell.

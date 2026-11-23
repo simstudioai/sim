@@ -8,8 +8,8 @@
  * at.
  */
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { utf8ByteLength } from '@sim/utils/paste'
 import { compareStrings } from '@sim/utils/string'
-import { utf8Bytes } from '@sim/workflow-code/limits'
 import { isWorkspaceKind, KIND_DIRS, type WorkspaceKind } from '@sim/workspace-code'
 import { isFolderEvaluationFinding } from '@sim/workspace-code/diagnostics/codes'
 import { isBlobPath, KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
@@ -53,6 +53,7 @@ import {
   type DiffReport,
   destructiveChanges,
   type FileDiff,
+  givenFilterPath,
   loginCommand,
   type NextStep,
   nextStep,
@@ -300,7 +301,7 @@ function planLine(plan: WorkspacePlanSummary): string {
 function fitsWhole(files: Readonly<Record<string, string>>): boolean {
   const paths = Object.keys(files).filter((path) => kindOfPath(path) === 'workflow')
   const folders = KIND_LAYOUTS.workflow.group(paths).groups.size
-  const bytes = paths.reduce((sum, path) => sum + utf8Bytes(files[path]), 0)
+  const bytes = paths.reduce((sum, path) => sum + utf8ByteLength(files[path]), 0)
   return (
     folders <= WORKSPACE_SOURCE_LIMITS.maxWorkflows &&
     bytes <= WORKSPACE_SOURCE_LIMITS.maxWorkflowBytes
@@ -492,9 +493,7 @@ function filteredKinds(filters: readonly string[]): WorkspaceKind[] | undefined 
   const kinds = new Set<WorkspaceKind>()
   for (const filter of filters) {
     const named = filter.split(':', 1)[0]
-    const kind = isWorkspaceKind(named)
-      ? named
-      : kindOfPath(filter.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, ''))
+    const kind = isWorkspaceKind(named) ? named : kindOfPath(givenFilterPath(filter))
     if (kind === null) return undefined
     kinds.add(kind)
   }

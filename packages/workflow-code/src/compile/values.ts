@@ -14,7 +14,7 @@ import {
   isReservedWorkflowBlockName,
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
-import { literalText, memberSegment } from '../babel'
+import { literalText, memberName, memberSegment } from '../babel'
 import { builderOutputSchemas, errorOutputOf } from '../catalog/activity'
 import type { CatalogOutput } from '../catalog/types'
 import {
@@ -570,13 +570,6 @@ function compileMemberSegment(
     HINTS.elementAccess,
     site.decl.key
   )
-}
-
-function memberName(member: MemberExpression): string | null {
-  const property = member.property
-  if (!member.computed && property.type === 'Identifier') return property.name
-  if (member.computed && property.type === 'StringLiteral') return property.value
-  return null
 }
 
 function outputKnown(outputs: Record<string, CatalogOutput>, segments: RefSegment[]): boolean {

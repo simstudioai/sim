@@ -1,4 +1,5 @@
 import type { ArrowFunctionExpression, CallExpression, Node } from '@babel/types'
+import { utf8ByteLength } from '@sim/utils/paste'
 import { compareStrings } from '@sim/utils/string'
 import {
   isVariableType,
@@ -13,7 +14,6 @@ import type { BlockCatalog } from '../catalog/types'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
 import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
-import { utf8Bytes } from '../limits'
 import { lockIdentRenames, type SourceHints, type WorkflowLockV1 } from '../lock'
 import { renamedReferenceRewriter } from '../materialize/values'
 import type {
@@ -527,7 +527,7 @@ function compileEntry(
   reporter: Reporter
 ): CompileResult {
   const limits = { ...DEFAULT_LIMITS, ...input.limits }
-  if (utf8Bytes(text, limits.maxTotalBytes) <= limits.maxTotalBytes)
+  if (utf8ByteLength(text, limits.maxTotalBytes) <= limits.maxTotalBytes)
     checkStorableText(file, text, reporter)
   const parsed = parseWorkflowSource(file, text, limits, reporter)
   if (parsed.sdkMajor === null) {
@@ -567,7 +567,13 @@ function compileEntry(
     catalog: input.catalog,
     files: input.files,
     limits,
-    codeFiles: { reads: new Map(), refs: 0, bytes: utf8Bytes(text), chains: [], sharedReads: [] },
+    codeFiles: {
+      reads: new Map(),
+      refs: 0,
+      bytes: utf8ByteLength(text),
+      chains: [],
+      sharedReads: [],
+    },
     comments: new CommentCollector(file, reporter),
     decls: [],
     declsByKey: new Map(),

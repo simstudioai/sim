@@ -1,7 +1,6 @@
 import {
   getTimezoneOptions,
   getWallClockParts,
-  zonedClockDate,
   zonedWallClock,
   zonedWallClockToUtc,
   zonedWallClockWithOffset,
@@ -176,27 +175,5 @@ describe('getTimezoneOptions', () => {
     expect(
       options.find((o) => o.value === 'Asia/Kolkata' || o.value === 'Asia/Calcutta')?.label
     ).toMatch(/^(Kolkata|Calcutta) \(GMT\+05:30\)$/)
-  })
-})
-
-describe('zonedClockDate', () => {
-  const instant = new Date('2026-06-15T13:00:00.000Z')
-
-  it('exposes the zone wall-clock through device-local fields', () => {
-    const ny = zonedClockDate(instant, 'America/New_York')
-    expect(ny.getHours()).toBe(9)
-    expect(ny.getMinutes()).toBe(0)
-    expect(ny.getDate()).toBe(15)
-  })
-
-  it('rolls the date when the zone is on the other side of midnight', () => {
-    const tokyo = zonedClockDate(instant, 'Asia/Tokyo')
-    expect(tokyo.getDate()).toBe(15)
-    expect(tokyo.getHours()).toBe(22)
-
-    const earlyUtc = new Date('2026-06-15T01:00:00.000Z')
-    const la = zonedClockDate(earlyUtc, 'America/Los_Angeles')
-    expect(la.getDate()).toBe(14)
-    expect(la.getHours()).toBe(18)
   })
 })

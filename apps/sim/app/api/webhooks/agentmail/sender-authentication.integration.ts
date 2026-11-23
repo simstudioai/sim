@@ -1,9 +1,10 @@
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * An inbox email's From header is written by whoever sends it. Against real
- * PostgreSQL, a message naming a workspace member is only admitted, and only runs
- * with that member's authority, when AgentMail's SPF, DKIM, or DMARC verdict proves
- * the sender controls the address's domain. The webhook is signed per the Standard
+ * PostgreSQL, a message naming a workspace member or an allow-listed address is
+ * admitted only when AgentMail's SPF, DKIM, or DMARC verdict proves the sender
+ * controls the address's domain, and only an authenticated member's message runs
+ * with that member's authority. The webhook is signed per the Standard
  * Webhooks spec, so these cases exercise the authenticated AgentMail relay itself.
  */
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
@@ -69,6 +70,8 @@ const memberEmail = `admin@mail.${memberDomain}`
 const memberFrom = `Admin <${memberEmail}>`
 const allowlistedMemberId = generateId()
 const allowlistedMemberEmail = `ops@mail.${memberDomain}`
+const partnerDomain = `${generateId()}.test`
+const partnerEmail = `partner@${partnerDomain}`
 const inboxId = `${workspaceId}@agentmail.to`
 const secret = `whsec_${Buffer.from(generateId()).toString('base64')}`
 
@@ -175,12 +178,10 @@ describe('inbox sender authentication', () => {
     })
     await seedUser(memberId, memberEmail, 'admin')
     await seedUser(allowlistedMemberId, allowlistedMemberEmail, 'write')
-    await db.insert(mothershipInboxAllowedSender).values({
-      id: generateId(),
-      workspaceId,
-      email: allowlistedMemberEmail,
-      addedBy: ownerId,
-    })
+    await db.insert(mothershipInboxAllowedSender).values([
+      { id: generateId(), workspaceId, email: allowlistedMemberEmail, addedBy: ownerId },
+      { id: generateId(), workspaceId, email: partnerEmail, addedBy: ownerId },
+    ])
     await db.insert(mothershipInboxWebhook).values({
       id: generateId(),
       workspaceId,
@@ -232,11 +233,6 @@ describe('inbox sender authentication', () => {
       `${memberFrom}, Attacker <ceo@attacker.test>`,
       { spf: 'pass' },
     ],
-    [
-      'lists an allow-listed address beside a second mailbox',
-      `Ops <${allowlistedMemberEmail}>, Attacker <ceo@attacker.test>`,
-      undefined,
-    ],
   ])('rejects a message naming a member that %s', async (_case, from, results) => {
     const task = await deliver(from, results)
 
@@ -268,11 +264,40 @@ describe('inbox sender authentication', () => {
     })
   })
 
-  it('runs an unauthenticated allow-listed address as an external sender, even when a member owns it', async () => {
-    const task = await deliver(`Ops <${allowlistedMemberEmail}>`)
-    expect(task).toMatchObject({ status: 'received', senderAuthenticated: false })
+  it('rejects an unauthenticated allow-listed sender', async () => {
+    const task = await deliver(`Partner <${partnerEmail}>`)
+
+    expect(task).toMatchObject({ status: 'rejected', rejectionReason: 'sender_not_allowed' })
+    expect(mockExecuteInboxTask).not.toHaveBeenCalled()
+  })
+
+  it('runs an authenticated allow-listed external address as an external sender', async () => {
+    const task = await deliver(`Partner <${partnerEmail}>`, { dmarc: 'pass' })
+    expect(task).toMatchObject({ status: 'received', senderAuthenticated: true })
 
     await executeInboxTask(task.id)
+
+    const [, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+    expect(options).toMatchObject({
+      userId: ownerId,
+      secretActorUserId: null,
+      userPermission: 'read',
+    })
+  })
+
+  it('never runs an unauthenticated task as the member its From names', async () => {
+    const taskId = generateId()
+    await db.insert(mothershipInboxTask).values({
+      id: taskId,
+      workspaceId,
+      fromEmail: memberEmail,
+      senderAuthenticated: false,
+      subject: 'Queued without a verdict',
+      bodyText: 'Run a workflow.',
+      status: 'received',
+    })
+
+    await executeInboxTask(taskId)
 
     const [, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
     expect(options).toMatchObject({

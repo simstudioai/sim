@@ -1,4 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
@@ -16,7 +17,7 @@ import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
 import { printRunFailureSite } from './run-source-location'
-import { BLOCK_ID, normalizeBlockName } from './workflow-run-get'
+import { BLOCK_ID } from './workflow-run-get'
 import {
   parseWaitTimeout,
   type RunSnapshot,
@@ -43,7 +44,7 @@ const WORKFLOW_RESULT_STREAM_CONTENT_TYPE = 'application/x-ndjson'
 const DONE_SENTINEL = '[DONE]'
 
 /** The sink live commentary is written to; `process.stderr` satisfies it. */
-export interface CommentaryWriter {
+interface CommentaryWriter {
   write(text: string): unknown
 }
 
@@ -62,7 +63,7 @@ type WorkflowRunSelection = {
 }
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
-export function resolveWorkflowRunSelection(
+function resolveWorkflowRunSelection(
   flags: Record<string, unknown>
 ): WorkflowRunSelection | undefined {
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
@@ -493,7 +494,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
  * The selection a `--stop-after` run sends when the caller selected nothing: the stop block's
  * whole output, so `blockOutputs` (with `--follow`, the final frame's `output`) names the block
  * the run stopped after and holds what it produced (no Response block ran). The block is sent as
- * the executor compares names ({@link normalizeBlockName}), so a display name with a dot is not read
+ * the executor compares names (`normalizeWorkflowBlockName`), so a display name with a dot is not read
  * as a path; an id is sent as it is.
  */
 function stopBlockSelection(
@@ -503,7 +504,7 @@ function stopBlockSelection(
   const stopAfter = selection?.stopAfterBlockId
   if (stopAfter === undefined) return null
   if (Array.isArray(flags.selectOutput) && flags.selectOutput.length > 0) return null
-  return [BLOCK_ID.test(stopAfter) ? stopAfter : normalizeBlockName(stopAfter)]
+  return [BLOCK_ID.test(stopAfter) ? stopAfter : normalizeWorkflowBlockName(stopAfter)]
 }
 
 /**

@@ -19,7 +19,7 @@ import {
   capabilityRefusal,
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,9 +142,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       effectiveWorkspaceId = workflowAuthorization.workflow?.workspaceId || undefined
     }
 
+    let workspaceAccess: WorkspaceAccess | undefined
     let requesterCanAdmin = false
     if (effectiveWorkspaceId) {
-      const workspaceAccess = await checkWorkspaceAccess(effectiveWorkspaceId, requesterUserId)
+      workspaceAccess = await checkWorkspaceAccess(effectiveWorkspaceId, requesterUserId)
       if (!workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
@@ -194,7 +195,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
          * Integrations, and read it. Both are checked; either withholding is a
          * refusal, and the resolver memoizes the repeat when they are the same.
          *
-         * Asked after each branch's own access check, never before: a caller who
+         * Asked after the access check, never before: a caller who
          * may not reach this credential at all must not learn from the refusal
          * wording that the workspace it belongs to is one their group governs.
          */
@@ -205,21 +206,29 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             platformCredential.workspaceId
           )
 
+        // Before any access check, so an unsupported credential reads the same as an unknown id.
+        if (
+          platformCredential.type !== 'service_account' &&
+          (platformCredential.type !== 'oauth' || !platformCredential.accountId)
+        ) {
+          return NextResponse.json({ credentials: [] }, { status: 200 })
+        }
+
+        // A workflowId only pins the credential's workspace; membership is checked on every lookup.
+        if (
+          workflowId &&
+          (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId)
+        ) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        const access = await getCredentialActorContext(platformCredential.id, requesterUserId, {
+          workspaceAccess,
+        })
+        if (!canUseCredential(access)) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
         if (platformCredential.type === 'service_account') {
-          if (
-            workflowId &&
-            (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId)
-          ) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-          }
-
-          if (!workflowId) {
-            const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-            if (!canUseCredential(access)) {
-              return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-            }
-          }
-
           // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope
           if (await credentialScopeWithheld()) {
             return NextResponse.json(
@@ -243,21 +252,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             },
             { status: 200 }
           )
-        }
-
-        if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
-          return NextResponse.json({ credentials: [] }, { status: 200 })
-        }
-
-        if (workflowId) {
-          if (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-          }
-        } else {
-          const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-          if (!canUseCredential(access)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-          }
         }
 
         // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope

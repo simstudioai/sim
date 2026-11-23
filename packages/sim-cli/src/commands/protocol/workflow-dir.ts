@@ -38,6 +38,7 @@ import {
   writeBack,
 } from './source-dir'
 import { sourceExitCodesTable } from './source-exit-codes'
+import { STRICT_FINDINGS_CLAUSE } from './source-strict'
 import {
   assertSdkMajor,
   finishTree,
@@ -221,7 +222,7 @@ The primer above is enough to edit; read a section here when a step needs it.
 ## Edit loop in detail
 
 1. Edit \`${SOURCE_ENTRY_FILE}\` (and \`functions/*\`). \`${SOURCE_EXAMPLES_DIR}/\` holds correct examples to copy from: \`cookbook.ts\` (agent with structured output, condition, function, table query and upsert, knowledge search, Slack, human in the loop, loop, response), \`integrations.ts\` (webhook trigger, weekday cron schedule, HTTP request with headers, table update by row id, Gmail, an error path) and \`agents.ts\` (router, agent tools: custom tool, MCP tool, integration operation, child workflow; run a child workflow; parallel). Their resource keys are examples; this workspace's are in \`${WORKSPACE_TYPES_FILE}\`.
-2. \`sim workflows source check --dir .\`: compiles offline with the server's compiler, in milliseconds. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on a missing required field, an unknown option or output path, a wrong value kind, an out-of-range value, an unwired condition or router branch or a literal secret in a block you added (\`--strict\`: in every block). It also adds the blocks the source now uses to \`tsconfig.json\`.
+2. \`sim workflows source check --dir .\`: compiles offline with the server's compiler, in milliseconds. It catches what \`tsc\` cannot (duplicate names, cycles, literal secrets), and fails (exit 1) on ${STRICT_FINDINGS_CLAUSE} in a block you added (\`--strict\`: in every block). It also adds the blocks the source now uses to \`tsconfig.json\`.
 3. \`${typecheckCommand()}\`: about a second; catches what step 2 and the dry run do not (such as a reference to a start input the trigger does not declare). It runs the TypeScript release the declarations are built for (the directory has no \`package.json\`; plain \`bunx tsc\` would run whatever version it finds). \`tsconfig.json\` includes only the blocks the source used at the last check, get or apply: a builder from another block fails with \`has no exported member\` until you run step 2 (or use \`${typecheckCommand(TSCONFIG_FULL_FILE)}\`, every current block). The dry run is the authority: a printed line you did not edit that \`tsc\` flags and the dry run accepts is fine.
 4. \`sim workflows source status --dir .\`: the files you changed (\`sim workflows source diff --dir .\` shows the edits), whether the workflow changed on the server since the get, and the command to run next (\`--offline\`: skip the server). Then \`sim workflows source apply --dir . --dry-run\` until it exits 0.
 5. \`sim workflows source apply --dir . --yes\`: saves the draft, refusing errors, block deletions without \`--allow-delete\` and a stale directory, so it needs no separate dry run (without \`--yes\` and a terminal it prints the plan and exits ${SOURCE_PLANNED_EXIT_CODE}). \`--deploy\` also deploys it; without it, a deployed workflow's next \`sim workflows deploy <id> --expected-draft-fingerprint <fingerprint>\` is printed, which deploys only the draft this apply saved. It then rewrites \`${SOURCE_ENTRY_FILE}\` in canonical form (order, quoting, defaults left out).
@@ -254,7 +255,7 @@ The \`// @sim-sdk 1\` header must be the first line, and the file has exactly on
 - \`sim workflows source params <builder>\`: one builder's params (required first, enums, defaults) and outputs; a namespace (\`gmail\`) lists its builders; a miss names the closest. Builders are named for the service, not the block type: \`gmail_v2\` is \`gmail.*\`, \`workflow_input\` is \`runWorkflow\`, the HTTP request block is \`api\`, and \`legacy.*\` builders are old versions not to write.
 - \`${SDK_DIR}/core.d.ts\`: the SDK (\`workflow\`, \`t\`, \`env\`, \`credential\`, \`table\`, \`loop\`, \`parallel\`, \`BlockMeta\`).
 - \`${SDK_DIR}/blocks/<block type>.d.ts\`: the builders of a block the source uses, with their params and outputs (check adds the file of a block an edit starts using). Do not read them, or \`${SDK_DIR}/models.d.ts\`, whole: \`params\` prints the part you need, and \`grep\` finds a model id.
-- \`${WORKSPACE_TYPES_FILE}\`: this workspace's tables, knowledge bases, credentials, workflows and env names.
+- \`${WORKSPACE_TYPES_FILE}\`: this workspace's tables, knowledge bases, credentials, workflows, skills, custom tools, MCP servers and env names.
 
 ## Rules
 

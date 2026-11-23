@@ -7153,6 +7153,42 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(sentOperationInput().apiKey).toBe('{{SENTRY_AUTH_TOKEN}}')
   })
 
+  it('resolves only names the turn secret mount policy allows', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue(
+      environmentSnapshot({ SENTRY_AUTH_TOKEN: 'sntrys_real_token', OPENAI_API_KEY: 'sk-real' })
+    )
+    const _context = {
+      secretMountPolicy: { secretScope: 'selected', mountedSecrets: ['SENTRY_AUTH_TOKEN'] },
+    }
+
+    const refused = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{OPENAI_API_KEY}}', _context },
+      { executionContext: copilotContext() }
+    )
+    expect(refused).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Secret access is not allowed for: OPENAI_API_KEY'),
+    })
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+
+    const bare = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: 'OPENAI_API_KEY', _context },
+      { executionContext: copilotContext() }
+    )
+    expect(bare.success).toBe(true)
+    expect(sentOperationInput().apiKey).toBe('OPENAI_API_KEY')
+
+    const allowed = await executeTool(
+      'test_env_ref_tool',
+      { apiKey: '{{SENTRY_AUTH_TOKEN}}', _context },
+      { executionContext: copilotContext() }
+    )
+    expect(allowed.success).toBe(true)
+    expect(sentOperationInput().apiKey).toBe('sntrys_real_token')
+  })
+
   it('never mutates the caller-owned params object (log-leak guard)', async () => {
     const callerParams = { apiKey: '{{SENTRY_AUTH_TOKEN}}' }
 
@@ -7893,7 +7929,7 @@ describe('Hosted Key Injection', () => {
     }
   })
 
-  describe('requiresPaidPlan', () => {
+  describe('hosted key paid access', () => {
     const PAID_ONLY_TOOL_ID = 'test_paid_only_hosting'
 
     beforeEach(() => {
@@ -7915,7 +7951,6 @@ describe('Hosted Key Injection', () => {
           envKeyPrefix: 'TEST_HOSTED_KEY',
           apiKeyParam: 'apiKey',
           byokProviderId: 'falai',
-          requiresPaidPlan: true,
           pricing: { type: 'per_request', cost: 0.5 },
           rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
         },

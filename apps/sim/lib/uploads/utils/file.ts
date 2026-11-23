@@ -776,7 +776,7 @@ export function inferContextFromKey(key: string): StorageContext {
  * half of them.
  */
 export function tryInferContextFromKey(key: string): StorageContext | null {
-  if (!key) return null
+  if (!key || hasDotSegment(key)) return null
 
   if (key.startsWith('kb/') || key.startsWith('knowledge-base/')) return 'knowledge-base'
   if (key.startsWith('chat/')) return 'chat'
@@ -1092,6 +1092,16 @@ export function sanitizeStorageMetadata(
 }
 
 /**
+ * Whether a storage key has a `.` or `..` path segment, splitting on `\` as well as `/`. Such a
+ * key is never one the platform builds, and URL-based providers (Azure Blob) collapse the
+ * segments into a different object, so it must not reach a provider or pass a prefix-based
+ * authorization check.
+ */
+export function hasDotSegment(key: string): boolean {
+  return key.split(/[/\\]/).some((segment) => segment === '.' || segment === '..')
+}
+
+/**
  * Sanitize a file key/path for local storage
  * Removes dangerous characters and prevents path traversal
  * Preserves forward slashes for structured paths (e.g., kb/file.json, workspace/id/file.json)
@@ -1103,14 +1113,13 @@ export function sanitizeFileKey(key: string): string {
   if (!key.includes('/')) {
     throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
   }
+  if (hasDotSegment(key)) {
+    throw new Error('Path traversal detected in file key')
+  }
 
   const segments = key.split('/')
 
   const sanitizedSegments = segments.map((segment, index) => {
-    if (segment === '..' || segment === '.') {
-      throw new Error('Path traversal detected in file key')
-    }
-
     if (index === segments.length - 1) {
       return segment.replace(/[^a-zA-Z0-9.-]/g, '_')
     }

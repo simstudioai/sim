@@ -1,5 +1,5 @@
+import { utf8ByteLength } from '@sim/utils/paste'
 import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
-import { utf8Bytes } from '@sim/workflow-code/limits'
 import { type BlobEntry, budgetOfPath, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflow'
@@ -78,7 +78,7 @@ export function workspaceApplyRateCost(
     const kind = kindOfPath(path)
     if (kind === 'workflow') workflowPaths.push(path)
     else if (kind && budgetOfPath(KIND_LAYOUTS[kind], path) !== 'workflow') {
-      textBytes += utf8Bytes(text)
+      textBytes += utf8ByteLength(text)
     }
   }
   const { groups } = workflowCodec.group(workflowPaths)

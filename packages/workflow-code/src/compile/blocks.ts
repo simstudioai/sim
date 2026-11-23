@@ -1,6 +1,7 @@
 import { parse } from '@babel/parser'
 import type { Node, ObjectExpression, ObjectProperty } from '@babel/types'
 import { isRecordLike } from '@sim/utils/object'
+import { utf8ByteLength } from '@sim/utils/paste'
 import {
   findWorkflowReferenceTokens,
   isLikelyWorkflowReferenceSegment,
@@ -49,7 +50,7 @@ import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-file
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
-import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR, utf8Bytes } from '../limits'
+import { CODE_FILE_EXTENSIONS, isCodeFilePath, SOURCE_CODE_DIR } from '../limits'
 import { isJson } from '../lock'
 import {
   type AnchorKey,
@@ -83,7 +84,7 @@ import {
   unsupported,
 } from './context'
 import { closest, didYouMean } from './hints'
-import { bracketDepthOverflow } from './parse'
+import { babelMessage, bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
 import {
@@ -423,7 +424,7 @@ function parseCodeFile(
 ): string | null {
   const { limits } = ctx
   const before = ctx.codeFiles.bytes
-  ctx.codeFiles.bytes += utf8Bytes(text, limits.maxTotalBytes)
+  ctx.codeFiles.bytes += utf8ByteLength(text, limits.maxTotalBytes)
   if (ctx.codeFiles.bytes > limits.maxTotalBytes) {
     // Reported once, on the file that crosses the cap; each file after it is skipped silently.
     if (before > limits.maxTotalBytes) return null
@@ -1932,11 +1933,9 @@ function checkLoopCondition(
     failure = error
   }
   if (failure === null) return
-  const { message: raw } = babelErrorShape(failure)
-  const message = typeof raw === 'string' ? raw : 'Invalid JavaScript'
   ctx.reporter.report(
     'W_LOOP_CONDITION_SYNTAX',
-    `${decl.name}'s condition is not a JavaScript expression (${message.replace(/\s*\(\d+:\d+\)$/, '')}), so the run fails when it evaluates it.`,
+    `${decl.name}'s condition is not a JavaScript expression (${babelMessage(babelErrorShape(failure))}), so the run fails when it evaluates it.`,
     at,
     {
       hint: "Write one JavaScript expression the loop repeats while it is true, e.g. condition: '<loop.index> < 3'.",

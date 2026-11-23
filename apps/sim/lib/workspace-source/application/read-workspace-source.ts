@@ -1,5 +1,5 @@
 import { chunkArray } from '@sim/utils/helpers'
-import { utf8Bytes } from '@sim/workflow-code/limits'
+import { utf8ByteLength } from '@sim/utils/paste'
 import {
   APPLY_ORDER,
   budgetOfPath,
@@ -76,7 +76,7 @@ function directoryBudget() {
     spend(kind: WorkspaceKind, read: { text: Record<string, string>; blobs: ReadBlob[] }) {
       const bytes: DirectoryBudgets = { declaration: 0, workflow: 0, rows: 0 }
       for (const [path, text] of Object.entries(read.text)) {
-        bytes[budgetOfPath(adapterOf(kind).codec, path)] += utf8Bytes(text)
+        bytes[budgetOfPath(adapterOf(kind).codec, path)] += utf8ByteLength(text)
       }
       for (const budget of SOURCE_BUDGETS) {
         if (spent[budget] + bytes[budget] > limits[budget]) {

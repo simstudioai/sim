@@ -774,6 +774,7 @@
         "@sim/utils": "workspace:*",
         "@sim/workflow-code": "workspace:*",
         "@sim/workflow-sdk": "workspace:*",
+        "@sim/workflow-types": "workspace:*",
         "@sim/workspace-code": "workspace:*",
         "@types/js-yaml": "4.0.9",
         "@types/node": "24.19.2",
@@ -810,6 +811,7 @@
         "zod": "4.3.6",
       },
       "devDependencies": {
+        "@sim/testing": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "typescript": "^7.0.2",
         "vitest": "^5.1.0",

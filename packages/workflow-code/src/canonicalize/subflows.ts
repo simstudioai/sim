@@ -15,6 +15,8 @@ const PARALLEL_BATCH_MIN = 1
 export const PARALLEL_BATCH_MAX = 20
 /** `count || 5` in `convertLoopBlockToLoop` and the loop orchestrator. */
 export const DEFAULT_LOOP_ITERATIONS = 5
+/** `data.count || 5` in `convertParallelBlockToParallel`. */
+export const DEFAULT_PARALLEL_COUNT = 5
 
 /** `clampParallelBatchSize`: a missing or non-numeric size is 20, anything else 1–20. */
 export function effectiveBatchSize(batchSize: number | undefined): number {
@@ -124,7 +126,11 @@ export function loopSpec(
   if (typeof data.count === 'number') {
     spec.iterations = data.count
     if (data.count === 0) {
-      repaired(context, blockKey, 'Loop count is 0; the runtime runs 5 iterations')
+      repaired(
+        context,
+        blockKey,
+        `Loop count is 0; the runtime runs ${DEFAULT_LOOP_ITERATIONS} iterations`
+      )
     }
   } else if (data.count !== undefined) {
     rejected.push('count')
@@ -181,10 +187,15 @@ export function parallelSpec(
   const count = firstDefined(data.count, parallel?.count)
   if (typeof count === 'number') {
     spec.count = count
-    if (count === 0) repaired(context, blockKey, 'Parallel count is 0; the runtime runs 5')
+    if (count === 0)
+      repaired(context, blockKey, `Parallel count is 0; the runtime runs ${DEFAULT_PARALLEL_COUNT}`)
   } else if (count !== undefined) {
     rejectIfFromData(rejected, data, 'count')
-    repaired(context, blockKey, 'Parallel count is not a number; the runtime runs 5')
+    repaired(
+      context,
+      blockKey,
+      `Parallel count is not a number; the runtime runs ${DEFAULT_PARALLEL_COUNT}`
+    )
   }
 
   const distribution = jsonField(firstDefined(data.collection, parallel?.distribution), context)
@@ -194,11 +205,19 @@ export function parallelSpec(
   if (typeof batchSize === 'number') {
     spec.batchSize = batchSize
     if (batchSize < PARALLEL_BATCH_MIN || batchSize > PARALLEL_BATCH_MAX) {
-      repaired(context, blockKey, `Parallel batch size ${batchSize} is clamped to 1–20 at run time`)
+      repaired(
+        context,
+        blockKey,
+        `Parallel batch size ${batchSize} is clamped to ${PARALLEL_BATCH_MIN}–${PARALLEL_BATCH_MAX} at run time`
+      )
     }
   } else if (batchSize !== undefined) {
     rejectIfFromData(rejected, data, 'batchSize')
-    repaired(context, blockKey, 'Parallel batch size is not a number; the runtime uses 20')
+    repaired(
+      context,
+      blockKey,
+      `Parallel batch size is not a number; the runtime uses ${PARALLEL_BATCH_MAX}`
+    )
   }
   return { spec, rejectedDataKeys: rejected }
 }
