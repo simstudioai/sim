@@ -27,7 +27,11 @@ vi.mock('@sim/db', () => {
     runOutsideTransactionContext: <T>(work: () => T) => work(),
   }
 })
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
+vi.mock('@/lib/core/config/redis', () => ({
+  getRedisClient: () => {
+    throw new Error('Redis is not used by this suite; the usage cache reads the ledger')
+  },
+}))
 /**
  * The legacy oracle is the uncached SQL (a cached settled day would hide the changes the
  * failure-mode cases make), so every segment misses and the window is read in one range, exactly

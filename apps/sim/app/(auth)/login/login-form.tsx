@@ -9,7 +9,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
 import { client } from '@/lib/auth/client'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -79,12 +78,15 @@ export default function LoginPage({
   googleAvailable,
   microsoftAvailable,
   emailPasswordEnabled,
+  ssoEnabled,
 }: {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
   /** Whether `REGISTRATION_MODE` leaves email/password and email OTP sign-in on. */
   emailPasswordEnabled: boolean
+  /** Whether SAML/OIDC single sign-on is enabled for this deployment. */
+  ssoEnabled: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -347,7 +349,6 @@ export default function LoginPage({
     }
   }
 
-  const ssoEnabled = isSsoEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailPasswordEnabled && !hasSocial
   const showTopSSO = hasOnlySSO

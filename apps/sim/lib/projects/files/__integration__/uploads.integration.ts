@@ -934,7 +934,7 @@ afterAll(async () => {
     await db.delete(user).where(inArray(user.id, [f.ownerId, f.editorId]))
   }
   await rm(storageRoot, { recursive: true, force: true })
-  if (redisKeys.length) await getRedisClient()?.del(...redisKeys)
+  if (redisKeys.length) await getRedisClient().del(...redisKeys)
   await closeRedisConnection()
   const report = process.env.PROJECT_UPLOAD_REPORT_PATH ?? 'test-results/project-upload.json'
   await mkdir(dirname(report), { recursive: true })
