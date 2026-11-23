@@ -273,7 +273,7 @@ class Inference {
 
   private call(callee: Node): JsKind | undefined {
     if (callee.type === 'Identifier') {
-      if (callee.name === 'String') return 'string'
+      if (callee.name === 'String') return this.isBuiltin(callee.name) ? 'string' : undefined
       if (NUMBER_FUNCTIONS.has(callee.name)) return 'number'
       if (BOOLEAN_FUNCTIONS.has(callee.name)) return 'boolean'
       return undefined
@@ -283,9 +283,10 @@ class Inference {
     if (callee.object.type === 'Identifier') {
       if (callee.object.name === 'Math') return 'number'
       const known = STATIC_KINDS[`${callee.object.name}.${method}`]
-      if (known) return known
+      if (known) return this.isBuiltin(callee.object.name) ? known : undefined
     }
-    if (STRING_METHODS.has(method)) return 'string'
+    if (STRING_METHODS.has(method))
+      return this.producesString(method, callee.object) ? 'string' : undefined
     if (SAME_KIND_METHODS.has(method)) {
       if (this.kind(callee.object) === 'string') return 'string'
       return this.isArray(callee.object) ? 'typed' : undefined
@@ -294,6 +295,35 @@ class Inference {
     if (NUMBER_METHODS.has(method)) return 'number'
     if (ARRAY_METHODS.has(method)) return 'typed'
     return undefined
+  }
+
+  /** Whether a global is the built-in: no local declaration or assignment shadows it. */
+  private isBuiltin(name: string): boolean {
+    return !this.bindings.initial.has(name) && !this.bindings.writes.has(name)
+  }
+
+  /**
+   * Whether `receiver.method()` certainly yields text. A method name alone proves nothing (an
+   * object can define its own `toString`), so the receiver's kind must: a string for the string
+   * methods, a number for `toFixed`, an array for `join`, a built-in `Date` for `toISOString`.
+   */
+  private producesString(method: string, receiver: Node): boolean {
+    const kind = this.kind(receiver)
+    if (method === 'toString') return kind === 'string' || kind === 'number' || kind === 'boolean'
+    if (method === 'toFixed' || method === 'toPrecision') return kind === 'number'
+    if (method === 'join') return this.isArray(receiver)
+    if (method === 'toISOString') return this.isDate(receiver)
+    if (method === 'toLocaleString') return kind === 'number' || this.isDate(receiver)
+    return kind === 'string'
+  }
+
+  private isDate(node: Node): boolean {
+    return (
+      node.type === 'NewExpression' &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'Date' &&
+      this.isBuiltin('Date')
+    )
   }
 
   /**

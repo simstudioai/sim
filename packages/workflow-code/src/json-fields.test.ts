@@ -196,6 +196,17 @@ describe('W_JSON_REF_UNTYPED on a Function block output', () => {
     }
   })
 
+  it('does not read a method name as proof of text when the receiver can define it', () => {
+    // A user-defined `toString` or `join` can return anything, and a shadowed `String` is not the built-in.
+    expect(
+      untyped('const o = { toString: () => 42 }\nreturn { v: o.toString() }', 'v')
+    ).toHaveLength(1)
+    expect(untyped('const o = { join: () => 42 }\nreturn { v: o.join(",") }', 'v')).toHaveLength(1)
+    expect(untyped('const String = (x) => 1\nreturn { v: String(2) }', 'v')).toHaveLength(1)
+    expect(untyped('return { v: (5).toFixed(2) }', 'v')).toEqual([])
+    expect(untyped("return { v: ['a'].join(',') }", 'v')).toEqual([])
+  })
+
   it('keeps the warning when nothing certain says what the field holds', () => {
     // A reference, a variable reassigned to text, a field only one return sets, a non-literal
     // return, and a spread that may replace the field.

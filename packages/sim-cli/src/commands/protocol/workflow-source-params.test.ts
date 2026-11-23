@@ -168,6 +168,17 @@ describe('sim workflows source params', () => {
     expect(JSON.stringify(full).length).toBeGreaterThan(JSON.stringify(brief).length * 2)
   })
 
+  it('keeps the call signature of a builder whose required params core.d.ts types', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeBase()
+
+    await params('fn')
+
+    const { builder } = stdoutJson() as { builder: { coreParams: string[]; signature?: string } }
+    expect(builder.coreParams).toContain('code')
+    expect(builder.signature).toContain('code:')
+  })
+
   it('names the builder that replaces a legacy block type, by either name', async () => {
     const catalog = JSON.parse(FIXTURE_TEXT)
     catalog.blocks.human_in_the_loop = {

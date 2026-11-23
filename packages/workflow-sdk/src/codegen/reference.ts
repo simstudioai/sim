@@ -401,6 +401,8 @@ export interface CompactBuilderReference
   /** Optional params by name; `params --full` lists their types, docs and defaults. */
   optional: string[]
   coreParams: string[]
+  /** The call as `core.d.ts` types it, for a builder with required params the list above omits. */
+  signature?: string
   /** The output type's top-level members, by name. */
   outputs: string[]
 }
@@ -437,6 +439,7 @@ export function compactBuilder(reference: BuilderReference): CompactBuilderRefer
       : {}),
     optional: reference.params.common.filter((param) => !param.required).map((param) => param.key),
     coreParams: [...reference.coreParams],
+    ...(reference.coreParams.length > 0 ? { signature: reference.signature } : {}),
     outputs: outputNames(reference.outputs),
   }
 }
@@ -447,6 +450,7 @@ export function renderCompactBuilder(reference: BuilderReference): string {
   if (reference.legacy) lines.push(legacyNote(reference))
   if (reference.doc) lines.push(reference.doc)
   lines.push(builderSnippet(reference, Number.POSITIVE_INFINITY))
+  if (reference.coreParams.length > 0) lines.push(`  signature: ${reference.signature}`)
   lines.push(
     `Every param's type, enum, default and doc: \`sim workflows source params ${reference.key} --full\`.`
   )
