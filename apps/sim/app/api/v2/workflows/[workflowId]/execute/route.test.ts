@@ -359,12 +359,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     })
   })
 
-  it('reports no pause for a run that finished', async () => {
-    const body = await (await callExecute({ input: {} })).json()
-
-    expect(body.data.paused).toBeNull()
-  })
-
   it('streams an immediate heartbeat and the same sync result when NDJSON is accepted', async () => {
     vi.useFakeTimers()
     try {

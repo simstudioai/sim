@@ -1525,14 +1525,17 @@ describe('workspaces source apply', () => {
     request.mockResolvedValue(
       answer({
         dryRun: true,
-        plan: [{ kind: 'table', key: 'leads', action: 'create', held: true }],
+        plan: [
+          { kind: 'table', key: 'leads', action: 'create', held: true },
+          { kind: 'table', key: 'other', action: 'create' },
+        ],
         diagnostics: [{ code: 'E_APPLY_LOCKED', severity: 'error', message: 'locked' }],
       })
     )
 
     await apply('--dry-run')
 
-    expect(process.exitCode).toBe(1)
+    expect(process.exitCode).toBe(15)
   })
 
   it('refuses a local blob over the size limit before reading it, and exits 7', async () => {

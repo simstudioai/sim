@@ -541,6 +541,7 @@ describe('workflows source status', () => {
 
     await run(folder, 'status', '--offline')
 
+    expect(printed()).toMatchObject({ server: 'offline' })
     const local = (printed().local ?? []) as Array<{ files: unknown[] }>
     expect(local.flatMap((entry) => entry.files)).toEqual([])
   })

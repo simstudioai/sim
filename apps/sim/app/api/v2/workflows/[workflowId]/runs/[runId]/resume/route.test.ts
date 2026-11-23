@@ -137,7 +137,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
     expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
   })
 
-  it('names the run a resume that paused again waits under, which is the run it resumed', async () => {
+  it("presents the pause the resume reports, not the resume attempt's own run id", async () => {
     mocks.resume.mockResolvedValueOnce({
       kind: 'sync',
       success: true,

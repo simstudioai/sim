@@ -176,7 +176,6 @@ function writeCachedCatalog(catalog: BlockCatalog): void {
   writeJsonFile(catalogCachePath(catalog.hash), catalog)
 }
 
-/** Records `hash` as the workspace's catalog. */
 function writeWorkspaceCatalogPointer(workspaceId: string, hash: string): void {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
   writeJsonFile(workspaceCatalogPointerPath(workspaceId), { hash })

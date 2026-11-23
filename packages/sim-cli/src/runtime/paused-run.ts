@@ -17,7 +17,6 @@ function shellArgument(value: string): string {
   return SAFE_ARGUMENT.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
 }
 
-/** The command that resumes one pause of a paused run. */
 function resumeCommand(runId: string, workflowId: string, contextId: string): string {
   return `sim workflows runs resume ${shellArgument(runId)} --workflow ${shellArgument(workflowId)} --context ${shellArgument(contextId)}`
 }
