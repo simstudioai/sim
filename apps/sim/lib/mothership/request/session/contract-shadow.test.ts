@@ -252,6 +252,22 @@ describe('parseIngestedStreamEventEnvelope', () => {
     expect(recordStreamContractDisagreement).not.toHaveBeenCalled()
   })
 
+  it('still compares a worker frame that carries a stray previewPhase', () => {
+    // Shaped to pass the synthetic check too, but the contract check accepts it first.
+    const stray = frame('tool', {
+      phase: 'call',
+      previewPhase: 'file_preview_start',
+      toolCallId: 'tool-stray',
+      toolName: 'prepare_file_edit',
+    })
+    expect(parseIngestedStreamEventEnvelope(stray)).toEqual({ ok: true, event: stray })
+    expect(recordStreamContractDisagreement).toHaveBeenCalledExactlyOnceWith(
+      'schema_rejects',
+      'tool',
+      'call'
+    )
+  })
+
   it('logs a repeated disagreement once per window but counts every frame', () => {
     const value = frame('complete', { status: 'complete', usage: { output_tokens: 'many' } })
 
@@ -259,7 +275,7 @@ describe('parseIngestedStreamEventEnvelope', () => {
     expect(recordStreamContractDisagreement).toHaveBeenCalledTimes(3)
     expect(logger.warn).toHaveBeenCalledTimes(1)
 
-    vi.advanceTimersByTime(10 * 60 * 1000)
+    vi.advanceTimersByTime(10 * 60 * 1000 + 1)
     parseIngestedStreamEventEnvelope(value)
     expect(recordStreamContractDisagreement).toHaveBeenCalledTimes(4)
     expect(logger.warn).toHaveBeenCalledTimes(2)

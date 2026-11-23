@@ -96,9 +96,11 @@ export function recordDegraded(reason: CopilotDegradedReasonValue): void {
   })
 }
 
-// recordStreamContractDisagreement counts one worker frame on which Sim's ingest
-// validator and the generated contract schema disagree. `eventType` and `variant`
-// must already be capped to the contract's own vocabularies (else "other").
+/**
+ * Counts one worker frame on which Sim's ingest validator and the generated contract schema
+ * disagree. `eventType` and `variant` must already be capped to the contract's own
+ * vocabularies (else "other").
+ */
 export function recordStreamContractDisagreement(
   direction: CopilotStreamContractDirectionValue,
   eventType: string,

@@ -315,8 +315,8 @@ export type StreamToolReplay = z.infer<typeof StreamToolReplaySchema>;
  * with a {@link WorkflowToolRunningResult}. Absent = held until the run settles.
  */
 export const StreamToolDeadlineSchema = z.object({
-  deadlineMs: z.number().optional(),
-  waitTimeoutMs: z.number().optional(),
+  deadlineMs: z.number().int().positive().optional(),
+  waitTimeoutMs: z.number().int().positive().optional(),
 });
 export type StreamToolDeadline = z.infer<typeof StreamToolDeadlineSchema>;
 

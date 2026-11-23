@@ -122,6 +122,7 @@ export const CopilotStreamContractDirection = {
   SchemaRejects: 'schema_rejects',
 } as const
 
+/** One {@link CopilotStreamContractDirection} value, as the metric label carries it. */
 export type CopilotStreamContractDirectionValue =
   (typeof CopilotStreamContractDirection)[keyof typeof CopilotStreamContractDirection]
 

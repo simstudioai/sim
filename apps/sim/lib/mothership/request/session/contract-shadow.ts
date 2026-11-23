@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { LRUCache } from 'lru-cache'
 import {
   MothershipStreamV1EventEnvelopeSchema,
   MothershipStreamV1ResourceOp,
@@ -12,6 +13,7 @@ import {
 import { CopilotStreamContractDirection } from '@/lib/mothership/observability/trace-attribute-values'
 import { recordStreamContractDisagreement } from '@/lib/mothership/request/metrics'
 import {
+  isContractStreamEventEnvelope,
   KNOWN_EVENT_TYPES,
   type ParseStreamEventEnvelopeResult,
   parsePersistedStreamEventEnvelope,
@@ -31,7 +33,7 @@ const logger = createLogger('StreamContractShadow')
 
 /** One log line per distinct disagreement per window; the counter still sees every frame. */
 const LOG_WINDOW_MS = 10 * 60 * 1000
-/** Distinct disagreements remembered at once; past it the oldest is forgotten. */
+/** Memory backstop on distinct disagreements tracked within one window. */
 const MAX_TRACKED_DISAGREEMENTS = 256
 /** Issue paths kept per log line. */
 const MAX_LOGGED_ISSUES = 8
@@ -44,7 +46,15 @@ const KNOWN_VARIANTS: ReadonlySet<string> = new Set<string>([
   ...Object.values(MothershipStreamV1ResourceOp),
 ])
 
-const recentDisagreements = new Map<string, { loggedAt: number; suppressed: number }>()
+/** Each logged disagreement, live for its window, with the repeats skipped since it logged. */
+const recentDisagreements = new LRUCache<string, { suppressed: number }>({
+  max: MAX_TRACKED_DISAGREEMENTS,
+  ttl: LOG_WINDOW_MS,
+  // Wall-clock windows read fresh on every check (no timer-cached `now`): one clock read per
+  // disagreement costs nothing, and it is the clock tests move.
+  perf: { now: () => Date.now() },
+  ttlResolution: 0,
+})
 
 /**
  * Parses one stream frame a worker sent this server. The verdict is exactly
@@ -68,9 +78,7 @@ export function parseIngestedStreamEventEnvelope(value: unknown): ParseStreamEve
 }
 
 function shadowCheck(value: unknown, result: ParseStreamEventEnvelopeResult): void {
-  // Sim's own synthetic file-preview frames are outside the contract; only they carry
-  // `previewPhase`, so the cheap check stands in for re-running the contract validator.
-  if (result.ok && isRecordLike(value) && toRecord(value.payload).previewPhase !== undefined) return
+  if (result.ok && acceptedAsSyntheticPreview(value)) return
   const schema = MothershipStreamV1EventEnvelopeSchema.safeParse(value)
   if (schema.success === result.ok) return
 
@@ -100,6 +108,21 @@ function shadowCheck(value: unknown, result: ParseStreamEventEnvelopeResult): vo
   })
 }
 
+/**
+ * Whether the validator accepted this frame as one of Sim's synthetic file-preview frames,
+ * which are outside the contract. It tries the contract first, so that is exactly a frame the
+ * contract check rejects; only a payload with `previewPhase` can be one, which keeps the
+ * re-check off every other frame. A worker frame with a stray `previewPhase` that passes the
+ * contract check is still compared.
+ */
+function acceptedAsSyntheticPreview(value: unknown): boolean {
+  return (
+    isRecordLike(value) &&
+    toRecord(value.payload).previewPhase !== undefined &&
+    !isContractStreamEventEnvelope(value)
+  )
+}
+
 /** The frame's type and payload discriminant, each capped to the contract's vocabulary. */
 function describeFrame(value: unknown): { eventType: string; variant: string } {
   if (!isRecordLike(value)) return { eventType: 'other', variant: 'none' }
@@ -118,19 +141,12 @@ function describeFrame(value: unknown): { eventType: string; variant: string } {
  * line, or `null` while its window is still open.
  */
 function takeLogSlot(key: string): number | null {
-  const now = Date.now()
-  const seen = recentDisagreements.get(key)
-  if (seen && now - seen.loggedAt < LOG_WINDOW_MS) {
-    seen.suppressed += 1
+  const live = recentDisagreements.peek(key)
+  if (live) {
+    live.suppressed += 1
     return null
   }
-  recentDisagreements.delete(key)
-  // Every entry is (re)inserted when it logs, so insertion order is `loggedAt` order: the
-  // oldest entry is the most expired one, and evicting it never drops a live window first.
-  if (recentDisagreements.size >= MAX_TRACKED_DISAGREEMENTS) {
-    const oldest = recentDisagreements.keys().next().value
-    if (oldest !== undefined) recentDisagreements.delete(oldest)
-  }
-  recentDisagreements.set(key, { loggedAt: now, suppressed: 0 })
-  return seen?.suppressed ?? 0
+  const expired = recentDisagreements.peek(key, { allowStale: true })
+  recentDisagreements.set(key, { suppressed: 0 })
+  return expired?.suppressed ?? 0
 }
