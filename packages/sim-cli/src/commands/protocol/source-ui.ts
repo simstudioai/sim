@@ -311,7 +311,7 @@ export const SUMMARY_ROWS = 50
 
 /** A Markdown table cell or list item: one line, with its pipes escaped. */
 export function markdownCell(text: string): string {
-  return safeOneLine(text).replaceAll('|', '\\|')
+  return safeOneLine(text).replaceAll('\\', '\\\\').replaceAll('|', '\\|')
 }
 
 /** The error findings of a summary as list items, capped at {@link SUMMARY_ROWS}. */
@@ -333,10 +333,15 @@ export function errorBullets(
     )
 }
 
-/** The first line of a summary file for `dir`: stable per directory, with no `--` to end a comment. */
+/** The first line of a summary file for `dir`: stable per directory (every character outside `A-Za-z0-9._/` percent-encoded, so two names never share one and no `--` ends the comment). */
 export function summaryMarker(dir: string): string {
   const name = relative(process.cwd(), dir) || '.'
-  return `<!-- sim-plan:${name.replace(/[^A-Za-z0-9._/]+/g, '-')} -->`
+  const encoded = name.replace(/[^A-Za-z0-9._/]/g, (char) =>
+    [...Buffer.from(char)]
+      .map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`)
+      .join('')
+  )
+  return `<!-- sim-plan:${encoded} -->`
 }
 
 function isDiagnosticList(value: unknown): value is Diagnostic[] {

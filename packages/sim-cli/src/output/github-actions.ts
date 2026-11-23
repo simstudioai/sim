@@ -96,7 +96,13 @@ export function publishSummary(markdown: () => string, options: SummaryOptions =
   const stepSummary = inGithubActions(env) ? env.GITHUB_STEP_SUMMARY : undefined
   const file = options.file || env.SIM_SUMMARY_FILE
   if (!stepSummary && !file) return
-  const text = `${markdown().trimEnd()}\n`
+  let text: string
+  try {
+    text = `${markdown().trimEnd()}\n`
+  } catch (error) {
+    printError(`The summary could not be built: ${getErrorMessage(error)}`)
+    return
+  }
   if (stepSummary) writeSummary('The step summary', () => appendFileSync(stepSummary, `${text}\n`))
   if (file) {
     writeSummary(`The summary file ${file}`, () =>

@@ -278,6 +278,16 @@ describe('workflows source status', () => {
     expect(printed()).toMatchObject({ files: [] })
   })
 
+  it('lists the files no codeFile() names in --summary-file, not "No local changes" alone', async () => {
+    write(root, 'functions/notes.js', 'return 3\n')
+    mockRequest.mockResolvedValue(dryRun())
+    const file = join(root, 'status.md')
+
+    await run(root, 'status', '--summary-file', file)
+
+    expect(readFileSync(file, 'utf8')).toContain('applying never sends it: functions/notes.js')
+  })
+
   it('does not report a recorded function file as deleted once no codeFile() names it but it is still on disk', async () => {
     write(
       root,
@@ -324,7 +334,7 @@ describe('workflows source status', () => {
     await run(root, 'status', '--summary-file', file)
 
     const markdown = readFileSync(file, 'utf8')
-    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/-]+ -->$/)
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
     expect(markdown).toContain('**Changed on the server since the directory was read**')
     expect(markdown).toContain(`- workflow ${WORKFLOW_ID}: changed on the server`)
     expect(markdown).toContain(`Next: \`sim workflows source get ${WORKFLOW_ID} --dir ${root}\``)

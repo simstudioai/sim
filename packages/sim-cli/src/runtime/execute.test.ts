@@ -211,13 +211,14 @@ describe('a workflow export', () => {
     expect(JSON.parse(captured.stdout)).toEqual(PORTABLE)
   })
 
-  it('stays silent when the bindings were asked for', async () => {
+  it('still says a credential is null when the bindings were asked for', async () => {
     request.mockResolvedValue({ data: PORTABLE })
     const captured = streams()
 
     await exportWorkflow({ includeWorkspaceBindings: true })
 
-    expect(captured.stderr).not.toContain('note:')
+    expect(captured.stderr).toContain('a credential always prints as null')
+    expect(captured.stderr).not.toContain('workspace binding')
   })
 })
 

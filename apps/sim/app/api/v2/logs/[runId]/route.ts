@@ -39,16 +39,13 @@ function runErrorOf(executionData: Record<string, unknown>): string | undefined 
 }
 
 /**
- * Where the run failed. The run's own error names the block when several failed in the same
- * instant; a run error that names none of them leaves the trace's own answer, which is still
- * right when only one block failed.
+ * Where a failed run failed. The run's own error names the block when several failed in the same
+ * instant; one that names none of them yields no failure rather than an unrelated block, as the
+ * status read does. A run that did not fail (a cancelled one keeps its abort spans) has none.
  */
-function failureOf(executionData: Record<string, unknown>): V2LogDetail['failure'] {
-  const runError = runErrorOf(executionData)
-  return (
-    (runError ? findTraceFailure(executionData.traceSpans, runError) : null) ??
-    findTraceFailure(executionData.traceSpans)
-  )
+function failureOf(status: string, executionData: Record<string, unknown>): V2LogDetail['failure'] {
+  if (status !== 'failed') return null
+  return findTraceFailure(executionData.traceSpans, runErrorOf(executionData))
 }
 
 /**
@@ -77,7 +74,7 @@ export const GET = defineV2JsonRoute({
       startedAt: log.startedAt.toISOString(),
       endedAt: log.endedAt ? log.endedAt.toISOString() : null,
       totalDurationMs: log.totalDurationMs,
-      failure: failureOf(executionData),
+      failure: failureOf(log.status, executionData),
       files: projectLogFiles(log),
       executedByEmail: log.executedByEmail,
       workflow: {

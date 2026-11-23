@@ -157,10 +157,20 @@ function statusMarkdown<Plan>(
       lines.push(`- ${entry.change} ${entry.kind} ${markdownCell(entry.key)}`)
     }
   }
+  if (report.unnamed?.length) {
+    lines.push(
+      '',
+      `Not named by any codeFile(), so applying never sends ${report.unnamed.length === 1 ? 'it' : 'them'}: ${report.unnamed.map(markdownCell).join(', ')}`
+    )
+  }
   lines.push('')
   if (report.server === 'checked') {
     if (report.drift.length === 0 && report.conflicts.length === 0) {
-      lines.push('The server changed nothing this directory read.')
+      lines.push(
+        report.note
+          ? `The server check was incomplete: ${markdownCell(report.note)}`
+          : 'The server changed nothing this directory read.'
+      )
     }
     if (report.drift.length > 0) {
       lines.push('**Changed on the server since the directory was read**', '')

@@ -110,9 +110,9 @@ References:
   that did not run (a branch not taken) is null as a whole value, in a condition or in a
   Function's code, and '' inside text.
 Order:
-  The order of the operations in one batch does not matter: deletes run first, then
-  extract_from_subflow, adds, insert_into_subflow and edits. A delete plus an add with the same
-  name therefore replaces the block in one batch.
+  Operations run in phases whatever their order in the batch: deletes first, then
+  extract_from_subflow, adds, insert_into_subflow and edits; operations of one type keep the
+  order given. A delete plus an add with the same name therefore replaces the block in one batch.
 Run logs:
   \`sim logs list --workflow <workflowId>\` lists a workflow's runs; \`sim logs get <runId> --trace
   --no-include-workflow-state\` shows each block's resolved inputs, outputs and errors.`

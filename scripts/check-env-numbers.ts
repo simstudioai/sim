@@ -39,8 +39,18 @@ const ANNOTATION_REACH = 2
 /** Functions that take the raw value as their first argument and return a normalized number. */
 const NORMALIZERS = new Set(['envNumber', 'resolveCostMultiplier'])
 
-/** The modules that export the app's `env`: the alias, and the config directory's own `./env`. */
-const ENV_MODULES = new Set(['@/lib/core/config/env', './env'])
+/** The module that exports the app's `env`, from the repo root. */
+const ENV_MODULE = 'apps/sim/lib/core/config/env'
+
+/** Whether `specifier`, imported by `file` (from the repo root), names the module behind `env`. */
+function importsEnvModule(file: string, specifier: string): boolean {
+  const target = specifier.startsWith('@/')
+    ? path.posix.join('apps/sim', specifier.slice(2))
+    : specifier.startsWith('.')
+      ? path.posix.join(path.posix.dirname(file), specifier)
+      : null
+  return target !== null && target.replace(/\.(ts|tsx)$/, '') === ENV_MODULE
+}
 
 export interface RawNumericRead {
   line: number
@@ -90,12 +100,12 @@ function declaresNumber(expression: ts.Expression): boolean {
 }
 
 /** The local names this file binds the app's `env` object to. */
-function envBindings(sourceFile: ts.SourceFile): Set<string> {
+function envBindings(file: string, sourceFile: ts.SourceFile): Set<string> {
   const names = new Set<string>()
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
       continue
-    if (!ENV_MODULES.has(statement.moduleSpecifier.text)) continue
+    if (!importsEnvModule(file, statement.moduleSpecifier.text)) continue
     const named = statement.importClause?.namedBindings
     if (!named || !ts.isNamedImports(named)) continue
     for (const element of named.elements) {
@@ -124,9 +134,8 @@ export function findRawNumericReads(
   source: string,
   numeric: ReadonlySet<string>
 ): RawNumericRead[] {
-  if (!/config\/env'|'\.\/env'/.test(source)) return []
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
-  const bindings = envBindings(sourceFile)
+  const bindings = envBindings(file, sourceFile)
   if (bindings.size === 0) return []
   const lines = source.split('\n')
   const found: RawNumericRead[] = []

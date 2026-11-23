@@ -1799,7 +1799,7 @@ describe('workspaces source apply', () => {
     await apply('--dry-run', '--summary-file', file)
 
     const markdown = readFileSync(file, 'utf8')
-    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/-]+ -->$/)
+    expect(markdown.split('\n')[0]).toMatch(/^<!-- sim-plan:[A-Za-z0-9._/%]+ -->$/)
     expect(markdown).toContain('### Sim workspace plan: ws_local')
     expect(markdown).toContain('| + | tables/leads | create | planned |')
     expect(markdown).not.toContain('an earlier run')

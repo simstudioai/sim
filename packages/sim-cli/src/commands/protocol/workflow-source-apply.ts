@@ -95,6 +95,16 @@ function printFindings(data: SourceApplyData, findings: FindingsOutput, notes: S
 }
 
 /** One line naming what the apply changes, shown before asking to confirm it. */
+/** What changed in the workflow's variables, one entry per kind of change. */
+function variableChangeList(variables: SourceApplyData['diff']['variables']): string[] {
+  return [
+    ...(['added', 'removed', 'modified'] as const).flatMap((change) =>
+      variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
+    ),
+    ...renamedVariables(variables).map(({ from, to }) => `renamed ${from} → ${to}`),
+  ]
+}
+
 function diffSummary(data: SourceApplyData): string {
   const { blocks, edges, variables } = data.diff
   if (data.diff.noop) return 'No graph changes (names, order or comments may still be saved).'
@@ -104,12 +114,7 @@ function diffSummary(data: SourceApplyData): string {
     `${blocks.renamed.length} renamed`,
     `${blocks.modified.length} modified`,
   ]
-  const variableChanges = [
-    ...(['added', 'removed', 'modified'] as const).flatMap((change) =>
-      variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
-    ),
-    ...renamedVariables(variables).map(({ from, to }) => `renamed ${from} → ${to}`),
-  ]
+  const variableChanges = variableChangeList(variables)
   const modified = blocks.modified.map(({ key, fields }) => `${key} (${fields.join(', ')})`)
   const typed = (list: ReadonlyArray<{ key: string; type: string }>) =>
     list.map(({ key, type }) => `${key} (${type})`).join('; ')
@@ -270,6 +275,7 @@ function planMarkdown(data: SourceApplyData, creating: boolean, deployment: Depl
         `| ~ | ${markdownCell(key)} (${markdownCell(fields.join(', '))}) | modified |`
     ),
   ]
+  const variableChanges = variableChangeList(data.diff.variables)
   const errors = data.diagnostics.filter((finding) => finding.severity === 'error')
   const warnings = data.diagnostics.filter((finding) => finding.severity === 'warning').length
   const needsRedeployment = deployment.needsRedeployment ?? data.needsRedeployment
@@ -279,6 +285,9 @@ function planMarkdown(data: SourceApplyData, creating: boolean, deployment: Depl
     data.diff.noop
       ? `No graph changes; ${errors.length} error(s), ${warnings} warning(s).`
       : `${blocks.added.length} ${added}, ${blocks.removed.length} ${removed}, ${blocks.modified.length} ${modified}, ${blocks.renamed.length} renamed; connections +${edges.added} -${edges.removed}; ${errors.length} error(s), ${warnings} warning(s).`,
+    ...(variableChanges.length > 0
+      ? ['', `Variables: ${variableChanges.map(markdownCell).join('; ')}`]
+      : []),
     ...(changes.length > 0
       ? [
           '',

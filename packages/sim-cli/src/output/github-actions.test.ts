@@ -64,6 +64,20 @@ describe('summaries', () => {
     )
   })
 
+  it('reports a summary it cannot build and writes nothing, leaving the command to finish', () => {
+    const file = join(scratch(), 'plan.md')
+
+    expect(() =>
+      publishSummary(
+        () => {
+          throw new Error('bad plan')
+        },
+        { file, env: {} }
+      )
+    ).not.toThrow()
+    expect(existsSync(file)).toBe(false)
+  })
+
   it('writes no file inside an embedded host, whatever flags it was handed', () => {
     const file = join(scratch(), 'plan.md')
 

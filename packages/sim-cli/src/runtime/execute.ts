@@ -247,13 +247,13 @@ const RESULT_NOTES: Readonly<
       : null
   },
   /**
-   * An export's workspace bindings print as `null` unless asked for, which reads as "this block is
+   * An export's credentials always, and its workspace bindings unless asked for, print as `null`, which reads as "this block is
    * unset" to anyone who has not read the help. The document goes to stdout untouched (it is the
    * portable artifact), so the pointer to where the bindings can be read goes to stderr.
    */
   exportWorkflow: (_payload, _body, flags) =>
     flags.includeWorkspaceBindings === true
-      ? null
+      ? 'note: a credential always prints as null here: that is the export, not an unset block. Read what blocks are set to with `sim workflows outline <workflowId>` or `sim workflows state get <workflowId>`.'
       : 'note: a table, child workflow, knowledge base or other workspace binding prints as null here, and a credential always does: that is the export, not an unset block. Read what blocks are set to with `sim workflows outline <workflowId>` or `sim workflows state get <workflowId>`.',
 }
 

@@ -205,6 +205,64 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect((await response.json()).data.failure).toMatchObject({ blockId: 'b' })
   })
 
+  it('reports no failure for a cancelled run that kept error spans', async () => {
+    mocks.execute.mockResolvedValue({
+      log: { ...log, status: 'cancelled', level: 'error' },
+      workflowFolderPath: '/agents',
+      executionData: {
+        traceSpans: [
+          {
+            id: 'span-fn',
+            blockId: 'block-fn',
+            name: 'Score',
+            type: 'function',
+            duration: 10,
+            status: 'error',
+            startTime: '2026-08-06T00:00:00.010Z',
+            endTime: '2026-08-06T00:00:00.020Z',
+            output: { error: 'aborted' },
+          },
+        ],
+        finalOutput: null,
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.failure).toBeNull()
+  })
+
+  it('names no block when the run error matches none of the failed ones', async () => {
+    mocks.execute.mockResolvedValue({
+      log: { ...log, status: 'failed', level: 'error' },
+      workflowFolderPath: '/agents',
+      executionData: {
+        traceSpans: [
+          {
+            id: 'span-fn',
+            blockId: 'block-fn',
+            name: 'Score',
+            type: 'function',
+            duration: 10,
+            status: 'error',
+            startTime: '2026-08-06T00:00:00.010Z',
+            endTime: '2026-08-06T00:00:00.020Z',
+            output: { error: 'Score failed' },
+          },
+        ],
+        finalOutput: { error: 'upstream returned 500' },
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.failure).toBeNull()
+  })
+
   it('reports no failure for a run whose trace has none', async () => {
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
       params: Promise.resolve({ runId: 'run-1' }),

@@ -62,14 +62,19 @@ const b = resolveCostMultiplier(env.COST_MULTIPLIER, isProd)`)
     ).toEqual([])
   })
 
-  it('follows an aliased import and the config directory relative import', () => {
+  it('follows an aliased import and every relative form that resolves to the config module', () => {
+    const read = (file: string, importLine: string) =>
+      findRawNumericReads(file, `${importLine}\nconst a = appEnv.COST_MULTIPLIER`, NUMERIC).length
     expect(
-      findRawNumericReads(
-        'env-flags.ts',
-        "import { env as appEnv } from './env'\nconst a = appEnv.COST_MULTIPLIER",
-        NUMERIC
-      ).map((hit) => hit.line)
-    ).toEqual([2])
+      read('apps/sim/lib/core/config/env-flags.ts', "import { env as appEnv } from './env'")
+    ).toBe(1)
+    expect(
+      read('apps/sim/lib/billing/costs.ts', "import { env as appEnv } from '../core/config/env'")
+    ).toBe(1)
+    expect(
+      read('apps/sim/lib/billing/costs.ts', 'import { env as appEnv } from "@/lib/core/config/env"')
+    ).toBe(1)
+    expect(read('apps/sim/lib/billing/costs.ts', "import { env as appEnv } from './env'")).toBe(0)
   })
 
   it('accepts an annotation within two lines above, and no farther', () => {
