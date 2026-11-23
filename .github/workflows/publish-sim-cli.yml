@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       # Vitest 5 requires Node 22.12+; the published bundle is also
-      # smoke-tested on Node 22 below, its minimum supported runtime.
+      # smoke-tested below on Node 22.18.0, its minimum supported runtime.
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
@@ -131,10 +131,10 @@ jobs:
         working-directory: packages/sim-cli
         run: bun pm pack --ignore-scripts --filename "$RUNNER_TEMP/package.tgz" --quiet
 
-      - name: Setup Node 22 for the bundle smoke test
+      - name: Setup the minimum supported Node for the bundle smoke test
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
-          node-version: '22'
+          node-version: '22.18.0'
 
       - name: Smoke-test packed Node bundle
         env:
