@@ -16,6 +16,8 @@ export type EmailSubjectType =
   | 'permission-access-request-decided'
   | 'enterprise-subscription'
   | 'usage-threshold'
+  | 'trial-usage-threshold'
+  | 'trial-credits-exhausted'
   | 'free-tier-upgrade'
   | 'payment-failed'
   | 'credit-purchase'
@@ -61,6 +63,10 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Your Enterprise Plan is now active on Sim`
     case 'usage-threshold':
       return `You're nearing your monthly budget on Sim`
+    case 'trial-usage-threshold':
+      return `You're at 80% of your trial credits on Sim`
+    case 'trial-credits-exhausted':
+      return `You've used your trial credits on Sim`
     case 'free-tier-upgrade':
       return `You're at 80% of your free credits on Sim`
     case 'payment-failed':

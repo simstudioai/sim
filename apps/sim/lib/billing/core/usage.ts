@@ -925,7 +925,7 @@ export async function maybeSendUsageThresholdEmail(params: {
 
         await sendEmail({
           to: email,
-          subject: getEmailSubject('usage-threshold'),
+          subject: getEmailSubject(trialEndsOn ? 'trial-usage-threshold' : 'usage-threshold'),
           html,
           emailType: 'notifications',
         })
@@ -991,7 +991,9 @@ export async function maybeSendUsageThresholdEmail(params: {
           to: email,
           subject: useFreeCopy
             ? getEmailSubject('free-tier-exhausted')
-            : getLimitEmailSubject('credits', 'reached'),
+            : trialEndsOn
+              ? getEmailSubject('trial-credits-exhausted')
+              : getLimitEmailSubject('credits', 'reached'),
           html,
           emailType: 'notifications',
         })

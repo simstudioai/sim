@@ -2,24 +2,30 @@ import { db } from '@sim/db'
 import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
 import { getPlanPricing } from '@/lib/billing/core/billing'
+import { isTrialingSubscription } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditPurchase')
 
 /**
  * Sets usage limit to planBase + creditBalance.
- * This ensures users can use their plan's included amount plus any prepaid credits.
+ * This ensures users can use their plan's included amount plus any prepaid credits. A trial's
+ * base is its fixed allowance, not the plan's.
  */
 export async function setUsageLimitForCredits(
   entityType: 'user' | 'organization',
   entityId: string,
-  plan: string,
+  subscription: { plan: string; status: string | null },
   seats: number | null,
   creditBalance: number
 ): Promise<void> {
+  const { plan } = subscription
   try {
-    const { basePrice } = getPlanPricing(plan)
+    const basePrice = isTrialingSubscription(subscription)
+      ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
+      : getPlanPricing(plan).basePrice
 
     const seatCount = seats || 1
     const planBase =

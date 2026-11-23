@@ -11,6 +11,7 @@ import type Stripe from 'stripe'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRO_TRIAL_DAYS, PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
 import { syncUsageLimitsFromSubscription, updateUserUsageLimit } from '@/lib/billing/core/usage'
+import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { enforceOneTrialPerCard, getProTrialCheckoutParams } from '@/lib/billing/trial'
 
 const { stripeStub } = vi.hoisted(() => ({
@@ -282,25 +283,39 @@ describe('enforceOneTrialPerCard', () => {
     expect(stripeStub.subscriptions.update).toHaveBeenCalledOnce()
   })
 
-  it("ends an account's second trial without claiming its new card", async () => {
+  it("ends an account's racing second trial and keeps the first through a redelivery", async () => {
     const userId = await createUser()
-    await addSubscription(userId, { status: 'trialing', trialStart: new Date() })
+    const firstSubscriptionId = `sub_${generateId()}`
     const racingSubscriptionId = `sub_${generateId()}`
-    await addSubscription(userId, {
-      status: 'trialing',
-      trialStart: new Date(),
-      stripeSubscriptionId: racingSubscriptionId,
-    })
-    const fingerprint = `fp_${generateId()}`
-    useCard(fingerprint)
+    for (const stripeSubscriptionId of [firstSubscriptionId, racingSubscriptionId]) {
+      await addSubscription(userId, {
+        status: 'trialing',
+        trialStart: new Date(),
+        stripeSubscriptionId,
+      })
+    }
+    const firstCard = `fp_${generateId()}`
 
+    useCard(firstCard)
     expect(
-      await enforceOneTrialPerCard(trialingStripeSubscription(racingSubscriptionId, 'pm_1'), userId)
+      await enforceOneTrialPerCard(trialingStripeSubscription(firstSubscriptionId, 'pm_1'), userId)
+    ).toBe(true)
+
+    useCard(`fp_${generateId()}`)
+    expect(
+      await enforceOneTrialPerCard(trialingStripeSubscription(racingSubscriptionId, 'pm_2'), userId)
     ).toBe(false)
-    expect(stripeStub.subscriptions.update).toHaveBeenCalledOnce()
+    expect(stripeStub.subscriptions.update).toHaveBeenCalledExactlyOnceWith(
+      racingSubscriptionId,
+      { trial_end: 'now' },
+      { idempotencyKey: `end-ineligible-trial:${racingSubscriptionId}` }
+    )
+
+    useCard(firstCard)
     expect(
-      await db.select().from(trialCard).where(eq(trialCard.fingerprint, fingerprint))
-    ).toHaveLength(0)
+      await enforceOneTrialPerCard(trialingStripeSubscription(firstSubscriptionId, 'pm_1'), userId)
+    ).toBe(true)
+    expect(stripeStub.subscriptions.update).toHaveBeenCalledOnce()
   })
 
   it('leaves a checkout that did not start a trial alone', async () => {
@@ -338,6 +353,16 @@ describe('the trial usage limit', () => {
       .where(eq(subscription.id, subscriptionId))
     await syncUsageLimitsFromSubscription(userId)
     expect(await readLimit(userId)).toBe(PRO_BASE_DOLLARS + 2)
+  })
+
+  it('raises a trial limit by granted credits from the trial allowance, not the plan base', async () => {
+    const userId = await createUser()
+    await addSubscription(userId, { status: 'trialing', trialStart: new Date() })
+    await syncUsageLimitsFromSubscription(userId)
+
+    await setUsageLimitForCredits('user', userId, { plan: PRO_PLAN, status: 'trialing' }, null, 1)
+
+    expect(await readLimit(userId)).toBe(PRO_TRIAL_USAGE_LIMIT_DOLLARS + 1)
   })
 
   it('refuses to raise the limit during a trial', async () => {

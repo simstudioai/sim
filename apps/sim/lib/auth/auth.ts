@@ -108,7 +108,11 @@ import {
   getPlans,
   resolvePlanFromStripeSubscription,
 } from '@/lib/billing/plans'
-import { enforceOneTrialPerCard, getProTrialCheckoutParams } from '@/lib/billing/trial'
+import {
+  enforceOneTrialPerCard,
+  enforceOneTrialPerCardForCheckout,
+  getProTrialCheckoutParams,
+} from '@/lib/billing/trial'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -1648,10 +1652,21 @@ export const auth = betterAuth({
                   status: subscription.status,
                 })
 
+                // The plugin swallows this hook's errors, so a failed check must not skip the rest of
+                // it; `onEvent` runs the check again on the retried checkout webhook.
                 const keptTrial = await enforceOneTrialPerCard(
                   stripeSubscription,
                   subscription.referenceId
-                )
+                ).catch((error: unknown) => {
+                  logger.error(
+                    '[onSubscriptionComplete] Trial card check failed; retrying via onEvent',
+                    {
+                      subscriptionId: subscription.id,
+                      error: toError(error).message,
+                    }
+                  )
+                  return stripeSubscription.status === 'trialing'
+                })
 
                 if (!planFromStripe) {
                   logUnresolvedStripePlan(
@@ -1897,6 +1912,10 @@ export const auth = betterAuth({
                     await handleManualEnterpriseSubscription(event)
                     await reconcileSubscriptionSyncFromStripe(event)
                     await handleSubscriptionUsageUpdate(event)
+                    break
+                  }
+                  case 'checkout.session.completed': {
+                    await enforceOneTrialPerCardForCheckout(event.data.object)
                     break
                   }
                   case 'checkout.session.expired': {

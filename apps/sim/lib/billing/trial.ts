@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { subscription, trialCard, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNotNull, ne, notInArray, or } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, notInArray, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { PRO_CREDIT_TIER, PRO_TRIAL_DAYS } from '@/lib/billing/constants'
 import { buildPlanName } from '@/lib/billing/plan-helpers'
@@ -67,10 +67,14 @@ export async function getProTrialCheckoutParams(params: {
 
 /**
  * Holds each card, and each account, to one Pro trial. Runs when a checkout completes: a trial
- * whose card already started another trial, whose account already trialed (two checkouts racing),
- * or whose card cannot be identified ends at once, so Stripe charges the card for the first period
- * as for any paid checkout. The card's claim is recorded under the subscription it started, so a
- * redelivered webhook finds its own claim and keeps the trial.
+ * whose card already started another trial, whose account already has an earlier trial (two
+ * checkouts racing), or whose card cannot be identified ends at once, so Stripe charges the card
+ * for the first period as for any paid checkout.
+ *
+ * Every trial records a claim on its card, and the first claim wins: a card's winner is whichever
+ * subscription claimed it, and an account's winner is its earliest claim. The verdict reads only
+ * the claims, so a redelivered webhook reaches the same verdict, and a check that failed partway
+ * is safe to run again.
  *
  * @returns whether the subscription is still in its trial
  */
@@ -97,16 +101,49 @@ export async function enforceOneTrialPerCard(
   return false
 }
 
+/**
+ * Enforces {@link enforceOneTrialPerCard} for a completed checkout, from the webhook path that
+ * Stripe retries on failure, so a check that failed in the plugin's completion hook still runs.
+ */
+export async function enforceOneTrialPerCardForCheckout(
+  session: Stripe.Checkout.Session
+): Promise<void> {
+  if (session.mode !== 'subscription' || !session.subscription || !session.client_reference_id) {
+    return
+  }
+  const subscriptionId =
+    typeof session.subscription === 'string' ? session.subscription : session.subscription.id
+  const stripeSubscription = await requireStripeClient().subscriptions.retrieve(subscriptionId)
+  await enforceOneTrialPerCard(stripeSubscription, session.client_reference_id)
+}
+
 async function findTrialIneligibility(
   stripe: Stripe,
   stripeSubscription: Stripe.Subscription,
   userId: string
-): Promise<'card-unidentified' | 'account-already-trialed' | 'card-already-trialed' | null> {
-  if (await hasEarlierTrial(userId, stripeSubscription.id)) return 'account-already-trialed'
+): Promise<'card-unidentified' | 'card-already-trialed' | 'account-already-trialed' | null> {
   const fingerprint = await getCardFingerprint(stripe, stripeSubscription.default_payment_method)
   if (!fingerprint) return 'card-unidentified'
-  if (!(await claimTrialCard(fingerprint, userId, stripeSubscription.id))) {
-    return 'card-already-trialed'
+
+  await db
+    .insert(trialCard)
+    .values({ fingerprint, userId, stripeSubscriptionId: stripeSubscription.id })
+    .onConflictDoNothing({ target: trialCard.fingerprint })
+  const claims = await db
+    .select({
+      fingerprint: trialCard.fingerprint,
+      userId: trialCard.userId,
+      stripeSubscriptionId: trialCard.stripeSubscriptionId,
+    })
+    .from(trialCard)
+    .where(or(eq(trialCard.fingerprint, fingerprint), eq(trialCard.userId, userId)))
+    .orderBy(asc(trialCard.createdAt), asc(trialCard.stripeSubscriptionId))
+
+  const cardWinner = claims.find((claim) => claim.fingerprint === fingerprint)
+  if (cardWinner?.stripeSubscriptionId !== stripeSubscription.id) return 'card-already-trialed'
+  const accountWinner = claims.find((claim) => claim.userId === userId)
+  if (accountWinner?.stripeSubscriptionId !== stripeSubscription.id) {
+    return 'account-already-trialed'
   }
   return null
 }
@@ -121,40 +158,4 @@ async function getCardFingerprint(
       ? await stripe.paymentMethods.retrieve(paymentMethod)
       : paymentMethod
   return resolved.card?.fingerprint ?? null
-}
-
-async function hasEarlierTrial(userId: string, stripeSubscriptionId: string): Promise<boolean> {
-  const [earlier] = await db
-    .select({ id: subscription.id })
-    .from(subscription)
-    .where(
-      and(
-        eq(subscription.referenceId, userId),
-        isNotNull(subscription.trialStart),
-        ne(subscription.stripeSubscriptionId, stripeSubscriptionId)
-      )
-    )
-    .limit(1)
-  return Boolean(earlier)
-}
-
-/** Claims the card for this trial; true when the claim is this subscription's. */
-async function claimTrialCard(
-  fingerprint: string,
-  userId: string,
-  stripeSubscriptionId: string
-): Promise<boolean> {
-  const [claimed] = await db
-    .insert(trialCard)
-    .values({ fingerprint, userId, stripeSubscriptionId })
-    .onConflictDoNothing({ target: trialCard.fingerprint })
-    .returning({ fingerprint: trialCard.fingerprint })
-  if (claimed) return true
-
-  const [holder] = await db
-    .select({ stripeSubscriptionId: trialCard.stripeSubscriptionId })
-    .from(trialCard)
-    .where(eq(trialCard.fingerprint, fingerprint))
-    .limit(1)
-  return holder?.stripeSubscriptionId === stripeSubscriptionId
 }
