@@ -273,6 +273,15 @@ export const deploymentShapeSchema = z.object({
    * with app versions that predate projecting it; readers treat absent as `open`.
    */
   registrationMode: z.enum(REGISTRATION_MODES).optional(),
+  /**
+   * Server-only switches the browser used to read from `NEXT_PUBLIC_*` twins. Optional
+   * for rolling compatibility with app versions that predate projecting them; readers
+   * treat absent as `false`.
+   */
+  e2bEnabled: z.boolean().optional(),
+  slackExtendedScopes: z.boolean().optional(),
+  invitationsDisabled: z.boolean().optional(),
+  publicApiDisabled: z.boolean().optional(),
 })
 
 export type DeploymentShape = z.output<typeof deploymentShapeSchema>

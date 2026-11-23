@@ -1,5 +1,5 @@
 import { PiIcon } from '@/components/icons'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
@@ -164,7 +164,7 @@ export const PiBlock: BlockConfig = {
       title: 'Mode',
       type: 'dropdown',
       /** Cloud modes require E2B and stay hidden when it is disabled. */
-      value: () => (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED')) ? 'cloud' : 'local'),
+      value: () => (getDeploymentShape().e2bEnabled ? 'cloud' : 'local'),
       options: () => {
         const options = [
           {
@@ -173,7 +173,7 @@ export const PiBlock: BlockConfig = {
             description: 'Edits files on your own machine over SSH',
           },
         ]
-        if (isTruthy(getEnv('NEXT_PUBLIC_E2B_ENABLED'))) {
+        if (getDeploymentShape().e2bEnabled) {
           options.unshift(
             {
               label: 'Create PR',

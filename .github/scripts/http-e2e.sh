@@ -188,7 +188,7 @@ wait_ready() {
 case "$group" in
   scim)
     export NEXT_PUBLIC_FORCE_HOSTED=true
-    export BILLING_ENABLED=true NEXT_PUBLIC_BILLING_ENABLED=true
+    export BILLING_ENABLED=true
     export ENTERPRISE_ENABLED=true
     export SCIM_ENABLED=true
     export SSO_ENABLED=true

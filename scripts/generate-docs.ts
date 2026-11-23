@@ -4937,7 +4937,7 @@ async function buildOAuthScopesSection(
 
   if (gatedScopes.length) {
     section +=
-      'Requested only when `SLACK_EXTENDED_SCOPES` and `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` are enabled. Enable them only after Slack approves the app for these scopes:\n\n'
+      'Requested only when `SLACK_EXTENDED_SCOPES` is enabled. Enable them only after Slack approves the app for these scopes:\n\n'
     section += scopeTable(gatedScopes, describe)
   }
 
