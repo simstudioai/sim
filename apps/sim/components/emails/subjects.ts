@@ -96,8 +96,10 @@ export function getLimitEmailSubject(reason: UpgradeReason, kind: 'warning' | 'r
 }
 
 /** The plan's display name is resolved at send time; it carries tier qualifiers. */
-export function getPlanWelcomeSubject(planDisplayName: string): string {
-  return `Your ${planDisplayName} plan is now active on Sim`
+export function getPlanWelcomeSubject(planDisplayName: string, isTrial = false): string {
+  return isTrial
+    ? `Your ${planDisplayName} free trial has started on Sim`
+    : `Your ${planDisplayName} plan is now active on Sim`
 }
 
 /** Echoes the sender's own subject line so the reply threads correctly. */

@@ -309,7 +309,8 @@ describe('checkAndBillOverageThreshold', () => {
     },
     {
       name: 'plan ineligible',
-      prepare: () => mockIsFree.mockReturnValue(true),
+      prepare: () =>
+        mockGetHighestPrioritySubscription.mockResolvedValue({ ...userSubscription, plan: 'free' }),
     },
     {
       name: 'below threshold',
@@ -329,6 +330,23 @@ describe('checkAndBillOverageThreshold', () => {
     await expect(
       checkAndBillOverageThreshold('user-1', undefined, { onError: 'throw' })
     ).resolves.toBeUndefined()
+  })
+
+  it('never bills a trial, which is capped at its allowance', async () => {
+    queuePersonalReads()
+    mockGetHighestPrioritySubscription.mockResolvedValue({
+      ...userSubscription,
+      status: 'trialing',
+    })
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+
+    await expect(
+      checkAndBillOverageThreshold('user-1', undefined, {
+        onError: 'throw',
+        expectedBillingPeriod,
+      })
+    ).resolves.toEqual({ status: 'no-op', reason: 'plan-ineligible' })
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })
 
   it('returns a distinct modern no-op when overage is below threshold', async () => {

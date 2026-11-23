@@ -108,6 +108,7 @@ import {
   getPlans,
   resolvePlanFromStripeSubscription,
 } from '@/lib/billing/plans'
+import { enforceOneTrialPerCard, getProTrialCheckoutParams } from '@/lib/billing/trial'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -1615,8 +1616,15 @@ export const auth = betterAuth({
                   requestedPlan
                 )
               },
-              getCheckoutSessionParams: async () => ({
-                params: { allow_promotion_codes: true },
+              getCheckoutSessionParams: async ({ user, plan, subscription }) => ({
+                params: {
+                  allow_promotion_codes: true,
+                  ...(await getProTrialCheckoutParams({
+                    userId: user.id,
+                    referenceId: subscription.referenceId,
+                    planName: plan.name,
+                  })),
+                },
               }),
               onSubscriptionComplete: async ({
                 event,
@@ -1639,6 +1647,11 @@ export const auth = betterAuth({
                   isAnnual,
                   status: subscription.status,
                 })
+
+                const keptTrial = await enforceOneTrialPerCard(
+                  stripeSubscription,
+                  subscription.referenceId
+                )
 
                 if (!planFromStripe) {
                   logUnresolvedStripePlan(
@@ -1708,7 +1721,12 @@ export const auth = betterAuth({
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
 
-                await sendPlanWelcomeEmail(resolvedSubscription)
+                await sendPlanWelcomeEmail(resolvedSubscription, {
+                  trialEnd:
+                    keptTrial && stripeSubscription.trial_end
+                      ? new Date(stripeSubscription.trial_end * 1000)
+                      : null,
+                })
               },
               onSubscriptionUpdate: async ({
                 event,

@@ -6,6 +6,7 @@ import {
   checkProPlan,
   checkTeamPlan,
   getEffectiveSeats,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
   hasUsableSubscriptionStatus,
@@ -59,5 +60,12 @@ describe('billing subscription status helpers', () => {
     expect(getEffectiveSeats({ plan: 'team_8000', status: 'active', seats: null })).toBe(1)
     expect(getEffectiveSeats({ plan: 'team_8000', status: 'past_due', seats: undefined })).toBe(1)
     expect(getEffectiveSeats({ plan: 'team_8000', status: 'canceled', seats: null })).toBe(0)
+  })
+
+  it('earns no weekly refresh during a trial', () => {
+    expect(getSubscriptionWeeklyRefreshDollars({ plan: 'pro_6000', status: 'trialing' })).toBe(0)
+    expect(
+      getSubscriptionWeeklyRefreshDollars({ plan: 'pro_6000', status: 'active' })
+    ).toBeGreaterThan(0)
   })
 })

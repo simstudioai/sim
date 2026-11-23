@@ -140,17 +140,9 @@ export async function renderUsageThresholdEmail(params: {
   currentUsage: number
   limit: number
   ctaLink: string
+  trialEndsOn?: string
 }): Promise<string> {
-  return await render(
-    UsageThresholdEmail({
-      userName: params.userName,
-      planName: params.planName,
-      percentUsed: params.percentUsed,
-      currentUsage: params.currentUsage,
-      limit: params.limit,
-      ctaLink: params.ctaLink,
-    })
-  )
+  return await render(UsageThresholdEmail(params))
 }
 
 export async function renderUsageLimitReachedEmail(params: {
@@ -160,6 +152,7 @@ export async function renderUsageLimitReachedEmail(params: {
   currentUsage: number
   limit: number
   ctaLink: string
+  trialEndsOn?: string
 }): Promise<string> {
   return await render(UsageLimitReachedEmail(params))
 }
@@ -227,14 +220,9 @@ export async function renderPlanWelcomeEmail(params: {
   planName: string
   userName?: string
   loginLink?: string
+  trial?: { endsOn: string; credits: string }
 }): Promise<string> {
-  return await render(
-    PlanWelcomeEmail({
-      planName: params.planName,
-      userName: params.userName,
-      loginLink: params.loginLink,
-    })
-  )
+  return await render(PlanWelcomeEmail(params))
 }
 
 export async function renderWelcomeEmail(userName?: string): Promise<string> {

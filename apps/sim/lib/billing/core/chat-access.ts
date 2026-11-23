@@ -22,8 +22,9 @@ interface PaidAccessOptions {
  * free plan, unless that payer holds prepaid credits, which an admin grants to customers billed
  * outside a subscription.
  *
- * The plan is the payer's entitled subscription (active or past due), so a canceled
- * plan reads as free; a blocked payer is refused by the usage check every caller runs next.
+ * The plan is the payer's entitled subscription (active, trialing, or past due), so a
+ * canceled plan reads as free and a trial reads as its plan; a blocked payer is refused by the
+ * usage check every caller runs next.
  */
 export async function payerHasPaidAccess(
   payer: UsageUpgradePayer,

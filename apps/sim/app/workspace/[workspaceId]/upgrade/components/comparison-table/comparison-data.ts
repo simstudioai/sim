@@ -1,5 +1,10 @@
 import { DEFAULT_BILLING_CONCURRENCY_LIMITS } from '@/lib/billing/concurrency-defaults'
-import { CREDIT_TIERS, CREDITS_PER_DOLLAR, DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import {
+  CREDIT_TIERS,
+  CREDITS_PER_DOLLAR,
+  DEFAULT_FREE_CREDITS,
+  PRO_TRIAL_DAYS,
+} from '@/lib/billing/constants'
 
 /**
  * Looks up a credit tier by name, so a column binds to the right tier even if
@@ -83,6 +88,10 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
           `${formatCredits(MAX_TIER.credits)}/month`,
           'Custom',
         ],
+      },
+      {
+        label: 'Free trial for new subscribers',
+        values: [false, `${PRO_TRIAL_DAYS} days`, false, false],
       },
       {
         label: 'Weekly refresh',
