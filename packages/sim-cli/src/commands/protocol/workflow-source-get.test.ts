@@ -53,6 +53,7 @@ function source(
       files,
       lock: { version: 1, blocks: {}, variables: {} },
       base: {
+        version: 1,
         workflowId: WORKFLOW_ID,
         workspaceId: WORKSPACE_ID,
         fingerprint: 'sf1:x',
@@ -124,7 +125,8 @@ const MANIFEST = {
     credentials: [],
     workflows: [],
     skills: [{ key: 'triage', id: 'skill-1', name: 'Triage' }],
-    customTools: [{ key: 'lookup-order', id: 'tool-1', name: 'lookup_order' }],
+    customTools: [{ key: 'lookup-order', id: 'tool-1', name: 'Lookup order' }],
+    mcpServers: [],
     env: [],
     truncated: false,
   },
@@ -184,7 +186,7 @@ describe('sim workflows source get --dir', () => {
     expect(callsTo(CATALOG_PATH)[0][1].query).toBeUndefined()
   })
 
-  it('writes the primer atop the guide with a snippet for each builder the source calls and no other, printing it only with --primer', async () => {
+  it('writes the primer atop the guide with a snippet for each builder the source calls and no other, without printing it', async () => {
     serve({
       [SOURCE_PATH]: () =>
         source({ 'workflow.ts': "// @sim-sdk 1\nconst mail = gmail.sendEmail('Mail', {})\n" }),
@@ -203,12 +205,6 @@ describe('sim workflows source get --dir', () => {
     const agents = readFileSync(join(outDir, '.sim/AGENTS.md'), 'utf8')
     expect(agents).toContain('- `gmail.sendEmail` (Gmail: Send Email)')
     expect(agents).not.toContain('`slack.sendMessage`')
-
-    vi.mocked(console.log).mockClear()
-    await get('--dir', outDir, '--primer')
-
-    const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
-    expect(agents.startsWith(primer)).toBe(true)
   })
 
   it('writes a root AGENTS.md pointing at the guide, and never replaces one it did not write', async () => {

@@ -59,6 +59,7 @@ import {
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
+import { pausedRunIdOf } from '@/lib/workflows/executor/run-pause'
 import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
@@ -997,7 +998,7 @@ export class PauseResumeManager {
          * reason, then throw so the attempt settles as failed below. The thrown
          * message stays stable; the underlying error rides on `cause`.
          */
-        const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
+        const effectiveExecutionId = pausedRunIdOf(result, resumeExecutionId)
         const failPause = async (reason: string, cause?: unknown): Promise<never> => {
           logger.error(
             reason,

@@ -553,20 +553,6 @@ export function nextStep(status: SourceStatus, input: NextStepInput): NextStep |
   }
 }
 
-/**
- * A status's plan: the plan read, or, from a server that predates it (its route answers `404`),
- * the apply dry run it replaced, which spends the source-write budget. A `404` the dry run also
- * answers is the resource's own, and is thrown.
- */
-export async function readPlan<T>(plan: () => Promise<T>, dryRun: () => Promise<T>): Promise<T> {
-  try {
-    return await plan()
-  } catch (error) {
-    if (!(error instanceof SimApiError) || error.status !== 404) throw error
-    return dryRun()
-  }
-}
-
 /** The changes that delete something (a resource, rows, documents, columns, a deployment). */
 export function destructiveChanges(
   changes: ReadonlyArray<Pick<WorkspacePlanChange, 'action' | 'destructive'>>

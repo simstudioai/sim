@@ -49,6 +49,7 @@ export const GET = defineV2JsonRoute({
       paused: status.paused
         ? v2WorkflowRunStatusSchema.shape.paused.parse({
             ...status.paused,
+            runId: status.pausedRunId,
             points: status.pausePoints ?? [],
           })
         : null,

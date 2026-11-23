@@ -116,7 +116,7 @@ skill's `content` are handled by hand. A fixture in the kind's test must set eve
 **Changing canonical output breaks every checkout.** Any change to a kind's `canonical()` (or to
 `@sim/workflow-code` canonicalize, for workflows) changes stored fingerprints, so every directory
 in the field reads as changed or stale after the deploy. Treat it as a format change: bump the
-`rf`/`sf` prefix and accept the old one for a release, or ship it with a note to re-run get.
+`rf`/`sf` prefix, and a directory read before the change re-runs get.
 
 ### The workflow kind
 
@@ -396,8 +396,7 @@ unchanged. One workflow keeps its own `SOURCE_LIMITS` (`@sim/workflow-code/limit
 
 `.sim/base.json` carries `version: 1`. As with the workflow lock, adding an optional field does not
 bump the version: validators learn a field before writers emit it, and data waits under an `x-` key,
-which the parser tolerates and preserves. Nothing upgrades an older version yet; a bump is a hard
-refusal until a migration is written.
+which the parser tolerates and preserves. A reader refuses any other version.
 
 ## SDK and CLI
 

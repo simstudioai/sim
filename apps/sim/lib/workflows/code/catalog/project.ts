@@ -404,6 +404,7 @@ const OUTPUT_META_KEYS = new Set([
   'description',
   'condition',
   'hiddenFromDisplay',
+  'mayBeText',
   'nullable',
   'properties',
   'items',
@@ -447,6 +448,7 @@ function projectOutput(definition: unknown): CatalogOutput | undefined {
     output.condition = copyOutputCondition(record.condition as OutputCondition)
   }
   if (typed && record.hiddenFromDisplay === true) output.hiddenFromDisplay = true
+  if (typed && record.mayBeText === true) output.mayBeText = true
 
   const nested: Record<string, unknown> = {}
   if (record.properties && typeof record.properties === 'object') {

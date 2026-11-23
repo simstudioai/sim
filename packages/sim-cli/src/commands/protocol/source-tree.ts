@@ -5,7 +5,6 @@
  * the agent guide and the LF lines.
  */
 import { createHash } from 'node:crypto'
-import { rmSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
@@ -29,7 +28,6 @@ import {
   sdkIndexHeader,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
-import type { Command } from 'commander'
 import { printError, printLine } from '#sim-cli/output/io'
 import type { OutputFormat } from '../../config/index'
 import { readJsonFile, writeJsonFile } from '../../config/json-file'
@@ -178,19 +176,9 @@ function writeCachedCatalog(catalog: BlockCatalog): void {
   writeJsonFile(catalogCachePath(catalog.hash), catalog)
 }
 
-/**
- * Records `hash` as the workspace's catalog, dropping the per-workspace copy and the
- * per-workflow copies an older CLI cached under the workspace id.
- */
 function writeWorkspaceCatalogPointer(workspaceId: string, hash: string): void {
   if (embedStore.getStore() || !CACHE_KEY.test(workspaceId)) return
   writeJsonFile(workspaceCatalogPointerPath(workspaceId), { hash })
-  for (const legacy of [`${workspaceId}.json`, workspaceId]) {
-    if (legacy === `${hash}.json`) continue
-    try {
-      rmSync(join(catalogCacheDir(), legacy), { recursive: true, force: true })
-    } catch {}
-  }
 }
 
 /**
@@ -258,18 +246,15 @@ export async function loadCatalog(
   return loadWorkflowCatalog(client, source.workspaceId, source.workflowId)
 }
 
-/**
- * The resource manifest as `generateWorkspaceTypes` reads it. A server older than the skills,
- * custom tools and MCP servers sections omits them, which leaves those keys plain strings.
- */
+/** The resource manifest as `generateWorkspaceTypes` reads it. */
 function workspaceManifestFrom({
   tables,
   knowledgeBases,
   credentials,
   workflows,
-  skills = [],
-  customTools = [],
-  mcpServers = [],
+  skills,
+  customTools,
+  mcpServers,
   env,
 }: GetSourceResourcesResponse['data']): WorkspaceManifest {
   return {
@@ -365,7 +350,7 @@ function workspaceTypesFrom(
 /**
  * The workspace's resources as `workspace.d.ts` ({@link workspaceTypesFrom}), read from the
  * server. When the resources cannot be listed (a `403` for a caller the manifest does not admit, a
- * `404` from a server that predates the route) only the declared resources are typed, or `null`
+ * `404` for a workspace it cannot see) only the declared resources are typed, or `null`
  * without any: the source still writes and type-checks, with every other key a plain string.
  */
 export async function loadWorkspaceTypes(
@@ -391,7 +376,7 @@ export async function loadWorkspaceTypes(
 /**
  * Regenerates `workspace.d.ts` from the stored manifest the last get kept beside it and what the
  * directory declares now (`local`), so `tsc` types a key added since without a request. A
- * directory with no kept manifest (written by an older CLI) is left as it is.
+ * directory with no kept manifest (no get has written its types) is left as it is.
  */
 export async function refreshWorkspaceTypes(dir: string, local: LocalDeclarations): Promise<void> {
   const [manifest, current] = await Promise.all([
@@ -549,8 +534,6 @@ export interface SourceTree {
   workspaceTypes: boolean
   /** The agent guide to read before editing. */
   guide: typeof SOURCE_AGENTS_FILE
-  /** The primer atop the guide (`source-primer.ts`), printed so an agent needs no other read. */
-  primer: string
 }
 
 /** Reports a `tsconfig.json` the CLI left alone and summarizes a tree write. */
@@ -558,7 +541,7 @@ export function finishTree(
   dir: string,
   written: number,
   workspaceTypes: WorkspaceTypes | null,
-  tree: { ownsTsconfig: boolean; primer: string }
+  tree: { ownsTsconfig: boolean }
 ): SourceTree {
   if (!tree.ownsTsconfig) {
     printError(
@@ -569,14 +552,13 @@ export function finishTree(
     files: written,
     workspaceTypes: workspaceTypes !== null,
     guide: SOURCE_AGENTS_FILE,
-    primer: tree.primer,
   }
 }
 
 /**
  * Prints a tree write's result: the fields, then the primer as text when the result carries one
- * (in JSON or YAML it is the document's `primer` field). A get leaves the primer out unless
- * `--primer` asks for it: it is already the top of `.sim/AGENTS.md`.
+ * (in JSON or YAML it is the document's `primer` field). Only a new directory's starter prints
+ * it; a get leaves it at the top of `.sim/AGENTS.md`.
  */
 export function printTreeResult(
   format: OutputFormat,
@@ -589,14 +571,6 @@ export function printTreeResult(
   const { primer, ...fields } = result
   printProtocolResult(format, fields)
   if (primer !== undefined) printLine(`\n${primer}`)
-}
-
-/** Adds `--primer` to a get command: it prints the primer the get writes atop `.sim/AGENTS.md`. */
-export function primerOption(command: Command): void {
-  command.option(
-    '--primer',
-    'Also print the primer written atop .sim/AGENTS.md (a `primer` field in JSON)'
-  )
 }
 
 /**

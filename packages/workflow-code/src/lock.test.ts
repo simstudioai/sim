@@ -260,21 +260,30 @@ describe('parseWorkflowLock', () => {
 })
 
 describe('parseSourceBase', () => {
-  const base = { workflowId: 'wf-1', workspaceId: 'ws-1', fingerprint: 'sf1:a', catalogHash: 'c' }
+  const base = {
+    version: 1,
+    workflowId: 'wf-1',
+    workspaceId: 'ws-1',
+    fingerprint: 'sf1:a',
+    catalogHash: 'c',
+  }
 
-  it('reads a base written before it carried a version as version 1', () => {
-    expect(parseSourceBase(JSON.stringify(base))).toEqual({ base: { version: 1, ...base } })
+  it('reads a version 1 base', () => {
+    expect(parseSourceBase(JSON.stringify(base))).toEqual({ base })
   })
 
-  it('refuses a version this build cannot read', () => {
-    expect(parseSourceBase({ ...base, version: 2 })).toEqual({
-      problem: 'Unsupported base version; expected 1.',
-    })
+  it('refuses a base with no version or a version this build cannot read', () => {
+    const { version: _, ...unversioned } = base
+    for (const input of [unversioned, { ...base, version: 2 }]) {
+      expect(parseSourceBase(input)).toEqual({
+        problem: 'Unsupported base version; expected 1.',
+      })
+    }
   })
 
   it('keeps an x- extension and refuses any other unknown field', () => {
     expect(parseSourceBase({ ...base, 'x-tool': { pinned: true } })).toEqual({
-      base: { version: 1, ...base, 'x-tool': { pinned: true } },
+      base: { ...base, 'x-tool': { pinned: true } },
     })
     expect(parseSourceBase({ ...base, branch: 'main' })).toEqual({
       problem: 'Unknown base field "branch".',
@@ -282,7 +291,7 @@ describe('parseSourceBase', () => {
   })
 
   it('names every missing or malformed field at once', () => {
-    expect(parseSourceBase({ workspaceId: 1, fingerprint: 'x'.repeat(257) })).toEqual({
+    expect(parseSourceBase({ version: 1, workspaceId: 1, fingerprint: 'x'.repeat(257) })).toEqual({
       problem:
         '"workflowId" must be a non-empty string. "workspaceId" must be a string. "fingerprint" must be a non-empty string of at most 256 characters. "catalogHash" must be a string.',
     })

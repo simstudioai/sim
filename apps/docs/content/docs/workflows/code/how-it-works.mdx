@@ -57,7 +57,7 @@ Sim also stores each block's `const` name, its order in the file and its comment
 - the same: the apply goes ahead;
 - different: someone saved the workflow since you read it. The apply is refused as stale with exit `5`, on a dry run too, and nothing is written; [Troubleshooting](/workflows/code/troubleshooting#exit-5) has the steps.
 
-The check is made again inside the write's transaction, so two applies that race cannot both win. `status` asks the same question with a dry run and reports it as drift (exit `12`) before you apply.
+The check is made again inside the write's transaction, so two applies that race cannot both win. `status` asks the same question with a plan read that saves nothing and reports it as drift (exit `12`) before you apply.
 
 The base also records the block catalog you read against. When a compile fails and the catalog changed since, for example after a block gained a setting, the apply adds `W_APPLY_CATALOG_MOVED`: run `get` again to pick up the new types.
 

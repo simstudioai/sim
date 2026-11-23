@@ -131,6 +131,7 @@ describe('workspaces source get', () => {
 
   it('refuses a workflow source directory, --force included, keeping its base and unapplied edits', async () => {
     const base = JSON.stringify({
+      version: 1,
       workflowId: 'wf-1',
       workspaceId: 'ws_local',
       fingerprint: 'sf1:x',
@@ -186,7 +187,7 @@ describe('workspaces source get', () => {
     expect(readFileSync(join(dir, 'AGENTS.md'), 'utf8')).toBe('# Our rules\n')
   })
 
-  it('names the edit loop instead of printing the primer, which --primer prints', async () => {
+  it('names the edit loop instead of printing the primer', async () => {
     serve({ 'tables/leads.ts': LEADS })
 
     await get()
@@ -194,12 +195,6 @@ describe('workspaces source get', () => {
     const printed = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
     expect(printed).not.toHaveProperty('primer')
     expect(printed.editLoop[0]).toMatch(/^sim workspaces source check --dir /)
-
-    vi.mocked(console.log).mockClear()
-    await get('--primer')
-
-    const { primer } = JSON.parse(vi.mocked(console.log).mock.calls.at(-1)?.join(' ') ?? '{}')
-    expect(readFileSync(join(dir, '.sim/AGENTS.md'), 'utf8').startsWith(primer)).toBe(true)
   })
 
   it('writes the workspace primer atop the guide, and the deep dives to the advanced guide it names', async () => {
@@ -295,7 +290,7 @@ describe('workspaces source get', () => {
     const fileResource = {
       'file:report.bin': {
         id: 'file_1',
-        blobs: { 'files/report.bin': { id: 'file_1', rev: 1, sha256: listed().sha256 } },
+        blobs: { 'files/report.bin': { id: 'file_1', rev: '1', sha256: listed().sha256 } },
       },
     }
 
@@ -725,6 +720,7 @@ describe('workspaces source get', () => {
           workflows: [],
           skills: [{ key: 'stored', id: 'skill-1', name: 'stored' }],
           customTools: [],
+          mcpServers: [],
           env: [],
           truncated: false,
         },
@@ -774,6 +770,7 @@ describe('workspaces source get', () => {
           workflows: [{ key: 'enrich', inputs: [{ name: 'email', type: 'string' }] }],
           skills: [],
           customTools: [],
+          mcpServers: [],
           env: [],
           truncated: false,
         },
@@ -827,6 +824,7 @@ describe('workspaces source get', () => {
             workflows: [{ key: 'enrich', inputs: [{ name: 'email', type: 'string' }] }],
             skills: [],
             customTools: [],
+            mcpServers: [],
             env: [],
             truncated: false,
           },

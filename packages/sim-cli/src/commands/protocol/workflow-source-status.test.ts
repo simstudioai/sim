@@ -15,6 +15,7 @@ const { mockRequest, mockProfileFrom } = contextMockFns
 const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const BASE = {
+  version: 1,
   workflowId: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
   fingerprint: 'sf1:a',
@@ -393,26 +394,14 @@ describe('workflows source status', () => {
     expect(process.exitCode).toBe(12)
   })
 
-  it('falls back to the apply dry run on a server without the plan read', async () => {
-    mockRequest
-      .mockRejectedValueOnce(new SimApiError('Not found', 404, 'NOT_FOUND'))
-      .mockResolvedValueOnce(dryRun())
-
-    await run(root, 'status')
-
-    expect(mockRequest.mock.calls.map(([path]) => path)).toEqual([
-      `/api/v2/workflows/${WORKFLOW_ID}/source/plan`,
-      `/api/v2/workflows/${WORKFLOW_ID}/source`,
-    ])
-    expect(mockRequest.mock.calls[1][1].query).toEqual({ dryRun: true, allowDelete: true })
-    expect(printed()).toMatchObject({ state: 'clean', server: 'checked' })
-  })
-
   it('reports a workflow the server no longer has as deleted there', async () => {
     mockRequest.mockRejectedValue(new SimApiError('Workflow not found', 404, 'NOT_FOUND'))
 
     await run(root, 'status')
 
+    expect(mockRequest.mock.calls.map(([path]) => path)).toEqual([
+      `/api/v2/workflows/${WORKFLOW_ID}/source/plan`,
+    ])
     expect(printed()).toMatchObject({
       state: 'drift',
       drift: [{ kind: 'workflow', key: WORKFLOW_ID, server: 'deleted' }],
@@ -528,18 +517,8 @@ describe('workflows source status', () => {
       local: [{ files: [{ path: 'functions/score.js', change: 'edited' }] }],
     })
   })
-  it.each([
-    [
-      'the workspace record, which records the folder base on disk, over a stale record of its own',
-      true,
-      [],
-    ],
-    [
-      'a record of its own when the workspace record predates the folder base (an older CLI wrote it)',
-      false,
-      [{ path: 'functions/score.js', change: 'edited' }],
-    ],
-  ])('in a workspace folder, reads %s', async (_label, rootCurrent, files) => {
+
+  it("ignores a written record in a workspace folder, reading only the workspace directory's", async () => {
     const ws = join(root, 'ws')
     const folder = join(ws, 'workflows/score')
     write(
@@ -549,11 +528,8 @@ describe('workflows source status', () => {
     )
     writeWorkflowDir(folder, { at: ws, prefix: 'workflows/score/' })
     const rootRecord = JSON.parse(readFileSync(join(ws, '.sim/written.json'), 'utf8'))
-    rootRecord.files['workflows/score/.sim/base.json'] = rootCurrent
-      ? digest(JSON.stringify(BASE))
-      : digest('an older base')
+    rootRecord.files['workflows/score/.sim/base.json'] = digest('another base')
     write(ws, '.sim/written.json', JSON.stringify(rootRecord))
-    // A nested record an older CLI left: score.js as it was before the last write.
     write(
       folder,
       '.sim/written.json',
@@ -567,7 +543,7 @@ describe('workflows source status', () => {
 
     expect(printed()).toMatchObject({ server: 'offline' })
     const local = (printed().local ?? []) as Array<{ files: unknown[] }>
-    expect(local.flatMap((entry) => entry.files)).toEqual(files)
+    expect(local.flatMap((entry) => entry.files)).toEqual([])
   })
 })
 

@@ -61,7 +61,6 @@ import {
   planFindings,
   printDiffReport,
   printStatusReport,
-  readPlan,
   type ServerCheck,
   STATUS_EXIT_CODES_HELP,
   type StatusReport,
@@ -401,20 +400,9 @@ export function attachWorkspaceSourceStatus(source: Command): void {
               options: { allowDelete: true, ...(only ? { only } : {}) },
             }
             try {
-              const response = await readPlan(
-                () =>
-                  connection.client.request<PlanWorkspaceSourceResponse>('planWorkspaceSource', {
-                    params: { workspaceId: target },
-                    body,
-                    retryRateLimited: true,
-                  }),
-                () =>
-                  connection.client.request<PlanWorkspaceSourceResponse>('applyWorkspaceSource', {
-                    params: { workspaceId: target },
-                    query: { dryRun: true },
-                    body: { ...body, provenance: { client: 'cli' } },
-                    retryRateLimited: true,
-                  })
+              const response = await connection.client.request<PlanWorkspaceSourceResponse>(
+                'planWorkspaceSource',
+                { params: { workspaceId: target }, body, retryRateLimited: true }
               )
               data = response.data
               byBase = workflowsSentByBase(local, target)

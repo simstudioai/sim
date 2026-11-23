@@ -15,6 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { RESUME_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/enqueue-execution'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { type RunPause, runPauseOf } from '@/lib/workflows/executor/run-pause'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -87,6 +88,8 @@ export type ResumeWorkflowExecutionResult =
         startTime?: string
         endTime?: string
       }
+      /** Where a run that paused again waits. */
+      paused: RunPause | null
     }
   | {
       kind: 'async'
@@ -353,6 +356,8 @@ export async function executeResumeWorkflow({
               endTime: result.metadata.endTime,
             }
           : undefined,
+        paused:
+          runFailure === undefined ? runPauseOf(result, enqueueResult.resumeExecutionId) : null,
       }
     }
 

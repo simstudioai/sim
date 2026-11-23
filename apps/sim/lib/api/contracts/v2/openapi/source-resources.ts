@@ -36,7 +36,7 @@ const SOURCE_RESOURCES_EXAMPLE = {
     },
   ],
   skills: [{ key: 'triage', id: 'skl_7e2a4c19', name: 'Triage' }],
-  customTools: [{ key: 'lookup-order', id: 'ctl_2b8d6f03', name: 'lookup_order' }],
+  customTools: [{ key: 'lookup-order', id: 'ctl_2b8d6f03', name: 'Lookup order' }],
   mcpServers: [
     { key: 'github', id: 'mcp-1a2b3c4d', name: 'GitHub', tools: ['create_issue', 'list_issues'] },
   ],

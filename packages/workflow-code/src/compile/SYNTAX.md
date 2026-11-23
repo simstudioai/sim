@@ -30,8 +30,7 @@ export default workflow('Name', { description: '…', variables: { … } }, ({ v
 })
 ```
 
-- Line 1 is `// @sim-sdk N`. Missing: `E_SDK_HEADER`. `N` above the server's major: `E_SDK_MAJOR`.
-  `N` below `OLDEST_SDK_MAJOR` (`sdk.ts`): `E_SDK_MAJOR_OLD`.
+- Line 1 is `// @sim-sdk N`. Missing: `E_SDK_HEADER`. `N` other than the server's major: `E_SDK_MAJOR`.
 - Imports: named imports from `'@sim/workflow-sdk'` only (aliases allowed). Anything else is
   `E_UNSUPPORTED_SYNTAX`.
 - Exactly one `export default workflow(name, options?, body)` (`E_WORKFLOW_EXPORT`). `options` is
@@ -384,8 +383,7 @@ Errors refuse the whole apply. Warnings are saved as written; info is informatio
 | `E_NUMBER_NOT_FINITE` | A number literal too large to store (`1e999` reads as `Infinity`). |
 | `W_NUMBER_PRECISION` | A number literal whose digits a number cannot hold; write it as a string. |
 | `E_SDK_HEADER` | Line 1 is not `// @sim-sdk N`. |
-| `E_SDK_MAJOR` | The header's major is newer than the server supports. |
-| `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |
+| `E_SDK_MAJOR` | The header's major is not the one the server reads. |
 | `E_UNSUPPORTED_SYNTAX` | A construct outside this grammar; the hint names the supported form. |
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
 | `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |

@@ -22,8 +22,7 @@ Reading and writing `workflow.ts`.
 | `E_NUMBER_NOT_FINITE` | A number literal too large to store (`1e999` reads as `Infinity`). |
 | `W_NUMBER_PRECISION` | A number literal whose digits a number cannot hold; write it as a string. |
 | `E_SDK_HEADER` | Line 1 is not `// @sim-sdk N`. |
-| `E_SDK_MAJOR` | The header's major is newer than the server supports. |
-| `E_SDK_MAJOR_OLD` | The header's major is older than the oldest the server reads. |
+| `E_SDK_MAJOR` | The header's major is not the one the server reads. |
 | `E_UNSUPPORTED_SYNTAX` | A construct outside this grammar; the hint names the supported form. |
 | `E_WORKFLOW_EXPORT` | Not exactly one `export default workflow(…)`. |
 | `E_LIMIT_EXCEEDED` | Over the block, edge, total-byte, depth or `codeFile()` reference cap (`SOURCE_LIMITS`). Apply answers 413. |

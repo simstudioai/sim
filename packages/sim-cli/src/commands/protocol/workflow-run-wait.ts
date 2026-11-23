@@ -196,7 +196,7 @@ function explain(
   if (outcome === 'completed') return null
   if (outcome === 'failed') return `Run ${runId} failed.`
   if (outcome === 'cancelled') return `Run ${runId} was cancelled.`
-  const next = resumeCommandFor(toRecord(run), { runId, workflowId })
+  const next = resumeCommandFor(toRecord(run), workflowId)
   return `Run ${runId} is paused waiting for input.${next ? ` Resume it: ${next}` : ''}`
 }
 

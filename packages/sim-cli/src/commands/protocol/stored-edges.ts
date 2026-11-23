@@ -172,7 +172,7 @@ function isStoredEdge(value: unknown): value is StoredEdgeRef {
 
 /**
  * The stored edges recorded for the base `dir` holds now, or `undefined` when none are: no
- * record, one an older CLI or another base wrote, or a malformed one.
+ * record, one another base wrote, or a malformed one.
  */
 export async function readStoredEdges(dir: string): Promise<StoredEdgeRef[] | undefined> {
   const [record, base] = await Promise.all([
@@ -195,7 +195,7 @@ export async function readStoredEdges(dir: string): Promise<StoredEdgeRef[] | un
 /**
  * The digest of each block of the printed source the record of the base `dir` holds now was
  * written from, by key (see {@link storedEdgesWrite}); `undefined` when there is no such record or
- * it records no blocks (an older CLI wrote it).
+ * it records no blocks.
  */
 export async function readStoredBlockDigests(
   dir: string

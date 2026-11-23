@@ -22,10 +22,8 @@ const COMPILE_SYNTAX_CODES = [
   'E_SYNTAX',
   /** The first line is not `// @sim-sdk N`. */
   'E_SDK_HEADER',
-  /** The header's major is above the server's supported major. */
+  /** The header's major is not the one the server reads. */
   'E_SDK_MAJOR',
-  /** The header's major is below the oldest major the server reads (`OLDEST_SDK_MAJOR`). */
-  'E_SDK_MAJOR_OLD',
   /** A construct outside the accepted grammar; `hint` names the supported form. */
   'E_UNSUPPORTED_SYNTAX',
   /** Not exactly one `export default workflow(...)`. */

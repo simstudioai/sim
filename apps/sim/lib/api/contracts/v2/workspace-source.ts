@@ -115,7 +115,7 @@ const baseResourceSchema = z
         z.string(),
         z.object({
           id: z.string().describe('Stored id of the binary file.'),
-          rev: z.union([z.number().int(), z.string()]).describe('Content revision as last read.'),
+          rev: z.string().describe('Content revision as last read.'),
           sha256: sha256Schema,
         })
       )

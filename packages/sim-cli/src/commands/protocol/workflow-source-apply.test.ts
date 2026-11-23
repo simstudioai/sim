@@ -52,6 +52,7 @@ const WORKFLOW_ID = '00000000-0000-4000-8000-00000000000a'
 const WORKSPACE_ID = 'ws_local'
 const APPLY_PATH = `/api/v2/workflows/${WORKFLOW_ID}/source`
 const BASE = {
+  version: 1,
   workflowId: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
   fingerprint: 'sf1:a',
@@ -950,6 +951,9 @@ describe('sim workflows source apply', () => {
               knowledgeBases: [],
               credentials: [],
               workflows: [],
+              skills: [],
+              customTools: [],
+              mcpServers: [],
               env: [],
               truncated: false,
             },
@@ -1480,6 +1484,9 @@ describe('sim workflows source create on a directory with no workflow.ts', () =>
       knowledgeBases: [],
       credentials: [],
       workflows: [],
+      skills: [],
+      customTools: [],
+      mcpServers: [],
       env: ['OPENAI_API_KEY'],
       truncated: false,
     },

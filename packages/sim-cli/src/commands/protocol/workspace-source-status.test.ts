@@ -26,7 +26,7 @@ const BASE = { version: 1, workspaceId: WORKSPACE_ID, resources: {} }
 const LEADS = "// @sim-sdk 1\nexport default defineTable({ name: 'leads', columns: {} })\n"
 const DEALS = "// @sim-sdk 1\nexport default defineTable({ name: 'deals', columns: {} })\n"
 const INGEST = "// @sim-sdk 1\nexport default workflow('Ingest', {}, () => {})\n"
-const INGEST_BASE = `${JSON.stringify({ workflowId: 'wf_1', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a', catalogHash: 'c' })}\n`
+const INGEST_BASE = `${JSON.stringify({ version: 1, workflowId: 'wf_1', workspaceId: WORKSPACE_ID, fingerprint: 'sf1:a', catalogHash: 'c' })}\n`
 const NOTES = Buffer.from('binary notes, version one')
 
 /** The files a get wrote, by path: what `.sim/written.json` records. */

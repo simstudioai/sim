@@ -46,7 +46,7 @@ sim workflows source status --dir ./support-triage
 sim workflows source diff --dir ./support-triage
 ```
 
-`status` lists the files you created, edited, or deleted, asks the server (with a dry run that saves nothing) whether the workflow changed since the `get`, and ends with the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unsaved, and `12` when the workflow changed in the workflow builder since the `get` (a conflict, if you edited it too). Without a connection it shows your edits only and says so; `--offline` skips the server. `diff` prints each edit as a unified diff, and `diff --server` compares the directory with the workflow as it is saved now. Both take `--json` (or `--output json`).
+`status` lists the files you created, edited, or deleted, asks the server (with a plan read that saves nothing) whether the workflow changed since the `get`, and ends with the one command to run next. It exits `0` when nothing changed, `11` when only your edits are unsaved, and `12` when the workflow changed in the workflow builder since the `get` (a conflict, if you edited it too). Without a connection it shows your edits only and says so; `--offline` skips the server. `diff` prints each edit as a unified diff, and `diff --server` compares the directory with the workflow as it is saved now. Both take `--json` (or `--output json`).
 
 ## 4. Dry run
 

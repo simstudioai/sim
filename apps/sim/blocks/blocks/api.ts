@@ -193,7 +193,11 @@ Example:
     },
   },
   outputs: {
-    data: { type: 'json', description: 'API response data (JSON, text, or other formats)' },
+    data: {
+      type: 'json',
+      description: 'API response data (JSON, text, or other formats)',
+      mayBeText: true,
+    },
     status: { type: 'number', description: 'HTTP status code (200, 404, 500, etc.)' },
     headers: { type: 'json', description: 'HTTP response headers as key-value pairs' },
   },

@@ -343,7 +343,7 @@ export async function writeSourceScaffold(
   client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
   dir: string,
   workspaceId: string
-): Promise<SourceTree> {
+): Promise<SourceTree & { primer: string }> {
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, { workspaceId, blockTypes: [] }),
     loadWorkspaceTypes(client, workspaceId),
@@ -358,7 +358,7 @@ export async function writeSourceScaffold(
     ...tree.change.write,
   ]
   await updateSourceDir(dir, { ...tree.change, write })
-  return finishTree(dir, write.length, workspaceTypes, tree)
+  return { ...finishTree(dir, write.length, workspaceTypes, tree), primer: tree.primer }
 }
 
 /**

@@ -412,10 +412,10 @@ describe('a raw edge into a container child', () => {
 })
 
 describe('header, names and hand-written references', () => {
-  it('refuses a header major below the oldest the server reads', () => {
-    expect(codes(run(source("  api('A', { url: 'x' })", '// @sim-sdk 0')))).toEqual([
-      'E_SDK_MAJOR_OLD',
-    ])
+  it('refuses a header major other than the one the server reads', () => {
+    for (const header of ['// @sim-sdk 0', '// @sim-sdk 2']) {
+      expect(codes(run(source("  api('A', { url: 'x' })", header)))).toEqual(['E_SDK_MAJOR'])
+    }
   })
 
   it('warns on an invisible bidi or zero-width character in a block name, and prints it escaped', () => {

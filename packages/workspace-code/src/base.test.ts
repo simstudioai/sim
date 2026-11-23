@@ -80,7 +80,7 @@ describe('parseWorkspaceBase', () => {
             "__proto__": { "id": "col_evil", "options": { "__proto__": "opt_evil" } },
             "email": { "id": "col_1" }
           },
-          "blobs": { "__proto__": { "id": "b", "rev": 1, "sha256": "${'a'.repeat(64)}" } }
+          "blobs": { "__proto__": { "id": "b", "rev": "1", "sha256": "${'a'.repeat(64)}" } }
         }
       }
     }`)
@@ -94,5 +94,21 @@ describe('parseWorkspaceBase', () => {
       Object.keys(Object.getOwnPropertyDescriptor(columns, '__proto__')?.value.options)
     ).toEqual(['__proto__'])
     expect(Object.keys(resource?.blobs ?? {})).toEqual(['__proto__'])
+  })
+
+  it('refuses a blob whose rev is not a string', () => {
+    const parsed = parseWorkspaceBase({
+      version: 1,
+      workspaceId: 'ws',
+      resources: {
+        'file:a.png': {
+          id: 'f',
+          blobs: { 'files/a.png': { id: 'f', rev: 3, sha256: 'a'.repeat(64) } },
+        },
+      },
+    })
+    expect(parsed.diagnostics?.map((finding) => `${finding.code} ${finding.path}`)).toEqual([
+      'E_BASE_SHAPE /resources/file:a.png/blobs/files~1a.png',
+    ])
   })
 })

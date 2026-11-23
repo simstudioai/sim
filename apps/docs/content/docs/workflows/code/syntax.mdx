@@ -107,7 +107,7 @@ export default workflow('Name', { description: '…', variables: { /* … */ } }
 })
 ```
 
-- Line 1 is `// @sim-sdk N`. Without it the file is refused with `E_SDK_HEADER`; a number newer or older than the server reads is `E_SDK_MAJOR` or `E_SDK_MAJOR_OLD`.
+- Line 1 is `// @sim-sdk N`. Without it the file is refused with `E_SDK_HEADER`; a number other than the one the server reads is `E_SDK_MAJOR`.
 - Imports are named imports from `'@sim/workflow-sdk'` only. Aliases are allowed.
 - The file has exactly one `export default workflow(name, options?, body)` (`E_WORKFLOW_EXPORT`). `options` is `{ description?, variables? }`. `body` is `() => { … }` or `({ vars }) => { … }`.
 - Variables are `variables: { <key>: { name?, type, value } }`. `type` is `string`, `number`, `boolean`, `object`, `array` or `plain`, and both `type` and `value` are required; `value` is plain JSON. The key is the variable's key: lowercased, with spaces and dots removed. `name` is written only when it differs, and must normalize to the key (`E_VARIABLE_NAME_MISMATCH`). Read one as `vars.<key>`.

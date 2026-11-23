@@ -37,7 +37,6 @@ import {
   finishTree,
   loadCatalog,
   loadWorkspaceTypes,
-  primerOption,
   printTreeResult,
   sourceTreeChange,
   withSourceExitCode,
@@ -132,7 +131,7 @@ async function writeWorkspaceSource(
   dir: string,
   source: WorkspaceSource,
   force: boolean
-): Promise<{ written: number; removed: number; guide: string; primer: string }> {
+): Promise<{ written: number; removed: number; guide: string }> {
   assertWorkspacePaths(Object.keys(source.files))
   assertListedBlobs(source.blobs)
   const blobs = new Map(source.blobs.map((blob) => [blob.path, blob]))
@@ -278,7 +277,6 @@ async function writeWorkspaceSource(
       written: summary.files,
       removed: gone.size,
       guide: summary.guide,
-      primer: summary.primer,
     }
   } finally {
     if (partial) await rm(partial, { recursive: true, force: true })
@@ -335,7 +333,6 @@ export function attachWorkspaceSourceGet(source: Command): void {
     'downloadKnowledgeDocument',
   ])
   absoluteDirOption(command)
-  primerOption(command)
   searchTasks(command, [
     'change the model in every agent block',
     'bulk edit every workflow in the workspace',
@@ -348,7 +345,7 @@ export function attachWorkspaceSourceGet(source: Command): void {
     .allowExcessArguments(false)
     .description('Write a workspace as a source directory')
     .addHelpText('after', GET_HELP)
-    .action(async (options: { dir: string; only?: string; force?: boolean; primer?: boolean }) => {
+    .action(async (options: { dir: string; only?: string; force?: boolean }) => {
       const kinds = parseKinds(options.only)
       const { client, profile } = connect()
       await withSourceDirLock(options.dir, async () => {
@@ -392,7 +389,6 @@ export function attachWorkspaceSourceGet(source: Command): void {
           skipped: data.skipped.length,
           guide: result.guide,
           editLoop: editLoop('workspace', options.dir),
-          ...(options.primer === true ? { primer: result.primer } : {}),
           ...findings.result(data.diagnostics),
         })
       })
