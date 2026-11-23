@@ -264,7 +264,8 @@ async function tscErrors(root: string): Promise<ReturnType<typeof parseTscOutput
   const finished = await run(
     'TypeScript',
     process.execPath,
-    [tsc, '-p', '.', '--pretty', 'false'],
+    // --noEmit: a tsconfig.json the person wrote may emit, and a check writes nothing.
+    [tsc, '-p', '.', '--pretty', 'false', '--noEmit'],
     {
       cwd: root,
     }

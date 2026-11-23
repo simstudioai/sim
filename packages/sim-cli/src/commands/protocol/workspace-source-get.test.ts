@@ -1400,6 +1400,27 @@ describe('the type check of workspaces source check', () => {
     ])
   })
 
+  it('writes no build output under a tsconfig.json of its own that emits', async () => {
+    serve({ 'tables/leads.ts': LEADS })
+    await get()
+    writeInserting('leads')
+    const tsconfig = JSON.parse(
+      readFileSync(join(dir, 'tsconfig.json'), 'utf8').replace(/^\/\/.*\n/, '')
+    )
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        ...tsconfig,
+        compilerOptions: { ...tsconfig.compilerOptions, noEmit: false },
+      })
+    )
+
+    await runWorkspaceSource('check', dir)
+
+    expect(result().checked).toEqual(['compile', 'types'])
+    expect(existsSync(join(dir, 'workflows/save/workflow.js'))).toBe(false)
+  })
+
   it('skips the type check with --no-types', async () => {
     serve({ 'tables/leads.ts': LEADS })
     await get()
