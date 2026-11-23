@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { resolveIntegrationAccess } from '@/lib/integrations/access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -54,6 +54,7 @@ export interface PermissionConfigResult {
 
 export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
+  const deployment = useDeploymentShape()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
   const {
@@ -134,15 +135,8 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.allowedModelProviders])
 
-  const isInvitationsDisabled = useMemo(() => {
-    const featureFlagDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_INVITATIONS'))
-    return featureFlagDisabled || config.disableInvitations
-  }, [config.disableInvitations])
-
-  const isPublicApiDisabled = useMemo(() => {
-    const featureFlagDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_PUBLIC_API'))
-    return featureFlagDisabled || config.disablePublicApi
-  }, [config.disablePublicApi])
+  const isInvitationsDisabled = Boolean(deployment.invitationsDisabled) || config.disableInvitations
+  const isPublicApiDisabled = Boolean(deployment.publicApiDisabled) || config.disablePublicApi
 
   const mergedConfig = useMemo(
     () => ({ ...config, allowedIntegrations: mergedAllowedIntegrations }),

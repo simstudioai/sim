@@ -11,8 +11,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.hoisted(() => {
   vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
-  vi.stubEnv('NEXT_PUBLIC_BILLING_ENABLED', '')
   vi.stubEnv('SSO_ENABLED', 'false')
+  vi.stubEnv('E2B_ENABLED', 'false')
+  vi.stubEnv('SLACK_EXTENDED_SCOPES', 'false')
+  vi.stubEnv('DISABLE_INVITATIONS', 'false')
+  vi.stubEnv('DISABLE_PUBLIC_API', 'true')
   vi.stubEnv('INBOX_ENABLED', 'true')
   vi.stubEnv('REGISTRATION_MODE', 'open')
   document.documentElement.setAttribute(
@@ -24,6 +27,9 @@ vi.hoisted(() => {
       azureConfigured: false,
       cohereConfigured: false,
       registrationMode: 'closed-no-email',
+      e2bEnabled: true,
+      slackExtendedScopes: true,
+      invitationsDisabled: true,
       features: {
         sso: true,
         accessControl: true,
@@ -42,13 +48,17 @@ import {
   getRegistrationMode,
   isAccessControlEnabled,
   isAuditLogsEnabled,
+  isE2bEnabled,
   isEmailPasswordAuthEnabled,
   isEmailSignupAllowed,
   isInboxEnabled,
+  isInvitationsDisabled,
   isOrganizationsEnabled,
+  isPublicApiDisabled,
   isSandboxesEnabled,
   isSelfServeRegistrationClosed,
   isSessionPoliciesEnabled,
+  isSlackExtendedScopesEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
 
@@ -73,5 +83,17 @@ describe('browser registration flags', () => {
     expect(isSelfServeRegistrationClosed).toBe(true)
     expect(isEmailSignupAllowed).toBe(false)
     expect(isEmailPasswordAuthEnabled).toBe(false)
+  })
+})
+
+describe('browser deployment switches', () => {
+  it('take the projected server answer over the browser environment', () => {
+    expect(isE2bEnabled).toBe(true)
+    expect(isSlackExtendedScopesEnabled).toBe(true)
+    expect(isInvitationsDisabled).toBe(true)
+  })
+
+  it('read a switch the projection omits as off', () => {
+    expect(isPublicApiDisabled).toBe(false)
   })
 })

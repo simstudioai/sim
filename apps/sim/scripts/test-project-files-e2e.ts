@@ -95,7 +95,6 @@ const environment: NodeJS.ProcessEnv = {
   ALLOWED_ORIGINS: base.origin,
   NEXT_PUBLIC_FORCE_HOSTED: 'true',
   BILLING_ENABLED: 'true',
-  NEXT_PUBLIC_BILLING_ENABLED: 'true',
   ENTERPRISE_ENABLED: 'true',
   ACCESS_CONTROL_ENABLED: 'true',
   ORGANIZATIONS_ENABLED: 'true',

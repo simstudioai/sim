@@ -16,7 +16,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.hoisted(() => {
   vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
-  vi.stubEnv('NEXT_PUBLIC_BILLING_ENABLED', '')
   vi.stubEnv('NEXT_PUBLIC_FORCE_HOSTED', '')
   document.documentElement.id = '__next_error__'
 })
