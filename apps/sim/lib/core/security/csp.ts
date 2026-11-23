@@ -40,15 +40,6 @@ function isLocalhostUrl(url: string): boolean {
   }
 }
 
-function getHostnameFromUrl(url: string | undefined): string[] {
-  if (!url) return []
-  try {
-    return [`https://${new URL(url).hostname}`]
-  } catch {
-    return []
-  }
-}
-
 const IPV4_HOSTNAME = /^\d{1,3}(\.\d{1,3}){3}$/
 
 /**
@@ -100,6 +91,8 @@ interface CSPDirectives {
 const STATIC_SCRIPT_SRC = [
   "'self'",
   "'unsafe-inline'",
+  // Compiles WebAssembly and nothing else (no JS eval): the code editor's highlighter is Wasm.
+  "'wasm-unsafe-eval'",
   ...(isDev ? ["'unsafe-eval'"] : []),
   'https://*.google.com',
   'https://apis.google.com',
@@ -119,8 +112,6 @@ const STATIC_SCRIPT_SRC = [
         // X (Twitter) conversion pixel (landing pages) — the base code injects
         // uwt.js as a <script> tag from static.ads-twitter.com
         'https://static.ads-twitter.com',
-        // Freebuff Ads conversion tag — freebuff-tag.js
-        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -168,8 +159,6 @@ const STATIC_CONNECT_SRC = [
         // via fetch/sendBeacon. The t.co image-pixel fallback is already
         // covered by the `https:` wildcard in img-src.
         'https://analytics.twitter.com',
-        // Freebuff Ads conversion tag — beacons to /api/advertisers/conversions/client
-        'https://freebuff.com',
       ]
     : []),
 ] as const
@@ -234,9 +223,6 @@ const buildTimeCSPDirectives: CSPDirectives = {
       : isDev
         ? [DEFAULT_SOCKET_URL, toWebSocketUrl(DEFAULT_SOCKET_URL)]
         : []),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
-    ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
     ...getS3EndpointSources(env.S3_ENDPOINT, env.S3_FORCE_PATH_STYLE),
   ],
 
@@ -283,9 +269,6 @@ export function generateRuntimeCSP(frameAncestors?: string[]): string {
   const socketWsUrl = socketUrl ? toWebSocketUrl(socketUrl) : ''
   const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? DEFAULT_OLLAMA_URL : '')
 
-  const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
-  const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
-  const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
   const s3EndpointSources = getS3EndpointSources(
     getEnv('S3_ENDPOINT'),
     getEnv('S3_FORCE_PATH_STYLE')
@@ -306,9 +289,6 @@ export function generateRuntimeCSP(frameAncestors?: string[]): string {
       ollamaUrl,
       socketUrl,
       socketWsUrl,
-      ...brandLogoDomains,
-      ...privacyDomains,
-      ...termsDomains,
       ...s3EndpointSources,
     ],
   }
@@ -321,13 +301,6 @@ export function generateRuntimeCSP(frameAncestors?: string[]): string {
  */
 export function getMainCSPPolicy(): string {
   return buildCSPString(buildTimeCSPDirectives)
-}
-
-/**
- * Permissive CSP for workflow execution endpoints
- */
-export function getWorkflowExecutionCSPPolicy(): string {
-  return "default-src * 'unsafe-inline' 'unsafe-eval'; connect-src *;"
 }
 
 /**

@@ -36,7 +36,8 @@ export class WebhookAttachmentProcessor {
     }
 
     logger.info(
-      `[${executionContext.requestId}] Processing ${attachments.length} attachments for execution ${executionContext.executionId}`
+      `Processing ${attachments.length} attachments for execution ${executionContext.executionId}`,
+      { requestId: executionContext.requestId }
     )
 
     const processedFiles: UserFile[] = []
@@ -49,16 +50,16 @@ export class WebhookAttachmentProcessor {
         )
         processedFiles.push(userFile)
       } catch (error) {
-        logger.error(
-          `[${executionContext.requestId}] Error processing attachment '${attachment.name}':`,
-          error
-        )
+        logger.error(`Error processing attachment '${attachment.name}':`, error, {
+          requestId: executionContext.requestId,
+        })
         // Continue with other attachments rather than failing the entire request
       }
     }
 
     logger.info(
-      `[${executionContext.requestId}] Successfully processed ${processedFiles.length}/${attachments.length} attachments`
+      `Successfully processed ${processedFiles.length}/${attachments.length} attachments`,
+      { requestId: executionContext.requestId }
     )
 
     return processedFiles

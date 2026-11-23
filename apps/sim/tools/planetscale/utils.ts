@@ -180,10 +180,20 @@ export const planetScalePaginationSchema = z
     totalPages: data.total_pages,
   }))
 
+/**
+ * Whether a value can be one half of the `<token id>:<token>` Authorization PlanetScale reads:
+ * printable ASCII with no whitespace and no colon, which would split the pair.
+ */
+export function isPlanetScaleTokenPart(value: unknown): value is string {
+  return typeof value === 'string' && /^[\x21-\x39\x3b-\x7e]+$/.test(value)
+}
+
 export function planetScaleHeaders(credentials: PlanetScaleCredentials): Record<string, string> {
-  for (const value of [credentials.serviceTokenId, credentials.serviceToken]) {
-    if (typeof value !== 'string' || !/^[\x21-\x7e]+$/.test(value) || value.includes(':'))
-      throw new Error('Invalid PlanetScale service token credentials')
+  if (
+    !isPlanetScaleTokenPart(credentials.serviceTokenId) ||
+    !isPlanetScaleTokenPart(credentials.serviceToken)
+  ) {
+    throw new Error('Invalid PlanetScale service token credentials')
   }
   return {
     Authorization: `${credentials.serviceTokenId}:${credentials.serviceToken}`,

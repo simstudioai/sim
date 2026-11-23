@@ -1,4 +1,5 @@
 import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListArchiveReasonsParams {
@@ -27,6 +28,7 @@ export const listArchiveReasonsTool: ToolConfig<
   name: 'Ashby List Archive Reasons',
   description: 'Lists all archive reasons configured in Ashby.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,9 +1,12 @@
 import { STSIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const STSBlock: BlockConfig = {
   type: 'sts',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sts_v2' },
   name: 'AWS STS',
   description: 'Connect to AWS Security Token Service',
   longDescription:
@@ -220,6 +223,15 @@ export const STSBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
+      id: 'sourceIdentity',
+      title: 'Source Identity',
+      type: 'short-input',
+      placeholder: 'alice@example.com',
+      condition: { field: 'operation', value: 'assume_role' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'externalId',
       title: 'External ID',
       type: 'short-input',
@@ -284,12 +296,12 @@ export const STSBlock: BlockConfig = {
             throw new Error(`Invalid STS operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, durationSeconds, ...rest } = params
+      params: (params, context) => {
+        const { durationSeconds, ...rest } = params
 
         const result: Record<string, unknown> = { region: rest.region }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'assume_role':
             result.accessKeyId = rest.accessKeyId
             result.secretAccessKey = rest.secretAccessKey
@@ -305,6 +317,7 @@ export const STSBlock: BlockConfig = {
             if (rest.tokenCode) result.tokenCode = rest.tokenCode
             if (rest.policyArns) result.policyArns = rest.policyArns
             if (rest.transitiveTagKeys) result.transitiveTagKeys = rest.transitiveTagKeys
+            result.sourceIdentity = rest.sourceIdentity || undefined
             if (rest.tags) {
               const rows = rest.tags
               if (typeof rows === 'string') {
@@ -391,6 +404,10 @@ export const STSBlock: BlockConfig = {
       description: 'Comma-separated tag keys that propagate through role chaining',
     },
     externalId: { type: 'string', description: 'External ID for cross-account access' },
+    sourceIdentity: {
+      type: 'string',
+      description: 'Source identity to set on the assumed role session',
+    },
     serialNumber: { type: 'string', description: 'MFA device serial number' },
     tokenCode: { type: 'string', description: 'MFA token code' },
     targetAccessKeyId: { type: 'string', description: 'Access key ID to look up' },
@@ -618,3 +635,17 @@ export const STSBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const STSV2Block: BlockConfig = {
+  ...STSBlock,
+  type: 'sts_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(STSBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

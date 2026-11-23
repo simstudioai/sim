@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsListDeadLetterSourceQueuesParams, SqsQueueListResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const listDeadLetterSourceQueuesTool: InternalToolConfig<
   name: 'SQS List Dead-Letter Source Queues',
   description: 'List the Amazon SQS queues that use a given queue as their dead-letter queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

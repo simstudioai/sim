@@ -25,13 +25,15 @@ export type OrganizationSurfaceSettingsSection =
 
 /**
  * The account sections the organization surface hosts, rendered by the account
- * plane's own renderer. General is the one that belongs to the person alone: the
- * personal Subscription gives way to the organization's, which sits beside
- * General in the Account group. Platform administration keeps the account
- * plane's access rules; Desktop, Browser, and Terminal are workspace-bound.
+ * plane's own renderer. General and Desktop belong to the person and their device:
+ * the personal Subscription gives way to the organization's, which sits beside
+ * them in the Account group. Platform administration keeps the account plane's
+ * access rules; Browser and Terminal stay with the workspace chats that drive them.
  */
 export const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
-  ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general' || item.group === 'platform')
+  ACCOUNT_SETTINGS_ITEMS.filter(
+    (item) => item.id === 'general' || item.id === 'desktop' || item.group === 'platform'
+  )
 
 export function resolveOrganizationSettingsSection(
   path: string
@@ -108,12 +110,20 @@ export function organizationSettingsNavigation(
 export function organizationSurfaceSettingsNavigation(
   isAdmin: boolean,
   features: OrganizationSettingsFeatures,
-  availability: { connectedAccounts: boolean; search: boolean; knowledgeGraphs?: boolean },
+  availability: {
+    connectedAccounts: boolean
+    search: boolean
+    knowledgeGraphs?: boolean
+    /** Whether the desktop app hosts this page; Desktop settings exist only there. */
+    desktopSettings?: boolean
+  },
   isPlatformAdmin: boolean
 ): SettingsNavigationItem<AccountSettingsSection | OrganizationSettingsSection>[] {
   return [
     ...ORGANIZATION_SURFACE_ACCOUNT_ITEMS.filter(
-      (item) => item.group !== 'platform' || isPlatformAdmin
+      (item) =>
+        (item.group !== 'platform' || isPlatformAdmin) &&
+        (item.id !== 'desktop' || availability.desktopSettings === true)
     ),
     ...organizationSettingsNavigation(isAdmin, features, availability),
   ]

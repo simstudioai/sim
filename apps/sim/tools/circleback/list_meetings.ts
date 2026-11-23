@@ -13,6 +13,7 @@ import {
   toIdList,
   toStringList,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMeetingsTool: ToolConfig<
@@ -24,6 +25,7 @@ export const listMeetingsTool: ToolConfig<
   description:
     'Lists meetings from Circleback with optional ownership, status, tag, and attendee filters.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

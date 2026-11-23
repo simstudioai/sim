@@ -1,4 +1,6 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ChargeListResponse, ListChargesParams } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResponse> = {
@@ -6,6 +8,7 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
   name: 'Stripe List Charges',
   description: 'List all charges',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -32,12 +35,14 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
       visibility: 'user-or-llm',
       description: 'Filter by creation date (e.g., {"gt": 1633024800})',
     },
+    ...listCursorParams('charge'),
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.stripe.com/v1/charges')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      appendListCursors(url, params)
       if (params.customer) url.searchParams.append('customer', params.customer)
       if (params.created) {
         Object.entries(params.created).forEach(([key, value]) => {

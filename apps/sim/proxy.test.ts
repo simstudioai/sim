@@ -280,3 +280,27 @@ describe('proxy matcher', () => {
     expect(matches('/api/internal/file-doc/seed')).toBe(true)
   })
 })
+
+describe('signed-in login with an OAuth authorize callback', () => {
+  function signedInLogin(callbackUrl: string) {
+    const url = new URL('https://app.sim.test/login')
+    url.searchParams.set('callbackUrl', callbackUrl)
+    return new NextRequest(url, {
+      headers: { cookie: 'better-auth.session_token=session-token.signature' },
+    })
+  }
+
+  it('shows the form so an OAuth client can reauthenticate its user', async () => {
+    const response = await proxy(
+      signedInLogin('/api/auth/oauth2/authorize?client_id=sim-cli&response_type=code')
+    )
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  it('sends a workspace account launch to the app instead of through sign-in', async () => {
+    const response = await proxy(
+      signedInLogin('/api/auth/oauth2/authorize?providerId=google-email&workspaceId=workspace-1')
+    )
+    expect(response.headers.get('location')).toBe('https://app.sim.test/home')
+  })
+})

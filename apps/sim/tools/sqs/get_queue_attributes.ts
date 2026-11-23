@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsGetQueueAttributesParams, SqsQueueAttributesResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getQueueAttributesTool: InternalToolConfig<
   name: 'SQS Get Queue Attributes',
   description: 'Read configuration and message-count attributes of an Amazon SQS queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteFormTool: ToolConfig<JotformDeleteFormParams, JotformDeleteFormResponse> = {
@@ -13,6 +14,7 @@ export const deleteFormTool: ToolConfig<JotformDeleteFormParams, JotformDeleteFo
   name: 'Jotform Delete Form',
   description: 'Delete a Jotform form. The API returns the form with status DELETED.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

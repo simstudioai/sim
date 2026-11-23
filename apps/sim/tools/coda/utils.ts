@@ -213,7 +213,11 @@ export const codaAuthParams = {
   },
 } satisfies ToolConfig['params']
 
-export const codaOAuth = { required: true, provider: 'coda' } as const
+export const codaOAuth = {
+  required: true,
+  provider: 'coda',
+  credentialKind: 'service-account',
+} as const
 
 /**
  * Coda rate-limits per user and asks API clients to back off and retry on HTTP 429. Only

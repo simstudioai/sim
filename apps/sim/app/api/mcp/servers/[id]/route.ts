@@ -45,13 +45,11 @@ export const PATCH = withRouteHandler(
 
         const body = parsedBody.data
 
-        logger.info(
-          `[${requestId}] Updating MCP server: ${serverId} in workspace: ${workspaceId}`,
-          {
-            userId,
-            updates: Object.keys(body).filter((k) => k !== 'workspaceId'),
-          }
-        )
+        logger.info(`Updating MCP server: ${serverId} in workspace: ${workspaceId}`, {
+          requestId,
+          userId,
+          updates: Object.keys(body).filter((k) => k !== 'workspaceId'),
+        })
 
         const result = await performUpdateMcpServer({
           workspaceId,
@@ -84,7 +82,7 @@ export const PATCH = withRouteHandler(
         }
         const updatedServer = result.server
 
-        logger.info(`[${requestId}] Successfully updated MCP server: ${serverId}`)
+        logger.info(`Successfully updated MCP server: ${serverId}`, { requestId })
 
         /**
          * The echoed row never carries header values: the caller just supplied
@@ -97,7 +95,7 @@ export const PATCH = withRouteHandler(
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error updating MCP server:`, error)
+        logger.error('Error updating MCP server:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to update MCP server', 500)
       }
     }

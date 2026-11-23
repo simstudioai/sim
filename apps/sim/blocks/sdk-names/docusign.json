@@ -1,0 +1,18 @@
+{
+  "namespace": "docusign",
+  "methods": {
+    "create_from_template": "sendFromTemplate",
+    "download_document": "downloadDocument",
+    "get_envelope": "getEnvelope",
+    "list_envelopes": "listEnvelopes",
+    "list_recipients": "listRecipients",
+    "list_templates": "listTemplates",
+    "send_envelope": "sendEnvelope",
+    "void_envelope": "voidEnvelope"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

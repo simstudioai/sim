@@ -84,6 +84,16 @@ export function appendParam(
   search.append(key, serialized)
 }
 
+/**
+ * The `timeoutOpts` body value for a request deadline. Only a finite number is sent: an untouched
+ * Timeout field reaches the tool as `''` or `null`, which Context.dev rejects.
+ */
+export function timeoutOpts(timeoutMS: unknown): { milliseconds: number } | undefined {
+  return typeof timeoutMS === 'number' && Number.isFinite(timeoutMS)
+    ? { milliseconds: timeoutMS }
+    : undefined
+}
+
 /** Output definitions for the credit accounting fields, reused across every tool. */
 export const CREDIT_OUTPUTS = {
   creditsConsumed: {

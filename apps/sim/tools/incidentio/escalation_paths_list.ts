@@ -1,7 +1,9 @@
-import type {
-  IncidentioEscalationPathsListParams,
-  IncidentioEscalationPathsListResponse,
+import {
+  INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES,
+  type IncidentioEscalationPathsListParams,
+  type IncidentioEscalationPathsListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const escalationPathsListTool: ToolConfig<
@@ -12,6 +14,7 @@ export const escalationPathsListTool: ToolConfig<
   name: 'List Escalation Paths',
   description: 'List escalation paths in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -24,7 +27,7 @@ export const escalationPathsListTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of escalation paths to return per page',
+      description: 'Number of escalation paths to return per page (max 25)',
     },
     after: {
       type: 'string',
@@ -71,16 +74,7 @@ export const escalationPathsListTool: ToolConfig<
       description: 'List of escalation paths',
       items: {
         type: 'object',
-        properties: {
-          id: { type: 'string', description: 'The escalation path ID' },
-          name: { type: 'string', description: 'The escalation path name' },
-          path: { type: 'array', description: 'Array of escalation levels' },
-          working_hours: {
-            type: 'array',
-            description: 'Working hours configuration',
-            optional: true,
-          },
-        },
+        properties: INCIDENTIO_ESCALATION_PATH_OUTPUT_PROPERTIES,
       },
     },
     pagination_meta: {

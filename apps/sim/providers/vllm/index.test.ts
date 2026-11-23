@@ -291,7 +291,7 @@ describe('vllmProvider', () => {
       'user',
     ])
     expect(result.content).toBe('hello')
-    expect(result.tokens).toEqual({ input: 10, output: 5, total: 15 })
+    expect(result.tokens).toEqual({ input: 10, output: 5, cacheRead: 0, total: 15 })
   })
 
   it('sends response_format as json_schema with strict when a responseFormat is provided', async () => {
@@ -472,7 +472,12 @@ describe('vllmProvider', () => {
     expect('stream' in result).toBe(true)
     if (!('stream' in result)) throw new Error('Expected streaming execution')
     expect(result.execution.output.content).toBe('answer')
-    expect(result.execution.output.tokens).toEqual({ input: 20, output: 10, total: 30 })
+    expect(result.execution.output.tokens).toEqual({
+      input: 20,
+      output: 10,
+      cacheRead: 0,
+      total: 30,
+    })
     expect(result.execution.output.providerTiming?.iterations).toBe(2)
     expect(
       result.execution.output.providerTiming?.timeSegments?.filter(

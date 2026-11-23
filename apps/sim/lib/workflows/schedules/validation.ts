@@ -18,6 +18,12 @@ import {
 export interface ScheduleValidationResult {
   isValid: boolean
   error?: string
+  /**
+   * Why an invalid schedule is invalid: `missing` when a field its type needs is empty (a draft
+   * not filled in yet), `invalid` when the values written cannot schedule (a malformed cron
+   * expression, an unknown timezone, an out-of-range interval).
+   */
+  reason?: 'missing' | 'invalid'
   scheduleType?: string
   cronExpression?: string
   nextRunAt?: Date
@@ -75,6 +81,16 @@ function hasValidScheduleConfig(scheduleType: string | undefined, block: BlockSt
   }
 }
 
+/** The fields each schedule type reads its timing from. */
+const SCHEDULE_CONFIG_FIELDS: Record<string, string[]> = {
+  minutes: ['minutesInterval'],
+  hourly: ['hourlyMinute'],
+  daily: ['dailyTime'],
+  weekly: ['weeklyDay', 'weeklyDayTime'],
+  monthly: ['monthlyDay', 'monthlyTime'],
+  custom: ['cronExpression'],
+}
+
 /**
  * Get human-readable error message for missing schedule configuration
  */
@@ -118,15 +134,24 @@ export function validateScheduleBlock(block: BlockState): ScheduleValidationResu
     return {
       isValid: false,
       error: 'Schedule type is required',
+      reason: 'missing',
     }
   }
 
   const hasValidConfig = hasValidScheduleConfig(scheduleType, block)
 
   if (!hasValidConfig) {
+    const fields = SCHEDULE_CONFIG_FIELDS[scheduleType] ?? []
+    const missing =
+      fields.length === 0 ||
+      fields.some((id) => {
+        const value: unknown = block.subBlocks[id]?.value
+        return value === undefined || value === null || value === ''
+      })
     return {
       isValid: false,
       error: getMissingConfigError(scheduleType),
+      reason: missing ? 'missing' : 'invalid',
       scheduleType,
     }
   }
@@ -146,6 +171,7 @@ export function validateScheduleBlock(block: BlockState): ScheduleValidationResu
       return {
         isValid: false,
         error: `Invalid cron expression: ${validation.error}`,
+        reason: 'invalid',
         scheduleType,
       }
     }
@@ -163,6 +189,7 @@ export function validateScheduleBlock(block: BlockState): ScheduleValidationResu
     return {
       isValid: false,
       error: getErrorMessage(error, 'Failed to generate schedule'),
+      reason: 'invalid',
       scheduleType,
     }
   }

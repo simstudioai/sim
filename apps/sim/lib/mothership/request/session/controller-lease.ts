@@ -24,8 +24,7 @@ export function streamIdFromLock(value: string): string {
 }
 
 export async function assertChatStreamLease(lease: ChatStreamLease): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis || (await redis.get(lease.key)) !== lease.value) {
+  if ((await getRedisClient().get(lease.key)) !== lease.value) {
     throw new StreamControllerSupersededError()
   }
 }

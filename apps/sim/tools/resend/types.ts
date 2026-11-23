@@ -64,8 +64,16 @@ export interface CreateContactResult extends ToolResponse {
   }
 }
 
+/** Cursor pagination shared by the Resend list endpoints. */
+export interface ResendPaginationParams {
+  /** Items per page, 1 to 100. Resend defaults to 20. */
+  limit?: number
+  /** Return items after this cursor (the id of the last item already read). */
+  after?: string
+}
+
 /** List Contacts */
-export interface ListContactsParams {
+export interface ListContactsParams extends ResendPaginationParams {
   resendApiKey: string
 }
 
@@ -129,7 +137,7 @@ export interface DeleteContactResult extends ToolResponse {
 }
 
 /** List Domains */
-export interface ListDomainsParams {
+export interface ListDomainsParams extends ResendPaginationParams {
   resendApiKey: string
 }
 
@@ -217,7 +225,9 @@ export interface DeleteAudienceResult extends ToolResponse {
 /** Create Broadcast */
 export interface CreateBroadcastParams {
   resendApiKey: string
-  audienceId: string
+  /** Deprecated by Resend in favor of `segmentId`; still sent for saved workflows. */
+  audienceId?: string
+  segmentId?: string
   broadcastFrom: string
   broadcastSubject: string
   broadcastReplyTo?: string

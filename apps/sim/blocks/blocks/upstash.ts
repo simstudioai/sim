@@ -1,9 +1,12 @@
 import { UpstashIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const UpstashBlock: BlockConfig = {
   type: 'upstash',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'upstash_v2' },
   name: 'Upstash',
   description: 'Serverless Redis with Upstash',
   longDescription:
@@ -469,3 +472,17 @@ export const UpstashBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const UpstashV2Block: BlockConfig = {
+  ...UpstashBlock,
+  type: 'upstash_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(UpstashBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'upstash',
+    title: 'Upstash Credential',
+  }),
+}

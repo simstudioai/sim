@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGetUserParams, OktaGetUserResponse, OktaUser } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaGetUser')
 
@@ -11,6 +13,7 @@ export const oktaGetUserTool: ToolConfig<OktaGetUserParams, OktaGetUserResponse>
   name: 'Get User from Okta',
   description: 'Get a specific user by ID or login from your Okta organization',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -36,7 +39,7 @@ export const oktaGetUserTool: ToolConfig<OktaGetUserParams, OktaGetUserResponse>
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'GET',
     headers: (params) => oktaHeaders(params.apiKey),

@@ -4,6 +4,7 @@ import {
   type GoogleMeetCreateSpaceResponse,
   MEET_API_BASE,
 } from '@/tools/google_meet/types'
+import { buildSpaceConfigDetails, SPACE_CONFIG_DETAIL_OUTPUTS } from '@/tools/google_meet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSpaceTool: ToolConfig<
@@ -74,6 +75,7 @@ export const createSpaceTool: ToolConfig<
     return {
       success: true,
       output: {
+        ...buildSpaceConfigDetails(data),
         name: data.name,
         meetingUri: data.meetingUri,
         meetingCode: data.meetingCode,
@@ -84,6 +86,7 @@ export const createSpaceTool: ToolConfig<
   },
 
   outputs: {
+    ...SPACE_CONFIG_DETAIL_OUTPUTS,
     name: { type: 'string', description: 'Resource name of the space (e.g., spaces/abc123)' },
     meetingUri: {
       type: 'string',

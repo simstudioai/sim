@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -26,6 +27,7 @@ export const sportmonksGetBracketsBySeasonTool: ToolConfig<
   description:
     'Retrieve the knockout-stage tournament bracket (stages and progression edges) for a season ID',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

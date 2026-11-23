@@ -1,12 +1,19 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   CALENDAR_API_BASE,
   type CalendarAttendee,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
   type GoogleCalendarInviteParams,
   type GoogleCalendarInviteResponse,
 } from '@/tools/google_calendar/types'
-import { normalizeAttendees } from '@/tools/google_calendar/utils'
+import {
+  buildEventDetails,
+  EVENT_DETAIL_OUTPUTS,
+  normalizeAttendees,
+} from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface InviteResult {
   data: GoogleCalendarApiEventResponse
@@ -72,9 +79,9 @@ async function inviteAttendees(
   const calendarId = params?.calendarId?.trim() || 'primary'
   const queryParams = new URLSearchParams()
   queryParams.append('sendUpdates', params?.sendUpdates ?? 'all')
-  const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId?.trim() ?? '')}?${queryParams.toString()}`
+  const putUrl = `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params?.eventId ?? '', 'eventId')}?${queryParams.toString()}`
 
-  const putResponse = await fetch(putUrl, {
+  const putResponse = await outboundFetch(putUrl, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${params?.accessToken}`,
@@ -150,7 +157,7 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
   request: {
     url: (params: GoogleCalendarInviteParams) => {
       const calendarId = params.calendarId?.trim() || 'primary'
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId.trim())}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarInviteParams) => ({
@@ -184,6 +191,7 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
       output: {
         content: baseMessage + emailNote,
         metadata: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           status: data.status,
@@ -214,7 +222,7 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
 
 interface GoogleCalendarInviteV2Response {
   success: boolean
-  output: {
+  output: GoogleCalendarEventDetails & {
     id: string
     htmlLink: string
     status: string
@@ -244,6 +252,7 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
       return {
         success: true,
         output: {
+          ...buildEventDetails(data),
           id: data.id,
           htmlLink: data.htmlLink,
           status: data.status,
@@ -259,6 +268,7 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
       }
     },
     outputs: {
+      ...EVENT_DETAIL_OUTPUTS,
       id: { type: 'string', description: 'Event ID' },
       htmlLink: { type: 'string', description: 'Event link' },
       status: { type: 'string', description: 'Event status' },

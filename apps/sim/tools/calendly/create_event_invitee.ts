@@ -2,7 +2,8 @@ import type {
   CalendlyCreateEventInviteeParams,
   CalendlyCreateEventInviteeResponse,
 } from '@/tools/calendly/types'
-import { toResourceUri, toStringArray } from '@/tools/calendly/utils'
+import { toOptionalJson, toResourceUri, toStringArray } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventInviteeTool: ToolConfig<
@@ -14,6 +15,7 @@ export const createEventInviteeTool: ToolConfig<
   description:
     'Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -80,6 +82,20 @@ export const createEventInviteeTool: ToolConfig<
       description:
         'Additional guests to copy on the invite. Format: array of email strings (max 10, e.g., ["guest@example.com"])',
     },
+    location: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Meeting location. Must match a location configured on the event type; omit for round robin event types. Format: object with "kind" (physical, inbound_call, outbound_call, zoom_conference, google_conference, gotomeeting_conference, microsoft_teams_conference, webex_conference, ask_invitee, custom) and, for physical, outbound_call, ask_invitee and custom, a "location" string (e.g., {"kind": "outbound_call", "location": "+14155551234"})',
+    },
+    questionsAndAnswers: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Answers to the event type\'s booking questions. Required questions must be answered, and each question must match the event type\'s question text exactly. Format: array of objects with "question", "answer" and "position" (e.g., [{"question": "Company", "answer": "Acme", "position": 0}])',
+    },
   },
 
   request: {
@@ -97,6 +113,8 @@ export const createEventInviteeTool: ToolConfig<
       }
 
       const eventGuests = toStringArray(params.eventGuests, 'eventGuests')
+      const location = toOptionalJson(params.location, 'location')
+      const questionsAndAnswers = toOptionalJson(params.questionsAndAnswers, 'questionsAndAnswers')
 
       return {
         event_type: toResourceUri(params.eventTypeUri, 'event_types'),
@@ -110,6 +128,8 @@ export const createEventInviteeTool: ToolConfig<
           ...(params.textReminderNumber && { text_reminder_number: params.textReminderNumber }),
         },
         ...(eventGuests.length > 0 && { event_guests: eventGuests }),
+        ...(location !== undefined && { location }),
+        ...(questionsAndAnswers !== undefined && { questions_and_answers: questionsAndAnswers }),
       }
     },
   },

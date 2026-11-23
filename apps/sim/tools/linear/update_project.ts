@@ -40,7 +40,15 @@ export const linearUpdateProjectTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Project state (planned, started, completed, canceled)',
+      description:
+        'Deprecated: Linear no longer accepts a project state on update. Use statusId instead; a state given without statusId fails with an error.',
+    },
+    statusId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Project status ID to move the project to (see List Project Statuses). Omit to keep the current status.',
     },
     leadId: {
       type: 'string',
@@ -89,8 +97,12 @@ export const linearUpdateProjectTool: ToolConfig<
       if (params.description != null && params.description !== '') {
         input.description = params.description
       }
-      if (params.state != null && params.state !== '') {
-        input.state = params.state
+      if (params.statusId != null && params.statusId !== '') {
+        input.statusId = params.statusId
+      } else if (params.state != null && params.state !== '') {
+        throw new Error(
+          'Linear no longer accepts a project state. Set a project status ID (statusId) instead; List Project Statuses returns the available IDs.'
+        )
       }
       if (params.leadId != null && params.leadId !== '') {
         input.leadId = params.leadId
@@ -115,6 +127,11 @@ export const linearUpdateProjectTool: ToolConfig<
                 name
                 description
                 state
+                status {
+                  id
+                  name
+                  type
+                }
                 priority
                 startDate
                 targetDate
@@ -170,6 +187,7 @@ export const linearUpdateProjectTool: ToolConfig<
           name: project.name,
           description: project.description,
           state: project.state,
+          status: project.status,
           priority: project.priority,
           startDate: project.startDate,
           targetDate: project.targetDate,

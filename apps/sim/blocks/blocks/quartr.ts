@@ -1,6 +1,7 @@
 import { QuartrIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const ALL_LIST_OPERATIONS = [
   'list_companies',
@@ -48,6 +49,8 @@ const COMPANY_FILTER_FIELD = ['tickers', 'companyIds'] as const
 
 export const QuartrBlock: BlockConfig = {
   type: 'quartr',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'quartr_v2' },
   name: 'Quartr',
   description: 'Access earnings calls, transcripts, filings, and slides',
   authMode: AuthMode.ApiKey,
@@ -713,3 +716,19 @@ export const QuartrBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const QuartrV2Block: BlockConfig = {
+  ...QuartrBlock,
+  type: 'quartr_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Look up companies, corporate events, and event types, retrieve AI-generated event summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams.',
+  ...withSavedCredential(QuartrBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'quartr',
+    title: 'Quartr Credential',
+  }),
+}

@@ -61,11 +61,33 @@ Google and Microsoft share their client credentials with integrations. Register 
 
 ## Control registration and sign-in [#controlling-who-can-sign-up]
 
+`REGISTRATION_MODE` decides who can create an account and whether email/password and email OTP work at all:
+
+| `REGISTRATION_MODE` | New accounts | Email/password and email OTP sign-in |
+| --- | --- | --- |
+| `open` (default) | Any enabled method | On |
+| `no-email-signup` | Social login only | On |
+| `closed` | None | On |
+| `no-email` | Social login only | **Off, including for existing accounts** |
+| `closed-no-email` | None | **Off, including for existing accounts** |
+
+In the `closed` modes, existing accounts can still sign in, including to accept workspace invitations. No mode affects accounts created by SSO on first sign-in or by SCIM provisioning. An unrecognized value closes self-serve registration (sign-in keeps working) and logs an error until you correct it.
+
+`REGISTRATION_MODE` replaces three variables. They still work and log a deprecation warning; set alongside `REGISTRATION_MODE`, the more restrictive setting wins:
+
+| Deprecated variable | Equivalent |
+| --- | --- |
+| `DISABLE_REGISTRATION=true` | `closed` |
+| `DISABLE_EMAIL_SIGNUP=true` | `no-email-signup` |
+| `EMAIL_PASSWORD_SIGNUP_ENABLED=false` (or `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED=false`) | `no-email` |
+| `DISABLE_REGISTRATION=true` with `EMAIL_PASSWORD_SIGNUP_ENABLED=false` | `closed-no-email` |
+
+`NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED=false` used to only hide the email form in the browser. It now also turns off email/password and email OTP sign-in on the server for every account, existing ones included; set `REGISTRATION_MODE` explicitly to choose the behavior you want.
+
+The other sign-in controls:
+
 | Variable | Effect |
 | --- | --- |
-| `DISABLE_REGISTRATION=true` | Blocks new email/password, email OTP, and social accounts. Existing accounts can sign in, including to accept workspace invitations. SSO registration is unaffected. |
-| `DISABLE_EMAIL_SIGNUP=true` | Blocks new email/password and email OTP registrations. Existing accounts can still sign in through those methods. |
-| `EMAIL_PASSWORD_SIGNUP_ENABLED=false` | Disables email/password and email OTP sign-in and signup, including for existing accounts. |
 | `ALLOWED_LOGIN_DOMAINS` | Comma-separated email domain allowlist, such as `acme.com,acme.co.uk`. Applies to email/password and email OTP sign-in as well as email signup. |
 | `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist. An address or its domain may satisfy the allowlists. |
 | `BLOCKED_SIGNUP_DOMAINS` | Comma-separated blocked domains. Blocks signup, sign-in, and executions for addresses in those domains, including subdomains. |
@@ -74,16 +96,15 @@ Google and Microsoft share their client credentials with integrations. Register 
 | `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to reject when MX validation is enabled. |
 
 <Callout type="warn">
-  Email allowlists do not filter first-time Google, GitHub, or Microsoft sign-in. To restrict social access, disable login providers you have not vetted or restrict membership through your identity provider and use SSO. MX validation applies only to email/password signup, not sign-in or email OTP. Registration-disabled and blocked-domain/address controls also cover social accounts.
+  Email allowlists do not filter first-time Google, GitHub, or Microsoft sign-in. To restrict social access, disable login providers you have not vetted or restrict membership through your identity provider and use SSO. MX validation applies only to email/password signup, not sign-in or email OTP. The `closed` registration modes and the blocked-domain/address controls also cover social accounts.
 </Callout>
 
 For example, an installation using SSO while allowing existing company email accounts to sign in can set:
 
 ```bash
 ALLOWED_LOGIN_DOMAINS=acme.com
-DISABLE_EMAIL_SIGNUP=true
+REGISTRATION_MODE=no-email-signup
 SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
 This does not restrict enabled social providers to `acme.com`. Configure or disable those login methods separately.
@@ -94,17 +115,15 @@ For a standard billing-disabled self-hosted deployment, enable the enterprise su
 
 ```bash
 ENTERPRISE_ENABLED=true
-NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
 Or enable SSO alone:
 
 ```bash
 SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-Set both the server flag and its UI counterpart. Register providers under **Settings → Organization → Single sign-on**. A provider can belong to an organization or be registered without one.
+Restart the app after changing either. Register providers under **Settings → Organization → Single sign-on**. A provider can belong to an organization or be registered without one.
 
 Most other enterprise features read settings from the organization that owns a workspace. Set `INSTANCE_ORG_NAME` to place new members in one organization, or provision organizations through the Admin API. See [SSO](/platform/enterprise/sso) and [Self-hosted enterprise features](/platform/enterprise/self-hosted) for provider setup, organization patterns, and billing-enabled behavior.
 

@@ -2,6 +2,7 @@ import type {
   AppConfigStopDeploymentParams,
   AppConfigStopDeploymentResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const stopDeploymentTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const stopDeploymentTool: InternalToolConfig<
   name: 'AppConfig Stop Deployment',
   description: 'Stop an in-progress AWS AppConfig deployment',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

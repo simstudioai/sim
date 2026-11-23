@@ -1402,6 +1402,20 @@ export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
 })
 
+/**
+ * `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/content`: the original bytes
+ * of an uploaded document, as stored.
+ */
+export const v2DownloadKnowledgeDocumentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content',
+  params: v2KnowledgeDocumentParamsSchema,
+  query: z
+    .object({ workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.') })
+    .strict(),
+  response: { mode: 'binary' },
+})
+
 export const v2GetKnowledgeDocumentContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
@@ -1777,7 +1791,9 @@ export const v2KnowledgeConnectorSchema = z
     credentialId: z
       .string()
       .nullable()
-      .describe('OAuth credential identifier, or null for API-key and unauthenticated sources.'),
+      .describe(
+        'OAuth credential identifier, or the saved credential an `apiKey` source syncs with (see `auth.savedCredential`); null for unauthenticated sources and for `apiKey` sources that use an inline API key.'
+      ),
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
       .describe('Connector-specific source selection and filtering configuration.'),
@@ -1932,7 +1948,7 @@ export const v2CreateKnowledgeConnectorBodySchema = z
       .max(255)
       .optional()
       .describe(
-        'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.'
+        'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.'
       ),
     apiKey: z
       .string()

@@ -2,6 +2,7 @@ import type {
   GrafanaCreateDashboardParams,
   GrafanaCreateDashboardResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDashboardTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createDashboardTool: ToolConfig<
   name: 'Grafana Create Dashboard',
   description: 'Create a new dashboard',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -110,15 +112,19 @@ export const createDashboardTool: ToolConfig<
         refresh: params.refresh || '',
       }
 
-      if (params.panels) {
+      let panels: unknown = params.panels || []
+      if (typeof panels === 'string' && !panels.trim()) panels = []
+      if (typeof panels === 'string') {
         try {
-          dashboard.panels = JSON.parse(params.panels)
+          panels = JSON.parse(panels)
         } catch {
-          dashboard.panels = []
+          throw new Error('Invalid JSON for panels parameter')
         }
-      } else {
-        dashboard.panels = []
       }
+      if (!Array.isArray(panels)) {
+        throw new Error('panels must be a JSON array of panel objects')
+      }
+      dashboard.panels = panels
 
       const body: Record<string, any> = {
         dashboard,

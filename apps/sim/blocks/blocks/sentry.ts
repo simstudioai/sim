@@ -2,10 +2,13 @@ import { Bug } from '@sim/emcn/icons'
 import { SentryIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const SentryBlock: BlockConfig = {
   type: 'sentry',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sentry_v2' },
   name: 'Sentry',
   description: 'Manage Sentry issues, projects, events, and releases',
   authMode: AuthMode.ApiKey,
@@ -92,9 +95,9 @@ export const SentryBlock: BlockConfig = {
 
     {
       id: 'projectSlug',
-      title: 'Project ID',
+      title: 'Project ID or Slug',
       type: 'short-input',
-      placeholder: 'Numeric project ID (optional)',
+      placeholder: 'Project ID or slug (optional)',
       condition: { field: 'operation', value: 'sentry_issues_list' },
       mode: 'advanced',
     },
@@ -199,6 +202,19 @@ Return ONLY the search query.`,
         { label: 'Unresolved', id: 'unresolved' },
         { label: 'Ignored', id: 'ignored' },
         { label: 'Resolved in Next Release', id: 'resolvedInNextRelease' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'sentry_issues_update' },
+    },
+    {
+      id: 'priority',
+      title: 'New Priority',
+      type: 'dropdown',
+      options: [
+        { label: 'No Change', id: '' },
+        { label: 'High', id: 'high' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'Low', id: 'low' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'sentry_issues_update' },
@@ -384,7 +400,7 @@ Return ONLY the search query.`,
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '50',
+      placeholder: '10',
       condition: { field: 'operation', value: 'sentry_events_list' },
       mode: 'advanced',
     },
@@ -416,9 +432,9 @@ Return ONLY the search query.`,
 
     {
       id: 'projectSlug',
-      title: 'Project ID',
+      title: 'Project ID or Slug',
       type: 'short-input',
-      placeholder: 'Numeric project ID (optional)',
+      placeholder: 'Project ID or slug (optional)',
       condition: { field: 'operation', value: 'sentry_releases_list' },
       mode: 'advanced',
     },
@@ -734,6 +750,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     apiKey: { type: 'string', description: 'Sentry API authentication token' },
     organizationSlug: { type: 'string', description: 'Organization slug' },
     issueId: { type: 'string', description: 'Issue ID' },
+    priority: { type: 'string', description: 'Issue priority (low, medium, high)' },
     assignedTo: { type: 'string', description: 'User to assign issue to' },
     isBookmarked: { type: 'boolean', description: 'Bookmark state' },
     isSubscribed: { type: 'boolean', description: 'Subscription state' },
@@ -885,3 +902,17 @@ export const SentryBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SentryV2Block: BlockConfig = {
+  ...SentryBlock,
+  type: 'sentry_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SentryBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sentry',
+    title: 'Sentry Credential',
+  }),
+}

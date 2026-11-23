@@ -3,6 +3,7 @@ import type {
   GranolaDeleteWebhookEndpointResponse,
 } from '@/tools/granola/types'
 import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteWebhookEndpointTool: ToolConfig<
@@ -14,6 +15,7 @@ export const deleteWebhookEndpointTool: ToolConfig<
   description:
     'Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediately.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

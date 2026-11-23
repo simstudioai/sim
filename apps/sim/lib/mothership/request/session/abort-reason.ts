@@ -24,12 +24,18 @@ export const AbortReason = {
   RedisPoller: 'redis_abort_marker:poller',
   /**
    * Cross-process stop: same root cause as `RedisPoller`, but observed
-   * by `runStreamLoop` at body close (the Go body ended before the
+   * by `runStreamLoop` at body close (the worker's body ended before the
    * 250ms poller's next tick) rather than by the polling timer.
    */
   MarkerObservedAtBodyClose: 'redis_abort_marker:body_close',
-  /** Internal timeout on the outbound explicit-abort fetch to Go. */
-  ExplicitAbortFetchTimeout: 'timeout:go_explicit_abort_fetch',
+  /**
+   * The turn's cancelled verdict came from the worker's terminal, which it sends only for a
+   * Stop, while this node's signal never fired: the Stop reached the worker another way.
+   * Classification only; nothing aborts with it.
+   */
+  WorkerTerminalStop: 'worker_terminal:cancelled',
+  /** Internal timeout on the outbound explicit-abort fetch to the worker. */
+  ExplicitAbortFetchTimeout: 'timeout:explicit_abort_fetch',
 } as const
 
 export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
@@ -41,12 +47,13 @@ export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
  * `AbortReason` is presumed non-explicit. This is the canonical
  * "should I treat this cancellation as expected?" predicate: span
  * status-setters consult it to suppress ERROR only for user-initiated
- * stops, mirroring `requestctx.IsExplicitUserStop` on the Go side.
+ * stops.
  */
 export function isExplicitStopReason(reason: unknown): boolean {
   return (
     reason === AbortReason.UserStop ||
     reason === AbortReason.RedisPoller ||
-    reason === AbortReason.MarkerObservedAtBodyClose
+    reason === AbortReason.MarkerObservedAtBodyClose ||
+    reason === AbortReason.WorkerTerminalStop
   )
 }

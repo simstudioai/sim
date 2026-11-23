@@ -10,6 +10,7 @@ import {
   throwCirclebackError,
   toIdList,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCompaniesTool: ToolConfig<
@@ -21,6 +22,7 @@ export const listCompaniesTool: ToolConfig<
   description:
     'Lists the companies whose people attend the authenticated user meetings, with optional tag filters.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,7 +2,7 @@
 title: Vercel
 description: Manage Vercel deployments, projects, and infrastructure
 integration:
-  type: "vercel"
+  type: "vercel_v2"
   color: "#171717"
 ---
 
@@ -29,7 +29,6 @@ List deployments for a Vercel project or team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | No | Filter deployments by project ID or name |
 | `target` | string | No | Filter by environment: production or staging |
 | `state` | string | No | Filter by state: BUILDING, ERROR, INITIALIZING, QUEUED, READY, CANCELED, BLOCKED |
@@ -77,7 +76,6 @@ Get details of a specific Vercel deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The unique deployment identifier or hostname |
 | `withGitRepoInfo` | string | No | Whether to add in gitRepo information \(true/false\) |
 | `teamId` | string | No | Team ID to scope the request |
@@ -136,7 +134,6 @@ Create a new deployment or redeploy an existing one
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `name` | string | Yes | Project name for the deployment |
 | `project` | string | No | Project ID \(overrides name for project lookup\) |
 | `deploymentId` | string | No | Existing deployment ID to redeploy |
@@ -175,7 +172,6 @@ Cancel a running Vercel deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The deployment ID to cancel |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -204,7 +200,6 @@ Delete a Vercel deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The deployment ID or URL to delete |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -228,7 +223,6 @@ Get build and runtime events for a Vercel deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The unique deployment identifier or hostname |
 | `direction` | string | No | Order of events by timestamp: backward or forward \(default: forward\) |
 | `follow` | number | No | When set to 1, returns live events as they happen |
@@ -266,7 +260,6 @@ List files in a Vercel deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | The deployment ID to list files for |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -299,7 +292,6 @@ Promote a deployment by pointing the production deployment to the given deployme
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `deploymentId` | string | Yes | The ID of the deployment to promote to production |
 | `teamId` | string | No | Team ID to scope the request |
@@ -323,7 +315,6 @@ List all projects in a Vercel team or account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `search` | string | No | Search projects by name |
 | `limit` | number | No | Maximum number of projects to return |
 | `from` | string | No | Continuation token for pagination, taken from the previous response's pagination.next value. Query only projects updated after this timestamp or continuation token. |
@@ -358,7 +349,6 @@ Get details of a specific Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -391,7 +381,6 @@ Create a new Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `name` | string | Yes | Project name |
 | `framework` | string | No | Project framework \(e.g. nextjs, remix, vite\) |
 | `gitRepository` | json | No | Git repository connection object with type and repo |
@@ -426,7 +415,6 @@ Update an existing Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `name` | string | No | New project name |
 | `framework` | string | No | Project framework \(e.g. nextjs, remix, vite\) |
@@ -460,7 +448,6 @@ Delete a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -483,7 +470,6 @@ Pause a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -508,7 +494,6 @@ Unpause a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -533,7 +518,6 @@ List all domains for a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -573,7 +557,6 @@ Add a domain to a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `domain` | string | Yes | Domain name to add |
 | `redirect` | string | No | Target domain for redirect |
@@ -613,7 +596,6 @@ Remove a domain from a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `domain` | string | Yes | Domain name to remove |
 | `teamId` | string | No | Team ID to scope the request |
@@ -637,7 +619,6 @@ Update a project domain's configuration on Vercel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `domain` | string | Yes | Domain name to update |
 | `redirect` | string | No | Target destination domain for redirect |
@@ -677,7 +658,6 @@ Verify a Vercel project domain by checking its verification challenge
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `domain` | string | Yes | Domain name to verify |
 | `teamId` | string | No | Team ID to scope the request |
@@ -709,7 +689,6 @@ Retrieve environment variables for a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `decrypt` | boolean | No | If true, decrypted variable values are returned instead of ciphertext |
 | `gitBranch` | string | No | Filter results to the environment variables for this git branch \(must have target=preview\) |
@@ -744,7 +723,6 @@ Create an environment variable for a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `key` | string | Yes | Environment variable name |
 | `value` | string | Yes | Environment variable value |
@@ -781,7 +759,6 @@ Update an environment variable for a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `envId` | string | Yes | Environment variable ID to update |
 | `key` | string | No | New variable name |
@@ -819,7 +796,6 @@ Delete an environment variable from a Vercel project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | Yes | Project ID or name |
 | `envId` | string | Yes | Environment variable ID to delete |
 | `teamId` | string | No | Team ID to scope the request |
@@ -843,7 +819,6 @@ List all domains in a Vercel account or team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `limit` | number | No | Maximum number of domains to return \(default 20\) |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -887,7 +862,6 @@ Get information about a specific domain in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to retrieve |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -928,7 +902,6 @@ Add a new domain to a Vercel account or team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `name` | string | Yes | The domain name to add |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -966,7 +939,6 @@ Delete a domain from a Vercel account or team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to delete |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -990,7 +962,6 @@ Get the configuration for a domain in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to get configuration for |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -1021,7 +992,6 @@ List all DNS records for a domain in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to list records for |
 | `limit` | number | No | Maximum number of records to return |
 | `teamId` | string | No | Team ID to scope the request |
@@ -1059,7 +1029,6 @@ Create a DNS record for a domain in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name to create the record for |
 | `recordName` | string | Yes | The subdomain or record name |
 | `recordType` | string | Yes | DNS record type \(A, AAAA, ALIAS, CAA, CNAME, HTTPS, MX, SRV, TXT, NS\) |
@@ -1096,7 +1065,6 @@ Update an existing DNS record for a domain in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `recordId` | string | Yes | The ID of the DNS record to update |
 | `name` | string | No | The name of the DNS record |
 | `value` | string | No | The value of the DNS record |
@@ -1141,7 +1109,6 @@ Delete a DNS record for a domain in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `domain` | string | Yes | The domain name the record belongs to |
 | `recordId` | string | Yes | The ID of the DNS record to delete |
 | `teamId` | string | No | Team ID to scope the request |
@@ -1165,7 +1132,6 @@ List aliases for a Vercel project or team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | No | Filter aliases by project ID |
 | `domain` | string | No | Filter aliases by domain |
 | `limit` | number | No | Maximum number of aliases to return |
@@ -1203,7 +1169,6 @@ Get details about a specific alias by ID or hostname
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `aliasId` | string | Yes | Alias ID or hostname to look up |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -1236,7 +1201,6 @@ Assign an alias (domain/subdomain) to a deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID to assign the alias to |
 | `alias` | string | Yes | The domain or subdomain to assign as an alias |
 | `redirect` | string | No | Hostname to 307-redirect the alias to instead of serving the deployment directly |
@@ -1264,7 +1228,6 @@ Delete an alias by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `aliasId` | string | Yes | Alias ID to delete |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -1287,7 +1250,6 @@ List all Edge Config stores for a team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `teamId` | string | No | Team ID to scope the request |
 
 #### Output
@@ -1317,7 +1279,6 @@ Get details about a specific Edge Config store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `edgeConfigId` | string | Yes | Edge Config ID to look up |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1346,7 +1307,6 @@ Create a new Edge Config store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `slug` | string | Yes | The name/slug for the new Edge Config |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1375,7 +1335,6 @@ Get all items in an Edge Config store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `edgeConfigId` | string | Yes | Edge Config ID to get items from |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1404,7 +1363,6 @@ Create, update, upsert, or delete items in an Edge Config store
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `edgeConfigId` | string | Yes | Edge Config ID to update items in |
 | `items` | json | Yes | Array of operations: \[\{operation: "create"\|"update"\|"upsert"\|"delete", key: string, value?: any\}\] |
 | `teamId` | string | No | Team ID to scope the request |
@@ -1427,7 +1385,6 @@ Delete an Edge Config store by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `edgeConfigId` | string | Yes | Edge Config ID to delete |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1449,7 +1406,6 @@ List webhooks for a Vercel project or team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `projectId` | string | No | Filter webhooks by project ID |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1480,7 +1436,6 @@ Get details about a specific Vercel webhook
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `webhookId` | string | Yes | Webhook ID to look up |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1508,7 +1463,6 @@ Create a new webhook for a Vercel team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `url` | string | Yes | Webhook URL \(must be https\) |
 | `events` | string | Yes | Comma-separated event names to subscribe to |
 | `projectIds` | string | No | Comma-separated project IDs to scope the webhook to |
@@ -1539,7 +1493,6 @@ Delete a webhook from a Vercel team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `webhookId` | string | Yes | The webhook ID to delete |
 | `teamId` | string | No | Team ID to scope the request |
 
@@ -1561,7 +1514,6 @@ Create a new deployment check
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID to create the check for |
 | `name` | string | Yes | Name of the check \(max 100 characters\) |
 | `blocking` | boolean | Yes | Whether the check blocks the deployment |
@@ -1605,7 +1557,6 @@ Get details of a specific deployment check
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID the check belongs to |
 | `checkId` | string | Yes | Check ID to retrieve |
 | `teamId` | string | No | Team ID to scope the request |
@@ -1644,7 +1595,6 @@ List all checks for a deployment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID to list checks for |
 | `teamId` | string | No | Team ID to scope the request |
 | `slug` | string | No | Team slug to scope the request \(alternative to teamId\) |
@@ -1684,7 +1634,6 @@ Update an existing deployment check
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID the check belongs to |
 | `checkId` | string | Yes | Check ID to update |
 | `name` | string | No | Updated name of the check |
@@ -1730,7 +1679,6 @@ Rerequest a deployment check
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `deploymentId` | string | Yes | Deployment ID the check belongs to |
 | `checkId` | string | Yes | Check ID to rerequest |
 | `teamId` | string | No | Team ID to scope the request |
@@ -1755,7 +1703,6 @@ List all teams in a Vercel account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `limit` | number | No | Maximum number of teams to return |
 | `since` | number | No | Timestamp in milliseconds to only include teams created since then |
 | `until` | number | No | Timestamp in milliseconds to only include teams created until then |
@@ -1798,7 +1745,6 @@ Get information about a specific Vercel team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `teamId` | string | Yes | The team ID to retrieve |
 
 #### Output
@@ -1837,7 +1783,6 @@ List all members of a Vercel team
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 | `teamId` | string | Yes | The team ID to list members for |
 | `limit` | number | No | Maximum number of members to return |
 | `role` | string | No | Filter by role \(OWNER, MEMBER, DEVELOPER, SECURITY, BILLING, VIEWER, VIEWER_FOR_PLUS, CONTRIBUTOR\) |
@@ -1881,7 +1826,6 @@ Get information about the authenticated Vercel user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Vercel Access Token |
 
 #### Output
 

@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveCpdEntryResponse, ThriveGetCpdEntryParams } from '@/tools/thrive/types'
 import { THRIVE_CPD_ENTRY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCpdEntryTool: ToolConfig<ThriveGetCpdEntryParams, ThriveCpdEntryResponse> = {
   id: 'thrive_get_cpd_entry',
   name: 'Thrive Get CPD Entry',
   description: 'Get a single CPD log entry in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -38,7 +41,7 @@ export const getCpdEntryTool: ToolConfig<ThriveGetCpdEntryParams, ThriveCpdEntry
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/cpdEntries/${encodeURIComponent(params.logEntryId)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/cpdEntries/${safeUrlPathSegment(params.logEntryId, 'logEntryId')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

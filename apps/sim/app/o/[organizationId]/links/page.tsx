@@ -6,7 +6,7 @@ import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { SimLinks } from '@/app/o/[organizationId]/links/sim-links'
 
-export const metadata: Metadata = { title: 'Sim Links' }
+export const metadata: Metadata = { title: 'Links' }
 
 interface SimLinksPageProps {
   params: Promise<{ organizationId: string }>

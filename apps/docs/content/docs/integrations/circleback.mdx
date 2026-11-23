@@ -2,7 +2,7 @@
 title: Circleback
 description: Read Circleback meetings, notes, transcripts, and action items
 integration:
-  type: "circleback"
+  type: "circleback_v2"
   color: "linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
 ---
 
@@ -33,7 +33,6 @@ Lists meetings from Circleback with optional ownership, status, tag, and attende
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `ownership` | string | No | Which meetings to return: All, Mine, or Shared. Defaults to Mine |
 | `statuses` | string | No | Comma-separated meeting statuses to filter by |
 | `tagIds` | string | No | Comma-separated tag IDs to filter by |
@@ -91,7 +90,6 @@ Gets a Circleback meeting by ID, including notes, attendees, action items, insig
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `meetingId` | string | Yes | The unique identifier of the meeting |
 
 #### Output
@@ -142,7 +140,6 @@ Searches Circleback meetings by name and content, with optional filters for spec
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `searchTerm` | string | No | The text to search for across meeting names and content |
 | `meetingIds` | string | No | Comma-separated meeting IDs to restrict the search to |
 | `tagIds` | string | No | Comma-separated tag IDs to restrict the search to |
@@ -200,7 +197,6 @@ Gets the full transcript for a Circleback meeting.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `meetingId` | string | Yes | The unique identifier of the meeting |
 
 #### Output
@@ -224,7 +220,6 @@ Updates the name, notes, or private notes of a Circleback meeting. The API retur
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `meetingId` | string | Yes | The unique identifier of the meeting |
 | `name` | string | No | The new name of the meeting |
 | `notes` | string | No | The new meeting notes in Markdown |
@@ -252,7 +247,6 @@ Deletes a Circleback meeting. Only the owner of the meeting can delete it. Retur
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `meetingId` | string | Yes | The unique identifier of the meeting |
 
 #### Output
@@ -303,7 +297,6 @@ Lists action items across the authenticated user meetings, filtered by assignee,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `assigneeType` | string | No | The assignee scope to filter by: Me, NotMe, Profile, MyWorkspace, OutsideMyWorkspace, Unassigned, or Anyone. Defaults to Me |
 | `assigneeProfileId` | string | No | Profile ID of the assignee to filter by |
 | `assigneeTeamId` | string | No | Team ID of the assignee to filter by |
@@ -344,7 +337,6 @@ Updates the title, description, status, or assignee of a Circleback action item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `actionItemId` | string | Yes | The unique identifier of the action item |
 | `title` | string | No | The new title of the action item |
 | `description` | string | No | The new detailed description of the action item |
@@ -380,7 +372,6 @@ Deletes a Circleback action item. Returns the deleted action item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `actionItemId` | string | Yes | The unique identifier of the action item |
 
 #### Output
@@ -412,7 +403,6 @@ Lists upcoming calendar events from the authenticated user connected calendars, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `startTimeLookbackHours` | string | No | How many hours in the past to include calendar meetings from |
 | `startTimeLookaheadHours` | string | No | How many hours in the future to include calendar meetings from |
 | `sortDirection` | string | No | The direction calendar meetings are sorted in by start time: ascending or descending. Defaults to ascending |
@@ -462,7 +452,6 @@ Lists the companies whose people attend the authenticated user meetings, with op
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `tagIds` | string | No | Comma-separated tag IDs. Filters companies to those with meetings so tagged |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
@@ -490,7 +479,6 @@ Gets a company by its domain from Circleback, including its people and external 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `domain` | string | Yes | The website domain of the company to fetch, such as example.com |
 
 #### Output
@@ -525,7 +513,6 @@ Lists the people who attend the authenticated user meetings, ordered by most rec
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `domains` | string | No | Comma-separated company domains to filter people by |
 | `tagIds` | string | No | Comma-separated tag IDs. Filters people to attendees of meetings so tagged |
 | `limit` | string | No | The maximum number of people to return |
@@ -558,7 +545,6 @@ Gets a person by their profile ID from Circleback, including their profile detai
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `profileId` | string | Yes | The unique identifier of the person profile |
 
 #### Output
@@ -589,7 +575,6 @@ Lists every tag available to the authenticated Circleback user.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 
 #### Output
 
@@ -612,7 +597,6 @@ Creates a new tag in Circleback. If a tag with the same name already exists, a c
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `tagName` | string | Yes | The display name of the tag |
 | `tagDescription` | string | No | A description of the tag |
 
@@ -636,7 +620,6 @@ Updates the name or description of a Circleback tag.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `tagId` | string | Yes | The unique identifier of the tag |
 | `tagName` | string | No | The new display name of the tag |
 | `tagDescription` | string | No | The new description of the tag |
@@ -661,7 +644,6 @@ Permanently deletes a Circleback tag and removes it from every meeting it was ap
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `tagId` | string | Yes | The unique identifier of the tag |
 
 #### Output
@@ -684,7 +666,6 @@ Applies an existing Circleback tag to one or more meetings and returns the updat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `tagId` | string | Yes | The unique identifier of the tag to apply |
 | `meetingIds` | string | No | Comma-separated IDs of the meetings to tag |
 
@@ -737,7 +718,6 @@ Removes a Circleback tag from one or more meetings and returns the updated meeti
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Circleback API key |
 | `tagId` | string | Yes | The unique identifier of the tag to remove |
 | `meetingIds` | string | No | Comma-separated IDs of the meetings to remove the tag from |
 

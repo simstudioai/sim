@@ -1013,27 +1013,6 @@ export const powerAutomateProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'No: Power Platform offers only partial branding options, such as custom domains for Power Pages/portals, and lacks native white-labeling for the core app/flow UI. There is no native way to rebrand or remove Microsoft branding from canvas apps or the Power Apps/Power Automate product UI itself.',
-        detail:
-          'Custom domains exist only for Power Pages (portals), not for canvas apps, model-driven apps, or the Power Automate flow designer itself.',
-        shortValue: 'No native full white-labeling of core product UI',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://d365update.com/power-apps-portal-custom-domains/',
-            label: 'Power Apps Portal Custom Domains - d365update.com',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://community.powerplatform.com/forums/thread/details/?threadid=76b575a4-f741-46fc-84e0-8de11a6f7b78',
-            label:
-              'Can we Rebrand Power APP mobile app for our own company - Power Platform Community',
-            asOf: '2026-07-08',
-          },
-        ],
-      },
       dataRetention: {
         value:
           "Yes: Power Platform admins can configure the run-history retention (time-to-live) for cloud flow runs stored in Dataverse via the Power Platform admin center, choosing 28 days (default), 14 days, 7 days, or Disabled, and can set a fully custom retention value directly via the Dataverse Organization table's FlowRunTimeToLiveInSeconds field.",

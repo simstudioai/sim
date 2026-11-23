@@ -34,7 +34,10 @@ import {
 } from '@/lib/billing/organizations/provision-seat'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import {
+  hasUsableSubscriptionStatus,
+  isTrialingSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -525,6 +528,7 @@ export async function getInvitationJoinPreview(
       if (
         !personalSub ||
         !hasUsableSubscriptionStatus(personalSub.status) ||
+        isTrialingSubscription(personalSub) ||
         !(isPro(personalSub.plan) || isTeam(personalSub.plan))
       ) {
         return withOutcome('blocked')

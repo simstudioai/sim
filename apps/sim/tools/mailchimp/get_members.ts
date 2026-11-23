@@ -3,7 +3,9 @@ import {
   handleMailchimpError,
   type MailchimpMember,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetMembersParams {
   apiKey: string
@@ -30,6 +32,7 @@ export const mailchimpGetMembersTool: ToolConfig<
   name: 'Get Members from Mailchimp Audience',
   description: 'Retrieve a list of members from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -72,7 +75,10 @@ export const mailchimpGetMembersTool: ToolConfig<
       if (params.offset) queryParams.append('offset', params.offset)
 
       const query = queryParams.toString()
-      const url = buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/members`)
+      const url = buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members`
+      )
       return query ? `${url}?${query}` : url
     },
     method: 'GET',

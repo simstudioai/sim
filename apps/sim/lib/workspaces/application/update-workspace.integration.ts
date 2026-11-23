@@ -1,10 +1,11 @@
 /**
  * Workspace updates against real Postgres: the session route keeps its legacy
- * refusals, and Chat's settings tool renames a workspace only as an admin and
- * never reaches billing or the personal-key policy.
+ * refusals, and Chat's settings tool renames a workspace only as an admin.
+ * Neither can change the billed account, and Chat never reaches the
+ * personal-key policy.
  */
 import { db } from '@sim/db'
-import { auditLog, permissions, user, workspace } from '@sim/db/schema'
+import { auditLog, permissions, user, userStats, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
@@ -23,6 +24,7 @@ import { PATCH } from '@/app/api/workspaces/[id]/route'
 
 const adminId = generateId()
 const secondAdminId = generateId()
+const thirdAdminId = generateId()
 const writerId = generateId()
 const outsiderId = generateId()
 const workspaceId = generateId()
@@ -113,7 +115,7 @@ describe('workspace update operations', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values(
-      [adminId, secondAdminId, writerId, outsiderId].map((id) => ({
+      [adminId, secondAdminId, thirdAdminId, writerId, outsiderId].map((id) => ({
         id,
         name: 'Workspace update fixture',
         email: `${id}@workspace-update.test`,
@@ -122,6 +124,13 @@ describe('workspace update operations', () => {
         updatedAt: now,
       }))
     )
+    // Every real account has a stats row; without one a payer move would fail on the
+    // missing storage aggregate instead of committing, and prove nothing.
+    await db
+      .insert(userStats)
+      .values(
+        [adminId, secondAdminId, thirdAdminId].map((userId) => ({ id: generateId(), userId }))
+      )
     await insertWorkspaceFixture(db, [
       {
         id: workspaceId,
@@ -163,6 +172,13 @@ describe('workspace update operations', () => {
         id: generateId(),
         entityType: 'workspace',
         entityId: workspaceId,
+        userId: thirdAdminId,
+        permissionType: 'admin' as const,
+      },
+      {
+        id: generateId(),
+        entityType: 'workspace',
+        entityId: workspaceId,
         userId: writerId,
         permissionType: 'write' as const,
       },
@@ -173,7 +189,9 @@ describe('workspace update operations', () => {
     await db.delete(auditLog).where(inArray(auditLog.workspaceId, fixtureWorkspaceIds))
     await db.delete(permissions).where(inArray(permissions.entityId, fixtureWorkspaceIds))
     await deleteWorkspaceFixture(db, inArray(workspace.id, fixtureWorkspaceIds))
-    await db.delete(user).where(inArray(user.id, [adminId, secondAdminId, writerId, outsiderId]))
+    await db
+      .delete(user)
+      .where(inArray(user.id, [adminId, secondAdminId, thirdAdminId, writerId, outsiderId]))
   })
 
   describe('session route', () => {
@@ -210,13 +228,14 @@ describe('workspace update operations', () => {
       expect(await response.json()).toMatchObject({ error: 'No updates provided' })
     })
 
-    it('refuses a billed-account change to a non-admin with the legacy message', async () => {
-      signIn(adminId)
-      const response = await patchWorkspace(workspaceId, { billedAccountUserId: writerId })
+    it.each([
+      ['a co-admin who is not the payer', secondAdminId, thirdAdminId],
+      ['the payer, onto an admin who never agreed', adminId, secondAdminId],
+    ])('never lets %s move the billed account', async (_label, actorId, newPayerId) => {
+      signIn(actorId)
+      const response = await patchWorkspace(workspaceId, { billedAccountUserId: newPayerId })
       expect(response.status).toBe(400)
-      expect(await response.json()).toMatchObject({
-        error: 'Billed account must be a workspace admin',
-      })
+      expect(await response.json()).toMatchObject({ error: 'No updates provided' })
       expect((await readWorkspace(workspaceId)).billedAccountUserId).toBe(adminId)
     })
 
@@ -287,7 +306,7 @@ describe('workspace update operations', () => {
       await expect(
         updateWorkspace.execute({
           principal,
-          input: { workspaceId, patch: { billedAccountUserId: adminId } },
+          input: { workspaceId, patch: { allowPersonalApiKeys: false } },
         })
       ).rejects.toThrow('cannot perform operation workspaces.update')
     })

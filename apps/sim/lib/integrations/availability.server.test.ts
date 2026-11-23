@@ -44,8 +44,12 @@ function availabilityFor(
 }
 
 describe('integration availability', () => {
-  it('does not infer GitHub repository OAuth readiness from its API-key workflow block', () => {
-    expect(availabilityFor('github_v2')).toMatchObject({ state: 'ready', oauthAvailable: false })
+  it('does not infer GitHub repository OAuth readiness from its saved-token workflow block', () => {
+    expect(availabilityFor('github_v3')).toMatchObject({
+      state: 'limited',
+      oauthAvailable: false,
+      serviceAccountAvailable: true,
+    })
     expect(
       getOAuthServiceAvailability([{ providerId: 'github-repositories', authType: 'oauth' }])
     ).toEqual([{ providerId: 'github-repositories', available: false }])

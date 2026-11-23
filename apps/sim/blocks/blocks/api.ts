@@ -107,7 +107,7 @@ Example:
       type: 'short-input',
       placeholder: '0',
       description:
-        'Number of retry attempts for timeouts, 429 responses, and 5xx errors (default: 0, no retries)',
+        'Number of retry attempts after a timeout, a connection reset, a 429 or a 5xx response (default: 0, no retries). A host that does not resolve or refuses the connection fails without retrying.',
       mode: 'advanced',
     },
     {

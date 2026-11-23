@@ -5,6 +5,16 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const channelHandlers = new Set<(event: any) => void>()
+/** Whether this process's subscription has landed; publishes before then reach no handler. */
+let subscribed = true
+const readyListeners = new Set<() => void>()
+
+function landSubscription() {
+  subscribed = true
+  const listeners = [...readyListeners]
+  readyListeners.clear()
+  for (const listener of listeners) listener()
+}
 
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
@@ -17,6 +27,19 @@ vi.mock('@/lib/events/pubsub', () => ({
       channelHandlers.add(handler)
       return () => {
         channelHandlers.delete(handler)
+      }
+    },
+    isReady() {
+      return subscribed
+    },
+    onReady(listener: () => void) {
+      if (subscribed) {
+        listener()
+        return () => {}
+      }
+      readyListeners.add(listener)
+      return () => {
+        readyListeners.delete(listener)
       }
     },
     dispose() {},
@@ -44,6 +67,8 @@ describe('copilot orchestrator persistence', () => {
 
   beforeEach(() => {
     channelHandlers.clear()
+    subscribed = true
+    readyListeners.clear()
     revokeExpiredSimToolExecutions.mockResolvedValue([])
     row = null
     getAsyncToolCalls.mockImplementation(async () => (row ? [row] : []))
@@ -182,6 +207,79 @@ describe('copilot orchestrator persistence', () => {
       status: 'background',
       timestamp: '2026-01-01T00:00:01.000Z',
     })
+  })
+
+  it('returns a saved result at once while the subscription never lands', async () => {
+    subscribed = false
+    row = {
+      status: 'completed',
+      error: null,
+      result: { ok: true },
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }
+
+    const result = await waitForToolConfirmation('tool-1', 1_000)
+
+    expect(result).toEqual({
+      status: 'success',
+      data: { ok: true },
+      timestamp: '2026-01-01T00:00:00.000Z',
+    })
+    expect(readyListeners.size).toBe(0)
+  })
+
+  it('reads the durable row again when the subscription lands, so a detach in between is not missed', async () => {
+    vi.useFakeTimers()
+    try {
+      subscribed = false
+      row = {
+        status: 'pending',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+      let result: unknown
+      const waitPromise = waitForToolConfirmation('tool-1', 20_000, undefined, {
+        acceptStatus: (status) => status === 'background',
+      }).then((value) => {
+        result = value
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(result).toBeUndefined()
+
+      // Another pod detaches the call while this one's SUBSCRIBE is still in flight: the row
+      // commits and the publish reaches no handler here.
+      row = {
+        status: 'delivered',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:01.000Z'),
+      }
+      landSubscription()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(result).toEqual({ status: 'background', timestamp: '2026-01-01T00:00:01.000Z' })
+      await waitPromise
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('drops its ready listener when it times out before the subscription lands', async () => {
+    vi.useFakeTimers()
+    try {
+      subscribed = false
+      const waitPromise = waitForToolConfirmation('tool-1', 1_000)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(readyListeners.size).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(waitPromise).resolves.toBeNull()
+      expect(readyListeners.size).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps a no-deadline human wait alive until confirmation arrives', async () => {

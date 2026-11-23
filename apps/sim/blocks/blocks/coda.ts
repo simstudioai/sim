@@ -1,5 +1,6 @@
 import { CodaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 const DOC_FIELD = ['docSelector', 'manualDocId']
 const PAGE_FIELD = ['pageSelector', 'manualPageId']
@@ -109,6 +110,30 @@ const LIMIT_OPERATIONS = [
 const PAGE_TOKEN_OPERATIONS = [...LIMIT_OPERATIONS, 'list_workspace_members']
 
 const LIST_SORT_OPERATIONS = ['list_tables', 'list_formulas', 'list_controls']
+
+/**
+ * Tool params the mapper reads from the same-named field, so a tool call's own value was
+ * already coerced; the tool-call fallback must not restore a value the coercion rejected
+ * (the `'all'` table-type sentinel, an off switch).
+ */
+const SELF_MAPPED_PARAMS = new Set([
+  'tableTypes',
+  'limit',
+  'discoverable',
+  'allowEditorsToChangePermissions',
+  'allowCopying',
+  'allowViewersToRequestEditing',
+  'includeSubpages',
+  'isOwner',
+  'isPublished',
+  'inGallery',
+  'useColumnNames',
+  'useUpdatedTableLayouts',
+  'visibleOnly',
+  'disableParsing',
+  'suppressEmail',
+  'degradeGracefully',
+])
 
 /** Switches only send `true`; an off switch leaves the Coda filter unset. */
 function trueOrUndefined(value: unknown): true | undefined {
@@ -1534,11 +1559,11 @@ Return ONLY the JSON object.`,
     ],
     config: {
       tool: (params) => `coda_${params.operation || 'list_rows'}`,
-      params: (params) => {
-        const operation = params.operation
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const isFolderWrite = operation === 'create_folder' || operation === 'update_folder'
         const pageVisibility = params.pageVisibility
-        return {
+        const mapped: Record<string, unknown> = {
           query:
             operation === 'list_rows'
               ? params.rowFilter
@@ -1571,7 +1596,9 @@ Return ONLY the JSON object.`,
               : params.listSortBy === 'name'
                 ? 'name'
                 : undefined,
-          tableTypes: unlessDefault(params.tableTypes, 'all'),
+          tableTypes: Array.isArray(params.tableTypes)
+            ? params.tableTypes
+            : unlessDefault(params.tableTypes, 'all'),
           mode: unlessDefault(params.publishMode, 'unchanged'),
           discoverable: triState(params.discoverable),
           allowEditorsToChangePermissions: triState(params.allowEditorsToChangePermissions),
@@ -1593,6 +1620,14 @@ Return ONLY the JSON object.`,
           suppressEmail: trueOrUndefined(params.suppressEmail),
           degradeGracefully: trueOrUndefined(params.degradeGracefully),
         }
+        /* A tool call keeps each model arg this mapping leaves unset instead of wiping it;
+           {@link SELF_MAPPED_PARAMS} lists the keys whose drop must stand. */
+        for (const [key, value] of Object.entries(mapped)) {
+          if (value === undefined && !SELF_MAPPED_PARAMS.has(key)) {
+            mapped[key] = toolCallArg(context, params[key])
+          }
+        }
+        return mapped
       },
     },
   },

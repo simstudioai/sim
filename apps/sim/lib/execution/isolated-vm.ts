@@ -7,7 +7,6 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { randomFloat } from '@sim/utils/random'
 import { env, envNumber } from '@/lib/core/config/env'
-import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
@@ -190,8 +189,14 @@ interface PendingExecution {
   timeout: ReturnType<typeof setTimeout>
   ownerKey: string
   brokers?: Record<string, IsolatedVMBrokerHandler>
-  /** Set when the caller aborts. Broker dispatches and the final result stop resolving the promise. */
-  cancelled: boolean
+  /**
+   * Aborted once the pool gives up on the execution (caller abort, timeout, worker loss). Broker
+   * dispatches and the final result stop resolving the promise, and in-flight `fetch` calls are
+   * dropped, since their responses can no longer reach the isolate.
+   */
+  abort: AbortController
+  /** How long the pool waits for a result before giving up; also the longest any one `fetch` may run. */
+  hostTimeoutMs: number
   /** Number of broker calls made so far for this execution. */
   brokerCallCount: number
 }
@@ -387,7 +392,8 @@ function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptio
 async function secureFetch(
   requestId: string,
   url: string,
-  options?: IsolatedFetchOptions
+  options: IsolatedFetchOptions | undefined,
+  signal: AbortSignal
 ): Promise<string> {
   if (url.length > MAX_FETCH_URL_LENGTH) {
     return JSON.stringify({
@@ -398,7 +404,7 @@ async function secureFetch(
   try {
     const response = await secureFetchWithValidation(
       url,
-      normalizeFetchOptions(options),
+      { ...normalizeFetchOptions(options), signal },
       'fetchUrl'
     )
     const bodyResult = truncateString(await response.text(), MAX_FETCH_RESPONSE_CHARS)
@@ -416,9 +422,7 @@ async function secureFetch(
     })
   } catch (error: unknown) {
     const normalizedError = toError(error)
-    logger.warn(`[${requestId}] Isolated fetch failed`, {
-      errorName: normalizedError.name,
-    })
+    logger.warn('Isolated fetch failed', { requestId, errorName: normalizedError.name })
     return JSON.stringify({ error: getErrorMessage(error, 'Unknown fetch error') })
   }
 }
@@ -454,16 +458,7 @@ async function tryAcquireDistributedLease(
   leaseId: string,
   timeoutMs: number
 ): Promise<LeaseAcquireResult> {
-  if (getConfiguredCacheProvider() === 'database') return 'acquired'
-
   const redis = getRedisClient()
-  if (!redis) {
-    logger.warn('No Redis client for distributed lease acquisition; using local limits', {
-      ownerKey,
-    })
-    return 'undetermined'
-  }
-
   const now = Date.now()
   const leaseTtlMs = Math.max(
     timeoutMs + QUEUE_TIMEOUT_MS + DISTRIBUTED_LEASE_GRACE_MS,
@@ -520,8 +515,6 @@ async function tryAcquireDistributedLease(
 
 async function releaseDistributedLease(ownerKey: string, leaseId: string): Promise<void> {
   const redis = getRedisClient()
-  if (!redis) return
-
   const key = ownerRedisKey(ownerKey)
   const script = `
     redis.call('ZREM', KEYS[1], ARGV[1])
@@ -760,7 +753,7 @@ function handleBrokerMessage(
     return
   }
 
-  if (pending.cancelled) {
+  if (pending.abort.signal.aborted) {
     sendResponse({ error: 'Execution cancelled' })
     return
   }
@@ -803,7 +796,7 @@ function handleBrokerMessage(
   Promise.resolve()
     .then(() => pending.runInOutboundScope(() => handler(args, brokerId)))
     .then((resultValue) => {
-      if (pending.cancelled) {
+      if (pending.abort.signal.aborted) {
         sendResponse({ error: 'Execution cancelled' })
         return
       }
@@ -866,9 +859,12 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       // If the caller aborted, the outer Promise is already resolved with
       // AbortError. Still run all the bookkeeping above so pool counters stay
       // accurate; just skip re-resolving.
-      if (!pending.cancelled) {
-        pending.resolve(msg.result as IsolatedVMExecutionResult)
+      const result = msg.result as IsolatedVMExecutionResult
+      if (!pending.abort.signal.aborted) {
+        pending.resolve(result)
       }
+      // The isolate's own timeout gives up on the execution just as the pool's does.
+      if (result.termination === 'timeout') pending.abort.abort()
       drainQueue()
     }
     return
@@ -897,7 +893,7 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       typeof msg.executionId === 'number'
         ? workerInfo?.pendingExecutions.get(msg.executionId)
         : undefined
-    if (!pending || pending.cancelled) {
+    if (!pending || pending.abort.signal.aborted) {
       sendFetchResponse(JSON.stringify({ error: 'Execution no longer active' }))
       return
     }
@@ -928,8 +924,14 @@ function handleWorkerMessage(workerId: number, message: unknown) {
         return
       }
     }
+    // A fetch the script left running after returning is cut off once the execution's own time
+    // budget has passed: nothing can read its response.
+    const signal = AbortSignal.any([
+      pending.abort.signal,
+      AbortSignal.timeout(pending.hostTimeoutMs),
+    ])
     pending
-      .runInOutboundScope(() => secureFetch(requestId, url, options))
+      .runInOutboundScope(() => secureFetch(requestId, url, options, signal))
       .then(sendFetchResponse)
       .catch((err) => {
         sendFetchResponse(JSON.stringify({ error: getErrorMessage(err, 'Fetch failed') }))
@@ -973,6 +975,7 @@ function cleanupWorker(workerId: number, interruptedMessage?: string) {
 
   for (const [id, pending] of workerInfo.pendingExecutions) {
     clearTimeout(pending.timeout)
+    pending.abort.abort()
     totalActiveExecutions--
     const owner = ownerStates.get(pending.ownerKey)
     if (owner) {
@@ -1235,6 +1238,15 @@ function spawnWorker(): Promise<WorkerInfo> {
  * Returns the ready worker with the fewest active executions that still
  * has capacity, or null if none available.
  */
+/** Asks the worker to dispose an execution's isolate, sweeping its timers and pending calls. */
+function sendCancel(workerInfo: WorkerInfo, executionId: number) {
+  try {
+    workerInfo.process.send({ type: 'cancel', executionId })
+  } catch (err) {
+    logger.warn('Failed to send cancel to worker', { err, workerId: workerInfo.id })
+  }
+}
+
 function selectWorker(): WorkerInfo | null {
   let best: WorkerInfo | null = null
   for (const w of workers.values()) {
@@ -1309,8 +1321,14 @@ function dispatchToWorker(
     workerInfo.idleTimeout = null
   }
 
+  const abort = new AbortController()
+  const hostTimeoutMs = req.timeoutMs + 1000
   const timeout = setTimeout(() => {
     workerInfo.pendingExecutions.delete(execId)
+    abort.abort()
+    // A never-settling promise escapes the isolate's own script timeout, so the worker
+    // would otherwise keep the isolate and its timers alive until the worker retires.
+    sendCancel(workerInfo, execId)
     workerInfo.activeExecutions--
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
@@ -1335,7 +1353,7 @@ function dispatchToWorker(
       resetWorkerIdleTimeout(workerInfo.id)
     }
     drainQueue()
-  }, req.timeoutMs + 1000)
+  }, hostTimeoutMs)
 
   workerInfo.pendingExecutions.set(execId, {
     runInOutboundScope: state.runInOutboundScope,
@@ -1343,7 +1361,8 @@ function dispatchToWorker(
     timeout,
     ownerKey: ownerState.ownerKey,
     brokers,
-    cancelled: false,
+    abort,
+    hostTimeoutMs,
     brokerCallCount: 0,
   })
   workerInfo.activeExecutions++
@@ -1677,20 +1696,14 @@ export async function executeInIsolatedVM(
           if (removed) clearTimeout(removed.queueTimeout)
           state.queueId = undefined
         }
-        // If dispatched, mark the pending entry cancelled and ask the worker to
+        // If dispatched, abort the pending entry and ask the worker to
         // dispose its isolate so the pool slot can be released. The worker will
         // emit a `result` shortly after, which runs the normal counter cleanup.
         if (state.workerId !== undefined && state.execId !== undefined) {
           const wi = workers.get(state.workerId)
           const pending = wi?.pendingExecutions.get(state.execId)
-          if (pending) pending.cancelled = true
-          if (wi) {
-            try {
-              wi.process.send({ type: 'cancel', executionId: state.execId })
-            } catch (err) {
-              logger.warn('Failed to send cancel to worker', { err, workerId: state.workerId })
-            }
-          }
+          pending?.abort.abort()
+          if (wi) sendCancel(wi, state.execId)
         }
         resolveWithRelease({
           result: null,

@@ -853,6 +853,7 @@
         "startedAt": "<time>",
         "status": "completed",
         "trigger": "api",
+        "version": null,
         "workflowId": "<workflow>"
       }
     }

@@ -258,10 +258,11 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     try {
       await processWorkflowDeploymentOutboxEvent(eventId)
     } catch (error) {
-      logger.warn(
-        `[${requestId}] Deferred rollback side-effect processing failed (will retry via outbox)`,
-        { eventId, error }
-      )
+      logger.warn('Deferred rollback side-effect processing failed (will retry via outbox)', {
+        requestId,
+        eventId,
+        error,
+      })
     }
   }
 
@@ -301,7 +302,8 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
       }
       if (!activated) pendingActivations.push(reactivation.workflowId)
     } catch (error) {
-      logger.warn(`[${requestId}] Could not verify rollback activation status`, {
+      logger.warn('Could not verify rollback activation status', {
+        requestId,
         workflowId: reactivation.workflowId,
         error,
       })
@@ -323,19 +325,17 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     })
   } else {
     logger.warn(
-      `[${requestId}] Rollback restored drafts but ${pendingActivations.length} activation(s) are still settling; undo point preserved for retry`,
-      { targetWorkspaceId, pendingActivations }
+      `Rollback restored drafts but ${pendingActivations.length} activation(s) are still settling; undo point preserved for retry`,
+      { requestId, targetWorkspaceId, pendingActivations }
     )
   }
 
   if (skipped.size > 0) {
-    logger.warn(
-      `[${requestId}] Rollback skipped ${skipped.size} workflow(s) no longer in the database`,
-      {
-        targetWorkspaceId,
-        skipped: Array.from(skipped),
-      }
-    )
+    logger.warn(`Rollback skipped ${skipped.size} workflow(s) no longer in the database`, {
+      requestId,
+      targetWorkspaceId,
+      skipped: Array.from(skipped),
+    })
   }
 
   // Notify connected canvases to adopt the restored state (reactivated drafts + the
@@ -373,7 +373,8 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
     skippedIds: Array.from(skipped),
   }
 
-  logger.info(`[${requestId}] Rolled back promote into ${targetWorkspaceId}`, {
+  logger.info(`Rolled back promote into ${targetWorkspaceId}`, {
+    requestId,
     restored: result.restored,
     archived: result.archived,
     unarchived: result.unarchived,

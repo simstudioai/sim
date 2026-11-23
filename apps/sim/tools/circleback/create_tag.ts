@@ -9,6 +9,7 @@ import {
   mapTag,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createTagTool: ToolConfig<CirclebackCreateTagParams, CirclebackTagResponse> = {
@@ -17,6 +18,7 @@ export const createTagTool: ToolConfig<CirclebackCreateTagParams, CirclebackTagR
   description:
     'Creates a new tag in Circleback. If a tag with the same name already exists, a conflict error is returned.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

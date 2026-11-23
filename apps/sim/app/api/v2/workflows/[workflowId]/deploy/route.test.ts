@@ -6,6 +6,7 @@ import {
   v2RouteMocks,
 } from '@sim/testing'
 import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createEmptyWorkflowLintReport } from '@sim/testing/factories/workflow-lint.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
@@ -43,13 +44,7 @@ const sideEffectWarning =
   'Deployment activation completed, and post-activation notifications are queued.'
 
 const unquotedRowJson = {
-  sources: [],
-  sinks: [],
-  orphanBlocks: [],
-  emptyOutgoingPorts: [],
-  invalidBranchPorts: [],
-  invalidConnectionTargets: [],
-  fieldIssues: [],
+  ...createEmptyWorkflowLintReport(),
   unresolvedReferences: [
     {
       blockId: 'insert',
@@ -60,8 +55,6 @@ const unquotedRowJson = {
       reason: 'unquoted-json-string: quote it',
     },
   ],
-  tableFieldIssues: [],
-  notes: [],
 }
 
 describe('POST /api/v2/workflows/[workflowId]/deploy', () => {

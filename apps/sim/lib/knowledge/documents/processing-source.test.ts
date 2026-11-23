@@ -643,7 +643,8 @@ describe('processDocumentAsync write guards', () => {
       )
     ).rejects.toBe(databaseError)
 
-    expect(mockLogError).toHaveBeenCalledWith('[document-1] Failed to insert embedding batch', {
+    expect(mockLogError).toHaveBeenCalledWith('Failed to insert embedding batch', {
+      documentId: 'document-1',
       knowledgeBaseId: 'knowledge-base-1',
       operation: 'embedding.insert',
       batchNumber: 1,

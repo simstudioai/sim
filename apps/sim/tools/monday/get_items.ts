@@ -79,6 +79,12 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
       visibility: 'user-or-llm',
       description: 'Maximum number of items to return (default 25, max 500)',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor from a previous Get Items response',
+    },
   },
 
   request: {
@@ -87,14 +93,19 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => {
       const limit = sanitizeLimit(params.limit, 25, 500)
+      if (params.cursor) {
+        return {
+          query: `query { next_items_page(limit: ${limit}, cursor: ${JSON.stringify(params.cursor)}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
+        }
+      }
       const boardId = sanitizeNumericId(params.boardId, 'boardId')
       if (params.groupId) {
         return {
-          query: `query { boards(ids: [${boardId}]) { groups(ids: [${JSON.stringify(params.groupId)}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } } }`,
+          query: `query { boards(ids: [${boardId}]) { groups(ids: [${JSON.stringify(params.groupId)}]) { items_page(limit: ${limit}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } } }`,
         }
       }
       return {
-        query: `query { boards(ids: [${boardId}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } }`,
+        query: `query { boards(ids: [${boardId}]) { items_page(limit: ${limit}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } }`,
       }
     },
   },
@@ -103,31 +114,43 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
     const data = await response.json()
     const error = extractMondayError(data)
     if (error) {
-      return { success: false, output: { items: [], count: 0 }, error }
+      return { success: false, output: { items: [], count: 0, cursor: null }, error }
+    }
+
+    const nextPage = data.data?.next_items_page
+    if (nextPage) {
+      const items = ((nextPage.items as Record<string, unknown>[]) ?? []).map(mapItem)
+      return {
+        success: true,
+        output: { items, count: items.length, cursor: (nextPage.cursor as string) ?? null },
+      }
     }
 
     const boards = data.data?.boards ?? []
     if (boards.length === 0) {
-      return { success: true, output: { items: [], count: 0 } }
+      return { success: true, output: { items: [], count: 0, cursor: null } }
     }
 
     const board = boards[0]
     let rawItems: Record<string, unknown>[] = []
+    let cursor: string | null = null
 
     if (board.groups) {
       for (const group of board.groups) {
         const groupItems = group.items_page?.items ?? []
         rawItems = rawItems.concat(groupItems)
+        cursor = cursor ?? group.items_page?.cursor ?? null
       }
     } else {
       rawItems = board.items_page?.items ?? []
+      cursor = board.items_page?.cursor ?? null
     }
 
     const items = rawItems.map(mapItem)
 
     return {
       success: true,
-      output: { items, count: items.length },
+      output: { items, count: items.length, cursor },
     }
   },
 
@@ -170,6 +193,12 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
     count: {
       type: 'number',
       description: 'Number of items returned',
+    },
+    cursor: {
+      type: 'string',
+      description:
+        'Pagination cursor for fetching the next page (null when there are no more items)',
+      optional: true,
     },
   },
 }

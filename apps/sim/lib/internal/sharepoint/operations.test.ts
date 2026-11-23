@@ -108,6 +108,21 @@ describe('SharePoint operations', () => {
     expect(mocks.uploadGraph).not.toHaveBeenCalled()
   })
 
+  it('refuses a folder path that climbs out of the drive root', async () => {
+    const response = await executeSharePointUploadFile(
+      {
+        accessToken: 'token',
+        siteId: 'contoso.sharepoint.com,guid-1,guid-2',
+        folderPath: '/Reports/../../../../me/drive/root',
+        files: [userFile],
+      },
+      { userId: 'user-1', requestId: 'request-1' }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.uploadGraph).not.toHaveBeenCalled()
+  })
+
   it('keeps a large download in process until a stored file can be presented', async () => {
     const controller = new AbortController()
     mocks.getMetadata.mockResolvedValue({

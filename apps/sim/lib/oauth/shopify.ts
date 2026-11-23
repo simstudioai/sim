@@ -1,4 +1,5 @@
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { resolveConnectDraftOutboundScope } from '@/lib/oauth/connect-scope.server'
 import { connectShopifyInstallation } from '@/lib/oauth/shopify-installation'
 
 interface CompleteShopifyOAuthConnectionParams {
@@ -13,7 +14,12 @@ interface CompleteShopifyOAuthConnectionParams {
 export async function completeShopifyOAuthConnection(
   params: CompleteShopifyOAuthConnectionParams
 ): Promise<void> {
-  const accountId = await connectShopifyInstallation(params)
+  const inDraftScope = await resolveConnectDraftOutboundScope({
+    draftId: params.draftId,
+    userId: params.userId,
+    providerId: 'shopify',
+  })
+  const accountId = await inDraftScope(() => connectShopifyInstallation(params))
   await processCredentialDraft({
     draftId: params.draftId,
     userId: params.userId,

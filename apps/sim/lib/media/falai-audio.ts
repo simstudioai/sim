@@ -159,7 +159,7 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
       { tool: 'generate_audio', envVarName },
       params.signal
     )
-    const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
+    const cost = await recordFalCost({ apiKey, envVarName }, model, requestId, params.onCost)
     const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
     if (!url) throw new Error('No audio URL in Fal.ai clone response')
     const { buffer, contentType } = await downloadFalMedia(url, params.signal)
@@ -185,7 +185,7 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
     { tool: 'generate_audio', envVarName },
     params.signal
   )
-  const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
+  const cost = await recordFalCost({ apiKey, envVarName }, model, requestId, params.onCost)
   const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
   if (!url) throw new Error('No audio URL in Fal.ai response')
 

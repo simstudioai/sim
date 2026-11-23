@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { auditLog, db, user } from '@sim/db'
 import { createLogger, getRequestContext } from '@sim/logger'
 import { createClientIpResolver } from '@sim/security/ip'
@@ -26,6 +27,29 @@ export interface AuditLogParams {
   description?: string
   metadata?: Record<string, unknown>
   request?: { headers: { get(name: string): string | null } }
+}
+
+const correlation = new AsyncLocalStorage<string>()
+
+/**
+ * Runs `work` so that every audit entry recorded inside it (by any use case it calls, rolled up
+ * or not) carries `correlationId` in its metadata: one operation that writes through many use
+ * cases, such as a workspace source apply, can then be read back as one group.
+ */
+export function withAuditCorrelation<T>(correlationId: string, work: () => Promise<T>): Promise<T> {
+  return correlation.run(correlationId, work)
+}
+
+/** The correlation id of the {@link withAuditCorrelation} the caller runs in, if any. */
+export function ambientAuditCorrelation(): string | undefined {
+  return correlation.getStore()
+}
+
+/** `metadata` with the ambient correlation id, unless it already carries one. */
+function correlatedMetadata(metadata: Record<string, unknown> = {}): Record<string, unknown> {
+  const correlationId = ambientAuditCorrelation()
+  if (correlationId === undefined || metadata.correlationId !== undefined) return metadata
+  return { ...metadata, correlationId }
 }
 
 /**
@@ -87,7 +111,7 @@ function buildAuditRow(
     actorEmail: actor.actorEmail ?? undefined,
     resourceName: params.resourceName,
     description: params.description,
-    metadata: params.metadata ?? {},
+    metadata: correlatedMetadata(params.metadata),
     ipAddress: params.request ? clientIpResolver.resolve(params.request.headers) : undefined,
     userAgent: params.request?.headers.get('user-agent') ?? undefined,
     surface,

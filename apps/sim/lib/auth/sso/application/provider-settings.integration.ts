@@ -29,7 +29,12 @@ describe('Organization SSO administration through API credentials', () => {
   const domain = `sso-${suffix}.test`
   const providerId = `saml-${suffix}`
   const apiKeyValue = `sk-sim-${generateId()}`
-  const principal = { kind: 'personal_api_key' as const, userId, keyId: generateId() }
+  const principal = {
+    kind: 'personal_api_key' as const,
+    userId,
+    keyId: generateId(),
+    access: 'write' as const,
+  }
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
 
   async function loadRuntime() {
@@ -1079,7 +1084,12 @@ describe('Organization SSO administration through API credentials', () => {
     const input = { ...config(), organizationId: generateId() }
     await expect(
       runtime.saveSsoProvider.execute({
-        principal: { kind: 'workspace_api_key', keyId: generateId(), workspaceId: generateId() },
+        principal: {
+          kind: 'workspace_api_key',
+          keyId: generateId(),
+          access: 'write',
+          workspaceId: generateId(),
+        },
         input,
       })
     ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })

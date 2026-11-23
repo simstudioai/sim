@@ -2,6 +2,11 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import {
+  loadWorkflowFromNormalizedTablesRaw,
+  type RawNormalizedWorkflow,
+} from '@sim/workflow-persistence/load'
+import { preserveProtectedWorkflowBlocks } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
@@ -209,14 +214,49 @@ export interface ReplaceWorkflowNormalizedStateInput {
    * lock is taken, inside the same transaction, so a concurrent write that
    * commits between a caller's own read and this one cannot be silently
    * overwritten by a stale graph. Passing an already-read value is correct only
-   * when the caller composed it without reading the stored graph.
+   * when the caller composed it without reading the stored graph. A caller that
+   * cannot compose its graph under the lock re-reads the stored graph in the
+   * reader and refuses the write when it changed: the reader is handed the
+   * stored graph this write reads under the lock (raw, before block migrations),
+   * so it never has to read it again.
    */
-  state: ReplaceWorkflowState | ((tx: DbOrTx) => Promise<ReplaceWorkflowState>)
+  state:
+    | ReplaceWorkflowState
+    | ((tx: DbOrTx, stored: RawNormalizedWorkflow) => Promise<ReplaceWorkflowState>)
   requestId?: string
 }
 
+/** The warning a committed graph write returns when its custom tools did not save. */
+export const CUSTOM_TOOLS_NOT_SAVED_WARNING =
+  'The workflow was saved, but its custom tools could not be saved to the workspace tool library. Save the workflow again to retry.'
+
+/**
+ * Saves a committed graph's inline custom tools to the workspace library. The graph write already
+ * stands, so a failure never throws: it is logged and returned as
+ * {@link CUSTOM_TOOLS_NOT_SAVED_WARNING} for the caller's warnings.
+ */
+export async function persistCustomToolsAfterCommit(
+  state: unknown,
+  workspaceId: string,
+  userId: string,
+  logContext: { requestId?: string; workflowId: string }
+): Promise<string[]> {
+  try {
+    const { saved, errors } = await extractAndPersistCustomTools(state, workspaceId, userId)
+    if (saved > 0) logger.info(`Persisted ${saved} custom tool(s) to database`, logContext)
+    if (errors.length === 0) return []
+    logger.warn('Some custom tools failed to persist', { ...logContext, errors })
+  } catch (error) {
+    logger.error('Failed to persist custom tools', { ...logContext, error })
+  }
+  return [CUSTOM_TOOLS_NOT_SAVED_WARNING]
+}
+
 export interface ReplaceWorkflowNormalizedStateResult {
-  /** Non-fatal notes about blocks and edges the preparation step rewrote or dropped. */
+  /**
+   * Non-fatal notes: blocks and edges the preparation step rewrote or dropped, and
+   * {@link CUSTOM_TOOLS_NOT_SAVED_WARNING} when the committed graph's custom tools did not save.
+   */
   warnings: string[]
   /** Exactly what was written, after preparation. */
   state: PreparedWorkflowState
@@ -244,7 +284,6 @@ export async function replaceWorkflowNormalizedState(
   input: ReplaceWorkflowNormalizedStateInput
 ): Promise<ReplaceWorkflowNormalizedStateResult> {
   const { workflowId, workspaceId, attributedUserId, subjectUserId, state, requestId } = input
-  const logPrefix = requestId ? `[${requestId}] ` : ''
 
   /**
    * Hoisted ahead of the transaction even though the shared write checks it
@@ -253,9 +292,8 @@ export async function replaceWorkflowNormalizedState(
    * lock or reaches drizzle's transaction wrapper — so the thrown
    * `OrchestrationError` arrives at callers unwrapped.
    *
-   * A caller that produces its graph from a reader is unaffected: the reader
-   * composes a graph from what is already stored, and this pass covers the
-   * blocks it hands back through the inner check.
+   * A reader's graph does not exist until the lock is held, so it is checked
+   * only by the inner pass.
    */
   if (typeof state !== 'function') {
     await assertNoWithheldBlockType({ workspaceId, subjectUserId }, Object.values(state.blocks))
@@ -287,11 +325,14 @@ export async function replaceWorkflowNormalizedState(
       throw new OrchestrationError('not_found', 'Workflow not found')
     }
 
-    const resolved = typeof state === 'function' ? await state(tx) : state
-    const prepared = prepareWorkflowStateForPersistence({
-      blocks: resolved.blocks,
-      edges: resolved.edges,
-    })
+    const stored = await loadWorkflowFromNormalizedTablesRaw(workflowId, tx)
+    if (!stored) {
+      throw new Error('Failed to read the stored workflow graph')
+    }
+    const resolved = typeof state === 'function' ? await state(tx, stored) : state
+    // Block locks are admin-only and this write is not, so the stored lock state wins.
+    const { blocks, edges } = preserveProtectedWorkflowBlocks(stored, resolved)
+    const prepared = prepareWorkflowStateForPersistence({ blocks, edges })
     preparedState = prepared.state
     warnings = prepared.warnings
     workflowState = {
@@ -336,30 +377,23 @@ export async function replaceWorkflowNormalizedState(
   })
 
   if (!saveResult.success) {
-    logger.error(`${logPrefix}Failed to save workflow ${workflowId} state`, {
+    logger.error(`Failed to save workflow ${workflowId} state`, {
+      requestId,
       error: saveResult.error,
     })
     throw new WorkflowStatePersistenceError(saveResult.error ?? 'Unknown persistence failure')
   }
 
   if (workspaceId) {
-    try {
-      const { saved, errors } = await extractAndPersistCustomTools(
-        workflowState,
-        workspaceId,
-        attributedUserId
-      )
-      if (saved > 0) {
-        logger.info(`${logPrefix}Persisted ${saved} custom tool(s) to database`, { workflowId })
-      }
-      if (errors.length > 0) {
-        logger.warn(`${logPrefix}Some custom tools failed to persist`, { errors, workflowId })
-      }
-    } catch (error) {
-      logger.error(`${logPrefix}Failed to persist custom tools`, { error, workflowId })
-    }
+    warnings.push(
+      ...(await persistCustomToolsAfterCommit(workflowState, workspaceId, attributedUserId, {
+        requestId,
+        workflowId,
+      }))
+    )
   } else {
-    logger.warn(`${logPrefix}Workflow has no workspaceId, skipping custom tools persistence`, {
+    logger.warn('Workflow has no workspaceId, skipping custom tools persistence', {
+      requestId,
       workflowId,
     })
   }

@@ -62,12 +62,12 @@ import {
   supportsSimToolExecution,
 } from '@/lib/mothership/async-runs/lifecycle'
 import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
   traceMothershipQuery,
   traceMothershipTransaction,
 } from '@/lib/mothership/observability/database'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   isDurableStreamRun,
   parseRecordedSecretAuthority,
@@ -604,7 +604,7 @@ export async function recordRunBillingAdmission(
 
 /**
  * The secret authority a turn was admitted with, for a lane that rebuilds its tool context from
- * Go's request instead of inheriting the turn's. Headless runs record it at admission; an
+ * the worker's request instead of inheriting the turn's. Headless runs record it at admission; an
  * interactive chat narrows it only in assistant mode, so its saved request decides. Anything
  * else — no run, another user's or chat's run, an unrecorded headless run — mounts nothing.
  */

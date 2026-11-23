@@ -13,6 +13,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListEntityRelationshipsTool: ToolConfig<
@@ -24,6 +25,7 @@ export const affinityListEntityRelationshipsTool: ToolConfig<
   description:
     'List who knows a company or person, scored 0.0 to 1.0 by how much the two actually interact. Strongest first by default.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

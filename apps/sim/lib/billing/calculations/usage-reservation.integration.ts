@@ -1,6 +1,6 @@
 /**
- * Pooled reservations against real Redis Lua scripts. Skipped without `TEST_REDIS_URL`; the hosted
- * billing flags and the Redis client accessor are the only fixtures.
+ * Pooled reservations against real Redis Lua scripts. The hosted billing flags and the Redis client
+ * accessor are the only fixtures.
  */
 import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { envFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
@@ -19,13 +19,13 @@ vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 const redisUrl = readTestRedisUrl()
 
-describe.runIf(Boolean(redisUrl))('pooled usage reservations with Redis', () => {
+describe('pooled usage reservations with Redis', () => {
   let redis: Redis
   const reservations: string[] = []
   const payer = { type: 'organization' as const, id: generateId() }
 
   beforeAll(async () => {
-    redis = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
+    redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
   })
 

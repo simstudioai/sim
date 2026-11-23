@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListRefundsParams, RefundListResponse } from '@/tools/square/types'
 import {
   LIST_METADATA_OUTPUT_PROPERTIES,
   REFUND_OUTPUT,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareListRefundsTool: ToolConfig<ListRefundsParams, RefundListResp
   name: 'Square List Refunds',
   description: 'List payment refunds, optionally filtered by location, status, and time range',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -62,7 +65,7 @@ export const squareListRefundsTool: ToolConfig<ListRefundsParams, RefundListResp
 
   request: {
     url: (params) => {
-      const url = new URL(`${SQUARE_BASE_URL}/v2/refunds`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/refunds`)
       if (params.locationId) url.searchParams.append('location_id', params.locationId)
       if (params.status) url.searchParams.append('status', params.status)
       if (params.beginTime) url.searchParams.append('begin_time', params.beginTime)

@@ -1,5 +1,6 @@
 import type { DaytonaListFilesParams, DaytonaListFilesResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const daytonaListFilesTool: ToolConfig<DaytonaListFilesParams, DaytonaListFilesResponse> = {
@@ -7,6 +8,7 @@ export const daytonaListFilesTool: ToolConfig<DaytonaListFilesParams, DaytonaLis
   name: 'Daytona List Files',
   description: 'List files in a directory of a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

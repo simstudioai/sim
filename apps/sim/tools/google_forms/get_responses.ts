@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   GoogleFormsGetResponsesParams,
   GoogleFormsResponse,
@@ -121,9 +122,14 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
         if (answerObj && typeof answerObj === 'object') {
           const aRec = answerObj as Record<string, unknown>
           // Find first *Answers property that contains an answers array
-          const key = Object.keys(aRec).find(
-            (k) => k.toLowerCase().endsWith('answers') && Array.isArray((aRec[k] as any)?.answers)
-          )
+          const key = Object.keys(aRec).find((k) => {
+            const candidate = aRec[k]
+            return (
+              k.toLowerCase().endsWith('answers') &&
+              isRecordLike(candidate) &&
+              Array.isArray(candidate.answers)
+            )
+          })
           if (key) {
             out[questionId] = normalizeAnswerContainer(aRec[key])
             continue
@@ -139,6 +145,8 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
       createTime: r.createTime,
       lastSubmittedTime: r.lastSubmittedTime,
       answers: normalizeAnswers(r.answers as unknown),
+      respondentEmail: r.respondentEmail ?? null,
+      totalScore: r.totalScore ?? null,
     })
 
     // Distinguish single vs list response shapes
@@ -201,6 +209,16 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
             type: 'json',
             description: 'Map of question IDs to answer values',
           },
+          respondentEmail: {
+            type: 'string',
+            description: 'Respondent email address (only when the form collects emails)',
+            optional: true,
+          },
+          totalScore: {
+            type: 'number',
+            description: 'Total points awarded (only for graded quizzes)',
+            optional: true,
+          },
         },
       },
     },
@@ -219,6 +237,16 @@ export const getResponsesTool: ToolConfig<GoogleFormsGetResponsesParams> = {
         answers: {
           type: 'json',
           description: 'Map of question IDs to answer values',
+        },
+        respondentEmail: {
+          type: 'string',
+          description: 'Respondent email address (only when the form collects emails)',
+          optional: true,
+        },
+        totalScore: {
+          type: 'number',
+          description: 'Total points awarded (only for graded quizzes)',
+          optional: true,
         },
       },
     },

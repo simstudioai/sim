@@ -14,6 +14,17 @@ You need workspace **Admin** access and the applicable deployment permission. Te
 
 Ordinary API calls use the active snapshot. Editing the draft does not change that version. Deploy an update before expecting a normal API call to use your changes.
 
+### Run an earlier version [#run-a-version]
+
+To run a specific deployment version instead of the active one, name its number in `run.version`. The workflow must still be deployed, and the caller needs workspace **Write** access with an API key or OAuth access token; anonymous public-API callers cannot pin a version. An unknown version returns `404`. The run's status reports the version it ran in `version`.
+
+```bash
+curl -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"input":{"message":"Summarize this article"},"run":{"source":"deployment","version":3}}'
+```
+
 ## Authentication
 
 Send a valid Sim API key in `X-API-Key`, or use a supported OAuth access token. Deployed workflow execution requires access to the workflow's workspace; OAuth callers also need the operation's `api:write` scope. See [API authentication](/api-reference/authentication).
@@ -248,6 +259,8 @@ A completed response includes the result when requested:
 | `cancelled` | Cancelled |
 
 Stop polling on `completed`, `failed`, or `cancelled`. A paused Human run requires submitted input; a time pause can resume automatically. See [Human](/workflows/blocks/human-in-the-loop) and [Wait](/workflows/blocks/wait). Resuming an originally streaming run through the v2 resume endpoint returns an async receipt, not an SSE continuation.
+
+A paused run lists every point it waits at in `paused.points`: the block, whether it is a `human` or `time` pause, its resume state, any parallel branch or loop iteration, its place in the resume queue, and the `inputFields` a Human pause asks for. With `includeOutput=true`, each point also carries the reviewer `display` content with resolved secrets redacted; organization permission groups that hide execution data withhold it, along with `inputFields`, whose labels and descriptions are resolved from run data. Resume a point by sending its `contextId` to `POST /api/v2/workflows/{workflow-id}/runs/{runId}/resume`.
 
 ## Select outputs and handle large values [#oversized-outputs]
 

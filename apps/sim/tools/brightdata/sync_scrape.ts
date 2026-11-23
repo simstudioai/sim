@@ -2,6 +2,7 @@ import type {
   BrightDataSyncScrapeParams,
   BrightDataSyncScrapeResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataSyncScrapeTool: ToolConfig<
@@ -13,6 +14,7 @@ export const brightDataSyncScrapeTool: ToolConfig<
   description:
     'Scrape URLs synchronously using a Bright Data pre-built scraper and get structured results directly. Supports up to 20 URLs with a 1-minute timeout.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

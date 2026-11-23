@@ -2,7 +2,7 @@ import { GoogleFormsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { mapperOperation, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /*
@@ -314,10 +314,9 @@ Example for "Add a required multiple choice question about favorite color":
             throw new Error(`Invalid Google Forms operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const {
           oauthCredential,
-          operation,
           formId, // Canonical param from formSelector (basic) or manualFormId (advanced)
           responseId,
           pageSize,
@@ -336,6 +335,7 @@ Example for "Add a required multiple choice question about favorite color":
           ...rest
         } = params
 
+        const operation = mapperOperation(params, context)
         const baseParams = { ...rest, oauthCredential }
         const effectiveFormId = formId ? String(formId).trim() : undefined
 
@@ -355,7 +355,7 @@ Example for "Add a required multiple choice question about favorite color":
           case 'create_form':
             return {
               ...baseParams,
-              title: String(title).trim(),
+              title: title == null ? undefined : String(title).trim(),
               documentTitle: documentTitle ? String(documentTitle).trim() : undefined,
               unpublished: unpublished ?? false,
             }
@@ -377,8 +377,8 @@ Example for "Add a required multiple choice question about favorite color":
             return {
               ...baseParams,
               formId: effectiveFormId,
-              eventType: String(eventType),
-              topicName: String(topicName).trim(),
+              eventType: eventType == null ? undefined : String(eventType),
+              topicName: topicName == null ? undefined : String(topicName).trim(),
               watchId: watchId ? String(watchId).trim() : undefined,
             }
           case 'delete_watch':
@@ -386,7 +386,7 @@ Example for "Add a required multiple choice question about favorite color":
             return {
               ...baseParams,
               formId: effectiveFormId,
-              watchId: String(watchId).trim(),
+              watchId: watchId == null ? undefined : String(watchId).trim(),
             }
           default:
             throw new Error(`Invalid Google Forms operation: ${operation}`)
@@ -416,7 +416,8 @@ Example for "Add a required multiple choice question about favorite color":
   outputs: {
     responses: {
       type: 'json',
-      description: 'Array of form responses',
+      description:
+        'Array of form responses [{responseId, createTime, lastSubmittedTime, answers, respondentEmail, totalScore}]',
       condition: {
         field: 'operation',
         value: 'get_responses',
@@ -434,7 +435,8 @@ Example for "Add a required multiple choice question about favorite color":
     },
     response: {
       type: 'json',
-      description: 'Single form response',
+      description:
+        'Single form response (responseId, createTime, lastSubmittedTime, answers, respondentEmail, totalScore)',
       condition: {
         field: 'operation',
         value: 'get_responses',

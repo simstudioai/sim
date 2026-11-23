@@ -4,6 +4,7 @@ import type {
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSearchResponse> = {
   id: 'elasticsearch_search',
@@ -105,7 +106,7 @@ export const searchTool: ToolConfig<ElasticsearchSearchParams, ElasticsearchSear
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${encodeURIComponent(params.index)}/_search`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}/_search`
     },
     method: 'POST',
     headers: (params) => buildAuthHeaders(params),

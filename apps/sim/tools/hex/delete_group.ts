@@ -1,13 +1,18 @@
 import type { HexDeleteGroupParams, HexDeleteGroupResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteGroupTool: ToolConfig<HexDeleteGroupParams, HexDeleteGroupResponse> = {
   id: 'hex_delete_group',
   name: 'Hex Delete Group',
   description: 'Delete a group from the Hex workspace.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -23,7 +28,8 @@ export const deleteGroupTool: ToolConfig<HexDeleteGroupParams, HexDeleteGroupRes
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/groups/${params.groupId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

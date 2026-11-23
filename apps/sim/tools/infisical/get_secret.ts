@@ -1,4 +1,6 @@
 import type { InfisicalGetSecretParams, InfisicalGetSecretResponse } from '@/tools/infisical/types'
+import { infisicalApiUrl, infisicalSecretPath } from '@/tools/infisical/utils'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSecretResponse> = {
@@ -6,6 +8,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
   name: 'Infisical Get Secret',
   description: 'Retrieve a single secret by name from a project environment.',
   version: '1.0.0',
+  oauth: INFISICAL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -17,7 +20,7 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
     baseUrl: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description:
         'Infisical instance URL (default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL.',
     },
@@ -84,8 +87,10 @@ export const getSecretTool: ToolConfig<InfisicalGetSecretParams, InfisicalGetSec
         searchParams.set('viewSecretValue', String(params.viewSecretValue))
       if (params.expandSecretReferences != null)
         searchParams.set('expandSecretReferences', String(params.expandSecretReferences))
-      const base = params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'
-      return `${base}/api/v4/secrets/${encodeURIComponent(params.secretName.trim())}?${searchParams.toString()}`
+      return infisicalApiUrl(
+        params.baseUrl,
+        `${infisicalSecretPath(params.secretName)}?${searchParams.toString()}`
+      )
     },
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

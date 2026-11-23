@@ -1,4 +1,5 @@
 import type { SpotifySaveTracksParams, SpotifySaveTracksResponse } from '@/tools/spotify/types'
+import { sendRemainingSpotifyLibraryChunks, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifySaveTracksResponse> =
@@ -24,16 +25,23 @@ export const spotifySaveTracksTool: ToolConfig<SpotifySaveTracksParams, SpotifyS
     },
 
     request: {
-      url: (params) =>
-        `https://api.spotify.com/v1/me/tracks?ids=${encodeURIComponent(params.trackIds)}`,
+      url: (params) => spotifyLibraryUrl(params.trackIds, 'track'),
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
       }),
     },
 
-    transformResponse: async (): Promise<SpotifySaveTracksResponse> => {
+    transformResponse: async (_response, params, context): Promise<SpotifySaveTracksResponse> => {
+      if (params)
+        await sendRemainingSpotifyLibraryChunks(
+          params,
+          params.trackIds,
+          'track',
+          'PUT',
+          {},
+          context?.signal
+        )
       return {
         success: true,
         output: {

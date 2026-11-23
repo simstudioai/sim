@@ -14,6 +14,7 @@ import {
   buildTableRecordUrl,
   transformRecordResponse,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addIncidentCommentTool: ToolConfig<
@@ -25,6 +26,7 @@ export const addIncidentCommentTool: ToolConfig<
   description:
     'Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries.',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,

@@ -1,7 +1,7 @@
 import { connectorPermissionGroupToken } from '@/lib/knowledge/connectors/permission-tokens'
 
-export const GITLAB_CSV_MAX_BYTES = 4 * 1024 * 1024
-export const GITLAB_CSV_MAX_ROWS = 100_000
+export const GITLAB_CSV_MAX_BYTES = 8 * 1024 * 1024
+export const GITLAB_CSV_MAX_ROWS = 500_000
 export const GITLAB_PERMISSION_MODES = ['administrator', 'csv'] as const
 
 export type GitLabPermissionMode = (typeof GITLAB_PERMISSION_MODES)[number]

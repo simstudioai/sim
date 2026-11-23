@@ -34,7 +34,7 @@ export const GET = withRouteHandler(
     'mcp_tools.use'
   )(async (_request: NextRequest, { workspaceId, requestId, permission }) => {
     try {
-      logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
+      logger.info(`Listing MCP servers for workspace ${workspaceId}`, { requestId })
 
       const rows = await db
         .select()
@@ -50,12 +50,12 @@ export const GET = withRouteHandler(
       const includeHeaderValues = permissionSatisfies(permission, 'write')
       const servers = rows.map((row) => projectInternalMcpServer(row, { includeHeaderValues }))
 
-      logger.info(
-        `[${requestId}] Listed ${servers.length} MCP servers for workspace ${workspaceId}`
-      )
+      logger.info(`Listed ${servers.length} MCP servers for workspace ${workspaceId}`, {
+        requestId,
+      })
       return createMcpSuccessResponse({ servers })
     } catch (error) {
-      logger.error(`[${requestId}] Error listing MCP servers:`, error)
+      logger.error('Error listing MCP servers:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
     }
   })
@@ -79,7 +79,8 @@ export const POST = withRouteHandler(
 
       const body = parsedBody.data
 
-      logger.info(`[${requestId}] Registering MCP server:`, {
+      logger.info('Registering MCP server:', {
+        requestId,
         name: body.name,
         transport: body.transport,
         workspaceId,
@@ -124,9 +125,9 @@ export const POST = withRouteHandler(
         )
       }
 
-      logger.info(
-        `[${requestId}] Successfully registered MCP server: ${body.name} (ID: ${result.serverId})`
-      )
+      logger.info(`Successfully registered MCP server: ${body.name} (ID: ${result.serverId})`, {
+        requestId,
+      })
 
       return createMcpSuccessResponse(
         result.updated
@@ -137,7 +138,7 @@ export const POST = withRouteHandler(
     } catch (error) {
       const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
       if (bodyErrorResponse) return bodyErrorResponse
-      logger.error(`[${requestId}] Error registering MCP server:`, error)
+      logger.error('Error registering MCP server:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
     }
   })
@@ -171,7 +172,7 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      logger.info(`[${requestId}] Deleting MCP server: ${serverId} from workspace: ${workspaceId}`)
+      logger.info(`Deleting MCP server: ${serverId} from workspace: ${workspaceId}`, { requestId })
 
       const result = await performDeleteMcpServer({
         workspaceId,
@@ -190,11 +191,11 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
+      logger.info(`Successfully deleted MCP server: ${serverId}`, { requestId })
 
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
-      logger.error(`[${requestId}] Error deleting MCP server:`, error)
+      logger.error('Error deleting MCP server:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to delete MCP server', 500)
     }
   })

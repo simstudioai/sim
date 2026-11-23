@@ -211,7 +211,7 @@ describe('Knowledge reranker model boundary', () => {
     'does not retry provider work when shared %s storage fails',
     async (phase) => {
       vi.useFakeTimers()
-      const failure = new Error('Failed query on rate_limit_bucket')
+      const failure = new Error('Redis unavailable')
       const cancelled = vi.fn()
       if (phase === 'admission') admission.consume.mockRejectedValue(failure)
       else {

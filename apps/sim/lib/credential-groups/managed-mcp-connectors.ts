@@ -1,6 +1,9 @@
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
+
 export const MANAGED_MCP_CONNECTOR_IDS = [
   'fireflies',
   'granola',
+  'hex',
   'databricks',
   'coda',
   'notion',
@@ -42,6 +45,13 @@ export type ManagedMcpConnector =
   | FixedPreregisteredManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  hex: {
+    id: 'hex',
+    name: 'Hex',
+    description: 'Search projects using your Hex account',
+    url: 'https://app.hex.tech/mcp',
+    oauthClientRegistration: 'dynamic',
+  },
   zoom: {
     id: 'zoom',
     name: 'Zoom',
@@ -101,6 +111,32 @@ export const MANAGED_MCP_CONNECTORS = {
     oauthClientRegistration: 'preregistered',
   },
 } as const satisfies Record<ManagedMcpConnectorId, ManagedMcpConnector>
+
+/**
+ * The vendor-documented tool naming the signed-in account. Only these connectors can tell two
+ * accounts apart, so every other connector stays at one connection per person.
+ */
+const MANAGED_MCP_ACCOUNT_IDENTITY_CALLS: Partial<
+  Record<ManagedMcpConnectorId, { name: string; arguments: Record<string, unknown> }>
+> = {
+  notion: { name: 'notion-get-self', arguments: {} },
+  granola: { name: 'get_account_info', arguments: {} },
+  fireflies: { name: 'fireflies_get_user', arguments: {} },
+  coda: { name: 'whoami', arguments: {} },
+  hubspot: { name: 'get_user_details', arguments: { include: ['TOOL_INFORMATION'] } },
+}
+
+export function managedMcpAccountIdentityCall(connectorId: string | null | undefined) {
+  return connectorId && isManagedMcpConnectorId(connectorId)
+    ? MANAGED_MCP_ACCOUNT_IDENTITY_CALLS[connectorId]
+    : undefined
+}
+
+export function managedMcpAccountLimit(connectorId: string | null | undefined): number {
+  return managedMcpAccountIdentityCall(connectorId)
+    ? CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT
+    : 1
+}
 
 const DATABRICKS_WORKSPACE_HOST_SUFFIXES = [
   '.cloud.databricks.com',

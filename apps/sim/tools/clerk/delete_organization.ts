@@ -5,7 +5,9 @@ import type {
   ClerkDeleteOrganizationResponse,
   ClerkDeleteResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkDeleteOrganization')
 
@@ -17,6 +19,7 @@ export const clerkDeleteOrganizationTool: ToolConfig<
   name: 'Delete Organization from Clerk',
   description: 'Delete an organization from your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -34,7 +37,8 @@ export const clerkDeleteOrganizationTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.secretKey) {

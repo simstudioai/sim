@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react'
-import { Link } from '@sim/emcn/icons'
 import { cn } from '@/components/docs/classnames'
+import { HeadingLink } from '@/components/ui/heading-link'
 
 type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
 interface HeadingProps extends HTMLAttributes<HTMLHeadingElement> {
@@ -29,15 +29,7 @@ export function Heading({ as: Tag = 'h2', className, children, id, ...props }: H
       )}
     >
       {children}
-      {id && (
-        <a
-          href={`#${id}`}
-          aria-label='Link to this section'
-          className='ml-2 inline-flex rounded align-middle text-[var(--docs-muted)] opacity-0 pointer-coarse:opacity-100 transition-opacity hover:text-[var(--docs-link)] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 group-hover/heading:opacity-100 motion-reduce:transition-none'
-        >
-          <Link className='size-4' />
-        </a>
-      )}
+      {id && <HeadingLink id={id} />}
     </Tag>
   )
 }

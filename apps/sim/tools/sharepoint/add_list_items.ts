@@ -1,5 +1,5 @@
 import type { SharepointAddListItemResponse, SharepointToolParams } from '@/tools/sharepoint/types'
-import { optionalTrim, sanitizeListItemFields } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim, sanitizeListItemFields } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 function resolveSanitizedFields(
@@ -76,8 +76,8 @@ export const addListItemTool: ToolConfig<SharepointToolParams, SharepointAddList
       if (!listId) {
         throw new Error('listId must be provided')
       }
-      const listSegment = encodeURIComponent(listId)
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists/${listSegment}/items`
+      const listSegment = graphPathSegment(listId, 'listId')
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/lists/${listSegment}/items`
     },
     method: 'POST',
     headers: (params) => ({

@@ -582,7 +582,11 @@ List projects in Linear with optional filtering
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
-|   ↳ `state` | string | Project state \(planned, started, paused, completed, canceled\) |
+|   ↳ `state` | string | Deprecated project state \(planned, started, paused, completed, canceled\); prefer status |
+|   ↳ `status` | object | Current project status |
+|     ↳ `id` | string | Project status ID |
+|     ↳ `name` | string | Project status name |
+|     ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
 |   ↳ `priority` | number | Project priority \(0-4\) |
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
@@ -594,6 +598,9 @@ List projects in Linear with optional filtering
 |   ↳ `teams` | array | Associated teams |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
+|   ↳ `completedAt` | string | Completion timestamp \(ISO 8601\) |
+|   ↳ `canceledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 </ReferenceDetails>
 
@@ -617,7 +624,11 @@ Get a single project by ID from Linear
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
-|   ↳ `state` | string | Project state \(planned, started, paused, completed, canceled\) |
+|   ↳ `state` | string | Deprecated project state \(planned, started, paused, completed, canceled\); prefer status |
+|   ↳ `status` | object | Current project status |
+|     ↳ `id` | string | Project status ID |
+|     ↳ `name` | string | Project status name |
+|     ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
 |   ↳ `priority` | number | Project priority \(0-4\) |
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
@@ -629,6 +640,9 @@ Get a single project by ID from Linear
 |   ↳ `teams` | array | Associated teams |
 |     ↳ `id` | string | Team ID |
 |     ↳ `name` | string | Team name |
+|   ↳ `completedAt` | string | Completion timestamp \(ISO 8601\) |
+|   ↳ `canceledAt` | string | Cancellation timestamp \(ISO 8601\) |
+|   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
 </ReferenceDetails>
 
@@ -658,7 +672,11 @@ Create a new project in Linear
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
-|   ↳ `state` | string | Project state \(planned, started, paused, completed, canceled\) |
+|   ↳ `state` | string | Deprecated project state \(planned, started, paused, completed, canceled\); prefer status |
+|   ↳ `status` | object | Current project status |
+|     ↳ `id` | string | Project status ID |
+|     ↳ `name` | string | Project status name |
+|     ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
 |   ↳ `priority` | number | Project priority \(0-4\) |
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
@@ -686,7 +704,8 @@ Update an existing project in Linear
 | `projectId` | string | Yes | Project ID to update |
 | `name` | string | No | New project name |
 | `description` | string | No | New project description |
-| `state` | string | No | Project state \(planned, started, completed, canceled\) |
+| `state` | string | No | Deprecated: Linear no longer accepts a project state on update. Use statusId instead; a state given without statusId fails with an error. |
+| `statusId` | string | No | Project status ID to move the project to \(see List Project Statuses\). Omit to keep the current status. |
 | `leadId` | string | No | User ID of the project lead |
 | `startDate` | string | No | Project start date \(ISO format: YYYY-MM-DD\) |
 | `targetDate` | string | No | Project target date \(ISO format: YYYY-MM-DD\) |
@@ -700,7 +719,11 @@ Update an existing project in Linear
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
-|   ↳ `state` | string | Project state \(planned, started, paused, completed, canceled\) |
+|   ↳ `state` | string | Deprecated project state \(planned, started, paused, completed, canceled\); prefer status |
+|   ↳ `status` | object | Current project status |
+|     ↳ `id` | string | Project status ID |
+|     ↳ `name` | string | Project status name |
+|     ↳ `type` | string | Status type \(backlog, planned, started, paused, completed, canceled\) |
 |   ↳ `priority` | number | Project priority \(0-4\) |
 |   ↳ `startDate` | string | Start date \(YYYY-MM-DD\) |
 |   ↳ `targetDate` | string | Target date \(YYYY-MM-DD\) |
@@ -928,7 +951,7 @@ Update an existing label in Linear
 
 ### Linear Archive Label
 
-Archive a label in Linear
+Archive (retire) a label in Linear. A retired label can no longer be newly assigned but stays on issues that already use it.
 
 <ReferenceDetails>
 
@@ -996,7 +1019,7 @@ Create a new workflow state (status) in Linear
 | --------- | ---- | -------- | ----------- |
 | `teamId` | string | Yes | Team ID to create the state in |
 | `name` | string | Yes | State name \(e.g., "In Review"\) |
-| `color` | string | No | State color \(hex format\) |
+| `color` | string | Yes | State color \(hex format, e.g. #5E6AD2\) |
 | `type` | string | Yes | State type: "backlog", "unstarted", "started", "completed", or "canceled" |
 | `description` | string | No | State description |
 | `position` | number | No | Position in the workflow |
@@ -1126,7 +1149,7 @@ Get a single cycle by ID from Linear
 
 ### Linear Create Cycle
 
-Create a new cycle (sprint/iteration) in Linear
+Deprecated: Linear no longer supports creating cycles through its API (they are generated from the team cycle settings), so this always returns an error from Linear.
 
 <ReferenceDetails>
 
@@ -1519,7 +1542,7 @@ Mark a notification as read or unread in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `notificationId` | string | Yes | Notification ID to update |
-| `readAt` | string | No | Timestamp to mark as read \(ISO format\). Pass null or omit to mark as unread |
+| `readAt` | string | No | ISO timestamp to mark the notification read at. Omit it to mark it read now; pass null to mark it unread. |
 
 #### Output
 
@@ -1530,7 +1553,7 @@ Mark a notification as read or unread in Linear
 |   ↳ `type` | string | Notification type |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `readAt` | string | Read timestamp |
-|   ↳ `issue` | object | Related issue |
+|   ↳ `issue` | object | Related issue \(only for issue notifications\) |
 
 </ReferenceDetails>
 
@@ -1613,7 +1636,7 @@ List all customers in Linear
 
 ### Linear Create Customer Request
 
-Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and optionally link to an issue.
+Create a customer request (need) in Linear. Assign to customer, set urgency (priority: 0 = Not important, 1 = Important), and link it to an issue (required for API calls).
 
 <ReferenceDetails>
 
@@ -1624,8 +1647,8 @@ Create a customer request (need) in Linear. Assign to customer, set urgency (pri
 | `customerId` | string | Yes | Customer ID to assign this request to |
 | `body` | string | No | Description of the customer request |
 | `priority` | number | No | Urgency level: 0 = Not important, 1 = Important \(default: 0\) |
-| `issueId` | string | No | Issue ID to link this request to |
-| `projectId` | string | No | Project ID to link this request to |
+| `issueId` | string | Yes | Issue to link this request to \(UUID or identifier such as ENG-123\). Linear requires it for API calls. |
+| `projectId` | string | No | Deprecated and ignored: Linear no longer accepts a project on customer requests. |
 
 #### Output
 
@@ -1661,7 +1684,7 @@ Update a customer request (need) in Linear. Can change urgency, description, cus
 | `priority` | number | No | Updated urgency level: 0 = Not important, 1 = Important |
 | `customerId` | string | No | New customer ID to assign this request to |
 | `issueId` | string | No | New issue ID to link this request to |
-| `projectId` | string | No | New project ID to link this request to |
+| `projectId` | string | No | Deprecated and ignored: Linear no longer accepts a project on customer requests. |
 
 #### Output
 
@@ -2371,7 +2394,7 @@ Create a new project status in Linear
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Project status name |
-| `type` | string | Yes | Status type: "backlog", "planned", "started", "paused", "completed", or "canceled" |
+| `type` | string | Yes | Status type: "backlog", "planned", "started", "completed", or "canceled" |
 | `color` | string | Yes | Status color \(hex code\) |
 | `position` | number | Yes | Position in status list \(e.g. 0, 1, 2...\) |
 | `description` | string | No | Status description |
@@ -2432,7 +2455,7 @@ Update a project status in Linear
 
 ### Linear Delete Project Status
 
-Delete a project status in Linear
+Archive a project status in Linear (Linear does not support deleting one). The status must have no active projects and must not be the last status of its type.
 
 <ReferenceDetails>
 
@@ -2440,13 +2463,13 @@ Delete a project status in Linear
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `statusId` | string | Yes | Project status ID to delete |
+| `statusId` | string | Yes | Project status ID to archive |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the deletion was successful |
+| `success` | boolean | Whether the archive was successful |
 
 </ReferenceDetails>
 

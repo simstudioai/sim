@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppSendInteractiveParams, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 import {
@@ -22,6 +23,7 @@ export const sendInteractiveTool: ToolConfig<WhatsAppSendInteractiveParams, What
     name: 'WhatsApp Send Interactive',
     description: 'Send an interactive WhatsApp message with reply buttons or a selectable list.',
     version: '1.0.0',
+    oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
     params: {
       phoneNumber: {

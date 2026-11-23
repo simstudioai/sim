@@ -40,7 +40,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       {
         invalidJson: 'throw',
         validationErrorResponse: (error) => {
-          logger.error(`[${tracker.requestId}] Validation error:`, {
+          logger.error('Validation error:', {
+            requestId: tracker.requestId,
             duration: tracker.getDuration(),
             errors: error.issues,
           })
@@ -53,7 +54,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const { chatId, userQuery, agentResponse, isPositiveFeedback, feedback, workflowYaml } =
       parsed.data.body
 
-    logger.info(`[${tracker.requestId}] Processing copilot feedback submission`, {
+    logger.info('Processing copilot feedback submission', {
+      requestId: tracker.requestId,
       userId: authenticatedUserId,
       chatId,
       isPositiveFeedback,
@@ -78,7 +80,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       })
       .returning()
 
-    logger.info(`[${tracker.requestId}] Successfully saved copilot feedback`, {
+    logger.info('Successfully saved copilot feedback', {
+      requestId: tracker.requestId,
       feedbackId: feedbackRecord.feedbackId,
       userId: authenticatedUserId,
       isPositive: isPositiveFeedback,
@@ -103,7 +106,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   } catch (error) {
     const duration = tracker.getDuration()
 
-    logger.error(`[${tracker.requestId}] Error submitting copilot feedback:`, {
+    logger.error('Error submitting copilot feedback:', {
+      requestId: tracker.requestId,
       duration,
       error: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
@@ -145,7 +149,9 @@ export const GET = withRouteHandler(async () => {
       .from(copilotFeedback)
       .where(eq(copilotFeedback.userId, authenticatedUserId))
 
-    logger.info(`[${tracker.requestId}] Retrieved ${feedbackRecords.length} feedback records`)
+    logger.info(`Retrieved ${feedbackRecords.length} feedback records`, {
+      requestId: tracker.requestId,
+    })
 
     return NextResponse.json({
       success: true,
@@ -156,7 +162,7 @@ export const GET = withRouteHandler(async () => {
       },
     })
   } catch (error) {
-    logger.error(`[${tracker.requestId}] Error retrieving copilot feedback:`, error)
+    logger.error('Error retrieving copilot feedback:', error, { requestId: tracker.requestId })
     return createInternalServerErrorResponse('Failed to retrieve feedback')
   }
 })

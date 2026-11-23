@@ -1,6 +1,6 @@
 {
   "name": "@sim/extension",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
@@ -26,8 +26,8 @@
   "devDependencies": {
     "@playwright/test": "1.64.1",
     "@sim/tsconfig": "workspace:*",
-    "@types/bun": "1.4.3",
-    "@types/chrome": "0.3.6",
+    "@types/bun": "1.4.4",
+    "@types/chrome": "0.3.7",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "esbuild": "0.28.2",

@@ -1,6 +1,8 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import type { CursorKey } from '@/lib/api/list-query'
 import { bindCopilotWorkspaceOperation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { PrincipalForOperation } from '@/lib/core/application/workspace-operation'
@@ -254,6 +256,112 @@ function hasRuntimeReference(value: string): boolean {
   return createReferencePattern().test(value) || createEnvVarPattern().test(value)
 }
 
+/**
+ * Outside Function code a reference resolves to JSON text (objects, arrays, numbers, booleans), so
+ * `{"name": <start.name>}` or a whole-field `<start.row>` is valid JSON at runtime but not before.
+ * Each reference written outside a JSON string becomes a quoted placeholder so the Table block's
+ * own transform reads the literal parts (see {@link withReferencePlaceholders}). If the transform
+ * still fails and a field has no literal part, that field is left out, returned in
+ * `runtimeFields`, and the transform runs once more; an error from that final attempt comes from
+ * the literal parts and is rethrown. Only this lint-local copy is rewritten; references to string
+ * outputs left unquoted are reported by `collectUnquotedJsonStringReferences`.
+ */
+function normalizeTableInputs(
+  transform: (params: Record<string, unknown>) => Record<string, unknown>,
+  params: Record<string, unknown>
+): { normalized: Record<string, unknown>; runtimeFields: string[] } {
+  const prepared: Record<string, unknown> = {}
+  const runtimeFields: string[] = []
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value !== 'string') {
+      prepared[key] = value
+      continue
+    }
+    const input = withReferencePlaceholders(value)
+    prepared[key] = input.value
+    if (input.runtimeOnly) runtimeFields.push(key)
+  }
+  try {
+    return { normalized: transform(prepared), runtimeFields: [] }
+  } catch (error) {
+    if (runtimeFields.length === 0) throw error
+  }
+  for (const key of runtimeFields) delete prepared[key]
+  return { normalized: transform(prepared), runtimeFields }
+}
+
+/**
+ * Quotes each bare reference occurrence under its own placeholder, so an already-quoted string
+ * with the same text is never mistaken for one. A quoted reference fits row values and most
+ * filter values; the value of an `in`/`nin` condition must be a list, so it becomes a one-item
+ * list, and a condition or group made only of references has no literal part, so it is left out
+ * of an `all`/`any` group that keeps a literal member. `runtimeOnly` marks a field whose whole
+ * value is such a reference or group.
+ */
+function withReferencePlaceholders(json: string): { value: string; runtimeOnly: boolean } {
+  const nonce = generateShortId()
+  const references = new Map<string, string>()
+  const quoted = replaceBareReferences(json, (reference) => {
+    const placeholder = `${nonce}:${references.size}`
+    references.set(placeholder, reference)
+    return JSON.stringify(placeholder)
+  })
+  if (references.size === 0) return { value: json, runtimeOnly: false }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(quoted)
+  } catch {
+    const readable = replaceBareReferences(json, (reference) => JSON.stringify(reference))
+    return { value: readable, runtimeOnly: false }
+  }
+  const isPlaceholder = (node: unknown): node is string =>
+    typeof node === 'string' && references.has(node)
+  const isDynamic = (node: unknown): boolean => {
+    if (isPlaceholder(node)) return true
+    if (!isPlainRecord(node) || Object.keys(node).length !== 1) return false
+    const members = node.all ?? node.any
+    return Array.isArray(members) && members.length > 0 && members.every(isDynamic)
+  }
+  const adapt = (node: unknown): unknown => {
+    if (isPlaceholder(node)) return references.get(node)
+    if (Array.isArray(node)) return node.map(adapt)
+    if (!isPlainRecord(node)) return node
+    return Object.fromEntries(
+      Object.entries(node).map(([key, value]) => {
+        const name = references.get(key) ?? key
+        if ((key === 'all' || key === 'any') && Array.isArray(value)) {
+          const literal = value.filter((member) => !isDynamic(member))
+          return [name, adapt(literal.length > 0 ? literal : value)]
+        }
+        if (key === 'value' && (node.op === 'in' || node.op === 'nin') && isPlaceholder(value)) {
+          return [name, [adapt(value)]]
+        }
+        return [name, adapt(value)]
+      })
+    )
+  }
+  return { value: JSON.stringify(adapt(parsed)), runtimeOnly: isDynamic(parsed) }
+}
+
+function replaceBareReferences(json: string, placeholder: (reference: string) => string): string {
+  const tokens = findWorkflowReferenceTokens(json)
+  if (tokens.length === 0) return json
+  let result = ''
+  let cursor = 0
+  let inString = false
+  for (const token of tokens) {
+    for (let index = cursor; index < token.start; index++) {
+      const char = json[index]
+      if (inString && char === '\\') index++
+      else if (char === '"') inString = !inString
+    }
+    result += json.slice(cursor, token.start)
+    result += inString ? token.value : placeholder(token.value)
+    cursor = token.end
+  }
+  return result + json.slice(cursor)
+}
+
 /** Read each active table once; column checks consume the Table block's own pure input transform. */
 async function readTableDiagnostics(
   graph: ReadWorkflowGraphResult,
@@ -319,8 +427,16 @@ async function readTableDiagnostics(
     const transform = getBlock(block.type)?.tools.config?.params
     if (!transform) throw new Error('Table input normalization is unavailable')
     let normalized: Record<string, unknown>
+    let runtimeFields: string[]
     try {
-      normalized = transform(params)
+      const inputs = normalizeTableInputs(transform, params)
+      normalized = inputs.normalized
+      runtimeFields = inputs.runtimeFields
+      if (runtimeFields.length > 0) {
+        result.notes.push(
+          `Table inputs in block "${block.name || blockId}" depend on references resolved at runtime and were not checked: ${runtimeFields.join(', ')}.`
+        )
+      }
     } catch (error) {
       result.notes.push(
         `Table input checks in block "${block.name || blockId}" could not complete before runtime: ${getErrorMessage(error)}`
@@ -366,8 +482,10 @@ async function readTableDiagnostics(
         })
       }
     }
-    if (Object.hasOwn(normalized, 'data')) inspectRow(normalized.data, 'data')
-    if (Object.hasOwn(normalized, 'rows')) {
+    if (Object.hasOwn(normalized, 'data') && !runtimeFields.includes('data')) {
+      inspectRow(normalized.data, 'data')
+    }
+    if (Object.hasOwn(normalized, 'rows') && !runtimeFields.includes('rows')) {
       if (Array.isArray(normalized.rows)) {
         normalized.rows.forEach((row, index) => inspectRow(row, `rows[${index}]`))
       } else {

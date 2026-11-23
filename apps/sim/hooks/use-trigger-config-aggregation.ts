@@ -1,6 +1,6 @@
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 /**
  * Maps old trigger config field names to new subblock IDs for backward compatibility.

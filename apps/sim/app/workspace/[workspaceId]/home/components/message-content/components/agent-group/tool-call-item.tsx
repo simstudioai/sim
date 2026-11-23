@@ -101,7 +101,7 @@ export function ToolCallItem({
 
   // Like read's VFS-target resolution above, the gateway uses its exact
   // discovered toolId only as a deterministic registry lookup. This renders
-  // the real integration brand while Go validates/resolves the operation.
+  // the real integration brand while the worker validates/resolves the operation.
   const gatewayBlock = useMemo(() => {
     if (toolName !== CallIntegrationTool.id) return undefined
     const toolId = params?.toolId ?? extractStreamingStringArgument(streamingArgs, 'toolId')

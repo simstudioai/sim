@@ -89,9 +89,13 @@ export const sendblueSendTypingIndicatorTool: ToolConfig<
   outputs: {
     status: {
       type: 'string',
-      description: 'Delivery status of the typing indicator (e.g., QUEUED)',
+      description: 'Status of the typing indicator: SENT or ERROR',
     },
-    status_code: { type: 'number', description: 'Numeric status code returned by Sendblue' },
+    status_code: {
+      type: 'number',
+      description: 'Numeric status code returned by Sendblue',
+      optional: true,
+    },
     number: { type: 'string', description: 'The recipient phone number' },
     error_message: {
       type: 'string',

@@ -19,6 +19,7 @@ import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import type { TraceSpan } from '@/lib/logs/types'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
@@ -38,12 +39,17 @@ import {
   type NormalizedWorkflowData,
 } from '@/lib/workflows/persistence/utils'
 import { shouldEmitAgentStreamEvents } from '@/lib/workflows/streaming/agent-stream-protocol'
+import {
+  type ParsedOutputSelector,
+  parseInternalOutputSelector,
+} from '@/lib/workflows/streaming/output-selector'
 import { resolveOutputSelectors } from '@/lib/workflows/streaming/resolve-output-selectors'
 import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
+import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
@@ -88,7 +94,10 @@ export interface ExecuteWorkflowServiceParams {
   /** Pre-fetched workflow row (already authorized by the caller). */
   workflowRecord?: WorkflowRecord
   upstreamBillingAttribution?: BillingAttributionSnapshot
-  /** Pin execution to a specific deployment version (MCP bridge). */
+  /**
+   * Run this deployment version instead of the active one (MCP bridge, v2 execute
+   * with `version`). The id must already be validated against `workflowId`.
+   */
   deploymentVersionId?: string
   includeFileBase64?: boolean
   base64MaxBytes?: number
@@ -114,7 +123,7 @@ export interface ExecuteWorkflowServiceParams {
    * The caller may stop waiting before the run settles, leaving it running in this
    * process. Such a run is admitted like an async one (async rate bucket, reservation,
    * and timeout), never ends with its caller (so it takes no `abortSignal`), and
-   * registers an in-process aborter so a run cancel reaches it without Redis. Its
+   * registers an in-process aborter so a run cancel reaches it directly in this process. Its
    * execution is otherwise the sync run's own, so a pause resumes as a sync run's does.
    * Requires `sync-result-stream`, whose pending result the caller stops awaiting.
    */
@@ -172,13 +181,22 @@ export interface ExecuteWorkflowServiceRun {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  /** The execution timeout applied to the run in milliseconds; `0` means untimed. */
+  executionTimeoutMs: number
 }
+
+/** A run's result before the applied timeout is stamped onto it. */
+type UnstampedTerminalResult =
+  | Omit<ExecuteWorkflowServiceRun, 'executionTimeoutMs'>
+  | ExecuteWorkflowServiceFailureResult
 
 export interface ExecuteWorkflowServiceQueued {
   ok: true
   queued: true
   executionId: string
   jobId: string
+  /** The execution timeout the queued run will run under in milliseconds; `0` means untimed. */
+  executionTimeoutMs: number
 }
 
 export interface ExecuteWorkflowServiceStream {
@@ -198,6 +216,8 @@ export interface ExecuteWorkflowServicePendingRun {
   /** Resolves once the run can be found by its id; never, when its log could not start. */
   logged: Promise<void>
   cancel: () => void
+  /** The execution timeout applied to the run in milliseconds; `0` means untimed. */
+  executionTimeoutMs: number
 }
 
 export interface ExecuteWorkflowServiceFailureResult {
@@ -473,6 +493,7 @@ export async function executeWorkflowService(
         enforceCredentialAccess: useAuthenticatedUserAsActor,
         isPublicApiAccess,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
+        pinnedDeploymentVersionId: deploymentVersionId,
       })
       executionIdClaimCommitted = enqueue.retainExecutionClaim
       if (enqueue.outcome === 'rejected') {
@@ -491,7 +512,13 @@ export async function executeWorkflowService(
           executionId,
         })
       }
-      return { ok: true, queued: true, executionId, jobId: enqueue.jobId }
+      return {
+        ok: true,
+        queued: true,
+        executionId,
+        jobId: enqueue.jobId,
+        executionTimeoutMs: preprocessResult.executionTimeout.async,
+      }
     }
 
     const processedInput = input
@@ -627,6 +654,7 @@ export async function executeWorkflowService(
               triggerBlockId,
               useDraftState,
               draftState,
+              pinnedDeploymentVersionId: deploymentVersionId,
               runFromBlock,
               stopAfterBlockId,
               onStream,
@@ -678,6 +706,7 @@ export async function executeWorkflowService(
       triggerType,
       triggerBlockId,
       useDraftState,
+      pinnedDeploymentVersionId: deploymentVersionId,
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: useAuthenticatedUserAsActor,
@@ -690,9 +719,8 @@ export async function executeWorkflowService(
       executionMode: 'sync',
     }
 
-    const timeoutController = createTimeoutAbortController(
-      preprocessResult.executionTimeout?.[executionType]
-    )
+    const executionTimeoutMs = preprocessResult.executionTimeout?.[executionType] ?? 0
+    const timeoutController = createTimeoutAbortController(executionTimeoutMs)
     let requestAborted = false
     const abortFromRequest = () => {
       requestAborted = true
@@ -713,7 +741,7 @@ export async function executeWorkflowService(
       rejectLargeInlineOutput,
     }
 
-    const runSynchronousWorkflow = async (): Promise<ExecuteWorkflowServiceTerminalResult> => {
+    const runSynchronousWorkflow = async (): Promise<UnstampedTerminalResult> => {
       if (detachable) registerManualExecutionAborter(executionId, timeoutController.abort)
       try {
         const snapshot = new ExecutionSnapshot(
@@ -721,7 +749,7 @@ export async function executeWorkflowService(
           workflow,
           processedInput,
           workflowVariables,
-          selectedOutputs
+          resolvedSelectedOutputs
         )
 
         const result = await executeWorkflowCore({
@@ -932,7 +960,10 @@ export async function executeWorkflowService(
       }
     }
 
-    const pending = runSynchronousWorkflow()
+    const pending = runSynchronousWorkflow().then(
+      (result): ExecuteWorkflowServiceTerminalResult =>
+        result.ok ? { ...result, executionTimeoutMs } : result
+    )
     if (mode === 'sync-result-stream') {
       /** Keep the claim until the pending run can prove whether durable ownership exists. */
       executionIdClaimTransferred = true
@@ -942,6 +973,7 @@ export async function executeWorkflowService(
         pending: pending.finally(settleExecutionIdClaim),
         logged: loggingSession.whenLogStarted(),
         cancel: abortFromRequest,
+        executionTimeoutMs,
       }
     }
 
@@ -985,6 +1017,75 @@ function resolveOutputPath(value: unknown, path: string[]): unknown {
   return current
 }
 
+type ChildOutputSelector = Required<ParsedOutputSelector>
+
+function parseChildSelector(resolvedId: string): ChildOutputSelector | null {
+  try {
+    const parsed = parseInternalOutputSelector(resolvedId)
+    return parsed.workflowId ? { ...parsed, workflowId: parsed.workflowId } : null
+  } catch {
+    return null
+  }
+}
+
+function asTraceSpans(value: unknown): TraceSpan[] {
+  return Array.isArray(value) ? value : []
+}
+
+/**
+ * Walks child-workflow trace spans for the last output of the selected child block. Spans of
+ * the selected child workflow are matched by block ID or normalized block name; spans of any
+ * other nested workflow are searched only for a deeper workflow with the selected ID.
+ */
+function findChildSpanOutput(
+  spans: TraceSpan[],
+  selector: ChildOutputSelector,
+  inSelectedWorkflow: boolean
+): Record<string, unknown> | undefined {
+  const selectedName = normalizeName(selector.blockId)
+  let found: Record<string, unknown> | undefined
+  for (const span of spans) {
+    if (
+      inSelectedWorkflow &&
+      span.output !== undefined &&
+      (span.blockId === selector.blockId || normalizeName(span.name) === selectedName)
+    ) {
+      found = span.output
+    }
+    const children = asTraceSpans(span.children)
+    if (children.length === 0) continue
+    const childScope = span.childWorkflowId
+      ? span.childWorkflowId === selector.workflowId
+      : inSelectedWorkflow
+    const nested = findChildSpanOutput(children, selector, childScope)
+    if (nested !== undefined) found = nested
+  }
+  return found
+}
+
+/**
+ * Reads a child workflow block's output from the trace spans its workflow block carried back.
+ * Custom blocks carry no child workflow ID or spans into the parent log, so their children are
+ * never readable here.
+ */
+function findChildBlockOutput(
+  logs: BlockLog[],
+  selector: ChildOutputSelector
+): Record<string, unknown> | undefined {
+  let found: Record<string, unknown> | undefined
+  for (const log of logs) {
+    const spans = asTraceSpans(log.childTraceSpans ?? log.output?.childTraceSpans)
+    if (spans.length === 0) continue
+    const nested = findChildSpanOutput(
+      spans,
+      selector,
+      log.output?.childWorkflowId === selector.workflowId
+    )
+    if (nested !== undefined) found = nested
+  }
+  return found
+}
+
 /**
  * Projects `selectedOutputs` onto a finished run's block logs, so a sync run
  * answers with the named blocks' outputs in the same response — no second call
@@ -994,7 +1095,8 @@ function resolveOutputPath(value: unknown, path: string[]): unknown {
  * ran, resolved to no block, or whose path is absent is omitted — the same
  * missing-fields-are-omitted contract the streamed and finished-run selections
  * follow. The last log per block wins, so a block inside a loop reports its
- * final iteration's output.
+ * final iteration's output. A child-workflow selector reads the child block's
+ * output from the trace spans its workflow block returned, last invocation winning.
  */
 export async function pickRunBlockOutputs(
   selectedOutputs: string[] | undefined,
@@ -1014,6 +1116,17 @@ export async function pickRunBlockOutputs(
     const selector = selectedOutputs[i]
     const resolvedId = resolved[i]
     if (!selector || !resolvedId) continue
+
+    const childSelector = parseChildSelector(resolvedId)
+    if (childSelector) {
+      const childOutput = findChildBlockOutput(logs ?? [], childSelector)
+      const value =
+        childOutput === undefined
+          ? undefined
+          : resolveOutputPath(childOutput, childSelector.path.split('.'))
+      if (value !== undefined) picked[selector] = value
+      continue
+    }
 
     let blockId: string
     let path: string[]

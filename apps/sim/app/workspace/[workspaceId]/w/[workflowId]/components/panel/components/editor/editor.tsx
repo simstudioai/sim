@@ -13,6 +13,12 @@ import {
   Unlock,
 } from '@sim/emcn/icons'
 import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
   type BlockRetryConfig,
   isWorkflowBlockAncestorLocked,
   isWorkflowBlockProtected,
@@ -26,13 +32,9 @@ import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
 import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
-  buildCanonicalIndex,
-  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
-  isCanonicalPair,
   isStandaloneAdvancedMode,
-  resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

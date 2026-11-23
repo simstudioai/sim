@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomDetachContactFromCompanyParams {
   accessToken: string
@@ -40,7 +42,9 @@ const detachContactFromCompanyBase = {
 
   request: {
     url: (params: IntercomDetachContactFromCompanyParams) =>
-      buildIntercomUrl(`/contacts/${params.contactId}/companies/${params.companyId}`),
+      buildIntercomUrl(
+        `/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}/companies/${safeUrlPathSegment(params.companyId, 'companyId')}`
+      ),
     method: 'DELETE',
     headers: (params: IntercomDetachContactFromCompanyParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -60,6 +64,7 @@ export const intercomDetachContactFromCompanyV2Tool: ToolConfig<
   name: 'Detach Contact from Company in Intercom',
   description: 'Remove a contact from a company in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

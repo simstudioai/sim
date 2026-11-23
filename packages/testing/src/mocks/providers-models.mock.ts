@@ -129,7 +129,6 @@ export const providersModelsMockFns = {
   ),
   mockGetEvaluationModels: vi.fn((): string[] => []),
   mockIsEvaluationModel: vi.fn((_modelId: string): boolean => false),
-  mockGetModelsWithDeepResearch: vi.fn((): string[] => []),
   mockGetModelsWithoutMemory: vi.fn((): string[] => []),
   mockGetMaxOutputTokensForModel: vi.fn((_modelId: string): number => 4096),
 }
@@ -213,7 +212,6 @@ export const providersModelsMock = {
   getThinkingStreamVisibility: providersModelsMockFns.mockGetThinkingStreamVisibility,
   getEvaluationModels: providersModelsMockFns.mockGetEvaluationModels,
   isEvaluationModel: providersModelsMockFns.mockIsEvaluationModel,
-  getModelsWithDeepResearch: providersModelsMockFns.mockGetModelsWithDeepResearch,
   getModelsWithoutMemory: providersModelsMockFns.mockGetModelsWithoutMemory,
   getMaxOutputTokensForModel: providersModelsMockFns.mockGetMaxOutputTokensForModel,
 }

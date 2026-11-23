@@ -3,17 +3,41 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { LRUCache } from 'lru-cache'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
   consumeOrCancelBody,
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { throttledRetryAfterMs } from '@/lib/credentials/token-service-accounts/errors'
 
+/** API client credentials typed inline on the legacy block. */
 export interface SailPointCredentials {
   clientId: string
   clientSecret: string
   tenant: string
+}
+
+/** A token minted from a saved SailPoint credential, with the tenant host it was minted for. */
+interface SailPointTokenCredentials {
+  accessToken: string
+  tenant: string
+}
+
+export type SailPointAuth = SailPointCredentials | SailPointTokenCredentials
+
+/** Raised when the tenant's token endpoint refuses the exchange, carrying its HTTP status. */
+export class SailPointAuthError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    /** The token endpoint's `Retry-After` on a 429 or 503, in milliseconds. */
+    readonly retryAfterMs?: number
+  ) {
+    super(message)
+    this.name = 'SailPointAuthError'
+  }
 }
 
 export interface SailPointHosts {
@@ -157,16 +181,32 @@ async function readBoundedBody(
   }
 }
 
-async function exchangeAccessToken(
-  credentials: SailPointCredentials,
-  signal: AbortSignal
-): Promise<{ token: string; ttlMs: number }> {
-  const { tokenUrl } = resolveSailPointHosts(credentials.tenant)
+/**
+ * Exchanges API client credentials for an access token at a tenant's token
+ * endpoint (`client_credentials` grant, credentials in the form body), with
+ * redirects refused and up to four backoff retries on 429 (`maxThrottleRetries`).
+ * A 429 whose wait (its `Retry-After`, or the backoff when it names none)
+ * exceeds `maxThrottleWaitMs` is not retried. A refusal throws
+ * {@link SailPointAuthError} with the provider's status, message, and
+ * `Retry-After`, even when its error body cannot be read.
+ *
+ * @see https://developer.sailpoint.com/docs/api/authentication
+ */
+export async function requestSailPointToken(
+  tokenUrl: string,
+  clientId: string,
+  clientSecret: string,
+  signal: AbortSignal,
+  {
+    maxThrottleRetries = MAX_FETCH_RETRIES,
+    maxThrottleWaitMs = Number.POSITIVE_INFINITY,
+  }: { maxThrottleRetries?: number; maxThrottleWaitMs?: number } = {}
+): Promise<{ token: string; expiresInSeconds: number }> {
   let attempt = 0
 
   while (true) {
     signal?.throwIfAborted()
-    const response = await fetch(tokenUrl, {
+    const response = await outboundFetch(tokenUrl, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -174,44 +214,63 @@ async function exchangeAccessToken(
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: credentials.clientId,
-        client_secret: credentials.clientSecret,
+        client_id: clientId,
+        client_secret: clientSecret,
       }).toString(),
       cache: 'no-store',
       redirect: 'error',
       signal,
     })
 
-    if (response.status === 429 && attempt < MAX_FETCH_RETRIES) {
-      const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
+    const throttleWaitMs =
+      response.status === 429 && attempt < maxThrottleRetries
+        ? backoffWithJitter(attempt + 1, parseRetryAfter(response.headers.get('retry-after')))
+        : undefined
+    if (throttleWaitMs !== undefined && throttleWaitMs <= maxThrottleWaitMs) {
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
       attempt += 1
-      await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), signal)
+      await interruptibleSleep(throttleWaitMs, signal)
       signal?.throwIfAborted()
       continue
     }
 
-    const data = await readBoundedBody(
-      response,
-      response.ok ? MAX_TOKEN_RESPONSE_BYTES : DEFAULT_MAX_ERROR_BODY_BYTES,
-      signal
-    )
+    const data = response.ok
+      ? await readBoundedBody(response, MAX_TOKEN_RESPONSE_BYTES, signal)
+      : await readBoundedBody(response, DEFAULT_MAX_ERROR_BODY_BYTES, signal).catch(() => null)
+    signal?.throwIfAborted()
     if (!response.ok) {
-      throw new Error(getSailPointErrorMessage(data, 'Failed to authenticate with SailPoint'))
+      throw new SailPointAuthError(
+        getSailPointErrorMessage(data, 'Failed to authenticate with SailPoint'),
+        response.status,
+        throttledRetryAfterMs(response)
+      )
     }
     if (!isRecordLike(data) || typeof data.access_token !== 'string' || !data.access_token) {
       throw new Error('SailPoint authentication did not return an access token')
     }
 
     const parsedExpiry = Number(data.expires_in)
-    const expiresInSeconds = Number.isFinite(parsedExpiry) && parsedExpiry > 0 ? parsedExpiry : 3600
-    const bufferMs = Math.min(TOKEN_EXPIRY_BUFFER_MS, expiresInSeconds * 100)
-    // lru-cache reads a TTL of 0 as "never expires", so keep at least 1ms.
     return {
       token: data.access_token,
-      ttlMs: Math.max(Math.floor(expiresInSeconds * 1000 - bufferMs), 1),
+      expiresInSeconds: Number.isFinite(parsedExpiry) && parsedExpiry > 0 ? parsedExpiry : 3600,
     }
   }
+}
+
+async function exchangeAccessToken(
+  credentials: SailPointCredentials,
+  signal: AbortSignal
+): Promise<{ token: string; ttlMs: number }> {
+  const { tokenUrl } = resolveSailPointHosts(credentials.tenant)
+  const { token, expiresInSeconds } = await requestSailPointToken(
+    tokenUrl,
+    credentials.clientId,
+    credentials.clientSecret,
+    signal
+  )
+  const bufferMs = Math.min(TOKEN_EXPIRY_BUFFER_MS, expiresInSeconds * 100)
+  // lru-cache reads a TTL of 0 as "never expires", so keep at least 1ms.
+  return { token, ttlMs: Math.max(Math.floor(expiresInSeconds * 1000 - bufferMs), 1) }
 }
 
 export function invalidateSailPointToken(credentials: SailPointCredentials): void {
@@ -232,8 +291,13 @@ export async function getSailPointAccessToken(
   return token
 }
 
+/**
+ * Sends one authenticated request to the tenant. A saved credential's token
+ * (`accessToken`) is sent as is; inline credentials use a cached token and,
+ * when the tenant rejects it, mint once more and retry.
+ */
 export async function sailpointFetch(
-  credentials: SailPointCredentials,
+  credentials: SailPointAuth,
   buildRequest: (hosts: SailPointHosts) => { init: RequestInit; url: string },
   options: { maxRetries?: number; signal?: AbortSignal } = {}
 ): Promise<SailPointFetchResult> {
@@ -244,13 +308,17 @@ export async function sailpointFetch(
 
   while (true) {
     options.signal?.throwIfAborted()
-    const token = await getSailPointAccessToken(credentials, options.signal)
+    const inline = 'accessToken' in credentials ? undefined : credentials
+    const token =
+      'accessToken' in credentials
+        ? credentials.accessToken
+        : await getSailPointAccessToken(credentials, options.signal)
     const { init, url } = buildRequest(hosts)
     const headers = new Headers(init.headers)
     headers.set('Authorization', `Bearer ${token}`)
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       ...init,
       cache: 'no-store',
       headers,
@@ -258,9 +326,9 @@ export async function sailpointFetch(
       signal: options.signal,
     })
 
-    if (response.status === 401 && !refreshedOn401) {
+    if (response.status === 401 && inline && !refreshedOn401) {
       await consumeOrCancelBody(response, DEFAULT_MAX_ERROR_BODY_BYTES)
-      invalidateSailPointToken(credentials)
+      invalidateSailPointToken(inline)
       refreshedOn401 = true
       continue
     }

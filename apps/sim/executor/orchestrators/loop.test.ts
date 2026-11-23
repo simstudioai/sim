@@ -1,31 +1,48 @@
 import { createLogger } from '@sim/logger'
+import {
+  isolatedVmMock,
+  isolatedVmMockFns,
+  resetIsolatedVmMock,
+} from '@sim/testing/mocks/isolated-vm.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { EDGE } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
+import { loopWorkflow, runLoopWorkflow } from '@/executor/execution/loop-workflow.test-helpers'
 import type { BlockStateController } from '@/executor/execution/types'
 import { LoopOrchestrator } from '@/executor/orchestrators/loop'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mockUploadFile = storageServiceMockFns.mockUploadFile
 
-const { mockExecuteInIsolatedVM } = vi.hoisted(() => ({
-  mockExecuteInIsolatedVM: vi.fn(),
-}))
+const mockExecuteInIsolatedVM = isolatedVmMockFns.mockExecuteInIsolatedVM
 const mockLogger =
   vi.mocked(createLogger).mock.results[
     vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'LoopOrchestrator')
   ].value
 
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: mockExecuteInIsolatedVM,
-}))
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/lib/uploads', () => uploadsMock)
+
+const { bodyRuns } = vi.hoisted(() => ({ bodyRuns: { count: 0 } }))
+
+vi.mock('@/executor/handlers/registry', () => ({
+  createBlockHandlers: () => [
+    {
+      canHandle: () => true,
+      execute: async (_ctx: unknown, block: { id: string }) => {
+        if (block.id === 'tick') bodyRuns.count++
+        return { ok: true }
+      },
+    },
+  ],
+}))
 
 function createNode(id: string): DAGNode {
   return {
@@ -334,5 +351,165 @@ describe('LoopOrchestrator', () => {
 
     expect(scope.maxIterations).toBeUndefined()
     expect(scope.condition).toBe('true')
+  })
+})
+
+const SANDBOX_AT_CAPACITY = {
+  result: null,
+  stdout: '',
+  error: {
+    message: 'Code execution is at capacity. Please try again in a moment.',
+    name: 'Error',
+    isSystemError: true,
+  },
+}
+
+const CONDITION_SYNTAX_ERROR = {
+  result: null,
+  stdout: '',
+  error: { message: "Unexpected token ')'", name: 'SyntaxError' },
+}
+
+function loopLog(result: ExecutionResult) {
+  return result.logs?.find((log) => log.blockId === 'loop')
+}
+
+const sandboxAtCapacity = () => mockExecuteInIsolatedVM.mockResolvedValue(SANDBOX_AT_CAPACITY)
+const sandboxRejects = () =>
+  mockExecuteInIsolatedVM.mockRejectedValue(new Error('REDIS_URL is required'))
+
+describe('loop continuation when the sandbox cannot evaluate', () => {
+  beforeEach(() => {
+    bodyRuns.count = 0
+    resetIsolatedVmMock()
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+  })
+
+  it.each([
+    ['For', 'is at capacity', { loopType: 'for', iterations: 5 }, sandboxAtCapacity],
+    ['For', 'rejects', { loopType: 'for', iterations: 5 }, sandboxRejects],
+    [
+      'ForEach',
+      'is at capacity',
+      { loopType: 'forEach', forEachItems: ['a', 'b', 'c', 'd', 'e'] },
+      sandboxAtCapacity,
+    ],
+    [
+      'count-driven Do While',
+      'is at capacity',
+      { loopType: 'doWhile', iterations: 5 },
+      sandboxAtCapacity,
+    ],
+  ] as const)(
+    'runs every iteration of a %s loop when the sandbox %s',
+    async (_label, _mode, loop, failSandbox) => {
+      failSandbox()
+
+      const result = await runLoopWorkflow(loopWorkflow(loop))
+
+      expect(result.success).toBe(true)
+      expect(bodyRuns.count).toBe(5)
+      expect(loopLog(result)?.output?.results).toHaveLength(5)
+    }
+  )
+
+  it('fails a While loop whose condition has a syntax error instead of skipping its body', async () => {
+    mockExecuteInIsolatedVM.mockResolvedValue(CONDITION_SYNTAX_ERROR)
+
+    const result = await runLoopWorkflow(
+      loopWorkflow({ loopType: 'while', whileCondition: '<loop.index> < 3)' })
+    )
+
+    expect(result.success).toBe(false)
+    expect(bodyRuns.count).toBe(0)
+    expect(result.error).toContain(
+      "While loop condition could not be evaluated: Unexpected token ')'"
+    )
+    expect(loopLog(result)).toMatchObject({
+      success: false,
+      error: expect.stringContaining('condition could not be evaluated'),
+    })
+  })
+
+  it.each([
+    ['answers with a system error', sandboxAtCapacity, /at capacity/],
+    ['rejects', sandboxRejects, /REDIS_URL is required/],
+  ] as const)(
+    'fails a Do While loop mid-run when the sandbox %s instead of ending it early',
+    async (_label, failSandbox, message) => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: true })
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: true })
+      failSandbox()
+
+      const result = await runLoopWorkflow(
+        loopWorkflow({ loopType: 'doWhile', doWhileCondition: '<loop.index> < 10' })
+      )
+
+      expect(result.success).toBe(false)
+      expect(bodyRuns.count).toBe(3)
+      expect(result.error).toMatch(/^Do While loop condition could not be evaluated: /)
+      expect(result.error).toMatch(message)
+      expect(loopLog(result)).toMatchObject({ success: false })
+    }
+  )
+
+  it('attributes a broken condition to the author and a sandbox failure to Sim', async () => {
+    const { orchestrator } = createOrchestrator()
+    const whileScope = () => ({
+      iteration: 0,
+      currentIterationOutputs: new Map(),
+      allIterationOutputs: [],
+      loopType: 'while',
+      condition: 'x <',
+    })
+
+    mockExecuteInIsolatedVM.mockResolvedValueOnce(CONDITION_SYNTAX_ERROR)
+    const userError = await orchestrator
+      .evaluateInitialCondition(createContext(whileScope()), 'loop-1')
+      .catch((error: unknown) => error)
+
+    mockExecuteInIsolatedVM.mockResolvedValueOnce(SANDBOX_AT_CAPACITY)
+    const systemError = await orchestrator
+      .evaluateInitialCondition(createContext(whileScope()), 'loop-1')
+      .catch((error: unknown) => error)
+
+    expect(classifyFailure(userError)).toBe('user')
+    expect(classifyFailure(systemError)).toBe('internal')
+    expect(logFailureOnce(createLogger('probe'), 'probe', userError)).toBeUndefined()
+    expect(logFailureOnce(createLogger('probe'), 'probe', systemError)).toBeUndefined()
+  })
+
+  it('keeps a resolved secret out of the persisted condition error', async () => {
+    const secret = 'resolved-condition-secret-value'
+    const { orchestrator } = createOrchestrator()
+    const scope = {
+      iteration: 0,
+      currentIterationOutputs: new Map(),
+      allIterationOutputs: [],
+      loopType: 'while',
+      condition: '<condition.output>',
+    } as Record<string, unknown>
+    const ctx = createContext(scope)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'CONDITION_SECRET', plaintext: secret, encryptedValue: 'encrypted-condition-secret' },
+    ])
+    registry.recordResolved('CONDITION_SECRET', secret)
+    ctx.resolvedSecretTraceRegistry = registry
+    mockExecuteInIsolatedVM.mockResolvedValueOnce({
+      result: null,
+      stdout: '',
+      error: { message: `ReferenceError: ${secret} is not defined`, name: 'ReferenceError' },
+    })
+
+    const error = await orchestrator
+      .evaluateInitialCondition(ctx, 'loop-1')
+      .catch((thrown: unknown) => thrown)
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toMatch(/^While loop condition could not be evaluated/)
+    expect(
+      JSON.stringify([(error as Error).message, ctx.blockLogs, scope.validationError])
+    ).not.toContain(secret)
   })
 })

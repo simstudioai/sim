@@ -2,6 +2,8 @@ import { generateId } from '@sim/utils/id'
 import { getOAuth2Tokens, type OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { z } from 'zod'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   OAuthIdentityVerificationError,
@@ -60,12 +62,13 @@ export async function verifyGitHubRepositoriesIdentity(accessToken: string) {
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     let response: Response
     try {
-      response = await fetch(`${API_BASE_URL}${path}`, {
+      response = await outboundFetch(`${API_BASE_URL}${path}`, {
         headers,
         signal,
         redirect: 'error',
       })
-    } catch {
+    } catch (error) {
+      if (isUnavailableFailure(error)) throw error
       throw new OAuthIdentityVerificationError('provider_unavailable', stage)
     }
     if (!response.ok) {
@@ -170,7 +173,7 @@ export function createGitHubRepositoriesProvider({
     getToken: async ({ code, codeVerifier, redirectURI: callbackURI }) => {
       if (!codeVerifier) throw new Error('GitHub authorization requires a PKCE verifier')
       const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-      const response = await fetch(GITHUB_TOKEN_URL, {
+      const response = await outboundFetch(GITHUB_TOKEN_URL, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteSloTool: ToolConfig<DeleteSloParams, DeleteSloResponse> = {
@@ -13,6 +14,7 @@ export const deleteSloTool: ToolConfig<DeleteSloParams, DeleteSloResponse> = {
   description:
     'Permanently delete a service level objective. Datadog returns a conflict when the SLO is still referenced by a dashboard.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     sloId: {

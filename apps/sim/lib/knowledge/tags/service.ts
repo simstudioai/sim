@@ -504,7 +504,8 @@ export async function createOrUpdateTagDefinitionsBulk(
   })
 
   logger.info(
-    `[${requestId}] Bulk tag definitions processed: ${created.length} created, ${updated.length} updated, ${errors.length} errors`
+    `Bulk tag definitions processed: ${created.length} created, ${updated.length} updated, ${errors.length} errors`,
+    { requestId }
   )
 
   return { created, updated, errors }
@@ -594,13 +595,13 @@ export async function cleanupUnusedTagDefinitions(
         .where(eq(knowledgeBaseTagDefinitions.id, def.id))
 
       cleanedUp++
-      logger.info(
-        `[${requestId}] Cleaned up unused tag definition: ${def.displayName} (${def.tagSlot})`
-      )
+      logger.info(`Cleaned up unused tag definition: ${def.displayName} (${def.tagSlot})`, {
+        requestId,
+      })
     }
   }
 
-  logger.info(`[${requestId}] Cleanup completed: ${cleanedUp} unused tag definitions removed`)
+  logger.info(`Cleanup completed: ${cleanedUp} unused tag definitions removed`, { requestId })
   return cleanedUp
 }
 
@@ -635,7 +636,7 @@ export async function deleteAllTagDefinitions(
     return definitions.length
   })
 
-  logger.info(`[${requestId}] Deleted ${deletedCount} tag definitions for KB: ${knowledgeBaseId}`)
+  logger.info(`Deleted ${deletedCount} tag definitions for KB: ${knowledgeBaseId}`, { requestId })
 
   return deletedCount
 }
@@ -684,9 +685,9 @@ export async function deleteTagDefinition(
 
   const tagSlot = definition.tagSlot as string
 
-  logger.info(
-    `[${requestId}] Deleted tag definition with cleanup: ${definition.displayName} (${tagSlot})`
-  )
+  logger.info(`Deleted tag definition with cleanup: ${definition.displayName} (${tagSlot})`, {
+    requestId,
+  })
 
   return {
     tagSlot,
@@ -739,7 +740,8 @@ async function insertTagDefinition(
   await dbInstance.insert(knowledgeBaseTagDefinitions).values(newDefinition)
 
   logger.info(
-    `[${requestId}] Created tag definition: ${data.displayName} -> ${data.tagSlot} in KB ${data.knowledgeBaseId}`
+    `Created tag definition: ${data.displayName} -> ${data.tagSlot} in KB ${data.knowledgeBaseId}`,
+    { requestId }
   )
 
   return {
@@ -810,7 +812,7 @@ export async function updateTagDefinition(
   }
 
   const updated = updatedRows[0]
-  logger.info(`[${requestId}] Updated tag definition: ${tagDefinitionId}`)
+  logger.info(`Updated tag definition: ${tagDefinitionId}`, { requestId })
 
   return {
     ...updated,
@@ -883,7 +885,7 @@ export async function getTagUsage(
     })
   }
 
-  logger.info(`[${requestId}] Retrieved detailed tag usage for ${usage.length} definitions`)
+  logger.info(`Retrieved detailed tag usage for ${usage.length} definitions`, { requestId })
 
   return usage
 }
@@ -964,7 +966,7 @@ export async function getTagUsageStats(
     })
   }
 
-  logger.info(`[${requestId}] Retrieved tag usage stats for ${stats.length} definitions`)
+  logger.info(`Retrieved tag usage stats for ${stats.length} definitions`, { requestId })
 
   return stats
 }

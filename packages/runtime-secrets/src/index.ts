@@ -1,9 +1,15 @@
 import type { GetSecretValueCommandOutput } from '@aws-sdk/client-secrets-manager'
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager'
 import { createLogger } from '@sim/logger'
+import {
+  isEnvironmentProxyConfigured,
+  resolveEnvironmentProxy,
+} from '@sim/security/environment-proxy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { FetchHttpHandler } from '@smithy/fetch-http-handler'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 const logger = createLogger('RuntimeSecrets')
 
@@ -33,12 +39,7 @@ export async function loadRuntimeSecrets(): Promise<void> {
     return
   }
 
-  const client = new SecretsManagerClient(
-    process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}
-  )
-
-  const secretString = await fetchSecretString(client, secretId)
-  const entries = parseSecretJson(secretString)
+  const entries = await fetchRuntimeSecrets(secretId)
 
   let loaded = 0
   let skipped = 0
@@ -47,11 +48,81 @@ export async function loadRuntimeSecrets(): Promise<void> {
       skipped++
       continue
     }
-    process.env[key] = typeof value === 'string' ? value : JSON.stringify(value)
+    process.env[key] = value
     loaded++
   }
 
   logger.info('Runtime secrets ingested', { secretId, loaded, skipped })
+}
+
+/**
+ * Reads one env-vars JSON secret as the string map a process would see: the
+ * same values {@link loadRuntimeSecrets} writes into `process.env`, with
+ * non-string JSON values serialized. Retries a failed request up to three
+ * times, then throws, so a caller never proceeds on a partial or missing secret.
+ */
+export async function fetchRuntimeSecrets(secretId: string): Promise<Record<string, string>> {
+  const requestHandler = proxyAwareRequestHandler()
+  const client = new SecretsManagerClient({
+    ...(process.env.AWS_REGION ? { region: process.env.AWS_REGION } : {}),
+    ...(requestHandler ? { requestHandler } : {}),
+  })
+  const entries = parseSecretJson(await fetchSecretString(client, secretId))
+  return Object.fromEntries(
+    Object.entries(entries).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? value : JSON.stringify(value),
+    ])
+  )
+}
+
+/**
+ * Sends each request the way the app's `awsRequestHandler` would: through the `HTTPS_PROXY` /
+ * `HTTP_PROXY` that applies to its destination (an https endpoint falls back to `HTTP_PROXY`),
+ * or directly when `NO_PROXY` excludes it, using the same rules from `@sim/security`. Proxied
+ * requests go through Bun's `fetch` with the proxy passed explicitly, since Bun's own lookup
+ * picks a proxy by scheme only and would skip an https endpoint when just `HTTP_PROXY` is set.
+ */
+class EnvironmentProxyHandler extends FetchHttpHandler {
+  private readonly direct = new NodeHttpHandler()
+
+  constructor() {
+    super({
+      customFetch: (input, init) => {
+        const url = input instanceof Request ? input.url : String(input)
+        const proxied: RequestInit & { proxy?: string } = {
+          ...init,
+          proxy: resolveEnvironmentProxy(new URL(url)) ?? undefined,
+        }
+        return fetch(input, proxied)
+      },
+    })
+  }
+
+  override handle(...args: Parameters<FetchHttpHandler['handle']>) {
+    const [request, options] = args
+    const port = request.port ? `:${request.port}` : ''
+    const target = new URL(`${request.protocol}//${request.hostname}${port}`)
+    if (resolveEnvironmentProxy(target)) return super.handle(request, options)
+    return this.direct.handle(request, options)
+  }
+
+  override destroy() {
+    this.direct.destroy()
+    super.destroy()
+  }
+}
+
+/**
+ * The SDK's default Node handler ignores `HTTPS_PROXY`, so a container whose only egress is a
+ * proxy could not fetch its config and would never boot. Both container bootstraps run on Bun,
+ * so while a proxy is set this returns an {@link EnvironmentProxyHandler}. The app's
+ * `awsRequestHandler` lives in `apps/sim`, which packages cannot import. Undefined otherwise,
+ * leaving the SDK default in place.
+ */
+function proxyAwareRequestHandler(): EnvironmentProxyHandler | undefined {
+  if (!process.versions.bun || !isEnvironmentProxyConfigured()) return undefined
+  return new EnvironmentProxyHandler()
 }
 
 async function fetchSecretString(client: SecretsManagerClient, secretId: string): Promise<string> {
@@ -92,8 +163,9 @@ function parseSecretJson(secretString: string): Record<string, unknown> {
   let parsed: unknown
   try {
     parsed = JSON.parse(secretString)
-  } catch (error) {
-    throw new Error(`Runtime secret is not valid JSON: ${getErrorMessage(error)}`)
+  } catch {
+    // The parser's message quotes the text around the fault, which can be part of a value.
+    throw new Error('Runtime secret is not valid JSON')
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Runtime secret must be a JSON object of key/value pairs')

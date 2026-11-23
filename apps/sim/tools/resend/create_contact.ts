@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { CreateContactParams, CreateContactResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendCreateContactTool')
@@ -9,6 +10,7 @@ export const resendCreateContactTool: ToolConfig<CreateContactParams, CreateCont
   name: 'Create Contact',
   description: 'Create a new contact in Resend',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     email: {

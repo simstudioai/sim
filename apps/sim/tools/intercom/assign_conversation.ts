@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomAssignConversationParams {
   accessToken: string
@@ -56,7 +58,9 @@ const assignConversationBase = {
 
   request: {
     url: (params: IntercomAssignConversationParams) =>
-      buildIntercomUrl(`/conversations/${params.conversationId}/parts`),
+      buildIntercomUrl(
+        `/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/parts`
+      ),
     method: 'POST',
     headers: (params: IntercomAssignConversationParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -89,6 +93,7 @@ export const intercomAssignConversationV2Tool: ToolConfig<
   name: 'Assign Conversation in Intercom',
   description: 'Assign a conversation to an admin or team in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

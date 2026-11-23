@@ -5,6 +5,7 @@ import {
   type Ec2DescribeVpcsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeVpcsTool: InternalToolConfig<Ec2DescribeVpcsParams, Ec2DescribeVpcsResponse> =
@@ -13,6 +14,7 @@ export const describeVpcsTool: InternalToolConfig<Ec2DescribeVpcsParams, Ec2Desc
     name: 'EC2 Describe VPCs',
     description: 'List VPCs with their CIDR blocks and state',
     version: '1.0.0',
+    oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {
       awsRegion: {

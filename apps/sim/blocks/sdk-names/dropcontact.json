@@ -1,0 +1,6 @@
+{
+  "namespace": "dropcontact",
+  "methods": {
+    "dropcontact_enrich_contact": "enrichContact"
+  }
+}

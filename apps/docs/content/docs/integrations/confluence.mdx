@@ -86,6 +86,10 @@ Retrieve content from Confluence pages using the Confluence API.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `labels` | array | Labels on the content \(first 50\) |
+|   ↳ `id` | string | Unique label identifier |
+|   ↳ `name` | string | Label name |
+|   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
 | `pageId` | string | Confluence page ID |
 | `title` | string | Page title |
 | `content` | string | Page content with HTML tags stripped |
@@ -93,6 +97,9 @@ Retrieve content from Confluence pages using the Confluence API.
 | `spaceId` | string | ID of the space containing the page |
 | `parentId` | string | ID of the parent page |
 | `authorId` | string | Account ID of the page author |
+| `ownerId` | string | Account ID of the current page owner |
+| `lastOwnerId` | string | Account ID of the previous page owner |
+| `parentType` | string | Type of the parent content \(e.g., page, whiteboard, database, embed, folder\) |
 | `createdAt` | string | ISO 8601 timestamp when the page was created |
 | `url` | string | URL to view the page in Confluence |
 | `body` | object | Raw page body content in storage format |
@@ -236,7 +243,7 @@ List all pages within a specific Confluence space. Supports pagination and filte
 | `spaceId` | string | Yes | The ID of the Confluence space to list pages from |
 | `limit` | number | No | Maximum number of pages to return \(default: 50, max: 250\) |
 | `status` | string | No | Filter pages by status: current, archived, trashed, or draft |
-| `bodyFormat` | string | No | Format for page body content: storage, atlas_doc_format, or view. If not specified, body is not included. |
+| `bodyFormat` | string | No | Format for page body content: storage or atlas_doc_format. If not specified, body is not included. |
 | `cursor` | string | No | Pagination cursor from previous response to get the next page of results |
 
 #### Output
@@ -251,6 +258,7 @@ List all pages within a specific Confluence space. Supports pagination and filte
 |   ↳ `spaceId` | string | ID of the space containing the page |
 |   ↳ `parentId` | string | ID of the parent page \(null if top-level\) |
 |   ↳ `authorId` | string | Account ID of the page author |
+|   ↳ `ownerId` | string | Account ID of the current page owner |
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the page was created |
 |   ↳ `version` | object | Page version information |
 |     ↳ `number` | number | Version number |
@@ -509,6 +517,8 @@ Search for content across Confluence pages, blog posts, and other content.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `query` | string | Yes | Search query string |
 | `limit` | number | No | Maximum number of results to return \(default: 25\) |
+| `cql` | string | No | Extra CQL clauses ANDed with the text search, e.g. type = page AND space = "ENG" AND lastModified &gt; now\("-7d"\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
 
 #### Output
 
@@ -529,6 +539,8 @@ Search for content across Confluence pages, blog posts, and other content.
 |     ↳ `name` | string | Space name |
 |   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
 |   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
+| `totalSize` | number | Total number of matching results |
+| `nextCursor` | string | Cursor for fetching the next page of results |
 
 </ReferenceDetails>
 
@@ -547,6 +559,7 @@ Search for content within a specific Confluence space. Optionally filter by text
 | `query` | string | No | Text search query. If not provided, returns all content in the space. |
 | `contentType` | string | No | Filter by content type: page, blogpost, attachment, or comment |
 | `limit` | number | No | Maximum number of results to return \(default: 25, max: 250\) |
+| `cursor` | string | No | Pagination cursor from a previous response \(nextCursor\) |
 
 #### Output
 
@@ -569,6 +582,7 @@ Search for content within a specific Confluence space. Optionally filter by text
 |     ↳ `name` | string | Space name |
 |   ↳ `lastModified` | string | ISO 8601 timestamp of last modification |
 |   ↳ `entityType` | string | Entity type identifier \(e.g., content, space\) |
+| `nextCursor` | string | Cursor for fetching the next page of results |
 
 </ReferenceDetails>
 
@@ -623,13 +637,17 @@ Get a specific Confluence blog post by ID, including its content.
 | --------- | ---- | -------- | ----------- |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `blogPostId` | string | Yes | The ID of the blog post to retrieve |
-| `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, or view |
+| `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, view, or export_view \(default: storage\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ts` | string | ISO 8601 timestamp of the operation |
+| `labels` | array | Labels on the content \(first 50\) |
+|   ↳ `id` | string | Unique label identifier |
+|   ↳ `name` | string | Label name |
+|   ↳ `prefix` | string | Label prefix/type \(e.g., global, my, team\) |
 | `id` | string | Blog post ID |
 | `title` | string | Blog post title |
 | `status` | string | Blog post status |
@@ -716,7 +734,7 @@ List all blog posts within a specific Confluence space.
 | `spaceId` | string | Yes | The ID of the Confluence space to list blog posts from |
 | `limit` | number | No | Maximum number of blog posts to return \(default: 25, max: 250\) |
 | `status` | string | No | Filter by status: current, archived, trashed, or draft |
-| `bodyFormat` | string | No | Format for blog post body: storage, atlas_doc_format, or view |
+| `bodyFormat` | string | No | Format for blog post body: storage or atlas_doc_format. If not specified, body is not included. |
 | `cursor` | string | No | Pagination cursor from previous response |
 
 #### Output
@@ -765,6 +783,7 @@ Add a comment to a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to comment on |
 | `comment` | string | Yes | Comment text in Confluence storage format |
+| `parentCommentId` | string | No | ID of a footer or inline comment to reply to. When set, the comment is posted as a reply in that thread. |
 
 #### Output
 
@@ -773,6 +792,15 @@ Add a comment to a Confluence page.
 | `ts` | string | Timestamp of creation |
 | `commentId` | string | Created comment ID |
 | `pageId` | string | Page ID |
+| `parentCommentId` | string | ID of the parent comment when the comment is a reply |
+| `status` | string | Comment status \(e.g., current\) |
+| `version` | object | Comment version information |
+|   ↳ `number` | number | Version number |
+|   ↳ `message` | string | Version message |
+|   ↳ `minorEdit` | boolean | Whether this is a minor edit |
+|   ↳ `authorId` | string | Account ID of the version author |
+|   ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+| `webUrl` | string | URL to view the comment in Confluence |
 
 </ReferenceDetails>
 
@@ -789,8 +817,9 @@ List all comments on a Confluence page.
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to list comments from |
 | `limit` | number | No | Maximum number of comments to return \(default: 25\) |
-| `bodyFormat` | string | No | Format for the comment body: storage, atlas_doc_format, view, or export_view \(default: storage\) |
+| `bodyFormat` | string | No | Format for the comment body: storage or atlas_doc_format \(default: storage\) |
 | `cursor` | string | No | Pagination cursor from previous response |
+| `commentType` | string | No | Which comments to list: footer \(comments at the bottom of the page\) or inline \(comments attached to highlighted text\). Default: footer |
 
 #### Output
 
@@ -815,6 +844,11 @@ List all comments on a Confluence page.
 |     ↳ `minorEdit` | boolean | Whether this is a minor edit |
 |     ↳ `authorId` | string | Account ID of the version author |
 |     ↳ `createdAt` | string | ISO 8601 timestamp of version creation |
+|   ↳ `commentType` | string | Comment type that was listed \(footer or inline\) |
+|   ↳ `resolutionStatus` | string | Inline comment resolution status \(open, reopened, resolved, dangling\) |
+|   ↳ `inlineOriginalSelection` | string | Page text the inline comment is attached to |
+|   ↳ `inlineMarkerRef` | string | Marker reference of the highlighted text for an inline comment |
+|   ↳ `webUrl` | string | URL to view the comment in Confluence |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 </ReferenceDetails>
@@ -927,6 +961,8 @@ List all attachments on a Confluence page.
 |   ↳ `pageId` | string | ID of the page the attachment belongs to |
 |   ↳ `blogPostId` | string | ID of the blog post the attachment belongs to |
 |   ↳ `comment` | string | Comment/description of the attachment |
+|   ↳ `createdAt` | string | ISO 8601 timestamp when the attachment was created |
+|   ↳ `fileId` | string | Media file ID of the attachment |
 |   ↳ `version` | object | Attachment version information |
 |     ↳ `number` | number | Version number |
 |     ↳ `message` | string | Version message |
@@ -1067,6 +1103,7 @@ Retrieve all pages that have a specific label applied.
 |   ↳ `spaceId` | string | ID of the space containing the page |
 |   ↳ `parentId` | string | ID of the parent page \(null if top-level\) |
 |   ↳ `authorId` | string | Account ID of the page author |
+|   ↳ `ownerId` | string | Account ID of the current page owner |
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the page was created |
 |   ↳ `version` | object | Page version information |
 |     ↳ `number` | number | Version number |
@@ -1137,6 +1174,7 @@ Get details about a specific Confluence space.
 | `description` | object | Space description content |
 |   ↳ `value` | string | Description text content |
 |   ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
+| `spaceOwnerId` | string | Account ID of the space owner |
 
 </ReferenceDetails>
 
@@ -1258,9 +1296,11 @@ List all Confluence spaces accessible to the user.
 |   ↳ `authorId` | string | Account ID of the space creator |
 |   ↳ `createdAt` | string | ISO 8601 timestamp when the space was created |
 |   ↳ `homepageId` | string | ID of the space homepage |
-|   ↳ `description` | object | Space description |
+|   ↳ `description` | object | Space description \(plain text\) |
 |     ↳ `value` | string | Description text content |
 |     ↳ `representation` | string | Content representation format \(e.g., plain, view, storage\) |
+|   ↳ `spaceOwnerId` | string | Account ID of the space owner |
+|   ↳ `webUrl` | string | URL to view the space in Confluence |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 </ReferenceDetails>

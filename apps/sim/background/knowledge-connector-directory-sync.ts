@@ -14,15 +14,15 @@ const logger = createLogger('TriggerKnowledgeConnectorDirectorySync')
 
 export async function executeDirectorySyncJob(payload: unknown) {
   const { connectorId, requestId } = assertDirectorySyncPayload(payload)
-  logger.info(`[${requestId}] Starting directory refresh: ${connectorId}`)
+  logger.info(`Starting directory refresh: ${connectorId}`, { requestId })
   try {
     const outcome = await refreshConnectorDirectory(connectorId, requestId)
-    logger.info(`[${requestId}] Directory refresh finished`, { connectorId, outcome })
+    logger.info('Directory refresh finished', { requestId, connectorId, outcome })
     return { outcome }
   } catch (error) {
     const diagnostic = getConnectorFailureDiagnostic(error)
     if (!diagnostic) throw error
-    logger.error(`[${requestId}] Directory refresh failed`, { connectorId, diagnostic })
+    logger.error('Directory refresh failed', { requestId, connectorId, diagnostic })
     throw new Error(diagnostic.message)
   }
 }

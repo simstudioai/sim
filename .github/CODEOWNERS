@@ -5,28 +5,28 @@
 /apps/sim/app/api/mothership/chat/ @simstudioai/mothership
 /apps/sim/app/api/mothership/chats/ @simstudioai/mothership
 /apps/sim/app/api/mothership/execute/ @simstudioai/mothership
-/apps/sim/app/api/v1/copilot/chat/ @simstudioai/mothership
 
 # Server-side stream orchestration, persistence, and protocol.
-/apps/sim/lib/copilot/chat/ @simstudioai/mothership
-/apps/sim/lib/copilot/async-runs/ @simstudioai/mothership
-/apps/sim/lib/copilot/request/ @simstudioai/mothership
-/apps/sim/lib/copilot/generated/ @simstudioai/mothership
-/apps/sim/lib/copilot/constants.ts @simstudioai/mothership
+/apps/sim/lib/mothership/chat/ @simstudioai/mothership
+/apps/sim/lib/mothership/async-runs/ @simstudioai/mothership
+/apps/sim/lib/mothership/request/ @simstudioai/mothership
+/apps/sim/lib/mothership/generated/ @simstudioai/mothership
+/apps/sim/lib/mothership/observability/ @simstudioai/mothership
+/apps/sim/lib/mothership/constants.ts @simstudioai/mothership
 /apps/sim/lib/core/utils/sse.ts @simstudioai/mothership
 
 # Stream-time tool execution, confirmations, resource persistence, and handlers.
-/apps/sim/lib/copilot/tool-executor/ @simstudioai/mothership
-/apps/sim/lib/copilot/tools/ @simstudioai/mothership
-/apps/sim/lib/copilot/persistence/ @simstudioai/mothership
-/apps/sim/lib/copilot/resources/ @simstudioai/mothership
+/apps/sim/lib/mothership/tool-executor/ @simstudioai/mothership
+/apps/sim/lib/mothership/tools/ @simstudioai/mothership
+/apps/sim/lib/mothership/persistence/ @simstudioai/mothership
+/apps/sim/lib/mothership/resources/ @simstudioai/mothership
 
 # Client-side stream consumption, hydration, and reconnect.
 /apps/sim/app/workspace/*/home/hooks/index.ts @simstudioai/mothership
 /apps/sim/app/workspace/*/home/hooks/use-chat.ts @simstudioai/mothership
 /apps/sim/app/workspace/*/home/hooks/preview/ @simstudioai/mothership
 /apps/sim/app/workspace/*/home/hooks/stream/ @simstudioai/mothership
-/apps/sim/hooks/queries/tasks.ts @simstudioai/mothership
+/apps/sim/hooks/queries/mothership-tasks.ts @simstudioai/mothership
 
 # Dependency manifests and package-manager config. Any change here — adding,
 # removing, or bumping a dependency, or altering install/security settings —

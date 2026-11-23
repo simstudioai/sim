@@ -1,6 +1,9 @@
 import type { RipplingCreateCustomObjectRecordParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { customObjectRecordFields } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCustomObjectRecordParams> =
   {
@@ -8,6 +11,7 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
     name: 'Rippling Create Custom Object Record',
     description: 'Create a custom object record',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -27,11 +31,17 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
         visibility: 'user-or-llm',
         description: 'External ID for the record',
       },
-      data: { type: 'json', required: true, visibility: 'user-or-llm', description: 'Record data' },
+      data: {
+        type: 'json',
+        required: true,
+        visibility: 'user-or-llm',
+        description:
+          'Field values keyed by field API name (e.g. {"name": "License 4", "status__c": "ACTIVE"})',
+      },
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/`,
+        `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/records/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -39,7 +49,10 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
         Accept: 'application/json',
       }),
       body: (params) => {
-        const body: Record<string, unknown> = { data: params.data }
+        if (params.data == null || params.data === '') {
+          throw new Error('data is required: the field values of the record to create')
+        }
+        const body: Record<string, unknown> = { ...customObjectRecordFields(params.data) }
         if (params.externalId != null && params.externalId !== '')
           body.external_id = params.externalId
         return body

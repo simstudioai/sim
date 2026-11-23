@@ -10,7 +10,7 @@ When Zoom Search is enabled for your organization, connect your own account to f
 Zoom Search requires deployment enablement and organization access before setup or retrieval is available. Ask your admin about availability if Zoom is missing.
 
 1. An admin adds **Zoom → Member accounts** in **Settings → Sources**.
-2. Each person selects **Integrations → Zoom → ⋯ → Connect**, signs in, and authorizes the read permissions. Zoom account-admin approval may be needed.
+2. Each person opens **Integrations → Zoom**, selects **Connect**, and authorizes the read permissions. Your Zoom admin may need to approve the app.
 3. Return to Sim, confirm the account appears, and search a known meeting. Read the result and follow its source link.
 
 A workflow Zoom connection does not authorize Search. Its dedicated app registration prevents Search reauthorization from replacing or narrowing a workflow app's grant.
@@ -43,7 +43,7 @@ The connection uses PKCE and `client_secret_basic`. Sim requests only those two 
 
 ## Disconnect and troubleshoot
 
-In **Integrations**, open Zoom's **…** menu, select **Disconnect** for the account, and confirm. This stops use in the organization. Workflows using that same connection lose access; other members' connections are unaffected.
+Open **Integrations → Zoom**, select **Disconnect**, and confirm. Workflows that use this managed connection lose access too. Workflow blocks that use a separate Zoom OAuth connection keep their access.
 
 To remove Zoom authorization too, open **Zoom App Marketplace → My Library**, find the Search app, and select **More → Remove**. Account admins may control removal. Disconnecting does not delete meetings/recordings or existing Sim conversations. [Zoom removal instructions](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0062865).
 

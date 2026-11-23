@@ -2,6 +2,7 @@ import type {
   AthenaBatchGetNamedQueryParams,
   AthenaBatchGetNamedQueryResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const batchGetNamedQueryTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const batchGetNamedQueryTool: InternalToolConfig<
   name: 'Athena Batch Get Named Queries',
   description: 'Get the details of up to 50 Athena named queries by ID in a single call',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

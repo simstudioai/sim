@@ -178,6 +178,15 @@ export function readMultipart(
         return
       }
 
+      // busboy treats an `application/octet-stream` part without a filename as a file.
+      const { filename } = info
+      if (filename === undefined) {
+        stream.resume()
+        nodeStream.destroy()
+        settle(() => reject(new MultipartError('NO_FILE', 'File part has no filename')))
+        return
+      }
+
       const missing = requiredFieldsBeforeFile.filter((field) => !(field in fields))
       if (missing.length > 0) {
         stream.resume()
@@ -218,7 +227,7 @@ export function readMultipart(
         }
         resolve({
           fields,
-          file: { fieldName: name, filename: info.filename, mimeType: info.mimeType, stream },
+          file: { fieldName: name, filename, mimeType: info.mimeType, stream },
         })
       })
     })

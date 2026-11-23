@@ -1,6 +1,10 @@
 import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
 import { ADMIN_MEMBER_OPERATION_EVENT_TYPE } from '@/lib/admin/member-operation-event'
 import {
+  AWS_MARKETPLACE_BUYER_NOTICE_EVENT,
+  AWS_MARKETPLACE_TEAM_NOTICE_EVENT,
+} from '@/lib/billing/aws-marketplace/notice-events'
+import {
   ENTERPRISE_INVITE_PEOPLE_EVENT_TYPE,
   ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
@@ -24,6 +28,7 @@ import { SLACK_SEARCH_TURN_EVENT } from '@/lib/knowledge/application/slack-searc
 import {
   KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+  KNOWLEDGE_PERMISSION_IMPORT_CLEANUP_EVENT,
 } from '@/lib/knowledge/connectors/outbox-events'
 import {
   EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
@@ -153,6 +158,15 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
     },
   },
   {
+    events: [AWS_MARKETPLACE_TEAM_NOTICE_EVENT, AWS_MARKETPLACE_BUYER_NOTICE_EVENT],
+    load: async () => {
+      const { awsMarketplaceOutboxHandlers } = await import(
+        '@/lib/billing/aws-marketplace/notifications'
+      )
+      return awsMarketplaceOutboxHandlers
+    },
+  },
+  {
     events: [MIGRATED_INVITATION_EMAIL_EVENT_TYPE],
     load: async () => {
       const { invitationMigrationOutboxHandlers } = await import('@/lib/workspaces/admin-move')
@@ -170,6 +184,7 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
     events: [
       KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
       KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+      KNOWLEDGE_PERMISSION_IMPORT_CLEANUP_EVENT,
       KNOWLEDGE_STORAGE_CLEANUP_EVENT,
       OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
       KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,

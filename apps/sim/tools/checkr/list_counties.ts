@@ -6,6 +6,7 @@ import {
   checkrHeaders,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListCountiesTool: ToolConfig<
@@ -17,6 +18,7 @@ export const checkrListCountiesTool: ToolConfig<
   description:
     'List US counties for one or more states, with their FIPS codes. Use the county names in report self-disclosures.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

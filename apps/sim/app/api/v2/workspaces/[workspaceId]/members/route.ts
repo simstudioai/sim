@@ -4,6 +4,7 @@ import {
 } from '@/lib/api/contracts/v2/workspaces'
 import { cursorRoute, cursorScopeKey, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { presentWorkspaceMember } from '@/lib/api/server/workspace-presenters'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2WorkspaceErrorPolicies } from '@/lib/workspaces/api/route-policies'
 import { listPublicWorkspaceMembers } from '@/lib/workspaces/application/list-public-workspace-members'
@@ -50,15 +51,7 @@ export const GET = defineV2JsonRoute({
   },
   useCase: listPublicWorkspaceMembers,
   present: ({ page }, { params }) => ({
-    data: page.members.map((member) => ({
-      userId: member.userId,
-      email: member.email,
-      name: member.name,
-      image: member.image,
-      role: member.role,
-      isExternal: member.isExternal,
-      joinedAt: member.joinedAt.toISOString(),
-    })),
+    data: page.members.map(presentWorkspaceMember),
     nextCursor: page.nextEmail
       ? encodeScopedCursor(
           memberCursorScope(params.workspaceId),

@@ -3,6 +3,8 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   type BillingAttributionSnapshot,
@@ -30,6 +32,7 @@ import {
   resolveActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeResourceContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
+  resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
@@ -39,6 +42,7 @@ import {
   MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
 } from '@/lib/knowledge/constants'
 import { dispatchDocumentProcessing } from '@/lib/knowledge/documents/processing-dispatch'
+import { relayKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
@@ -47,6 +51,7 @@ import {
   deleteDocument,
   deleteKnowledgeDocumentInKnowledgeBase,
   getDocuments,
+  getDocumentsAfter,
   getProcessingConfig,
   type ProcessingOptions,
   updateDocument,
@@ -98,6 +103,20 @@ export interface ListKnowledgeDocumentsInput {
    */
   tagNameFilters?: KnowledgeTagNameFilter[]
 }
+
+interface ListKnowledgeDocumentsAfterInput {
+  knowledgeBaseId: string
+  assertedWorkspaceId?: string
+  /** The id the previous page ended at (its `next`); `null` for the first page. */
+  after: string | null
+  /** Documents per page, at most {@link MAX_DOCUMENTS_PAGE_AFTER}. */
+  limit: number
+  /** Lists only these documents (at most `limit`), those that are live and readable. */
+  documentIds?: string[]
+}
+
+/** The largest page {@link listKnowledgeDocumentsAfter} reads. */
+export const MAX_DOCUMENTS_PAGE_AFTER = 1_000
 
 export interface ReadKnowledgeDocumentInput {
   knowledgeBaseId: string
@@ -338,6 +357,48 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   },
 })
 
+/**
+ * Every live document of a knowledge base the caller can read, one keyset page at a time in id
+ * order: a walk over every page never skips or repeats a document that changes between pages,
+ * and each page costs the same at any depth. Same operation and admission as
+ * {@link listKnowledgeDocuments}, without its counts, sorting or filters.
+ */
+export const listKnowledgeDocumentsAfter = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.listDocuments,
+  resolveContext: ({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListKnowledgeDocumentsAfterInput
+  }) => resolveActiveKnowledgeResourceContext(input, principal),
+  async execute({ principal, input, context }) {
+    const { limit, documentIds } = input
+    if (!Number.isInteger(limit) || limit < 1 || limit > MAX_DOCUMENTS_PAGE_AFTER) {
+      throw new OrchestrationError(
+        'validation',
+        `Document limit must be between 1 and ${MAX_DOCUMENTS_PAGE_AFTER}`
+      )
+    }
+    if (documentIds && documentIds.length > limit) {
+      throw new OrchestrationError('validation', 'List at most `limit` documents by id')
+    }
+    const page = await getDocumentsAfter(
+      context.knowledgeBaseId,
+      { after: input.after, limit, ...(documentIds ? { documentIds } : {}) },
+      context.access
+    )
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      page.documents.map((doc) => ({ id: doc.id, value: doc }))
+    )
+    return {
+      documents: page.documents.filter((doc) => admitted.has(doc.id)),
+      next: page.next,
+    }
+  },
+})
+
 export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({
@@ -382,6 +443,19 @@ export const admitKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseName: context.knowledgeBase.name,
       workspaceId: context.workspaceId,
     }
+  },
+})
+
+/**
+ * Admits uploads into a knowledge base the caller is about to create in a workspace, before it
+ * has an id: the same upload policy `uploadKnowledgeDocument` enforces, checked at workspace scope.
+ */
+export const admitWorkspaceKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.uploadDocument,
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+    resolveKnowledgeWorkspaceContext(input),
+  async execute({ context }) {
+    return { workspaceId: context.workspaceId }
   },
 })
 
@@ -459,12 +533,14 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       registrationContext
     )
     const uploadedBy = resolveKnowledgeAttributedUserId(principal, registrationContext)
-    const documentInput: KnowledgeDocumentInput = {
+    const documentInput = {
       filename: input.file.filename,
       fileUrl: `${storedFile.path}?context=knowledge-base`,
       fileSize: input.file.fileSize,
+      fileSha256: sha256Hex(input.file.buffer),
       mimeType: input.file.mimeType,
     }
+    const processingEventId = input.startProcessing !== false ? generateId() : undefined
     const document = await createSingleDocument(
       documentInput,
       registrationContext.knowledgeBaseId,
@@ -474,16 +550,22 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       undefined,
       {
         expectedWorkspaceId: registrationContext.workspaceId,
-        ...(input.startProcessing !== false
+        ...(processingEventId
           ? {
               processing: {
                 processingOptions: input.processingOptions ?? {},
                 billingAttribution,
+                eventId: processingEventId,
               },
             }
           : {}),
       }
     )
+    // Dispatched now, as every other document-creating path dispatches, not when the outbox
+    // drains; not awaited, since the in-process backend indexes inside the dispatch. The relay
+    // claims the event under the drain's lock and leaves it pending on failure, so it never
+    // double-runs and the drain still retries it.
+    if (processingEventId) void relayKnowledgeDocumentProcessing(processingEventId)
     return { document, created: true as const }
   },
   projectAudit: ({ input, context, result }) => ({

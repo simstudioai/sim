@@ -1,5 +1,6 @@
 import type { GoogleDrivePermission, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveShareParams extends GoogleDriveToolParams {
   fileId: string
@@ -11,6 +12,8 @@ interface GoogleDriveShareParams extends GoogleDriveToolParams {
   moveToNewOwnersRoot?: boolean
   sendNotification?: boolean
   emailMessage?: string
+  expirationTime?: string
+  allowFileDiscovery?: boolean
 }
 
 interface GoogleDriveShareResponse extends ToolResponse {
@@ -93,14 +96,32 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
       visibility: 'user-or-llm',
       description: 'Custom message to include in the notification email',
     },
+    expirationTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'RFC 3339 time when the permission expires (e.g., 2025-12-31T23:59:59Z). Only for user and group permissions; must be in the future and at most one year out',
+    },
+    allowFileDiscovery: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the file can be discovered through search. Only for domain and anyone permissions',
+    },
   },
 
   request: {
     url: (params) => {
       const url = new URL(
-        `https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}/permissions`
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId, 'fileId')}/permissions`
       )
       url.searchParams.append('supportsAllDrives', 'true')
+      url.searchParams.append(
+        'fields',
+        'id,type,role,emailAddress,displayName,domain,expirationTime,deleted,allowFileDiscovery,pendingOwner'
+      )
       if (params.transferOwnership) {
         url.searchParams.append('transferOwnership', 'true')
       }
@@ -133,6 +154,13 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
       if (params.domain) {
         body.domain = params.domain.trim()
       }
+      const expirationTime = params.expirationTime?.trim()
+      if (expirationTime) {
+        body.expirationTime = expirationTime
+      }
+      if (params.allowFileDiscovery !== undefined) {
+        body.allowFileDiscovery = params.allowFileDiscovery
+      }
       return body
     },
   },
@@ -156,6 +184,8 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
           domain: data.domain ?? null,
           expirationTime: data.expirationTime ?? null,
           deleted: data.deleted ?? false,
+          allowFileDiscovery: data.allowFileDiscovery ?? null,
+          pendingOwner: data.pendingOwner ?? false,
         },
       },
     }
@@ -174,6 +204,16 @@ export const shareTool: ToolConfig<GoogleDriveShareParams, GoogleDriveShareRespo
         domain: { type: 'string', description: 'Domain of the grantee', optional: true },
         expirationTime: { type: 'string', description: 'Expiration time', optional: true },
         deleted: { type: 'boolean', description: 'Whether grantee is deleted' },
+        allowFileDiscovery: {
+          type: 'boolean',
+          description: 'Whether the file is discoverable through search (domain and anyone only)',
+          optional: true,
+        },
+        pendingOwner: {
+          type: 'boolean',
+          description: 'Whether the grantee is a pending owner of the file',
+          optional: true,
+        },
       },
     },
   },

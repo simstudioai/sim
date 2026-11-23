@@ -10,7 +10,9 @@ import {
   parseServiceNowResponse,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getChangeNextStatesTool: ToolConfig<
   ServiceNowGetChangeNextStatesParams,
@@ -21,6 +23,7 @@ export const getChangeNextStatesTool: ToolConfig<
   description:
     "Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change.",
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     ...authParams,
@@ -40,7 +43,7 @@ export const getChangeNextStatesTool: ToolConfig<
       if (!changeSysId) {
         throw new Error('A change request sys_id is required')
       }
-      return `${baseUrl}/api/sn_chg_rest/change/${changeSysId}/nextstates`
+      return `${baseUrl}/api/sn_chg_rest/change/${safeUrlPathSegment(changeSysId, 'changeSysId')}/nextstates`
     },
     method: 'GET',
     headers: (params) => buildServiceNowHeaders(params),

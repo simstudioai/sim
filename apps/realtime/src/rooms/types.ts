@@ -41,17 +41,7 @@ export interface UserSession {
 }
 
 /**
- * Room presence state.
- */
-export interface RoomState {
-  room: RoomRef
-  users: Map<string, UserPresence>
-  lastModified: number
-  activeConnections: number
-}
-
-/**
- * Common interface for room managers (in-memory and Redis).
+ * Common interface for the room manager (implemented by `RedisRoomManager`).
  *
  * The manager is domain-neutral: it tracks room membership and presence keyed by
  * {@link RoomRef}, and knows nothing about workflows, files, or any specific
@@ -61,7 +51,7 @@ export interface RoomState {
  * A socket may occupy multiple rooms, at most one per {@link RoomType}. The
  * shared session key is dropped only when a socket leaves its last room.
  *
- * All state-accessing methods are async to support the Redis implementation.
+ * All state-accessing methods are async: room state lives in Redis.
  */
 export interface IRoomManager {
   readonly io: Server
@@ -135,7 +125,4 @@ export interface IRoomManager {
 
   /** Number of unique users in a room. */
   getUniqueUserCount(room: RoomRef): Promise<number>
-
-  /** Total active connections tracked by this instance. */
-  getTotalActiveConnections(): Promise<number>
 }

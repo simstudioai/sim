@@ -26,13 +26,6 @@ import { and, eq, inArray, or } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const redisUrl = readTestRedisUrl()
-  if (redisUrl) process.env.REDIS_URL = redisUrl
-  return { redisUrl }
-})
-
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
@@ -50,6 +43,7 @@ import {
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { createProjectFile } from '@/lib/projects/files/application'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
@@ -70,8 +64,8 @@ beforeEach(() => {
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
 
-function check(name: string, run: () => Promise<void>, requiresRedis = false) {
-  it.skipIf(requiresRedis && !redisUrl)(name, async () => {
+function check(name: string, run: () => Promise<void>) {
+  it(name, async () => {
     const started = performance.now()
     try {
       await run()
@@ -402,6 +396,42 @@ check('sim_cli services for a callerless run refuse the writes they route', asyn
   expect(await inboxSecretScope()).toBe(widen)
 })
 
+check('server tools for a callerless run refuse the writes they route', async () => {
+  const f = await fixture()
+  const settings = createServerToolHandler('settings')
+  const inboxSecretScope = async () =>
+    (
+      await db
+        .select({ scope: workspace.inboxSecretScope })
+        .from(workspace)
+        .where(eq(workspace.id, f.workspaceId))
+    )[0]?.scope
+  const before = await inboxSecretScope()
+  const widen = before === 'all' ? 'selected' : 'all'
+  const update = {
+    scope: 'workspace',
+    action: 'update',
+    section: 'inbox',
+    changes: { secretScope: widen },
+  }
+
+  const callerless: ToolExecutionContext = { ...f.context, workflowId: '', secretActorUserId: null }
+  const refused = await settings(update, callerless)
+  expect(refused.success).toBe(false)
+  expect(refused.error).toContain('api:write')
+  expect(await inboxSecretScope()).toBe(before)
+  const read = await settings({ scope: 'workspace', action: 'get', section: 'inbox' }, callerless)
+  expect(read.success, read.error).toBe(true)
+
+  const written = await settings(update, {
+    ...f.context,
+    workflowId: '',
+    secretActorUserId: f.userId,
+  })
+  expect(written.success, written.error).toBe(true)
+  expect(await inboxSecretScope()).toBe(widen)
+})
+
 check('sim_cli for a read-only member keeps what that role allows', async () => {
   const f = await fixture()
   const memberId = await insertUser('Read member')
@@ -662,8 +692,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
       expect(rejected.exitCode, rejected.stderr).toBe(0)
       expect(JSON.parse(rejected.stdout).results[0].text).toContain('Preview withheld')
       expect(rejected.stdout).not.toContain('input-native-secret')
-    },
-    true
+    }
   )
 
   check(

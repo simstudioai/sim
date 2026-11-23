@@ -9,6 +9,7 @@ import {
   logfireUrl,
   parseLogfireResponse,
 } from '@/tools/logfire/utils'
+import { LOGFIRE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const logfireGetTokenInfoTool: ToolConfig<
@@ -20,6 +21,7 @@ export const logfireGetTokenInfoTool: ToolConfig<
   description:
     'Resolve which Logfire organization and project a read token belongs to. Useful for confirming a credential targets the expected project before querying it.',
   version: '1.0.0',
+  oauth: LOGFIRE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

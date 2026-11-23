@@ -8,7 +8,9 @@ import {
   leadOutputs,
   mapLead,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBisonLeadResponse> = {
   id: 'emailbison_update_lead',
@@ -16,6 +18,7 @@ export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
   description:
     'Updates an existing Email Bison lead. Fields omitted from a PUT update may be cleared by Email Bison.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     leadId: {
@@ -77,7 +80,7 @@ export const updateLeadTool: ToolConfig<EmailBisonLeadMutationParams, EmailBison
   request: {
     url: (params) =>
       emailBisonUrl(
-        `/api/leads/${encodeURIComponent(params.leadId?.trim() ?? '')}`,
+        `/api/leads/${safeUrlPathSegment(params.leadId ?? '', 'leadId', { allowSeparators: true })}`,
         {},
         params.apiBaseUrl
       ),

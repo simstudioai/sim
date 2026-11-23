@@ -1,5 +1,6 @@
 import type { GetMonitorParams, GetMonitorResponse } from '@/tools/datadog/types'
 import { datadogErrorMessage, datadogPathSegment, resolveDatadogSite } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = {
@@ -7,6 +8,7 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
   name: 'Datadog Get Monitor',
   description: 'Retrieve details of a specific monitor by ID.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     monitorId: {

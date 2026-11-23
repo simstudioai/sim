@@ -8,6 +8,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetPersonTool: ToolConfig<
@@ -19,6 +20,7 @@ export const affinityGetPersonTool: ToolConfig<
   description:
     'Look up one person by ID. Field data is returned only for the Field IDs or Field Types asked for.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

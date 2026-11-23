@@ -5,6 +5,7 @@ import type {
   MicrosoftPlannerToolParams,
 } from '@/tools/microsoft_planner/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('MicrosoftPlannerCreatePlan')
 
@@ -69,7 +70,7 @@ export const createPlanTool: ToolConfig<
 
       const body = {
         container: {
-          url: `https://graph.microsoft.com/v1.0/groups/${groupId}`,
+          url: `https://graph.microsoft.com/v1.0/groups/${safeUrlPathSegment(groupId, 'groupId')}`,
         },
         title: params.title,
       }

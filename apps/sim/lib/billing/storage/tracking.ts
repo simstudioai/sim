@@ -194,6 +194,20 @@ function getWorkspaceBillingEntity(row: LockedWorkspaceStorage): BillingEntity {
     : { type: 'user', id: row.billedAccountUserId }
 }
 
+/** The payer the locked workspace row routes storage to, when it is still `context`'s; else `null`. */
+function contextPayerOf(
+  row: LockedWorkspaceStorage,
+  context: StorageBillingContext
+): BillingEntity | null {
+  const current = getWorkspaceBillingEntity(row)
+  return row.id === context.workspaceId &&
+    current.type === context.billingEntity.type &&
+    current.id === context.billingEntity.id &&
+    row.billedAccountUserId === context.billedAccountUserId
+    ? current
+    : null
+}
+
 /**
  * Rejects an optimistic storage context when the workspace payer changed before
  * the transaction acquired its lock.
@@ -202,19 +216,26 @@ function assertWorkspaceStorageContext(
   row: LockedWorkspaceStorage,
   context: StorageBillingContext
 ): BillingEntity {
-  const currentBillingEntity = getWorkspaceBillingEntity(row)
-  const expectedBillingEntity = context.billingEntity
-  if (
-    row.id !== context.workspaceId ||
-    currentBillingEntity.type !== expectedBillingEntity.type ||
-    currentBillingEntity.id !== expectedBillingEntity.id ||
-    row.billedAccountUserId !== context.billedAccountUserId
-  ) {
+  const payer = contextPayerOf(row, context)
+  if (!payer) {
     throw new Error(
       `Storage payer changed for workspace ${context.workspaceId}; resolve a fresh billing context`
     )
   }
-  return currentBillingEntity
+  return payer
+}
+
+/**
+ * Whether the workspace still routes storage to the payer `context` resolved before `tx` opened.
+ * Locks the workspace row as {@link lockWorkspaceStorageForMutationInTx} does (taking its place in
+ * the lock order), so no payer transfer moves the workspace before `tx` ends.
+ */
+export async function isWorkspaceStoragePayerInTx(
+  tx: DbOrTx,
+  context: StorageBillingContext
+): Promise<boolean> {
+  const row = await lockWorkspaceStorageForMutationInTx(tx, context.workspaceId)
+  return contextPayerOf(row, context) !== null
 }
 
 /**

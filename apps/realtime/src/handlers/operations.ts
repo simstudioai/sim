@@ -9,6 +9,7 @@ import {
   type VariableOperation,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
+import type { WorkflowUpdatedBroadcast } from '@sim/realtime-protocol/events'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { WorkflowOperationSchema } from '@sim/realtime-protocol/schemas'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -20,6 +21,29 @@ import { checkWorkflowOperationPermission } from '@/middleware/permissions'
 import { type IRoomManager, type UserSession, workflowRoom as wf } from '@/rooms'
 
 const logger = createLogger('OperationsHandlers')
+
+/**
+ * Relays a persisted operation to the room. When persistence kept lock-protected state over
+ * the payload, every client, the sender included, is told to reload the stored graph instead
+ * of applying a payload that no longer describes what was saved.
+ */
+function relayPersistedOperation(
+  socket: AuthenticatedSocket,
+  roomManager: IRoomManager,
+  workflowId: string,
+  reconcile: boolean,
+  broadcast: object
+) {
+  if (reconcile) {
+    roomManager.emitToRoom<WorkflowUpdatedBroadcast>(wf(workflowId), 'workflow-updated', {
+      workflowId,
+      message: 'Locked blocks were kept as stored',
+      timestamp: Date.now(),
+    })
+    return
+  }
+  socket.to(workflowId).emit('workflow-operation', broadcast)
+}
 
 export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager: IRoomManager) {
   socket.on('workflow-operation', async (data) => {
@@ -314,7 +338,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
         target === OPERATION_TARGETS.WORKFLOW &&
         operation === WORKFLOW_OPERATIONS.REPLACE_STATE
       ) {
-        await persistWorkflowOperation(workflowId, {
+        const { reconcile } = await persistWorkflowOperation(workflowId, {
           operation,
           target,
           payload,
@@ -324,7 +348,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
         await roomManager.updateRoomLastModified(wf(workflowId))
 
-        const broadcastData = {
+        relayPersistedOperation(socket, roomManager, workflowId, reconcile, {
           operation,
           target,
           payload,
@@ -332,13 +356,8 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: {
-            workflowId,
-            operationId: generateId(),
-          },
-        }
-
-        socket.to(workflowId).emit('workflow-operation', broadcastData)
+          metadata: { workflowId, operationId: generateId() },
+        })
 
         if (operationId) {
           socket.emit('operation-confirmed', {
@@ -351,7 +370,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
       }
 
       if (target === OPERATION_TARGETS.BLOCKS && operation === BLOCKS_OPERATIONS.BATCH_ADD_BLOCKS) {
-        await persistWorkflowOperation(workflowId, {
+        const { reconcile } = await persistWorkflowOperation(workflowId, {
           operation,
           target,
           payload,
@@ -361,7 +380,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
         await roomManager.updateRoomLastModified(wf(workflowId))
 
-        socket.to(workflowId).emit('workflow-operation', {
+        relayPersistedOperation(socket, roomManager, workflowId, reconcile, {
           operation,
           target,
           payload,
@@ -566,7 +585,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
       }
 
       // For non-position operations, persist first then broadcast
-      await persistWorkflowOperation(workflowId, {
+      const { reconcile } = await persistWorkflowOperation(workflowId, {
         operation,
         target,
         payload,
@@ -576,7 +595,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
       await roomManager.updateRoomLastModified(wf(workflowId))
 
-      const broadcastData = {
+      relayPersistedOperation(socket, roomManager, workflowId, reconcile, {
         operation,
         target,
         payload,
@@ -584,13 +603,8 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
         senderId: socket.id,
         userId: session.userId,
         userName: session.userName,
-        metadata: {
-          workflowId,
-          operationId: generateId(),
-        },
-      }
-
-      socket.to(workflowId).emit('workflow-operation', broadcastData)
+        metadata: { workflowId, operationId: generateId() },
+      })
 
       if (operationId) {
         socket.emit('operation-confirmed', {

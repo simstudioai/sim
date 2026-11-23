@@ -1,4 +1,5 @@
 import type { DynamoDBIntrospectParams, DynamoDBIntrospectResponse } from '@/tools/dynamodb/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const introspectTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const introspectTool: InternalToolConfig<
   description:
     'Introspect DynamoDB to list tables or get detailed schema information for a specific table',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -71,7 +73,8 @@ export const introspectTool: InternalToolConfig<
     tables: { type: 'array', description: 'List of table names in the region' },
     tableDetails: {
       type: 'json',
-      description: 'Detailed schema information for a specific table',
+      description:
+        'Detailed schema for a specific table (tableName, tableStatus, keySchema, attributeDefinitions, globalSecondaryIndexes, localSecondaryIndexes, itemCount, tableSizeBytes, billingMode, tableArn, creationDateTime, deletionProtectionEnabled, streamEnabled, streamViewType, latestStreamArn)',
       optional: true,
     },
   },

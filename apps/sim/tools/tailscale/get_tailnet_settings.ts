@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { TAILNET_SETTINGS_OUTPUT } from '@/tools/tailscale/outputs'
 import type {
   TailscaleBaseParams,
@@ -16,6 +17,7 @@ export const tailscaleGetTailnetSettingsTool: ToolConfig<
   name: 'Tailscale Get Tailnet Settings',
   description: 'Get tailnet settings',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

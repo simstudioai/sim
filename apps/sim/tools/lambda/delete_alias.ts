@@ -1,4 +1,5 @@
 import type { LambdaDeleteAliasParams, LambdaDeleteAliasResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteAliasTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const deleteAliasTool: InternalToolConfig<
   name: 'Lambda Delete Alias',
   description: 'Delete a Lambda function alias',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

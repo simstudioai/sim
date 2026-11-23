@@ -1,6 +1,8 @@
 import type { GitLabDeleteBranchParams, GitLabDeleteBranchResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDeleteBranchTool: ToolConfig<
   GitLabDeleteBranchParams,
@@ -11,6 +13,7 @@ export const gitlabDeleteBranchTool: ToolConfig<
   name: 'GitLab Delete Branch',
   description: 'Delete a branch from a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -41,8 +44,8 @@ export const gitlabDeleteBranchTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      const encodedBranch = encodeURIComponent(String(params.branch).trim())
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      const encodedBranch = safeUrlPathSegment(params.branch, 'branch', { allowSeparators: true })
       return `${getGitLabApiBase(params.host)}/projects/${encodedId}/repository/branches/${encodedBranch}`
     },
     method: 'DELETE',

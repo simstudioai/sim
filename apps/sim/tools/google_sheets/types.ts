@@ -68,6 +68,9 @@ export interface GoogleSheetsToolParams {
   insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
   includeValuesInResponse?: boolean
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  responseDateTimeRenderOption?: 'SERIAL_NUMBER' | 'FORMATTED_STRING'
+  valueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  dateTimeRenderOption?: 'SERIAL_NUMBER' | 'FORMATTED_STRING'
   majorDimension?: 'ROWS' | 'COLUMNS'
 }
 
@@ -93,9 +96,17 @@ export interface GoogleSheetsV2ReadResponse extends ToolResponse {
     sheetName: string
     range: string
     values: any[][]
+    majorDimension?: string | null
     metadata: GoogleSheetsMetadata
     filter?: GoogleSheetsFilterInfo
   }
+}
+
+/** The values of the updated cells, returned when `includeValuesInResponse` is set. */
+interface GoogleSheetsValueRange {
+  range: string
+  majorDimension: string
+  values: unknown[][]
 }
 
 export interface GoogleSheetsV2WriteResponse extends ToolResponse {
@@ -104,6 +115,7 @@ export interface GoogleSheetsV2WriteResponse extends ToolResponse {
     updatedRows: number
     updatedColumns: number
     updatedCells: number
+    updatedData?: GoogleSheetsValueRange | null
     metadata: GoogleSheetsMetadata
   }
 }
@@ -114,6 +126,7 @@ export interface GoogleSheetsV2UpdateResponse extends ToolResponse {
     updatedRows: number
     updatedColumns: number
     updatedCells: number
+    updatedData?: GoogleSheetsValueRange | null
     metadata: GoogleSheetsMetadata
   }
 }
@@ -125,6 +138,7 @@ export interface GoogleSheetsV2AppendResponse extends ToolResponse {
     updatedRows: number
     updatedColumns: number
     updatedCells: number
+    updatedData?: GoogleSheetsValueRange | null
     metadata: GoogleSheetsMetadata
   }
 }
@@ -139,6 +153,9 @@ export interface GoogleSheetsV2ToolParams {
   insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
   includeValuesInResponse?: boolean
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  responseDateTimeRenderOption?: 'SERIAL_NUMBER' | 'FORMATTED_STRING'
+  valueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  dateTimeRenderOption?: 'SERIAL_NUMBER' | 'FORMATTED_STRING'
   majorDimension?: 'ROWS' | 'COLUMNS'
   filterColumn?: string
   filterValue?: string
@@ -215,6 +232,7 @@ export interface GoogleSheetsV2BatchGetParams {
   ranges: string[]
   majorDimension?: 'ROWS' | 'COLUMNS'
   valueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  dateTimeRenderOption?: 'SERIAL_NUMBER' | 'FORMATTED_STRING'
 }
 
 export interface GoogleSheetsV2BatchGetResponse extends ToolResponse {
@@ -236,8 +254,12 @@ export interface GoogleSheetsV2BatchUpdateParams {
   data: {
     range: string
     values: any[][]
+    majorDimension?: 'ROWS' | 'COLUMNS'
   }[]
   valueInputOption?: 'RAW' | 'USER_ENTERED'
+  includeValuesInResponse?: boolean
+  responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  responseDateTimeRenderOption?: 'SERIAL_NUMBER' | 'FORMATTED_STRING'
 }
 
 export interface GoogleSheetsV2BatchUpdateResponse extends ToolResponse {
@@ -253,6 +275,7 @@ export interface GoogleSheetsV2BatchUpdateResponse extends ToolResponse {
       updatedRows: number
       updatedColumns: number
       updatedCells: number
+      updatedData?: GoogleSheetsValueRange | null
     }[]
     metadata: GoogleSheetsMetadata
   }

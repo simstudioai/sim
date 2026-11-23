@@ -123,68 +123,42 @@ export const listPurchaseOrdersTool: InternalToolConfig<
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {
       type: 'json',
-      description: 'OData v2 response envelope; collection at output.data.d.results',
-      properties: {
-        d: {
-          type: 'json',
-          description: 'OData v2 envelope',
-          properties: {
-            results: {
-              type: 'array',
-              description: 'A_PurchaseOrder entities',
-              items: {
-                type: 'object',
-                properties: {
-                  PurchaseOrder: { type: 'string', description: 'Purchase order number' },
-                  PurchaseOrderType: {
-                    type: 'string',
-                    description: 'PO document type (e.g., NB)',
-                  },
-                  CompanyCode: { type: 'string', description: 'Company code' },
-                  PurchasingOrganization: {
-                    type: 'string',
-                    description: 'Purchasing organization',
-                  },
-                  PurchasingGroup: { type: 'string', description: 'Purchasing group' },
-                  Supplier: { type: 'string', description: 'Supplier business partner key' },
-                  DocumentCurrency: {
-                    type: 'string',
-                    description: 'Document currency',
-                    optional: true,
-                  },
-                  NetAmount: {
-                    type: 'string',
-                    description: 'Net amount of the purchase order',
-                    optional: true,
-                  },
-                  CreationDate: {
-                    type: 'string',
-                    description: 'Creation date (OData /Date(ms)/)',
-                    optional: true,
-                  },
-                  CreatedByUser: {
-                    type: 'string',
-                    description: 'User who created the PO',
-                    optional: true,
-                  },
-                  PurchaseOrderDate: {
-                    type: 'string',
-                    description: 'Purchase order date',
-                    optional: true,
-                  },
-                },
-              },
-            },
-            __next: {
-              type: 'string',
-              description: 'OData skiptoken URL for next page',
-              optional: true,
-            },
-            __count: {
-              type: 'string',
-              description: 'Total count when $inlinecount=allpages is used',
-              optional: true,
-            },
+      description:
+        'Array of A_PurchaseOrder entities, or `{ results, __count?, __next? }` when pagination metadata is present (the integration unwraps the OData v2 `d` envelope). Properties below describe each item.',
+      items: {
+        type: 'object',
+        properties: {
+          PurchaseOrder: { type: 'string', description: 'Purchase order number' },
+          PurchaseOrderType: {
+            type: 'string',
+            description: 'PO document type (e.g., NB)',
+          },
+          CompanyCode: { type: 'string', description: 'Company code' },
+          PurchasingOrganization: {
+            type: 'string',
+            description: 'Purchasing organization',
+          },
+          PurchasingGroup: { type: 'string', description: 'Purchasing group' },
+          Supplier: { type: 'string', description: 'Supplier business partner key' },
+          DocumentCurrency: {
+            type: 'string',
+            description: 'Document currency',
+            optional: true,
+          },
+          CreationDate: {
+            type: 'string',
+            description: 'Creation date (OData /Date(ms)/)',
+            optional: true,
+          },
+          CreatedByUser: {
+            type: 'string',
+            description: 'User who created the PO',
+            optional: true,
+          },
+          PurchaseOrderDate: {
+            type: 'string',
+            description: 'Purchase order date',
+            optional: true,
           },
         },
       },

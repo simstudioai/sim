@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveCpdPaginatedResponse, ThriveQueryCpdEntriesParams } from '@/tools/thrive/types'
 import {
   THRIVE_CPD_ENTRY_OUTPUT_PROPERTIES,
@@ -19,6 +20,7 @@ export const queryCpdEntriesTool: ToolConfig<
   name: 'Thrive Query CPD Entries',
   description: 'Query CPD log entries in Thrive and return results with pagination.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

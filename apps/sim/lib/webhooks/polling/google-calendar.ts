@@ -1,6 +1,7 @@
 import type { Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 import {
   getProviderConfig,
@@ -9,11 +10,11 @@ import {
   type PollWebhookContext,
 } from '@/lib/webhooks/polling/types'
 import {
+  isUncountedPollFailure,
   markWebhookFailed,
   markWebhookSuccess,
-  PollAdmissionRefusedError,
   resolveOAuthCredential,
-  skipAdmissionRefusedPoll,
+  skipUncountedPollFailure,
   throwIfAdmissionRefused,
   updateWebhookProviderConfig,
 } from '@/lib/webhooks/polling/utils'
@@ -69,6 +70,12 @@ interface CalendarEvent {
   creator?: CalendarEventPerson
   organizer?: CalendarEventPerson
   recurringEventId?: string
+  originalStartTime?: CalendarEventTime
+  hangoutLink?: string
+  conferenceData?: Record<string, unknown>
+  visibility?: string
+  transparency?: string
+  iCalUID?: string
 }
 
 interface SimplifiedCalendarEvent {
@@ -86,6 +93,13 @@ interface SimplifiedCalendarEvent {
   attendees: CalendarEventAttendee[] | null
   creator: CalendarEventPerson | null
   organizer: CalendarEventPerson | null
+  hangoutLink: string | null
+  conferenceData: Record<string, unknown> | null
+  recurringEventId: string | null
+  originalStartTime: CalendarEventTime | null
+  visibility: string | null
+  transparency: string | null
+  iCalUID: string | null
 }
 
 interface GoogleCalendarWebhookPayload {
@@ -119,7 +133,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
           logger
         )
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] First poll for webhook ${webhookId}, seeded timestamp`)
+        logger.info(`First poll for webhook ${webhookId}, seeded timestamp`)
         return 'success'
       }
 
@@ -128,11 +142,11 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
 
       if (!events.length) {
         await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No changed events for webhook ${webhookId}`)
+        logger.info(`No changed events for webhook ${webhookId}`)
         return 'success'
       }
 
-      logger.info(`[${requestId}] Found ${events.length} changed events for webhook ${webhookId}`)
+      logger.info(`Found ${events.length} changed events for webhook ${webhookId}`)
 
       const { processedCount, failedCount, latestUpdated } = await processEvents(
         events,
@@ -162,22 +176,19 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} events failed to process for webhook ${webhookId}`
-        )
+        logger.warn(`All ${failedCount} events failed to process for webhook ${webhookId}`)
         return 'failure'
       }
 
       await markWebhookSuccess(webhookId, logger)
       logger.info(
-        `[${requestId}] Successfully processed ${processedCount} events for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        `Successfully processed ${processedCount} events for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
       )
       return 'success'
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError) {
-        return skipAdmissionRefusedPoll(logger, requestId, webhookId)
-      }
-      logger.error(`[${requestId}] Error processing Google Calendar webhook ${webhookId}:`, error)
+      const skipped = skipUncountedPollFailure(error, logger, webhookId)
+      if (skipped) return skipped
+      logger.error(`Error processing Google Calendar webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
     }
@@ -214,7 +225,7 @@ async function fetchChangedEvents(
     const encodedCalendarId = encodeURIComponent(calendarId)
     const url = `${CALENDAR_API_BASE}/calendars/${encodedCalendarId}/events?${params.toString()}`
 
-    const response = await fetch(url, {
+    const response = await outboundFetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
 
@@ -282,6 +293,13 @@ function simplifyEvent(
     attendees: event.attendees ?? null,
     creator: event.creator ?? null,
     organizer: event.organizer ?? null,
+    hangoutLink: event.hangoutLink ?? null,
+    conferenceData: event.conferenceData ?? null,
+    recurringEventId: event.recurringEventId ?? null,
+    originalStartTime: event.originalStartTime ?? null,
+    visibility: event.visibility ?? null,
+    transparency: event.transparency ?? null,
+    iCalUID: event.iCalUID ?? null,
   }
 }
 
@@ -338,7 +356,7 @@ async function processEvents(
           if (!result.success) {
             throwIfAdmissionRefused(result)
             logger.error(
-              `[${requestId}] Failed to process webhook for event ${event.id}:`,
+              `Failed to process webhook for event ${event.id}:`,
               result.statusCode,
               result.error
             )
@@ -349,14 +367,12 @@ async function processEvents(
         }
       )
 
-      logger.info(
-        `[${requestId}] Successfully processed event ${event.id} for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully processed event ${event.id} for webhook ${webhookData.id}`)
       processedCount++
     } catch (error) {
-      if (error instanceof PollAdmissionRefusedError && processedCount === 0) throw error
+      if (isUncountedPollFailure(error) && processedCount === 0) throw error
       const errorMessage = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Error processing event ${event.id}:`, errorMessage)
+      logger.error(`Error processing event ${event.id}:`, errorMessage)
       failedCount++
     }
   }

@@ -3,13 +3,16 @@ import {
   QDRANT_RESPONSE_OUTPUT_PROPERTIES,
   UPSERT_RESULT_OUTPUT_PROPERTIES,
 } from '@/tools/qdrant/types'
+import { QDRANT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = {
   id: 'qdrant_upsert_points',
   name: 'Qdrant Upsert Points',
   description: 'Insert or update points in a Qdrant collection',
   version: '1.0',
+  oauth: QDRANT_CREDENTIAL_OAUTH,
 
   params: {
     url: {
@@ -40,7 +43,8 @@ export const upsertPointsTool: ToolConfig<QdrantUpsertParams, QdrantResponse> = 
 
   request: {
     method: 'PUT',
-    url: (params) => `${params.url.replace(/\/$/, '')}/collections/${params.collection}/points`,
+    url: (params) =>
+      `${params.url.replace(/\/$/, '')}/collections/${safeUrlPathSegment(params.collection, 'collection', { preserveWhitespace: true, stripTabsAndNewlines: true })}/points`,
     headers: (params) => ({
       'Content-Type': 'application/json',
       ...(params.apiKey ? { 'api-key': params.apiKey } : {}),

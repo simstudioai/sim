@@ -2,7 +2,13 @@ import { DevinIcon, LinearIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  isToolCall,
+  mapperOperation,
+  normalizeFileInput,
+  parseOptionalBooleanInput,
+  toolCallArg,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -12,6 +18,46 @@ import { getTrigger } from '@/triggers'
  */
 const TEAM_FIELD = ['teamId', 'manualTeamId'] as const
 const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
+
+/** True for a value a block field holds when nobody filled it. */
+function isBlank(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === 'string' && !value.trim())
+}
+
+/** A trimmed string from a block string or a model number; blank is `undefined`. */
+function trimmedText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value.trim() || undefined
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return undefined
+}
+
+/** A number from a block string or a model number; blank is `undefined`, so `0` survives. */
+function optionalNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value === 'string' && value.trim()) return Number(value)
+  return undefined
+}
+
+/** Trimmed ids from a model array, a JSON array string, or a comma-separated block string. */
+function idList(value: unknown): string[] | undefined {
+  let items: unknown[]
+  if (Array.isArray(value)) {
+    items = value
+  } else if (typeof value === 'string' && value.trim()) {
+    const text = value.trim()
+    items = text.split(',')
+    if (text.startsWith('[')) {
+      try {
+        const parsed: unknown = JSON.parse(text)
+        if (Array.isArray(parsed)) items = parsed
+      } catch {}
+    }
+  } else {
+    return undefined
+  }
+  const ids = items.map(trimmedText).filter((id): id is string => id !== undefined)
+  return ids.length > 0 ? ids : undefined
+}
 
 export const LinearBlock: BlockConfig = {
   type: 'linear',
@@ -318,7 +364,7 @@ export const LinearBlock: BlockConfig = {
           { text: 'Update project status', field: 'projectStatusId', core: true },
         ],
         linear_delete_project_status: [
-          { text: 'Delete project status', field: 'projectStatusId', core: true },
+          { text: 'Archive project status', field: 'projectStatusId', core: true },
         ],
         linear_list_project_statuses: [
           'List project statuses',
@@ -364,7 +410,7 @@ export const LinearBlock: BlockConfig = {
         { label: 'Update Workflow State', id: 'linear_update_workflow_state' },
         { label: 'List Cycles', id: 'linear_list_cycles' },
         { label: 'Get Cycle', id: 'linear_get_cycle' },
-        { label: 'Create Cycle', id: 'linear_create_cycle' },
+        { label: 'Create Cycle', id: 'linear_create_cycle', hidden: true },
         { label: 'Get Active Cycle', id: 'linear_get_active_cycle' },
         { label: 'Create Attachment', id: 'linear_create_attachment' },
         { label: 'List Attachments', id: 'linear_list_attachments' },
@@ -409,7 +455,7 @@ export const LinearBlock: BlockConfig = {
         { label: 'List Project Milestones', id: 'linear_list_project_milestones' },
         { label: 'Create Project Status', id: 'linear_create_project_status' },
         { label: 'Update Project Status', id: 'linear_update_project_status' },
-        { label: 'Delete Project Status', id: 'linear_delete_project_status' },
+        { label: 'Archive Project Status', id: 'linear_delete_project_status' },
         { label: 'List Project Statuses', id: 'linear_list_project_statuses' },
       ],
       value: () => 'linear_read_issues',
@@ -610,7 +656,7 @@ export const LinearBlock: BlockConfig = {
       title: 'Title',
       type: 'short-input',
       placeholder: 'Enter issue title',
-      required: true,
+      required: { field: 'operation', value: 'linear_create_issue' },
       condition: {
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue'],
@@ -733,6 +779,7 @@ Return ONLY the comment text - no explanations.`,
       title: 'Color (hex)',
       type: 'short-input',
       placeholder: '#5E6AD2',
+      required: { field: 'operation', value: 'linear_create_workflow_state' },
       condition: {
         field: 'operation',
         value: [
@@ -767,14 +814,20 @@ Return ONLY the comment text - no explanations.`,
       id: 'priority',
       title: 'Priority',
       type: 'dropdown',
-      options: [
+      options: (params) => [
+        {
+          label: params?.values.operation === 'linear_update_issue' ? 'No change' : 'Default',
+          id: '',
+        },
         { label: 'No Priority', id: '0' },
         { label: 'Urgent', id: '1' },
         { label: 'High', id: '2' },
         { label: 'Normal', id: '3' },
         { label: 'Low', id: '4' },
       ],
-      value: () => '0',
+      value: (params) =>
+        params?.operation === 'linear_update_issue' ? '' : params?.operation ? '0' : undefined,
+      dependsOn: ['operation'],
       condition: {
         field: 'operation',
         value: ['linear_create_issue', 'linear_update_issue', 'linear_create_project'],
@@ -819,7 +872,13 @@ Return ONLY the search query - no explanations.`,
       type: 'switch',
       condition: {
         field: 'operation',
-        value: ['linear_read_issues', 'linear_search_issues', 'linear_list_projects'],
+        value: [
+          'linear_read_issues',
+          'linear_search_issues',
+          'linear_list_projects',
+          'linear_list_customers',
+          'linear_list_customer_requests',
+        ],
       },
     },
     {
@@ -1216,7 +1275,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Customer Name',
       type: 'short-input',
       placeholder: 'Enter customer name',
-      required: true,
+      required: { field: 'operation', value: 'linear_create_customer' },
       condition: {
         field: 'operation',
         value: ['linear_create_customer', 'linear_update_customer'],
@@ -1330,11 +1389,22 @@ Return ONLY the description text - no explanations.`,
       id: 'customerRequestPriority',
       title: 'Urgency',
       type: 'dropdown',
-      options: [
+      options: (params) => [
+        {
+          label:
+            params?.values.operation === 'linear_update_customer_request' ? 'No change' : 'Default',
+          id: '',
+        },
         { label: 'Not Important (0)', id: '0' },
         { label: 'Important (1)', id: '1' },
       ],
-      value: () => '0',
+      value: (params) =>
+        params?.operation === 'linear_update_customer_request'
+          ? ''
+          : params?.operation
+            ? '0'
+            : undefined,
+      dependsOn: ['operation'],
       condition: {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
@@ -1345,6 +1415,7 @@ Return ONLY the description text - no explanations.`,
       title: 'Link to Issue',
       type: 'short-input',
       placeholder: 'Enter issue ID to link',
+      required: { field: 'operation', value: 'linear_create_customer_request' },
       condition: {
         field: 'operation',
         value: ['linear_create_customer_request', 'linear_update_customer_request'],
@@ -1399,7 +1470,14 @@ Return ONLY the description text - no explanations.`,
       title: 'Status Color',
       type: 'short-input',
       placeholder: 'Enter hex color (e.g., #FF0000)',
-      required: true,
+      required: {
+        field: 'operation',
+        value: [
+          'linear_create_customer_status',
+          'linear_create_customer_tier',
+          'linear_create_project_status',
+        ],
+      },
       condition: {
         field: 'operation',
         value: [
@@ -1578,7 +1656,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         { label: 'Backlog', id: 'backlog' },
         { label: 'Planned', id: 'planned' },
         { label: 'Started', id: 'started' },
-        { label: 'Paused', id: 'paused' },
+        { label: 'Paused (deprecated)', id: 'paused', hidden: true },
         { label: 'Completed', id: 'completed' },
         { label: 'Canceled', id: 'canceled' },
       ],
@@ -1609,6 +1687,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       condition: {
         field: 'operation',
         value: ['linear_update_project_status', 'linear_delete_project_status'],
+      },
+    },
+    {
+      id: 'projectUpdateStatusId',
+      title: 'Status ID',
+      type: 'short-input',
+      placeholder: 'Enter project status ID to move the project to',
+      condition: {
+        field: 'operation',
+        value: 'linear_update_project',
       },
     },
     {
@@ -1742,22 +1830,41 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       tool: (params) => {
         return params.operation || 'linear_read_issues'
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         // Use canonical param IDs (raw subBlock IDs are deleted after serialization)
         const effectiveTeamId = params.teamId ? String(params.teamId).trim() : ''
         const effectiveProjectId = params.projectId ? String(params.projectId).trim() : ''
+
+        /**
+         * The block-only field when it is filled. On a tool call the model fills the tool's own
+         * param instead, so a blank block field falls back to it; the canvas keeps the field as is.
+         */
+        const fieldOr = (blockValue: unknown, toolValue: unknown): unknown =>
+          isBlank(blockValue) && isToolCall(context) ? toolValue : blockValue
 
         const baseParams: Record<string, any> = {
           oauthCredential: params.oauthCredential,
         }
 
-        switch (params.operation) {
+        const customerDetails = () => ({
+          domains: idList(params.customerDomains) ?? toolCallArg(context, idList(params.domains)),
+          externalIds:
+            idList(params.customerExternalIds) ?? toolCallArg(context, idList(params.externalIds)),
+          logoUrl: trimmedText(fieldOr(params.customerLogoUrl, params.logoUrl)),
+          ownerId: trimmedText(fieldOr(params.customerOwnerId, params.ownerId)),
+          revenue: optionalNumber(fieldOr(params.customerRevenue, params.revenue)),
+          size: optionalNumber(fieldOr(params.customerSize, params.size)),
+        })
+
+        switch (operation) {
           case 'linear_read_issues':
             return {
               ...baseParams,
               teamId: effectiveTeamId || undefined,
               projectId: effectiveProjectId || undefined,
               includeArchived: params.includeArchived,
+              labelIds: idList(params.labelIds),
               first: params.first ? Number(params.first) : undefined,
               after: params.after?.trim() || undefined,
             }
@@ -1786,8 +1893,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               description: params.description,
               stateId: params.stateId,
               assigneeId: params.assigneeId,
-              priority: params.priority ? Number(params.priority) : undefined,
-              estimate: params.estimate ? Number(params.estimate) : undefined,
+              priority: optionalNumber(params.priority),
+              estimate: optionalNumber(params.estimate),
             }
 
           case 'linear_update_issue':
@@ -1801,8 +1908,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               description: params.description,
               stateId: params.stateId,
               assigneeId: params.assigneeId,
-              priority: params.priority ? Number(params.priority) : undefined,
-              estimate: params.estimate ? Number(params.estimate) : undefined,
+              priority: optionalNumber(params.priority),
+              estimate: optionalNumber(params.estimate),
             }
 
           case 'linear_archive_issue':
@@ -1910,7 +2017,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               leadId: params.leadId,
               startDate: params.startDate,
               targetDate: params.targetDate,
-              priority: params.priority ? Number(params.priority) : undefined,
+              priority: optionalNumber(params.priority),
             }
 
           case 'linear_update_project':
@@ -1922,7 +2029,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               projectId: effectiveProjectId,
               name: params.name,
               description: params.description,
-              state: params.projectState,
+              state: fieldOr(params.projectState, params.state),
+              statusId: trimmedText(fieldOr(params.projectUpdateStatusId, params.statusId)),
               leadId: params.leadId,
               targetDate: params.targetDate,
             }
@@ -1994,17 +2102,19 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               after: params.after?.trim() || undefined,
             }
 
-          case 'linear_create_workflow_state':
-            if (!effectiveTeamId || !params.name?.trim() || !params.workflowType) {
+          case 'linear_create_workflow_state': {
+            const workflowType = fieldOr(params.workflowType, params.type)
+            if (!effectiveTeamId || !params.name?.trim() || !workflowType) {
               throw new Error('Team ID, name, and workflow type are required.')
             }
             return {
               ...baseParams,
               teamId: effectiveTeamId,
               name: params.name.trim(),
-              type: params.workflowType,
+              type: workflowType,
               color: params.color?.trim() || undefined,
             }
+          }
 
           case 'linear_update_workflow_state':
             if (!params.stateId?.trim()) {
@@ -2034,17 +2144,20 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               cycleId: params.cycleId.trim(),
             }
 
-          case 'linear_create_cycle':
-            if (!effectiveTeamId || !params.startDate?.trim() || !params.endDate?.trim()) {
+          case 'linear_create_cycle': {
+            const startsAt = trimmedText(fieldOr(params.startDate, params.startsAt))
+            const endsAt = trimmedText(fieldOr(params.endDate, params.endsAt))
+            if (!effectiveTeamId || !startsAt || !endsAt) {
               throw new Error('Team ID, start date, and end date are required.')
             }
             return {
               ...baseParams,
               teamId: effectiveTeamId,
               name: params.name?.trim() || undefined,
-              startsAt: params.startDate.trim(),
-              endsAt: params.endDate.trim(),
+              startsAt,
+              endsAt,
             }
+          }
 
           case 'linear_get_active_cycle':
             if (!effectiveTeamId) {
@@ -2067,7 +2180,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             const attachmentUrl =
               params.url?.trim() ||
               (attachmentFile ? (attachmentFile as { url?: string }).url : undefined)
-            if (!attachmentUrl) {
+            // A tool call hands over a file reference the executor resolves to a URL later.
+            if (!attachmentUrl && !(isToolCall(context) && attachmentFile)) {
               throw new Error('URL or file is required.')
             }
             return {
@@ -2075,7 +2189,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               issueId: params.issueId.trim(),
               url: attachmentUrl,
               file: attachmentFile,
-              title: params.attachmentTitle,
+              title: fieldOr(params.attachmentTitle, params.title),
             }
           }
 
@@ -2097,7 +2211,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               attachmentId: params.attachmentId.trim(),
-              title: params.attachmentTitle,
+              title: fieldOr(params.attachmentTitle, params.title),
             }
 
           case 'linear_delete_attachment':
@@ -2109,16 +2223,29 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               attachmentId: params.attachmentId.trim(),
             }
 
-          case 'linear_create_issue_relation':
-            if (!params.issueId?.trim() || !params.relatedIssueId?.trim() || !params.relationType) {
+          case 'linear_create_issue_relation': {
+            const relationType = fieldOr(params.relationType, params.type)
+            if (!params.issueId?.trim() || !params.relatedIssueId?.trim() || !relationType) {
               throw new Error('Issue ID, related issue ID, and relation type are required.')
+            }
+            const issueId = params.issueId.trim()
+            const relatedIssueId = params.relatedIssueId.trim()
+            // Linear has no "blocked by" type: A blocked by B is stored as B blocks A.
+            if (relationType === 'blocked') {
+              return {
+                ...baseParams,
+                issueId: relatedIssueId,
+                relatedIssueId: issueId,
+                type: 'blocks',
+              }
             }
             return {
               ...baseParams,
-              issueId: params.issueId.trim(),
-              relatedIssueId: params.relatedIssueId.trim(),
-              type: params.relationType,
+              issueId,
+              relatedIssueId,
+              type: relationType,
             }
+          }
 
           case 'linear_list_issue_relations':
             if (!params.issueId?.trim()) {
@@ -2142,6 +2269,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
           case 'linear_create_favorite':
             if (!params.favoriteTargetId?.trim() || !params.favoriteType) {
+              // A tool call names the target with the tool's own issueId/projectId/cycleId/labelId.
+              if (isToolCall(context)) return baseParams
               throw new Error('Target ID and favorite type are required.')
             }
             return {
@@ -2190,50 +2319,55 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             if (!params.notificationId?.trim()) {
               throw new Error('Notification ID is required.')
             }
+            // On a tool call with no Mark as Read setting, the model's readAt decides.
+            if (isToolCall(context) && isBlank(params.markAsRead)) {
+              return { ...baseParams, notificationId: params.notificationId.trim() }
+            }
             return {
               ...baseParams,
               notificationId: params.notificationId.trim(),
               readAt: params.markAsRead ? new Date().toISOString() : null,
             }
 
-          case 'linear_create_customer':
-            if (!params.customerName?.trim()) {
+          case 'linear_create_customer': {
+            const name = trimmedText(fieldOr(params.customerName, params.name))
+            if (!name) {
               throw new Error('Customer name is required.')
             }
             return {
               ...baseParams,
-              name: params.customerName.trim(),
-              domains: params.customerDomains
-                ? params.customerDomains
-                    .split(',')
-                    .map((d: string) => d.trim())
-                    .filter(Boolean)
-                : undefined,
+              name,
+              ...customerDetails(),
             }
+          }
 
           case 'linear_list_customers':
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
               after: params.after?.trim() || undefined,
-              includeArchived: false,
+              includeArchived: params.includeArchived ?? false,
             }
 
-          case 'linear_create_customer_request':
+          case 'linear_create_customer_request': {
+            const issueId = trimmedText(fieldOr(params.linkedIssueId, params.issueId))
             if (!params.customerId?.trim()) {
               throw new Error('Customer ID is required.')
+            }
+            if (!issueId) {
+              throw new Error(
+                'Link to Issue is required: Linear needs an issue for every customer request created through its API.'
+              )
             }
             return {
               ...baseParams,
               customerId: params.customerId.trim(),
-              body: params.requestBody?.trim(),
+              body: trimmedText(fieldOr(params.requestBody, params.body)),
               priority:
-                params.customerRequestPriority !== undefined
-                  ? Number(params.customerRequestPriority)
-                  : 0,
-              issueId: params.linkedIssueId?.trim(),
-              projectId: effectiveProjectId || undefined,
+                optionalNumber(fieldOr(params.customerRequestPriority, params.priority)) ?? 0,
+              issueId,
             }
+          }
 
           case 'linear_update_customer_request':
             if (!params.customerNeedId?.trim()) {
@@ -2243,13 +2377,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               customerNeedId: params.customerNeedId.trim(),
               customerId: params.customerId?.trim(),
-              body: params.requestBody?.trim(),
-              priority:
-                params.customerRequestPriority !== undefined
-                  ? Number(params.customerRequestPriority)
-                  : undefined,
-              issueId: params.linkedIssueId?.trim(),
-              projectId: effectiveProjectId || undefined,
+              body: trimmedText(fieldOr(params.requestBody, params.body)),
+              priority: optionalNumber(fieldOr(params.customerRequestPriority, params.priority)),
+              issueId: trimmedText(fieldOr(params.linkedIssueId, params.issueId)),
             }
 
           case 'linear_list_customer_requests':
@@ -2257,48 +2387,35 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
               after: params.after?.trim() || undefined,
-              includeArchived: false,
+              includeArchived: params.includeArchived ?? false,
             }
 
           case 'linear_get_customer':
-            if (!params.customerIdTarget?.trim()) {
+          case 'linear_delete_customer': {
+            const customerId = trimmedText(fieldOr(params.customerIdTarget, params.customerId))
+            if (!customerId) {
               throw new Error('Customer ID is required.')
             }
             return {
               ...baseParams,
-              customerId: params.customerIdTarget.trim(),
+              customerId,
             }
+          }
 
-          case 'linear_update_customer':
-            if (!params.customerIdTarget?.trim()) {
+          case 'linear_update_customer': {
+            const customerId = trimmedText(fieldOr(params.customerIdTarget, params.customerId))
+            if (!customerId) {
               throw new Error('Customer ID is required.')
             }
             return {
               ...baseParams,
-              customerId: params.customerIdTarget.trim(),
-              name: params.customerName?.trim() || undefined,
-              domains: params.customerDomains?.trim()
-                ? params.customerDomains.split(',').map((d: string) => d.trim())
-                : undefined,
-              externalIds: params.customerExternalIds?.trim()
-                ? params.customerExternalIds.split(',').map((id: string) => id.trim())
-                : undefined,
-              logoUrl: params.customerLogoUrl?.trim() || undefined,
-              ownerId: params.customerOwnerId?.trim() || undefined,
-              revenue: params.customerRevenue ? Number(params.customerRevenue) : undefined,
-              size: params.customerSize ? Number(params.customerSize) : undefined,
+              customerId,
+              name: trimmedText(fieldOr(params.customerName, params.name)),
+              ...customerDetails(),
               statusId: params.statusId?.trim() || undefined,
               tierId: params.tierId?.trim() || undefined,
             }
-
-          case 'linear_delete_customer':
-            if (!params.customerIdTarget?.trim()) {
-              throw new Error('Customer ID is required.')
-            }
-            return {
-              ...baseParams,
-              customerId: params.customerIdTarget.trim(),
-            }
+          }
 
           case 'linear_merge_customers':
             if (!params.sourceCustomerId?.trim() || !params.targetCustomerId?.trim()) {
@@ -2310,17 +2427,20 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               targetCustomerId: params.targetCustomerId.trim(),
             }
 
-          case 'linear_create_customer_status':
-            if (!params.statusName?.trim() || !params.statusColor?.trim()) {
+          case 'linear_create_customer_status': {
+            const name = trimmedText(fieldOr(params.statusName, params.name))
+            const color = trimmedText(fieldOr(params.statusColor, params.color))
+            if (!name || !color) {
               throw new Error('Status name and color are required.')
             }
             return {
               ...baseParams,
-              name: params.statusName.trim(),
-              color: params.statusColor.trim(),
-              description: params.statusDescription?.trim() || undefined,
-              displayName: params.statusDisplayName?.trim() || undefined,
+              name,
+              color,
+              description: trimmedText(fieldOr(params.statusDescription, params.description)),
+              displayName: trimmedText(fieldOr(params.statusDisplayName, params.displayName)),
             }
+          }
 
           case 'linear_update_customer_status':
             if (!params.statusId?.trim()) {
@@ -2329,10 +2449,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               statusId: params.statusId.trim(),
-              name: params.statusName?.trim() || undefined,
-              color: params.statusColor?.trim() || undefined,
-              description: params.statusDescription?.trim() || undefined,
-              displayName: params.statusDisplayName?.trim() || undefined,
+              name: trimmedText(fieldOr(params.statusName, params.name)),
+              color: trimmedText(fieldOr(params.statusColor, params.color)),
+              description: trimmedText(fieldOr(params.statusDescription, params.description)),
+              displayName: trimmedText(fieldOr(params.statusDisplayName, params.displayName)),
             }
 
           case 'linear_delete_customer_status':
@@ -2351,17 +2471,20 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               after: params.after?.trim() || undefined,
             }
 
-          case 'linear_create_customer_tier':
-            if (!params.tierName?.trim() || !params.statusColor?.trim()) {
+          case 'linear_create_customer_tier': {
+            const name = trimmedText(fieldOr(params.tierName, params.name))
+            const color = trimmedText(fieldOr(params.statusColor, params.color))
+            if (!name || !color) {
               throw new Error('Tier name and color are required.')
             }
             return {
               ...baseParams,
-              name: params.tierName.trim(),
-              displayName: params.tierDisplayName?.trim() || params.tierName.trim(),
-              color: params.statusColor.trim(),
-              description: params.tierDescription?.trim() || undefined,
+              name,
+              displayName: trimmedText(fieldOr(params.tierDisplayName, params.displayName)) || name,
+              color,
+              description: trimmedText(fieldOr(params.tierDescription, params.description)),
             }
+          }
 
           case 'linear_update_customer_tier':
             if (!params.tierId?.trim()) {
@@ -2370,10 +2493,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               tierId: params.tierId.trim(),
-              name: params.tierName?.trim() || undefined,
-              displayName: params.tierDisplayName?.trim() || undefined,
-              color: params.statusColor?.trim() || undefined,
-              description: params.tierDescription?.trim() || undefined,
+              name: trimmedText(fieldOr(params.tierName, params.name)),
+              displayName: trimmedText(fieldOr(params.tierDisplayName, params.displayName)),
+              color: trimmedText(fieldOr(params.statusColor, params.color)),
+              description: trimmedText(fieldOr(params.tierDescription, params.description)),
             }
 
           case 'linear_delete_customer_tier':
@@ -2401,39 +2524,47 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               projectId: effectiveProjectId,
             }
 
-          case 'linear_create_project_label':
-            if (!params.projectLabelName?.trim()) {
+          case 'linear_create_project_label': {
+            const name = trimmedText(fieldOr(params.projectLabelName, params.name))
+            if (!name) {
               throw new Error('Project label name is required.')
             }
             return {
               ...baseParams,
-              name: params.projectLabelName.trim(),
-              description: params.projectLabelDescription?.trim() || undefined,
-              color: params.statusColor?.trim() || undefined,
-              isGroup: params.projectLabelIsGroup === 'true',
-              parentId: params.projectLabelParentId?.trim() || undefined,
+              name,
+              description: trimmedText(fieldOr(params.projectLabelDescription, params.description)),
+              color: trimmedText(fieldOr(params.statusColor, params.color)),
+              isGroup: isBlank(params.projectLabelIsGroup)
+                ? (parseOptionalBooleanInput(toolCallArg(context, params.isGroup)) ?? false)
+                : params.projectLabelIsGroup === 'true',
+              parentId: trimmedText(fieldOr(params.projectLabelParentId, params.parentId)),
             }
+          }
 
-          case 'linear_update_project_label':
-            if (!params.projectLabelId?.trim()) {
+          case 'linear_update_project_label': {
+            const labelId = trimmedText(fieldOr(params.projectLabelId, params.labelId))
+            if (!labelId) {
               throw new Error('Project label ID is required.')
             }
             return {
               ...baseParams,
-              labelId: params.projectLabelId.trim(),
-              name: params.projectLabelName?.trim() || undefined,
-              description: params.projectLabelDescription?.trim() || undefined,
-              color: params.statusColor?.trim() || undefined,
+              labelId,
+              name: trimmedText(fieldOr(params.projectLabelName, params.name)),
+              description: trimmedText(fieldOr(params.projectLabelDescription, params.description)),
+              color: trimmedText(fieldOr(params.statusColor, params.color)),
             }
+          }
 
-          case 'linear_delete_project_label':
-            if (!params.projectLabelId?.trim()) {
+          case 'linear_delete_project_label': {
+            const labelId = trimmedText(fieldOr(params.projectLabelId, params.labelId))
+            if (!labelId) {
               throw new Error('Project label ID is required.')
             }
             return {
               ...baseParams,
-              labelId: params.projectLabelId.trim(),
+              labelId,
             }
+          }
 
           case 'linear_list_project_labels':
             return {
@@ -2444,36 +2575,33 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             }
 
           case 'linear_add_label_to_project':
-            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
+          case 'linear_remove_label_from_project': {
+            const projectId = trimmedText(fieldOr(params.projectIdForMilestone, params.projectId))
+            const labelId = trimmedText(fieldOr(params.projectLabelId, params.labelId))
+            if (!projectId || !labelId) {
               throw new Error('Project ID and label ID are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectIdForMilestone.trim(),
-              labelId: params.projectLabelId.trim(),
+              projectId,
+              labelId,
             }
+          }
 
-          case 'linear_remove_label_from_project':
-            if (!params.projectIdForMilestone?.trim() || !params.projectLabelId?.trim()) {
-              throw new Error('Project ID and label ID are required.')
-            }
-            return {
-              ...baseParams,
-              projectId: params.projectIdForMilestone.trim(),
-              labelId: params.projectLabelId.trim(),
-            }
-
-          case 'linear_create_project_milestone':
-            if (!params.projectIdForMilestone?.trim() || !params.milestoneName?.trim()) {
+          case 'linear_create_project_milestone': {
+            const projectId = trimmedText(fieldOr(params.projectIdForMilestone, params.projectId))
+            const name = trimmedText(fieldOr(params.milestoneName, params.name))
+            if (!projectId || !name) {
               throw new Error('Project ID and milestone name are required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectIdForMilestone.trim(),
-              name: params.milestoneName.trim(),
-              description: params.milestoneDescription?.trim() || undefined,
-              targetDate: params.milestoneTargetDate?.trim() || undefined,
+              projectId,
+              name,
+              description: trimmedText(fieldOr(params.milestoneDescription, params.description)),
+              targetDate: trimmedText(fieldOr(params.milestoneTargetDate, params.targetDate)),
             }
+          }
 
           case 'linear_update_project_milestone':
             if (!params.milestoneId?.trim()) {
@@ -2482,9 +2610,9 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               milestoneId: params.milestoneId.trim(),
-              name: params.milestoneName?.trim() || undefined,
-              description: params.milestoneDescription?.trim() || undefined,
-              targetDate: params.milestoneTargetDate?.trim() || undefined,
+              name: trimmedText(fieldOr(params.milestoneName, params.name)),
+              description: trimmedText(fieldOr(params.milestoneDescription, params.description)),
+              targetDate: trimmedText(fieldOr(params.milestoneTargetDate, params.targetDate)),
             }
 
           case 'linear_delete_project_milestone':
@@ -2496,59 +2624,77 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               milestoneId: params.milestoneId.trim(),
             }
 
-          case 'linear_list_project_milestones':
-            if (!params.projectIdForMilestone?.trim()) {
+          case 'linear_list_project_milestones': {
+            const projectId = trimmedText(fieldOr(params.projectIdForMilestone, params.projectId))
+            if (!projectId) {
               throw new Error('Project ID is required.')
             }
             return {
               ...baseParams,
-              projectId: params.projectIdForMilestone.trim(),
+              projectId,
               first: params.first ? Number(params.first) : undefined,
               after: params.after?.trim() || undefined,
             }
+          }
 
-          case 'linear_create_project_status':
-            if (
-              !params.projectStatusName?.trim() ||
-              !params.projectStatusType?.trim() ||
-              !params.statusColor?.trim() ||
-              !params.projectStatusPosition?.trim()
-            ) {
+          case 'linear_create_project_status': {
+            const name = trimmedText(fieldOr(params.projectStatusName, params.name))
+            const type = trimmedText(fieldOr(params.projectStatusType, params.type))
+            const color = trimmedText(fieldOr(params.statusColor, params.color))
+            const positionInput = fieldOr(params.projectStatusPosition, params.position)
+            const position =
+              typeof positionInput === 'number'
+                ? positionInput
+                : typeof positionInput === 'string' && positionInput.trim()
+                  ? Number.parseFloat(positionInput.trim())
+                  : undefined
+            if (!name || !type || !color || position === undefined) {
               throw new Error('Project status name, type, color, and position are required.')
             }
             return {
               ...baseParams,
-              name: params.projectStatusName.trim(),
-              type: params.projectStatusType.trim(),
-              color: params.statusColor.trim(),
-              position: Number.parseFloat(params.projectStatusPosition.trim()),
-              description: params.projectStatusDescription?.trim() || undefined,
-              indefinite: params.projectStatusIndefinite === 'true',
+              name,
+              type,
+              color,
+              position,
+              description: trimmedText(
+                fieldOr(params.projectStatusDescription, params.description)
+              ),
+              indefinite: isBlank(params.projectStatusIndefinite)
+                ? (parseOptionalBooleanInput(toolCallArg(context, params.indefinite)) ?? false)
+                : params.projectStatusIndefinite === 'true',
             }
+          }
 
-          case 'linear_update_project_status':
-            if (!params.projectStatusId?.trim()) {
+          case 'linear_update_project_status': {
+            const statusId = trimmedText(fieldOr(params.projectStatusId, params.statusId))
+            if (!statusId) {
               throw new Error('Project status ID is required.')
             }
             return {
               ...baseParams,
-              statusId: params.projectStatusId.trim(),
-              name: params.projectStatusName?.trim() || undefined,
-              color: params.statusColor?.trim() || undefined,
-              description: params.projectStatusDescription?.trim() || undefined,
+              statusId,
+              name: trimmedText(fieldOr(params.projectStatusName, params.name)),
+              color: trimmedText(fieldOr(params.statusColor, params.color)),
+              description: trimmedText(
+                fieldOr(params.projectStatusDescription, params.description)
+              ),
               indefinite: params.projectStatusIndefinite
                 ? params.projectStatusIndefinite === 'true'
-                : undefined,
+                : parseOptionalBooleanInput(toolCallArg(context, params.indefinite)),
             }
+          }
 
-          case 'linear_delete_project_status':
-            if (!params.projectStatusId?.trim()) {
+          case 'linear_delete_project_status': {
+            const statusId = trimmedText(fieldOr(params.projectStatusId, params.statusId))
+            if (!statusId) {
               throw new Error('Project status ID is required.')
             }
             return {
               ...baseParams,
-              statusId: params.projectStatusId.trim(),
+              statusId,
             }
+          }
 
           case 'linear_list_project_statuses':
             return {
@@ -2651,6 +2797,10 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
     milestoneDescription: { type: 'string', description: 'Milestone description' },
     milestoneTargetDate: { type: 'string', description: 'Milestone target date (YYYY-MM-DD)' },
     projectStatusId: { type: 'string', description: 'Project status identifier' },
+    projectUpdateStatusId: {
+      type: 'string',
+      description: 'Project status ID to move the project to on Update Project',
+    },
     projectStatusName: { type: 'string', description: 'Project status name' },
     projectStatusDescription: { type: 'string', description: 'Project status description' },
     projectStatusIndefinite: {

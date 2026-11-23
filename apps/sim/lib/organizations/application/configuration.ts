@@ -7,12 +7,10 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
-import type { z } from 'zod'
 import type {
   OrganizationRetentionValues,
   UpdateOrganizationDataRetentionBody,
   UpdateOrganizationSessionPolicyBody,
-  updateOrganizationWhitelabelBodySchema,
 } from '@/lib/api/contracts/organization'
 import { invalidateSecurityPolicyVersionCache } from '@/lib/auth/security-policy'
 import { eagerClampOrgSessions, invalidateSessionPolicyCache } from '@/lib/auth/session-policy'
@@ -22,12 +20,7 @@ import {
   isOrganizationOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
 import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
-import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import {
-  isBillingEnabled,
-  isSessionPoliciesEnabled,
-  isWhitelabelingEnabled,
-} from '@/lib/core/config/env-flags'
+import { isBillingEnabled, isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { coercePiiLanguage } from '@/lib/guardrails/pii-entities'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
@@ -39,9 +32,6 @@ interface OrganizationInput {
   organizationId: string
 }
 
-type WhitelabelInput = OrganizationInput & {
-  settings: z.input<typeof updateOrganizationWhitelabelBodySchema>
-}
 type SessionPolicyInput = OrganizationInput & { settings: UpdateOrganizationSessionPolicyBody }
 type DataRetentionInput = OrganizationInput & { settings: UpdateOrganizationDataRetentionBody }
 
@@ -103,69 +93,6 @@ function configuredRetention(
     retentionOverrides: settings?.retentionOverrides ?? null,
   }
 }
-
-export const getOrganizationWhitelabel = defineOrganizationConfigurationUseCase({
-  operation: organizationConfigurationOperations.readWhitelabel,
-  async execute({ input }: { input: OrganizationInput }) {
-    const [[row], isEnterprise] = await Promise.all([
-      db
-        .select({ settings: organization.whitelabelSettings })
-        .from(organization)
-        .where(eq(organization.id, input.organizationId))
-        .limit(1),
-      isOrganizationFeatureEntitled(input.organizationId, isWhitelabelingEnabled),
-    ])
-    return { isEnterprise, settings: requireOrganization(row).settings ?? {} }
-  },
-})
-
-export const updateOrganizationWhitelabel = defineOrganizationConfigurationUseCase({
-  operation: organizationConfigurationOperations.updateWhitelabel,
-  administratorError:
-    'Forbidden - Only organization owners and admins can update whitelabel settings',
-  async execute({ input }: { input: WhitelabelInput }) {
-    if (!(await isOrganizationFeatureEntitled(input.organizationId, isWhitelabelingEnabled))) {
-      throw new OrchestrationError(
-        'forbidden',
-        isBillingEnabled
-          ? 'Whitelabeling is available on Enterprise plans only'
-          : 'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.'
-      )
-    }
-    const [row] = await db
-      .select({ name: organization.name, settings: organization.whitelabelSettings })
-      .from(organization)
-      .where(eq(organization.id, input.organizationId))
-      .limit(1)
-    const current = requireOrganization(row)
-    const merged: OrganizationWhitelabelSettings = { ...current.settings }
-    for (const key of Object.keys(input.settings) as Array<keyof typeof input.settings>) {
-      if (key === 'hidePoweredBySim') {
-        if (input.settings.hidePoweredBySim !== undefined) {
-          merged.hidePoweredBySim = input.settings.hidePoweredBySim
-        }
-        continue
-      }
-      const value = input.settings[key]
-      if (value === null) delete merged[key]
-      else if (value !== undefined) merged[key] = value
-    }
-    const [updated] = await db
-      .update(organization)
-      .set({ whitelabelSettings: merged, updatedAt: new Date() })
-      .where(eq(organization.id, input.organizationId))
-      .returning({ settings: organization.whitelabelSettings })
-    return { data: requireOrganization(updated).settings ?? {}, organizationName: current.name }
-  },
-  projectAudit: ({ input, result }) => ({
-    action: AuditAction.ORGANIZATION_UPDATED,
-    resourceType: AuditResourceType.ORGANIZATION,
-    resourceId: input.organizationId,
-    resourceName: result.organizationName,
-    description: 'Updated organization whitelabel settings',
-    metadata: { changes: Object.keys(input.settings) },
-  }),
-})
 
 export const getOrganizationSessionPolicy = defineOrganizationConfigurationUseCase({
   operation: organizationConfigurationOperations.readSessionPolicy,

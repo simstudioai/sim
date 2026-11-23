@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { athenaConnectionSchema } from '@/lib/api/contracts/tools/aws/athena-shared'
+import {
+  athenaConnectionSchema,
+  athenaQueryExecutionDetailsShape,
+} from '@/lib/api/contracts/tools/aws/athena-shared'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -30,6 +33,7 @@ const GetQueryExecutionResponseSchema = z.object({
     queryQueueTimeInMillis: z.number().nullable(),
     totalExecutionTimeInMillis: z.number().nullable(),
     outputLocation: z.string().nullable(),
+    ...athenaQueryExecutionDetailsShape,
   }),
 })
 

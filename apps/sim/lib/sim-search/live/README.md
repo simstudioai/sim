@@ -5,9 +5,9 @@ This describes the live enterprise-search path. Credential Groups and ordinary k
 ## Admin and member surfaces
 
 - **Sources** controls integration availability and account mode per integration.
-- **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. Old member resource filters are ignored and cleared when settings are saved.
+- **Member accounts** has no resource configuration. A member connects their own account under Integrations, and searches content that account can access through the provider API. A member can add several accounts of one provider, such as Google Drive in two tenants; each is searched and cited separately, and every search counts them toward its account limit. Old member resource filters are ignored and cleared when settings are saved.
 - **Service account** selects an admin-managed source. Its connection owns the resource settings; Sources does not duplicate them. GitHub uses one GitHub App source per repository instead of a single selected source. A member still connects their own account, except for GitLab. Search returns the intersection of the member's provider permissions and the source's current resource boundary.
-- GitLab is always service-account mode. Slack and Jira currently support member mode only.
+- GitLab is always service-account mode. A source whose uploaded CSV permissions grant the member no project is left out of their searches rather than reported unavailable on each one; a source checked against GitLab itself stays listed and its session decides. Slack and Jira currently support member mode only.
 - Removing a source integration prevents subsequent account resolution, searches, and reads. Paused, archived, deleted, wrong-organization, wrong-provider, and unapproved service sources cannot authorize search.
 
 The Search assistant exposes the dedicated search/read tools. It cannot discover or execute integration tools through `search_integration_tools`, `call_integration_tool`, or direct provider-tool names. The broader assistant outside Search retains its integration tools.
@@ -58,7 +58,7 @@ Each event must exist under the source's delegated token, be in an allowed calen
 
 ### Slack
 
-Member mode only. Search uses the connected user's Slack real-time search grant and provider search syntax. Date bounds are sent as numeric provider timestamps; date ordering selects keyword retrieval and timestamp sort, because Slack semantic retrieval uses relevance ordering. Channels, messages, direct messages, and files are limited by that grant and provider scopes; there is no admin channel filter in member mode. Missing required search scopes produce a reconnect status. Thread/file reads use the same connected identity. Real-time Search returns at most 20 results a call and counts every page against the member's rate limit, so a search across every source reads one page; a Slack-scoped or native Slack search follows the cursor for up to three pages to fill its limit, and a later page that fails keeps the earlier pages and returns the unread cursor.
+Member mode only. Search uses the connected user's Slack real-time search grant and provider search syntax. Date bounds are sent as numeric provider timestamps; date ordering selects keyword retrieval and timestamp sort, because Slack semantic retrieval uses relevance ordering. Channels, messages, direct messages, and files are limited by that grant and provider scopes; there is no admin channel filter in member mode. Missing required search scopes produce a reconnect status. Thread/file reads use the same connected identity. Real-time Search returns only a file's title for a file hit, so the hit names the file's type and size and whether a read can return its text. A file read downloads the full text of a canvas (HTML), text snippet, PDF or DOCX from `files.slack.com` only, using `url_private_download` when present (Slack redirects a PDF's `url_private` to a viewer on another domain), never a remote file's own URL (redirects are followed only within that host; a hop elsewhere, such as a sign-in page, keeps the preview), within the shared response-size limit; when Slack will not serve it, the read returns the `files.info` preview. Real-time Search returns at most 20 results a call and counts every page against the member's rate limit, so a search across every source reads one page; a Slack-scoped or native Slack search follows the cursor for up to three pages to fill its limit, and a later page that fails keeps the earlier pages and returns the unread cursor.
 
 ### GitHub
 
@@ -83,6 +83,12 @@ The preferred member connection is personal Coda MCP OAuth. Sim discovers the co
 MCP search covers page and table-row content, permits empty-query recency listing, and uses document URIs for scoped searches. The current Superhuman Docs server returns a `toolName`/`result` envelope and `superhuman://docs/` resources, sometimes with page paths relative to `docUri`; the adapter unwraps and resolves those while retaining older `coda://docs/` references. Results are bounded to the advertised search limit. Official Coda web URLs are converted to document URIs before source checks. A legacy personal REST token can still search document titles, with correctly forwarded pagination; it does not provide MCP's full-content search.
 
 In service mode, the source's selected document IDs restrict MCP retrieval. Every candidate's parent document must also be currently visible to the source token. With an Enterprise organization ID, the Admin API must return that exact document in the configured organization; deleted documents and revoked key access are rejected. Personal MCP still enforces the member's permission to read the actual content. [Official MCP tool catalog](https://coda.io/resources/mcp/tools-and-endpoints).
+
+### Hex
+
+Member mode uses managed OAuth against `https://app.hex.tech/mcp`. Only `get_me`, `search_projects`, `get_project`, and `list_cells` are allowed. The current workspace ID from `get_me` binds search results, references, and canonical draft-editor citations; a changed workspace requires a fresh search. Every candidate is hydrated through `get_project`, and search previews are explicitly project metadata rather than notebook evidence. Search verifies at most ten unique projects and has no continuation. Date filtering and sorting apply only to those candidates.
+
+Reads verify the project revision before and after paging through its draft cells. SQL, Python, and Markdown source are included; other cell types retain their labels with an explicit unavailable-content marker. Rendered outputs, attachments, published app snapshots, and warehouse data are not retrieved. Reads fail instead of returning incomplete source when cells are malformed, project access changes, a cursor repeats, or the eight-page / 512 KiB text limit is exceeded. This path never executes projects or queries. Hex requires a Team or Enterprise plan and the Editor workspace role or above for these project-read tools; view access to each project is sufficient.
 
 ### GitLab
 
@@ -116,7 +122,7 @@ Paths below are relative to `apps/sim`.
 
 The provider catalog holds a trusted origin, not an arbitrary URL supplied by a model. Actual endpoint paths and query translation belong in the provider module. `http.ts` supplies bounded responses, a per-client request budget, timeout/cancellation, configured-endpoint validation, and no credential-bearing redirects. Use its origin-bound path API; do not return tokens to UI or model tools.
 
-Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Managed MCP providers resolve the current member server/grant through `mcp-accounts.ts` and `managed-mcp.ts`, discover tool schemas and permit only fixed read tools. Coda, Fireflies, Granola and Notion each have an adapter for their actual search/read formats. Neither exception lets a search query choose a credential destination.
+Self-managed GitLab is resolved from the saved source's validated host/project instead of the catalog's default origin. Managed MCP providers resolve the current member server/grant through `mcp-accounts.ts` and `managed-mcp.ts`, discover tool schemas and permit only fixed read tools. Coda, Fireflies, Granola, Hex and Notion each have an adapter for their actual search/read formats. Neither exception lets a search query choose a credential destination.
 
 ### Provider endpoint map
 
@@ -125,7 +131,7 @@ Self-managed GitLab is resolved from the saved source's validated host/project i
 | Drive | `GET /drive/v3/files` with Drive `q` | File metadata, Docs/Slides exports, Sheets values, or supported text media | Delegated Drive file visibility and configured folders/types |
 | Gmail | `GET /gmail/v1/users/me/messages` with Gmail operators | Anchor plus up to seven independently authorized conversation messages | Same-mailbox delegation, labels, date range, category and custom-query checks |
 | Calendar | CalendarList then `/calendars/{id}/events` | `/calendars/{id}/events/{eventId}` | Same-user delegation, selected calendars, event window/query |
-| Slack | `POST /api/assistant.search.context` | `conversations.replies` or `files.info` preview | Member only; Slack enforces the connected user's grant |
+| Slack | `POST /api/assistant.search.context` | `conversations.replies`, or the full text of a Slack-hosted canvas, text, PDF or DOCX file (`files.info` preview otherwise) | Member only; Slack enforces the connected user's grant |
 | Jira | `POST /ex/jira/{cloudId}/rest/api/3/search/jql` | `/rest/api/3/issue/{key}` under that cloud site | Member only |
 | Confluence | `/ex/confluence/{cloudId}/wiki/rest/api/search` with CQL | v2 `/wiki/api/v2/pages/{id}` or `/blogposts/{id}` (`body-format=view`); a space reads as its homepage | Same site, spaces, current type/status/labels, source readability |
 | GitHub | `/search/issues`, `/search/code`, `/search/repositories`, `/search/commits` | Issue, repository, commit, or contents endpoint for returned kind | Added repositories; installation coverage/stable IDs and code filters |
@@ -198,3 +204,11 @@ For end-to-end verification, use authorized fixture accounts on localhost: add t
 GitHub issue/PR reads include ordinary comments, submitted review decisions and inline review comments with author, date, source link and diff context. Issue-search previews prefer the matching comment fragment. `in:comments` does not guarantee discovery of inline review text. Drive comments and nested replies enrich document reads; Drive file search does not index those discussions. Both adapters report pagination, permission or text caps as incomplete at the start of the read.
 
 Fireflies and Granola use `eventStartAt` for generic date filters; modification filters require independent provider modification metadata. Granola semantic answers are never substituted for source notes: only identifiable cited meetings that can be read become documents. Notion MCP searches content rather than REST titles; plan-dependent tool access, ignored filters and bounded results must remain visible to callers.
+
+## Personal saved credentials
+
+Jama Connect and Flow Engineering use the existing encrypted saved-credential framework in member mode. Search lists only credentials created by the acting user in the current scope, then compares a fresh provider identity with the member's verified Sim email. Organization setup, reconnect, and disconnect use the personal Search credential operation; ordinary service-account sharing does not grant another person Search access.
+
+Jama exchanges personal client credentials against the configured instance, preserving deployment context paths. Flow uses a saved API host and workspace identifier with its API key. Neither a query nor a returned item may change those destinations. Document references include a connection binding derived from the provider host, tenant, and user identity; changing a saved connection cannot silently reuse an older item ID in another instance.
+
+Both adapters use the existing bounded native HTTP client. Jama returns one page of up to 50 abstract items. Flow searches up to six projects and reads the current entities within each project, with explicit incomplete-result reporting when provider limits apply. Neither adapter creates an indexing connector or background crawl.

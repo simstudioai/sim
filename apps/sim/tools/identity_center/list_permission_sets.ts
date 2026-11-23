@@ -2,6 +2,7 @@ import type {
   IdentityCenterListPermissionSetsParams,
   IdentityCenterListPermissionSetsResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listPermissionSetsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listPermissionSetsTool: InternalToolConfig<
   name: 'Identity Center List Permission Sets',
   description: 'List all permission sets defined in an IAM Identity Center instance',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -7,6 +7,7 @@ import type {
   ClerkPhoneNumber,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkListUsers')
@@ -16,6 +17,7 @@ export const clerkListUsersTool: ToolConfig<ClerkListUsersParams, ClerkListUsers
   name: 'List Users from Clerk',
   description: 'List all users in your Clerk application with optional filtering and pagination',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [Google Cloud Translation](https://cloud.google.com/translate) translates text and detects its source language. Provide text and a target language for translation, or use language detection when the source language is unknown.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -22,6 +23,8 @@ Translate and detect languages using the Google Cloud Translation API. Supports 
 
 Translate text between languages using the Google Cloud Translation API. Supports auto-detection of the source language.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -30,7 +33,7 @@ Translate text between languages using the Google Cloud Translation API. Support
 | `text` | string | Yes | The text to translate |
 | `target` | string | Yes | Target language code \(e.g., "es", "fr", "de", "ja"\) |
 | `source` | string | No | Source language code. If omitted, the API will auto-detect the source language. |
-| `format` | string | No | Format of the text: "text" for plain text, "html" for HTML content |
+| `format` | string | No | Format of the text: "text" for plain text, "html" for HTML content. Defaults to "html", which returns characters such as apostrophes as HTML entities |
 
 #### Output
 
@@ -39,9 +42,13 @@ Translate text between languages using the Google Cloud Translation API. Support
 | `translatedText` | string | The translated text |
 | `detectedSourceLanguage` | string | The detected source language code \(if source was not specified\) |
 
+</ReferenceDetails>
+
 ### Google Translate Detect Language
 
 Detect the language of text using the Google Cloud Translation API.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -56,5 +63,7 @@ Detect the language of text using the Google Cloud Translation API.
 | --------- | ---- | ----------- |
 | `language` | string | The detected language code \(e.g., "en", "es", "fr"\) |
 | `confidence` | number | Confidence score of the detection |
+
+</ReferenceDetails>
 
 

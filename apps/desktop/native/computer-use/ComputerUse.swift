@@ -1,5 +1,7 @@
 import AppKit
 import ApplicationServices
+import Contacts
+import EventKit
 import ScreenCaptureKit
 
 nonisolated(unsafe) var cancellationRequested: sig_atomic_t = 0
@@ -16,9 +18,10 @@ struct ComputerError: Error {
     let dispatchState: String?
     init(_ code: String, _ message: String, dispatchState: String? = nil) { self.code = code; self.message = message; self.dispatchState = dispatchState }
 }
-struct InputStep: Decodable { let action: String; let text: String?; let key: String? }
+/// A request's arguments. An input sequence or batch step is itself a request's arguments, with its action.
 struct Parameters: Decodable {
-    var steps: [InputStep]?
+    var action: String?
+    var steps: [Parameters]?
     var activateFirst: Bool?
     var permission: String?
     var bundleId: String?
@@ -38,6 +41,556 @@ struct Parameters: Decodable {
     var button: String?
     var clickCount: Int?
     var accessibilityAction: String?
+    var command: AppCommand?
+    var expected: Expectation?
+}
+/// The reminder or event as the user saw it when approving an update; the write is refused if a field it changes has moved since.
+struct Expectation: Decodable {
+    var title: String
+    var due: String?
+    var priority: Int?
+    var completed: Bool?
+    var start: String?
+    var end: String?
+    var location: String?
+    var notes: String?
+}
+/// One allowlisted app command. Commands go through EventKit and Contacts, never Apple Events or
+/// scripts, so they cannot reach a shell; each is a typed create, a bounded read, a reminder or
+/// event update by id, or additions to a contact. Nothing is ever deleted or overwritten on a contact.
+struct AppCommand: Decodable {
+    var name: String
+    var id: String?
+    var titleContains: String?
+    var nameContains: String?
+    var from: String?
+    var to: String?
+    var includeCompleted: Bool?
+    var completed: Bool?
+    var clearDue: Bool?
+    var title: String?
+    var notes: String?
+    var due: String?
+    var listId: String?
+    var priority: Int?
+    var start: String?
+    var end: String?
+    var allDay: Bool?
+    var location: String?
+    var calendarId: String?
+    var alertMinutesBefore: Int?
+    var givenName: String?
+    var familyName: String?
+    var organization: String?
+    var jobTitle: String?
+    var emails: [String]?
+    var phones: [String]?
+    var groupId: String?
+}
+/// At most `max` UTF-16 units, the unit the reply's schema counts, cut on a character boundary:
+/// Swift's `prefix` counts characters, and one emoji can be several units.
+func bounded(_ text: String, _ max: Int) -> String {
+    guard text.utf16.count > max else { return text }
+    var units = 0
+    return String(text.prefix { character in
+        units += character.utf16.count
+        return units <= max
+    })
+}
+func invalidCommand(_ message: String) -> ComputerError { ComputerError("invalid_arguments", message, dispatchState: "not_started") }
+/// A required, trimmed text field of bounded length.
+func commandText(_ value: String?, _ field: String, max: Int = 1024) throws -> String {
+    let text = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty, text.count <= max else { throw invalidCommand("\(field) is required and limited to \(max) characters.") }
+    return text
+}
+func optionalText(_ value: String?, _ field: String, max: Int = 1024) throws -> String? {
+    guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+    return try commandText(value, field, max: max)
+}
+/// The event store for reminders, available only once the user has granted full Reminders access.
+/// Checking never prompts; the grant happens from settings, outside the tool call.
+func remindersStore() throws -> EKEventStore {
+    guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else {
+        throw ComputerError("reminders_permission_required", "Allow Reminders access for Mothership in System Settings, then retry.", dispatchState: "not_started")
+    }
+    return EKEventStore()
+}
+/// A due date: `YYYY-MM-DD` is date-only; a date-time is ISO 8601, and one without an offset is this
+/// Mac's local time, as typing it into the app would be.
+func dueComponents(_ text: String, _ field: String = "Due") throws -> DateComponents {
+    var calendar = Calendar(identifier: .gregorian)
+    if text.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil {
+        let parts = text.split(separator: "-").compactMap { Int($0) }
+        let components = DateComponents(calendar: calendar, year: parts[0], month: parts[1], day: parts[2])
+        guard components.isValidDate else { throw invalidCommand("\(field) is not a real date.") }
+        return DateComponents(year: parts[0], month: parts[1], day: parts[2])
+    }
+    guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be YYYY-MM-DD or a real ISO 8601 date-time.") }
+    calendar.timeZone = .current
+    return calendar.dateComponents([.year, .month, .day, .hour, .minute, .second, .timeZone], from: date)
+}
+/// Reminders or Calendar access as the status reports it, read without prompting.
+func eventKitAuthorization(_ type: EKEntityType) -> String {
+    switch EKEventStore.authorizationStatus(for: type) {
+    case .fullAccess: return "granted"
+    case .notDetermined: return "not_determined"
+    default: return "denied"
+    }
+}
+func contactsAuthorization() -> String {
+    switch CNContactStore.authorizationStatus(for: .contacts) {
+    case .authorized: return "granted"
+    case .notDetermined: return "not_determined"
+    default: return "denied"
+    }
+}
+func calendarStore() throws -> EKEventStore {
+    guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+        throw ComputerError("calendars_permission_required", "Allow Calendar access for Mothership in System Settings, then retry.", dispatchState: "not_started")
+    }
+    return EKEventStore()
+}
+func contactStore() throws -> CNContactStore {
+    guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else {
+        throw ComputerError("contacts_permission_required", "Allow Contacts access for Mothership in System Settings, then retry.", dispatchState: "not_started")
+    }
+    return CNContactStore()
+}
+/// The Gregorian calendar in this Mac's time zone, so `YYYY-MM-DD` means the same day whatever calendar the user prefers.
+func localGregorian() -> Calendar {
+    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .current
+    return calendar
+}
+// [0-9], not \d: ICU's \d also matches other scripts' digits, which Int() cannot read.
+let isoDateTimePattern = try! NSRegularExpression(pattern: #"^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.[0-9]{1,9})?)?(?:(Z)|([+-])([0-9]{2}):([0-9]{2}))?$"#)
+/// An ISO 8601 date-time; without an offset it is this Mac's local time. Fractions of a second do not
+/// matter to a calendar item, so they are dropped. Every field must be in range: `ISO8601DateFormatter`
+/// rolls Feb 30 into March and accepts any offset, so a zoned time is checked part by part.
+func isoDateTime(_ text: String) -> Date? {
+    guard let match = isoDateTimePattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+    func part(_ index: Int) -> String? { Range(match.range(at: index), in: text).map { String(text[$0]) } }
+    func number(_ index: Int) -> Int? { part(index).flatMap { Int($0) } }
+    var zone: TimeZone?
+    if part(7) != nil { zone = TimeZone(secondsFromGMT: 0) }
+    if let sign = part(8), let hours = number(9), let minutes = number(10) {
+        guard minutes < 60, hours < 14 || (hours == 14 && minutes == 0) else { return nil }
+        zone = TimeZone(secondsFromGMT: (sign == "-" ? -1 : 1) * (hours * 3600 + minutes * 60))
+    }
+    guard let zone else {
+        // A local time keeps the formatter, which resolves a repeated hour at a daylight-saving change.
+        let whole = String(text.prefix(19))
+        let local = DateFormatter(); local.locale = Locale(identifier: "en_US_POSIX"); local.timeZone = .current
+        local.dateFormat = whole.count == 16 ? "yyyy-MM-dd'T'HH:mm" : "yyyy-MM-dd'T'HH:mm:ss"
+        local.isLenient = false
+        return local.date(from: whole)
+    }
+    var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+    let components = DateComponents(year: number(1), month: number(2), day: number(3), hour: number(4), minute: number(5), second: number(6) ?? 0)
+    guard components.isValidDate(in: calendar) else { return nil }
+    return calendar.date(from: components)
+}
+/// An event boundary: an ISO 8601 date-time (local without an offset), or `YYYY-MM-DD` for all-day events.
+func eventDate(_ text: String?, _ field: String, allDay: Bool) throws -> Date {
+    let text = try commandText(text, field, max: 64)
+    if allDay {
+        let parts = try dueComponents(text, field)
+        guard parts.hour == nil, let date = localGregorian().date(from: parts) else { throw invalidCommand("All-day \(field) must be YYYY-MM-DD.") }
+        return date
+    }
+    guard let date = isoDateTime(text) else { throw invalidCommand("\(field) must be a real ISO 8601 date-time.") }
+    return date
+}
+/// Reminders matching a predicate; EventKit only offers the asynchronous fetch.
+func fetchReminders(_ store: EKEventStore, _ predicate: NSPredicate) async -> [EKReminder] {
+    await withCheckedContinuation { continuation in
+        store.fetchReminders(matching: predicate) { continuation.resume(returning: $0 ?? []) }
+    }
+}
+/// A reminder as reads and confirmations report it.
+func reminderItem(_ reminder: EKReminder) -> [String: Any] {
+    var item: [String: Any] = [
+        "id": reminder.calendarItemIdentifier, "title": bounded((reminder.title ?? ""), 1024),
+        "list": bounded(reminder.calendar.title, 1024), "priority": reminder.priority, "completed": reminder.isCompleted,
+    ]
+    if let notes = reminder.notes, !notes.isEmpty { item["notes"] = bounded(notes, 8000) }
+    if let due = reminder.dueDateComponents { item["due"] = dueText(due) }
+    return item
+}
+/// Due components written back the way commands take them: `YYYY-MM-DD`, or this Mac's local `YYYY-MM-DDTHH:MM:SS`.
+func dueText(_ due: DateComponents) -> String {
+    let day = String(format: "%04d-%02d-%02d", due.year ?? 0, due.month ?? 0, due.day ?? 0)
+    guard due.hour != nil else { return day }
+    var source = Calendar(identifier: .gregorian); source.timeZone = due.timeZone ?? .current
+    guard let date = source.date(from: due) else { return day }
+    let local = localGregorian().dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+    return String(format: "%04d-%02d-%02dT%02d:%02d:%02d", local.year ?? 0, local.month ?? 0, local.day ?? 0, local.hour ?? 0, local.minute ?? 0, local.second ?? 0)
+}
+/// Up to 50 reminders, incomplete unless asked otherwise, optionally in one list and matching part of a
+/// title; or the one reminder with `id`, which an update reads to show its current values.
+func findReminders(_ command: AppCommand) async throws -> [String: Any] {
+    let contains = try optionalText(command.titleContains, "titleContains", max: 256)
+    let store = try remindersStore()
+    if let id = command.id {
+        let found = (store.calendarItem(withIdentifier: id) as? EKReminder).map { [reminderItem($0)] } ?? []
+        return ["kind": "command", "command": command.name, "reminders": found, "truncated": false]
+    }
+    var lists: [EKCalendar]?
+    if let listId = command.listId {
+        guard let found = store.calendar(withIdentifier: listId), found.allowedEntityTypes.contains(.reminder) else {
+            throw ComputerError("list_unavailable", "No reminder list has this id; call list_reminder_lists.", dispatchState: "not_started")
+        }
+        lists = [found]
+    }
+    let predicate = command.includeCompleted == true
+        ? store.predicateForReminders(in: lists)
+        : store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: lists)
+    var matches = await fetchReminders(store, predicate)
+    if let contains { matches = matches.filter { ($0.title ?? "").localizedCaseInsensitiveContains(contains) } }
+    return ["kind": "command", "command": command.name, "reminders": matches.prefix(50).map(reminderItem), "truncated": matches.count > 50]
+}
+/// A date as commands take it: `YYYY-MM-DD` for all-day, else this Mac's local `YYYY-MM-DDTHH:MM:SS`.
+func localText(_ date: Date, allDay: Bool) -> String {
+    let parts = localGregorian().dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+    let day = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    return allDay ? day : day + String(format: "T%02d:%02d:%02d", parts.hour ?? 0, parts.minute ?? 0, parts.second ?? 0)
+}
+/// An event as reads and confirmations report it.
+func eventItem(_ event: EKEvent) -> [String: Any] {
+    var item: [String: Any] = [
+        "id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": bounded(event.title ?? "", 1024),
+        "list": bounded(event.calendar.title, 1024), "allDay": event.isAllDay, "recurring": event.hasRecurrenceRules,
+        "start": localText(event.startDate, allDay: event.isAllDay), "end": localText(event.endDate, allDay: event.isAllDay),
+    ]
+    if let location = event.location, !location.isEmpty { item["location"] = bounded(location, 1024) }
+    if let notes = event.notes, !notes.isEmpty { item["notes"] = bounded(notes, 8000) }
+    return item
+}
+/// Whether a read had to shorten this value; an update cannot check a value it never saw in full.
+func shortened(_ value: String?, _ max: Int) -> Bool { (value?.utf16.count ?? 0) > max }
+/// A non-recurring event's start and end within the same 31-day limit a create has.
+func checkEventSpan(_ start: Date, _ end: Date, allDay: Bool) throws {
+    guard allDay ? end >= start : end > start else { throw invalidCommand("End must be after start.") }
+    // Calendar days, so a daylight-saving change inside the span does not shorten the limit.
+    guard let limit = localGregorian().date(byAdding: .day, value: 31, to: start), end <= limit else {
+        throw invalidCommand("An event can last at most 31 days.")
+    }
+}
+/// The keys a contact read or confirmation needs: its name, organization, emails and phones.
+let contactReadKeys: [CNKeyDescriptor] = [
+    CNContactFormatter.descriptorForRequiredKeys(for: .fullName), CNContactOrganizationNameKey as CNKeyDescriptor,
+    CNContactEmailAddressesKey as CNKeyDescriptor, CNContactPhoneNumbersKey as CNKeyDescriptor,
+]
+/// A contact as reads report it: its name only, never its emails, phones or notes.
+func contactItem(_ contact: CNContact) -> [String: Any] {
+    let name = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+    var item: [String: Any] = ["id": contact.identifier, "title": bounded(name.isEmpty ? contact.organizationName : name, 1024)]
+    if !contact.organizationName.isEmpty { item["organization"] = bounded(contact.organizationName, 1024) }
+    return item
+}
+/// An email compared without case.
+func emailKey(_ email: String) -> String { email.lowercased() }
+/// A phone compared without its formatting, but with its dialing controls: `5550100,123` pauses
+/// before the extension and `5550100;123` waits, so they are different numbers.
+/// Digits from any script read as the same number.
+func phoneKey(_ phone: String) -> String {
+    String(phone.compactMap { character -> Character? in
+        if let digit = character.wholeNumberValue, character.isNumber, (0...9).contains(digit) { return Character(String(digit)) }
+        return "+*#,;".contains(character) ? character : nil
+    })
+}
+/// Whether the contact has a record in this account. A unified contact links records from several
+/// accounts and its own id names no container, so the account's contacts are searched for it too.
+func contactHasRecord(_ store: CNContactStore, _ id: String, in account: String) throws -> Bool {
+    if try store.containers(matching: CNContainer.predicateForContainerOfContact(withIdentifier: id)).first?.identifier == account { return true }
+    let request = CNContactFetchRequest(keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor])
+    request.predicate = CNContact.predicateForContactsInContainer(withIdentifier: account)
+    var found = false
+    try store.enumerateContacts(with: request) { candidate, stop in
+        if candidate.identifier == id { found = true; stop.pointee = true }
+    }
+    return found
+}
+/// The contact with this id, or nil when there is none; any other Contacts failure is thrown, not read as missing.
+func fetchContact(_ store: CNContactStore, _ id: String) throws -> CNContact? {
+    do { return try store.unifiedContact(withIdentifier: id, keysToFetch: contactReadKeys) }
+    catch let error as CNError where error.code == .recordDoesNotExist { return nil }
+}
+/// Emails and phones a command adds, checked as a create checks them.
+func contactValues(_ command: AppCommand) throws -> (emails: [String], phones: [String]) {
+    let emails = try (command.emails ?? []).map { try commandText($0, "Email", max: 320) }
+    let phones = try (command.phones ?? []).map { try commandText($0, "Phone", max: 64) }
+    guard emails.count <= 5, phones.count <= 5 else { throw invalidCommand("A contact takes at most 5 emails and 5 phones.") }
+    guard emails.allSatisfy({ $0.contains("@") }) else { throw invalidCommand("Each email needs an @.") }
+    return (emails, phones)
+}
+func runAppCommand(_ command: AppCommand, expected: Expectation? = nil) throws -> [String: Any] {
+    switch command.name {
+    case "update_reminder":
+        let id = try commandText(command.id, "id", max: 256)
+        let title = try command.title.map { try commandText($0, "Title") }
+        // Blank notes clear them, as deleting them in the app would; others are trimmed, as a create trims them.
+        if let notes = command.notes, notes.count > 8000 { throw invalidCommand("Notes are limited to 8000 characters.") }
+        if let priority = command.priority, ![0, 1, 5, 9].contains(priority) { throw invalidCommand("Priority must be 0 (none), 1 (high), 5 (medium) or 9 (low).") }
+        if command.due != nil && command.clearDue == true { throw invalidCommand("Pass due or clearDue, not both.") }
+        let due = try command.due.map { try dueComponents($0) }
+        guard title != nil || command.notes != nil || command.priority != nil || due != nil || command.clearDue == true || command.completed != nil else {
+            throw invalidCommand("An update needs at least one field to change.")
+        }
+        let store = try remindersStore()
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else {
+            throw ComputerError("not_found", "No reminder has this id; call find_reminders.", dispatchState: "not_started")
+        }
+        guard reminder.calendar.allowsContentModifications else { throw ComputerError("list_read_only", "This reminder list is read-only.", dispatchState: "not_started") }
+        guard let expected else { throw invalidCommand("An update needs the values the user approved.") }
+        if (title != nil && shortened(reminder.title, 1024)) || (command.notes != nil && shortened(reminder.notes, 8000)) {
+            throw ComputerError("too_long_to_compare", "This reminder's title or notes are too long to show in full; change them in Reminders.", dispatchState: "not_started")
+        }
+        let now = reminderItem(reminder)
+        let moved = (title != nil && now["title"] as? String != expected.title)
+            || ((due != nil || command.clearDue == true) && now["due"] as? String != expected.due)
+            || (command.priority != nil && now["priority"] as? Int != expected.priority)
+            || (command.completed != nil && now["completed"] as? Bool != expected.completed)
+            || (command.notes != nil && now["notes"] as? String != expected.notes)
+        guard !moved else {
+            throw ComputerError("reminder_changed", "This reminder changed while the user was confirming; read it again with find_reminders before retrying.", dispatchState: "not_started")
+        }
+        if let title { reminder.title = title }
+        if let notes = command.notes { reminder.notes = try optionalText(notes, "Notes", max: 8000) }
+        if let priority = command.priority { reminder.priority = priority }
+        if let due { reminder.dueDateComponents = due }
+        if command.clearDue == true { reminder.dueDateComponents = nil }
+        if let completed = command.completed { reminder.isCompleted = completed }
+        try checkCancellation()
+        inputDispatched = true
+        try store.save(reminder, commit: true)
+        return ["kind": "command", "command": command.name, "updated": ["id": reminder.calendarItemIdentifier, "title": bounded((reminder.title ?? ""), 1024), "list": bounded(reminder.calendar.title, 1024)]]
+    case "find_events":
+        let contains = try optionalText(command.titleContains, "titleContains", max: 256)
+        if let id = command.id {
+            let store = try calendarStore()
+            return ["kind": "command", "command": command.name, "events": store.event(withIdentifier: id).map { [eventItem($0)] } ?? [], "truncated": false]
+        }
+        guard let fromText = command.from, let toText = command.to else { throw invalidCommand("Pass id, or from and to.") }
+        let from = try eventDate(fromText, "from", allDay: !fromText.contains("T"))
+        // A date-only `to` includes that whole day.
+        let toDay = !toText.contains("T")
+        let toStart = try eventDate(toText, "to", allDay: toDay)
+        let to = toDay ? localGregorian().date(byAdding: .day, value: 1, to: toStart) ?? toStart : toStart
+        try checkEventSpan(from, to, allDay: false)
+        let store = try calendarStore()
+        var calendars: [EKCalendar]?
+        if let calendarId = command.calendarId {
+            guard let found = store.calendar(withIdentifier: calendarId), found.allowedEntityTypes.contains(.event) else {
+                throw ComputerError("list_unavailable", "No calendar has this id; call list_calendars.", dispatchState: "not_started")
+            }
+            calendars = [found]
+        }
+        var matches = store.events(matching: store.predicateForEvents(withStart: from, end: to, calendars: calendars))
+        if let contains { matches = matches.filter { ($0.title ?? "").localizedCaseInsensitiveContains(contains) } }
+        matches.sort { $0.startDate < $1.startDate }
+        return ["kind": "command", "command": command.name, "events": matches.prefix(50).map(eventItem), "truncated": matches.count > 50]
+    case "update_event":
+        let id = try commandText(command.id, "id", max: 256)
+        let title = try command.title.map { try commandText($0, "Title") }
+        if let location = command.location, location.count > 1024 { throw invalidCommand("Location is limited to 1024 characters.") }
+        if let notes = command.notes, notes.count > 8000 { throw invalidCommand("Notes are limited to 8000 characters.") }
+        guard title != nil || command.start != nil || command.end != nil || command.location != nil || command.notes != nil else {
+            throw invalidCommand("An update needs at least one field to change.")
+        }
+        let store = try calendarStore()
+        guard let event = store.event(withIdentifier: id) else {
+            throw ComputerError("not_found", "No event has this id; call find_events.", dispatchState: "not_started")
+        }
+        guard !event.hasRecurrenceRules else {
+            throw ComputerError("recurring_unsupported", "This event repeats; change it in Calendar so the user picks which occurrences.", dispatchState: "not_started")
+        }
+        guard event.calendar.allowsContentModifications else { throw ComputerError("list_read_only", "This calendar is read-only.", dispatchState: "not_started") }
+        guard let currentStart = event.startDate, let currentEnd = event.endDate else {
+            throw ComputerError("not_found", "This event has no dates; call find_events.", dispatchState: "not_started")
+        }
+        let start = try command.start.map { try eventDate($0, "Start", allDay: event.isAllDay) } ?? currentStart
+        let end = try command.end.map { try eventDate($0, "End", allDay: event.isAllDay) } ?? currentEnd
+        // An existing event may already be longer than a new one can be; only a new time is checked.
+        if command.start != nil || command.end != nil { try checkEventSpan(start, end, allDay: event.isAllDay) }
+        guard let expected else { throw invalidCommand("An update needs the values the user approved.") }
+        if (title != nil && shortened(event.title, 1024)) || (command.location != nil && shortened(event.location, 1024)) || (command.notes != nil && shortened(event.notes, 8000)) {
+            throw ComputerError("too_long_to_compare", "This event's title, location or notes are too long to show in full; change them in Calendar.", dispatchState: "not_started")
+        }
+        let now = eventItem(event)
+        let moved = (title != nil && now["title"] as? String != expected.title)
+            // Either boundary is checked when either changes: the one kept is saved beside the one moved.
+            || ((command.start != nil || command.end != nil) && (now["start"] as? String != expected.start || now["end"] as? String != expected.end))
+            || (command.location != nil && now["location"] as? String != expected.location)
+            || (command.notes != nil && now["notes"] as? String != expected.notes)
+        guard !moved else {
+            throw ComputerError("event_changed", "This event changed while the user was confirming; read it again with find_events before retrying.", dispatchState: "not_started")
+        }
+        if let title { event.title = title }
+        event.startDate = start; event.endDate = end
+        if let location = command.location { event.location = try optionalText(location, "Location") }
+        if let notes = command.notes { event.notes = try optionalText(notes, "Notes", max: 8000) }
+        try checkCancellation()
+        inputDispatched = true
+        try store.save(event, span: .thisEvent, commit: true)
+        return ["kind": "command", "command": command.name, "updated": ["id": event.eventIdentifier ?? id, "title": bounded(event.title ?? "", 1024), "list": bounded(event.calendar.title, 1024)]]
+    case "find_contacts":
+        let store = try contactStore()
+        if let id = command.id {
+            let found = try fetchContact(store, id)
+            return ["kind": "command", "command": command.name, "contacts": found.map { [contactItem($0)] } ?? [], "truncated": false]
+        }
+        let name = try commandText(command.nameContains, "nameContains", max: 256)
+        guard name.count >= 2 else { throw invalidCommand("nameContains needs at least 2 characters.") }
+        let matches = try store.unifiedContacts(matching: CNContact.predicateForContacts(matchingName: name), keysToFetch: contactReadKeys)
+        return ["kind": "command", "command": command.name, "contacts": matches.prefix(50).map(contactItem), "truncated": matches.count > 50]
+    case "update_contact":
+        let id = try commandText(command.id, "id", max: 256)
+        let (emails, phones) = try contactValues(command)
+        guard !emails.isEmpty || !phones.isEmpty || command.groupId != nil else { throw invalidCommand("An update needs an email, phone or group to add.") }
+        let store = try contactStore()
+        guard let contact = try fetchContact(store, id), let changed = contact.mutableCopy() as? CNMutableContact else {
+            throw ComputerError("not_found", "No contact has this id; call find_contacts.", dispatchState: "not_started")
+        }
+        var group: CNGroup?
+        if let groupId = command.groupId {
+            guard let found = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [groupId])).first else {
+                throw ComputerError("list_unavailable", "No contact group has this id; call list_contact_groups.", dispatchState: "not_started")
+            }
+            // A group's members must live in the group's own account.
+            guard let groupAccount = try store.containers(matching: CNContainer.predicateForContainerOfGroup(withIdentifier: found.identifier)).first?.identifier,
+                  try contactHasRecord(store, contact.identifier, in: groupAccount) else {
+                throw ComputerError("group_other_account", "This group is in a different account from the contact; add it in Contacts.", dispatchState: "not_started")
+            }
+            group = found
+        }
+        // Only additions: existing values stay, and no value is added twice, from the contact or the request.
+        var knownEmails = Set(contact.emailAddresses.map { emailKey($0.value as String) })
+        var knownPhones = Set(contact.phoneNumbers.map { phoneKey($0.value.stringValue) })
+        changed.emailAddresses += emails.filter { knownEmails.insert(emailKey($0)).inserted }.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
+        changed.phoneNumbers += phones.filter { knownPhones.insert(phoneKey($0)).inserted }.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
+        let request = CNSaveRequest(); request.update(changed)
+        if let group { request.addMember(contact, to: group) }
+        try checkCancellation()
+        inputDispatched = true
+        try store.execute(request)
+        let item = contactItem(contact)
+        return ["kind": "command", "command": command.name, "updated": ["id": contact.identifier, "title": item["title"] ?? "", "list": bounded(group?.name ?? "Contacts", 1024)]]
+    case "list_reminder_lists":
+        let allLists = try remindersStore().calendars(for: .reminder)
+        let lists = allLists.prefix(200).map { list -> [String: Any] in
+            ["id": list.calendarIdentifier, "title": bounded(list.title, 1024), "allowsModifications": list.allowsContentModifications]
+        }
+        return ["kind": "command", "command": command.name, "items": lists, "truncated": allLists.count > 200]
+    case "create_reminder":
+        let title = try commandText(command.title, "Title")
+        let notes = try optionalText(command.notes, "Notes", max: 8000)
+        guard [0, 1, 5, 9].contains(command.priority ?? 0) else { throw invalidCommand("Priority must be 0 (none), 1 (high), 5 (medium) or 9 (low).") }
+        let due = try command.due.map { try dueComponents($0) }
+        let store = try remindersStore()
+        let list: EKCalendar
+        if let listId = command.listId {
+            guard let found = store.calendar(withIdentifier: listId), found.allowedEntityTypes.contains(.reminder) else {
+                throw ComputerError("list_unavailable", "No reminder list has this id; call list_reminder_lists.", dispatchState: "not_started")
+            }
+            list = found
+        } else {
+            guard let fallback = store.defaultCalendarForNewReminders() else { throw ComputerError("list_unavailable", "Reminders has no default list; pass listId.", dispatchState: "not_started") }
+            list = fallback
+        }
+        guard list.allowsContentModifications else { throw ComputerError("list_read_only", "This reminder list is read-only.", dispatchState: "not_started") }
+        let reminder = EKReminder(eventStore: store)
+        reminder.calendar = list; reminder.title = title; reminder.notes = notes
+        reminder.priority = command.priority ?? 0; reminder.dueDateComponents = due
+        try checkCancellation()
+        inputDispatched = true
+        try store.save(reminder, commit: true)
+        return ["kind": "command", "command": command.name, "created": ["id": reminder.calendarItemIdentifier, "title": bounded(title, 1024), "list": bounded(list.title, 1024)]]
+    case "list_calendars":
+        let allCalendars = try calendarStore().calendars(for: .event)
+        let calendars = allCalendars.prefix(200).map { calendar -> [String: Any] in
+            ["id": calendar.calendarIdentifier, "title": bounded(calendar.title, 1024), "allowsModifications": calendar.allowsContentModifications]
+        }
+        return ["kind": "command", "command": command.name, "items": calendars, "truncated": allCalendars.count > 200]
+    case "create_event":
+        let title = try commandText(command.title, "Title")
+        let allDay = command.allDay ?? false
+        let start = try eventDate(command.start, "Start", allDay: allDay)
+        let end = try eventDate(command.end, "End", allDay: allDay)
+        try checkEventSpan(start, end, allDay: allDay)
+        let location = try optionalText(command.location, "Location")
+        let notes = try optionalText(command.notes, "Notes", max: 8000)
+        if let minutes = command.alertMinutesBefore, !(0...40_320).contains(minutes) { throw invalidCommand("alertMinutesBefore must be 0 to 40320.") }
+        let store = try calendarStore()
+        let calendar: EKCalendar
+        if let calendarId = command.calendarId {
+            guard let found = store.calendar(withIdentifier: calendarId), found.allowedEntityTypes.contains(.event) else {
+                throw ComputerError("list_unavailable", "No calendar has this id; call list_calendars.", dispatchState: "not_started")
+            }
+            calendar = found
+        } else {
+            guard let fallback = store.defaultCalendarForNewEvents else { throw ComputerError("list_unavailable", "Calendar has no default calendar; pass calendarId.", dispatchState: "not_started") }
+            calendar = fallback
+        }
+        guard calendar.allowsContentModifications else { throw ComputerError("list_read_only", "This calendar is read-only.", dispatchState: "not_started") }
+        let event = EKEvent(eventStore: store)
+        event.calendar = calendar; event.title = title; event.isAllDay = allDay
+        event.startDate = start; event.endDate = end; event.location = location; event.notes = notes
+        if let minutes = command.alertMinutesBefore { event.addAlarm(EKAlarm(relativeOffset: TimeInterval(-minutes * 60))) }
+        try checkCancellation()
+        inputDispatched = true
+        try store.save(event, span: .thisEvent, commit: true)
+        return ["kind": "command", "command": command.name, "created": ["id": event.eventIdentifier ?? event.calendarItemIdentifier, "title": bounded(title, 1024), "list": bounded(calendar.title, 1024)]]
+    case "list_contact_groups":
+        let allGroups = try contactStore().groups(matching: nil)
+        let groups = allGroups.prefix(200).map { group -> [String: Any] in
+            ["id": group.identifier, "title": bounded(group.name, 1024), "allowsModifications": true]
+        }
+        return ["kind": "command", "command": command.name, "items": groups, "truncated": allGroups.count > 200]
+    case "create_contact_group":
+        let name = try commandText(command.title, "Group name")
+        let store = try contactStore()
+        // A group with this name already exists after a lost reply; return it rather than add a twin.
+        if let existing = try store.groups(matching: nil).first(where: { $0.name == name }) {
+            return ["kind": "command", "command": command.name, "created": ["id": existing.identifier, "title": name, "list": "Contacts"]]
+        }
+        let group = CNMutableGroup(); group.name = name
+        let request = CNSaveRequest(); request.add(group, toContainerWithIdentifier: nil)
+        try checkCancellation()
+        inputDispatched = true
+        try store.execute(request)
+        return ["kind": "command", "command": command.name, "created": ["id": group.identifier, "title": name, "list": "Contacts"]]
+    case "create_contact":
+        let given = try optionalText(command.givenName, "Given name"), family = try optionalText(command.familyName, "Family name")
+        let organization = try optionalText(command.organization, "Organization"), jobTitle = try optionalText(command.jobTitle, "Job title")
+        guard given != nil || family != nil || organization != nil else { throw invalidCommand("A contact needs a name or an organization.") }
+        let (emails, phones) = try contactValues(command)
+        let store = try contactStore()
+        var group: CNGroup?
+        if let groupId = command.groupId {
+            guard let found = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [groupId])).first else {
+                throw ComputerError("list_unavailable", "No contact group has this id; call list_contact_groups.", dispatchState: "not_started")
+            }
+            group = found
+        }
+        let contact = CNMutableContact()
+        contact.givenName = given ?? ""; contact.familyName = family ?? ""
+        contact.organizationName = organization ?? ""; contact.jobTitle = jobTitle ?? ""
+        contact.emailAddresses = emails.map { CNLabeledValue(label: CNLabelWork, value: $0 as NSString) }
+        contact.phoneNumbers = phones.map { CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: $0)) }
+        // A group's members must live in the group's own account, so the contact is saved there.
+        let container = try group.flatMap { try store.containers(matching: CNContainer.predicateForContainerOfGroup(withIdentifier: $0.identifier)).first?.identifier }
+        let request = CNSaveRequest(); request.add(contact, toContainerWithIdentifier: container)
+        if let group { request.addMember(contact, to: group) }
+        try checkCancellation()
+        inputDispatched = true
+        try store.execute(request)
+        let display = [given, family].compactMap { $0 }.joined(separator: " ")
+        let title = bounded((display.isEmpty ? organization ?? "" : display), 1024)
+        return ["kind": "command", "command": command.name, "created": ["id": contact.identifier, "title": title, "list": bounded((group?.name ?? "Contacts"), 1024)]]
+    default:
+        throw ComputerError("unknown_command", "Unknown app command.", dispatchState: "not_started")
+    }
 }
 struct Request: Decodable { let id: String; let method: String; let params: Parameters }
 func required<T>(_ value: T?, _ name: String) throws -> T {
@@ -56,6 +609,21 @@ func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIE
     if ![.illegalArgument, .attributeUnsupported, .actionUnsupported, .notImplemented, .apiDisabled].contains(result) { inputDispatched = true }
     if result == .success || result == .cannotComplete && press { return }
     try axCheck(result)
+}
+/// Performs an advertised Accessibility action. An element can still refuse it (Finder and file-panel
+/// cells answer AXOpen with attributeUnsupported, -25205); nothing reached the app, so the snapshot stays valid.
+func performAXAction(_ element: AXUIElement, _ action: String, press: Bool = false) throws {
+    var refused = false
+    do {
+        try dispatchAX(element, press: press) { element in
+            let result = AXUIElementPerformAction(element, action as CFString)
+            refused = result == .actionUnsupported || result == .attributeUnsupported
+            return result
+        }
+    } catch where refused {
+        // The fallback click needs the app in front, so the activation step comes first.
+        throw ComputerError("unsupported_action", "The element refused this action although it advertises it. Use another of its actions, or call activate_app for this app and then click it (clickCount 2 opens most files and folders).")
+    }
 }
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
 /// highlighted instead of running it. Return runs the highlighted item, as it would for a keyboard user.
@@ -86,6 +654,34 @@ func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
     return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
 }
+/// Reads several attributes in one Accessibility round trip instead of one per attribute; an attribute
+/// the element lacks or fails to return is omitted, as `attribute` would return nil for it.
+func attributes(_ element: AXUIElement, _ names: [String]) -> [String: CFTypeRef] {
+    var raw: CFArray?
+    let status = AXUIElementCopyMultipleAttributeValues(element, names as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &raw)
+    guard status == .success, let values = raw as [AnyObject]?, values.count == names.count else {
+        // Only an element that cannot answer a batched read is asked one attribute at a time; a
+        // timeout or failure would only repeat once per attribute.
+        guard [.attributeUnsupported, .illegalArgument, .notImplemented].contains(status) else { return [:] }
+        return names.reduce(into: [:]) { result, name in result[name] = attribute(element, name) }
+    }
+    var result: [String: CFTypeRef] = [:]
+    for (name, value) in zip(names, values) {
+        if value is NSNull { continue }
+        if CFGetTypeID(value) == AXValueGetTypeID(), AXValueGetType(unsafeBitCast(value, to: AXValue.self)) == .axError { continue }
+        result[name] = value
+    }
+    return result
+}
+/// Elements bucketed by CFHash, so a walk's membership and parent lookups stay linear in its size.
+struct ElementIndex {
+    private var buckets: [CFHashCode: [(element: AXUIElement, id: String)]] = [:]
+    private(set) var count = 0
+    func id(of element: AXUIElement) -> String? { buckets[CFHash(element)]?.first { CFEqual($0.element, element) }?.id }
+    mutating func insert(_ element: AXUIElement, id: String) { buckets[CFHash(element), default: []].append((element, id)); count += 1 }
+}
+let NODE_ATTRIBUTES = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute,
+                       kAXHelpAttribute, kAXValueAttribute, kAXFocusedAttribute, kAXEnabledAttribute, kAXPositionAttribute, kAXSizeAttribute]
 func secure(_ element: AXUIElement) -> Bool {
     attribute(element, kAXSubroleAttribute) as? String == kAXSecureTextFieldSubrole
 }
@@ -124,28 +720,63 @@ func takesText(_ element: AXUIElement) -> Bool {
     return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success && settable.boolValue
 }
 /// The window holding `element`: the element itself when it is a window or sheet, which report no
-/// window of their own, otherwise the window it reports.
+/// window of their own, otherwise the window it reports. Controls of an open or save panel belong to
+/// the panel's service process and report no window, so for them the nearest window or sheet among
+/// their ancestors is used.
 func containingWindow(_ element: AXUIElement) -> AXUIElement? {
-    if [kAXWindowRole, kAXSheetRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
-    guard let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-    return unsafeBitCast(raw, to: AXUIElement.self)
+    let windowRoles = [kAXWindowRole, kAXSheetRole]
+    if windowRoles.contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
+    if let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        return unsafeBitCast(raw, to: AXUIElement.self)
+    }
+    var current = element
+    for _ in 0..<64 {
+        guard let raw = attribute(current, kAXParentAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        current = unsafeBitCast(raw, to: AXUIElement.self)
+        if windowRoles.contains(attribute(current, kAXRoleAttribute) as? String ?? "") { return current }
+    }
+    return nil
 }
 func axActions(_ element: AXUIElement) -> [String] {
     var names: CFArray?
     return AXUIElementCopyActionNames(element, &names) == .success ? names as? [String] ?? [] : []
 }
 func elementRect(_ element: AXUIElement) -> CGRect? {
-    guard let rawPosition = attribute(element, kAXPositionAttribute), CFGetTypeID(rawPosition) == AXValueGetTypeID(),
-          let rawSize = attribute(element, kAXSizeAttribute), CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
+    axRect(position: attribute(element, kAXPositionAttribute), size: attribute(element, kAXSizeAttribute))
+}
+func axRect(position rawPosition: CFTypeRef?, size rawSize: CFTypeRef?) -> CGRect? {
+    guard let rawPosition, CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+          let rawSize, CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
     var position = CGPoint.zero; var size = CGSize.zero
     guard AXValueGetValue(unsafeBitCast(rawPosition, to: AXValue.self), .cgPoint, &position),
-          AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size) else { return nil }
+          AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size),
+          // Some apps report hidden elements at infinity (Maps does once its search field has focus); such an element has no usable frame.
+          [position.x, position.y, size.width, size.height].allSatisfy(\.isFinite) else { return nil }
     return CGRect(origin: position, size: size)
+}
+/// Apps computer use never operates, lowercased: macOS security settings, password managers, and apps
+/// whose primary purpose is running shell commands or scripts (terminals, Script Editor, Automator,
+/// Shortcuts), since shell access goes through the Terminal tool's own opt-in. Apps that merely embed a
+/// terminal, such as editors, stay usable.
+let PROTECTED_APPS: Set<String> = [
+    "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.passwords",
+    "com.1password.1password", "com.agilebits.onepassword7", "com.agilebits.onepassword-osx", "com.bitwarden.desktop",
+    "org.keepassxc.keepassxc", "com.lastpass.lastpass", "in.sinew.enpass-desktop", "me.proton.pass.electron",
+    "com.markmcguill.strongbox", "com.markmcguill.strongbox.mac",
+    "com.apple.terminal", "com.googlecode.iterm2", "dev.warp.warp-stable", "com.mitchellh.ghostty",
+    "net.kovidgoyal.kitty", "org.alacritty", "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby",
+    "com.apple.scripteditor2", "com.apple.automator", "com.apple.shortcuts",
+]
+/// Whether computer use refuses an app: Sim's own apps and `PROTECTED_APPS`. Bundle identifiers match
+/// case-insensitively in Launch Services.
+func isProtectedApp(_ bundle: String) -> Bool {
+    let key = bundle.lowercased()
+    return key == Bundle.main.bundleIdentifier?.lowercased() || key.hasPrefix("com.simstudio.") || key.hasPrefix("ai.sim.desktop") || PROTECTED_APPS.contains(key)
 }
 func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunningApplication {
     let bundle = try required(bundleId, "bundleId")
-    guard bundle != Bundle.main.bundleIdentifier, !bundle.hasPrefix("com.simstudio."), !bundle.hasPrefix("ai.sim.desktop"), bundle != "com.apple.systempreferences" else {
-        throw ComputerError("protected_app", "Computer use cannot control its own app or macOS security settings.")
+    guard !isProtectedApp(bundle) else {
+        throw ComputerError("protected_app", "Computer use does not operate Sim, System Settings, password managers, terminals, or scripting apps; use the terminal tool for shell work.")
     }
     var apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).filter { !$0.isTerminated }
     if apps.isEmpty && launch {
@@ -153,12 +784,12 @@ func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunning
         let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = false
         let app = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
         guard app.bundleIdentifier == bundle, !app.isTerminated else { throw ComputerError("app_identity_mismatch", "Launched app identity does not match the requested bundle ID.") }
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(root, 0.1)
+        // Apps built on Electron or Catalyst take several seconds to show their first window; wait for
+        // one an observation can target rather than failing the read the agent will only repeat.
         var windowReady = false
-        for _ in 0..<20 {
+        for _ in 0..<80 {
             try checkCancellation()
-            if let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement], !windows.isEmpty { windowReady = true; break }
+            if hasObservableWindow(app.processIdentifier) { windowReady = true; break }
             guard !app.isTerminated else { throw ComputerError("app_unavailable", "App exited while opening its window.") }
             try await Task.sleep(for: .milliseconds(100))
         }
@@ -174,9 +805,33 @@ func appFor(_ bundleId: String?, launch: Bool = false) async throws -> NSRunning
 func requireAccessibility() throws {
     guard AXIsProcessTrusted() else { throw ComputerError("accessibility_permission_required", "Enable Accessibility for Mothership in System Settings, then retry.") }
 }
+/// The app's window-list entries at document, floating and panel levels. Calendar's event inspector is a
+/// panel-level window, so it must be observable; the Dock level and above (menus, status items,
+/// overlays) holds no app window.
 func windowsFor(_ pid: pid_t) -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
-    return entries.filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? Int) == 0 }
+    let dockLevel = Int(CGWindowLevelForKey(.dockWindow))
+    return entries.filter { entry in
+        guard (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid, let layer = entry[kCGWindowLayer as String] as? Int else { return false }
+        return layer >= 0 && layer < dockLevel
+    }
+}
+/// Whether the app has a window an observation can list: an Accessibility window whose frame matches
+/// one of its window-list entries, the match `get_app_state` uses. A minimized window counts, since it
+/// is listed and `activate_app` can bring it forward.
+func hasObservableWindow(_ pid: pid_t) -> Bool {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    guard let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement] else { return false }
+    let frames = windows.compactMap { window -> CGRect? in
+        AXUIElementSetMessagingTimeout(window, 0.1)
+        return elementRect(window)
+    }
+    return windowsFor(pid).contains { entry in
+        guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0 else { return false }
+        return frames.contains(rect)
+    }
 }
 func windowRect(_ id: String?, pid: pid_t) throws -> CGRect {
     let id = try required(id, "windowId")
@@ -252,7 +907,18 @@ final class Snapshot {
     var selectedWindowId: String?
     var nodes: [[String: Any]] = []
     var truncated = false
-    init(app: NSRunningApplication) { pid = app.processIdentifier; launchDate = app.launchDate }
+    /// Every element this app session has been given an id, so the same element keeps its id across observations.
+    private(set) var index = ElementIndex()
+    private(set) var nextOrdinal: Int
+    /// Reuses `previous`'s ids when it observed the same process instance and new ids continue from
+    /// `nextOrdinal`, which the driver keeps per process so ids never repeat while it runs.
+    init(app: NSRunningApplication, previous: Snapshot? = nil, nextOrdinal: Int = 0) {
+        pid = app.processIdentifier; launchDate = app.launchDate; self.nextOrdinal = nextOrdinal
+        // One read adds at most 2,000 elements, so the carried index stays within 20,000; past that the next read starts fresh.
+        if let previous, previous.pid == pid, previous.launchDate == launchDate, previous.index.count <= 18_000 {
+            index = previous.index
+        }
+    }
     func read(preferredWindowFrame: CGRect? = nil) async throws {
         try requireAccessibility()
         let root = AXUIElementCreateApplication(pid)
@@ -290,43 +956,51 @@ final class Snapshot {
             queue.append(AXTraversalEntry(element: unsafeBitCast(raw, to: AXUIElement.self), parent: root, depth: 1, menu: false, priority: true))
         }
         var menuCount = 0
+        var seen = ElementIndex()
         while nodes.count < 2000 && Date().timeIntervalSince(created) < 8, let entry = queue.next() {
             try checkCancellation()
             let element = entry.element
             AXUIElementSetMessagingTimeout(element, 0.25)
-            if elements.values.contains(where: { CFEqual($0, element) }) { continue }
-            let role = attribute(element, kAXRoleAttribute) as? String ?? "AXUnknown"
+            if seen.id(of: element) != nil { continue }
+            let values = attributes(element, NODE_ATTRIBUTES)
+            let role = values[kAXRoleAttribute] as? String ?? "AXUnknown"
             let isMenu = entry.menu || [kAXMenuBarRole, kAXMenuRole, kAXMenuItemRole, kAXMenuBarItemRole].contains(role)
             if role == kAXMenuItemRole && !entry.menu && !entry.priority {
                 queue.append(AXTraversalEntry(element: element, parent: entry.parent, depth: entry.depth, menu: true, priority: false)); continue
             }
+            // Closed menus past the cap hide no content: opening a menu lists its items as priority entries.
             if isMenu && !entry.priority {
-                guard menuCount < 80 else { truncated = true; continue }
+                guard menuCount < 80 else { continue }
                 menuCount += 1
             }
-            let id = "e\(nodes.count)"; elements[id] = element
+            let id: String
+            if let known = index.id(of: element) { id = known } else {
+                id = "e\(nextOrdinal)"; nextOrdinal += 1; index.insert(element, id: id)
+            }
+            elements[id] = element; seen.insert(element, id: id)
             var node: [String: Any] = ["elementId": id, "role": role, "actions": [String]()]
-            if let parent = entry.parent, let parentID = elements.first(where: { CFEqual($0.value, parent) })?.key { node["parentId"] = parentID }
-            let isSecure = secure(element)
-            var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty }
-            if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty } }
+            if let parent = entry.parent, let parentID = seen.id(of: parent) { node["parentId"] = parentID }
+            let isSecure = values[kAXSubroleAttribute] as? String == kAXSecureTextFieldSubrole
+            var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty }
+            if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { values[$0] as? String }.filter { !$0.isEmpty } }
             if role == kAXMenuItemRole, let shortcut = menuShortcut(element) { labels.append(shortcut) }
-            if !isSecure, !labels.isEmpty { node["label"] = String(labels.joined(separator: " ").prefix(1024)) }
-            if !isSecure, let raw = attribute(element, kAXValueAttribute) {
-                if let value = raw as? String { node["value"] = String(value.prefix(2048)) }
+            if !isSecure, !labels.isEmpty { node["label"] = bounded(labels.joined(separator: " "), 1024) }
+            if !isSecure, let raw = values[kAXValueAttribute] {
+                if let value = raw as? String { node["value"] = bounded(value, 2048) }
                 else if let value = raw as? NSNumber { node["value"] = value.stringValue }
             }
             if !isSecure {
-                if let focused = attribute(element, kAXFocusedAttribute) as? Bool { node["focused"] = focused }
+                if let focused = values[kAXFocusedAttribute] as? Bool { node["focused"] = focused }
                 var writable: DarwinBoolean = false
-                let writableValue = AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
-                node["editable"] = [kAXTextAreaRole, kAXTextFieldRole].contains(role) && writableValue
-                if let placeholder = attribute(element, kAXPlaceholderValueAttribute) as? String { node["placeholder"] = String(placeholder.prefix(1024)) }
+                let writableValue = [kAXTextAreaRole, kAXTextFieldRole].contains(role)
+                    && AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable) == .success && writable.boolValue
+                node["editable"] = writableValue
+                if let placeholder = values[kAXPlaceholderValueAttribute] as? String { node["placeholder"] = bounded(placeholder, 1024) }
             }
-            if let enabled = attribute(element, kAXEnabledAttribute) as? Bool { node["enabled"] = enabled }
-            if let rect = elementRect(element) { node.merge(rectJSON(rect)) { _, new in new } }
+            if let enabled = values[kAXEnabledAttribute] as? Bool { node["enabled"] = enabled }
+            if let rect = axRect(position: values[kAXPositionAttribute], size: values[kAXSizeAttribute]) { node.merge(rectJSON(rect)) { _, new in new } }
             var actions: CFArray?
-            if AXUIElementCopyActionNames(element, &actions) == .success { node["actions"] = Array((actions as? [String] ?? []).prefix(128)).map { String($0.prefix(128)) } }
+            if AXUIElementCopyActionNames(element, &actions) == .success { node["actions"] = Array((actions as? [String] ?? []).prefix(128)).map { bounded($0, 128) } }
             nodes.append(node)
             if role == kAXWindowRole, let preferredWindow, !CFEqual(element, preferredWindow) { continue }
             if !isSecure, entry.depth < 64 {
@@ -411,7 +1085,34 @@ func parseKey(_ key: String) throws -> (CGKeyCode, CGEventFlags) {
             let aliases = ["esc": "escape", "arrowleft": "left", "arrowright": "right", "arrowup": "up", "arrowdown": "down", "forwarddelete": "delete", "pgup": "pageup", "pgdn": "pagedown", "pgdown": "pagedown", "minus": "-", "equal": "=", "equals": "=", "comma": ",", "period": ".", "slash": "/", "semicolon": ";", "quote": "'", "backslash": "\\", "backtick": "`", "grave": "`", "leftbracket": "[", "rightbracket": "]"]
             guard let code = keys[aliases[name] ?? name] else { throw ComputerError("unsupported_key", "Unsupported key name. Use names such as Enter, Tab, Escape, Backspace, Delete (forward delete), Left, PageUp, F5, or a single character, with Cmd/Shift/Alt/Ctrl modifiers.") }; return (code, flags)
 }
-func validateInputSteps(_ steps: [InputStep]) throws {
+/// The actions a batch may run; each is validated again by its own action path when it runs.
+let BATCH_ACTIONS: Set<String> = ["click", "type_text", "set_value", "press_key", "scroll", "perform_action"]
+func validateBatchSteps(_ steps: [Parameters]) throws {
+    guard (2...8).contains(steps.count) else { throw ComputerError("invalid_arguments", "A batch requires 2 to 8 steps.") }
+    var units = 0
+    for step in steps {
+        guard let action = step.action, BATCH_ACTIONS.contains(action), step.bundleId == nil, step.snapshotId == nil else {
+            throw ComputerError("invalid_arguments", "Batch steps are click, type_text, set_value, press_key, scroll or perform_action, without their own app or snapshot.")
+        }
+        // Malformed steps are refused before step 1 runs, so a typo never leaves a half-applied batch.
+        switch action {
+        case "type_text": _ = try required(step.elementId, "elementId"); _ = try required(step.text, "text")
+        case "set_value": _ = try required(step.elementId, "elementId"); _ = try required(step.value, "value")
+        case "perform_action": _ = try required(step.elementId, "elementId"); _ = try required(step.accessibilityAction, "accessibilityAction")
+        case "press_key": _ = try parseKey(required(step.key, "key"))
+        case "click":
+            guard ["left", "right"].contains(step.button ?? "left"), (1...3).contains(step.clickCount ?? 1) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
+            guard step.elementId != nil || (step.x != nil && step.y != nil) else { throw ComputerError("invalid_arguments", "A click step needs an elementId or x and y.") }
+        case "scroll":
+            guard step.elementId != nil || (step.x != nil && step.y != nil) else { throw ComputerError("invalid_arguments", "A scroll step needs an elementId or x and y.") }
+            guard step.deltaX != nil || step.deltaY != nil else { throw ComputerError("invalid_arguments", "A scroll step needs deltaX or deltaY.") }
+        default: break
+        }
+        units += (step.text?.utf16.count ?? 0) + (step.value?.utf16.count ?? 0)
+    }
+    guard units <= 32000 else { throw ComputerError("invalid_arguments", "Combined batch text exceeds 32000 UTF-16 units.") }
+}
+func validateInputSteps(_ steps: [Parameters]) throws {
     guard (1...32).contains(steps.count) else { throw ComputerError("invalid_arguments", "Input sequence requires 1 to 32 steps.") }
     var units = 0
     for step in steps {
@@ -527,6 +1228,57 @@ func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseBut
     event.post(tap: .cghidEventTap)
 }
 
+/// Clicks the center of an observed text control so it takes keyboard focus, only when that point lands on
+/// the control (or a text control inside it) within its observed window; otherwise nothing is sent and the focus check decides.
+@MainActor
+func focusByClicking(_ element: AXUIElement, pid: pid_t, snapshot: Snapshot, caretIrrelevant: Bool) async throws {
+    guard let rect = elementRect(element), let windowID = snapshot.windowId(holding: element),
+          let frame = snapshot.windowFrames[windowID], let window = snapshot.windowElements[windowID] else { return }
+    let center = CGPoint(x: rect.midX, y: rect.midY)
+    // The point must land on the editor or a text control inside it, never a button or row nested in a container.
+    guard takesText(element), frame.contains(center), let hit = elementAtPoint(center) else { return }
+    let insideEditor = try takesText(hit) && ancestorPath(hit, to: element) != nil
+    // Secure inputs stay untargetable, so a password field is never clicked into focus either.
+    guard CFEqual(hit, element) || insideEditor, (try? requireNonSecure(hit)) != nil else { return }
+    do {
+        try await coordinateAction { dispatch in
+            try checkCancellation()
+            try postMouse(pid: pid, type: .leftMouseDown, point: center, button: .left, windowID: windowID, window: window, frame: frame, dispatch: dispatch)
+            try postMouse(pid: pid, type: .leftMouseUp, point: center, button: .left, windowID: windowID, window: window, frame: frame, release: true, dispatch: dispatch)
+        }
+    } catch let error as ComputerError where error.dispatchState == "not_started" {
+        // A mouse guard refused the point before anything was sent; the focus check reports the outcome.
+        return
+    }
+    // A click leaves the caret where it landed; typing inserts at the end, as after an Accessibility focus.
+    let root = AXUIElementCreateApplication(pid)
+    for _ in 0..<5 {
+        try await Task.sleep(for: .milliseconds(50))
+        guard let focused = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(focused, element) else { continue }
+        if caretIrrelevant || caretAtEnd(unsafeBitCast(focused, to: AXUIElement.self)) { return }
+        throw ComputerError("caret_unconfirmed", "The editor was clicked into focus, but its caret could not be confirmed at the end, so no text was sent. Observe the app, then use set_value, or start an input_sequence with Cmd+A.")
+    }
+    throw ComputerError("caret_unconfirmed", "The editor was clicked, but it did not take keyboard focus in time, so no text was sent. Observe the app before retrying.")
+}
+/// Whether the caret is at the end of `editor`'s text, moving it there when the editor allows: an empty
+/// editor qualifies, and a move counts only once the selection range reads back at the end.
+func caretAtEnd(_ editor: AXUIElement) -> Bool {
+    guard let length = (attribute(editor, kAXValueAttribute) as? String)?.utf16.count
+        ?? (attribute(editor, kAXNumberOfCharactersAttribute) as? NSNumber)?.intValue else { return false }
+    if length == 0 { return true }
+    func selection() -> CFRange? {
+        guard let raw = attribute(editor, kAXSelectedTextRangeAttribute), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        var range = CFRange(); return AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cfRange, &range) ? range : nil
+    }
+    if let range = selection(), range.location == length, range.length == 0 { return true }
+    var settable: DarwinBoolean = false
+    var end = CFRange(location: length, length: 0)
+    guard AXUIElementIsAttributeSettable(editor, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue,
+          let value = AXValueCreate(.cfRange, &end),
+          AXUIElementSetAttributeValue(editor, kAXSelectedTextRangeAttribute as CFString, value) == .success,
+          let moved = selection() else { return false }
+    return moved.location == length && moved.length == 0
+}
 func discoverApps() throws -> [[String: Any]] {
     var entries: [String: [String: Any]] = [:]
     let roots = [URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/System/Applications"), FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")]
@@ -541,19 +1293,23 @@ func discoverApps() throws -> [[String: Any]] {
                 enumerator.skipDescendants()
                 guard let bundle = Bundle(url: url), let id = bundle.bundleIdentifier, id.utf8.count <= 255 else { continue }
                 let name = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String ?? url.deletingPathExtension().lastPathComponent
-                entries[id] = ["bundleId": id, "name": String(name.prefix(1024)), "isActive": false]
+                entries[id] = ["bundleId": id, "name": bounded(name, 1024), "isActive": false]
             } else if enumerator.level >= 3 { enumerator.skipDescendants() }
         }
     }
     for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
         guard let id = app.bundleIdentifier, id.utf8.count <= 255 else { continue }
-        entries[id] = ["bundleId": id, "name": String((app.localizedName ?? id).prefix(1024)), "pid": app.processIdentifier, "isActive": app.isActive]
+        entries[id] = ["bundleId": id, "name": bounded((app.localizedName ?? id), 1024), "pid": app.processIdentifier, "isActive": app.isActive]
     }
     return Array(entries.values.sorted { ($0["bundleId"] as? String ?? "") < ($1["bundleId"] as? String ?? "") }.prefix(1000))
 }
 @MainActor
 final class Driver {
     var snapshots: [String: Snapshot] = [:]
+    /// Each app's latest observation, kept after actions consume `snapshots` so the next read reuses its element ids.
+    var lastObserved: [String: Snapshot] = [:]
+    /// Each app's next element id, kept apart from the evictable history so ids never repeat while that process runs.
+    var nextOrdinals: [String: (pid: pid_t, launchDate: Date?, next: Int)] = [:]
     func point(_ p: Parameters, app: NSRunningApplication, snapshot: Snapshot, end: Bool = false) throws -> CGPoint {
         if let elementId = p.elementId, !end {
             guard let frame = elementRect(try snapshot.element(elementId)) else { throw ComputerError("element_unavailable", "Element has no usable frame.") }
@@ -594,11 +1350,20 @@ final class Driver {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
                 _ = AXIsProcessTrustedWithOptions(options)
             case "screenCapture": _ = CGRequestScreenCaptureAccess()
+            case "reminders": _ = try? await EKEventStore().requestFullAccessToReminders()
+            case "calendars": _ = try? await EKEventStore().requestFullAccessToEvents()
+            case "contacts": _ = try? await CNContactStore().requestAccess(for: .contacts)
             default: throw ComputerError("invalid_arguments", "Unknown permission.")
             }
-            return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess()]
-        case "status": return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess()]
+            return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": eventKitAuthorization(.reminder), "calendars": eventKitAuthorization(.event), "contacts": contactsAuthorization()]
+        case "status": return ["kind": "status", "platform": "darwin", "accessibility": AXIsProcessTrusted(), "screenRecording": CGPreflightScreenCaptureAccess(), "reminders": eventKitAuthorization(.reminder), "calendars": eventKitAuthorization(.event), "contacts": contactsAuthorization()]
         case "list_apps": return ["kind": "apps", "apps": try discoverApps()]
+        case "app_command":
+            inputDispatched = false
+            let command = try required(p.command, "command")
+            // EventKit only fetches reminders asynchronously.
+            if command.name == "find_reminders" { return try await findReminders(command) }
+            return try runAppCommand(command, expected: p.expected)
         case "activate_app":
             try requireAccessibility()
             let app = try await appFor(p.bundleId, launch: true)
@@ -607,7 +1372,9 @@ final class Driver {
             return ["kind": "action", "action": "activate_app", "bundleId": app.bundleIdentifier!, "dispatched": true, "verified": true]
         case "get_app_state":
             try requireAccessibility()
-            let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app)
+            let app = try await appFor(p.bundleId, launch: true); let bundle = app.bundleIdentifier!
+            let ordinal = nextOrdinals[bundle].flatMap { $0.pid == app.processIdentifier && $0.launchDate == app.launchDate ? $0.next : nil } ?? 0
+            let snapshot = Snapshot(app: app, previous: lastObserved[bundle], nextOrdinal: ordinal)
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
@@ -627,11 +1394,14 @@ final class Driver {
                 let matches = axWindows.filter { elementRect($0) == rect }
                 if matches.count == 1, onScreen(entry) { snapshot.windowElements[id.stringValue] = matches[0] }
                 var result: [String: Any] = ["windowId": id.stringValue, "title": entry[kCGWindowName as String] as? String ?? ""]
-                if let title = result["title"] as? String { result["title"] = String(title.prefix(4096)) }
+                if let title = result["title"] as? String { result["title"] = bounded(title, 4096) }
                 result.merge(rectJSON(rect)) { _, new in new }; return result
             }
             if snapshots.count >= 16 { snapshots.removeAll() }
-            snapshots[app.bundleIdentifier!] = snapshot
+            if lastObserved[bundle] == nil, lastObserved.count >= 16, let evicted = lastObserved.keys.first { lastObserved.removeValue(forKey: evicted) }
+            snapshots[bundle] = snapshot
+            lastObserved[bundle] = snapshot
+            nextOrdinals[bundle] = (app.processIdentifier, app.launchDate, snapshot.nextOrdinal)
             let root = AXUIElementCreateApplication(app.processIdentifier)
             let focusedID = attribute(root, kAXFocusedWindowAttribute).flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? snapshot.windowId(holding: unsafeBitCast($0, to: AXUIElement.self)) : nil }
             for index in snapshot.nodes.indices {
@@ -646,12 +1416,12 @@ final class Driver {
                 do {
                     guard #available(macOS 14.0, *) else { throw ComputerError("unsupported_os", "Screenshots require macOS 14 or later.") }
                     result["screenshot"] = try await screenshot(pid: app.processIdentifier, windowID: selectedWindowId, observedFrame: try required(snapshot.windowFrames[selectedWindowId], "observed window frame"))
-                } catch let error as ComputerError { result["screenshotError"] = String((error.code + ": " + error.message).prefix(2000)) }
-                catch { result["screenshotError"] = String(("capture_failed: " + String(describing: error)).prefix(2000)) }
+                } catch let error as ComputerError { result["screenshotError"] = bounded((error.code + ": " + error.message), 2000) }
+                catch { result["screenshotError"] = bounded(("capture_failed: " + String(describing: error)), 2000) }
             }
             result["isActive"] = app.isActive
             return result
-        case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action": break
+        case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action", "batch": break
         default: throw ComputerError("unknown_method", "Unknown computer-use method.")
         }
         try requireAccessibility()
@@ -676,13 +1446,44 @@ final class Driver {
         let p = request.params
         let pid = app.processIdentifier
         switch request.method {
+        case "batch":
+            let steps = try required(p.steps, "steps")
+            try validateBatchSteps(steps)
+            var completed = 0
+            func stopped(_ message: String) -> [String: Any] {
+                ["kind": "action", "action": "batch", "bundleId": bundle, "dispatched": true, "verified": false,
+                 "sequence": ["completedSteps": completed, "totalSteps": steps.count, "error": bounded((message + " The remaining steps were not run; observe the app before continuing, and do not retry the batch."), 2000)]]
+            }
+            for (index, step) in steps.enumerated() {
+                // Stop can arrive during the previous step's render wait; no later step may start after it.
+                do { try checkCancellation() } catch {
+                    // Before any step ran nothing was sent, so Stop fails the batch as cancelled.
+                    if completed == 0 { throw error }
+                    return stopped("Stopped before step \(index + 1).")
+                }
+                let before = uiStructure(pid: pid)
+                do { _ = try await act(Request(id: request.id, method: try required(step.action, "action"), params: step), app: app, bundle: bundle, snapshot: snapshot) }
+                catch {
+                    // A first step that sent nothing fails like the single action, keeping the snapshot valid.
+                    if completed == 0 && !inputDispatched {
+                        guard let error = error as? ComputerError else { throw error }
+                        throw ComputerError(error.code, "Batch step 1 failed: " + error.message, dispatchState: error.dispatchState)
+                    }
+                    return stopped("Step \(index + 1) failed: " + ((error as? ComputerError)?.message ?? "its outcome is unknown."))
+                }
+                completed += 1
+                if completed < steps.count, uiStructure(pid: pid) != before {
+                    return stopped("Step \(index + 1) opened or closed a window, sheet, menu or popover.")
+                }
+            }
+            return ["kind": "action", "action": "batch", "bundleId": bundle, "dispatched": true, "verified": false, "sequence": ["completedSteps": completed, "totalSteps": steps.count]]
         case "perform_action":
             let element = try snapshot.element(p.elementId); let action = try required(p.accessibilityAction, "accessibilityAction")
             var names: CFArray?; try axCheck(AXUIElementCopyActionNames(element, &names))
             guard (names as? [String] ?? []).contains(action) else { throw ComputerError("unsupported_action", "Action was not advertised by the selected element.") }
             // Actions that open UI (a sheet, a menu) hold the reply like a press; others fail as uncertain on timeout.
             let opensUI = [kAXPressAction, kAXPickAction, kAXShowMenuAction].contains(action)
-            try dispatchAX(element, press: opensUI) { AXUIElementPerformAction($0, action as CFString) }
+            try performAXAction(element, action, press: opensUI)
             if action == kAXPressAction || action == kAXPickAction { try await completeMenuPress(element, pid: pid) }
         case "set_value":
             let element = try snapshot.element(p.elementId); let value = try required(p.value, "value")
@@ -694,7 +1495,7 @@ final class Driver {
             let button = p.button ?? "left"; let count = p.clickCount ?? 1
             guard ["left", "right"].contains(button), (1...3).contains(count) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
             if p.elementId != nil && button == "left" && count == 1, let element = try? snapshot.element(p.elementId), axActions(element).contains(kAXPressAction) {
-                try dispatchAX(element, press: true) { AXUIElementPerformAction($0, kAXPressAction as CFString) }
+                try performAXAction(element, kAXPressAction, press: true)
                 try await completeMenuPress(element, pid: pid)
             } else {
                 try await coordinateAction { dispatch in
@@ -712,7 +1513,7 @@ final class Driver {
             }
         case "type_text", "input_sequence":
             let element = try snapshot.element(p.elementId)
-            let steps = request.method == "type_text" ? [InputStep(action: "type_text", text: try required(p.text, "text"), key: nil)] : try required(p.steps, "steps")
+            let steps = request.method == "type_text" ? [Parameters(action: "type_text", text: try required(p.text, "text"))] : try required(p.steps, "steps")
             try validateInputSteps(steps)
             let root = AXUIElementCreateApplication(pid)
             // Keystrokes go to whatever holds keyboard focus: a text control (terminals included, read-only
@@ -725,7 +1526,18 @@ final class Driver {
             // Activation can move focus, so whether the editor holds it is read after activating.
             if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
-                try await Task.sleep(for: .milliseconds(50))
+                // Focus can settle asynchronously; slow apps get 250 ms before any click is considered.
+                for _ in 0..<5 {
+                    try await Task.sleep(for: .milliseconds(50))
+                    if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) == true { break }
+                }
+                // Some apps (SwiftUI sheets such as Clock's city search) ignore an Accessibility focus
+                // request; in a foreground app the field is focused the way a user would, by clicking it.
+                if app.isActive, attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
+                    // Select-all as the first step replaces the whole value, so where the click put the caret is moot.
+                    let selectsAll = try steps.first.map { $0.action == "press_key" ? try parseKey(required($0.key, "key")) == (0, .maskCommand) : false } ?? false
+                    try await focusByClicking(element, pid: pid, snapshot: snapshot, caretIrrelevant: selectsAll)
+                }
             }
             let observedWindows = snapshot.observedWindows()
             // The first editor found holding focus receives the whole input, so text never follows focus elsewhere.
@@ -749,7 +1561,7 @@ final class Driver {
                 do { try validateFocus(); break }
                 catch let error as ComputerError where error.code == "focus_changed" {
                     if attempt < 9 { try await Task.sleep(for: .milliseconds(50)) }
-                    else if !app.isActive { throw ComputerError("activation_required", "No input was dispatched. This background app does not expose the exact keyboard focus target. Call activate_app for this bundle, then get_app_state and retry using the fresh editor reference.", dispatchState: "not_started") }
+                    else if !app.isActive && !inputDispatched { throw ComputerError("activation_required", "No input was dispatched. This background app does not expose the exact keyboard focus target. Call activate_app for this bundle, then get_app_state and retry using the fresh editor reference.", dispatchState: "not_started") }
                     else { throw error }
                 }
             }
@@ -860,6 +1672,23 @@ final class Driver {
         return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false]
     }
 }
+/// The app's window structure by identity: its on-screen windows (sheets, menus and popovers are
+/// windows of their own), the focused window, and that window's direct content, where a sheet sits.
+/// Identities rather than counts, so switching one open menu or sheet for another still registers.
+func uiStructure(pid: pid_t) -> [Int] {
+    let root = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(root, 0.1)
+    var structure = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? [])
+        .filter { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid }
+        .compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue }
+        .sorted()
+    if let raw = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+        structure.append(Int(bitPattern: UInt(CFHash(raw))))
+        let (children, _) = pagedElements(unsafeBitCast(raw, to: AXUIElement.self), name: kAXChildrenAttribute, limit: 64)
+        structure.append(contentsOf: children.map { Int(bitPattern: UInt(CFHash($0))) })
+    }
+    return structure
+}
 func nextLine() throws -> String? {
     var bytes = [UInt8](); bytes.reserveCapacity(4096)
     var oversized = false
@@ -877,7 +1706,11 @@ func nextLine() throws -> String? {
 func encodeReply(_ response: [String: Any]) throws -> Data {
     let limit = 16 * 1024 * 1024
     func encode(_ value: [String: Any]) throws -> Data {
-        try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+        // JSONSerialization raises an Objective-C exception, which Swift cannot catch, on a NaN or infinite number.
+        guard JSONSerialization.isValidJSONObject(value) else {
+            throw ComputerError("reply_unencodable", "The reply held a value JSON cannot represent.")
+        }
+        return try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     }
     let original = try encode(response)
     if original.count <= limit { return original }
@@ -947,10 +1780,12 @@ struct Main {
                 if let dispatchState = error.dispatchState { details["dispatchState"] = dispatchState }
                 response = ["id": id, "error": details]
             }
-            catch { response = ["id": id, "error": ["code": "request_failed", "message": String(String(describing: error).prefix(2000))]] }
-            if let data = try? encodeReply(response) {
-                FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10]))
-            }
+            catch { response = ["id": id, "error": ["code": "request_failed", "message": bounded(String(describing: error), 2000)]] }
+            let data: Data?
+            do { data = try encodeReply(response) } catch let error as ComputerError {
+                data = try? encodeReply(["id": id, "error": ["code": error.code, "message": error.message]])
+            } catch { data = nil }
+            if let data { FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data([10])) }
         }
     }
 }

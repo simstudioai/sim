@@ -27,7 +27,12 @@ import {
   type InternalUsageLogSource,
   toBillingUsageLogSource,
 } from '@/lib/billing/usage-sources'
-import { getProviderFromModel, PROVIDER_DEFINITIONS } from '@/providers/models'
+import {
+  getProviderFromModel,
+  isAutoModel,
+  PROVIDER_DEFINITIONS,
+  SIM_AUTO_MODEL_ID,
+} from '@/providers/models'
 
 export interface OrganizationUsageBreakdownInput {
   organizationId: string
@@ -66,7 +71,9 @@ export interface OrganizationUsageBreakdownResult {
 /** Entity-backed dimensions need a second lookup to turn ids into names. */
 const NAMED_DIMENSIONS = new Set<UsageBreakdownDimension>(['member', 'workspace', 'workflow'])
 
-/** Provider ids that read better with their conventional casing. */
+/** How the usage panel names sim-auto, in the model and BYOK dimensions alike. */
+const SIM_AUTO_LABEL = 'Auto'
+
 /**
  * The registry's own display name, not a second hand-written table.
  *
@@ -75,7 +82,17 @@ const NAMED_DIMENSIONS = new Set<UsageBreakdownDimension>(['member', 'workspace'
  * module, so reading the registry costs nothing a client bundle would pay for.
  */
 function providerLabel(providerId: string): string {
+  if (providerId === SIM_AUTO_MODEL_ID) return SIM_AUTO_LABEL
   return PROVIDER_DEFINITIONS[providerId]?.name ?? providerId
+}
+
+/**
+ * The provider a model's usage is attributed to, for its mark in the model dimension and its
+ * row in the BYOK dimension. sim-auto has no provider of its own, so it keeps its own key
+ * instead of the registry's Ollama default.
+ */
+function usageProviderId(model: string): string {
+  return isAutoModel(model) ? SIM_AUTO_MODEL_ID : getProviderFromModel(model)
 }
 
 interface BuildUsageBreakdownArgs {
@@ -130,7 +147,7 @@ export async function buildUsageBreakdown({
           key ? toBillingUsageLogSource(key as InternalUsageLogSource) : null
         )
       : dimension === 'byok'
-        ? mergeRowsByKey(raw, (key) => (key ? getProviderFromModel(key) : null))
+        ? mergeRowsByKey(raw, (key) => (key ? usageProviderId(key) : null))
         : raw
 
   const totalCost = rows.reduce((sum, row) => sum + row.cost, 0)
@@ -159,7 +176,7 @@ export async function buildUsageBreakdown({
       return BILLING_USAGE_LOG_SOURCE_LABELS[key as keyof typeof BILLING_USAGE_LOG_SOURCE_LABELS]
     }
     if (dimension === 'byok') return providerLabel(key)
-    if (dimension === 'model') return key
+    if (dimension === 'model') return isAutoModel(key) ? SIM_AUTO_LABEL : key
     // Retain the id if its name is unavailable, including stale cached attribution.
     return entities.get(key)?.name ?? key
   }
@@ -202,7 +219,7 @@ export async function buildUsageBreakdown({
         share: row.share,
         ...(isModelDimension && tokens > 0 ? { tokens } : {}),
         ...(dimension === 'byok' ? { providerId: row.id } : {}),
-        ...(dimension === 'model' && row.id ? { providerId: getProviderFromModel(row.id) } : {}),
+        ...(dimension === 'model' && row.id ? { providerId: usageProviderId(row.id) } : {}),
         ...(image ? { image } : {}),
       }
     }),

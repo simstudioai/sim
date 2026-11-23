@@ -1,5 +1,6 @@
 import type { PostgresIntrospectParams, PostgresIntrospectResponse } from '@/tools/postgresql/types'
 import { POSTGRES_TABLE_OUTPUT_PROPERTIES } from '@/tools/postgresql/types'
+import { POSTGRESQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const introspectTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const introspectTool: InternalToolConfig<
   description:
     'Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships',
   version: '1.0',
+  oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

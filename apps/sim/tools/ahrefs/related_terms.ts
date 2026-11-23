@@ -1,4 +1,5 @@
 import type { AhrefsRelatedTermsParams, AhrefsRelatedTermsResponse } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -10,6 +11,7 @@ export const relatedTermsTool: ToolConfig<AhrefsRelatedTermsParams, AhrefsRelate
   description:
     'Get keyword ideas related to a seed keyword: terms the same top-ranking pages also rank for ("also rank for") or also discuss ("also talk about"), with volume, difficulty, and CPC.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     keyword: {

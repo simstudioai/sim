@@ -17,7 +17,7 @@ import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/f
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file'
+import { hasDotSegment, inferContextFromKey } from '@/lib/uploads/utils/file'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FileAuthorization')
@@ -118,6 +118,8 @@ export async function verifyFileAccess(
   context?: StorageContext | 'general',
   options?: { requireWrite?: boolean; knowledgeAccess?: KnowledgeFileAccess }
 ): Promise<boolean> {
+  /** Prefix-based context checks below would read `og-images/../workspace/...` as public. */
+  if (hasDotSegment(cloudKey)) return false
   /** Organization images require the Principal-aware Assistant application resolver. */
   if (
     cloudKey.startsWith('assistant/') ||
@@ -797,12 +799,12 @@ export async function assertToolFileAccess(
   routeLogger: ReturnType<typeof createLogger>
 ): Promise<NextResponse | null> {
   if (typeof key !== 'string' || key.length === 0) {
-    routeLogger.warn(`[${requestId}] File access check rejected: missing key`)
+    routeLogger.warn('File access check rejected: missing key', { requestId })
     return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
   }
   const hasAccess = await verifyFileAccess(key, userId)
   if (!hasAccess) {
-    routeLogger.warn(`[${requestId}] File access denied for user`, { userId, key })
+    routeLogger.warn('File access denied for user', { requestId, userId, key })
     return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
   }
   return null

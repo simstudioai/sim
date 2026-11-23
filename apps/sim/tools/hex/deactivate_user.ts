@@ -1,13 +1,18 @@
 import type { HexDeactivateUserParams, HexDeactivateUserResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deactivateUserTool: ToolConfig<HexDeactivateUserParams, HexDeactivateUserResponse> = {
   id: 'hex_deactivate_user',
   name: 'Hex Deactivate User',
   description: 'Deactivate a user in the Hex workspace.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -23,7 +28,8 @@ export const deactivateUserTool: ToolConfig<HexDeactivateUserParams, HexDeactiva
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/users/${params.userId.trim()}/deactivate`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}/deactivate`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

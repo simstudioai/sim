@@ -1177,7 +1177,9 @@ export async function moveFileItems(
     throw new WorkspaceFileItemsNotFoundError(missingFileIds, missingFolderIds)
   }
 
+  const movingFileNameCounts = new Map<string, number>()
   for (const file of movingFiles) {
+    movingFileNameCounts.set(file.name, (movingFileNameCounts.get(file.name) ?? 0) + 1)
     const conflictingFiles = await tx
       .select({ id: workspaceFiles.id })
       .from(workspaceFiles)
@@ -1193,6 +1195,12 @@ export async function moveFileItems(
 
     if (conflictingFiles.some((row) => row.id !== file.id)) {
       throw new WorkspaceFileMoveConflictError(file.name)
+    }
+  }
+
+  for (const [name, count] of movingFileNameCounts) {
+    if (count > 1) {
+      throw new WorkspaceFileMoveConflictError(name)
     }
   }
 

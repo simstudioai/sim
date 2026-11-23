@@ -277,7 +277,7 @@ export async function materializeLargeValueRef(
       return cached
     }
 
-    const value = await readLargeValueRefFromStorage(ref, {
+    const stored = await readLargeValueRefFromStorage(ref, {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
       executionId: context.executionId,
@@ -287,20 +287,20 @@ export async function materializeLargeValueRef(
       userId: context.userId,
       maxBytes: context.maxBytes ?? ref.size,
     })
-    if (value === undefined) {
+    if (stored === undefined) {
       return undefined
     }
     cacheLargeValue(
       ref.id,
-      value,
-      ref.size,
+      stored.value,
+      stored.bytes,
       {
         ...context,
         executionId: ref.executionId ?? context.executionId,
       },
       { recoverable: true }
     )
-    return value
+    return stored.value
   } catch (error) {
     logger.warn('Failed to materialize persisted large execution value', {
       id: ref.id,

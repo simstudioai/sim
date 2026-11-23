@@ -2,7 +2,9 @@ import type {
   ElevenLabsGetVoiceSettingsParams,
   ElevenLabsGetVoiceSettingsResponse,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const elevenLabsGetVoiceSettingsTool: ToolConfig<
   ElevenLabsGetVoiceSettingsParams,
@@ -12,6 +14,7 @@ export const elevenLabsGetVoiceSettingsTool: ToolConfig<
   name: 'ElevenLabs Get Voice Settings',
   description: 'Get the configured settings for a specific ElevenLabs voice',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -29,7 +32,8 @@ export const elevenLabsGetVoiceSettingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.elevenlabs.io/v1/voices/${params.voiceId.trim()}/settings`,
+    url: (params) =>
+      `https://api.elevenlabs.io/v1/voices/${safeUrlPathSegment(params.voiceId, 'voiceId')}/settings`,
     method: 'GET',
     headers: (params) => ({
       'xi-api-key': params.apiKey,

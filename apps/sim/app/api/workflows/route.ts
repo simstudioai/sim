@@ -15,7 +15,6 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 const logger = createLogger('WorkflowAPI')
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
   const startTime = Date.now()
   const url = new URL(request.url)
   const query = workflowListQuerySchema.safeParse(Object.fromEntries(url.searchParams.entries()))
@@ -30,7 +29,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
-      logger.warn(`[${requestId}] Unauthorized workflow access attempt`)
+      logger.warn('Unauthorized workflow access attempt')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const userId = auth.userId
@@ -39,9 +38,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const wsExists = await workspaceExists(workspaceId)
 
       if (!wsExists) {
-        logger.warn(
-          `[${requestId}] Attempt to fetch workflows for non-existent workspace: ${workspaceId}`
-        )
+        logger.warn(`Attempt to fetch workflows for non-existent workspace: ${workspaceId}`)
         return NextResponse.json(
           { error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' },
           { status: 404 }
@@ -52,7 +49,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
       if (!userRole) {
         logger.warn(
-          `[${requestId}] User ${userId} attempted to access workspace ${workspaceId} without membership`
+          `User ${userId} attempted to access workspace ${workspaceId} without membership`
         )
         return NextResponse.json(
           { error: 'Access denied to this workspace', code: 'WORKSPACE_ACCESS_DENIED' },
@@ -66,7 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ data: workflows }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
-    logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
+    logger.error(`Workflow fetch error after ${elapsed}ms`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })
@@ -76,7 +73,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
   if (!auth.success || !auth.userId) {
-    logger.warn(`[${requestId}] Unauthorized workflow creation attempt`)
+    logger.warn('Unauthorized workflow creation attempt')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const userId = auth.userId
@@ -95,7 +92,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     } = parsed.data.body
 
     if (!workspaceId) {
-      logger.warn(`[${requestId}] Workflow creation blocked: missing workspaceId`)
+      logger.warn('Workflow creation blocked: missing workspaceId')
       return NextResponse.json(
         {
           error:
@@ -109,7 +106,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     if (!workspacePermission || workspacePermission === 'read') {
       logger.warn(
-        `[${requestId}] User ${userId} attempted to create workflow in workspace ${workspaceId} without write permissions`
+        `User ${userId} attempted to create workflow in workspace ${workspaceId} without write permissions`
       )
       return NextResponse.json(
         { error: 'Write or Admin access required to create workflows in this workspace' },
@@ -152,9 +149,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         // Silently fail
       })
 
-    logger.info(
-      `[${requestId}] Successfully created workflow ${createdWorkflow.id} with default blocks`
-    )
+    logger.info(`Successfully created workflow ${createdWorkflow.id} with default blocks`)
 
     captureServerEvent(
       userId,
@@ -186,7 +181,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (error instanceof FolderLockedError) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
-    logger.error(`[${requestId}] Error creating workflow`, error)
+    logger.error('Error creating workflow', error)
     return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
   }
 })

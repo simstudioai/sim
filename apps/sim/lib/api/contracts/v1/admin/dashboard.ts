@@ -28,6 +28,12 @@ const positiveCreditAlignedDollarAmountSchema = creditAlignedDollarAmountSchema.
   }
 )
 
+/**
+ * Billable workflow runs over a usage period, or `null` where they are not counted:
+ * list pages, the reporting-period preview, and an organization detail past its run budget.
+ */
+const adminDashboardWorkflowRunsSchema = z.number().int().min(0).nullable()
+
 export const adminDashboardUserSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -35,7 +41,7 @@ export const adminDashboardUserSchema = z.object({
   activeOrganization: z.object({ id: z.string(), name: z.string() }).nullable(),
   usageDollars: dollarAmountSchema,
   usageCredits: z.number().int().min(0),
-  workflowRuns: z.number().int().min(0),
+  workflowRuns: adminDashboardWorkflowRunsSchema,
 })
 
 const adminDashboardBillingIntervalSchema = z.enum(['month', 'year'])
@@ -51,7 +57,7 @@ const adminDashboardUsageSchema = z.object({
   limitDollars: dollarAmountSchema,
   usedCredits: z.number().int().min(0),
   limitCredits: z.number().int().min(0),
-  workflowRuns: z.number().int().min(0),
+  workflowRuns: adminDashboardWorkflowRunsSchema,
 })
 const adminDashboardWorkspaceMoveProgressSchema = z.object({
   selected: z.number().int().min(0),
@@ -184,7 +190,7 @@ export const adminDashboardOrganizationDetailSchema =
     historicalActorUsage: z.object({
       usedDollars: dollarAmountSchema,
       usedCredits: z.number().int().min(0),
-      workflowRuns: z.number().int().min(0),
+      workflowRuns: adminDashboardWorkflowRunsSchema,
       actorCount: z.number().int().min(0),
     }),
     members: z.array(
@@ -197,7 +203,7 @@ export const adminDashboardOrganizationDetailSchema =
         usageLimitDollars: dollarAmountSchema.nullable(),
         usageDollars: dollarAmountSchema,
         usageCredits: z.number().int().min(0),
-        workflowRuns: z.number().int().min(0),
+        workflowRuns: adminDashboardWorkflowRunsSchema,
       })
     ),
     externalCollaborators: z.array(
@@ -209,7 +215,7 @@ export const adminDashboardOrganizationDetailSchema =
         usageLimitDollars: dollarAmountSchema.nullable(),
         usageDollars: dollarAmountSchema,
         usageCredits: z.number().int().min(0),
-        workflowRuns: z.number().int().min(0),
+        workflowRuns: adminDashboardWorkflowRunsSchema,
       })
     ),
     workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
@@ -740,6 +746,46 @@ export const adminDashboardIssueEnterpriseContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: adminV1SingleResponseSchema(adminDashboardProvisioningSchema),
+  },
+})
+
+const adminDashboardAwsMarketplaceLicenseSchema = z.object({
+  id: z.string(),
+  licenseArn: z.string(),
+  customerAwsAccountId: z.string(),
+  agreementId: z.string().nullable(),
+  status: z.enum(['pending', 'active', 'inactive']),
+  dimension: z.string().nullable(),
+  quantity: z.number().int().nullable(),
+  expiresAt: z.string().nullable(),
+  lastVerifiedAt: z.string(),
+  licenseEventReceivedAt: z.string().nullable(),
+  linkedByUserId: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  companyName: z.string().nullable(),
+  createdAt: z.string(),
+})
+
+export const adminDashboardListAwsMarketplaceLicensesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v1/admin/dashboard/aws-marketplace-licenses',
+  query: adminV1PaginationQuerySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1ListResponseSchema(adminDashboardAwsMarketplaceLicenseSchema),
+  },
+})
+
+export const adminDashboardLinkAwsMarketplaceLicenseContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/aws-marketplace-licenses',
+  body: z.object({
+    licenseId: z.string().min(1, 'License ID is required').max(255),
+    organizationId: z.string().min(1, 'Organization ID is required').max(255),
+  }),
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(z.object({ id: z.string(), organizationId: z.string() })),
   },
 })
 

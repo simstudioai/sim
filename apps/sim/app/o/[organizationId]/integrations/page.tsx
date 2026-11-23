@@ -25,6 +25,7 @@ interface OrganizationIntegrationsPageProps {
     slack?: string | string[]
     connectionMode?: string | string[]
     optionId?: string | string[]
+    savedProviderId?: string | string[]
     provider?: string | string[]
     connectorType?: string | string[]
     connectorId?: string | string[]
@@ -47,11 +48,13 @@ export default async function OrganizationIntegrationsPage({
     selection.credentialId ||
     selection.connectionMode ||
     selection.optionId ||
+    selection.savedProviderId ||
     selection.provider
       ? searchConnectionTargetSchema.safeParse({
           type: 'link',
           ...(selection.connectionMode ? { connectionMode: selection.connectionMode } : {}),
           ...(selection.optionId ? { optionId: selection.optionId } : {}),
+          ...(selection.savedProviderId ? { savedProviderId: selection.savedProviderId } : {}),
           provider: selection.provider || connector?.providerId,
           connectorType: selection.connectorType,
           ...(selection.connectorId ? { connectorId: selection.connectorId } : {}),

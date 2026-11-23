@@ -171,6 +171,33 @@ export function getWorkflowToolCompletionMessage(status: AsyncConfirmationStatus
   return 'Workflow execution failed.'
 }
 
+/** Marks a workflow tool result whose run is waiting at a human pause, not finished. */
+export const WORKFLOW_TOOL_PAUSED_STATUS = 'paused'
+
+/**
+ * The answer for a workflow tool whose run paused for a person: where to answer, not an outcome.
+ * The model reads only `data` from a successful call, so the instruction travels there too.
+ */
+export function buildPausedWorkflowToolCompletion(
+  workflowId: string,
+  executionId: string,
+  resumeUrl: string
+) {
+  const message = `The workflow paused at a Human in the Loop block and is waiting for a person to respond; it has not finished. Give the user this link to review and submit the form: ${resumeUrl}. The run continues by itself once they submit, so do not resume it for them. Read the run afterwards for its result.`
+  return {
+    status: ASYNC_TOOL_CONFIRMATION_STATUS.success,
+    message,
+    data: {
+      success: true,
+      status: WORKFLOW_TOOL_PAUSED_STATUS,
+      workflowId,
+      executionId,
+      resumeUrl,
+      message,
+    },
+  }
+}
+
 export function createStructuralWorkflowToolCompletionData(
   status: AsyncConfirmationStatus,
   workflowId?: string,

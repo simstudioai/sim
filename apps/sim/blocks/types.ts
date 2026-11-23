@@ -1,4 +1,5 @@
 import type { ComponentType, JSX, SVGProps } from 'react'
+import type { EnterpriseFeature } from '@sim/deployment-config/enterprise-features'
 import type {
   OutputCondition,
   OutputFieldDefinition,
@@ -183,6 +184,7 @@ export type GenerationType =
   | 'json-schema'
   | 'json-object'
   | 'json-array'
+  | 'json-value'
   | 'table-schema'
   | 'system-prompt'
   | 'custom-tool-schema'
@@ -305,6 +307,16 @@ export interface SubBlockConfig {
    * silently writes and persists a value the user never picked.
    */
   emptyIsValid?: boolean
+  /**
+   * The `model` options are image or video generation models, not LLMs, so a combobox does not
+   * run them through the permission group's LLM model filter (a dropdown never did).
+   */
+  mediaModelOptions?: boolean
+  /**
+   * Refills a combobox's default when a dependency change clears it, as a dropdown does. Text
+   * the user deletes themselves stays empty while they edit, so they can type a new value.
+   */
+  restoreDefaultWhenCleared?: boolean
   /** Clears a persisted id after its authoritative single-option fetch confirms deletion. */
   clearOnMissingOption?: boolean
   /**
@@ -400,12 +412,31 @@ export interface SubBlockConfig {
   hideFromCopilot?: boolean
   hideDividerBefore?: boolean // Visually group this field with the preceding visible subblock
   showWhenEnvSet?: string // Show this subblock only when a named NEXT_PUBLIC_ env var is truthy; comma-separated means any of them
+  /**
+   * Show this subblock only when the deployment shape turns on this enterprise feature.
+   * Read through `getDeploymentShape()`, so it follows the server-resolved shape in the
+   * browser and the deployment's own configuration on the server.
+   */
+  showWhenFeature?: EnterpriseFeature
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   modalId?: string // Registry key when type is 'modal'; see sub-block/components/modal-registry.ts
-  value?: (params: Record<string, any>) => string
+  /**
+   * Default value. Returning `undefined` (for example when the default depends on an operation
+   * the caller did not pass) defers to the field's own default, such as a dropdown's first option.
+   * The value is stored as returned, so it has the type the field stores: a boolean for a
+   * `switch`, a number for a `slider`, text otherwise.
+   */
+  value?: (params: Record<string, any>) => string | number | boolean | undefined
+  /**
+   * Where `value()` may run. `'viewer'` marks a default read from the viewer's own environment
+   * (the schedule timezone is the person's browser zone): only the editor evaluates it. Server-side
+   * creation, the serializer's null fallback and the source catalog leave the field unset rather
+   * than freeze the host's environment into a block, its run params or the catalog hash.
+   */
+  valueScope?: 'viewer'
   grouped?: boolean
   scrollable?: boolean
   maxHeight?: number
@@ -596,6 +627,18 @@ export type CanvasSentenceClause =
 /** An ordered set of clauses forming one card summary sentence. */
 export type CanvasSentence = readonly CanvasSentenceClause[]
 
+/** Trusted mapper context kept separate from user-configured and model-supplied arguments. */
+export interface BlockToolParamsContext {
+  /** Operation selected by the configuring surface. */
+  operation?: string
+  /**
+   * Ids of the values the tool row itself stores non-empty (as stored, before canonical
+   * resolution). A model argument never overrides one of these, so a mapper can tell a pinned
+   * value from one the model chose when two params name the same thing.
+   */
+  pinnedParams?: ReadonlySet<string>
+}
+
 export interface BlockConfig {
   type: string
   name: string
@@ -668,7 +711,10 @@ export interface BlockConfig {
     access: string[]
     config?: {
       tool: (params: Record<string, any>) => string
-      params?: (params: Record<string, any>) => Record<string, any>
+      params?: (
+        params: Record<string, any>,
+        context?: BlockToolParamsContext
+      ) => Record<string, any>
     }
   }
   inputs: Record<string, ParamConfig>
@@ -678,6 +724,13 @@ export interface BlockConfig {
       url: string
     }
   }
+  /**
+   * Text outputs the block writes only when it fails into an error edge, beside the `error`
+   * every failed block writes (`BlockExecutor.handleBlockError`). A reference to one is valid
+   * exactly where `<block.error>` is: a successful run resolves it empty, and workflow source
+   * checks it against the block's `onError` edge as it does `error`.
+   */
+  errorOutputs?: Record<string, { type: 'string'; description: string }>
   hideFromToolbar?: boolean
   /**
    * For published custom blocks only: the bound source workflow's id. Discovery
@@ -719,3 +772,8 @@ export interface BlockConfig {
     available: string[] // List of trigger IDs this block supports
   }
 }
+
+/** The params a block's `tools.config.params` builder receives. */
+export type BlockToolParams = Parameters<
+  NonNullable<NonNullable<BlockConfig['tools']['config']>['params']>
+>[0]

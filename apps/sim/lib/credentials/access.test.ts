@@ -146,6 +146,23 @@ describe('organization background credential identity', () => {
     }
   )
 
+  it.each(['jama-service-account', 'flow-service-account'])(
+    'does not treat a personal %s credential as an organization-wide indexing identity',
+    async (providerId) => {
+      queueTableRows(credential, [
+        {
+          workspaceId: null,
+          organizationId: 'org-1',
+          createdBy: 'admin-1',
+          type: 'service_account',
+          providerId,
+        },
+      ])
+      queueTableRows(member, [{ id: 'membership-1' }])
+      await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toBeNull()
+    }
+  )
+
   it('never treats a raw account id as an organization credential', async () => {
     queueTableRows(credential, [])
     queueTableRows(account, [{ userId: 'admin-1' }])

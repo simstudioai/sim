@@ -14,6 +14,10 @@ vi.mock('@/blocks', () => ({
   getBlock: (type: string) => (type === 'svc' ? svcConfig.value : blocksMock.getBlock(type)),
 }))
 
+import { videoToolBodySchema } from '@/lib/api/contracts/tools/media/video'
+import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
+import { buildFalVideoRequest } from '@/lib/internal/video/fal-request'
+import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import { collectBlockFieldIssues, extractBlockParams } from '@/serializer/index'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
 
@@ -134,7 +138,162 @@ describe('collectBlockFieldIssues', () => {
   })
 })
 
+const FRAME_FILE = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
+const FAL_VALUES = { provider: 'falai', apiKey: 'test-key', prompt: 'A cinematic sunrise' }
+
+/** Serializes a Video Generator block and maps its params to the video tool body. */
+function serializeVideoBlock(
+  values: Record<string, unknown>,
+  canonicalModes?: Record<string, string>
+) {
+  svcConfig.value = VideoGeneratorV3Block
+  const params = extractBlockParams(
+    block({
+      type: 'svc',
+      data: canonicalModes ? { canonicalModes } : {},
+      subBlocks: Object.fromEntries(
+        Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+      ),
+    })
+  )
+  return videoToolBodySchema.parse(VideoGeneratorV3Block.tools.config?.params?.(params))
+}
+
 describe('extractBlockParams', () => {
+  it.each([
+    {
+      name: 'saved Luma duration, portrait ratio and resolution',
+      settings: {
+        provider: 'luma' as const,
+        model: 'ray-2',
+        duration: '9',
+        aspectRatio: '9:16',
+        resolution: '4k',
+      },
+      payload: { duration: '9s', aspect_ratio: '9:16', resolution: '4k' },
+    },
+    {
+      name: 'saved MiniMax duration and disabled prompt optimization',
+      settings: {
+        provider: 'minimax' as const,
+        duration: '10',
+        promptOptimizer: false,
+      },
+      payload: { duration: 10, prompt_optimizer: false },
+    },
+    {
+      name: 'MiniMax Pro preference on a 720P-only model',
+      settings: { provider: 'minimax' as const, model: 'T2V-01', endpoint: 'pro' },
+      payload: { model: 'T2V-01', resolution: '720P' },
+    },
+    {
+      name: 'Runway default duration with a reference image',
+      settings: {
+        provider: 'runway' as const,
+        visualReferenceUpload: [
+          {
+            id: 'reference',
+            name: 'image.png',
+            url: '/api/files/image.png',
+            key: 'workspace/reference.png',
+            size: 5,
+            type: 'image/png',
+          },
+        ],
+      },
+      payload: { model: 'gen4_turbo', duration: 5 },
+    },
+    {
+      name: 'current Google default without a retired duration',
+      settings: { provider: 'veo' as const },
+      payload: {
+        model: 'gemini-omni-1.1-flash',
+        response_format: { type: 'video', delivery: 'uri' },
+      },
+    },
+  ])('preserves $name through serialization into the provider request', ({ settings, payload }) => {
+    const request = buildDirectVideoRequest({
+      ...serializeVideoBlock({ apiKey: 'test-key', prompt: 'A cinematic sunrise', ...settings }),
+      provider: settings.provider,
+    })
+    expect(request.body).toMatchObject(payload)
+  })
+
+  it.each([
+    {
+      name: 'a frame is attached after picking a prompt-only aspect ratio',
+      model: 'bytedance/seedance-2.5/text-to-video',
+      aspectRatio: '16:9',
+      frame: true,
+      endpoint: 'bytedance/seedance-2.5/image-to-video',
+    },
+    {
+      name: 'the frame is removed after picking a frame-only aspect ratio',
+      model: 'fal-ai/bytedance/seedance/v1/pro/text-to-video',
+      aspectRatio: 'auto',
+      frame: false,
+      endpoint: 'fal-ai/bytedance/seedance/v1/pro/text-to-video',
+    },
+  ])(
+    'sends the model default for a fal setting the endpoint rejects when $name',
+    ({ model, aspectRatio, frame, endpoint }) => {
+      const request = buildFalVideoRequest({
+        ...serializeVideoBlock({
+          ...FAL_VALUES,
+          model,
+          falAspectRatio: aspectRatio,
+          ...(frame ? { visualReferenceInput: FRAME_FILE } : {}),
+        }),
+        provider: 'falai',
+      })
+      expect(request.endpoint).toBe(endpoint)
+      expect(request.body).not.toHaveProperty('aspect_ratio')
+    }
+  )
+
+  it.each([
+    {
+      name: 'a frame left in the inactive upload',
+      mode: 'advanced',
+      frameField: 'visualReferenceUpload',
+    },
+    {
+      name: 'a frame left in the inactive reference input',
+      mode: 'basic',
+      frameField: 'visualReferenceInput',
+    },
+  ])('keeps a prompt-only fal setting with $name', ({ mode, frameField }) => {
+    const request = buildFalVideoRequest({
+      ...serializeVideoBlock(
+        {
+          ...FAL_VALUES,
+          model: 'alibaba/happy-horse/text-to-video',
+          falAspectRatio: '16:9',
+          [frameField]: FRAME_FILE,
+        },
+        { visualReference: mode }
+      ),
+      provider: 'falai',
+    })
+    expect(request.endpoint).toBe('alibaba/happy-horse/text-to-video')
+    expect(request.body).toMatchObject({ aspect_ratio: '16:9' })
+  })
+
+  it('sends the model default for a Runway setting the start frame endpoint rejects', () => {
+    const request = buildDirectVideoRequest({
+      ...serializeVideoBlock({
+        provider: 'runway',
+        apiKey: 'test-key',
+        model: 'kling_4',
+        prompt: 'A cinematic sunrise',
+        aspectRatio: '1920:1080',
+        visualReferenceInput: FRAME_FILE,
+      }),
+      provider: 'runway',
+    })
+    expect(request.body).not.toHaveProperty('ratio')
+  })
+
   it('resolves a canonical pair to its canonical id (advanced value wins when basic empty)', () => {
     svcConfig.value = config([
       {

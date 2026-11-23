@@ -2,13 +2,13 @@
  * The outbox outcome of a removal stop decides whether a run keeps going: an outcome that
  * completes too early drops the stop, one that never completes dead-letters it. Failure modes:
  * - Redis refuses the cancellation write → retry, and the queue sweep still runs
- * - no Redis at all → the process-local flag is all there is, so the stop completes
  * - a queue sweep fails → retry
  * - one queue fails to load → the other is still swept, then retry
  * - a sweep stops at its cap having cancelled runs → continue without spending an attempt
  * - a sweep stops at its cap having cancelled nothing → retry, so it cannot loop forever
  */
 import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,15 +39,11 @@ const payload = {
 
 describe('execution removal stop outcome', () => {
   beforeEach(() => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(createMockRedis())
     mockJobQueue.cancelByWorkspace.mockReset().mockResolvedValue({
       cancelledJobs: 0,
       complete: true,
     })
-  })
-
-  it('completes when there is no Redis to record the cancellation in', async () => {
-    await expect(stopRemovedExecutions(payload, context())).resolves.toBeUndefined()
   })
 
   it('retries when Redis refuses the cancellation, after still sweeping the queue', async () => {

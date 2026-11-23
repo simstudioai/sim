@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -63,8 +64,9 @@ export interface ExecuteToolResult {
  *
  * Mirrors `injectHostedKeyIfNeeded`'s tests, in its order, so the two cannot
  * disagree about whether a value is coming: the tool declares `hosting`, the
- * deployment hosts keys, any `enabled` predicate accepts these params, and the
- * caller has not brought a key of their own — which wins where present.
+ * deployment hosts keys, any `enabled` predicate accepts these params, no saved
+ * credential supplies the key, and the caller has not brought a key of their
+ * own — which wins where present.
  *
  * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
  * not missing) and usage admission. It is deliberately NOT the metering gate —
@@ -77,6 +79,12 @@ function hostedKeyParamFor(
 ): string | undefined {
   if (!isHosted || !tool.hosting) return undefined
   if (tool.hosting.enabled && !tool.hosting.enabled(params)) return undefined
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(tool.hosting.apiKeyParam)
+  ) {
+    return undefined
+  }
   const supplied = params[tool.hosting.apiKeyParam]
   if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
   return tool.hosting.apiKeyParam
@@ -240,15 +248,19 @@ function assertNoUndeclaredInputs(
 function assertRequiredCallerInputsPresent(
   tool: ExecutableToolConfig,
   toolId: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  hasCredential: boolean
 ): void {
   const hostedKeyParam = hostedKeyParamFor(tool, params)
+  // A saved credential fills these server-side; the caller does not pass them.
+  const credentialSupplied = new Set(hasCredential ? tool.oauth?.credentialSuppliedParams : [])
 
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
       if (!declaration?.required) return false
       if (declaration.visibility === 'hidden') return false
       if (name === hostedKeyParam) return false
+      if (credentialSupplied.has(name)) return false
       const value = params[name]
       return value === undefined || value === null || value === ''
     })
@@ -343,11 +355,26 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       ...input.input,
       ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
     }
-    assertRequiredCallerInputsPresent(tool, toolId, callerParams)
+    assertRequiredCallerInputsPresent(tool, toolId, callerParams, Boolean(input.credentialId))
 
     const userId = principalUserId(principal)
     if (!userId) {
       throw new OrchestrationError('forbidden', 'Tool execution requires an acting user')
+    }
+
+    // The executor authorizes credentials with no workflow, so only this ties the credential
+    // to the workspace whose allowedIntegrations and deniedTools govern the call.
+    if (input.credentialId) {
+      const access = await authorizeCredentialUseForAuth(
+        { success: true, userId },
+        { credentialId: input.credentialId, workspaceId: context.workspaceId }
+      )
+      if (!access.ok) {
+        throw new OrchestrationError(
+          'forbidden',
+          'credentialId is not a credential you can use in this workspace'
+        )
+      }
     }
 
     const registry = mustClassifyContent(principal)
@@ -482,9 +509,10 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  *
  * `@/tools` computes the cost and hands it back on `output.cost.total`, but it
  * writes no ledger row: a workflow run bills through the execution ledger and
- * Copilot bills through Go's `_serviceCost`, and this surface is neither. Its
- * own doc comment says so — "any new caller of executeTool that is not Copilot
- * must arrange its own metering" — and this is that arrangement.
+ * Copilot bills through service receipts recorded by `recordServiceCost`, and
+ * this surface is neither. Its own doc comment says so — "any new caller of
+ * executeTool that is not Copilot must arrange its own metering" — and this is
+ * that arrangement.
  *
  * The provider already ran and already charged Sim's key by the time this runs,
  * so a metering failure must not destroy the caller's result: it is logged for

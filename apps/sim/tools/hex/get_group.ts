@@ -1,13 +1,18 @@
 import type { HexGetGroupParams, HexGetGroupResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = {
   id: 'hex_get_group',
   name: 'Hex Get Group',
   description: 'Retrieve details for a specific Hex group.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -23,7 +28,8 @@ export const getGroupTool: ToolConfig<HexGetGroupParams, HexGetGroupResponse> = 
   },
 
   request: {
-    url: (params) => `https://app.hex.tech/api/v1/groups/${params.groupId.trim()}`,
+    url: (params) =>
+      `${hexApiBase(params.host)}/groups/${safeUrlPathSegment(params.groupId, 'groupId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

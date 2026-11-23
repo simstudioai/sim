@@ -13,7 +13,7 @@ describe('traced route declarations', () => {
   it('resolves the actual exported verb through a tracing callback', () => {
     const source = `${handler}
 export const POST = (request: NextRequest, context?: Parameters<typeof handler>[1]) =>
-  withIncomingGoSpan(request.headers, span, undefined, () => handler(request, context))`
+  withIncomingWorkerSpan(request.headers, span, undefined, () => handler(request, context))`
     expect(wrappedRouteSites(source)).toEqual([
       { verb: 'POST', builder: 'defineInternalJsonRoute', optionsStart: source.indexOf('{') + 1 },
     ])

@@ -1,4 +1,6 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import {
   SelectorConnectionUnavailableError,
   SelectorOptionsUnavailableError,
@@ -64,6 +66,14 @@ describe('provider HTTP selector boundary', () => {
     expect(cancel).toHaveBeenCalledOnce()
   })
 
+  it('surfaces an unavailable egress route instead of unavailable selector options', async () => {
+    mockFetch.mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(
+      fetchProviderJsonWithStatus('https://provider.example/item')
+    ).rejects.toBeInstanceOf(OutboundRoutingError)
+  })
+
   it('can preserve a generic retry signal without exposing the raw network error', async () => {
     mockFetch.mockRejectedValueOnce(new Error('fetch failed with provider-secret-canary'))
 
@@ -96,4 +106,23 @@ describe('provider HTTP selector boundary', () => {
       expect(cancel).toHaveBeenCalledOnce()
     }
   )
+
+  it('logs a failed provider call without its query string, search text, or email path segments', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('{}', { status: 404 }))
+
+    await expect(
+      fetchProviderJson(
+        "https://www.googleapis.com/calendar/v3/calendars/jane%40example.com/root/search(q='payroll')?access_token=secret"
+      )
+    ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+
+    expect(getMockLogger('SelectorProviderHttp').warn).toHaveBeenCalledWith(
+      'Selector provider request failed',
+      {
+        endpoint: 'www.googleapis.com/calendar/v3/calendars/{redacted}/root/search()',
+        reason: 'status',
+        status: 404,
+      }
+    )
+  })
 })

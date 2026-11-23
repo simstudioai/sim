@@ -1,4 +1,6 @@
 import type { RipplingCreateDraftHiresParams } from '@/tools/rippling/types'
+import { unwrapBodyKey } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateDraftHiresTool: ToolConfig<RipplingCreateDraftHiresParams> = {
@@ -6,6 +8,7 @@ export const ripplingCreateDraftHiresTool: ToolConfig<RipplingCreateDraftHiresPa
   name: 'Rippling Create Draft Hires',
   description: 'Create bulk draft hires',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -29,7 +32,7 @@ export const ripplingCreateDraftHiresTool: ToolConfig<RipplingCreateDraftHiresPa
       Accept: 'application/json',
     }),
     body: (params) => {
-      return { draft_hires: params.draftHires }
+      return { draft_hires: unwrapBodyKey(params.draftHires, 'draft_hires') }
     },
   },
   transformResponse: async (response: Response) => {

@@ -1,0 +1,21 @@
+{
+  "namespace": "file",
+  "methods": {
+    "file_append": "append",
+    "file_compress": "compress",
+    "file_create_folder": "createFolder",
+    "file_decompress": "decompress",
+    "file_delete_folder": "deleteFolder",
+    "file_edit": "applyEdit",
+    "file_fetch": "fetch",
+    "file_get_content": "getContent",
+    "file_list": "list",
+    "file_manage_sharing": "manageSharing",
+    "file_move": "moveFile",
+    "file_read": "read",
+    "file_restore_folder": "restoreFolder",
+    "file_search": "search",
+    "file_update_folder": "moveFolder",
+    "file_write": "write"
+  }
+}

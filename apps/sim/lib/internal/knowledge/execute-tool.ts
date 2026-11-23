@@ -94,7 +94,7 @@ function projectError(
   signal?.throwIfAborted()
   const projected = policy.project(error)
   if (projected && projected.status < 500) return descriptorResponse(projected)
-  logger.error(`[${requestId}] Knowledge tool execution failed`, { error })
+  logger.error('Knowledge tool execution failed', { requestId, error })
   if (projected) return descriptorResponse(projected)
   return descriptorResponse(
     policy.unhandled?.() ?? { status: 500, body: { error: 'Internal server error' } }

@@ -1,4 +1,12 @@
 import { z } from 'zod'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import { SSO_PROVIDER_ID_PATTERN } from '@/lib/auth/sso/callback-provider'
+
+/** SSO provider ID limited to {@link SSO_PROVIDER_ID_PATTERN}, shared by every provider write. */
+export const ssoProviderIdSchema = requiredFieldSchema('Provider ID is required').regex(
+  SSO_PROVIDER_ID_PATTERN,
+  'Provider ID may only contain letters, numbers, dashes, underscores, periods, and colons (up to 128 characters)'
+)
 
 const ssoMappingSchema = z
   .object({
@@ -17,7 +25,7 @@ const ssoMappingSchema = z
 export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
   z.object({
     providerType: z.literal('oidc'),
-    providerId: z.string().min(1, 'Provider ID is required').max(255),
+    providerId: ssoProviderIdSchema,
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
     organizationId: z.string().min(1).max(255),
@@ -45,7 +53,7 @@ export const ssoRegistrationInputSchema = z.discriminatedUnion('providerType', [
   }),
   z.object({
     providerType: z.literal('saml'),
-    providerId: z.string().min(1, 'Provider ID is required').max(255),
+    providerId: ssoProviderIdSchema,
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
     organizationId: z.string().min(1).max(255),

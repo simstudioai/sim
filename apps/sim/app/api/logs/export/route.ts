@@ -1,11 +1,13 @@
 import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, desc, eq, lt, or, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { validationErrorResponse } from '@/lib/api/server/validation'
 import { getSession } from '@/lib/auth'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { MATERIALIZE_CONCURRENCY } from '@/lib/core/utils/concurrency'
 import { formatCsvValue, toCsvLinePieces, toCsvRow } from '@/lib/core/utils/csv'
 import { yieldWhenSliceExpires } from '@/lib/core/utils/event-loop'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -50,7 +52,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const userId = session.user.id
     const { searchParams } = new URL(request.url)
-    const params = LogFilterParamsSchema.parse(Object.fromEntries(searchParams.entries()))
+    const parsedParams = LogFilterParamsSchema.safeParse(Object.fromEntries(searchParams.entries()))
+    if (!parsedParams.success) return validationErrorResponse(parsedParams.error)
+    const params = parsedParams.data
 
     const selectColumns = {
       id: workflowExecutionLogs.id,

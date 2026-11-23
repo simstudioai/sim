@@ -1,5 +1,6 @@
 import type { AmplitudeRetentionParams, AmplitudeRetentionResponse } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetentionResponse> = {
@@ -7,6 +8,7 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
   name: 'Amplitude Retention',
   description: 'Measure how many users return to perform an action after a starting action.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -51,13 +53,15 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Retention type: "bracket", "rolling", or "n-day" (default: n-day)',
+      description:
+        'Retention type: "n-day" (sent as nday), "rolling", "bracket", or "nday_or_before" (default: n-day)',
     },
     retentionBrackets: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Required when Retention Mode is "bracket". Day ranges, e.g. [[0,4]]',
+      description:
+        'Required when Retention Mode is "bracket". Day ranges with an exclusive end day, e.g. [[0,5]] for Day 0 to Day 4',
     },
     interval: {
       type: 'string',
@@ -109,7 +113,9 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
       )
       url.searchParams.set('start', params.start)
       url.searchParams.set('end', params.end)
-      if (params.retentionMode) url.searchParams.set('rm', params.retentionMode)
+      if (params.retentionMode) {
+        url.searchParams.set('rm', params.retentionMode === 'n-day' ? 'nday' : params.retentionMode)
+      }
 
       if (params.retentionMode === 'bracket') {
         if (!params.retentionBrackets) {
@@ -125,7 +131,7 @@ export const retentionTool: ToolConfig<AmplitudeRetentionParams, AmplitudeRetent
         }
         if (!Array.isArray(parsedBrackets)) {
           throw new Error(
-            'Amplitude Retention: "retentionBrackets" must be a valid JSON array of day ranges, e.g. [[0,4]]'
+            'Amplitude Retention: "retentionBrackets" must be a valid JSON array of day ranges, e.g. [[0,5]]'
           )
         }
         url.searchParams.set('rb', JSON.stringify(parsedBrackets))

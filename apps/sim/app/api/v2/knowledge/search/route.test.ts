@@ -23,7 +23,12 @@ import { POST, V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES } from '@/app/api/v2/knowledge
 const mockSearch = knowledgeSearchUseCaseMockFns.mockSearchKnowledgeExecute
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' } as const
+const PRINCIPAL = {
+  kind: 'workspace_api_key',
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+  access: 'write',
+} as const
 function buildRequest(body: string, headers: Record<string, string> = {}) {
   return new NextRequest('http://localhost/api/v2/knowledge/search', {
     method: 'POST',

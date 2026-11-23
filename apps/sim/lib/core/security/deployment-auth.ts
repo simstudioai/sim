@@ -31,7 +31,7 @@ export async function validateDeploymentAuth(
       sessionPresent = Boolean(session?.user)
       sessionEmail = session?.user?.email
     } catch (error) {
-      logger.error(`[${requestId}] Error validating SSO:`, error)
+      logger.error('Error validating SSO:', error, { requestId })
       return { authorized: false, error: 'SSO authentication error' }
     }
   }

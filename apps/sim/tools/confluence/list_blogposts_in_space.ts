@@ -90,7 +90,8 @@ export const confluenceListBlogPostsInSpaceTool: InternalToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Format for blog post body: storage, atlas_doc_format, or view',
+      description:
+        'Format for blog post body: storage or atlas_doc_format. If not specified, body is not included.',
     },
     cursor: {
       type: 'string',

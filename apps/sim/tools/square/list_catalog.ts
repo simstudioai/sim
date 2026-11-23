@@ -1,9 +1,10 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CatalogListResponse, ListCatalogParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_OUTPUT,
   LIST_METADATA_OUTPUT_PROPERTIES,
-  SQUARE_BASE_URL,
+  SQUARE_ENVIRONMENTS,
   squareHeaders,
 } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -13,9 +14,11 @@ export const squareListCatalogTool: ToolConfig<ListCatalogParams, CatalogListRes
   name: 'Square List Catalog',
   description: 'List catalog objects, optionally filtered by type',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {
+    environment: SQUARE_ENVIRONMENTS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -39,7 +42,7 @@ export const squareListCatalogTool: ToolConfig<ListCatalogParams, CatalogListRes
 
   request: {
     url: (params) => {
-      const url = new URL(`${SQUARE_BASE_URL}/v2/catalog/list`)
+      const url = new URL(`${SQUARE_ENVIRONMENTS.apiBase(params.environment)}/v2/catalog/list`)
       if (params.types) url.searchParams.append('types', params.types)
       if (params.cursor) url.searchParams.append('cursor', params.cursor)
       return url.toString()

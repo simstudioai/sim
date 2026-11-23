@@ -221,6 +221,7 @@ export function EditorBubbleMenu({
    * preventing a lost pointer release from suppressing later keyboard selections.
    */
   useEffect(() => {
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     const onPointerDown = () => {
       isPointerDownRef.current = true
@@ -255,6 +256,7 @@ export function EditorBubbleMenu({
   }
 
   useEffect(() => {
+    if (editor.isDestroyed) return
     const dom = editor.view.dom
     const openLinkOnShortcut = (event: KeyboardEvent) => {
       if (!editor.isEditable) return
@@ -307,7 +309,11 @@ export function EditorBubbleMenu({
     editor.commands.focus()
   }
 
-  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
+  const { resolveAnchor, appendTo, menuRef } = useBubbleMenuFloating(
+    editor,
+    scrollContainerRef,
+    bubbleMenuKey
+  )
   const canFocus = useCallback(
     () => hasFormattableSelection(editor, editor.state.selection.from, editor.state.selection.to),
     [editor]
@@ -334,6 +340,7 @@ export function EditorBubbleMenu({
 
   return (
     <BubbleMenu
+      ref={menuRef}
       editor={editor}
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}

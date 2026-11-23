@@ -49,7 +49,10 @@ export const executeSttTool: InternalToolOperationHandler = async (request) => {
 
   const parsed = sttOperationInputSchema.safeParse(request.input)
   if (!parsed.success) {
-    logger.warn(`[${request.requestId}] Invalid STT request`, { issues: parsed.error.issues })
+    logger.warn('Invalid STT request', {
+      requestId: request.requestId,
+      issues: parsed.error.issues,
+    })
     return Response.json(
       { error: 'Invalid request data', details: parsed.error.issues },
       { status: 400 }

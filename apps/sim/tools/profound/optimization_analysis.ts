@@ -1,4 +1,6 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   ProfoundOptimizationAnalysisParams,
   ProfoundOptimizationAnalysisResponse,
@@ -12,6 +14,7 @@ export const profoundOptimizationAnalysisTool: ToolConfig<
   name: 'Profound Optimization Analysis',
   description: 'Get detailed content optimization analysis for a specific content item in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -36,7 +39,7 @@ export const profoundOptimizationAnalysisTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.tryprofound.com/v1/content/${encodeURIComponent(params.assetId)}/optimization/${encodeURIComponent(params.contentId)}`,
+      `https://api.tryprofound.com/v1/content/${safeUrlPathSegment(params.assetId, 'assetId')}/optimization/${safeUrlPathSegment(params.contentId, 'contentId')}`,
     method: 'GET',
     headers: (params) => ({
       'X-API-Key': params.apiKey,

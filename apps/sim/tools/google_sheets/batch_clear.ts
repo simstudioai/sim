@@ -3,6 +3,7 @@ import type {
   GoogleSheetsV2BatchClearResponse,
 } from '@/tools/google_sheets/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const batchClearV2Tool: ToolConfig<
   GoogleSheetsV2BatchClearParams,
@@ -47,7 +48,7 @@ export const batchClearV2Tool: ToolConfig<
         throw new Error('Spreadsheet ID is required')
       }
 
-      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchClear`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${safeUrlPathSegment(spreadsheetId, 'spreadsheetId')}/values:batchClear`
     },
     method: 'POST',
     headers: (params) => {

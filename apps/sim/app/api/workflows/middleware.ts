@@ -2,11 +2,6 @@ import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import type { NextRequest } from 'next/server'
 import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
-import {
-  type ApiKeyAuthResult,
-  authenticateApiKeyFromHeader,
-  updateApiKeyLastUsed,
-} from '@/lib/api-key/service'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -20,8 +15,7 @@ export interface ValidationResult {
 
 export async function validateWorkflowAccess(
   request: NextRequest,
-  workflowId: string,
-  requireDeployment = true
+  workflowId: string
 ): Promise<ValidationResult> {
   try {
     const workflow = await getWorkflowById(workflowId)
@@ -44,95 +38,40 @@ export async function validateWorkflowAccess(
       }
     }
 
-    if (!requireDeployment) {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return {
-          error: {
-            message: auth.error || 'Unauthorized',
-            status: 401,
-          },
-        }
-      }
-
-      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflow.workspaceId) {
-        return {
-          error: {
-            message: WORKSPACE_KEY_SCOPE_DENIED,
-            status: 403,
-          },
-        }
-      }
-
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId: auth.userId,
-        action: 'read',
-      })
-      if (!authorization.allowed) {
-        return {
-          error: {
-            message: authorization.message || 'Access denied',
-            status: authorization.status,
-          },
-        }
-      }
-
-      return { workflow, auth }
-    }
-
-    if (requireDeployment) {
-      if (!workflow.isDeployed) {
-        return {
-          error: {
-            message: 'Workflow is not deployed',
-            status: 403,
-          },
-        }
-      }
-
-      let apiKeyHeader = null
-      for (const [key, value] of request.headers.entries()) {
-        if (key.toLowerCase() === 'x-api-key' && value) {
-          apiKeyHeader = value
-          break
-        }
-      }
-
-      if (!apiKeyHeader) {
-        return {
-          error: {
-            message: 'Unauthorized: API key required',
-            status: 401,
-          },
-        }
-      }
-
-      let validResult: ApiKeyAuthResult | null = null
-
-      const workspaceResult = await authenticateApiKeyFromHeader(apiKeyHeader, {
-        workspaceId: workflow.workspaceId as string,
-        keyTypes: ['workspace', 'personal'],
-      })
-
-      if (workspaceResult.success) {
-        validResult = workspaceResult
-      }
-
-      if (!validResult) {
-        return {
-          error: {
-            message: 'Unauthorized: Invalid API key',
-            status: 401,
-          },
-        }
-      }
-
-      if (validResult.keyId) {
-        updateApiKeyLastUsed(validResult.keyId)
+    const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return {
+        error: {
+          message: auth.error || 'Unauthorized',
+          status: 401,
+        },
       }
     }
-    return { workflow }
+
+    if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflow.workspaceId) {
+      return {
+        error: {
+          message: WORKSPACE_KEY_SCOPE_DENIED,
+          status: 403,
+        },
+      }
+    }
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: auth.userId,
+      action: 'read',
+    })
+    if (!authorization.allowed) {
+      return {
+        error: {
+          message: authorization.message || 'Access denied',
+          status: authorization.status,
+        },
+      }
+    }
+
+    return { workflow, auth }
   } catch (error) {
     logger.error('Validation error:', { error })
     return {

@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaActivateUserParams, OktaActivateUserResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaActivateUser')
 
@@ -12,6 +14,7 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
   description:
     'Activate a user in your Okta organization. Can only be performed on users with STAGED or DEPROVISIONED status. Optionally sends an activation email.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -44,7 +47,7 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const sendEmail = params.sendEmail === undefined ? true : isOktaFlagEnabled(params.sendEmail)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/activate?sendEmail=${sendEmail}`
+      return `https://${domain}/api/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/lifecycle/activate?sendEmail=${sendEmail}`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

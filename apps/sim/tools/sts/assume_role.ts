@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { STSAssumeRoleParams, STSAssumeRoleResponse } from '@/tools/sts/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const assumeRoleTool: InternalToolConfig<STSAssumeRoleParams, STSAssumeRo
   name: 'STS Assume Role',
   description: 'Assume an IAM role and receive temporary security credentials',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -88,6 +90,13 @@ export const assumeRoleTool: InternalToolConfig<STSAssumeRoleParams, STSAssumeRo
       visibility: 'user-or-llm',
       description: 'Comma-separated tag keys that propagate through role chaining',
     },
+    sourceIdentity: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Source identity to set on the role session (2-64 characters; cannot start with aws:)',
+    },
   },
 
   operation: {
@@ -105,6 +114,7 @@ export const assumeRoleTool: InternalToolConfig<STSAssumeRoleParams, STSAssumeRo
       policyArns: params.policyArns,
       tags: params.tags,
       transitiveTagKeys: params.transitiveTagKeys,
+      sourceIdentity: params.sourceIdentity,
     }),
   },
 

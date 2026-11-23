@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { SmartleadIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 const CAMPAIGN_ID_OPERATIONS = [
   'get_campaign',
@@ -74,6 +75,8 @@ const EMAIL_ACCOUNT_ID_OPERATIONS = [
 
 export const SmartleadBlock: BlockConfig = {
   type: 'smartlead',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'smartlead_v2' },
   name: 'Smartlead',
   description: 'Manage Smartlead cold email campaigns, sequences, and leads',
   longDescription:
@@ -910,69 +913,76 @@ export const SmartleadBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `smartlead_${params.operation}`,
-      params: (params) => ({
-        campaignId: toNumberParam(params.campaignId),
-        leadId: toNumberParam(params.leadId),
-        clientId: toNumberParam(params.clientId),
-        categoryId: toNumberParam(params.categoryId),
-        webhookId: toNumberParam(
-          params.operation === 'delete_campaign_webhook' ? params.deleteWebhookId : params.webhookId
-        ),
-        campaignLeadMapId: toNumberParam(params.campaignLeadMapId),
-        leadListId: toNumberParam(params.leadListId),
-        emailAccountIds: parseNumberList(params.emailAccountIds),
-        listName: emptyToUndefined(params.listName),
-        fromTime: emptyToUndefined(params.fromTime),
-        toTime: emptyToUndefined(params.toTime),
-        unreadOnly: toBooleanParam(params.unreadOnly),
-        offset: toNumberParam(params.offset),
-        limit: toNumberParam(params.limit),
-        emailSequenceNumber: toNumberParam(params.emailSequenceNumber),
-        minTimeBetweenEmails: toNumberParam(params.minTimeBetweenEmails),
-        maxNewLeadsPerDay: toNumberParam(params.maxNewLeadsPerDay),
-        resumeLeadWithDelayDays: toNumberParam(params.resumeLeadWithDelayDays),
-        includeTags: toBooleanParam(params.includeTags),
-        sendAsPlainText: toBooleanParam(params.sendAsPlainText),
-        pauseLead: toBooleanParam(params.pauseLead),
-        name: params.operation === 'create_campaign' ? params.campaignName : params.webhookName,
-        email: emptyToUndefined(params.leadEmail),
-        // Empty means "not chosen", so required validation reports it instead of
-        // the API rejecting an empty status.
-        status: emptyToUndefined(params.status),
-        emailStatus: emptyToUndefined(params.emailStatus),
-        stopLeadSettings: emptyToUndefined(params.stopLeadSettings),
-        daysOfTheWeek: parseNumberList(params.daysOfTheWeek),
-        trackSettings: parseStringList(params.trackSettings),
-        eventTypes: parseStringList(params.eventTypes),
-        categories: parseStringList(params.categories),
-        followUpPercentage: toNumberParam(params.followUpPercentage),
-        enableAiEspMatching: toBooleanParam(params.enableAiEspMatching),
-        unsubscribeText: emptyToUndefined(params.unsubscribeText),
-        scheduleStartTime: emptyToUndefined(params.scheduleStartTime),
-        companyUrl: emptyToUndefined(params.companyUrl),
-        sentTimeStartDate: emptyToUndefined(params.sentTimeStartDate),
-        sentTimeEndDate: emptyToUndefined(params.sentTimeEndDate),
-        ignoreGlobalBlockList: toBooleanParam(params.ignoreGlobalBlockList),
-        ignoreUnsubscribeList: toBooleanParam(params.ignoreUnsubscribeList),
-        ignoreDuplicateLeadsInOtherCampaign: toBooleanParam(
-          params.ignoreDuplicateLeadsInOtherCampaign
-        ),
-        ignoreCommunityBounceList: toBooleanParam(params.ignoreCommunityBounceList),
-        // Parsed only for the operation that consumes them, so a stale value left in a
-        // hidden field cannot fail an unrelated operation.
-        leads:
-          params.operation === 'add_leads_to_campaign'
-            ? parseJsonArray(params.leads, 'Leads')
-            : undefined,
-        sequences:
-          params.operation === 'save_campaign_sequences'
-            ? parseJsonArray(params.sequences, 'Sequences')
-            : undefined,
-        customFields:
-          params.operation === 'update_lead'
-            ? parseJsonObject(params.customFields, 'Custom Fields')
-            : undefined,
-      }),
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        return {
+          campaignId: toNumberParam(params.campaignId),
+          leadId: toNumberParam(params.leadId),
+          clientId: toNumberParam(params.clientId),
+          categoryId: toNumberParam(params.categoryId),
+          webhookId:
+            operation === 'delete_campaign_webhook'
+              ? (toNumberParam(params.deleteWebhookId) ??
+                toNumberParam(toolCallArg(context, params.webhookId)))
+              : toNumberParam(params.webhookId),
+          campaignLeadMapId: toNumberParam(params.campaignLeadMapId),
+          leadListId: toNumberParam(params.leadListId),
+          emailAccountIds: parseNumberList(params.emailAccountIds),
+          listName: emptyToUndefined(params.listName),
+          fromTime: emptyToUndefined(params.fromTime),
+          toTime: emptyToUndefined(params.toTime),
+          unreadOnly: toBooleanParam(params.unreadOnly),
+          offset: toNumberParam(params.offset),
+          limit: toNumberParam(params.limit),
+          emailSequenceNumber: toNumberParam(params.emailSequenceNumber),
+          minTimeBetweenEmails: toNumberParam(params.minTimeBetweenEmails),
+          maxNewLeadsPerDay: toNumberParam(params.maxNewLeadsPerDay),
+          resumeLeadWithDelayDays: toNumberParam(params.resumeLeadWithDelayDays),
+          includeTags: toBooleanParam(params.includeTags),
+          sendAsPlainText: toBooleanParam(params.sendAsPlainText),
+          pauseLead: toBooleanParam(params.pauseLead),
+          name:
+            (operation === 'create_campaign' ? params.campaignName : params.webhookName) ??
+            toolCallArg(context, params.name),
+          email: emptyToUndefined(params.leadEmail) ?? toolCallArg(context, params.email),
+          // Empty means "not chosen", so required validation reports it instead of
+          // the API rejecting an empty status.
+          status: emptyToUndefined(params.status),
+          emailStatus: emptyToUndefined(params.emailStatus),
+          stopLeadSettings: emptyToUndefined(params.stopLeadSettings),
+          daysOfTheWeek: parseNumberList(params.daysOfTheWeek),
+          trackSettings: parseStringList(params.trackSettings),
+          eventTypes: parseStringList(params.eventTypes),
+          categories: parseStringList(params.categories),
+          followUpPercentage: toNumberParam(params.followUpPercentage),
+          enableAiEspMatching: toBooleanParam(params.enableAiEspMatching),
+          unsubscribeText: emptyToUndefined(params.unsubscribeText),
+          scheduleStartTime: emptyToUndefined(params.scheduleStartTime),
+          companyUrl: emptyToUndefined(params.companyUrl),
+          sentTimeStartDate: emptyToUndefined(params.sentTimeStartDate),
+          sentTimeEndDate: emptyToUndefined(params.sentTimeEndDate),
+          ignoreGlobalBlockList: toBooleanParam(params.ignoreGlobalBlockList),
+          ignoreUnsubscribeList: toBooleanParam(params.ignoreUnsubscribeList),
+          ignoreDuplicateLeadsInOtherCampaign: toBooleanParam(
+            params.ignoreDuplicateLeadsInOtherCampaign
+          ),
+          ignoreCommunityBounceList: toBooleanParam(params.ignoreCommunityBounceList),
+          // Parsed only for the operation that consumes them, so a stale value left in a
+          // hidden field cannot fail an unrelated operation.
+          leads:
+            operation === 'add_leads_to_campaign'
+              ? parseJsonArray(params.leads, 'Leads')
+              : undefined,
+          sequences:
+            operation === 'save_campaign_sequences'
+              ? parseJsonArray(params.sequences, 'Sequences')
+              : undefined,
+          customFields:
+            operation === 'update_lead'
+              ? parseJsonObject(params.customFields, 'Custom Fields')
+              : undefined,
+        }
+      },
     },
   },
   inputs: {
@@ -1352,3 +1362,17 @@ export const SmartleadBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SmartleadV2Block: BlockConfig = {
+  ...SmartleadBlock,
+  type: 'smartlead_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SmartleadBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'smartlead',
+    title: 'Smartlead Credential',
+  }),
+}

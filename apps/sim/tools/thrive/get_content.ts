@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveContentResponse, ThriveGetContentParams } from '@/tools/thrive/types'
 import { THRIVE_CONTENT_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getContentTool: ToolConfig<ThriveGetContentParams, ThriveContentResponse> = {
   id: 'thrive_get_content',
   name: 'Thrive Get Content',
   description: 'Get a single content record in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -38,7 +41,7 @@ export const getContentTool: ToolConfig<ThriveGetContentParams, ThriveContentRes
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/contents/${encodeURIComponent(params.id)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/contents/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

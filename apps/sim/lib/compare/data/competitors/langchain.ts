@@ -8,6 +8,8 @@ export const langchainProfile: CompetitorProfile = {
   mentions: ['LangChain', 'LangGraph'],
   website: 'https://www.langchain.com',
   isWorkflowBuilder: false,
+  migrationSteps:
+    'Start with one representative agent. Write down its inputs, model calls, tools, and decision points. Map the chain or agent logic into a Sim workflow, then compare its output with the existing prototype. Add a Human in the Loop block wherever a person must approve an action, use run logs to inspect each step, and choose Sim cloud or self-hosting once the workflow behaves as expected.',
   brand: {
     icon: LangChainIcon,
     selfFramed: false,
@@ -117,11 +119,10 @@ export const langchainProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Full white-labeling and org-level credential governance are not documented',
+      title: 'Org-level credential governance is not documented',
       description:
-        'No LangSmith or LangGraph Platform documentation describes rebranding the platform UI with customer branding, or restricting a specific role/permission group to a specific stored credential/connection distinct from workspace-level RBAC and API-key scoping.',
-      shortDescription:
-        'No documented white-labeling, and credential access is scoped by workspace RBAC, not per-credential.',
+        'No LangSmith or LangGraph Platform documentation describes restricting a specific role/permission group to a specific stored credential/connection distinct from workspace-level RBAC and API-key scoping.',
+      shortDescription: 'Credential access is scoped by workspace RBAC, not per-credential.',
       source: {
         url: 'https://docs.langchain.com/langsmith/user-management',
         label: 'User management - Docs by LangChain',
@@ -885,15 +886,6 @@ export const langchainProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
         ],
-      },
-      whiteLabeling: {
-        value:
-          "Not publicly documented: no LangSmith or LangGraph Platform page describes an option to replace LangChain/LangSmith branding with a customer's own across the product UI",
-        detail:
-          'No official documentation on customer-facing white-labeling or OEM/embed branding controls was found.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
       },
       dataRetention: {
         value:

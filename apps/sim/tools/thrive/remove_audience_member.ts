@@ -1,6 +1,8 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveDeleteResponse, ThriveRemoveAudienceMemberParams } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const removeAudienceMemberTool: ToolConfig<
   ThriveRemoveAudienceMemberParams,
@@ -10,6 +12,7 @@ export const removeAudienceMemberTool: ToolConfig<
   name: 'Thrive Remove Audience Member',
   description: 'Remove a single member from a Thrive audience.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -46,7 +49,7 @@ export const removeAudienceMemberTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${encodeURIComponent(params.audienceId)}/members/${encodeURIComponent(params.userRef)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/audiences/${safeUrlPathSegment(params.audienceId, 'audienceId', { allowSeparators: true })}/members/${safeUrlPathSegment(params.userRef, 'userRef', { allowSeparators: true })}`,
     method: 'DELETE',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

@@ -2,7 +2,9 @@ import type { GoogleDocsInsertImageResponse, GoogleDocsToolParams } from '@/tool
 import {
   buildBatchUpdateMetadata,
   buildInsertLocation,
+  parseOptionalNumber,
   resolveDocumentId,
+  resolveTabId,
 } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -54,6 +56,13 @@ export const insertImageTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertI
       visibility: 'user-or-llm',
       description: 'Optional image height in points (PT)',
     },
+    tabId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of the tab to insert the image into (from Read with includeTabsContent). When omitted, the first tab is used.',
+    },
   },
   request: {
     url: (params) => {
@@ -76,16 +85,18 @@ export const insertImageTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertI
       }
 
       const insertInlineImage: Record<string, unknown> = {
-        ...buildInsertLocation(params.index),
+        ...buildInsertLocation(params.index, resolveTabId(params.tabId)),
         uri: params.imageUrl,
       }
 
       const objectSize: Record<string, unknown> = {}
-      if (typeof params.width === 'number' && Number.isFinite(params.width)) {
-        objectSize.width = { magnitude: params.width, unit: 'PT' }
+      const width = parseOptionalNumber(params.width)
+      if (width !== undefined) {
+        objectSize.width = { magnitude: width, unit: 'PT' }
       }
-      if (typeof params.height === 'number' && Number.isFinite(params.height)) {
-        objectSize.height = { magnitude: params.height, unit: 'PT' }
+      const height = parseOptionalNumber(params.height)
+      if (height !== undefined) {
+        objectSize.height = { magnitude: height, unit: 'PT' }
       }
       if (Object.keys(objectSize).length > 0) {
         insertInlineImage.objectSize = objectSize

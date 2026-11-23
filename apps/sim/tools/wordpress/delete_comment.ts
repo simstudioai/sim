@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressDeleteCommentParams,
@@ -44,7 +45,7 @@ export const deleteCommentTool: ToolConfig<
   request: {
     url: (params) => {
       const forceParam = params.force ? '?force=true' : ''
-      return `${WORDPRESS_COM_API_BASE}/${params.siteId}/comments/${params.commentId}${forceParam}`
+      return `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/comments/${safeUrlPathSegment(params.commentId, 'commentId')}${forceParam}`
     },
     method: 'DELETE',
     headers: (params) => ({

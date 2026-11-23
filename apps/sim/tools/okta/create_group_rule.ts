@@ -6,19 +6,19 @@ import type {
   OktaGroupRule,
 } from '@/tools/okta/types'
 import { mapOktaGroupRule, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaCreateGroupRule')
 
 /**
  * Splits a comma or newline separated ID list into trimmed, non-empty entries.
+ * An agent may send the list as a JSON array instead, which is taken as is.
  */
-function parseIdList(value: string | undefined): string[] {
+function parseIdList(value: unknown): string[] {
   if (!value) return []
-  return value
-    .split(/[\n,]/)
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0)
+  const entries = Array.isArray(value) ? value.map(String) : String(value).split(/[\n,]/)
+  return entries.map((id) => id.trim()).filter((id) => id.length > 0)
 }
 
 export const oktaCreateGroupRuleTool: ToolConfig<
@@ -30,6 +30,7 @@ export const oktaCreateGroupRuleTool: ToolConfig<
   description:
     'Create a group rule that automatically assigns users matching an Okta expression to one or more groups. New rules are created INACTIVE, so run Activate Group Rule afterwards to start applying it.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

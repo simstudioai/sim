@@ -7,6 +7,7 @@ import {
   MONDAY_API_URL,
   mondayHeaders,
   sanitizeNumericId,
+  toGraphqlJsonArg,
 } from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -73,7 +74,7 @@ export const mondayChangeColumnValueTool: ToolConfig<
         `board_id: ${sanitizeNumericId(params.boardId, 'boardId')}`,
         `item_id: ${sanitizeNumericId(params.itemId, 'itemId')}`,
         `column_id: ${JSON.stringify(params.columnId)}`,
-        `value: ${JSON.stringify(params.value)}`,
+        `value: ${toGraphqlJsonArg(params.value)}`,
       ]
       if (params.createLabelsIfMissing) {
         args.push('create_labels_if_missing: true')

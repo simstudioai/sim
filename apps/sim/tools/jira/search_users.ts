@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraSearchUsersParams, JiraSearchUsersResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { getJiraCloudId, transformUser } from '@/tools/jira/utils'
@@ -86,7 +87,7 @@ export const jiraSearchUsersTool: ToolConfig<JiraSearchUsersParams, JiraSearchUs
 
       const usersUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user/search?${queryParams.toString()}`
 
-      const usersResponse = await fetch(usersUrl, {
+      const usersResponse = await outboundFetch(usersUrl, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

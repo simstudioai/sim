@@ -2,7 +2,10 @@ import type {
   RootlyCreateActionItemParams,
   RootlyCreateActionItemResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyCreateActionItemTool: ToolConfig<
   RootlyCreateActionItemParams,
@@ -12,6 +15,7 @@ export const rootlyCreateActionItemTool: ToolConfig<
   name: 'Rootly Create Action Item',
   description: 'Create a new action item for an incident in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -71,7 +75,8 @@ export const rootlyCreateActionItemTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/action_items`,
+    url: (params) =>
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/action_items`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -100,7 +105,7 @@ export const rootlyCreateActionItemTool: ToolConfig<
       return {
         success: false,
         output: { actionItem: {} as RootlyCreateActionItemResponse['output']['actionItem'] },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

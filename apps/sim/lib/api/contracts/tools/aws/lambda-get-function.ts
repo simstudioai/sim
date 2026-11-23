@@ -37,6 +37,9 @@ const GetFunctionResponseSchema = z.object({
         imageUri: z.string().nullable(),
         resolvedImageUri: z.string().nullable(),
         sourceKmsKeyArn: z.string().nullable(),
+        error: z
+          .object({ errorCode: z.string().nullable(), message: z.string().nullable() })
+          .nullable(),
       })
       .nullable(),
     tags: z.record(z.string(), z.string()),

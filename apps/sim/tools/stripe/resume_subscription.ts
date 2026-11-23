@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -6,6 +7,7 @@ import {
 import type { ResumeSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const DELIVERY = defineStripeKeyedSite(
   'stripe_resume_subscription',
@@ -20,6 +22,7 @@ export const stripeResumeSubscriptionTool: ToolConfig<
   name: 'Stripe Resume Subscription',
   description: 'Resume a paused subscription',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +40,8 @@ export const stripeResumeSubscriptionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.stripe.com/v1/subscriptions/${params.id}/resume`,
+    url: (params) =>
+      `https://api.stripe.com/v1/subscriptions/${safeUrlPathSegment(params.id, 'id')}/resume`,
     method: 'POST',
     /**
      * The `Idempotency-Key` must be the *same* on every delivery of one

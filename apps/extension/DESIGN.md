@@ -10,14 +10,20 @@ conversation persistence, streaming recovery, tool permissions, and organization
 or workspace authorization. The panel keeps Fast mode and omits the model selector.
 A conversation can continue in the full app.
 
+Voice input uses the existing microphone control beside Send. The browser asks for
+microphone permission on first use. Transcription updates the editable draft and
+never sends it automatically. Stop ends recording; Send and conversation changes
+discard unfinished transcription. The iframe delegates microphone access only to
+the configured Sim origin, and blocked access offers the browser's microphone settings.
+
 The user signs in in a normal Sim tab and lands in their organization chat. Choosing
 a workspace is optional; members without Build access use Assistant. They can open
 or create a conversation and explicitly attach the current page or highlighted text.
 The composer’s + menu offers Current page and Selected text. Pending snapshots sit
 inside the composer as compact removable chips alongside file attachments. Opening one
 shows the captured text, source, capture time, and conversation-retention disclosure.
-Partial captures remain labeled in the attachment row. Site access lives in the
-composer’s Site access action, which opens an extension-owned dialog; successful delivery adds no persistent status banner.
+Partial captures remain labeled in the attachment row. Page access lives in the
+composer’s Page access action, which opens an extension-owned dialog; successful delivery adds no persistent status banner.
 Snapshots are immutable: navigating to another page cannot silently change an attached
 source. Removing an attachment, changing organization or workspace, or starting a new conversation
 clears pending page context. Several explicitly attached pages can support comparison.
@@ -34,7 +40,7 @@ Existing Sim server tools remain subject to their existing authorization and app
 ## Ownership and data flow
 
 1. `apps/extension`: packaged MV3 service worker, side-panel host, bounded content
-   extraction, per-site permission controls, build artifacts, browser verification.
+   extraction, browser-wide page permission setup, build artifacts, browser verification.
 2. `packages/browser-extension-protocol`: versioned, strictly validated messages and
    immutable page snapshots shared by the extension, app, and server.
 3. `apps/sim/app/extension`: session gate, organization landing, optional workspace picker, app providers,
@@ -54,21 +60,25 @@ other workspace resources or browser-control tools.
 ## Permission and lifetime rules
 
 - Required browser capabilities: side panel, scripting, active tab, context menus,
-  and short-lived session storage for selection handoff. Required host access is
-  limited to the configured Sim origin and to `http(s)://sim/*`, which exists only so
-  one static redirect rule can send a typed `sim/<name>` to the Sim link resolver.
-- Other HTTP(S) origins are optional grants requested for the current site from a
-  user gesture. Each grant can be revoked. Keeping the panel open is not a grant
-  to read every subsequently selected tab.
-- No history, bookmarks, cookie API, debugger, native messaging, external messaging,
+  short-lived session storage for selection handoff, and local storage for preferences. Required host access is
+  limited to the configured Sim origin and to `http(s)://sim/*` and `http(s)://go/*`, which exist
+  only so one static redirect rule can send top-level navigations to those hosts to the link resolver.
+- HTTP(S) page access is one optional browser-wide grant, requested from a direct
+  user gesture. The browser owns revocation and restrictions. Approval enables
+  capture across sites; switching tabs alone does not extract content.
+- No history permission, bookmarks, cookie API, debugger, native messaging, external messaging,
   or arbitrary remote code execution. The only network interception is the static
-  `sim/` redirect rule above.
-- The only background network request is the `sim` address-bar keyword: after
+  `sim/` and `go/` redirect rule above.
+- Background network requests are limited to two. Once a week at browser start, and after
+  signing in to the panel, the worker asks the Sim origin whether links are on for the session;
+  if so, it opens `http://go/` and `http://sim/` in background tabs that close themselves, which
+  teaches Chrome's address bar these hosts and adds entries to browser history. The other is the
+  `sim` address-bar keyword: after
   `sim` and Space, the text typed before the first `/` or `?` is sent to the
   configured Sim origin with the signed-in session to suggest matching Sim links,
   unless it contains a space (a search) or is longer than a link name can be. Page
   content is never sent, and unlisted links are never suggested.
-- No always-running page reader. Extraction is tied to an explicit attachment action.
+- Page extraction runs on an explicit attachment action or a user-initiated composer Send while Reference current page is enabled. The preference persists locally. Send-time captures are scoped to the request and conversation; navigation, denied access or timeout cancels the send.
 - Page bytes are not written to extension local/sync storage. Temporary context-menu
   handoff uses trusted-context session storage, expiration and navigation cleanup.
 - Sent snapshots become chat data and follow Sim's chat retention and deletion
@@ -126,7 +136,7 @@ An absent backend or account is an unverified gate, not a pass.
 - [Chrome activeTab](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab)
   and [optional permissions](https://developer.chrome.com/docs/extensions/reference/api/permissions):
   temporary access follows user invocation; cross-origin navigation requires fresh
-  authority. Request persistent access per site only when selected by the user.
+  authority. Request optional access across HTTP(S) websites once, matching Glean’s all-websites page-context option.
 - [Chrome extension security](https://developer.chrome.com/docs/extensions/develop/security-privacy/stay-secure)
   and [OWASP extension guidance](https://cheatsheetseries.owasp.org/cheatsheets/Browser_Extension_Vulnerabilities_Cheat_Sheet.html):
   minimize privileges and treat all incoming page messages as attacker-controlled.

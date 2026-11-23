@@ -43,6 +43,8 @@ export const googleFormsHandler: WebhookProviderHandler = {
         createTime,
         lastSubmittedTime,
         formId,
+        respondentEmail:
+          typeof b?.respondentEmail === 'string' && b.respondentEmail ? b.respondentEmail : null,
         answers: normalizeAnswers(b?.answers),
         ...(includeRaw ? { raw: b?.raw ?? b } : {}),
       },
@@ -52,7 +54,7 @@ export const googleFormsHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     const expectedToken = providerConfig.token as string | undefined
     if (!expectedToken) {
-      logger.warn(`[${requestId}] Google Forms webhook secret not configured`)
+      logger.warn('Google Forms webhook secret not configured', { requestId })
       return new NextResponse('Unauthorized - Missing Google Forms webhook secret', {
         status: 401,
       })
@@ -60,7 +62,7 @@ export const googleFormsHandler: WebhookProviderHandler = {
 
     const secretHeaderName = providerConfig.secretHeaderName as string | undefined
     if (!verifyTokenAuth(request, expectedToken, secretHeaderName)) {
-      logger.warn(`[${requestId}] Google Forms webhook authentication failed`)
+      logger.warn('Google Forms webhook authentication failed', { requestId })
       return new NextResponse('Unauthorized - Invalid secret', { status: 401 })
     }
 

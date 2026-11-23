@@ -13,6 +13,7 @@ import { toError } from '@sim/utils/errors'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, exists, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import { markFinishedRunsDirty } from '@/lib/billing/activity-rollup/marks'
 import {
   JOB_PENDING_RETENTION_HOURS,
   JOB_RETENTION_HOURS,
@@ -287,7 +288,13 @@ export async function runCleanupStaleExecutions() {
                 )
               )
             )
-            .returning({ id: workflowExecutionLogs.id })
+            .returning({
+              id: workflowExecutionLogs.id,
+              workspaceId: workflowExecutionLogs.workspaceId,
+              startedAt: workflowExecutionLogs.startedAt,
+            })
+          // Every batch reuses the sweep's one end stamp, so a late batch can commit behind the scan.
+          await markFinishedRunsDirty(tx, updatedExecutions)
 
           return { candidates, updatedExecutions }
         })

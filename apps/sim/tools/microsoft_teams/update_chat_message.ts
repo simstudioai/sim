@@ -2,7 +2,9 @@ import type {
   MicrosoftTeamsUpdateMessageParams,
   MicrosoftTeamsWriteResponse,
 } from '@/tools/microsoft_teams/types'
+import { buildMessageBody } from '@/tools/microsoft_teams/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateChatMessageTool: ToolConfig<
   MicrosoftTeamsUpdateMessageParams,
@@ -42,7 +44,14 @@ export const updateChatMessageTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The new content for the message (plain text or HTML formatted)',
+      description:
+        'The new content for the message (plain text, or HTML when contentType is "html")',
+    },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Body format: "text" (default) or "html"',
     },
   },
 
@@ -59,7 +68,7 @@ export const updateChatMessageTool: ToolConfig<
       if (!chatId || !messageId) {
         throw new Error('Chat ID and Message ID are required')
       }
-      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}`
+      return `https://graph.microsoft.com/v1.0/chats/${safeUrlPathSegment(chatId, 'Chat ID')}/messages/${safeUrlPathSegment(messageId, 'Message ID')}`
     },
     method: 'PATCH',
     headers: (params) => {
@@ -75,12 +84,7 @@ export const updateChatMessageTool: ToolConfig<
       if (!params.content) {
         throw new Error('Content is required')
       }
-      return {
-        body: {
-          contentType: 'text',
-          content: params.content,
-        },
-      }
+      return { body: buildMessageBody(params.content, params.contentType) }
     },
   },
 
@@ -106,6 +110,7 @@ export const updateChatMessageTool: ToolConfig<
       output: {
         updatedContent: true,
         metadata,
+        messageId: metadata.messageId,
       },
     }
   },

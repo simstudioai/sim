@@ -1,9 +1,11 @@
 import {
   COMMIT_DATA_OUTPUT,
+  COMMIT_DATA_OUTPUT_PROPERTIES,
   type LatestCommitParams,
   type LatestCommitResponse,
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestCommitResponse> = {
@@ -11,6 +13,7 @@ export const latestCommitTool: InternalToolConfig<LatestCommitParams, LatestComm
   name: 'GitHub Latest Commit',
   description: 'Retrieve the latest commit from a GitHub repository',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -77,9 +80,13 @@ export const latestCommitV2Tool: InternalToolConfig = {
         sha: metadata.sha ?? '',
         html_url: metadata.html_url ?? '',
         commit: {
+          url: metadata.commit_url ?? null,
           message: metadata.commit_message ?? '',
+          comment_count: metadata.comment_count ?? null,
           author: metadata.author ?? null,
           committer: metadata.committer ?? null,
+          tree: metadata.tree ?? null,
+          verification: metadata.verification ?? null,
         },
         author: metadata.author ?? null,
         committer: metadata.committer ?? null,
@@ -89,8 +96,19 @@ export const latestCommitV2Tool: InternalToolConfig = {
   outputs: {
     sha: { type: 'string', description: 'Commit SHA' },
     html_url: { type: 'string', description: 'GitHub web URL' },
-    commit: COMMIT_DATA_OUTPUT,
-    author: USER_FULL_OUTPUT,
-    committer: USER_FULL_OUTPUT,
+    commit: {
+      ...COMMIT_DATA_OUTPUT,
+      properties: {
+        ...COMMIT_DATA_OUTPUT_PROPERTIES,
+        url: { ...COMMIT_DATA_OUTPUT_PROPERTIES.url, nullable: true },
+        comment_count: { ...COMMIT_DATA_OUTPUT_PROPERTIES.comment_count, nullable: true },
+        author: { ...COMMIT_DATA_OUTPUT_PROPERTIES.author, nullable: true },
+        committer: { ...COMMIT_DATA_OUTPUT_PROPERTIES.committer, nullable: true },
+        tree: { ...COMMIT_DATA_OUTPUT_PROPERTIES.tree, nullable: true },
+        verification: { ...COMMIT_DATA_OUTPUT_PROPERTIES.verification, nullable: true },
+      },
+    },
+    author: { ...USER_FULL_OUTPUT, nullable: true },
+    committer: { ...USER_FULL_OUTPUT, nullable: true },
   },
 }

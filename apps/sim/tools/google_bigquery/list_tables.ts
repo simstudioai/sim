@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryListTablesResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryListTablesTool: ToolConfig<
   GoogleBigQueryListTablesParams,
@@ -54,7 +55,7 @@ export const googleBigQueryListTablesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId)}/tables`
+        `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}/tables`
       )
       if (params.maxResults !== undefined && params.maxResults !== null) {
         const maxResults = Number(params.maxResults)

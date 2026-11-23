@@ -29,16 +29,13 @@ import type {
   StreamToolData,
 } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
+import { resolveManualRunEntry } from '@/lib/workflows/triggers/manual-run'
 import {
   resolveStartCandidates,
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
-import {
-  extractTriggerMockPayload,
-  selectBestTrigger,
-  triggerNeedsMockPayload,
-} from '@/lib/workflows/triggers/utils'
+import { extractTriggerMockPayload, triggerNeedsMockPayload } from '@/lib/workflows/triggers/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
 import {
@@ -1079,7 +1076,7 @@ export function useWorkflowExecution() {
       selectedOutputs = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
     }
 
-    let startBlockId: string | undefined
+    let startBlockId: string
     let finalWorkflowInput = workflowInput
 
     if (isExecutingFromChat) {
@@ -1096,62 +1093,25 @@ export function useWorkflowExecution() {
 
       startBlockId = startBlock.blockId
     } else {
-      const candidates = resolveStartCandidates(enabledStates, {
-        execution: 'manual',
-      })
-
-      if (candidates.length === 0) {
-        const error = new WorkflowValidationError(
-          'Workflow requires at least one trigger block to execute',
-          'validation',
-          'validation',
-          'Workflow Validation'
-        )
-        logger.error('No trigger blocks found for manual run', {
+      const entry = resolveManualRunEntry(enabledStates, workflowEdges)
+      if (!entry.ok) {
+        logger.error('Manual run has no valid entry', {
+          reason: entry.issue.reason,
+          startBlockId: entry.issue.blockId,
           allBlockTypes: Object.values(enabledStates).map((b) => b.type),
         })
         if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-        throw error
-      }
-
-      // Check for multiple API triggers (still not allowed)
-      const apiCandidates = candidates.filter(
-        (candidate) => candidate.path === StartBlockPath.SPLIT_API
-      )
-      if (apiCandidates.length > 1) {
-        const error = new WorkflowValidationError(
-          'Multiple API Trigger blocks found. Keep only one.',
+        throw new WorkflowValidationError(
+          entry.issue.message,
           'validation',
           'validation',
           'Workflow Validation'
         )
-        logger.error('Multiple API triggers found')
-        if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-        throw error
       }
 
-      // Priority: Start Block > Schedules > External Triggers > Legacy
-      const selectedTriggers = selectBestTrigger(candidates, workflowEdges)
-
-      const selectedCandidate = selectedTriggers[0]
+      const selectedCandidate = entry.candidate
       startBlockId = selectedCandidate.blockId
       const selectedTrigger = selectedCandidate.block
-
-      if (selectedCandidate.path !== StartBlockPath.LEGACY_STARTER) {
-        const outgoingConnections = workflowEdges.filter((edge) => edge.source === startBlockId)
-        if (outgoingConnections.length === 0) {
-          const triggerName = selectedTrigger.name || selectedTrigger.type
-          const error = new WorkflowValidationError(
-            `${triggerName} must be connected to other blocks to execute`,
-            'validation',
-            'validation',
-            'Workflow Validation'
-          )
-          logger.error('Trigger has no outgoing connections', { triggerName, startBlockId })
-          if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-          throw error
-        }
-      }
 
       if (triggerNeedsMockPayload(selectedCandidate)) {
         const mockPayload = extractTriggerMockPayload(selectedCandidate)
@@ -1166,18 +1126,6 @@ export function useWorkflowExecution() {
           finalWorkflowInput = builtInput
         }
       }
-    }
-
-    if (!startBlockId) {
-      const error = new WorkflowValidationError(
-        'No valid trigger block found to start execution',
-        'validation',
-        'validation',
-        'Workflow Validation'
-      )
-      logger.error('No startBlockId found after trigger search')
-      if (activeWorkflowId) finishOwnedExecution(activeWorkflowId, persistenceExecution)
-      throw error
     }
 
     logger.info('Final execution setup:', {
@@ -1356,7 +1304,7 @@ export function useWorkflowExecution() {
               }
 
               // Add trigger block to executed blocks so downstream blocks can use run-from-block
-              if (data.success && startBlockId) {
+              if (data.success) {
                 executedBlockIds.add(startBlockId)
               }
 

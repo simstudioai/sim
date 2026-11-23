@@ -1,5 +1,6 @@
 import type { Rb2bHashedEmailsResponse, Rb2bLinkedinParams } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bLinkedinToHashedEmailsTool: ToolConfig<
@@ -11,6 +12,7 @@ export const rb2bLinkedinToHashedEmailsTool: ToolConfig<
   description:
     'Return the business and personal hashed emails (MD5 and SHA-256) associated with a LinkedIn profile.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramMessage,
   TelegramSendContactParams,
@@ -15,6 +16,7 @@ export const telegramSendContactTool: ToolConfig<
   name: 'Telegram Send Contact',
   description: 'Send a phone contact to a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

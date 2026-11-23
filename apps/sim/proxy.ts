@@ -233,13 +233,19 @@ const SUSPICIOUS_UA_PATTERNS = [
 ] as const
 
 /**
- * Handles authentication-based redirects for root paths
+ * Resolves legacy homepage aliases and authentication-based root redirects.
  */
 function handleRootPathRedirects(
   request: NextRequest,
   hasActiveSession: boolean
 ): NextResponse | null {
   const url = request.nextUrl
+
+  if (url.pathname !== '/sim' && url.pathname.toLowerCase() === '/sim') {
+    const destination = url.clone()
+    destination.pathname = '/'
+    return NextResponse.redirect(destination, 308)
+  }
 
   if (url.pathname !== '/' || url.searchParams.has('home')) {
     return null
@@ -302,7 +308,8 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
     pathname.startsWith('/.well-known/oauth-protected-resource') ||
     pathname === '/.well-known/openai-apps-challenge' ||
-    pathname === '/.well-known/api-catalog'
+    pathname === '/.well-known/api-catalog' ||
+    pathname.startsWith('/oidc/workload/')
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
@@ -484,8 +491,6 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): Next
 export const config = {
   matcher: [
     '/', // Root path for self-hosted redirect logic
-    '/terms', // Whitelabel terms redirect
-    '/privacy', // Whitelabel privacy redirect
     '/w', // Legacy /w redirect
     '/w/:path*', // Legacy /w/* redirects
     '/workspace/:path*', // New workspace routes

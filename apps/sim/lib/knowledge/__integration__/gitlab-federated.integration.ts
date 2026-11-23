@@ -25,18 +25,19 @@ import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import {
   createKnowledgeConnector,
   updateKnowledgeConnector,
 } from '@/lib/knowledge/application/connectors'
 import { refreshConnectorDirectory } from '@/lib/knowledge/connectors/external-group-sync'
+import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import {
   decodeLiveReference,
   encodeLiveReference,
-  readLiveDocument,
-  searchLiveKnowledge,
-} from '@/lib/sim-search/live/application'
+  liveReferenceOwner,
+} from '@/lib/sim-search/live/reference'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface FixturePerson {
@@ -67,6 +68,7 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
     kind: 'personal_api_key',
     userId: person.simId,
     keyId: 'gitlab-federated-fixture',
+    access: 'write',
   })
 
   async function response(
@@ -133,7 +135,11 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
   }
 
   function documentForReader(documentId: string, person: FixturePerson) {
-    return encodeLiveReference({ ...decodeLiveReference(documentId), user: person.simId })
+    const scope = resourceScopeKey(resourceScopeFromOwner({ organizationId: ids.organizationId }))
+    return encodeLiveReference(
+      decodeLiveReference(documentId),
+      liveReferenceOwner(person.simId, scope)
+    )
   }
 
   beforeAll(async () => {

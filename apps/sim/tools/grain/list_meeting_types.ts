@@ -2,6 +2,7 @@ import type {
   GrainListMeetingTypesParams,
   GrainListMeetingTypesResponse,
 } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainListMeetingTypesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const grainListMeetingTypesTool: ToolConfig<
   name: 'Grain List Meeting Types',
   description: 'List all meeting types in the workspace',
   version: '1.0.0',
+  oauth: GRAIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -450,12 +450,11 @@ export function calculateNextRunTime(
 export const parseCronToHumanReadable = (cronExpression: string, timezone?: string): string => {
   try {
     const forDisplay = cronExpression.replace(/([0-7])#L\b/g, '$1L')
-    const baseDescription = cronstrue
-      .toString(forDisplay, {
-        use24HourTimeFormat: false,
-        verbose: false,
-      })
-      .replace(/\b0(\d:\d{2})/g, '$1')
+    const baseDescription = cronstrue.toString(forDisplay, {
+      use24HourTimeFormat: false,
+      trimHoursLeadingZero: true,
+      verbose: false,
+    })
 
     if (timezone && timezone !== 'UTC') {
       const tzAbbr = getTimezoneAbbreviation(timezone)

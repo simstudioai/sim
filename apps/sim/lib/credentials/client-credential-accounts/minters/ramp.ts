@@ -11,6 +11,7 @@ import {
   isTransientProviderStatus,
   requireClientSecret,
   TokenServiceAccountValidationError,
+  throttledRetryAfterMs,
 } from '@/lib/credentials/token-service-accounts/errors'
 import { getScopesForService } from '@/lib/oauth/utils'
 
@@ -29,7 +30,8 @@ async function readRampAuthResponse(
         ? 'invalid_credentials'
         : 'provider_unavailable',
       response.status,
-      { step }
+      { step },
+      { retryAfterMs: throttledRetryAfterMs(response) }
     )
   }
 

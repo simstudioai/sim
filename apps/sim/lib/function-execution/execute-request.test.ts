@@ -11,6 +11,7 @@ import {
   workflowsUtilsMock,
 } from '@sim/testing'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { isolatedVmMock, isolatedVmMockFns } from '@sim/testing/mocks/isolated-vm.mock'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
@@ -42,7 +43,6 @@ import {
 import { SandboxExecutionTimeoutError } from '@/lib/execution/remote-sandbox/timeout'
 
 const {
-  mockExecuteInIsolatedVM,
   mockValidateWorkspaceFileWriteTarget,
   mockWriteWorkspaceFileByPath,
   mockUploadExecutionFile,
@@ -50,7 +50,6 @@ const {
   mockUnprovenancedMountCount,
   mockRenderedMountContributors,
 } = vi.hoisted(() => ({
-  mockExecuteInIsolatedVM: vi.fn(),
   mockValidateWorkspaceFileWriteTarget: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
   mockUploadExecutionFile: vi.fn(),
@@ -61,9 +60,9 @@ const {
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/execution/isolated-vm', () => ({
-  executeInIsolatedVM: mockExecuteInIsolatedVM,
-}))
+const mockExecuteInIsolatedVM = isolatedVmMockFns.mockExecuteInIsolatedVM
+
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
@@ -823,6 +822,44 @@ describe('Function execution request', () => {
   })
 
   describe('Basic Function Execution', () => {
+    it('hoists every static import, with the comment above it, and keeps the body on its lines', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: [
+            'const label = "sep"',
+            '// joins paths',
+            'import path from "node:path"',
+            'return label + path.sep',
+          ].join('\n'),
+          language: 'javascript',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      const code: string = mockExecuteInSandbox.mock.calls.at(-1)?.[0].code
+      expect(code).toContain('// joins paths\nimport path from "node:path"\n')
+      expect(code).toContain('const label = "sep"\n      \n      \n      return label + path.sep')
+    })
+
+    it.each([
+      ['a require call', 'const path = require("node:path")\nreturn path.sep', 1],
+      ['an optional require call', 'const path = require?.("node:path")\nreturn path.sep', 1],
+      ['code that does not parse', 'import path from "node:path"\nreturn (', 0],
+      [
+        'code whose only error a parser can recover from',
+        'import path from "node:path"\nlet a = 1\nlet a = 2\nreturn path.sep',
+        0,
+      ],
+    ])('sends %s to the remote sandbox only when it loads modules', async (_, code, calls) => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+
+      await POST(createMockRequest('POST', { code, language: 'javascript' }))
+
+      expect(mockExecuteInSandbox).toHaveBeenCalledTimes(calls)
+    })
+
     it('compacts large array result fields to manifests when execution context is durable', async () => {
       // Compaction cost scales with element count, so a few wide rows cross the threshold cheaply.
       const rowCount = 64
@@ -2775,6 +2812,39 @@ describe('Function execution request', () => {
       expect(data.error).toContain('File secret provenance is unavailable')
       expect(JSON.stringify(data)).not.toContain('private file content')
     })
+
+    it('tells user code how large a referenced value is when it is too large to load', async () => {
+      const ref = {
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_loopresult01',
+        kind: 'array',
+        size: 28 * 1024 * 1024,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_loopresult01.json',
+        executionId: 'execution-1',
+      }
+      mockExecuteInIsolatedVM.mockImplementationOnce(async (_input, options) => ({
+        result: await options.brokers['sim.values.read']({ ref }).catch(
+          (error: Error) => error.message
+        ),
+        stdout: '',
+      }))
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return 1',
+          language: 'javascript',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        })
+      )
+
+      const data = await response.json()
+      expect(data.output.result).toBe(
+        'Execution memory limit exceeded: the data is 28.0 MB, more than the 16.0 MB limit. Pass a smaller field or file, or have the blocks that produce it output less.'
+      )
+    })
   })
 
   describe('Template Variable Resolution', () => {
@@ -3698,6 +3768,214 @@ describe('Function execution request', () => {
       expect(data.error).toContain('Line 1: `retur <start.reqerror>`')
       expect(data.error).not.toContain('globalThis')
       expect(data.debug.lineContent).toBe('retur <start.reqerror>')
+      expect(data.errorMessage).toBe('Unexpected identifier')
+    })
+  })
+
+  /**
+   * `errorMessage` is the thrown message alone; `error` keeps its line, code and type label
+   * byte for byte. Each case pins both, so a change to either is a visible diff here.
+   */
+  describe('errorMessage beside error', () => {
+    async function failIsolated(code: string, error: Record<string, unknown>) {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: null, stdout: '', error })
+      const response = await POST(createMockRequest('POST', { code, timeout: 5000 }))
+      expect(response.status).toBe(422)
+      return response.json()
+    }
+
+    async function failRemote(
+      language: 'javascript' | 'python',
+      code: string,
+      error: string,
+      stdout = ''
+    ) {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: null,
+        stdout,
+        error,
+        sandboxId: 'sandbox-error',
+      })
+      const response = await POST(
+        createMockRequest('POST', {
+          code,
+          language,
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+        })
+      )
+      expect(response.status).toBe(422)
+      return response.json()
+    }
+
+    it('drops the line and code from a runtime error in isolated-vm', async () => {
+      const data = await failIsolated("const phone = '5'\nthrow new Error('invalid phone')", {
+        message: 'invalid phone',
+        name: 'Error',
+        line: 2,
+        lineContent: "throw new Error('invalid phone')",
+      })
+      expect(data.error).toBe("Line 2: `throw new Error('invalid phone')` - invalid phone")
+      expect(data.errorMessage).toBe('invalid phone')
+    })
+
+    it('drops the type label error puts before a TypeError', async () => {
+      const data = await failIsolated('const obj = null\nreturn obj.x', {
+        message: "Cannot read properties of null (reading 'x')",
+        name: 'TypeError',
+        line: 2,
+        lineContent: 'return obj.x',
+      })
+      expect(data.error).toBe(
+        "Type Error: Line 2: `return obj.x` - Cannot read properties of null (reading 'x')"
+      )
+      expect(data.errorMessage).toBe("Cannot read properties of null (reading 'x')")
+    })
+
+    it('keeps a syntax error message without its location', async () => {
+      const data = await failIsolated('return {', {
+        message: 'Unexpected end of input',
+        name: 'SyntaxError',
+        line: 1,
+        lineContent: 'return {',
+      })
+      expect(data.error).toBe('Syntax Error: Line 1: `return {` - Unexpected end of input')
+      expect(data.errorMessage).toBe('Unexpected end of input')
+    })
+
+    it.each([
+      { thrown: "throw 'declined'", message: 'declined' },
+      { thrown: 'throw {}', message: '[object Object]' },
+    ])(
+      'treats a non-Error throw ($thrown), which the isolate reports by its string form, like any message',
+      async ({ thrown, message }) => {
+        const data = await failIsolated(thrown, {
+          message,
+          name: 'Error',
+          line: 1,
+          lineContent: thrown,
+        })
+        expect(data.error).toBe(`Line 1: \`${thrown}\` - ${message}`)
+        expect(data.errorMessage).toBe(message)
+      }
+    )
+
+    it('keeps every line of a multi-line message', async () => {
+      const data = await failIsolated("throw new Error('bad row\\nrow 3: no email')", {
+        message: 'bad row\nrow 3: no email',
+        name: 'Error',
+        line: 1,
+        lineContent: "throw new Error('bad row\\nrow 3: no email')",
+      })
+      expect(data.error).toBe(
+        "Line 1: `throw new Error('bad row\\nrow 3: no email')` - bad row\nrow 3: no email"
+      )
+      expect(data.errorMessage).toBe('bad row\nrow 3: no email')
+    })
+
+    it('is the message itself when the error carries no line', async () => {
+      const data = await failIsolated('return 1', { message: 'quota exceeded', name: 'Error' })
+      expect(data.error).toBe('quota exceeded')
+      expect(data.errorMessage).toBe('quota exceeded')
+    })
+
+    it('holds a resolved value only where error holds it, never the code that read it', async () => {
+      const data = await failIsolated("throw new Error('rejected key ' + <start.apiKey>)", {
+        message: 'rejected key sk-live-123',
+        name: 'Error',
+        line: 1,
+        lineContent: "throw new Error('rejected key ' + <start.apiKey>)",
+      })
+      expect(data.error).toBe(
+        "Line 1: `throw new Error('rejected key ' + <start.apiKey>)` - rejected key sk-live-123"
+      )
+      expect(data.errorMessage).toBe('rejected key sk-live-123')
+      expect(data.error.endsWith(data.errorMessage)).toBe(true)
+    })
+
+    it('drops the type label from a JavaScript sandbox error', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nthrow new Error("invalid phone: 555")',
+        'Error: invalid phone: 555'
+      )
+      expect(data.error).toBe('Error: invalid phone: 555')
+      expect(data.errorMessage).toBe('invalid phone: 555')
+    })
+
+    it("drops Node's bracketed code label from a JavaScript sandbox error", async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nreturn 1',
+        "Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'left-pad'"
+      )
+      expect(data.error).toBe("Error [ERR_MODULE_NOT_FOUND]: Cannot find module 'left-pad'")
+      expect(data.errorMessage).toBe("Cannot find module 'left-pad'")
+    })
+
+    it('keeps the text before a colon that error cuts from a typed sandbox error', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nthrow new RangeError("invalid phone: 555")',
+        'RangeError: invalid phone: 555'
+      )
+      expect(data.error).toBe('RangeError: 555')
+      expect(data.errorMessage).toBe('invalid phone: 555')
+    })
+
+    it('drops the file path a JavaScript sandbox syntax error leads with', async () => {
+      const data = await failRemote(
+        'javascript',
+        'import "node:path"\nreturn 1',
+        'SyntaxError: /home/user/index.js: Unexpected token (9:8)'
+      )
+      expect(data.error).toBe('SyntaxError: Unexpected token')
+      expect(data.errorMessage).toBe('Unexpected token')
+    })
+
+    it('drops the line, code and exception name from a Python error', async () => {
+      const data = await failRemote(
+        'python',
+        "phone = '5'\nraise ValueError('invalid phone')",
+        'ValueError: invalid phone',
+        'Traceback (most recent call last):\n  File "<sim-function-module>", line 2, in <module>\nValueError: invalid phone'
+      )
+      expect(data.error).toBe(
+        "Line 2: `raise ValueError('invalid phone')` - ValueError: invalid phone"
+      )
+      expect(data.errorMessage).toBe('invalid phone')
+    })
+
+    it('keeps a Python syntax error message without its file and line', async () => {
+      const data = await failRemote(
+        'python',
+        'def f(:',
+        'SyntaxError: invalid syntax (3907239417.py, line 1)'
+      )
+      expect(data.error).toBe('SyntaxError: invalid syntax')
+      expect(data.errorMessage).toBe('invalid syntax')
+    })
+
+    it('labels a Python error with no message rather than leaving it empty', async () => {
+      const data = await failRemote('python', 'raise KeyError()', 'KeyError: ')
+      expect(data.error).toBe('KeyError:')
+      expect(data.errorMessage).toBe('KeyError:')
+    })
+
+    it('reports a failure before the code runs by its message', async () => {
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'return <variable.missing>',
+          workflowVariables: {},
+          timeout: 5000,
+        })
+      )
+      const data = await response.json()
+      expect(response.status).toBe(500)
+      expect(data.error).toBe('Variable "missing" doesn\'t exist.')
+      expect(data.errorMessage).toBe('Variable "missing" doesn\'t exist.')
     })
   })
 })

@@ -2,6 +2,7 @@ import { LinkedInIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 
 export const LinkedInBlock: BlockConfig = {
   type: 'linkedin',
@@ -103,8 +104,8 @@ export const LinkedInBlock: BlockConfig = {
 
         return 'linkedin_share_post'
       },
-      params: (inputs) => {
-        const operation = inputs.operation || 'share_post'
+      params: (inputs, context) => {
+        const operation = mapperOperation(inputs, context) || 'share_post'
         const { oauthCredential, ...rest } = inputs
 
         if (operation === 'get_profile') {

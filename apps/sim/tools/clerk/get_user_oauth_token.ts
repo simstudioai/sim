@@ -5,7 +5,9 @@ import type {
   ClerkGetUserOauthTokenResponse,
   ClerkOAuthAccessToken,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkGetUserOauthToken')
 
@@ -18,6 +20,7 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
   description:
     "Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO",
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -43,8 +46,8 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const providerSlug = params.provider?.trim().replace(/^oauth_/, '')
-      return `https://api.clerk.com/v1/users/${params.userId?.trim()}/oauth_access_tokens/oauth_${providerSlug}`
+      const providerSlug = safeUrlPathSegment(params.provider, 'provider').replace(/^oauth_/, '')
+      return `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}/oauth_access_tokens/oauth_${providerSlug}`
     },
     method: 'GET',
     headers: (params) => {

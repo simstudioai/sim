@@ -5,7 +5,9 @@ import type {
   ClerkDeleteUserParams,
   ClerkDeleteUserResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkDeleteUser')
 
@@ -14,6 +16,7 @@ export const clerkDeleteUserTool: ToolConfig<ClerkDeleteUserParams, ClerkDeleteU
   name: 'Delete User from Clerk',
   description: 'Delete a user from your Clerk application',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -31,7 +34,8 @@ export const clerkDeleteUserTool: ToolConfig<ClerkDeleteUserParams, ClerkDeleteU
   },
 
   request: {
-    url: (params) => `https://api.clerk.com/v1/users/${params.userId?.trim()}`,
+    url: (params) =>
+      `https://api.clerk.com/v1/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'DELETE',
     headers: (params) => {
       if (!params.secretKey) {

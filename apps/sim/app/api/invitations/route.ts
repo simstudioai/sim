@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { NextResponse } from 'next/server'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getSession } from '@/lib/auth'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getInvitationJoinPreview, listPendingInvitationsForEmail } from '@/lib/invitations/core'
 

@@ -25,7 +25,7 @@ export const harmonicSearchPeopleScoutTool: ToolConfig<
   description:
     'Ask Harmonic Scout to find people using natural language and return a stable, workflow-ready contacts table.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

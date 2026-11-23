@@ -1,4 +1,5 @@
 import type { DubListFoldersParams, DubListFoldersResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFoldersTool: ToolConfig<DubListFoldersParams, DubListFoldersResponse> = {
@@ -7,6 +8,7 @@ export const listFoldersTool: ToolConfig<DubListFoldersParams, DubListFoldersRes
   description:
     'Retrieve the folders defined in the workspace, so the right folder ID can be used to organize links.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

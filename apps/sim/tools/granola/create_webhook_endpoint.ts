@@ -9,6 +9,7 @@ import {
   throwGranolaError,
   toStringList,
 } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWebhookEndpointTool: ToolConfig<
@@ -20,6 +21,7 @@ export const createWebhookEndpointTool: ToolConfig<
   description:
     'Registers an HTTPS URL in Granola to receive note event deliveries. The signing secret is returned only by this operation and cannot be retrieved later.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

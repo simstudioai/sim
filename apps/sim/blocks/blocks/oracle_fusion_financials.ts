@@ -18,7 +18,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Commerce,
   authMode: AuthMode.OAuth,
-  bgColor: '#C74634',
+  bgColor: '#FFFFFF',
   icon: OracleIcon,
   canvasPresentation: {
     defaultTitle: 'Oracle Fusion Financials',

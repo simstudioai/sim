@@ -501,7 +501,7 @@ describe('large execution payload store', () => {
           allowLargeValueWorkflowScope: true,
         }
       )
-    ).resolves.toEqual({ ok: true })
+    ).resolves.toEqual({ value: { ok: true }, bytes: 11 })
   })
 
   it('does not materialize forged keyless refs from another cached execution', () => {
@@ -574,6 +574,30 @@ describe('large execution payload store', () => {
 
     await expect(materializeLargeValueRef(ref, scope)).resolves.toEqual({ retained: true })
     expect(mockDownloadFile).not.toHaveBeenCalled()
+  })
+
+  it('caches storage reads by measured bytes so an inflated ref cannot lock out the true ref', async () => {
+    const scope = {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    }
+    const stored = JSON.stringify({ ok: true })
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_MEASURED1234',
+      kind: 'object',
+      size: Buffer.byteLength(stored, 'utf8'),
+      key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_MEASURED1234.json',
+      executionId: 'execution-1',
+    } as const
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from(stored, 'utf8'))
+
+    await expect(materializeLargeValueRef({ ...ref, size: 4096 }, scope)).resolves.toEqual({
+      ok: true,
+    })
+    expect(materializeLargeValueRefSync(ref, scope)).toEqual({ ok: true })
   })
 
   it('fails loudly when reference tracking fails before returning cached durable refs', async () => {

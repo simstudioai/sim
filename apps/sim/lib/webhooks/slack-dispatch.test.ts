@@ -101,6 +101,33 @@ describe('dispatchSlackWebhooks', () => {
     )
   })
 
+  it('still dispatches every other target when one throws, then surfaces the failure', async () => {
+    const failure = new Error('dispatch blew up')
+    mockDispatchResolvedWebhookTarget.mockReset()
+    vi.mocked(dispatchResolvedWebhookTarget).mockImplementation(async (foundWebhook) => {
+      if (foundWebhook.id === 'webhook-0') throw failure
+      return {
+        outcome: 'queued',
+        response: new NextResponse(null, { status: 200 }),
+        reason: 'queued',
+      }
+    })
+    const webhooks = Array.from({ length: 12 }, (_, index) => ({
+      webhook: { id: `webhook-${index}`, providerConfig: {} },
+      workflow: { id: `workflow-${index}` },
+    }))
+
+    await expect(
+      dispatchSlackWebhooks(webhooks as never, {
+        body: { event: { type: 'message' } },
+        request: new NextRequest('http://localhost/api/webhooks/slack'),
+        requestId: 'request-2',
+        receivedAt: Date.now(),
+      })
+    ).rejects.toBe(failure)
+    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(12)
+  })
+
   it('returns the failure when no Slack target is acknowledged', () => {
     const response = getSlackDispatchResponse([
       {

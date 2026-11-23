@@ -2,6 +2,7 @@ import type {
   CodePipelineGetPipelineExecutionParams,
   CodePipelineGetPipelineExecutionResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getPipelineExecutionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const getPipelineExecutionTool: InternalToolConfig<
   description:
     'Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

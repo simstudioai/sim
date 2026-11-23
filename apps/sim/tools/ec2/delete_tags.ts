@@ -1,5 +1,6 @@
 import type { Ec2DeleteTagsParams, Ec2DeleteTagsResponse } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteTagsTool: InternalToolConfig<Ec2DeleteTagsParams, Ec2DeleteTagsResponse> = {
@@ -7,6 +8,7 @@ export const deleteTagsTool: InternalToolConfig<Ec2DeleteTagsParams, Ec2DeleteTa
   name: 'EC2 Delete Tags',
   description: 'Remove tags from one or more EC2 resources',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

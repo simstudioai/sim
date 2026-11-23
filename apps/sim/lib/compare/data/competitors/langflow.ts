@@ -800,21 +800,6 @@ export const langflowProfile: CompetitorProfile = {
         confidence: 'unknown',
         sources: [],
       },
-      whiteLabeling: {
-        value:
-          "Unknown: no public documentation describes replacing Langflow's branding, such as logo, product name, or theme, in the self-hosted UI or embedded chat widget, beyond basic widget style customization exposed as embed props.",
-        detail:
-          'The embed widget supports styling props but full logo and name replacement across the whole app was not confirmed.',
-        shortValue: 'Unknown; only chat-widget style props documented, not full rebrand',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://github.com/langflow-ai/langflow-embedded-chat',
-            label: 'GitHub: langflow-ai/langflow-embedded-chat',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Unknown: no public documentation describes an org-configurable retention window for execution logs or soft-deleted resources. Self-hosters control their own database and log retention at the infrastructure level, since Langflow stores data in a configured database plus local or S3 file storage.',

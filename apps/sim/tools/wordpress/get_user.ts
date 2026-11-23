@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetUserParams,
@@ -33,7 +34,8 @@ export const getUserTool: ToolConfig<WordPressGetUserParams, WordPressGetUserRes
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/users/${params.userId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -76,16 +78,36 @@ export const getUserTool: ToolConfig<WordPressGetUserParams, WordPressGetUserRes
       description: 'The retrieved user',
       properties: {
         id: { type: 'number', description: 'User ID' },
-        username: { type: 'string', description: 'Username' },
+        username: {
+          type: 'string',
+          description: 'Username (edit context only)',
+          optional: true,
+        },
         name: { type: 'string', description: 'Display name' },
-        first_name: { type: 'string', description: 'First name' },
-        last_name: { type: 'string', description: 'Last name' },
-        email: { type: 'string', description: 'Email address' },
+        first_name: {
+          type: 'string',
+          description: 'First name (edit context only)',
+          optional: true,
+        },
+        last_name: {
+          type: 'string',
+          description: 'Last name (edit context only)',
+          optional: true,
+        },
+        email: {
+          type: 'string',
+          description: 'Email address (edit context only)',
+          optional: true,
+        },
         url: { type: 'string', description: 'User website URL' },
         description: { type: 'string', description: 'User bio' },
         link: { type: 'string', description: 'Author archive URL' },
         slug: { type: 'string', description: 'User slug' },
-        roles: { type: 'array', description: 'User roles' },
+        roles: {
+          type: 'array',
+          description: 'User roles (edit context only)',
+          optional: true,
+        },
         avatar_urls: { type: 'object', description: 'Avatar URLs at different sizes' },
       },
     },

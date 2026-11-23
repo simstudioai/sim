@@ -9,6 +9,7 @@ import {
   lockWorkspaceStorageForMutationInTx,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   allocateUniqueWorkspaceFileName,
@@ -270,7 +271,7 @@ export async function planForkFileCopies(params: {
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
-  requestId = 'unknown',
+  requestId = generateRequestId(),
   contentRefMaps?: ForkContentRefMaps,
   control?: ForkCopyControl
 ): Promise<{ copied: number; failed: number; failedTargetKeys: string[] }> {
@@ -286,7 +287,8 @@ export async function executeForkFileBlobCopies(
       rethrowForkCopyInterruption(error, control)
       for (const task of taskPage) {
         failedTargetKeys.push(task.targetKey)
-        logger.warn(`[${requestId}] Failed to check copied file replay state`, {
+        logger.warn('Failed to check copied file replay state', {
+          requestId,
           targetKey: task.targetKey,
           error: getErrorMessage(error),
         })
@@ -326,13 +328,11 @@ export async function executeForkFileBlobCopies(
               if (rewritten !== text) body = Buffer.from(rewritten, 'utf8')
             } catch (error) {
               rethrowForkCopyInterruption(error, control)
-              logger.warn(
-                `[${requestId}] Failed to rewrite markdown blob content; copying raw bytes`,
-                {
-                  targetKey: task.targetKey,
-                  error: getErrorMessage(error),
-                }
-              )
+              logger.warn('Failed to rewrite markdown blob content; copying raw bytes', {
+                requestId,
+                targetKey: task.targetKey,
+                error: getErrorMessage(error),
+              })
             }
           }
           assertForkCopyActive(control)
@@ -447,7 +447,8 @@ export async function executeForkFileBlobCopies(
         await completeForkCopyResource(control, `file:${task.targetFileId}`)
         copied += 1
         if (targetOriginalName !== task.fileName) {
-          logger.warn(`[${requestId}] Copied file renamed to avoid a target name collision`, {
+          logger.warn('Copied file renamed to avoid a target name collision', {
+            requestId,
             targetKey: task.targetKey,
             folderId: task.targetFolderId ?? null,
             from: task.fileName,
@@ -457,7 +458,8 @@ export async function executeForkFileBlobCopies(
       } catch (error) {
         rethrowForkCopyInterruption(error, control)
         failedTargetKeys.push(task.targetKey)
-        logger.warn(`[${requestId}] Failed to copy file blob during fork`, {
+        logger.warn('Failed to copy file blob during fork', {
+          requestId,
           targetKey: task.targetKey,
           error: getErrorMessage(error),
         })
@@ -478,7 +480,8 @@ export async function executeForkFileBlobCopies(
               await deleteFile({ key: task.targetKey, context: task.context })
             }
           } catch (cleanupError) {
-            logger.warn(`[${requestId}] Failed to clean up unfinalized copied file blob`, {
+            logger.warn('Failed to clean up unfinalized copied file blob', {
+              requestId,
               targetKey: task.targetKey,
               error: getErrorMessage(cleanupError),
             })

@@ -1,4 +1,5 @@
 import type { MySQLQueryParams, MySQLResponse } from '@/tools/mysql/types'
+import { MYSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const queryTool: InternalToolConfig<MySQLQueryParams, MySQLResponse> = {
@@ -6,6 +7,7 @@ export const queryTool: InternalToolConfig<MySQLQueryParams, MySQLResponse> = {
   name: 'MySQL Query',
   description: 'Execute SELECT query on MySQL database',
   version: '1.0',
+  oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

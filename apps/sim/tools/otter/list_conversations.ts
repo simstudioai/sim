@@ -12,6 +12,7 @@ import {
   readOtterDataList,
   readOtterPagination,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const otterListConversationsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const otterListConversationsTool: ToolConfig<
   description:
     'List Otter conversations for the authenticated user, most recent first, optionally including shared conversations or filtering by channel.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,7 +1,9 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraRemoveWatcherParams, JiraRemoveWatcherResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemoveWatcherResponse> =
   {
@@ -52,7 +54,7 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     request: {
       url: (params: JiraRemoveWatcherParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/watchers?accountId=${encodeURIComponent(params.accountId?.trim() ?? '')}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/watchers?accountId=${encodeURIComponent(params.accountId?.trim() ?? '')}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -68,8 +70,8 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
     transformResponse: async (response: Response, params?: JiraRemoveWatcherParams) => {
       if (!params?.cloudId) {
         const cloudId = await getJiraCloudId(params!.domain, params!.accessToken)
-        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/watchers?accountId=${encodeURIComponent(params!.accountId?.trim() ?? '')}`
-        const watcherResponse = await fetch(watcherUrl, {
+        const watcherUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/watchers?accountId=${encodeURIComponent(params!.accountId?.trim() ?? '')}`
+        const watcherResponse = await outboundFetch(watcherUrl, {
           method: 'DELETE',
           headers: {
             Accept: 'application/json',

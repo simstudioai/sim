@@ -37,6 +37,7 @@ import {
   type WorkspaceCredentialLookup,
 } from '@/lib/credentials/queries'
 import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
+import type { KeylessCredentialRefusedError } from '@/lib/credentials/workload-identity/subject'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
@@ -61,7 +62,9 @@ export function throwCredentialMutationFailure(result: {
   errorCode?: PerformCredentialResult['errorCode']
   providerErrorCode?: string
   providerUnavailable?: boolean
+  keylessRefusal?: KeylessCredentialRefusedError
 }): never {
+  if (result.keylessRefusal) throw result.keylessRefusal
   if (result.providerErrorCode) {
     throw new CredentialProviderOperationError(
       result.error ?? result.providerErrorCode,
@@ -134,22 +137,30 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ListInternalCredentialsResult> {
+    const userId = requirePrincipalSubjectUserId(principal)
+    const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, userId)
+    const viewer = { userId, organizationId: context.workspaceOrganizationId }
     if (input.credentialId) {
-      return {
-        mode: 'lookup',
-        credential: await findWorkspaceCredentialLookup({
-          workspaceId: context.workspaceId,
-          credentialId: input.credentialId,
-          userId: requirePrincipalSubjectUserId(principal),
-        }),
-      }
+      const found = await findWorkspaceCredentialLookup({
+        workspaceId: context.workspaceId,
+        credentialId: input.credentialId,
+        userId,
+      })
+      if (!found) return { mode: 'lookup', credential: null }
+      // Visibility is the list mode's own rule, so a credential hidden there reads as absent here.
+      const page = await listVisibleWorkspaceCredentials({
+        workspaceId: context.workspaceId,
+        userId,
+        workspaceAccess,
+        ids: [found.id],
+      })
+      const [visible] = await filterGatedServiceAccountCredentials(page.data, viewer)
+      return { mode: 'lookup', credential: visible ? found : null }
     }
 
-    const userId = requirePrincipalSubjectUserId(principal)
     if (!input.type || input.type === 'oauth') {
       await syncWorkspaceOAuthCredentialsForUser({ workspaceId: context.workspaceId, userId })
     }
-    const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, userId)
     const page = await listVisibleWorkspaceCredentials({
       workspaceId: context.workspaceId,
       userId,
@@ -157,10 +168,7 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
       types: input.type ? [input.type] : undefined,
       providerId: input.providerId,
     })
-    const credentials = await filterGatedServiceAccountCredentials(page.data, {
-      userId,
-      organizationId: context.workspaceOrganizationId,
-    })
+    const credentials = await filterGatedServiceAccountCredentials(page.data, viewer)
     return { mode: 'list', credentials }
   },
 })
@@ -343,7 +351,11 @@ export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCas
     const result =
       context.credential.type === 'personal_token'
         ? await updatePersonalTokenCredential({ ...fields, credential: context.credential })
-        : await updateCredentialRecord({ ...fields, credential: context.credential })
+        : await updateCredentialRecord({
+            ...fields,
+            credential: context.credential,
+            actorUserId: requirePrincipalSubjectUserId(principal),
+          })
     if (!result.success) throwCredentialMutationFailure(result)
     const access = await getCredentialActorContext(
       context.credential.id,

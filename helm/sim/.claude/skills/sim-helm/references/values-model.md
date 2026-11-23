@@ -20,7 +20,7 @@ The Sim chart splits configuration across **four** layers. Understanding which l
 │   → Rendered as inline env: on the Deployment                              │
 │   → SKIPPED for any key already set in app.env (or realtime.env)          │
 │   → Use for: operational tunables and safe fallback defaults              │
-│   → Examples: NODE_ENV=production, RATE_LIMIT_*, IVM_*, brand defaults    │
+│   → Examples: NODE_ENV=production, RATE_LIMIT_*, IVM_*                    │
 └───────────────────────────────────────────────────────────────────────────┘
                                   │
                                   │ chart-computed values are always inline
@@ -57,9 +57,8 @@ The exhaustive list of keys per layer lives in `helm/sim/values.yaml`. Read the 
 | Auth secrets | 1 (app.env) | `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, `CRON_SECRET`, `API_ENCRYPTION_KEY` |
 | Provider API keys | 1 (app.env) | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_SECRET`, etc. |
 | Per-environment URLs | 1 (app.env) | `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_SOCKET_URL` |
-| Feature flags | 1 (app.env) | `ACCESS_CONTROL_ENABLED`, `ORGANIZATIONS_ENABLED`, `SSO_ENABLED`, all `NEXT_PUBLIC_*_ENABLED` |
-| Brand / whitelabel | 1 (app.env) | `NEXT_PUBLIC_BRAND_NAME`, `NEXT_PUBLIC_BRAND_LOGO_URL`, etc. |
-| Operational defaults | 2 (envDefaults) | `NODE_ENV=production`, `EMAIL_VERIFICATION_ENABLED=false`, `VERTEX_LOCATION=us-central1`, `NEXT_PUBLIC_SUPPORT_EMAIL=help@sim.ai` |
+| Feature flags | 1 (app.env) | `ENTERPRISE_ENABLED`, `ACCESS_CONTROL_ENABLED`, `ORGANIZATIONS_ENABLED`, `SSO_ENABLED` (server only; enterprise features have no `NEXT_PUBLIC_` twins) |
+| Operational defaults | 2 (envDefaults) | `NODE_ENV=production`, `EMAIL_VERIFICATION_ENABLED=false`, `VERTEX_LOCATION=us-central1` |
 | Rate limits | 2 (envDefaults) | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_FREE_SYNC`, etc. |
 | Execution timeouts | 2 (envDefaults) | `EXECUTION_TIMEOUT_FREE`, `EXECUTION_TIMEOUT_PRO`, etc. |
 | IVM pool / quotas | 2 (envDefaults) | `IVM_POOL_SIZE`, `IVM_MAX_CONCURRENT`, `IVM_MAX_PER_WORKER`, etc. |
@@ -113,7 +112,7 @@ app:
     FREE_TABLES_LIMIT: null
 ```
 
-**Do not use `""` — it is a silent no-op — and do not add a chart-level "unset list" to work around that.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates must read `""` as "not specified"; ten of those collide with a real `envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BRAND_NAME`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) and would blank themselves out on every default install if `""` meant "delete". A list-shaped unset key is also the wrong interface — Helm merges dicts but not lists, so it cannot be modified or unset downstream.
+**Do not use `""` — it is a silent no-op — and do not add a chart-level "unset list" to work around that.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates must read `""` as "not specified"; four of those collide with a real `envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`) and would blank themselves out on every default install if `""` meant "delete". A list-shaped unset key is also the wrong interface — Helm merges dicts but not lists, so it cannot be modified or unset downstream.
 
 The `(ne (toString $value) "<nil>")` guards throughout the templates are what make `null` deletion work — preserve them in any new render path. Regression net: `tests/env-null-deletion_test.yaml`.
 

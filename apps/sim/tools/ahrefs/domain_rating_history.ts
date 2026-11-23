@@ -2,6 +2,7 @@ import type {
   AhrefsDomainRatingHistoryParams,
   AhrefsDomainRatingHistoryResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const domainRatingHistoryTool: ToolConfig<
@@ -13,6 +14,7 @@ export const domainRatingHistoryTool: ToolConfig<
   description:
     'Get the historical Domain Rating (DR) trend for a target domain or URL over a date range, grouped daily, weekly, or monthly.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

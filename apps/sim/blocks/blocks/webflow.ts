@@ -1,7 +1,9 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { WebflowIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** CMS collection, whichever mode the card is in. */
@@ -214,7 +216,8 @@ export const WebflowBlock: BlockConfig = {
             throw new Error(`Invalid Webflow operation: ${params.operation}`)
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
           oauthCredential,
           fieldData,
@@ -223,14 +226,16 @@ export const WebflowBlock: BlockConfig = {
           itemId, // Canonical param from itemSelector (basic) or manualItemId (advanced)
           ...rest
         } = params
-        let parsedFieldData: any | undefined
+        let parsedFieldData: unknown
 
         try {
-          if (fieldData && (params.operation === 'create' || params.operation === 'update')) {
-            parsedFieldData = JSON.parse(fieldData)
+          if (fieldData && (operation === 'create' || operation === 'update')) {
+            parsedFieldData = typeof fieldData === 'string' ? JSON.parse(fieldData) : fieldData
           }
-        } catch (error: any) {
-          throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
+        } catch (error) {
+          throw new Error(
+            `Invalid JSON input for ${operation} operation: ${getErrorMessage(error)}`
+          )
         }
 
         const effectiveSiteId = siteId ? String(siteId).trim() : ''
@@ -244,7 +249,7 @@ export const WebflowBlock: BlockConfig = {
           ...rest,
         }
 
-        switch (params.operation) {
+        switch (operation) {
           case 'create':
           case 'update':
             return {
@@ -317,7 +322,7 @@ export const WebflowBlockMeta = {
       icon: WebflowIcon,
       title: 'Webflow CMS publisher',
       prompt:
-        'Create a workflow that reads a draft articles table, generates an SEO-optimized post, publishes it as a Webflow CMS item, and writes the live URL back to the row.',
+        'Create a workflow that reads a draft articles table, generates an SEO-optimized post, creates it as a Webflow CMS item, and writes the new item ID and slug back to the row.',
       modules: ['tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'content'],
@@ -378,14 +383,14 @@ export const WebflowBlockMeta = {
       description:
         'Create a new item in a Webflow CMS collection from supplied or generated field data.',
       content:
-        '# Publish a Webflow CMS Item\n\nTurn structured content into a live Webflow CMS collection item.\n\n## Steps\n1. Identify the target site and collection. If unknown, list collections to confirm the collection ID and its field schema.\n2. Map the incoming content to the collection fields, including required fields like name and slug. Generate a URL-safe slug if one is not provided.\n3. Call the create-item operation with the assembled fieldData JSON.\n4. Confirm the new item ID and slug returned by the API.\n\n## Output\nReport the created item ID, slug, and the live or staged URL. If a required field was missing, name it explicitly rather than guessing a value.',
+        '# Publish a Webflow CMS Item\n\nTurn structured content into a new Webflow CMS collection item. Webflow creates it as a Draft.\n\n## Steps\n1. Identify the target site and collection ID. If unknown, ask for them, and list a few existing items in the collection to learn its field names.\n2. Map the incoming content to the collection fields, including required fields like name and slug. Generate a URL-safe slug if one is not provided.\n3. Call the create-item operation with the assembled fieldData JSON.\n4. Confirm the new item ID and slug returned by the API.\n\n## Output\nReport the created item ID and slug, and note that the item has Draft status: it will not go live on the next site publish until someone marks it as not a draft in Webflow. If a required field was missing, name it explicitly rather than guessing a value.',
     },
     {
       name: 'update-cms-item',
       description:
         'Find a Webflow CMS item and update specific fields without disturbing the rest.',
       content:
-        '# Update a Webflow CMS Item\n\nApply targeted edits to an existing collection item.\n\n## Steps\n1. Resolve the item by ID, or list items in the collection and match on slug or name.\n2. Get the current item so existing field values are known.\n3. Build fieldData containing only the fields that change, merged onto the current values so untouched fields are preserved.\n4. Call the update-item operation and confirm the change took effect.\n\n## Output\nList exactly which fields changed and their new values. Note the item ID and whether the change is live or staged.',
+        '# Update a Webflow CMS Item\n\nApply targeted edits to an existing collection item.\n\n## Steps\n1. Resolve the item by ID, or list items in the collection and match on slug or name.\n2. Get the current item so existing field values are known.\n3. Build fieldData containing only the fields that change, merged onto the current values so untouched fields are preserved.\n4. Call the update-item operation and confirm the change took effect.\n\n## Output\nList exactly which fields changed and their new values. Note the item ID. The change is not live until the site is published, and a draft item stays unpublished even then.',
     },
     {
       name: 'audit-collection-content',

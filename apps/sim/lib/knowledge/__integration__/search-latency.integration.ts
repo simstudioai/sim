@@ -345,6 +345,7 @@ async function searchWorkspaceKb(
       kind: 'workspace_api_key',
       workspaceId: fixture.workspaceId,
       keyId: 'fixture-search-key',
+      access: 'write',
     },
     input: {
       workspaceId: fixture.workspaceId,

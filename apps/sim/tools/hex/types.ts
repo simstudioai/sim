@@ -93,15 +93,25 @@ export const HEX_RUN_STATUS_OUTPUT_PROPERTIES = {
     description:
       'Run status (PENDING, RUNNING, COMPLETED, ERRORED, KILLED, UNABLE_TO_ALLOCATE_KERNEL)',
   },
+  runTrigger: {
+    type: 'string',
+    description: 'How the run was triggered (API, SCHEDULED, APP_REFRESH)',
+    optional: true,
+  },
   startTime: { type: 'string', description: 'ISO 8601 run start time', optional: true },
   endTime: { type: 'string', description: 'ISO 8601 run end time', optional: true },
-  elapsedTime: { type: 'number', description: 'Elapsed time in seconds', optional: true },
+  elapsedTime: { type: 'number', description: 'Elapsed run time in milliseconds', optional: true },
   traceId: { type: 'string', description: 'Trace ID for debugging', optional: true },
-  projectVersion: { type: 'number', description: 'Project version number', optional: true },
+  projectVersion: {
+    type: 'string',
+    description: 'Project version that was run ("1", "2", ...; "draft" for notebook runs)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export interface HexListProjectsParams {
   apiKey: string
+  host?: string
   limit?: number
   includeArchived?: boolean
   includeComponents?: boolean
@@ -142,6 +152,7 @@ export interface HexListProjectsResponse extends ToolResponse {
 
 export interface HexGetProjectParams {
   apiKey: string
+  host?: string
   projectId: string
 }
 
@@ -165,6 +176,7 @@ export interface HexGetProjectResponse extends ToolResponse {
 
 export interface HexRunProjectParams {
   apiKey: string
+  host?: string
   projectId: string
   inputParams?: string
   dryRun?: boolean
@@ -188,6 +200,7 @@ export interface HexRunProjectResponse extends ToolResponse {
 
 export interface HexGetRunStatusParams {
   apiKey: string
+  host?: string
   projectId: string
   runId: string
 }
@@ -198,16 +211,18 @@ export interface HexGetRunStatusResponse extends ToolResponse {
     runId: string
     runUrl: string | null
     status: string
+    runTrigger: string | null
     startTime: string | null
     endTime: string | null
     elapsedTime: number | null
     traceId: string | null
-    projectVersion: number | null
+    projectVersion: string | null
   }
 }
 
 export interface HexCancelRunParams {
   apiKey: string
+  host?: string
   projectId: string
   runId: string
 }
@@ -222,6 +237,7 @@ export interface HexCancelRunResponse extends ToolResponse {
 
 export interface HexGetProjectRunsParams {
   apiKey: string
+  host?: string
   projectId: string
   limit?: number
   offset?: number
@@ -236,11 +252,12 @@ export interface HexGetProjectRunsResponse extends ToolResponse {
       runId: string
       runUrl: string | null
       status: string
+      runTrigger: string | null
       startTime: string | null
       endTime: string | null
       elapsedTime: number | null
       traceId: string | null
-      projectVersion: number | null
+      projectVersion: string | null
     }>
     total: number
     traceId: string | null
@@ -251,6 +268,7 @@ export interface HexGetProjectRunsResponse extends ToolResponse {
 
 export interface HexUpdateProjectParams {
   apiKey: string
+  host?: string
   projectId: string
   status: string
 }
@@ -275,6 +293,7 @@ export interface HexUpdateProjectResponse extends ToolResponse {
 
 export interface HexListUsersParams {
   apiKey: string
+  host?: string
   limit?: number
   sortBy?: string
   sortDirection?: string
@@ -301,6 +320,7 @@ export interface HexListUsersResponse extends ToolResponse {
 
 export interface HexListCollectionsParams {
   apiKey: string
+  host?: string
   limit?: number
   sortBy?: string
   after?: string
@@ -323,6 +343,7 @@ export interface HexListCollectionsResponse extends ToolResponse {
 
 export interface HexListDataConnectionsParams {
   apiKey: string
+  host?: string
   limit?: number
   sortBy?: string
   sortDirection?: string
@@ -349,8 +370,11 @@ export interface HexListDataConnectionsResponse extends ToolResponse {
 
 export interface HexGetQueriedTablesParams {
   apiKey: string
+  host?: string
   projectId: string
   limit?: number
+  after?: string
+  before?: string
 }
 
 export interface HexGetQueriedTablesResponse extends ToolResponse {
@@ -361,14 +385,18 @@ export interface HexGetQueriedTablesResponse extends ToolResponse {
       tableName: string | null
     }>
     total: number
+    after: string | null
+    before: string | null
   }
 }
 
 export interface HexListGroupsParams {
   apiKey: string
+  host?: string
   limit?: number
   sortBy?: string
   sortDirection?: string
+  userId?: string
   after?: string
   before?: string
 }
@@ -388,6 +416,7 @@ export interface HexListGroupsResponse extends ToolResponse {
 
 export interface HexGetGroupParams {
   apiKey: string
+  host?: string
   groupId: string
 }
 
@@ -401,6 +430,7 @@ export interface HexGetGroupResponse extends ToolResponse {
 
 export interface HexGetDataConnectionParams {
   apiKey: string
+  host?: string
   dataConnectionId: string
 }
 
@@ -418,6 +448,7 @@ export interface HexGetDataConnectionResponse extends ToolResponse {
 
 export interface HexGetCollectionParams {
   apiKey: string
+  host?: string
   collectionId: string
 }
 
@@ -432,6 +463,7 @@ export interface HexGetCollectionResponse extends ToolResponse {
 
 export interface HexCreateCollectionParams {
   apiKey: string
+  host?: string
   name: string
   description?: string
 }
@@ -447,6 +479,7 @@ export interface HexCreateCollectionResponse extends ToolResponse {
 
 export interface HexUpdateCollectionParams {
   apiKey: string
+  host?: string
   collectionId: string
   name?: string
   description?: string
@@ -463,6 +496,7 @@ export interface HexUpdateCollectionResponse extends ToolResponse {
 
 export interface HexCreateGroupParams {
   apiKey: string
+  host?: string
   name: string
   memberUserIds?: string
 }
@@ -477,6 +511,7 @@ export interface HexCreateGroupResponse extends ToolResponse {
 
 export interface HexUpdateGroupParams {
   apiKey: string
+  host?: string
   groupId: string
   name?: string
   addUserIds?: string
@@ -493,6 +528,7 @@ export interface HexUpdateGroupResponse extends ToolResponse {
 
 export interface HexDeleteGroupParams {
   apiKey: string
+  host?: string
   groupId: string
 }
 
@@ -505,6 +541,7 @@ export interface HexDeleteGroupResponse extends ToolResponse {
 
 export interface HexDeactivateUserParams {
   apiKey: string
+  host?: string
   userId: string
 }
 

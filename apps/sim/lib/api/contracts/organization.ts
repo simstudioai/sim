@@ -9,7 +9,6 @@ import {
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { memberCreditLimitUpdateSchema } from '@/lib/billing/application/usage-limit-validation'
-import { HEX_COLOR_REGEX } from '@/lib/branding'
 import {
   organizationRosterSchema as domainOrganizationRosterSchema,
   rosterMemberSchema as domainRosterMemberSchema,
@@ -236,46 +235,6 @@ export const revokeOrganizationSessionsResponseSchema = z.object({
   data: z.object({
     revokedSessions: z.number().int().min(0),
   }),
-})
-
-export const updateOrganizationWhitelabelBodySchema = z.object({
-  brandName: z
-    .string()
-    .trim()
-    .max(64, 'Brand name must be 64 characters or fewer')
-    .nullable()
-    .optional(),
-  logoUrl: z.string().min(1).nullable().optional(),
-  wordmarkUrl: z.string().min(1).nullable().optional(),
-  primaryColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #33c482)')
-    .nullable()
-    .optional(),
-  primaryHoverColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Primary hover color must be a valid hex color')
-    .nullable()
-    .optional(),
-  accentColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Accent color must be a valid hex color')
-    .nullable()
-    .optional(),
-  accentHoverColor: z
-    .string()
-    .regex(HEX_COLOR_REGEX, 'Accent hover color must be a valid hex color')
-    .nullable()
-    .optional(),
-  supportEmail: z
-    .string()
-    .email('Support email must be a valid email address')
-    .nullable()
-    .optional(),
-  documentationUrl: z.string().url('Documentation URL must be a valid URL').nullable().optional(),
-  termsUrl: z.string().url('Terms URL must be a valid URL').nullable().optional(),
-  privacyUrl: z.string().url('Privacy URL must be a valid URL').nullable().optional(),
-  hidePoweredBySim: z.boolean().optional(),
 })
 
 export const transferOwnershipBodySchema = z.object({
@@ -655,62 +614,6 @@ export const removeOrganizationDomainContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({ success: z.boolean() }),
-  },
-})
-
-// Read shape mirrors `OrganizationWhitelabelSettings` from
-// `@/lib/branding/types`. All fields are optional (nullable on the way in
-// for the PUT contract, but stored without nulls on the way out — the
-// route deletes keys that are explicitly cleared).
-export const organizationWhitelabelSettingsResponseSchema = z.object({
-  brandName: z.string().optional(),
-  logoUrl: z.string().optional(),
-  wordmarkUrl: z.string().optional(),
-  primaryColor: z.string().optional(),
-  primaryHoverColor: z.string().optional(),
-  accentColor: z.string().optional(),
-  accentHoverColor: z.string().optional(),
-  supportEmail: z.string().optional(),
-  documentationUrl: z.string().optional(),
-  termsUrl: z.string().optional(),
-  privacyUrl: z.string().optional(),
-  hidePoweredBySim: z.boolean().optional(),
-})
-
-const organizationWhitelabelEnvelopeResponseSchema = z.object({
-  success: z.boolean(),
-  data: organizationWhitelabelSettingsResponseSchema,
-})
-
-/**
- * The read also carries the entitlement the update enforces, so the settings page can gate on it
- * without a separate billing read. It sits beside `data` rather than inside it: `data` keeps the
- * settings shape clients already parse, so a client from before this field reads the same response.
- * It is optional so a client reading a server from before this field still parses the settings.
- */
-const organizationWhitelabelReadResponseSchema =
-  organizationWhitelabelEnvelopeResponseSchema.extend({
-    isEnterprise: z.boolean().optional(),
-  })
-
-export const getOrganizationWhitelabelContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/organizations/[id]/whitelabel',
-  params: organizationParamsSchema,
-  response: {
-    mode: 'json',
-    schema: organizationWhitelabelReadResponseSchema,
-  },
-})
-
-export const updateOrganizationWhitelabelContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/organizations/[id]/whitelabel',
-  params: organizationParamsSchema,
-  body: updateOrganizationWhitelabelBodySchema,
-  response: {
-    mode: 'json',
-    schema: organizationWhitelabelEnvelopeResponseSchema,
   },
 })
 

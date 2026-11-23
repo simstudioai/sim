@@ -32,7 +32,7 @@ vi.mock('fs/promises', () => ({
   stat: vi.fn().mockResolvedValue({ isFile: () => true }),
 }))
 
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, createRouteContext } from '@sim/testing'
 import { POST } from '@/app/api/files/delete/route'
 
 idMockFns.mockGenerateId.mockReturnValue('test-uuid')
@@ -68,6 +68,17 @@ describe('File Delete API Route', () => {
 
     expect(response.status).toBe(400)
     expect(data).toHaveProperty('error', 'InvalidRequestError')
+    expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+  })
+  it('answers not found for a dot-segment key without checking access or deleting', async () => {
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/og-images/..%2Fworkspace%2Fvictim-ws%2F1234-report.pdf',
+    })
+
+    const response = await POST(req, createRouteContext({}))
+
+    expect(response.status).toBe(404)
     expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
     expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })

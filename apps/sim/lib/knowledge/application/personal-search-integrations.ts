@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT } from '@/lib/credential-groups/limits'
 import {
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderId,
@@ -14,13 +15,19 @@ import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scope
 import { readSearchConnectionCompletion } from '@/lib/credential-groups/search-connection-completion'
 import { getOrganizationAccountsGroup } from '@/lib/credential-groups/service'
 import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
+import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { listOrganizationSearchApprovals } from '@/lib/knowledge/search/integration-policy'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { listSavedSearchCredentials } from '@/lib/sim-search/live/accounts'
 import { LIVE_SEARCH_SCOPE_FIELDS } from '@/lib/sim-search/live/policy-schema'
+import {
+  LIVE_SEARCH_SOURCE_TYPES,
+  liveSearchSavedMemberProvider,
+} from '@/lib/sim-search/live/source-catalog'
 
 export interface ListPersonalSearchIntegrationsInput {
   organizationId: string
@@ -44,10 +51,11 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
     const scope = { kind: 'organization', organizationId: context.organizationId } as const
     if (!(await isScopedCredentialGroupsAvailable(scope)))
       return { completedCredentialId: null, connections: [], available: [], nextCursor: null }
-    const [group, approvals, assistant] = await Promise.all([
+    const [group, approvals, assistant, providerCatalog] = await Promise.all([
       getOrganizationAccountsGroup(context.organizationId),
       listOrganizationSearchApprovals(context.organizationId),
       loadAssistantIntegrationTools({ organizationId: context.organizationId, userId }),
+      listCredentialProviderCatalog(principal, context),
     ])
     const accounts = group
       ? await listViewerOrganizationAccounts({
@@ -106,10 +114,61 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
               : own.length
                 ? ('connected' as const)
                 : ('not_connected' as const),
-          action: ready ? target : null,
+          action:
+            ready && own.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT ? target : null,
         },
       ]
     })
+    const saved = await listSavedSearchCredentials(scope, userId)
+    const availableSavedProviders = new Set(
+      providerCatalog.flatMap((entry) =>
+        entry.type === 'service_account' && entry.available ? [entry.providerId] : []
+      )
+    )
+    const savedConnections = LIVE_SEARCH_SOURCE_TYPES.flatMap(([connectorType, meta]) => {
+      const providerId = liveSearchSavedMemberProvider(connectorType)
+      if (
+        (providerId !== 'jama-service-account' && providerId !== 'flow-service-account') ||
+        (input.connectorType && input.connectorType !== connectorType)
+      )
+        return []
+      const ready =
+        viewer.emailVerified &&
+        approvals.get(connectorType) === true &&
+        availableSavedProviders.has(providerId)
+      const target: SearchConnectionTarget = {
+        type: 'link',
+        provider: providerId,
+        connectorType,
+        connectionMode: 'live',
+        savedProviderId: providerId,
+      }
+      const own = saved
+        .filter((row) => row.providerId === providerId)
+        .map((row) => ({
+          credentialId: row.id,
+          displayName: row.displayName,
+          status: 'connected' as const,
+          action: ready ? { ...target, credentialId: row.id } : null,
+        }))
+      return [
+        {
+          name: meta.name,
+          providerId,
+          connectorType,
+          description: 'Personal account for live Search',
+          accounts: own,
+          connectionStatus: ready
+            ? own.length
+              ? ('connected' as const)
+              : ('not_connected' as const)
+            : ('unavailable' as const),
+          action:
+            ready && own.length < CREDENTIAL_GROUP_ACCOUNTS_PER_PROVIDER_LIMIT ? target : null,
+        },
+      ]
+    })
+    const allConnections = [...connections, ...savedConnections]
     return {
       completedCredentialId: input.completionId
         ? await readSearchConnectionCompletion({
@@ -118,8 +177,8 @@ export const listPersonalSearchIntegrations = defineAuthorizedKnowledgeUseCase({
             completionId: input.completionId,
           })
         : null,
-      connections: connections.filter((entry) => entry.accounts.length > 0),
-      available: connections.flatMap((entry) =>
+      connections: allConnections.filter((entry) => entry.accounts.length > 0),
+      available: allConnections.flatMap((entry) =>
         entry.action
           ? [{ name: entry.name, description: entry.description, target: entry.action }]
           : []
@@ -159,7 +218,8 @@ export const resolvePersonalSearchConnection = defineAuthorizedKnowledgeUseCase(
         target.connectorType === input.target.connectorType &&
         target.credentialId === input.target.credentialId &&
         target.connectionMode === input.target.connectionMode &&
-        target.optionId === input.target.optionId
+        target.optionId === input.target.optionId &&
+        target.savedProviderId === input.target.savedProviderId
     )
     if (!selected)
       throw new OrchestrationError(

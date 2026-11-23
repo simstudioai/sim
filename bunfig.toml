@@ -4,17 +4,21 @@ exact = true
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
 # Explicit framework pins must install before their release reaches the age threshold: a
-# security release of Next.js is pinned exactly the day it ships. Trigger.dev 4.8.3 (published
-# 2026-10-30, the first release with workload identity) is exempted until it clears the threshold
-# on 2026-11-06; drop the four Trigger.dev entries then. They are bare names because Bun 1.4 ignores
-# version-pinned exclusions; `exact = true` and the lockfile still hold the packages at 4.8.3.
+# security release of Next.js is pinned exactly the day it ships, along with its platform compiler
+# binaries (optional dependencies, which Bun drops silently rather than failing when gated). They are
+# bare names because Bun 1.4 ignores version-pinned exclusions; `exact = true` and the lockfile still
+# hold the pinned versions.
 minimumReleaseAgeExcludes = [
   "next",
   "@next/env",
-  "@trigger.dev/sdk",
-  "@trigger.dev/core",
-  "@trigger.dev/build",
-  "trigger.dev",
+  "@next/swc-darwin-arm64",
+  "@next/swc-darwin-x64",
+  "@next/swc-linux-arm64-gnu",
+  "@next/swc-linux-arm64-musl",
+  "@next/swc-linux-x64-gnu",
+  "@next/swc-linux-x64-musl",
+  "@next/swc-win32-arm64-msvc",
+  "@next/swc-win32-x64-msvc",
 ]
 
 [run]

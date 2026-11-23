@@ -182,7 +182,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     throw new Error('Upload cleanup requires a newly allocated execution or Copilot key')
   }
 
-  logger.info(`Uploading file to ${context} storage: ${fileName}`)
+  logger.debug(`Uploading file to ${context} storage: ${fileName}`)
 
   const config = getStorageConfig(context)
 

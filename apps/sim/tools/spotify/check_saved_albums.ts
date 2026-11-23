@@ -1,3 +1,4 @@
+import { readSpotifyLibraryCheck, spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckSavedAlbumsParams {
@@ -34,14 +35,7 @@ export const spotifyCheckSavedAlbumsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const ids = params.albumIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 20)
-        .join(',')
-      return `https://api.spotify.com/v1/me/albums/contains?ids=${ids}`
-    },
+    url: (params) => spotifyLibraryUrl(params.albumIds, 'album', { contains: true, maxIds: 20 }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -49,7 +43,7 @@ export const spotifyCheckSavedAlbumsTool: ToolConfig<
   },
 
   transformResponse: async (response): Promise<SpotifyCheckSavedAlbumsResponse> => {
-    const results = await response.json()
+    const results = await readSpotifyLibraryCheck(response)
     return { success: true, output: { results } }
   },
 

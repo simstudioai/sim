@@ -2,7 +2,9 @@ import type {
   AgentPhoneReactToMessageParams,
   AgentPhoneReactToMessageResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const agentphoneReactToMessageTool: ToolConfig<
   AgentPhoneReactToMessageParams,
@@ -12,6 +14,7 @@ export const agentphoneReactToMessageTool: ToolConfig<
   name: 'React to Message',
   description: 'Send an iMessage tapback reaction to a message (iMessage only)',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -35,7 +38,8 @@ export const agentphoneReactToMessageTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.agentphone.to/v1/messages/${params.messageId.trim()}/reactions`,
+    url: (params) =>
+      `https://api.agentphone.to/v1/messages/${safeUrlPathSegment(params.messageId, 'messageId')}/reactions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -46,7 +50,7 @@ export const agentphoneReactToMessageTool: ToolConfig<
 
   transformResponse: async (response, params): Promise<AgentPhoneReactToMessageResult> => {
     const data = await response.json()
-    const messageId = params?.messageId?.trim() ?? ''
+    const messageId = String(params?.messageId ?? '').trim()
 
     if (!response.ok) {
       return {

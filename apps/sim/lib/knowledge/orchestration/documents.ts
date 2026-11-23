@@ -339,7 +339,7 @@ export async function performUploadKnowledgeDocuments(
     )
   }
 
-  logger.info(`[${requestId}] Starting controlled async processing of ${created.length} documents`)
+  logger.info(`Starting controlled async processing of ${created.length} documents`, { requestId })
 
   void dispatchDocumentProcessing({
     documents: created,
@@ -391,9 +391,9 @@ export async function performDeleteKnowledgeDocument(
     return classifyKnowledgeFailure(error, requestId, `Delete document ${document.id}`)
   }
 
-  logger.info(
-    `[${requestId}] Deleted document ${document.id} from knowledge base ${knowledgeBase.id}`
-  )
+  logger.info(`Deleted document ${document.id} from knowledge base ${knowledgeBase.id}`, {
+    requestId,
+  })
 
   recordAudit({
     workspaceId: knowledgeBase.workspaceId,

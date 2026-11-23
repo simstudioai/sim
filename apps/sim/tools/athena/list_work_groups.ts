@@ -1,4 +1,5 @@
 import type { AthenaListWorkGroupsParams, AthenaListWorkGroupsResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listWorkGroupsTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const listWorkGroupsTool: InternalToolConfig<
   name: 'Athena List Workgroups',
   description: 'List the Athena workgroups available in the AWS account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

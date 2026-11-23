@@ -9,9 +9,14 @@ export const searchConnectionTargetSchema = z
     connectorType: z.string().trim().min(1).max(100),
     credentialId: z.string().min(1).max(128).optional(),
     connectionMode: z.literal('live'),
-    optionId: z.string().min(1).max(128),
+    optionId: z.string().min(1).max(128).optional(),
+    savedProviderId: z.enum(['jama-service-account', 'flow-service-account']).optional(),
   })
   .strict()
+  .refine(
+    (target) => Boolean(target.optionId) !== Boolean(target.savedProviderId),
+    'Select exactly one connection method'
+  )
 
 export type SearchConnectionTarget = z.infer<typeof searchConnectionTargetSchema>
 
@@ -50,7 +55,8 @@ export function searchConnectionPath(organizationId: string, target: SearchConne
     connectorType: target.connectorType,
     ...(target.credentialId ? { credentialId: target.credentialId } : {}),
     connectionMode: target.connectionMode,
-    optionId: target.optionId,
+    ...(target.optionId ? { optionId: target.optionId } : {}),
+    ...(target.savedProviderId ? { savedProviderId: target.savedProviderId } : {}),
     provider: target.provider,
   })}`
 }

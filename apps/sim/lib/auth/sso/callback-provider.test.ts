@@ -19,17 +19,21 @@ describe('SSO callback provider resolution', () => {
     ).toBe('acme-shared-sso')
   })
 
-  it('supports a concrete callback path when the runtime exposes it', () => {
-    expect(resolveSsoCallbackProviderId({ path: '/sso/callback/acme%2Dsso' })).toBe('acme-sso')
+  it.each([
+    { path: '/sso/callback/:providerId', routeProviderId: 'acme%2Fidp', expected: 'acme%2Fidp' },
+    { path: '/sso/callback/:providerId', routeProviderId: 'acme%2Dsso', expected: 'acme%2Dsso' },
+    { path: '/sso/callback/acme%2Fidp', expected: 'acme%2Fidp' },
+    { path: '/sso/callback/acme%2Dsso', expected: 'acme%2Dsso' },
+  ])('returns the undecoded id the plugin looked up for $path', ({ expected, ...context }) => {
+    expect(resolveSsoCallbackProviderId(context)).toBe(expected)
   })
 
   it.each([
     { path: '/subscription/upgrade' },
     { path: '/sso/callback/:providerId' },
+    { path: '/sso/callback/:providerId', routeProviderId: '' },
     { path: '/sso/callback', stateProviderId: null },
-    { path: '/sso/callback/acme%2Fsso' },
-    { path: '/sso/callback/%E0%A4%A' },
-  ])('rejects a callback context without a safe provider identity', (context) => {
-    expect(resolveSsoCallbackProviderId(context)).toBeNull()
+  ])('returns no provider for a context without a provider identity', (context) => {
+    expect(resolveSsoCallbackProviderId(context)).toBeUndefined()
   })
 })

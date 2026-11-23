@@ -1,6 +1,8 @@
 import type { MailchimpLandingPage } from '@/tools/mailchimp/types'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpUpdateLandingPageParams {
   apiKey: string
@@ -25,6 +27,7 @@ export const mailchimpUpdateLandingPageTool: ToolConfig<
   name: 'Update Landing Page in Mailchimp',
   description: 'Update an existing landing page in Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -48,7 +51,11 @@ export const mailchimpUpdateLandingPageTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/landing-pages/${params.pageId}`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/landing-pages/${safeUrlPathSegment(params.pageId, 'pageId')}`
+      ),
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

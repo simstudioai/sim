@@ -2,33 +2,38 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
-  generateLoopBlocks,
-  generateParallelBlocks,
-} from '@sim/workflow-persistence/subflow-helpers'
-import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
-import type { Edge } from '@xyflow/react'
-import { migrateGreenhouseAgentInputs } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
-import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
-import {
   buildCanonicalIndex,
-  buildSubBlockValues,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   getCanonicalValues,
   isCanonicalPair,
   isNonEmptyValue,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
+import { CUSTOM_BLOCK_RESERVED_PARAMS, LEGACY_AGENT_FIELDS } from '@sim/workflow-types/blocks'
+import { resolveBlockRetryConfig } from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
+import { migrateGreenhouseAgentInputs } from '@/lib/workflows/migrations/greenhouse-agent-inputs'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
+import {
+  buildSubBlockValues,
   isSubBlockHidden,
   isToolInputOnlySubBlock,
-  resolveCanonicalMode,
+  withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
-import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import { MissingRequiredFieldsError } from '@/serializer/errors'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { getToolParams } from '@/tools/metadata'
+import { getToolMetadata } from '@/tools/metadata'
 import { expandSubBlockValueToParams } from '@/tools/param-shape'
+import { credentialSuppliedParamsFor } from '@/tools/shared/saved-credentials'
 
 const logger = createLogger('Serializer')
 
@@ -543,7 +548,8 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   // no curated inputs) do we carry every stored field value forward blindly. A
   // declared input is any sub-block that isn't the block's own reserved wiring.
   const customBlockHasDeclaredInputs =
-    isCustomBlock && blockConfig.subBlocks.some((config) => !RESERVED_PARAMS.has(config.id))
+    isCustomBlock &&
+    blockConfig.subBlocks.some((config) => !CUSTOM_BLOCK_RESERVED_PARAMS.has(config.id))
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
   // The serializer filters BEFORE it resolves, which is why execution has always been correct
@@ -551,7 +557,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
   // canonical-index-unscoped: `shouldSerializeSubBlock` drops the inactive surface's members, and
   // the collapse below reads `params` (the filtered map), never `allValues`.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
-  const allValues = buildSubBlockValues(block.subBlocks)
+  const allValues = withCanonicalModes(buildSubBlockValues(block.subBlocks), canonicalModeOverrides)
 
   Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
     const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
@@ -562,8 +568,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
       Array.isArray(subBlock.value) &&
       subBlock.value.length > 0
 
-    const isLegacyAgentField =
-      isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
+    const isLegacyAgentField = isAgentBlock && LEGACY_AGENT_FIELDS.has(id)
 
     const shouldInclude =
       matchingConfigs.length === 0 ||
@@ -618,6 +623,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     if (
       params[id] == null &&
       subBlockConfig.value &&
+      subBlockConfig.valueScope !== 'viewer' &&
       shouldSerializeSubBlock(
         subBlockConfig,
         allValues,
@@ -707,12 +713,17 @@ export function collectBlockFieldIssues(
   // trigger-mode block returns above before reaching here at all.
   const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
   const canonicalModeOverrides = block.data?.canonicalModes
-  const allValues = buildSubBlockValues(block.subBlocks)
+  const allValues = withCanonicalModes(buildSubBlockValues(block.subBlocks), canonicalModeOverrides)
 
   // Get the tool configuration to check parameter visibility
   const toolAccess = blockConfig.tools?.access
   const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
-  const currentToolParams = currentToolId ? getToolParams(currentToolId) : undefined
+  const currentTool = currentToolId ? getToolMetadata(currentToolId) : undefined
+  const currentToolParams = currentTool?.params
+  const credentialSuppliedParams = credentialSuppliedParamsFor(
+    currentTool?.oauth,
+    blockConfig.subBlocks || []
+  )
 
   // Validate tool parameters (for blocks with tools).
   // Lookup contract: a tool param's value lives under its own paramId in `params`.
@@ -727,7 +738,11 @@ export function collectBlockFieldIssues(
             (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
           ) || []
 
-        let shouldValidateParam = true
+        // A credential-only block has no field for params its saved credential supplies;
+        // the block's own required credential picker is validated below instead.
+        let shouldValidateParam = !(
+          matchingConfigs.length === 0 && credentialSuppliedParams.has(paramId)
+        )
 
         if (matchingConfigs.length > 0) {
           shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {

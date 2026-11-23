@@ -1,10 +1,12 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraGetTransitionsParams, JiraGetTransitionsResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 function buildTransitionsUrl(cloudId: string, issueKey: string): string {
-  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`
+  return `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(issueKey, 'issueKey')}/transitions`
 }
 
 export const jiraGetTransitionsTool: ToolConfig<
@@ -66,13 +68,16 @@ export const jiraGetTransitionsTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: JiraGetTransitionsParams) => {
     const fetchTransitions = async (cloudId: string) => {
-      const transitionsResponse = await fetch(buildTransitionsUrl(cloudId, params!.issueKey), {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${params!.accessToken}`,
-        },
-      })
+      const transitionsResponse = await outboundFetch(
+        buildTransitionsUrl(cloudId, params!.issueKey),
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${params!.accessToken}`,
+          },
+        }
+      )
 
       if (!transitionsResponse.ok) {
         const errorText = await transitionsResponse.text()

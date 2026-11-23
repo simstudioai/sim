@@ -19,8 +19,35 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
 
 const LIVE_SEARCH_MCP_DEFAULT_TOP_K = { federated: 30, scoped: 20 } as const
 
+const HAS_UTC_OFFSET = /(Z|[+-]\d{2}:\d{2})$/
+
+/**
+ * An ISO datetime filter that reads a value without an offset as UTC, which is what a client
+ * resends after that value is rejected, so the call succeeds on the first try. Its JSON Schema
+ * keeps `format: "date-time"` and the field's description but not the regex, which every
+ * tools/list call would resend.
+ */
+function mcpDateFilter(field: z.ZodOptional<z.ZodString>) {
+  return z.iso
+    .datetime({ offset: true, local: true })
+    .transform((value) => (HAS_UTC_OFFSET.test(value) ? value : `${value}Z`))
+    .optional()
+    .meta({ pattern: undefined, description: field.description })
+}
+
+const { startDate, endDate, modifiedAfter, modifiedBefore } = workspaceSearchFiltersSchema.shape
+
+/** The date filters of the Search MCP tools, as their tools/list schema presents them. */
+const mcpDateFilterFields = {
+  startDate: mcpDateFilter(startDate),
+  endDate: mcpDateFilter(endDate),
+  modifiedAfter: mcpDateFilter(modifiedAfter),
+  modifiedBefore: mcpDateFilter(modifiedBefore),
+}
+
 export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema
   .extend({
+    ...mcpDateFilterFields,
     topK: searchWorkspaceInputFieldsSchema.shape.topK
       .unwrap()
       .optional()
@@ -51,6 +78,9 @@ const MAX_MCP_READ_DOCUMENTS = 10
 export const readLiveDocumentMcpSchema = readDocumentInputSchema
   .extend({
     documentId: readDocumentInputSchema.shape.documentId.optional(),
+    startChunkIndex: readDocumentInputSchema.shape.startChunkIndex.describe(
+      'Copy next.startChunkIndex from a prior read to continue it; live documents always use 0.'
+    ),
     documentIds: z
       .array(readDocumentInputSchema.shape.documentId)
       .min(1)
@@ -81,6 +111,7 @@ export const readLiveDocumentMcpSchema = readDocumentInputSchema
 
 export const chatSearchMcpSchema = workspaceSearchFiltersSchema
   .extend({
+    ...mcpDateFilterFields,
     query: z.string().trim().min(1, 'A question is required').max(8192),
   })
   .strict()

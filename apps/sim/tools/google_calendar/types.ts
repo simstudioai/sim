@@ -31,6 +31,19 @@ export interface GoogleCalendarCreateParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
   recurrence?: string | string[]
   addGoogleMeet?: boolean
+  optionalAttendees?: string | string[]
+  visibility?: GoogleCalendarEventVisibility
+  transparency?: GoogleCalendarEventTransparency
+  colorId?: string
+  reminders?: string | GoogleCalendarReminderOverride[]
+}
+
+type GoogleCalendarEventVisibility = 'default' | 'public' | 'private' | 'confidential'
+type GoogleCalendarEventTransparency = 'opaque' | 'transparent'
+
+export interface GoogleCalendarReminderOverride {
+  method: 'email' | 'popup'
+  minutes: number
 }
 
 export interface GoogleCalendarListParams extends BaseGoogleCalendarParams {
@@ -42,6 +55,8 @@ export interface GoogleCalendarListParams extends BaseGoogleCalendarParams {
   singleEvents?: boolean
   orderBy?: 'startTime' | 'updated'
   showDeleted?: boolean
+  timeZone?: string
+  updatedMin?: string
 }
 
 export interface GoogleCalendarGetParams extends BaseGoogleCalendarParams {
@@ -60,6 +75,10 @@ export interface GoogleCalendarUpdateParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
   recurrence?: string | string[]
   addGoogleMeet?: boolean
+  visibility?: GoogleCalendarEventVisibility
+  transparency?: GoogleCalendarEventTransparency
+  colorId?: string
+  reminders?: string | GoogleCalendarReminderOverride[]
 }
 
 export interface GoogleCalendarDeleteParams extends BaseGoogleCalendarParams {
@@ -129,15 +148,48 @@ export interface GoogleCalendarUnshareCalendarParams {
   ruleId: string
 }
 
-interface EventMetadata {
+interface GoogleCalendarEventPerson {
+  id?: string
+  email: string
+  displayName?: string
+  self?: boolean
+}
+
+interface GoogleCalendarEventAttachment {
+  fileUrl: string
+  title?: string
+  mimeType?: string
+  iconLink?: string
+  fileId?: string
+}
+
+/** Event fields returned by every event-shaped tool in addition to its core fields. */
+export interface GoogleCalendarEventDetails {
+  hangoutLink: string | null
+  conferenceData: Record<string, unknown> | null
+  recurrence: string[] | null
+  recurringEventId: string | null
+  originalStartTime: GoogleCalendarEventDateTime | null
+  reminders: GoogleCalendarApiEventResponse['reminders'] | null
+  visibility: string | null
+  transparency: string | null
+  colorId: string | null
+  eventType: string | null
+  iCalUID: string | null
+  created: string | null
+  updated: string | null
+  attachments: GoogleCalendarEventAttachment[] | null
+}
+
+interface EventMetadata extends Partial<GoogleCalendarEventDetails> {
   id: string
   htmlLink: string
-  hangoutLink?: string
+  hangoutLink?: string | null
   status: string
   summary: string
   description?: string
   location?: string
-  recurrence?: string[]
+  recurrence?: string[] | null
   start: {
     dateTime?: string
     date?: string
@@ -236,9 +288,17 @@ export interface GoogleCalendarEventRequestBody {
   end: GoogleCalendarEventDateTime
   attendees?: Array<{
     email: string
+    optional?: boolean
   }>
   recurrence?: string[]
   conferenceData?: GoogleCalendarConferenceCreateRequest
+  visibility?: GoogleCalendarEventVisibility
+  transparency?: GoogleCalendarEventTransparency
+  colorId?: string
+  reminders?: {
+    useDefault: boolean
+    overrides?: GoogleCalendarReminderOverride[]
+  }
 }
 
 export interface GoogleCalendarApiEventResponse {
@@ -253,6 +313,13 @@ export interface GoogleCalendarApiEventResponse {
   location?: string
   recurrence?: string[]
   recurringEventId?: string
+  originalStartTime?: GoogleCalendarEventDateTime
+  visibility?: string
+  transparency?: string
+  colorId?: string
+  eventType?: string
+  iCalUID?: string
+  attachments?: GoogleCalendarEventAttachment[]
   start: {
     dateTime?: string
     date?: string
@@ -264,14 +331,8 @@ export interface GoogleCalendarApiEventResponse {
     timeZone?: string
   }
   attendees?: CalendarAttendee[]
-  creator?: {
-    email: string
-    displayName?: string
-  }
-  organizer?: {
-    email: string
-    displayName?: string
-  }
+  creator?: GoogleCalendarEventPerson
+  organizer?: GoogleCalendarEventPerson
   conferenceData?: Record<string, unknown>
   reminders?: {
     useDefault: boolean

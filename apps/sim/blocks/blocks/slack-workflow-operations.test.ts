@@ -58,8 +58,21 @@ describe('Slack workflow operations in the existing block', () => {
     ).toEqual({ credential: 'bot', channel_id: 'C1', bookmark_id: 'Bk1', emoji: '' })
     expect(() => mapParams({ operation: 'list_files', slack_list_files_count: 'many' })).toThrow()
     expect(() =>
-      mapParams({ operation: 'share_canvas', slack_share_canvas_user_ids: 'invalid JSON' })
+      mapParams({
+        operation: 'revoke_list_access',
+        slack_revoke_list_access_user_ids: 'invalid JSON',
+      })
     ).toThrow()
+  })
+
+  it("passes a Slack ID list's comma-separated form through for the tool to parse", () => {
+    expect(
+      mapParams({
+        operation: 'get_team_dnd_info',
+        apiBotCredentialId: 'bot',
+        slack_get_team_dnd_info_users: 'U1,U2',
+      })
+    ).toEqual({ credential: 'bot', users: 'U1,U2' })
   })
 })
 

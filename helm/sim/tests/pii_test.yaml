@@ -106,19 +106,27 @@ tests:
               - protocol: TCP
                 port: 5001
 
-  - it: renders a dedicated NetworkPolicy for the PII service
+  - it: confines the PII service to app pods even when networkPolicy.enabled=false
     template: networkpolicy.yaml
     set:
-      networkPolicy.enabled: true
       pii.enabled: true
-    documentSelector:
-      path: metadata.name
-      value: t-sim-pii
     asserts:
-      - isKind: { of: NetworkPolicy }
+      - hasDocuments: { count: 1 }
       - equal:
           path: spec.podSelector.matchLabels["app.kubernetes.io/component"]
           value: pii
+      - equal:
+          path: spec.ingress
+          value:
+            - from:
+                - podSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: sim
+                      app.kubernetes.io/instance: t
+                      app.kubernetes.io/component: app
+              ports:
+                - protocol: TCP
+                  port: 5001
 
   - it: pii pod inherits global tolerations (not component-scoped)
     template: deployment-pii.yaml

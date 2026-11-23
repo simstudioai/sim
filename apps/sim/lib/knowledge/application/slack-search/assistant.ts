@@ -266,7 +266,7 @@ export async function runSlackSearchAssistant(
       chatId: chat.id,
       executionId,
       runId,
-      goRoute: '/api/mothership',
+      workerRoute: '/api/mothership',
       billingAttribution,
       environmentContext,
       resolvedSecretTraceRegistry: environmentContext.resolvedSecretTraceRegistry,

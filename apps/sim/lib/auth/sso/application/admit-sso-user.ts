@@ -12,7 +12,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { normalizeSSODomain } from '@sim/utils/sso-domain'
+import { isEmailInSSODomain } from '@sim/utils/sso-domain'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
@@ -132,9 +132,7 @@ async function runAdmissionTransaction(
     if (!linkedAccount) {
       return { providerId, result: { kind: 'denied', reason: 'account-not-linked' } }
     }
-    const userDomain = normalizeSSODomain(userRow.email)
-    const providerDomain = normalizeSSODomain(provider.domain)
-    if (!userDomain || !providerDomain || userDomain !== providerDomain) {
+    if (!isEmailInSSODomain(userRow.email, provider.domain)) {
       return { providerId, result: { kind: 'denied', reason: 'domain-mismatch' } }
     }
 

@@ -2,7 +2,8 @@ import type {
   GitLabListSamlGroupLinksParams,
   GitLabListSamlGroupLinksResponse,
 } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListSamlGroupLinksTool: ToolConfig<
@@ -15,6 +16,7 @@ export const gitlabListSamlGroupLinksTool: ToolConfig<
   description:
     'List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members.',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -39,7 +41,7 @@ export const gitlabListSamlGroupLinksTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.groupId).trim())
+      const encodedId = encodeGitLabResourceId(params.groupId)
       return `${getGitLabApiBase(params.host)}/groups/${encodedId}/saml_group_links`
     },
     method: 'GET',

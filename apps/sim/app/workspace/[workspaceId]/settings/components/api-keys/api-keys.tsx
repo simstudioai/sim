@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, ChipTag, Label, Switch, Tooltip, toast } from '@sim/emcn'
 import { CircleInfo, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -47,6 +47,31 @@ function copyKeyName(name: string) {
 function formatLastUsed(dateString?: string | null): string {
   if (!dateString) return 'Never'
   return formatDate(new Date(dateString))
+}
+
+interface ApiKeyRowBadgeProps {
+  apiKey: ApiKey
+}
+
+/** The row caption: last use and expiry, after a tag when the key is read-only. */
+function ApiKeyRowBadge({ apiKey }: ApiKeyRowBadgeProps) {
+  const parts = [`last used ${formatLastUsed(apiKey.lastUsed).toLowerCase()}`]
+  if (apiKey.expiresAt) {
+    const expiresAt = new Date(apiKey.expiresAt)
+    parts.push(
+      expiresAt.getTime() <= Date.now()
+        ? 'expired'
+        : `expires ${formatDate(expiresAt).toLowerCase()}`
+    )
+  }
+  return (
+    <span className='flex items-center gap-2'>
+      {apiKey.access === 'read' && <ChipTag variant='gray'>Read only</ChipTag>}
+      <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+        {parts.join(' · ')}
+      </span>
+    </span>
+  )
 }
 
 interface ApiKeyRowMenuProps {
@@ -265,11 +290,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                         key={key.id}
                         title={key.name}
                         description={key.displayKey}
-                        badge={
-                          <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
-                            {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
-                          </span>
-                        }
+                        badge={<ApiKeyRowBadge apiKey={key} />}
                         trailing={
                           <ApiKeyRowMenu
                             keyName={key.name}
@@ -293,11 +314,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                       key={key.id}
                       title={key.name}
                       description={key.displayKey}
-                      badge={
-                        <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
-                          {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
-                        </span>
-                      }
+                      badge={<ApiKeyRowBadge apiKey={key} />}
                       trailing={
                         <ApiKeyRowMenu
                           keyName={key.name}
@@ -324,11 +341,7 @@ export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
                         <SettingsResourceRow
                           title={key.name}
                           description={key.displayKey}
-                          badge={
-                            <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
-                              {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
-                            </span>
-                          }
+                          badge={<ApiKeyRowBadge apiKey={key} />}
                           trailing={
                             <ApiKeyRowMenu
                               keyName={key.name}

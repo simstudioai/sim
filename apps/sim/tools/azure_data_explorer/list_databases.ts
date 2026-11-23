@@ -6,6 +6,7 @@ import {
   azureDataExplorerAuthInput,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerListDatabasesTool: InternalToolConfig<
@@ -17,6 +18,7 @@ export const azureDataExplorerListDatabasesTool: InternalToolConfig<
   description:
     'List the databases on an Azure Data Explorer cluster that the service principal can access.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

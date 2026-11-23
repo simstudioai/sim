@@ -122,7 +122,7 @@ describe('defineV2BodyLifecycleRoute', () => {
     v2RouteMocks.authenticate.mockImplementation(async () => {
       mocks.order.push('authenticate')
       return {
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
         rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
         rateLimitSubscription: null,
         keyType: 'personal',

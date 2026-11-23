@@ -7,6 +7,7 @@ import {
   transformEntity,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetUserTool: ToolConfig<
@@ -18,6 +19,7 @@ export const affinityGetUserTool: ToolConfig<
   description:
     'Read one internal user. A user and their person record share the same numeric ID, so a person ID works here.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

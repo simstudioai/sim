@@ -6,8 +6,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -56,7 +58,7 @@ async function fivetranRequest(
   method: string,
   body?: Record<string, unknown>
 ): Promise<Response> {
-  return fetch(url, {
+  return outboundFetch(url, {
     method,
     headers: fivetranAuthHeaders(credentials),
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -130,7 +132,7 @@ export const fivetranHandler: WebhookProviderHandler = {
 
     const secret = readString(providerConfig, 'webhookSecret')
     if (!secret) {
-      logger.warn(`[${requestId}] Fivetran webhook has no signing secret — rejecting request`)
+      logger.warn('Fivetran webhook has no signing secret — rejecting request', { requestId })
       return new NextResponse(
         'Unauthorized - Fivetran webhook signing secret is missing. Redeploy the workflow to register the webhook.',
         { status: 401 }
@@ -138,12 +140,12 @@ export const fivetranHandler: WebhookProviderHandler = {
     }
 
     if (!signature) {
-      logger.warn(`[${requestId}] Fivetran webhook missing X-Fivetran-Signature-256 header`)
+      logger.warn('Fivetran webhook missing X-Fivetran-Signature-256 header', { requestId })
       return new NextResponse('Unauthorized - Missing Fivetran signature', { status: 401 })
     }
 
     if (!isValidFivetranSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Fivetran signature verification failed`)
+      logger.warn('Fivetran signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Fivetran signature', { status: 401 })
     }
 
@@ -163,7 +165,8 @@ export const fivetranHandler: WebhookProviderHandler = {
       (!request.headers.get(SIGNATURE_HEADER) ||
         payload.connector_id === FIVETRAN_TEST_CONNECTION_ID)
     ) {
-      logger.info(`[${requestId}] Acknowledged Fivetran activation test without running`, {
+      logger.info('Acknowledged Fivetran activation test without running', {
+        requestId,
         webhookId: webhook.id,
       })
       return false
@@ -175,8 +178,8 @@ export const fivetranHandler: WebhookProviderHandler = {
       const { isFivetranEventMatch } = await import('@/triggers/fivetran/utils')
       if (!isFivetranEventMatch(triggerId, event)) {
         logger.debug(
-          `[${requestId}] Fivetran event ${event || '(missing)'} does not match trigger ${triggerId}. Skipping execution.`,
-          { webhookId: webhook.id, triggerId }
+          `Fivetran event ${event || '(missing)'} does not match trigger ${triggerId}. Skipping execution.`,
+          { requestId, webhookId: webhook.id, triggerId }
         )
         return false
       }
@@ -189,7 +192,8 @@ export const fivetranHandler: WebhookProviderHandler = {
       !event.startsWith('transformation_') &&
       payload.connector_id !== connectionId
     ) {
-      logger.debug(`[${requestId}] Fivetran event is for another connection. Skipping execution.`, {
+      logger.debug('Fivetran event is for another connection. Skipping execution.', {
+        requestId,
         webhookId: webhook.id,
       })
       return false
@@ -228,7 +232,9 @@ export const fivetranHandler: WebhookProviderHandler = {
     const providerConfig = getProviderConfig(ctx.webhook)
     const credentials = readCredentials(providerConfig)
     if (!credentials) {
-      throw new Error('A Fivetran API key and secret are required to register the webhook.')
+      throw new WebhookDeploymentConfigurationError(
+        'A Fivetran API key and secret are required to register the webhook.'
+      )
     }
 
     const triggerId = readString(providerConfig, 'triggerId')
@@ -242,7 +248,8 @@ export const fivetranHandler: WebhookProviderHandler = {
       : `${FIVETRAN_WEBHOOKS_URL}/account`
     const webhookSecret = generateRandomHex(64)
 
-    logger.info(`[${ctx.requestId}] Creating Fivetran ${groupId ? 'group' : 'account'} webhook`, {
+    logger.info(`Creating Fivetran ${groupId ? 'group' : 'account'} webhook`, {
+      requestId: ctx.requestId,
       webhookId: ctx.webhook.id,
       triggerId,
     })
@@ -263,7 +270,7 @@ export const fivetranHandler: WebhookProviderHandler = {
     const externalId = toStringOrNull(toRecord(responseBody.data).id)
     if (!externalId) throw new Error('Fivetran created the webhook but did not return its ID.')
 
-    logger.info(`[${ctx.requestId}] Created inactive Fivetran webhook ${externalId}`)
+    logger.info(`Created inactive Fivetran webhook ${externalId}`, { requestId: ctx.requestId })
     return {
       providerConfigUpdates: { externalId, webhookSecret, subscriptionActivationPending: true },
     }
@@ -287,7 +294,7 @@ export const fivetranHandler: WebhookProviderHandler = {
       )
       throw new Error(fivetranFailureMessage('activate', response.status, responseBody))
     }
-    logger.info(`[${ctx.requestId}] Activated Fivetran webhook ${externalId}`)
+    logger.info(`Activated Fivetran webhook ${externalId}`, { requestId: ctx.requestId })
   },
 
   async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
@@ -297,7 +304,8 @@ export const fivetranHandler: WebhookProviderHandler = {
       const externalId = readString(providerConfig, 'externalId')
       if (!credentials || !externalId) {
         logger.warn(
-          `[${ctx.requestId}] Missing ${credentials ? 'externalId' : 'API credentials'} for Fivetran webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing ${credentials ? 'externalId' : 'API credentials'} for Fivetran webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict)
           throw new Error('Missing Fivetran API credentials or webhook ID for deletion')
@@ -306,7 +314,7 @@ export const fivetranHandler: WebhookProviderHandler = {
 
       const response = await fivetranRequest(credentials, webhookUrl(externalId), 'DELETE')
       if (response.ok || response.status === 404) {
-        logger.info(`[${ctx.requestId}] Removed Fivetran webhook ${externalId}`)
+        logger.info(`Removed Fivetran webhook ${externalId}`, { requestId: ctx.requestId })
         return
       }
 
@@ -315,12 +323,12 @@ export const fivetranHandler: WebhookProviderHandler = {
         'Fivetran webhook deletion response'
       )
       const message = fivetranFailureMessage('delete', response.status, responseBody)
-      logger.warn(`[${ctx.requestId}] ${message} (non-fatal)`)
+      logger.warn(`${message} (non-fatal)`, { requestId: ctx.requestId })
       if (ctx.strict) throw new Error(message)
     } catch (error) {
-      logger.warn(
-        `[${ctx.requestId}] Error deleting Fivetran webhook (non-fatal): ${getErrorMessage(error)}`
-      )
+      logger.warn(`Error deleting Fivetran webhook (non-fatal): ${getErrorMessage(error)}`, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

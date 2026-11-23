@@ -21,6 +21,7 @@ import {
   invalidateAfterSessionRevocation,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
+import { markScimPeopleChanged } from '@/lib/people/sync/scim-changes'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import {
@@ -228,6 +229,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           organizationId: context.organizationId,
           scimUserId: inserted.id,
         })
+        await markScimPeopleChanged(tx, context.organizationId)
         const record = await findScimUserById(tx, context.connection.id, inserted.id)
         if (!record) {
           throw new ScimError(500, undefined, 'The provisioned user could not be read back')

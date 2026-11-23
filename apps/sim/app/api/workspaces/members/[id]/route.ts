@@ -2,6 +2,7 @@ import { removeWorkspaceMemberContract } from '@/lib/api/contracts/invitations'
 import {
   defineInternalJsonRoute,
   internalErrorResponse,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
@@ -10,16 +11,14 @@ import {
   NoWorkspaceAccessError,
 } from '@/lib/core/application/workspace-authorization'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  removeWorkspaceMember,
-  removeWorkspaceMemberOperation,
-} from '@/lib/workspaces/application/remove-member'
+import { workspaceMemberOperations } from '@/lib/workspaces/application/operations'
+import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-member'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 
 export const DELETE = defineInternalJsonRoute({
   contract: removeWorkspaceMemberContract,
   auth: internalSessionAuth,
-  operation: removeWorkspaceMemberOperation,
+  operation: workspaceMemberOperations.remove,
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing workspace member removal policy.',
   }),
@@ -32,7 +31,7 @@ export const DELETE = defineInternalJsonRoute({
         error instanceof NoWorkspaceAccessError
       )
         return internalErrorResponse(403, { error: 'Insufficient permissions' })
-      return null
+      return internalOrchestrationErrorPolicy.project(error)
     },
     unhandled: () => internalErrorResponse(500, { error: 'Failed to remove workspace member' }),
   },

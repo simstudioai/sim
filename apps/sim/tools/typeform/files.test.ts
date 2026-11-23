@@ -98,4 +98,25 @@ describe('Typeform file operation', () => {
     expect(mocks.uploadCopilotFile).toHaveBeenCalledOnce()
     expect(result.output.file).toMatchObject({ context: 'copilot' })
   })
+  it.each([
+    ['formId', { formId: '..' }],
+    ['responseId', { responseId: '..' }],
+    ['fieldId', { fieldId: '.' }],
+    ['filename', { filename: '..' }],
+  ])('rejects a dot-segment %s before sending the token', async (_param, override) => {
+    await expect(
+      downloadTypeformFile(
+        {
+          formId: 'form-1',
+          responseId: 'response-1',
+          fieldId: 'field-1',
+          filename: 'upload.pdf',
+          apiKey: 'token',
+          ...override,
+        },
+        { userId: 'user-1' }
+      )
+    ).rejects.toMatchObject({ status: 400 })
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
 })

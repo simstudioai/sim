@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { MicrosoftTeamsOperationError } from '@/lib/internal/microsoft-teams/errors'
 
@@ -23,7 +24,7 @@ export class MicrosoftTeamsClient {
     signal?: AbortSignal
   ): Promise<MicrosoftTeamsGraphObject> {
     signal?.throwIfAborted()
-    const response = await fetch(`${MICROSOFT_GRAPH_BASE_URL}${path}`, {
+    const response = await outboundFetch(`${MICROSOFT_GRAPH_BASE_URL}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

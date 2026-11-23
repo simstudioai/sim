@@ -1289,11 +1289,11 @@ describe('executeBrowserToolOnClient', () => {
    * native queue while the desktop is still honoring that same wait.
    */
   it.each([
-    ['number', 30_000, 105_000],
-    ['numeric string', '30000', 105_000],
-    ['non-numeric', 'soon', 85_000],
-    ['negative', -5_000, 85_000],
-    ['above the desktop clamp', 500_000, 195_000],
+    ['number', 30_000, 120_000],
+    ['numeric string', '30000', 120_000],
+    ['non-numeric', 'soon', 100_000],
+    ['negative', -5_000, 100_000],
+    ['above the desktop clamp', 500_000, 210_000],
   ])(
     'budgets browser_wait_for above the desktop wait (%s)',
     async (_label, timeoutMs, expected) => {

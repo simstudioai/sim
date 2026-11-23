@@ -1,0 +1,8 @@
+{
+  "namespace": "legacy.textractV2",
+  "methods": {
+    "analyze_document": "analyzeDocumentTextTablesForms",
+    "analyze_expense": "analyzeExpenseInvoicesReceipts",
+    "analyze_id": "analyzeIdentityDocument"
+  }
+}

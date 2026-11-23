@@ -102,7 +102,8 @@ export async function unlinkForkEdge(
     return true
   })
 
-  logger.info(`[${requestId ?? 'unlink'}] Fork edge ${unlinked ? 'dissolved' : 'already gone'}`, {
+  logger.info(`Fork edge ${unlinked ? 'dissolved' : 'already gone'}`, {
+    requestId,
     childWorkspaceId,
     parentWorkspaceId,
   })

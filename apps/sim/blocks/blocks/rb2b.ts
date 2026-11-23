@@ -1,6 +1,7 @@
 import { RB2BIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const EMAIL_OPERATIONS = [
   'hem_to_business_profile',
@@ -21,6 +22,8 @@ const IP_OPERATIONS = ['ip_to_hem', 'ip_to_maid', 'ip_to_company']
 
 export const RB2BBlock: BlockConfig = {
   type: 'rb2b',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'rb2b_v2' },
   name: 'RB2B',
   description: 'Identify and enrich website visitors',
   authMode: AuthMode.ApiKey,
@@ -370,3 +373,19 @@ export const RB2BBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const RB2BV2Block: BlockConfig = {
+  ...RB2BBlock,
+  type: 'rb2b_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn.',
+  ...withSavedCredential(RB2BBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'rb2b',
+    title: 'RB2B Credential',
+  }),
+}

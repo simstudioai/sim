@@ -226,7 +226,6 @@ describe('private KG selection through authorized application boundaries', () =>
   })
 
   it('publishes the creating owner with a private workspace chat event', async () => {
-    if (!chatPubSub) throw new Error('Server chat status channel unavailable')
     await chatPubSub.ready()
     const event = createDeferred<{ chatId: string; userId?: string }>()
     const unsubscribe = chatPubSub.onStatusChanged((value) => {

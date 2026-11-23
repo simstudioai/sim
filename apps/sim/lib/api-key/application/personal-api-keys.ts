@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import {
+  type ApiKeyAccess,
+  type Principal,
+  resolvePrincipalAuditAttribution,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey, user } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -46,6 +50,7 @@ async function authorizePersonalKeys(principal: Principal, operation: UserAccoun
 interface PersonalApiKeyMetadata {
   id: string
   name: string
+  access: ApiKeyAccess
   createdAt: Date
   lastUsed: Date | null
   expiresAt: Date | null
@@ -65,6 +70,7 @@ export const listPersonalApiKeys: OperationUseCase<
       .select({
         id: apiKey.id,
         name: apiKey.name,
+        access: apiKey.access,
         key: apiKey.key,
         createdAt: apiKey.createdAt,
         lastUsed: apiKey.lastUsed,

@@ -2,6 +2,7 @@ import type {
   IdentityCenterListAccountsParams,
   IdentityCenterListAccountsResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listAccountsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listAccountsTool: InternalToolConfig<
   name: 'Identity Center List Accounts',
   description: 'List all AWS accounts in your organization',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

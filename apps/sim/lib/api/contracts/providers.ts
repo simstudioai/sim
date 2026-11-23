@@ -71,7 +71,7 @@ export const openRouterEmbeddingModelsUpstreamResponseSchema = z.object({
   ),
 })
 
-export const vllmUpstreamResponseSchema = z.object({
+export const openAICompatibleModelListSchema = z.object({
   data: z
     .array(
       z

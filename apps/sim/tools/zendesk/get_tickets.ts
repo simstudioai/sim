@@ -1,3 +1,4 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   appendCursorPaginationParams,
@@ -7,6 +8,8 @@ import {
   METADATA_OUTPUT,
   PAGING_OUTPUT,
   TICKETS_ARRAY_OUTPUT,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
 } from '@/tools/zendesk/types'
 
 export interface ZendeskGetTicketsParams {
@@ -46,7 +49,10 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
     description: 'Retrieve a list of tickets from Zendesk with optional filtering',
     version: '1.0.0',
 
+    oauth: ZENDESK_CREDENTIAL_OAUTH,
+
     params: {
+      ...ZENDESK_CREDENTIAL_PARAMS,
       email: {
         type: 'string',
         required: true,
@@ -126,14 +132,14 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
           params.organizationId
 
         if (hasFilters) {
-          // Use Search API for filtering - the /tickets endpoint doesn't support filter params
-          // Build search query using Zendesk search syntax
-          const searchTerms: string[] = ['type:ticket']
+          // /tickets has no filter params, so filters go through the search export, which
+          // takes the object type only from filter[type] and rejects `type:` in the query.
+          const searchTerms: string[] = []
           if (params.status) searchTerms.push(`status:${params.status}`)
           if (params.priority) searchTerms.push(`priority:${params.priority}`)
           if (params.type) searchTerms.push(`ticket_type:${params.type}`)
-          if (params.assigneeId) searchTerms.push(`assignee_id:${params.assigneeId}`)
-          if (params.organizationId) searchTerms.push(`organization_id:${params.organizationId}`)
+          if (params.assigneeId) searchTerms.push(`assignee:${params.assigneeId}`)
+          if (params.organizationId) searchTerms.push(`organization:${params.organizationId}`)
 
           const queryParams = new URLSearchParams()
           queryParams.append('query', searchTerms.join(' '))
@@ -153,15 +159,10 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
         return query ? `${url}?${query}` : url
       },
       method: 'GET',
-      headers: (params) => {
-        // Use Basic Authentication with email/token format for Zendesk API tokens
-        const credentials = `${params.email}/token:${params.apiToken}`
-        const base64Credentials = Buffer.from(credentials).toString('base64')
-        return {
-          Authorization: `Basic ${base64Credentials}`,
-          'Content-Type': 'application/json',
-        }
-      },
+      headers: (params) => ({
+        Authorization: zendeskAuthorization(params),
+        'Content-Type': 'application/json',
+      }),
     },
 
     transformResponse: async (response: Response) => {

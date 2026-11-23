@@ -2,6 +2,7 @@ import type {
   CloudFormationListStackResourcesParams,
   CloudFormationListStackResourcesResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listStackResourcesTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listStackResourcesTool: InternalToolConfig<
   name: 'CloudFormation List Stack Resources',
   description: 'List all resources in a CloudFormation stack',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

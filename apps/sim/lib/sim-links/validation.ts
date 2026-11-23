@@ -1,11 +1,15 @@
-import { SIM_LINK_NAME_MAX_LENGTH } from '@sim/browser-extension-protocol'
+import {
+  SIM_LINK_HOST_PATTERN,
+  SIM_LINK_NAME_MAX_LENGTH,
+  SIM_LINK_URL_MAX_LENGTH,
+} from '@sim/browser-extension-protocol'
 import { z } from 'zod'
 
 const NAME_PATTERN = /^[A-Za-z0-9.:@&~_-]+$/
 const NAME_PUNCTUATION = /[.:@&~_-]/g
 const NAME_DISALLOWED = /[^A-Za-z0-9.:@&~_-]/g
 export const SIM_LINK_DESCRIPTION_MAX_LENGTH = 500
-const URL_MAX_LENGTH = 2048
+export const SIM_LINK_SEARCH_MAX_LENGTH = 200
 
 /** List orders: alphabetical by name, or most visited first. */
 export const SIM_LINK_SORTS = ['name', 'popular'] as const
@@ -19,19 +23,34 @@ export function normalizeSimLinkName(name: string): string {
   return name.toLowerCase().replace(NAME_PUNCTUATION, '')
 }
 
-/** Text as typed after `sim/`, whether or not the prefix itself was typed too. */
-function stripSimLinkPrefix(input: string): string {
-  return input.replace(/^sim\//i, '')
+const TYPED_HOST_PREFIX = new RegExp(`^(?:${SIM_LINK_HOST_PATTERN})/`, 'i')
+
+/** Drops a leading `sim/` or `go/` from typed text. */
+export function stripSimLinkPrefix(input: string): string {
+  return input.replace(TYPED_HOST_PREFIX, '')
 }
 
 /**
- * Shapes typed or pasted text into a name as it is entered: a leading `sim/` is dropped, spaces
+ * Shapes typed or pasted text into a name as it is entered: a leading `sim/` or `go/` is dropped, spaces
  * and slashes become hyphens, and any other character a name can't hold is removed.
  */
 export function toSimLinkName(input: string): string {
   return stripSimLinkPrefix(input)
     .replace(/[\s/]+/g, '-')
     .replace(NAME_DISALLOWED, '')
+}
+
+/**
+ * A starting name for a link made from a page's title: its letters and digits in lower case, every
+ * other run of characters (spaces, colons, dots, dashes) turned into one hyphen, cut to the name
+ * length limit. Empty when no letter or digit survives, so the person types one instead.
+ */
+export function suggestSimLinkName(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, SIM_LINK_NAME_MAX_LENGTH)
+    .replace(/^-+|-+$/g, '')
 }
 
 /** Sentence punctuation and closing quotes or brackets that follow a link pasted from prose. */
@@ -61,7 +80,11 @@ export function parseTypedSimLink(segments: readonly string[]): {
  * when a name was typed that no link can match, such as only punctuation.
  */
 export function typedSimLinkPrefix(query: string): string | null {
-  const [path = ''] = stripSimLinkPrefix(query.trim()).split('?')
+  // Only the keyword's own `sim/`: after it, `go/x` can be a link named `go` with a value.
+  const [path = ''] = query
+    .trim()
+    .replace(/^sim\//i, '')
+    .split('?')
   const { name } = parseTypedSimLink(path.split('/'))
   const prefix = normalizeSimLinkName(name)
   return name && !prefix ? null : prefix
@@ -106,7 +129,7 @@ const destinationSchema = z
   .string()
   .trim()
   .min(1, 'Enter a destination URL')
-  .max(URL_MAX_LENGTH, `Use at most ${URL_MAX_LENGTH} characters`)
+  .max(SIM_LINK_URL_MAX_LENGTH, `Use at most ${SIM_LINK_URL_MAX_LENGTH} characters`)
 
 const simLinkUrlSchema = destinationSchema.refine(
   (url) => simLinkOrigin(url) !== null,

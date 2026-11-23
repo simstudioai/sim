@@ -1,5 +1,6 @@
 import type { SendMessageParams, SendMessageResult } from '@/tools/mailgun/types'
-import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { getMailgunApiBaseUrl, mailgunPathSegment } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageResult> = {
@@ -7,6 +8,7 @@ export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageRe
   name: 'Mailgun Send Message',
   description: 'Send an email using Mailgun API',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -81,7 +83,8 @@ export const mailgunSendMessageTool: ToolConfig<SendMessageParams, SendMessageRe
   },
 
   request: {
-    url: (params) => `${getMailgunApiBaseUrl(params.region)}/${params.domain}/messages`,
+    url: (params) =>
+      `${getMailgunApiBaseUrl(params.region)}/${mailgunPathSegment(params.domain, 'domain')}/messages`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,

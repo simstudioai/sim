@@ -98,7 +98,7 @@ describe('Nebius live acceptance', () => {
       const base64 =
         'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC'
       const result = (await execute({
-        model: 'nebius/openbmb/MiniCPM-V-4_5',
+        model: 'nebius/Qwen/Qwen3.8-27B',
         messages: [
           {
             role: 'user',
@@ -136,7 +136,7 @@ describe('Nebius live acceptance', () => {
 
   it.each([
     { name: 'native', model },
-    { name: 'prompt-fallback', model: 'nebius/Qwen/Qwen3.5-397B-A17B' },
+    { name: 'prompt-fallback', model: 'nebius/Qwen/Qwen3.8-27B' },
   ])(
     'returns a JSON-schema answer through $name',
     async (scenario) => {

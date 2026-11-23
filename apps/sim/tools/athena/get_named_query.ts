@@ -1,4 +1,5 @@
 import type { AthenaGetNamedQueryParams, AthenaGetNamedQueryResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getNamedQueryTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const getNamedQueryTool: InternalToolConfig<
   name: 'Athena Get Named Query',
   description: 'Get details of a saved/named query in AWS Athena',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

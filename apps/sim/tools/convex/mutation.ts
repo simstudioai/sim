@@ -5,6 +5,7 @@ import {
   parseFunctionArgs,
   transformFunctionCallResponse,
 } from '@/tools/convex/utils'
+import { CONVEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mutationTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctionCallResponse> = {
@@ -12,6 +13,7 @@ export const mutationTool: ToolConfig<ConvexFunctionCallParams, ConvexFunctionCa
   name: 'Convex Run Mutation',
   description: 'Run a Convex mutation function to write data and return its result',
   version: '1.0.0',
+  oauth: CONVEX_CREDENTIAL_OAUTH,
 
   params: {
     deploymentUrl: {

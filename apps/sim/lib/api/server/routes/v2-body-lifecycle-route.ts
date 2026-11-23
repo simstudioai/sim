@@ -70,7 +70,10 @@ interface V2BodyLifecycleRouteOptions<
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
-  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  parseOptions?: Omit<
+    ParseRequestOptions,
+    'validationErrorResponse' | 'validationErrorResponseBySlice'
+  >
   admission: V2BodyLifecycleAdmission<O, C, AI, A>
   readBody(context: V2BodyLifecycleContext<C, A>): Promise<B>
   mapInput(context: V2BodyLifecycleInputContext<C, A, B>): I
@@ -136,7 +139,7 @@ export function defineV2BodyLifecycleRoute<
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
         ...V2_PARSE_DEFAULTS,
         ...options.parseOptions,
-        validationErrorResponse: v2ValidationError,
+        validationErrorResponseBySlice: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
 

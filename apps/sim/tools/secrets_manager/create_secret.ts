@@ -2,6 +2,7 @@ import type {
   SecretsManagerCreateSecretParams,
   SecretsManagerCreateSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createSecretTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createSecretTool: InternalToolConfig<
   name: 'Secrets Manager Create Secret',
   description: 'Create a new secret in AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -50,6 +52,19 @@ export const createSecretTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the secret',
     },
+    kmsKeyId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ARN, key ID, or alias of the KMS key used to encrypt the secret (defaults to aws/secretsmanager)',
+    },
+    tags: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tags to attach to the new secret, as an array of {key, value} pairs',
+    },
   },
 
   operation: {
@@ -60,6 +75,8 @@ export const createSecretTool: InternalToolConfig<
       name: params.name,
       secretValue: params.secretValue,
       description: params.description,
+      kmsKeyId: params.kmsKeyId,
+      tags: params.tags,
     }),
   },
 

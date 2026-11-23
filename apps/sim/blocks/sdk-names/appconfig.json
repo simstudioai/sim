@@ -1,0 +1,30 @@
+{
+  "namespace": "legacy.appconfig",
+  "methods": {
+    "create_application": "createApplication",
+    "create_configuration_profile": "createConfigurationProfile",
+    "create_environment": "createEnvironment",
+    "create_hosted_configuration_version": "createHostedConfigurationVersion",
+    "delete_application": "deleteApplication",
+    "delete_configuration_profile": "deleteConfigurationProfile",
+    "delete_environment": "deleteEnvironment",
+    "delete_hosted_configuration_version": "deleteHostedConfigurationVersion",
+    "get_application": "getApplication",
+    "get_configuration": "getConfiguration",
+    "get_configuration_profile": "getConfigurationProfile",
+    "get_deployment": "getDeployment",
+    "get_environment": "getEnvironment",
+    "get_hosted_configuration_version": "getHostedConfigurationVersion",
+    "list_applications": "listApplications",
+    "list_configuration_profiles": "listConfigurationProfiles",
+    "list_deployment_strategies": "listDeploymentStrategies",
+    "list_deployments": "listDeployments",
+    "list_environments": "listEnvironments",
+    "list_hosted_configuration_versions": "listHostedConfigurationVersions",
+    "start_deployment": "startDeployment",
+    "stop_deployment": "stopDeployment",
+    "update_application": "updateApplication",
+    "update_configuration_profile": "updateConfigurationProfile",
+    "update_environment": "updateEnvironment"
+  }
+}

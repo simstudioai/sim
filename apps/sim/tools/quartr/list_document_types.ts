@@ -6,6 +6,7 @@ import {
   type QuartrPaginatedDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrDocumentType, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListDocumentTypesTool: ToolConfig<
@@ -17,6 +18,7 @@ export const quartrListDocumentTypesTool: ToolConfig<
   description:
     'List the document types available in Quartr (e.g., 10-Q quarterly reports), useful for filtering documents by type ID.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

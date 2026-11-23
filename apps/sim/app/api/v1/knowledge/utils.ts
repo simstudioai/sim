@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { validationErrorResponseFromError } from '@/lib/api/server'
+import { unavailableFailureResponse } from '@/lib/api/server/orchestration-response'
 import {
   createUserKnowledgeAccessProvider,
   WORKSPACE_ACCESS_SCOPE,
@@ -122,6 +123,8 @@ export function handleError(
     }
   }
 
-  logger.error(`[${requestId}] ${defaultMessage}:`, error)
+  logger.error(`${defaultMessage}:`, error, { requestId })
+  const unavailable = unavailableFailureResponse(error)
+  if (unavailable) return unavailable
   return NextResponse.json({ error: defaultMessage }, { status: 500 })
 }

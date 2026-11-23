@@ -1,4 +1,5 @@
 import type { MSSQLUpdateParams, MSSQLUpdateResponse } from '@/tools/mssql/types'
+import { MSSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTool: InternalToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
@@ -6,6 +7,7 @@ export const updateTool: InternalToolConfig<MSSQLUpdateParams, MSSQLUpdateRespon
   name: 'Microsoft SQL Server Update',
   description: 'Update rows in a Microsoft SQL Server table',
   version: '1.0',
+  oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

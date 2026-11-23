@@ -1,6 +1,7 @@
 import { AhrefsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const COUNTRY_OPTIONS = [
   { label: 'United States', id: 'us' },
@@ -89,6 +90,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const AhrefsBlock: BlockConfig = {
   type: 'ahrefs',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ahrefs_v2' },
   name: 'Ahrefs',
   description: 'SEO analysis with Ahrefs',
   authMode: AuthMode.ApiKey,
@@ -1558,3 +1561,19 @@ export const AhrefsBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AhrefsV2Block: BlockConfig = {
+  ...AhrefsBlock,
+  type: 'ahrefs_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Analyze domain ratings, backlinks, organic keywords, top pages, and more. API v3 is available on Lite and higher plans.',
+  ...withSavedCredential(AhrefsBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'ahrefs',
+    title: 'Ahrefs Credential',
+  }),
+}

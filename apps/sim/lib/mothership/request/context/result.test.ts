@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 import { RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
 import { buildToolCallSummaries } from '@/lib/mothership/request/context/result'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamingContext } from '@/lib/mothership/request/types'
 
 function makeContext(): StreamingContext {
@@ -28,7 +27,6 @@ function makeContext(): StreamingContext {
     streamComplete: false,
     wasAborted: false,
     errors: [],
-    trace: new TraceCollector(),
     toolPermissions: {
       enabled: false,
       autoAllowed: new Set(),

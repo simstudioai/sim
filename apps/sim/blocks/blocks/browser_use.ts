@@ -1,8 +1,11 @@
 import { BrowserUseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const BrowserUseBlock: BlockConfig = {
   type: 'browser_use',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'browser_use_v2' },
   name: 'Browser Use',
   description: 'Run browser automation tasks',
   authMode: AuthMode.ApiKey,
@@ -51,8 +54,9 @@ export const BrowserUseBlock: BlockConfig = {
       options: [
         { label: 'Browser Use LLM', id: 'browser-use-llm' },
         { label: 'Browser Use 2.0', id: 'browser-use-2.0' },
-        { label: 'GPT-4o', id: 'gpt-4o' },
-        { label: 'GPT-4o Mini', id: 'gpt-4o-mini' },
+        { label: 'GPT-4o', id: 'gpt-4o', hidden: true },
+        { label: 'GPT-4o Mini', id: 'gpt-4o-mini', hidden: true },
+        { label: 'GPT-5.5', id: 'gpt-5.5' },
         { label: 'GPT-4.1', id: 'gpt-4.1' },
         { label: 'GPT-4.1 Mini', id: 'gpt-4.1-mini' },
         { label: 'O3', id: 'o3' },
@@ -60,14 +64,20 @@ export const BrowserUseBlock: BlockConfig = {
         { label: 'Gemini 2.5 Flash', id: 'gemini-2.5-flash' },
         { label: 'Gemini 2.5 Pro', id: 'gemini-2.5-pro' },
         { label: 'Gemini 3 Pro Preview', id: 'gemini-3-pro-preview' },
+        { label: 'Gemini 3.1 Pro Preview', id: 'gemini-3.1-pro-preview' },
         { label: 'Gemini 3 Flash Preview', id: 'gemini-3-flash-preview' },
+        { label: 'Gemini 3.5 Flash', id: 'gemini-3.5-flash' },
         { label: 'Gemini Flash Latest', id: 'gemini-flash-latest' },
         { label: 'Gemini Flash Lite Latest', id: 'gemini-flash-lite-latest' },
         { label: 'Claude 3.7 Sonnet', id: 'claude-3-7-sonnet-20250219' },
         { label: 'Claude Sonnet 4', id: 'claude-sonnet-4-20250514' },
         { label: 'Claude Sonnet 4.5', id: 'claude-sonnet-4-5-20250929' },
-        { label: 'Claude Sonnet 4.6', id: 'claude-sonnet-4-6' },
+        { label: 'Claude Sonnet 4.6', id: 'claude-sonnet-4-6', hidden: true },
+        { label: 'Claude Sonnet 5', id: 'claude-sonnet-5' },
         { label: 'Claude Opus 4.5', id: 'claude-opus-4-5-20251101' },
+        { label: 'Claude Opus 4.7', id: 'claude-opus-4-7' },
+        { label: 'Claude Opus 4.8', id: 'claude-opus-4-8' },
+        { label: 'Claude Opus 5', id: 'claude-opus-5' },
         { label: 'Llama 4 Maverick', id: 'llama-4-maverick-17b-128e-instruct' },
       ],
     },
@@ -127,7 +137,7 @@ export const BrowserUseBlock: BlockConfig = {
       id: 'systemPromptExtension',
       title: 'System Prompt Extension',
       type: 'long-input',
-      placeholder: 'Append custom instructions to the agent system prompt (max 2000 chars)',
+      placeholder: 'Append custom instructions to the agent system prompt (max 10000 chars)',
       mode: 'advanced',
     },
     {
@@ -318,3 +328,17 @@ export const BrowserUseBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const BrowserUseV2Block: BlockConfig = {
+  ...BrowserUseBlock,
+  type: 'browser_use_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(BrowserUseBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'browser_use',
+    title: 'Browser Use Credential',
+  }),
+}

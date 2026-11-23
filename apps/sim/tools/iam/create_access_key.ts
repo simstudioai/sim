@@ -1,4 +1,5 @@
 import type { IAMCreateAccessKeyParams, IAMCreateAccessKeyResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createAccessKeyTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const createAccessKeyTool: InternalToolConfig<
   name: 'IAM Create Access Key',
   description: 'Create a new access key pair for an IAM user',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -8,6 +8,7 @@ import { isProd } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isTelemetryDisabled, normalizeOtlpTracesUrl } from '@/lib/monitoring/otlp'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import telemetryConfig from '@/telemetry.config'
 
 const logger = createLogger('TelemetryAPI')
@@ -76,13 +77,13 @@ async function forwardToCollector(data: Record<string, unknown>): Promise<boolea
     const safeAttrs = createSafeAttributes(data)
 
     const serviceAttrs = [
-      { key: 'service.name', value: { stringValue: 'sim-studio' } },
+      { key: TraceAttr.ServiceName, value: { stringValue: 'sim-studio' } },
       {
-        key: 'service.version',
+        key: TraceAttr.ServiceVersion,
         value: { stringValue: '0.1.0' },
       },
       {
-        key: 'deployment.environment',
+        key: TraceAttr.DeploymentEnvironment,
         value: { stringValue: isProd ? 'production' : 'development' },
       },
     ]

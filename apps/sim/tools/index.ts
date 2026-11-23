@@ -1,13 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { isLoopbackIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { describeError, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike, toRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
-import { ApiClientError } from '@/lib/api/client/errors'
-import { requestJson } from '@/lib/api/client/request'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
-import { oauthTokenPostContract } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import {
@@ -15,6 +13,10 @@ import {
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
+import {
+  HostedKeyRequiresPaidPlanError,
+  mayUseHostedKey,
+} from '@/lib/billing/core/hosted-key-access'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
   findDatabaseQueryError,
@@ -22,6 +24,7 @@ import {
 } from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
+  inheritFailureMarks,
   logFailureOnce,
   markFailureKind,
   markFailureLogged,
@@ -49,6 +52,7 @@ import {
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { collectUserFilesById, isUserFile } from '@/lib/core/utils/user-file'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { REJECTED_TOKEN_MINIMUM_AGE_MS } from '@/lib/credentials/token-request-resilience'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
@@ -84,7 +88,10 @@ import {
 } from '@/lib/internal/tool-operations/file-result.server'
 import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/registry.server'
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
-import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import type {
+  AuthorizedServiceAccountCredential,
+  InternalToolOperationContext,
+} from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import {
   assistantConnectedAccountTokenParam,
@@ -94,8 +101,15 @@ import {
   recordServiceCost,
   recordServiceMeteringFailure,
 } from '@/lib/mothership/billing/service-observer'
+import {
+  applySecretMountPolicy,
+  filterSecretNamesByMountPolicy,
+  type SecretMountPolicy,
+} from '@/lib/mothership/secret-mount-policy'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
+import { isFalAICostSource } from '@/lib/tools/falai-pricing'
+import { scheduleFalAICostSettlement } from '@/lib/tools/falai-settlement'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -118,8 +132,10 @@ import {
   projectToolModelInputParams,
   readRequestedDeadline,
 } from '@/tools/request-transport'
+import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import type {
   BYOKProviderId,
+  CredentialParamSource,
   ExecutableToolConfig,
   InternalToolConfig,
   ToolConfig,
@@ -175,6 +191,8 @@ interface ToolExecutionScope {
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
   envReferenceMode?: ToolEnvReferenceMode
+  /** A Copilot turn's secret allowlist; names outside it never resolve into a param. */
+  secretMountPolicy?: SecretMountPolicy
   billingAttribution?: BillingAttributionSnapshot
 }
 
@@ -208,6 +226,7 @@ function resolveToolScope(
       ((executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution)
         ? 'explicit-and-bare'
         : 'off'),
+    secretMountPolicy: ctx?.secretMountPolicy as SecretMountPolicy | undefined,
     billingAttribution: (executionContext?.metadata.billingAttribution ??
       ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
   }
@@ -448,7 +467,15 @@ async function resolveToolEnvReferences(
     const environmentScope = { userId: scope.userId, workspaceId: scope.workspaceId }
     const { getEffectiveEnvironmentSnapshot } = await import('@/lib/environment/utils')
     const environment = await getEffectiveEnvironmentSnapshot(scope.userId, scope.workspaceId)
-    const envVars = { ...environment.personalDecrypted, ...environment.workspaceDecrypted }
+    const availableEnvVars = {
+      ...environment.personalDecrypted,
+      ...environment.workspaceDecrypted,
+    }
+    const envVars = Object.fromEntries(
+      filterSecretNamesByMountPolicy(Object.keys(availableEnvVars), scope.secretMountPolicy).map(
+        (name) => [name, availableEnvVars[name]]
+      )
+    )
 
     for (const { paramId, value, soft } of pending) {
       const missingKeys: string[] = []
@@ -468,6 +495,9 @@ async function resolveToolEnvReferences(
         // A bare name that matches no variable is treated as the literal
         // credential it probably is; only explicit reference forms error.
         if (soft) continue
+        if (Object.hasOwn(availableEnvVars, missingKeys[0])) {
+          applySecretMountPolicy(missingKeys, scope.secretMountPolicy)
+        }
         const scopeHint = scope.workspaceId
           ? ''
           : ' (no workspace context — only personal variables are available here)'
@@ -505,13 +535,22 @@ function normalizeCopilotCredentialParams(params: Record<string, unknown>): void
   }
 }
 
+/**
+ * Whether this deployment and these params let Sim's hosted key fill
+ * `tool.hosting.apiKeyParam`, the gate {@link injectHostedKeyIfNeeded} opens with.
+ */
+function hostedKeyMayFill(tool: ToolDefinition, params: Record<string, unknown>): boolean {
+  if (!isHosted || !tool.hosting) return false
+  return !tool.hosting.enabled || tool.hosting.enabled(params)
+}
+
 function enforceCopilotCredentialSelection(
   toolId: string,
   tool: ToolDefinition,
   params: Record<string, unknown>,
   scope: ToolExecutionScope
 ): void {
-  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+  if (!scope.copilotToolExecution || !tool.oauth) {
     return
   }
 
@@ -520,6 +559,22 @@ function enforceCopilotCredentialSelection(
   }
 
   const toolLabel = tool.name || toolId
+  if (!tool.oauth.required) {
+    // Copilot's schema lets credentialId stand in for these, so it no longer requires them.
+    const missing = (tool.oauth.credentialSuppliedParams ?? []).filter(
+      (paramId) =>
+        tool.params[paramId]?.required &&
+        !(paramId === tool.hosting?.apiKeyParam && hostedKeyMayFill(tool, params)) &&
+        (params[paramId] === undefined || params[paramId] === null || params[paramId] === '')
+    )
+    if (missing.length > 0) {
+      throw new Error(
+        `${toolLabel} needs credentialId (a saved ${tool.oauth.provider} credential) or ${missing.join(', ')}.`
+      )
+    }
+    return
+  }
+
   throw new Error(
     `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
@@ -553,9 +608,44 @@ interface HostedKeyInjectionResult {
   envVarName?: string
 }
 
+const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
+  accessToken: 'a token',
+  domain: 'a host',
+  providerWorkspaceId: 'a workspace ID',
+  applicationKey: 'an application key',
+}
+
+/**
+ * Fills the params a saved credential supplies (`oauth.credentialParams`) from
+ * the resolved credential. Runs only after authorization, overwrites any value
+ * the caller or model supplied, and fails closed when the credential lacks a
+ * mapped field rather than sending a request without it, unless the policy
+ * names that param optional, which is then cleared instead.
+ */
+function applyCredentialParams(
+  tool: ToolDefinition,
+  credential: CredentialTokenPayload,
+  params: Record<string, unknown>
+): void {
+  for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
+    const value = credential[source]
+    if (typeof value !== 'string' || value.length === 0) {
+      if (tool.oauth?.optionalCredentialParams?.includes(param)) {
+        params[param] = undefined
+        continue
+      }
+      throw new Error(
+        `${tool.name} needs a saved credential with ${CREDENTIAL_FIELD_LABELS[source]}`
+      )
+    }
+    params[param] = value
+  }
+}
+
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
- * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
+ * Checks BYOK workspace keys first, refuses Sim's key to a payer without paid access, then uses the
+ * HostedKeyRateLimiter for round-robin key selection.
  * Returns whether a hosted (billable) key was injected and which env var it came from.
  */
 async function injectHostedKeyIfNeeded(
@@ -565,27 +655,37 @@ async function injectHostedKeyIfNeeded(
   requestId: string,
   signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
-  if (!tool.hosting) return { isUsingHostedKey: false }
-  if (!isHosted) return { isUsingHostedKey: false }
-  if (tool.hosting.enabled && !tool.hosting.enabled(params)) {
-    return { isUsingHostedKey: false }
-  }
+  if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  // A selected saved credential supplies this key; Sim's key must never stand in for it.
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(apiKeyParam)
+  ) {
+    return { isUsingHostedKey: false }
+  }
   const userProvidedKey = params[apiKeyParam]
   if (typeof userProvidedKey === 'string' && userProvidedKey.trim().length > 0) {
     return { isUsingHostedKey: false }
   }
 
-  const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
+  const { workspaceId, userId, workflowId, billingAttribution } = resolveToolScope(
+    params,
+    executionContext
+  )
 
   if (byokProviderId && workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId, { signal })
     if (byokResult) {
       params[apiKeyParam] = byokResult.apiKey
-      logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+      logger.info(`Using BYOK key for ${tool.id}`, { requestId })
       return { isUsingHostedKey: false }
     }
+  }
+
+  if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
+    throw new HostedKeyRequiresPaidPlanError(tool.name)
   }
 
   const rateLimiter = getHostedKeyRateLimiter()
@@ -593,7 +693,7 @@ async function injectHostedKeyIfNeeded(
   const billingActorId = workspaceId
 
   if (!billingActorId) {
-    logger.error(`[${requestId}] No workspace ID available for hosted key rate limiting`)
+    logger.error('No workspace ID available for hosted key rate limiting', { requestId })
     return { isUsingHostedKey: false }
   }
 
@@ -606,7 +706,8 @@ async function injectHostedKeyIfNeeded(
   )
 
   if (!acquireResult.success && acquireResult.billingActorRateLimited) {
-    logger.warn(`[${requestId}] Billing actor ${billingActorId} rate limited for ${tool.id}`, {
+    logger.warn(`Billing actor ${billingActorId} rate limited for ${tool.id}`, {
+      requestId,
       provider,
       retryAfterMs: acquireResult.retryAfterMs,
     })
@@ -628,7 +729,7 @@ async function injectHostedKeyIfNeeded(
   }
 
   if (!acquireResult.success) {
-    logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
+    logger.error(`No hosted keys configured for ${tool.id}: ${acquireResult.error}`, { requestId })
     throw new HostedKeyUnavailableError(
       acquireResult.error || `No hosted keys configured for ${tool.id}`
     )
@@ -636,7 +737,8 @@ async function injectHostedKeyIfNeeded(
 
   params[apiKeyParam] = acquireResult.key
   params.__usingHostedKey = true
-  logger.info(`[${requestId}] Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
+  logger.info(`Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
+    requestId,
     keyIndex: acquireResult.keyIndex,
     provider,
   })
@@ -678,14 +780,16 @@ async function reacquireHostedKey(
 
   if (!acquireResult.success || !acquireResult.key) {
     logger.warn(
-      `[${requestId}] Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`
+      `Re-acquire of hosted key for ${tool.id} failed: ${acquireResult.error ?? 'unknown'}`,
+      { requestId }
     )
     return null
   }
 
   params[apiKeyParam] = acquireResult.key
   logger.info(
-    `[${requestId}] Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`
+    `Re-acquired hosted key for ${tool.id} (${acquireResult.envVarName}) after upstream throttling`,
+    { requestId }
   )
   return acquireResult.envVarName ?? 'unknown'
 }
@@ -780,15 +884,16 @@ async function executeWithRetry<T>(
               const requeued = await reacquireAfterRetriesExhausted()
               if (requeued) {
                 logger.warn(
-                  `[${requestId}] Upstream retries exhausted for ${toolId} (${envVarName}); re-queued and retrying once with fresh key`
+                  `Upstream retries exhausted for ${toolId} (${envVarName}); re-queued and retrying once with fresh key`,
+                  { requestId }
                 )
                 return (await requeued()) as T
               }
             } catch (requeueError) {
-              logger.error(
-                `[${requestId}] Re-queue after exhausted upstream retries failed for ${toolId}`,
-                { error: toError(requeueError).message }
-              )
+              logger.error(`Re-queue after exhausted upstream retries failed for ${toolId}`, {
+                requestId,
+                error: toError(requeueError).message,
+              })
             }
           }
 
@@ -818,7 +923,8 @@ async function executeWithRetry<T>(
       })
 
       logger.warn(
-        `[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
+        `Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`,
+        { requestId }
       )
       await sleep(delayMs)
     }
@@ -884,9 +990,11 @@ interface HostedKeyCostResult {
  * Returns the cost and its metadata for the caller to attach to the tool
  * output. It does NOT write a usage-ledger row: the only `usageLog` insert is
  * `recordUsage` in `lib/billing/core/usage-log.ts`, which nothing on this path
- * calls. Cost reaches the ledger only through the `_serviceCost` field
- * `applyHostedKeyCostToResult` emits under `copilotToolExecution`, so any new
- * caller of `executeTool` that is not Copilot must arrange its own metering.
+ * calls. Under `copilotToolExecution`, `applyHostedKeyCostToResult` meters it
+ * with `recordServiceCost` inside `withToolServiceMeter`
+ * (`lib/mothership/request/tools/executor.ts`), which sends a receipt to the
+ * worker's `/api/billing/services`. Any new caller of `executeTool` that is not
+ * Copilot must arrange its own metering.
  */
 async function processHostedKeyCost(
   tool: ToolDefinition,
@@ -900,12 +1008,11 @@ async function processHostedKeyCost(
 
   const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response, tool.id)
 
-  if (cost <= 0) return { cost: 0 }
+  if (cost <= 0) return { cost: 0, metadata }
 
-  logger.debug(
-    `[${requestId}] Hosted key cost for ${tool.id}: $${cost}`,
-    metadata ? { metadata } : {}
-  )
+  logger.debug(`Hosted key cost for ${tool.id}: $${cost}`, metadata ? { metadata } : {}, {
+    requestId,
+  })
 
   return { cost, metadata }
 }
@@ -940,14 +1047,15 @@ async function reportCustomDimensionUsage(
 
     for (const dim of result.dimensions) {
       if (!dim.allowed) {
-        logger.warn(`[${requestId}] Dimension ${dim.name} overdrawn after ${tool.id} execution`, {
+        logger.warn(`Dimension ${dim.name} overdrawn after ${tool.id} execution`, {
+          requestId,
           consumed: dim.consumed,
           tokensRemaining: dim.tokensRemaining,
         })
       }
     }
   } catch (error) {
-    logger.error(`[${requestId}] Failed to report custom dimension usage for ${tool.id}:`, error)
+    logger.error(`Failed to report custom dimension usage for ${tool.id}:`, error, { requestId })
   }
 }
 
@@ -975,17 +1083,59 @@ export function postProcessToolOutput(toolId: string, output: Record<string, unk
 }
 
 /**
+ * Schedules the exact-cost settlement for a hosted charge billed before the provider recorded
+ * its receipt, for a tool whose hosting declares one.
+ */
+async function scheduleExactCostSettlement(
+  tool: ToolDefinition,
+  metadata: Record<string, unknown> | undefined,
+  scope: ToolExecutionScope,
+  envVarName: string | undefined
+): Promise<void> {
+  if (tool.hosting?.exactCostSettlement !== 'falai' || !envVarName) return
+  const endpointId = toStringOrNull(metadata?.endpointId)
+  const falRequestId = toStringOrNull(metadata?.requestId)
+  const costSource = metadata?.source
+  const providerCostDollars = toNumberOrNull(metadata?.providerCostDollars)
+  const markupMultiplier = toNumberOrNull(metadata?.markupMultiplier)
+  if (
+    !endpointId ||
+    !falRequestId ||
+    !isFalAICostSource(costSource) ||
+    providerCostDollars === null ||
+    markupMultiplier === null
+  ) {
+    return
+  }
+
+  const { billingAttribution, copilotToolExecution, workflowId, executionId } = scope
+  await scheduleFalAICostSettlement({
+    cost: {
+      endpointId,
+      requestId: falRequestId,
+      costDollars: providerCostDollars,
+      source: costSource,
+    },
+    envVarName,
+    markupMultiplier,
+    source: copilotToolExecution ? 'copilot' : executionId ? 'workflow' : 'api-tool',
+    billingAttribution,
+    workflowId,
+    executionId,
+  })
+}
+
+/**
  * Apply post-execution hosted-key cost tracking to a successful tool result.
  * Reports custom dimension usage, calculates cost, and merges it into the output.
  *
  * Billing capture differs by caller:
  * - Workflow executions bill `output.cost.total` through trace spans and the
  *   execution ledger (`recordUsage`), so the `cost` field alone suffices.
- * - Copilot tool executions have no execution ledger. Their only billing hook
- *   is Go's `extractServiceCost`, which reads a top-level `_serviceCost` field
- *   from the tool result and charges it through the per-round update-cost
- *   callback (the same path the media tools use). Without it, hosted-key spend
- *   from copilot-dispatched integration tools is never charged.
+ * - Copilot tool executions have no execution ledger. Their spend is recorded
+ *   by `recordServiceCost` inside `withToolServiceMeter`
+ *   (`lib/mothership/request/tools/executor.ts`), which sends a receipt to the
+ *   worker's `/api/billing/services` (the same path the media tools use).
  */
 async function applyHostedKeyCostToResult(
   finalResult: ToolResponse,
@@ -1014,10 +1164,11 @@ async function applyHostedKeyCostToResult(
     // The provider already ran and already charged Sim's key. Failing the
     // execution here would destroy the caller's result without recovering the
     // spend, so the run stands and the gap is raised for reconciliation.
-    logger.error(
-      `[${requestId}] Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`,
-      { provider, error: getErrorMessage(error) }
-    )
+    logger.error(`Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`, {
+      requestId,
+      provider,
+      error: getErrorMessage(error),
+    })
     await recordServiceMeteringFailure(`Hosted provider ${provider}: ${getErrorMessage(error)}`)
     hostedKeyMetrics.recordFailed({ provider, tool: tool.id, key, reason: 'metering' })
   }
@@ -1025,18 +1176,20 @@ async function applyHostedKeyCostToResult(
   hostedKeyMetrics.recordUsed({ provider, tool: tool.id, key })
   hostedKeyMetrics.recordCostCharged(hostedKeyCost, { provider, tool: tool.id })
 
+  const scope = resolveToolScope(params, executionContext)
+  // A zero estimate is not proof the generation was free; settlement bills the receipt.
+  await scheduleExactCostSettlement(tool, metadata, scope, envVarName)
+
   if (hostedKeyCost > 0) {
-    const { copilotToolExecution } = resolveToolScope(params, executionContext)
-    if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
+    // Copilot-only: workflow runs bill through the execution ledger, so a
+    // service receipt for them would bill the cost twice.
+    if (scope.copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
     finalResult.output = {
       ...finalResult.output,
       cost: {
         ...metadata,
         total: hostedKeyCost,
       },
-      // Copilot-only: workflow runs must not emit _serviceCost or the cost
-      // would be billed twice (execution ledger + Go service charge).
-      ...(copilotToolExecution ? { _serviceCost: { service: provider, cost: hostedKeyCost } } : {}),
     }
   }
 }
@@ -1141,12 +1294,10 @@ async function readToolResponseBody(
       throw error
     }
 
-    logger.warn(
-      `[${options.requestId}] Failed to read non-OK response body for ${options.toolId}`,
-      {
-        errorName: toError(error).name,
-      }
-    )
+    logger.warn(`Failed to read non-OK response body for ${options.toolId}`, {
+      requestId: options.requestId,
+      errorName: toError(error).name,
+    })
     return Buffer.alloc(0)
   }
 }
@@ -1556,46 +1707,6 @@ function getPrivateToolMetadataPolicy(toolId: string): PrivateToolMetadataPolicy
 }
 
 /**
- * Resolves a credential token from the browser through `POST /api/auth/oauth/token`,
- * authenticated by the session cookie. Server-side execution resolves in-process
- * through `resolveExecutorCredentialToken` instead; this HTTP path exists only
- * because the browser holds no server credentials.
- */
-async function fetchCredentialTokenFromRoute(params: {
-  requestId: string
-  toolId: string
-  toolLabel: string
-  credentialId: string
-  workflowId?: string
-  impersonateEmail?: string
-  scopes?: string[]
-  callerUserId?: string
-}): Promise<CredentialTokenPayload> {
-  const { requestId, toolId, toolLabel, credentialId, workflowId } = params
-
-  try {
-    return await requestJson(oauthTokenPostContract, {
-      query: { userId: params.callerUserId },
-      headers: {},
-      body: {
-        credentialId,
-        toolId,
-        ...(workflowId ? { workflowId } : {}),
-        ...(params.impersonateEmail ? { impersonateEmail: params.impersonateEmail } : {}),
-        ...(params.scopes ? { scopes: params.scopes } : {}),
-      },
-    })
-  } catch (error: unknown) {
-    const status = error instanceof ApiClientError ? error.status : undefined
-    logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
-      status,
-      error: getErrorMessage(error),
-    })
-    throw new Error(`Failed to obtain credential for ${toolLabel}: ${getErrorMessage(error)}`)
-  }
-}
-
-/**
  * Runs private-provenance tools against an isolated registry. Unavailable authenticated lineage
  * marks the parent unknown without replacing the tool's functional result; malformed metadata is
  * rejected inside the transport consumer and never committed to the parent.
@@ -1802,7 +1913,7 @@ async function executeToolImplementation(
         signal: effectiveSignal,
       })
       if (!tool) {
-        logger.error(`[${requestId}] Custom tool not found: ${normalizedToolId}`)
+        logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
       return await executeMcpTool(
@@ -1816,7 +1927,7 @@ async function executeToolImplementation(
     } else {
       tool = getTool(normalizedToolId)
       if (!tool) {
-        logger.error(`[${requestId}] Built-in tool not found: ${normalizedToolId}`)
+        logger.error(`Built-in tool not found: ${normalizedToolId}`, { requestId })
       }
     }
 
@@ -1890,8 +2001,10 @@ async function executeToolImplementation(
       contextParams.oauthCredential = undefined
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
+    // Set only by the credential resolution below, never from tool params.
+    let authorizedServiceAccountCredential: AuthorizedServiceAccountCredential | undefined
     if (contextParams.credential) {
-      logger.info(`[${requestId}] Resolving tool access token`, { toolId: normalizedToolId })
+      logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })
       try {
         const workflowId = scope.workflowId
         const userId = scope.userId
@@ -1919,50 +2032,33 @@ async function executeToolImplementation(
         const credentialTool = tool
         const resolveCredential = async (signal?: AbortSignal): Promise<void> => {
           signal?.throwIfAborted()
-          let data: CredentialTokenPayload
-          if (typeof window === 'undefined') {
-            /**
-             * Dynamic import for the same client-bundle reason as the workflow_executor
-             * runner below: the resolver pulls the db/audit dependency graph, which must
-             * never enter the client-bundled tool registry.
-             */
-            const { resolveExecutorCredentialToken } = await import(
-              '@/executor/utils/credential-token'
-            )
-            data = await waitWithAbort(
-              resolveExecutorCredentialToken({
-                requestId,
-                credentialId,
-                userId,
-                workflowId,
-                executionId: scope.executionId,
-                toolId,
-                toolLabel,
-                scopes: providerScopes,
-                impersonateEmail,
-                enforceCredentialAccess,
-                executorDelegationOrigin: executionContext?.executorDelegationOrigin,
-                ...(operationContext?.copilotToolExecution
-                  ? { copilotExecutionContext: operationContext }
-                  : {}),
-              }),
-              signal
-            )
-          } else {
-            data = await waitWithAbort(
-              fetchCredentialTokenFromRoute({
-                requestId,
-                toolId,
-                toolLabel,
-                credentialId,
-                workflowId,
-                impersonateEmail,
-                scopes: providerScopes,
-                callerUserId: userId && enforceCredentialAccess ? userId : undefined,
-              }),
-              signal
-            )
-          }
+          /**
+           * Dynamic import for the same client-bundle reason as the workflow_executor
+           * runner below: the resolver pulls the db/audit dependency graph, which must
+           * never enter the client-bundled tool registry.
+           */
+          const { resolveExecutorCredentialToken } = await import(
+            '@/executor/utils/credential-token'
+          )
+          const data: CredentialTokenPayload = await waitWithAbort(
+            resolveExecutorCredentialToken({
+              requestId,
+              credentialId,
+              userId,
+              workflowId,
+              executionId: scope.executionId,
+              toolId,
+              toolLabel,
+              scopes: providerScopes,
+              impersonateEmail,
+              enforceCredentialAccess,
+              executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+              ...(operationContext?.copilotToolExecution
+                ? { copilotExecutionContext: operationContext }
+                : {}),
+            }),
+            signal
+          )
 
           signal?.throwIfAborted()
 
@@ -1984,12 +2080,18 @@ async function executeToolImplementation(
             await registerAssistantCredentialSecrets(resolvedSecretTraceRegistry, [
               data.accessToken,
               data.idToken,
+              data.applicationKey,
             ])
           }
+          authorizedServiceAccountCredential =
+            data.credentialType === 'service_account' && credentialTool.oauth
+              ? { credentialId, service: credentialTool.oauth.provider }
+              : undefined
           for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
             contextParams[paramId] = undefined
           }
           contextParams.accessToken = data.accessToken
+          applyCredentialParams(credentialTool, data, contextParams)
           if (operationContext?.requestMode === 'assistant') {
             const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
             if (tokenParam) contextParams[tokenParam] = data.accessToken
@@ -2003,17 +2105,27 @@ async function executeToolImplementation(
           if (data.idToken) {
             contextParams.idToken = data.idToken
           }
-          if (data.instanceUrl) {
-            contextParams.instanceUrl = data.instanceUrl
+          if (
+            data.providerWorkspaceId &&
+            credentialTool.oauth?.authoritativeParams?.includes('providerWorkspaceId')
+          ) {
+            contextParams.providerWorkspaceId = data.providerWorkspaceId
           }
-          if (data.apiDomain && !contextParams.apiDomain) {
-            contextParams.apiDomain = data.apiDomain
-          }
-          if (data.cloudId && !contextParams.cloudId) {
-            contextParams.cloudId = data.cloudId
-          }
-          if (data.domain && !contextParams.domain) {
-            contextParams.domain = data.domain
+          // A policy that maps credential fields (`credentialParams`) is the only way they reach
+          // the tool; a same-named param it leaves unmapped is the user's own data, not the host.
+          if (!credentialTool.oauth?.credentialParams) {
+            if (data.instanceUrl) {
+              contextParams.instanceUrl = data.instanceUrl
+            }
+            if (data.apiDomain && !contextParams.apiDomain) {
+              contextParams.apiDomain = data.apiDomain
+            }
+            if (data.cloudId && !contextParams.cloudId) {
+              contextParams.cloudId = data.cloudId
+            }
+            if (data.domain && !contextParams.domain) {
+              contextParams.domain = data.domain
+            }
           }
           if (data.realmId && credentialTool.oauth?.authoritativeParams?.includes('realmId')) {
             contextParams.realmId = data.realmId
@@ -2037,7 +2149,7 @@ async function executeToolImplementation(
           refreshCredential = resolveCredential
         }
 
-        logger.info(`[${requestId}] Successfully got access token for ${toolId}`)
+        logger.info(`Successfully got access token for ${toolId}`, { requestId })
 
         // Preserve credential for downstream transforms while removing it from request payload
         // so we don't leak it to external services.
@@ -2053,12 +2165,39 @@ async function executeToolImplementation(
       } catch (error: any) {
         // A revoked credential is the user's to reconnect; the resolver already logged it.
         if (!(error instanceof CredentialRevokedError)) {
-          logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
+          logger.error(`Error fetching access token for ${toolId}:`, {
+            requestId,
             error: toError(error).message,
           })
         }
         throw error
       }
+    }
+
+    if (
+      authorizedServiceAccountCredential?.service === AWS_CREDENTIAL_OAUTH.provider &&
+      !tool.operation
+    ) {
+      // AWS tools that sign their own HTTP request need the session keys themselves.
+      if (typeof window !== 'undefined') {
+        throw new Error('Saved AWS credentials can only be used on the server')
+      }
+      if (!AWS_SESSION_SIGNED_TOOL_IDS.has(normalizedToolId)) {
+        throw new Error(`${tool.name} cannot sign with a saved AWS credential`)
+      }
+      const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
+      const session = await resolveAuthorizedAwsCredential(
+        authorizedServiceAccountCredential.credentialId,
+        {
+          workspaceId: operationContext?.workspaceId ?? scope.workspaceId,
+          organizationId: operationContext?.organizationId,
+          executionId: scope.executionId,
+        },
+        effectiveSignal
+      )
+      contextParams.accessKeyId = session.accessKeyId
+      contextParams.secretAccessKey = session.secretAccessKey
+      contextParams.sessionToken = session.sessionToken
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
@@ -2071,7 +2210,7 @@ async function executeToolImplementation(
     // admission slot and one top-level log row, and billing/observability match
     // the canvas workflow block.
     if (normalizedToolId === 'workflow_executor') {
-      logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
+      logger.info(`Running workflow tool ${toolId} in-process`, { requestId })
       const { runWorkflowTool } = await import('@/executor/handlers/workflow/tool-runner')
       const result = await runWorkflowTool(
         {
@@ -2119,7 +2258,7 @@ async function executeToolImplementation(
     }
 
     if (normalizedToolId === 'deployed_block_executor') {
-      logger.info(`[${requestId}] Running custom block tool ${toolId}`)
+      logger.info(`Running custom block tool ${toolId}`, { requestId })
       const { runCustomBlockTool } = await import(
         '@/executor/handlers/workflow/custom-block-tool-runner'
       )
@@ -2175,14 +2314,26 @@ async function executeToolImplementation(
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
         refreshCredential,
+        authorizedServiceAccountCredential,
+      }).catch(async (error: unknown) => {
+        throw authorizedServiceAccountCredential
+          ? await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
+          : error
       })
 
       let finalResult = result
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
+          finalResult = await tool.postProcess(result, contextParams, executeNestedTool, {
+            signal: effectiveSignal,
+          })
         } catch (error) {
-          logger.error(`[${requestId}] Post-processing error for ${toolId}`, {
+          logger.error(`Post-processing error for ${toolId}`, {
+            requestId,
             errorName: toError(error).name,
           })
         }
@@ -2267,16 +2418,28 @@ async function executeToolImplementation(
           operationContext,
           effectiveSignal,
           resolvedSecretTraceRegistry
-        )
+        ).catch(async (error: unknown) => {
+          if (authorizedServiceAccountCredential) {
+            await expireRejectedServiceAccountToken(error, contextParams.accessToken, requestId)
+            throw await explainExpiredServiceAccountToken(
+              error,
+              authorizedServiceAccountCredential.credentialId,
+              requestId
+            )
+          }
+          throw error
+        })
 
     let finalResult = result
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        finalResult = await tool.postProcess(result, contextParams, executeNestedTool)
+        finalResult = await tool.postProcess(result, contextParams, executeNestedTool, {
+          signal: effectiveSignal,
+        })
       } catch (error) {
         const normalizedError = toError(error)
         logger.error(
-          `[${requestId}] Post-processing error for ${toolId}:`,
+          `Post-processing error for ${toolId}:`,
           projectToolLogMetadata(
             { error: normalizedError.message },
             resolvedSecretTraceRegistry,
@@ -2284,7 +2447,8 @@ async function executeToolImplementation(
               errorName: normalizedError.name,
             },
             structuralOnlyToolLogs
-          )
+          ),
+          { requestId }
         )
         finalResult = result
       }
@@ -2336,8 +2500,9 @@ async function executeToolImplementation(
     /** Sim's own hosted key being refused or throttled is Sim's fault and Sim's capacity. */
     if (hostedKeyFailure && hostedKeyFailure !== 'other') markFailureKind(error, 'internal')
     const toolContext = toRecord(params._context)
-    logFailureOnce(logger, `[${requestId}] Error executing tool ${toolId}:`, error, {
+    logFailureOnce(logger, 'Error executing tool', error, {
       metadata: () => ({
+        requestId,
         toolId,
         workflowId: executionContext?.workflowId ?? undefined,
         executionId: executionContext?.executionId,
@@ -2437,11 +2602,14 @@ async function executeToolImplementation(
     const responseData = isRecordLike(rawResponseData) ? rawResponseData : undefined
     const functionSandboxCost =
       normalizedToolId === 'function_execute' ? readFunctionSandboxCost(responseData) : undefined
+    const functionErrorMessage =
+      normalizedToolId === 'function_execute' ? readResponseErrorMessage(responseData) : undefined
     return {
       success: false,
       output: loggedFailureOutput(error, {
         ...errorDetails,
         ...(functionSandboxCost ? { cost: functionSandboxCost } : {}),
+        ...(functionErrorMessage ? { errorMessage: functionErrorMessage } : {}),
       }),
       error: errorMessage,
       ...(responseData?.retryable === false ? { retryable: false } : {}),
@@ -2595,6 +2763,8 @@ interface ExecuteDeclaredInternalOperationInput {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
   refreshCredential?: (signal: AbortSignal) => Promise<void>
+  /** Service-account credential the executor authorized for this call (never from tool params). */
+  authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2628,6 +2798,13 @@ function readFunctionSandboxCost(value: unknown): FunctionSandboxCost | undefine
   return { input, output, total }
 }
 
+/** A failed Function's thrown message alone, without the line and code its `error` carries. */
+function readResponseErrorMessage(value: unknown): string | undefined {
+  return isRecordLike(value) && typeof value.errorMessage === 'string'
+    ? value.errorMessage
+    : undefined
+}
+
 function isToolResponse(value: unknown): value is ToolResponse {
   return isRecordLike(value) && typeof value.success === 'boolean' && isRecordLike(value.output)
 }
@@ -2643,6 +2820,7 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
   refreshCredential,
+  authorizedServiceAccountCredential,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2780,10 +2958,24 @@ async function executeDeclaredInternalOperation({
         toolId,
         input: operationInput,
         headers,
-        context,
+        // Always written, so only this executor's authorization can set it.
+        context: { ...context, authorizedServiceAccountCredential },
         requestId,
         signal: operationController.signal,
       })
+      if (
+        result instanceof Response &&
+        (result.status === 401 || result.status === 403) &&
+        authorizedServiceAccountCredential &&
+        typeof params.accessToken === 'string'
+      ) {
+        await forgetRefusedServiceAccountToken(
+          params.accessToken,
+          requestId,
+          result.status === 403 ? REJECTED_TOKEN_MINIMUM_AGE_MS : undefined
+        )
+        await expireRefusedCoordinatedToken(params.accessToken, requestId)
+      }
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
         operationController.signal.throwIfAborted()
@@ -2799,6 +2991,7 @@ async function executeDeclaredInternalOperation({
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
           internalSandboxProfile,
+          authorizedServiceAccountCredential,
         })
       }
       response = await presentInternalToolOperationResult(
@@ -2857,6 +3050,122 @@ async function executeDeclaredInternalOperation({
       isRecordLike(responseData) && isRecordLike(responseData.output)
         ? responseData.output
         : (responseData as Record<string, any>),
+  }
+}
+
+/**
+ * A 401 whose body blames the scope rather than the token: Atlassian's gateway answers
+ * `Unauthorized; scope does not match` for a valid token, and RFC 6750 names `insufficient_scope`.
+ */
+const SCOPE_REFUSAL_PATTERN = /scope does not match|insufficient_scope/i
+
+function reportsScopeRefusal(error: Error): boolean {
+  const data = 'data' in error ? error.data : undefined
+  if (typeof data === 'string') return SCOPE_REFUSAL_PATTERN.test(data)
+  if (data === undefined || data === null) return false
+  try {
+    return SCOPE_REFUSAL_PATTERN.test(JSON.stringify(data))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A 401 means the provider no longer accepts the token a saved service-account credential
+ * resolved to. The rejected token is dropped from whichever cache holds it: a token coordinated
+ * across workers is expired at once, and a token cached on this instance is forgotten, so the
+ * next call mints a replacement rather than re-sending it. A 401 that only reports a missing scope
+ * leaves the token in service, since a replacement would carry the same scopes. A pasted token
+ * matches no cached token and is left alone.
+ */
+async function expireRejectedServiceAccountToken(
+  error: unknown,
+  accessToken: unknown,
+  requestId: string
+): Promise<void> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return
+  if (typeof accessToken !== 'string' || !accessToken || reportsScopeRefusal(error)) return
+  await forgetRefusedServiceAccountToken(accessToken, requestId)
+  await expireRefusedCoordinatedToken(accessToken, requestId)
+}
+
+/**
+ * Expires a refused token coordinated across workers (a client-credentials grant's shared token),
+ * so the next call on any worker mints a replacement. A token minted within
+ * {@link REJECTED_TOKEN_MINIMUM_AGE_MS} is kept, since the refusal may come from the endpoint.
+ */
+async function expireRefusedCoordinatedToken(
+  accessToken: string,
+  requestId: string
+): Promise<void> {
+  try {
+    const { invalidateCoordinatedClientToken } = await import(
+      '@/lib/credentials/coordinated-client-token'
+    )
+    await invalidateCoordinatedClientToken(accessToken, {
+      minimumAgeMs: REJECTED_TOKEN_MINIMUM_AGE_MS,
+    })
+  } catch (invalidationError) {
+    logger.warn('Could not expire a service-account token the provider rejected', {
+      requestId,
+      error: toError(invalidationError).message,
+    })
+  }
+}
+
+/**
+ * A 401 for a saved service-account token past the expiry its vendor stated when it was saved
+ * becomes an error that says so and asks for a new token, keeping the provider's status and body
+ * and the refusal's log attribution and logged response body. Any other failure, or one whose
+ * expiry cannot be read, is returned unchanged.
+ */
+async function explainExpiredServiceAccountToken(
+  error: unknown,
+  credentialId: string,
+  requestId: string
+): Promise<unknown> {
+  if (!(error instanceof Error) || !('status' in error) || error.status !== 401) return error
+  try {
+    const { explainExpiredSavedToken } = await import('@/lib/credentials/saved-token-expiry')
+    const explained = await explainExpiredSavedToken(credentialId, {
+      status: error.status,
+      statusText: 'statusText' in error ? error.statusText : undefined,
+      data: 'data' in error ? error.data : undefined,
+    })
+    if (!explained) return error
+    if (externalHttpFailures.has(error)) externalHttpFailures.add(explained)
+    return inheritFailureMarks(explained, error)
+  } catch (lookupError) {
+    logger.warn('Could not check whether a refused saved token had expired', {
+      requestId,
+      error: toError(lookupError).message,
+    })
+    return error
+  }
+}
+
+/**
+ * Drops a refused service-account token from this instance's client-credential cache: an internal
+ * operation answers 401 or 403, and an external request 401, when the provider refused it. The
+ * next call mints a replacement: providers such as CrowdStrike Falcon and SailPoint fix a token's
+ * scopes when it is minted, so a scope granted since then only reaches a new token. A 403 can also
+ * come from Sim's own file-access refusal or a per-record permission, so the internal-operation
+ * path passes `minimumAgeMs` for it and a token minted within that window is kept.
+ */
+async function forgetRefusedServiceAccountToken(
+  accessToken: string,
+  requestId: string,
+  minimumAgeMs?: number
+): Promise<void> {
+  try {
+    const { forgetRejectedClientCredentialToken } = await import('@/lib/oauth/credential-service')
+    if (minimumAgeMs === undefined) forgetRejectedClientCredentialToken(accessToken)
+    else forgetRejectedClientCredentialToken(accessToken, { minimumAgeMs })
+  } catch (error) {
+    logger.warn('Could not drop a service-account token the provider refused', {
+      requestId,
+      error: toError(error).message,
+    })
   }
 }
 
@@ -2989,10 +3298,10 @@ async function executeToolRequest(
           baseMs: retryConfig.initialDelayMs,
           maxMs: retryConfig.maxDelayMs,
         })
-        logger.warn(
-          `[${requestId}] Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`,
-          { delayMs }
-        )
+        logger.warn(`Retrying ${toolId} after error (attempt ${attempt + 1}/${maxAttempts})`, {
+          requestId,
+          delayMs,
+        })
         await sleep(delayMs)
         continue
       }
@@ -3010,7 +3319,8 @@ async function executeToolRequest(
         )
         if (retryAfterMs !== null && retryAfterMs > retryConfig.maxDelayMs) {
           logger.warn(
-            `[${requestId}] Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`
+            `Retry-After (${retryAfterMs}ms) exceeds maxDelayMs (${retryConfig.maxDelayMs}ms), skipping retry`,
+            { requestId }
           )
           break
         }
@@ -3024,8 +3334,8 @@ async function executeToolRequest(
           maxMs: retryConfig.maxDelayMs,
         })
         logger.warn(
-          `[${requestId}] Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
-          { delayMs }
+          `Retrying ${toolId} after HTTP ${response.status} (attempt ${attempt + 1}/${maxAttempts})`,
+          { requestId, delayMs }
         )
         await sleep(delayMs)
         continue
@@ -3048,7 +3358,7 @@ async function executeToolRequest(
           errorData = errorText
         }
       } catch {
-        logger.error(`[${requestId}] Failed to read response body for ${toolId}`)
+        logger.error(`Failed to read response body for ${toolId}`, { requestId })
         errorData = null
       }
 
@@ -3259,7 +3569,7 @@ async function executeMcpTool(
   const actualStartTime = startTimeISO || new Date().toISOString()
 
   try {
-    logger.info(`[${actualRequestId}] Executing MCP tool: ${toolId}`)
+    logger.info(`Executing MCP tool: ${toolId}`, { requestId: actualRequestId })
     validateRequestBodySize(JSON.stringify(params))
     const handler = await getInternalToolOperationHandler(toolId)
     if (!handler) throw new Error(`No internal operation registered for ${toolId}`)
@@ -3294,7 +3604,9 @@ async function executeMcpTool(
 
     if (!response.ok) {
       if (response.status === 413) {
-        logger.error(`[${actualRequestId}] Request body too large for mcp:${toolId} (HTTP 413)`)
+        logger.error(`Request body too large for mcp:${toolId} (HTTP 413)`, {
+          requestId: actualRequestId,
+        })
         return {
           success: false,
           output: {},
@@ -3335,7 +3647,7 @@ async function executeMcpTool(
       }
     }
 
-    logger.info(`[${actualRequestId}] MCP tool ${toolId} executed successfully`)
+    logger.info(`MCP tool ${toolId} executed successfully`, { requestId: actualRequestId })
 
     return {
       success: true,
@@ -3361,21 +3673,18 @@ async function executeMcpTool(
     const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
       const failure = bodySizeLimitError()
-      logFailureOnce(
-        logger,
-        `[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`,
-        failure,
-        {
-          metadata: () => ({
-            ...runIdentity,
-            ...projectToolLogMetadata(
-              { originalError: errorMsg },
-              context?.resolvedSecretTraceRegistry,
-              { hasOriginalError: errorMsg.length > 0 }
-            ),
-          }),
-        }
-      )
+      logFailureOnce(logger, 'Request body size limit exceeded for MCP tool', failure, {
+        metadata: () => ({
+          requestId: actualRequestId,
+          toolId,
+          ...runIdentity,
+          ...projectToolLogMetadata(
+            { originalError: errorMsg },
+            context?.resolvedSecretTraceRegistry,
+            { hasOriginalError: errorMsg.length > 0 }
+          ),
+        }),
+      })
       return {
         success: false,
         output: loggedFailureOutput(failure),
@@ -3389,8 +3698,10 @@ async function executeMcpTool(
     }
 
     const normalizedError = toError(error)
-    logFailureOnce(logger, `[${actualRequestId}] Error executing MCP tool ${toolId}:`, error, {
+    logFailureOnce(logger, 'Error executing MCP tool', error, {
       metadata: () => ({
+        requestId: actualRequestId,
+        toolId,
         ...runIdentity,
         ...projectToolLogMetadata(
           {

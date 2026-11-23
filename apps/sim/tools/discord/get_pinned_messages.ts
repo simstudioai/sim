@@ -3,7 +3,9 @@ import type {
   DiscordGetPinnedMessagesResponse,
   DiscordMessage,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetPinnedMessagesTool: ToolConfig<
   DiscordGetPinnedMessagesParams,
@@ -13,6 +15,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
   name: 'Discord Get Pinned Messages',
   description: 'Retrieve all pinned messages in a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -49,7 +52,7 @@ export const discordGetPinnedMessagesTool: ToolConfig<
       if (params.limit) query.set('limit', String(Math.min(Math.max(1, Number(params.limit)), 50)))
       if (params.before) query.set('before', params.before)
       const queryString = query.toString()
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}/messages/pins${queryString ? `?${queryString}` : ''}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}/messages/pins${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

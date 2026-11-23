@@ -259,21 +259,21 @@ describe('pendingToolWaitBudgetMs', () => {
 
   it('waits on a person for as long as the whole turn allows', () => {
     // The 60s default would force-fail a permission prompt while the user was
-    // still reading it, resuming Go before they ever answered.
+    // still reading it, resuming the worker before they ever answered.
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'awaiting_approval' })).toBe(
       TOOL_WATCHDOG_LONG_RUNNING_MS
     )
   })
 
   it('matches the requested browser_wait_for renderer budget', () => {
-    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(85_000)
+    expect(pendingToolWaitBudgetMs({ name: 'browser_wait_for', status: 'executing' })).toBe(100_000)
     expect(
       pendingToolWaitBudgetMs({
         name: 'browser_wait_for',
         status: 'executing',
         params: { timeoutMs: 120_000 },
       })
-    ).toBe(195_000)
+    ).toBe(210_000)
   })
 
   it('outlasts the wait window the desktop holds a terminal run for', () => {

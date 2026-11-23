@@ -13,6 +13,7 @@ export interface MicrosoftAdListUsersParams extends MicrosoftAdBaseParams {
 
 export interface MicrosoftAdGetUserParams extends MicrosoftAdBaseParams {
   userId: string
+  includeManager?: boolean
 }
 
 export interface MicrosoftAdCreateUserParams extends MicrosoftAdBaseParams {
@@ -82,6 +83,21 @@ export interface MicrosoftAdListGroupMembersParams extends MicrosoftAdBaseParams
   groupId?: string
   top?: number
   nextLink?: string
+}
+
+export interface MicrosoftAdListUserMembershipsParams extends MicrosoftAdBaseParams {
+  userId?: string
+  transitive?: boolean
+  top?: number
+  nextLink?: string
+}
+
+export interface MicrosoftAdListUserMembershipsResponse extends ToolResponse {
+  output: {
+    memberships: Array<Record<string, unknown>>
+    membershipCount: number
+    nextLink: string | null
+  }
 }
 
 export interface MicrosoftAdAddGroupMemberParams extends MicrosoftAdBaseParams {
@@ -227,6 +243,37 @@ export const USER_OUTPUT_PROPERTIES = {
   officeLocation: { type: 'string', description: 'Office location' },
   mobilePhone: { type: 'string', description: 'Mobile phone number' },
   accountEnabled: { type: 'boolean', description: 'Whether the account is enabled' },
+  businessPhones: { type: 'array', description: 'Business phone numbers', optional: true },
+  preferredLanguage: { type: 'string', description: 'Preferred language', optional: true },
+  employeeId: { type: 'string', description: 'Employee identifier', optional: true },
+  employeeType: {
+    type: 'string',
+    description: 'Employee type (e.g., Employee, Contractor)',
+    optional: true,
+  },
+  companyName: { type: 'string', description: 'Company name', optional: true },
+  userType: { type: 'string', description: 'User type: Member or Guest', optional: true },
+  usageLocation: {
+    type: 'string',
+    description: 'Two-letter country code, required before a license can be assigned',
+    optional: true,
+  },
+  city: { type: 'string', description: 'City', optional: true },
+  country: { type: 'string', description: 'Country or region', optional: true },
+  createdDateTime: { type: 'string', description: 'When the user was created', optional: true },
+  onPremisesSyncEnabled: {
+    type: 'boolean',
+    description: 'Whether the user is synced from on-premises Active Directory',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const MANAGER_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Manager object ID' },
+  displayName: { type: 'string', description: 'Manager display name' },
+  mail: { type: 'string', description: 'Manager email address' },
+  userPrincipalName: { type: 'string', description: 'Manager user principal name' },
+  jobTitle: { type: 'string', description: 'Manager job title' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -266,6 +313,33 @@ export const MEMBER_OUTPUT_PROPERTIES = {
   displayName: { type: 'string', description: 'Display name' },
   mail: { type: 'string', description: 'Email address' },
   odataType: { type: 'string', description: 'Directory object type' },
+  userPrincipalName: {
+    type: 'string',
+    description: 'User principal name, null for members that are not users',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const MEMBERSHIP_OUTPUT_PROPERTIES = {
+  id: {
+    type: 'string',
+    description: 'Object ID of the group, directory role, or administrative unit',
+  },
+  displayName: { type: 'string', description: 'Display name' },
+  description: { type: 'string', description: 'Description' },
+  odataType: {
+    type: 'string',
+    description:
+      'Directory object type (e.g., "#microsoft.graph.group", "#microsoft.graph.directoryRole")',
+  },
+  mail: { type: 'string', description: 'Email address (groups only)' },
+  mailEnabled: { type: 'boolean', description: 'Whether mail is enabled (groups only)' },
+  securityEnabled: { type: 'boolean', description: 'Whether security is enabled (groups only)' },
+  groupTypes: { type: 'array', description: 'Group types (groups only)' },
+  roleTemplateId: {
+    type: 'string',
+    description: 'Directory role template ID (directory roles only)',
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export const SERVICE_PLAN_OUTPUT_PROPERTIES = {
@@ -712,6 +786,7 @@ export interface MicrosoftAdListUsersResponse extends ToolResponse {
 export interface MicrosoftAdGetUserResponse extends ToolResponse {
   output: {
     user: Record<string, unknown>
+    manager?: Record<string, unknown> | null
   }
 }
 

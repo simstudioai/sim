@@ -96,6 +96,7 @@ const SPLIT_REQUIRED_KEYS = {
     'BETTER_AUTH_SECRET',
     'INTERNAL_API_SECRET',
     'NEXT_PUBLIC_APP_URL',
+    'REDIS_URL',
   ],
   db: ['DATABASE_URL'],
 } as const

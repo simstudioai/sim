@@ -1,4 +1,6 @@
 import type { HexListCollectionsParams, HexListCollectionsResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCollectionsResponse> =
@@ -7,8 +9,10 @@ export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCo
     name: 'Hex List Collections',
     description: 'List all collections in the Hex workspace.',
     version: '1.0.0',
+    oauth: HEX_CREDENTIAL_OAUTH,
 
     params: {
+      host: HEX_HOST_PARAM,
       apiKey: {
         type: 'string',
         required: true,
@@ -19,7 +23,7 @@ export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCo
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Maximum number of collections to return (1-500, default: 25)',
+        description: 'Maximum number of collections to return (1-100, default: 25)',
       },
       sortBy: {
         type: 'string',
@@ -49,7 +53,7 @@ export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCo
         if (params.after) searchParams.set('after', params.after)
         if (params.before) searchParams.set('before', params.before)
         const qs = searchParams.toString()
-        return `https://app.hex.tech/api/v1/collections${qs ? `?${qs}` : ''}`
+        return `${hexApiBase(params.host)}/collections${qs ? `?${qs}` : ''}`
       },
       method: 'GET',
       headers: (params) => ({

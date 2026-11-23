@@ -7,6 +7,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
 import {
   type SecureFetchResponse,
@@ -14,12 +15,19 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  isPayloadSizeLimitError,
+  readResponseJsonWithLimit,
+  readResponseToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
+import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -30,8 +38,35 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { extractMessageAttachments, extractMessageDetails } from '@/tools/microsoft_teams/utils'
 
 const logger = createLogger('WebhookProvider:MicrosoftTeams')
+
+const MAX_TEAMS_MESSAGE_BYTES = 5 * 1024 * 1024
+
+/** Read one attachment body against the per-notification byte budget. */
+async function readTeamsAttachment(
+  response: Parameters<typeof readResponseToBufferWithLimit>[0],
+  budget: AttachmentDownloadBudget,
+  attachmentName: string
+): Promise<Buffer> {
+  try {
+    const buffer = await readResponseToBufferWithLimit(response, {
+      maxBytes: budget.remainingBytes,
+      label: 'Teams attachment',
+    })
+    return budget.consume(buffer, 'Teams attachment')
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) {
+      logger.warn('Skipping Teams attachment over the per-notification byte budget', {
+        attachmentName,
+        observedBytes: error.observedBytes,
+        remainingBytes: budget.remainingBytes,
+      })
+    }
+    throw error
+  }
+}
 
 function validateMicrosoftTeamsSignature(
   hmacSecret: string,
@@ -96,7 +131,7 @@ async function fetchWithDNSPinning(
   try {
     const urlValidation = await validateUrlWithDNS(url, 'contentUrl', 'contentFetch')
     if (!urlValidation.isValid) {
-      logger.warn(`[${requestId}] Invalid content URL: ${urlValidation.error}`, { url })
+      logger.warn(`Invalid content URL: ${urlValidation.error}`, { requestId, url })
       return null
     }
     const headers: Record<string, string> = {}
@@ -109,7 +144,8 @@ async function fetchWithDNSPinning(
     })
     return response
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
+    logger.error('Error fetching URL with DNS pinning', {
+      requestId,
       error: toError(error).message,
       url: sanitizeUrlForLog(url),
     })
@@ -199,6 +235,7 @@ async function formatTeamsGraphNotification(
   const includeAttachments = providerConfig.includeAttachments !== false
 
   let message: Record<string, unknown> | null = null
+  const attachmentBudget = new AttachmentDownloadBudget()
   const rawAttachments: Array<{ name: string; data: Buffer; contentType: string; size: number }> =
     []
   let accessToken: string | null = null
@@ -236,9 +273,14 @@ async function formatTeamsGraphNotification(
 
       if (accessToken) {
         const msgUrl = `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(resolvedChatId)}/messages/${encodeURIComponent(resolvedMessageId)}`
-        const res = await fetch(msgUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        const res = await outboundFetch(msgUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
         if (res.ok) {
-          message = (await res.json()) as Record<string, unknown>
+          message = await readResponseJsonWithLimit<Record<string, unknown>>(res, {
+            maxBytes: MAX_TEAMS_MESSAGE_BYTES,
+            label: 'Teams message',
+          })
 
           if (includeAttachments && (message?.attachments as unknown[] | undefined)?.length) {
             const attachments = Array.isArray(message?.attachments)
@@ -280,8 +322,11 @@ async function formatTeamsGraphNotification(
                     )
 
                     if (directRes?.ok) {
-                      const arrayBuffer = await directRes.arrayBuffer()
-                      buffer = Buffer.from(arrayBuffer)
+                      buffer = await readTeamsAttachment(
+                        directRes,
+                        attachmentBudget,
+                        attachmentName
+                      )
                       mimeType =
                         directRes.headers.get('content-type') ||
                         contentTypeHint ||
@@ -294,14 +339,17 @@ async function formatTeamsGraphNotification(
                         .replace(/=+$/, '')
 
                       const graphUrl = `https://graph.microsoft.com/v1.0/shares/u!${encodedUrl}/driveItem/content`
-                      const graphRes = await fetch(graphUrl, {
+                      const graphRes = await outboundFetch(graphUrl, {
                         headers: { Authorization: `Bearer ${accessToken}` },
                         redirect: 'follow',
                       })
 
                       if (graphRes.ok) {
-                        const arrayBuffer = await graphRes.arrayBuffer()
-                        buffer = Buffer.from(arrayBuffer)
+                        buffer = await readTeamsAttachment(
+                          graphRes,
+                          attachmentBudget,
+                          attachmentName
+                        )
                         mimeType =
                           graphRes.headers.get('content-type') ||
                           contentTypeHint ||
@@ -341,7 +389,7 @@ async function formatTeamsGraphNotification(
                     }
 
                     const metadataUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem`
-                    const metadataRes = await fetch(metadataUrl, {
+                    const metadataRes = await outboundFetch(metadataUrl, {
                       headers: {
                         Authorization: `Bearer ${accessToken}`,
                         Accept: 'application/json',
@@ -350,14 +398,17 @@ async function formatTeamsGraphNotification(
 
                     if (!metadataRes.ok) {
                       const directUrl = `https://graph.microsoft.com/v1.0/shares/${shareToken}/driveItem/content`
-                      const directRes = await fetch(directUrl, {
+                      const directRes = await outboundFetch(directUrl, {
                         headers: { Authorization: `Bearer ${accessToken}` },
                         redirect: 'follow',
                       })
 
                       if (directRes.ok) {
-                        const arrayBuffer = await directRes.arrayBuffer()
-                        buffer = Buffer.from(arrayBuffer)
+                        buffer = await readTeamsAttachment(
+                          directRes,
+                          attachmentBudget,
+                          attachmentName
+                        )
                         mimeType =
                           directRes.headers.get('content-type') ||
                           contentTypeHint ||
@@ -366,7 +417,10 @@ async function formatTeamsGraphNotification(
                         continue
                       }
                     } else {
-                      const metadata = (await metadataRes.json()) as Record<string, unknown>
+                      const metadata = await readResponseJsonWithLimit<Record<string, unknown>>(
+                        metadataRes,
+                        { maxBytes: MAX_TEAMS_MESSAGE_BYTES, label: 'Teams attachment metadata' }
+                      )
                       const downloadUrl = metadata['@microsoft.graph.downloadUrl'] as
                         | string
                         | undefined
@@ -379,8 +433,11 @@ async function formatTeamsGraphNotification(
                         )
 
                         if (downloadRes?.ok) {
-                          const arrayBuffer = await downloadRes.arrayBuffer()
-                          buffer = Buffer.from(arrayBuffer)
+                          buffer = await readTeamsAttachment(
+                            downloadRes,
+                            attachmentBudget,
+                            attachmentName
+                          )
                           const fileInfo = metadata.file as Record<string, unknown> | undefined
                           mimeType =
                             downloadRes.headers.get('content-type') ||
@@ -409,8 +466,7 @@ async function formatTeamsGraphNotification(
                       'teams-attachment-generic'
                     )
                     if (ares?.ok) {
-                      const arrayBuffer = await ares.arrayBuffer()
-                      buffer = Buffer.from(arrayBuffer)
+                      buffer = await readTeamsAttachment(ares, attachmentBudget, attachmentName)
                       mimeType =
                         ares.headers.get('content-type') ||
                         contentTypeHint ||
@@ -447,6 +503,8 @@ async function formatTeamsGraphNotification(
     }
   }
 
+  const changeType = typeof notification.changeType === 'string' ? notification.changeType : null
+
   if (!message) {
     logger.warn('No message data available for Teams notification', {
       chatId: resolvedChatId,
@@ -460,12 +518,29 @@ async function formatTeamsGraphNotification(
       text: '',
       created_at: '',
       attachments: [],
+      change_type: changeType,
+      from_id: null,
+      from_type: null,
+      from_identity: null,
+      message_type: null,
+      content_type: null,
+      subject: null,
+      importance: null,
+      web_url: null,
+      last_modified_at: null,
+      last_edited_at: null,
+      deleted_at: null,
+      mentions: [],
+      reactions: [],
+      attachment_metadata: [],
     }
   }
 
   const messageText = (message.body as Record<string, unknown>)?.content || ''
   const from = ((message.from as Record<string, unknown>)?.user as Record<string, unknown>) || {}
   const createdAt = (message.createdDateTime as string) || ''
+
+  const details = extractMessageDetails(message)
 
   return {
     message_id: resolvedMessageId,
@@ -474,6 +549,21 @@ async function formatTeamsGraphNotification(
     text: messageText,
     created_at: createdAt,
     attachments: rawAttachments,
+    change_type: changeType,
+    from_id: details.senderId,
+    from_type: details.senderType,
+    from_identity: details.from,
+    message_type: typeof message.messageType === 'string' ? message.messageType : null,
+    content_type: details.contentType,
+    subject: details.subject,
+    importance: details.importance,
+    web_url: details.webUrl,
+    last_modified_at: details.lastModifiedDateTime,
+    last_edited_at: details.lastEditedDateTime,
+    deleted_at: details.deletedDateTime,
+    mentions: details.mentions,
+    reactions: details.reactions,
+    attachment_metadata: extractMessageAttachments(message),
   }
 }
 
@@ -482,7 +572,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const url = new URL(request.url)
     const validationToken = url.searchParams.get('validationToken')
     if (validationToken) {
-      logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
+      logger.info(`Microsoft Graph subscription validation for path: ${path}`, { requestId })
       return new NextResponse(validationToken, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
@@ -495,9 +585,9 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     if (providerConfig.triggerId !== 'microsoftteams_chat_subscription') {
       const hmacSecret = providerConfig.hmacSecret as string | undefined
       if (!hmacSecret) {
-        logger.error(
-          `[${requestId}] Microsoft Teams outgoing webhook missing configured HMAC secret`
-        )
+        logger.error('Microsoft Teams outgoing webhook missing configured HMAC secret', {
+          requestId,
+        })
         return new NextResponse('Unauthorized - Missing HMAC secret configuration', {
           status: 401,
         })
@@ -506,14 +596,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const authHeader = request.headers.get('authorization')
 
       if (!authHeader || !authHeader.startsWith('HMAC ')) {
-        logger.warn(
-          `[${requestId}] Microsoft Teams outgoing webhook missing HMAC authorization header`
-        )
+        logger.warn('Microsoft Teams outgoing webhook missing HMAC authorization header', {
+          requestId,
+        })
         return new NextResponse('Unauthorized - Missing HMAC signature', { status: 401 })
       }
 
       if (!validateMicrosoftTeamsSignature(hmacSecret, authHeader, rawBody)) {
-        logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
+        logger.warn('Microsoft Teams HMAC signature verification failed', { requestId })
         return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
       }
     }
@@ -522,7 +612,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const expectedClientState = String(webhook.id ?? '')
       if (!expectedClientState) {
         logger.warn(
-          `[${requestId}] Microsoft Teams chat subscription webhook missing id for clientState verification`
+          'Microsoft Teams chat subscription webhook missing id for clientState verification',
+          { requestId }
         )
         return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
       }
@@ -538,18 +629,18 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       }
 
       if (notifications.length === 0) {
-        logger.warn(
-          `[${requestId}] Microsoft Teams chat subscription notification missing value array`
-        )
+        logger.warn('Microsoft Teams chat subscription notification missing value array', {
+          requestId,
+        })
         return new NextResponse('Unauthorized - Invalid notification payload', { status: 401 })
       }
 
       for (const notification of notifications) {
         const clientState = (notification as Record<string, unknown>)?.clientState
         if (typeof clientState !== 'string' || !safeCompare(clientState, expectedClientState)) {
-          logger.warn(
-            `[${requestId}] Microsoft Teams chat subscription clientState verification failed`
-          )
+          logger.warn('Microsoft Teams chat subscription clientState verification failed', {
+            requestId,
+          })
           return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
         }
       }
@@ -602,22 +693,22 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const chatId = config.chatId as string | undefined
 
     if (!credentialId) {
-      logger.warn(`[${requestId}] Missing credentialId for Teams chat subscription ${webhook.id}`)
-      throw new Error(
+      logger.warn(`Missing credentialId for Teams chat subscription ${webhook.id}`, { requestId })
+      throw new WebhookDeploymentConfigurationError(
         'Microsoft Teams credentials are required. Please connect your Microsoft account in the trigger configuration.'
       )
     }
 
     if (!chatId) {
-      logger.warn(`[${requestId}] Missing chatId for Teams chat subscription ${webhook.id}`)
-      throw new Error(
+      logger.warn(`Missing chatId for Teams chat subscription ${webhook.id}`, { requestId })
+      throw new WebhookDeploymentConfigurationError(
         'Chat ID is required to create a Teams subscription. Please provide a valid chat ID.'
       )
     }
 
     const accessToken = await getCredentialAccessToken(credentialId, requestId)
     if (!accessToken) {
-      logger.error(`[${requestId}] Failed to get access token for Teams subscription ${webhook.id}`)
+      logger.error(`Failed to get access token for Teams subscription ${webhook.id}`, { requestId })
       throw new Error(
         'Failed to authenticate with Microsoft Teams. Please reconnect your Microsoft account and try again.'
       )
@@ -626,14 +717,15 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     const existingSubscriptionId = config.externalSubscriptionId as string | undefined
     if (existingSubscriptionId) {
       try {
-        const checkRes = await fetch(
+        const checkRes = await outboundFetch(
           `https://graph.microsoft.com/v1.0/subscriptions/${existingSubscriptionId}`,
           { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } }
         )
         if (checkRes.ok) {
           const existingPayload = await checkRes.json()
           logger.info(
-            `[${requestId}] Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`
+            `Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`,
+            { requestId }
           )
           return {
             providerConfigUpdates: {
@@ -643,7 +735,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
           }
         }
       } catch {
-        logger.debug(`[${requestId}] Existing subscription check failed, will create new one`)
+        logger.debug('Existing subscription check failed, will create new one', { requestId })
       }
     }
 
@@ -664,7 +756,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     }
 
     try {
-      const res = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+      const res = await outboundFetch('https://graph.microsoft.com/v1.0/subscriptions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -677,13 +769,11 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       if (!res.ok) {
         const errorMessage =
           payload.error?.message || payload.error?.code || 'Unknown Microsoft Graph API error'
-        logger.error(
-          `[${requestId}] Failed to create Teams subscription for webhook ${webhook.id}`,
-          {
-            status: res.status,
-            error: payload.error,
-          }
-        )
+        logger.error(`Failed to create Teams subscription for webhook ${webhook.id}`, {
+          requestId,
+          status: res.status,
+          error: payload.error,
+        })
 
         let userFriendlyMessage = 'Failed to create Teams subscription'
         if (res.status === 401 || res.status === 403) {
@@ -700,7 +790,8 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       }
 
       logger.info(
-        `[${requestId}] Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`
+        `Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`,
+        { requestId }
       )
       return {
         providerConfigUpdates: {
@@ -718,10 +809,9 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         throw error
       }
 
-      logger.error(
-        `[${requestId}] Error creating Teams subscription for webhook ${webhook.id}`,
-        error
-      )
+      logger.error(`Error creating Teams subscription for webhook ${webhook.id}`, error, {
+        requestId,
+      })
       throw new Error(
         getErrorMessage(error, 'Failed to create Teams subscription. Please try again.')
       )
@@ -744,7 +834,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const credentialId = config.credentialId as string | undefined
 
       if (!externalSubscriptionId || !credentialId) {
-        logger.info(`[${requestId}] No external subscription to delete for webhook ${webhook.id}`)
+        logger.info(`No external subscription to delete for webhook ${webhook.id}`, { requestId })
         if (strict) throw new Error('Missing Teams subscription cleanup configuration')
         return
       }
@@ -752,13 +842,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       const accessToken = await getCredentialAccessToken(credentialId, requestId)
       if (!accessToken) {
         logger.warn(
-          `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
+          `Could not get access token to delete Teams subscription for webhook ${webhook.id}`,
+          { requestId }
         )
         if (strict) throw new Error('Missing Teams access token for subscription deletion')
         return
       }
 
-      const res = await fetch(
+      const res = await outboundFetch(
         `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
         {
           method: 'DELETE',
@@ -768,21 +859,22 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
       if (res.ok || res.status === 404) {
         logger.info(
-          `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`
+          `Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`,
+          { requestId }
         )
       } else {
         // Drain the unread body so the connection is released.
         await res.text()
         logger.warn(
-          `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
+          `Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`,
+          { requestId }
         )
         if (strict) throw new Error(`Failed to delete Teams subscription: ${res.status}`)
       }
     } catch (error) {
-      logger.error(
-        `[${requestId}] Error deleting Teams subscription for webhook ${webhook.id}`,
-        error
-      )
+      logger.error(`Error deleting Teams subscription for webhook ${webhook.id}`, error, {
+        requestId,
+      })
       if (strict) throw error
     }
   },

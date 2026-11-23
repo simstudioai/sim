@@ -1,8 +1,11 @@
 import {
   CALENDAR_API_BASE,
   type GoogleCalendarApiEventResponse,
+  type GoogleCalendarEventDetails,
 } from '@/tools/google_calendar/types'
+import { buildEventDetails } from '@/tools/google_calendar/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleCalendarInstancesParams {
   accessToken: string
@@ -22,43 +25,45 @@ interface GoogleCalendarInstancesResponse {
     metadata: {
       nextPageToken?: string
       timeZone: string
-      instances: Array<{
-        id: string
-        htmlLink: string
-        status: string
-        summary: string
-        description?: string
-        location?: string
-        start: {
-          dateTime?: string
-          date?: string
-          timeZone?: string
+      instances: Array<
+        Partial<GoogleCalendarEventDetails> & {
+          id: string
+          htmlLink: string
+          status: string
+          summary: string
+          description?: string
+          location?: string
+          start: {
+            dateTime?: string
+            date?: string
+            timeZone?: string
+          }
+          end: {
+            dateTime?: string
+            date?: string
+            timeZone?: string
+          }
+          attendees?: Array<{
+            email: string
+            displayName?: string
+            responseStatus: string
+          }>
+          creator?: {
+            email: string
+            displayName?: string
+          }
+          organizer?: {
+            email: string
+            displayName?: string
+          }
+          recurringEventId: string
+          originalStartTime: {
+            dateTime?: string
+            date?: string
+            timeZone?: string
+          }
         }
-        end: {
-          dateTime?: string
-          date?: string
-          timeZone?: string
-        }
-        attendees?: Array<{
-          email: string
-          displayName?: string
-          responseStatus: string
-        }>
-        creator?: {
-          email: string
-          displayName?: string
-        }
-        organizer?: {
-          email: string
-          displayName?: string
-        }
-        recurringEventId: string
-        originalStartTime: {
-          dateTime?: string
-          date?: string
-          timeZone?: string
-        }
-      }>
+      >
     }
   }
 }
@@ -162,7 +167,7 @@ export const instancesTool: ToolConfig<
         queryParams.append('showDeleted', params.showDeleted.toString())
 
       const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}/instances${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/events/${safeUrlPathSegment(params.eventId, 'eventId')}/instances${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params: GoogleCalendarInstancesParams) => ({
@@ -184,6 +189,7 @@ export const instancesTool: ToolConfig<
           nextPageToken: data.nextPageToken,
           timeZone: data.timeZone,
           instances: instances.map((instance) => ({
+            ...buildEventDetails(instance),
             id: instance.id,
             htmlLink: instance.htmlLink,
             status: instance.status,
@@ -212,7 +218,8 @@ export const instancesTool: ToolConfig<
   },
 }
 
-interface GoogleCalendarInstancesV2Instance {
+interface GoogleCalendarInstancesV2Instance
+  extends Omit<GoogleCalendarEventDetails, 'recurringEventId' | 'originalStartTime'> {
   id: string
   htmlLink: string
   status: string
@@ -263,6 +270,7 @@ export const instancesV2Tool: ToolConfig<
         nextPageToken: data.nextPageToken ?? null,
         timeZone: data.timeZone ?? null,
         instances: instances.map((instance) => ({
+          ...buildEventDetails(instance),
           id: instance.id,
           htmlLink: instance.htmlLink,
           status: instance.status,

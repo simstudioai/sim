@@ -7,6 +7,7 @@ import {
   toJsonArray,
   toJsonObject,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createFormTool: ToolConfig<JotformCreateFormParams, JotformFormResponse> = {
@@ -15,6 +16,7 @@ export const createFormTool: ToolConfig<JotformCreateFormParams, JotformFormResp
   description:
     'Create a new Jotform form from a list of questions, plus optional form properties and notification emails.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

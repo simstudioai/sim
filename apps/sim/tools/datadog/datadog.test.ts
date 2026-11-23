@@ -4,9 +4,11 @@ import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/upd
 import * as datadogTools from '@/tools/datadog'
 import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
 import { createDowntimeTool } from '@/tools/datadog/create_downtime'
+import { createEventTool } from '@/tools/datadog/create_event'
 import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
 import { getMonitorTool } from '@/tools/datadog/get_monitor'
+import { getSloHistoryTool } from '@/tools/datadog/get_slo_history'
 import { listDashboardsTool } from '@/tools/datadog/list_dashboards'
 import { listDowntimesTool } from '@/tools/datadog/list_downtimes'
 import { listIncidentsTool } from '@/tools/datadog/list_incidents'
@@ -16,7 +18,13 @@ import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
 import { sendLogsTool } from '@/tools/datadog/send_logs'
 import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
-import { DATADOG_SITES } from '@/tools/datadog/types'
+import {
+  type CreateEventParams,
+  type CreateMonitorParams,
+  DATADOG_SITES,
+  type SubmitMetricsParams,
+  type UpdateIncidentParams,
+} from '@/tools/datadog/types'
 import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
 import {
@@ -652,5 +660,78 @@ describe('every Datadog tool routes its host through the allowlist', () => {
       }
     }
     expect(unguarded).toEqual([])
+  })
+})
+
+describe('submit_metrics numeric intake codes', () => {
+  it('passes a numeric MetricIntakeType through instead of dropping it', () => {
+    const body = callBody(submitMetricsTool, {
+      ...auth,
+      series: JSON.stringify([{ metric: 'm', type: 3, points: [{ timestamp: 1, value: 2 }] }]),
+    } as SubmitMetricsParams)
+    expect(body.series[0].type).toBe(3)
+  })
+
+  it('drops a numeric code outside the enum', () => {
+    const body = callBody(submitMetricsTool, {
+      ...auth,
+      series: JSON.stringify([{ metric: 'm', type: 9, points: [{ timestamp: 1, value: 2 }] }]),
+    } as SubmitMetricsParams)
+    expect(body.series[0].type).toBeUndefined()
+  })
+})
+
+describe('tags that arrive as an array', () => {
+  const tags = ['env:prod', ' team:a ']
+
+  it('create_monitor sends the tags instead of throwing', () => {
+    const params: CreateMonitorParams = {
+      ...auth,
+      name: 'n',
+      type: 'metric alert',
+      query: 'q',
+      tags,
+    }
+    expect(callBody(createMonitorTool, params).tags).toEqual(['env:prod', 'team:a'])
+  })
+
+  it('create_event sends the tags instead of throwing', () => {
+    const params: CreateEventParams = { ...auth, title: 't', text: 'x', tags }
+    expect(callBody(createEventTool, params).tags).toEqual(['env:prod', 'team:a'])
+  })
+})
+
+describe('update_incident body id', () => {
+  it('matches the trimmed path id', () => {
+    const params: UpdateIncidentParams = { ...auth, incidentId: ' abc-123 ', title: 'T' }
+    expect(callUrl(updateIncidentTool, params)).toContain('/api/v2/incidents/abc-123')
+    expect(callBody(updateIncidentTool, params).data.id).toBe('abc-123')
+  })
+})
+
+describe('response fields Datadog returns alongside the main payload', () => {
+  it('keeps the exact event id string that a number cannot hold', async () => {
+    const response = new Response(
+      '{"event":{"id":1234567890123456789,"id_str":"1234567890123456789","title":"t"}}',
+      { status: 200 }
+    )
+    const result = await createEventTool.transformResponse?.(response)
+    expect(result?.output.event.id_str).toBe('1234567890123456789')
+  })
+
+  it('surfaces SLO history query errors on a successful response', async () => {
+    const result = await getSloHistoryTool.transformResponse?.(
+      jsonResponse({ data: {}, errors: [{ error: 'query timed out' }] })
+    )
+    expect(result?.success).toBe(true)
+    expect(result?.output.errors).toEqual([{ error: 'query timed out' }])
+  })
+
+  it('returns the included resources get_incident asked for', async () => {
+    const included = [{ id: 'u1', type: 'users' }]
+    const result = await getIncidentTool.transformResponse?.(
+      jsonResponse({ data: { id: 'i1', type: 'incidents', attributes: {} }, included })
+    )
+    expect(result?.output.included).toEqual(included)
   })
 })

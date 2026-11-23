@@ -2,6 +2,7 @@ import type {
   FathomListTeamMembersParams,
   FathomListTeamMembersResponse,
 } from '@/tools/fathom/types'
+import { FATHOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTeamMembersTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listTeamMembersTool: ToolConfig<
   name: 'Fathom List Team Members',
   description: 'List team members in your Fathom organization.',
   version: '1.0.0',
+  oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

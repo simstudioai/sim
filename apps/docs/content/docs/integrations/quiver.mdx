@@ -2,9 +2,11 @@
 title: Quiver
 description: Generate and vectorize SVGs
 integration:
-  type: "quiver_v2"
+  type: "quiver_v3"
   color: "#FFFFFF"
 ---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
@@ -12,7 +14,6 @@ Use [QuiverAI](https://quiver.ai/) to generate SVG graphics from text or vectori
 
 **List Models** reports available models and capabilities. Generated SVG markup and stored files are returned for downstream processing, storage, or delivery.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -24,20 +25,21 @@ Generate SVG images from text prompts or vectorize raster images into SVGs using
 
 Generate SVG images from text prompts using QuiverAI
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | QuiverAI API key |
 | `prompt` | string | Yes | A text description of the desired SVG |
-| `model` | string | Yes | The model to use for SVG generation \(e.g., "arrow-preview"\) |
+| `model` | string | Yes | The model to use for SVG generation \(e.g., "arrow-2"\) |
 | `instructions` | string | No | Style or formatting guidance for the SVG output |
 | `references` | file | No | Reference images to guide SVG generation \(up to 4\) |
 | `n` | number | No | Number of SVGs to generate \(1-16, default 1\) |
-| `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
-| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\) |
-| `max_output_tokens` | number | No | Maximum output tokens \(1-131072\) |
-| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\) |
+| `temperature` | number | No | Sampling temperature \(0-2, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `max_output_tokens` | number | No | Maximum output tokens \(1-65536\) |
+| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\). Not sent for Arrow 2 Telos, which rejects it |
 
 #### Output
 
@@ -50,21 +52,24 @@ Generate SVG images from text prompts using QuiverAI
 |   ↳ `inputTokens` | number | Input tokens used |
 |   ↳ `outputTokens` | number | Output tokens used |
 
+</ReferenceDetails>
+
 ### Quiver Image to SVG
 
 Convert raster images into vector SVG format using QuiverAI
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | QuiverAI API key |
-| `model` | string | Yes | The model to use for vectorization \(e.g., "arrow-preview"\) |
+| `model` | string | Yes | The model to use for vectorization \(e.g., "arrow-2"\) |
 | `image` | file | Yes | The raster image to vectorize into SVG |
-| `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
-| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\) |
-| `max_output_tokens` | number | No | Maximum output tokens \(1-131072\) |
-| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\) |
+| `temperature` | number | No | Sampling temperature \(0-2, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\). Not sent for Arrow 2 Telos, which rejects it |
+| `max_output_tokens` | number | No | Maximum output tokens \(1-65536\) |
+| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\). Not sent for Arrow 2 Telos, which rejects it |
 | `auto_crop` | boolean | No | Automatically crop the image before vectorizing |
 | `target_size` | number | No | Square resize target in pixels \(128-4096\) |
 
@@ -79,15 +84,18 @@ Convert raster images into vector SVG format using QuiverAI
 |   ↳ `inputTokens` | number | Input tokens used |
 |   ↳ `outputTokens` | number | Output tokens used |
 
+</ReferenceDetails>
+
 ### Quiver List Models
 
 List all available QuiverAI models
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | QuiverAI API key |
 
 #### Output
 
@@ -107,5 +115,7 @@ List all available QuiverAI models
 |     ↳ `maxOutputLength` | number | Maximum generation length |
 |     ↳ `supportedOperations` | json | Available operations \(svg_generate, svg_edit, svg_animate, svg_vectorize, chat_completions\) |
 |     ↳ `supportedSamplingParameters` | json | Supported sampling parameters \(temperature, top_p, top_k, repetition_penalty, presence_penalty, stop\) |
+
+</ReferenceDetails>
 
 

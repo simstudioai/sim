@@ -93,15 +93,38 @@ const PATH_REDIRECTS: DocsRedirect[] = [
   { source: '/api-reference', destination: '/api-reference/getting-started', permanent: true },
   // sdks/* folded into api-reference/
   { source: '/sdks', destination: '/api-reference/getting-started', permanent: true },
-  { source: '/sdks/typescript', destination: '/api-reference/typescript', permanent: true },
-  { source: '/sdks/python', destination: '/api-reference/python', permanent: true },
+  { source: '/sdks/typescript', destination: '/api-reference/getting-started', permanent: true },
+  { source: '/sdks/python', destination: '/api-reference/getting-started', permanent: true },
+  // TypeScript and Python SDKs removed; their pages point at the HTTP API quickstart
+  {
+    source: '/api-reference/typescript',
+    destination: '/api-reference/getting-started',
+    permanent: true,
+  },
+  {
+    source: '/api-reference/python',
+    destination: '/api-reference/getting-started',
+    permanent: true,
+  },
   // building-agents/agents merged into the building-agents overview
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed
   { source: '/deployment/form', destination: '/workflows/deployment', permanent: true },
+  // workspace as code moved into the workflows-as-code section
+  {
+    source: '/workflows/workspace-code',
+    destination: '/workflows/code/workspace',
+    permanent: true,
+  },
   // copilot deprecated and removed
   { source: '/copilot', destination: '/chat', permanent: true },
   { source: '/copilot/:path*', destination: '/chat', permanent: true },
+  // white-labeling removed
+  {
+    source: '/platform/enterprise/whitelabeling',
+    destination: '/platform/enterprise',
+    permanent: true,
+  },
   // mothership/* renamed to chat/* — the surface is "Chat", the agent is "Sim"
   { source: '/mothership', destination: '/chat', permanent: true },
   { source: '/mothership/:path*', destination: '/chat/:path*', permanent: true },

@@ -1,5 +1,6 @@
 import type { CbInsightsOrgParams } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 export const cbinsightsGetStrategyMapTool: InternalToolConfig<CbInsightsOrgParams, ToolResponse> = {
@@ -8,6 +9,7 @@ export const cbinsightsGetStrategyMapTool: InternalToolConfig<CbInsightsOrgParam
   description:
     'Retrieve the companies related to an organization, grouped into industry categories, with the relationships, investments, and acquisitions that connect them.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

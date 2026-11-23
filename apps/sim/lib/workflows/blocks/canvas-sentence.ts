@@ -174,7 +174,7 @@ export function resolveCanvasSentence(
    * Not the empty-card path. `check:canvas-sentences` drives this resolver over
    * every operation in both basic and advanced mode against the card's own
    * visibility filter, and nothing comes back empty — the two states it cannot
-   * construct are a deployment-gated field (`showWhenEnvSet`, `hideWhenHosted`)
+   * construct are a deployment-gated field (`showWhenEnvSet`, `showWhenFeature`, `hideWhenHosted`)
    * and an async reactive condition, which the rules deliberately treat as
    * undecidable rather than assume. `null` rather than `[]` degrades those to
    * the field rows; an empty array is truthy and would paint a blank card.

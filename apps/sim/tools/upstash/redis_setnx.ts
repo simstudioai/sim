@@ -1,5 +1,7 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisSetnxParams, UpstashRedisSetnxResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashRedisSetnxResponse> =
   {
@@ -8,6 +10,7 @@ export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashR
     description:
       'Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed.',
     version: '1.0.0',
+    oauth: UPSTASH_CREDENTIAL_OAUTH,
 
     params: {
       restUrl: {
@@ -37,7 +40,7 @@ export const upstashRedisSetnxTool: ToolConfig<UpstashRedisSetnxParams, UpstashR
     },
 
     request: {
-      url: (params) => `${params.restUrl}/setnx/${encodeURIComponent(params.key)}`,
+      url: (params) => `${params.restUrl}/setnx/${upstashPathSegment(params.key, 'key')}`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.restToken}`,

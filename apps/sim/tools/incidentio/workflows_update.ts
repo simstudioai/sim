@@ -5,13 +5,16 @@ import {
   parseIncidentioJsonParam,
   parseRequiredIncidentioJsonParam,
 } from '@/tools/incidentio/utils'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpdateResponse> = {
   id: 'incidentio_workflows_update',
   name: 'incident.io Workflows Update',
   description: 'Update an existing workflow in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -101,7 +104,7 @@ export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpd
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/workflows/${params.id.trim()}`,
+    url: (params) => `https://api.incident.io/v2/workflows/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

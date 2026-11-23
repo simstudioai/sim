@@ -1,12 +1,30 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { EnrichmentIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, OutputFieldDefinition, ParamType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { ALL_ENRICHMENTS, getEnrichment } from '@/enrichments'
 import { mapFieldType } from '@/enrichments/providers'
 import type { EnrichmentOutputField } from '@/enrichments/types'
 
 /** Stable subBlock id for an enrichment input (unique across enrichments). */
 const inputFieldId = (enrichmentId: string, inputId: string) => `${enrichmentId}__${inputId}`
+
+/**
+ * The `inputs` map a model passed on a tool call, as an object or its JSON text. Fields filled on
+ * the tool row override its entries.
+ */
+function parseModelInputs(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value)
+      return isPlainRecord(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+  return isPlainRecord(value) ? value : {}
+}
 
 // One input field per (enrichment, input), shown only for its enrichment.
 const inputSubBlocks = ALL_ENRICHMENTS.flatMap((enrichment) =>
@@ -141,16 +159,19 @@ export const EnrichmentBlock: BlockConfig = {
     access: ['enrichment_run'],
     config: {
       tool: () => 'enrichment_run',
-      params: (params) => {
-        const enrichment = getEnrichment(params.operation)
-        const inputs: Record<string, unknown> = {}
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const enrichment = getEnrichment(operation)
+        const inputs: Record<string, unknown> = {
+          ...parseModelInputs(toolCallArg(context, params.inputs)),
+        }
         if (enrichment) {
           for (const input of enrichment.inputs) {
             const value = params[inputFieldId(enrichment.id, input.id)]
             if (value !== undefined && value !== '') inputs[input.id] = value
           }
         }
-        return { enrichmentId: params.operation, inputs }
+        return { enrichmentId: operation || params.enrichmentId, inputs }
       },
     },
   },

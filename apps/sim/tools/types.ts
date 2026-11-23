@@ -21,6 +21,7 @@ export type BYOKProviderId =
   | 'nebius'
   | 'ollama-cloud'
   | 'kie'
+  | 'thinkingmachines'
   | 'falai'
   | 'firecrawl'
   | 'exa'
@@ -78,11 +79,15 @@ export interface OutputProperty {
   optional?: boolean
   nullable?: boolean
   properties?: Record<string, OutputProperty>
+  /** Fields beyond `properties` are valid references; an internal hint the public catalog omits. */
+  open?: boolean
   items?: {
     type: OutputType
     description?: string
     nullable?: boolean
     properties?: Record<string, OutputProperty>
+    /** Any sub-path of an item is a valid reference; an internal hint the public catalog omits. */
+    open?: boolean
   }
 }
 
@@ -126,6 +131,14 @@ export interface ToolResponse {
   }
 }
 
+/** A field of a resolved saved credential that can fill a tool param. */
+export type CredentialParamSource =
+  | 'accessToken'
+  | 'domain'
+  | 'providerWorkspaceId'
+  /** Datadog's application key, a secret sent beside the API key. */
+  | 'applicationKey'
+
 export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
@@ -136,6 +149,33 @@ export interface OAuthConfig {
   credentialKind?: 'oauth' | 'service-account'
   /** Retry one rejected internal operation after re-authorizing its saved credential. */
   retryOnUnauthorized?: boolean
+  /**
+   * Inline params a saved credential supplies instead, on a tool that accepts
+   * either (`required: false`). A block that offers only the credential has no
+   * field for them, so required-field validation does not ask for them.
+   */
+  credentialSuppliedParams?: readonly string[]
+  /**
+   * Where each credential-supplied param comes from in the resolved saved
+   * credential. The executor fills these after authorization, overriding any
+   * caller-supplied value, and fails closed when the credential lacks a field.
+   * Built by `tokenCredentialOAuth`; providers that resolve inside their own
+   * operation instead (AWS session keys) leave it unset.
+   */
+  credentialParams?: Readonly<Record<string, CredentialParamSource>>
+  /**
+   * Mapped params a credential of this provider may lack because one of its sign-in modes has no
+   * such field (a ServiceNow client-credentials connection has no username). The executor clears
+   * such a param instead of failing, so it is never left to the caller either.
+   */
+  optionalCredentialParams?: readonly string[]
+  /**
+   * Inline secrets a saved client-credential account replaces with the token
+   * it mints (`credentialParams.accessToken`): the tool authenticates with the
+   * token and never reads them. Listed in `credentialSuppliedParams` too.
+   * Built by `clientCredentialOAuth`.
+   */
+  tokenReplacesParams?: readonly string[]
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'
@@ -143,6 +183,7 @@ export interface OAuthConfig {
     | 'cloudId'
     | 'credentialType'
     | 'domain'
+    | 'providerWorkspaceId'
     | 'idToken'
     | 'instanceUrl'
     | 'realmId'
@@ -312,7 +353,9 @@ export interface ToolConfig<P = any, R = any> {
   postProcess?: (
     result: R extends ToolResponse ? R : ToolResponse,
     params: P,
-    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>
+    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>,
+    /** The run's abort signal, the same one the tool's own request used. */
+    context?: { signal?: AbortSignal }
   ) => Promise<R extends ToolResponse ? R : ToolResponse>
 
   // Response handling
@@ -498,6 +541,11 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
   apiKeyParam: string
   /** BYOK provider ID for workspace key lookup */
   byokProviderId?: BYOKProviderId
+  /**
+   * Bills the hosted charge again from the provider's exact receipt once it is recorded, for a
+   * provider whose receipt arrives after the result. `falai` settles through fal's billing events.
+   */
+  exactCostSettlement?: 'falai'
   /** Pricing when using hosted key */
   pricing: ToolHostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */

@@ -1,7 +1,6 @@
 import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface OTPVerificationEmailProps {
   otp: string
@@ -9,20 +8,20 @@ interface OTPVerificationEmailProps {
   chatTitle?: string
 }
 
-const getSubjectByType = (type: string, brandName: string, chatTitle?: string) => {
+const getSubjectByType = (type: string, chatTitle?: string) => {
   switch (type) {
     case 'sign-in':
-      return `Sign in to ${brandName}`
+      return `Sign in to Sim`
     case 'email-verification':
-      return `Verify your email for ${brandName}`
+      return `Verify your email for Sim`
     case 'change-email':
-      return `Verify your new email for ${brandName}`
+      return `Verify your new email for Sim`
     case 'forget-password':
-      return `Reset your ${brandName} password`
+      return `Reset your Sim password`
     case 'chat-access':
       return `Verification code for ${chatTitle || 'Chat'}`
     default:
-      return `Verification code for ${brandName}`
+      return `Verification code for Sim`
   }
 }
 
@@ -31,10 +30,8 @@ export function OTPVerificationEmail({
   type = 'email-verification',
   chatTitle,
 }: OTPVerificationEmailProps) {
-  const brand = getBrandConfig()
-
   return (
-    <EmailLayout preview={getSubjectByType(type, brand.name, chatTitle)} showUnsubscribe={false}>
+    <EmailLayout preview={getSubjectByType(type, chatTitle)} showUnsubscribe={false}>
       <Text style={baseStyles.greeting}>Your verification code:</Text>
 
       <Section style={baseStyles.codeContainer}>

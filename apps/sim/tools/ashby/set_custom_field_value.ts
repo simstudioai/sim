@@ -7,6 +7,7 @@ import {
   mapCustomFieldOnObject,
   normalizeObjectType,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbySetCustomFieldValueParams {
@@ -33,6 +34,7 @@ export const setCustomFieldValueTool: ToolConfig<
   description:
     'Sets the value of a single custom field on an Ashby Application, Candidate, Job, or Opening. Custom fields are the only way to annotate a job or req, since Ashby has no job notes and no job tags. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

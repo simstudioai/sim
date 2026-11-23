@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { StreamingExecution } from '@/executor/types'
 import { resolveFireworksWireModel } from '@/providers/fireworks/utils'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -45,6 +46,7 @@ export const fireworksProvider: ProviderConfig = {
 
     const client = new OpenAI({
       ...openAICompatTransport(),
+      fetch: outboundFetch,
       apiKey: request.apiKey,
       baseURL: 'https://api.fireworks.ai/inference/v1',
     })

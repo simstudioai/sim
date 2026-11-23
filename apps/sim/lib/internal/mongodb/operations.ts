@@ -23,8 +23,24 @@ import type {
   MongodbQueryInput,
   MongodbUpdateInput,
 } from '@/lib/internal/mongodb/schema'
+import { createResponseRowsBudget } from '@/lib/internal/tool-operations/response-limits'
 
 export class MongodbOperationInputError extends Error {}
+
+/**
+ * Reads documents one at a time, failing with the tool response size error as soon as they cannot
+ * fit the response. Leaving the loop early closes the server cursor, so an oversized result is
+ * never read into memory in full.
+ */
+async function readDocuments(cursor: AsyncIterable<Document>, toolId: string) {
+  const budget = createResponseRowsBudget(toolId)
+  const documents: Document[] = []
+  for await (const document of cursor) {
+    budget.admit(document)
+    documents.push(document)
+  }
+  return documents
+}
 
 async function withMongodbClient<TResult>(
   input: MongodbConnectionConfig,
@@ -71,7 +87,7 @@ export function executeMongodbQuery(input: MongodbQueryInput, signal?: AbortSign
     }
 
     cursor = cursor.limit(input.limit || 100)
-    const documents = await cursor.toArray()
+    const documents = await readDocuments(cursor, 'mongodb_query')
     signal?.throwIfAborted()
     return {
       message: `Found ${documents.length} documents`,
@@ -92,11 +108,10 @@ export function executeMongodbAggregation(input: MongodbExecuteInput, signal?: A
   const pipeline = JSON.parse(input.pipeline) as Document[]
 
   return withMongodbClient(input, signal, async (client) => {
-    const documents = await client
-      .db(input.database)
-      .collection(collectionName)
-      .aggregate(pipeline, { signal })
-      .toArray()
+    const documents = await readDocuments(
+      client.db(input.database).collection(collectionName).aggregate(pipeline, { signal }),
+      'mongodb_execute'
+    )
     signal?.throwIfAborted()
     return {
       message: `Aggregation completed, returned ${documents.length} documents`,

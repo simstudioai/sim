@@ -1,5 +1,5 @@
-import { getPostHogAppBaseUrl } from '@/tools/posthog/utils'
-import type { ToolConfig } from '@/tools/types'
+import { getPostHogAppBaseUrl, postHogPathSegment } from '@/tools/posthog/utils'
+import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface PostHogUpdateEventDefinitionParams {
   projectId: string
@@ -34,7 +34,7 @@ interface EventDefinition {
 
 export const updateEventDefinitionTool: ToolConfig<
   PostHogUpdateEventDefinitionParams,
-  EventDefinition
+  ToolResponse & { output: EventDefinition }
 > = {
   id: 'posthog_update_event_definition',
   name: 'PostHog Update Event Definition',
@@ -98,7 +98,7 @@ export const updateEventDefinitionTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = getPostHogAppBaseUrl(params.region, params.host)
-      return `${baseUrl}/api/projects/${params.projectId}/event_definitions/${params.eventDefinitionId}`
+      return `${baseUrl}/api/projects/${postHogPathSegment(params.projectId, 'projectId')}/event_definitions/${postHogPathSegment(params.eventDefinitionId, 'eventDefinitionId')}`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -131,17 +131,20 @@ export const updateEventDefinitionTool: ToolConfig<
     const data = await response.json()
 
     return {
-      id: data.id,
-      name: data.name,
-      description: data.description || '',
-      tags: data.tags || [],
-      created_at: data.created_at,
-      last_seen_at: data.last_seen_at ?? null,
-      updated_at: data.updated_at,
-      updated_by: data.updated_by ?? null,
-      verified: data.verified || false,
-      verified_at: data.verified_at ?? null,
-      verified_by: data.verified_by ?? null,
+      success: true,
+      output: {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        tags: data.tags || [],
+        created_at: data.created_at,
+        last_seen_at: data.last_seen_at ?? null,
+        updated_at: data.updated_at,
+        updated_by: data.updated_by ?? null,
+        verified: data.verified || false,
+        verified_at: data.verified_at ?? null,
+        verified_by: data.verified_by ?? null,
+      },
     }
   },
 

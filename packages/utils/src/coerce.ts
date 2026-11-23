@@ -24,3 +24,19 @@ export function toNumberOrNull(value: unknown): number | null {
 export function toBooleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
 }
+
+/**
+ * Reads an optional boolean that may arrive as a real boolean or as its string form
+ * from block inputs and agent tool calls. Strings are matched trimmed and
+ * case-insensitively against `'true'`/`'false'`; anything else is `undefined`, so the
+ * caller can leave the field unset.
+ */
+export function toBooleanFromInput(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return undefined
+}

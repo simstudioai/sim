@@ -20,10 +20,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import { copilotChatAbortContract } from '@/lib/api/contracts/copilot'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import {
   addMothershipChatResourceContract,
+  mothershipChatAbortContract,
   removeMothershipChatResourceContract,
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
@@ -772,7 +772,6 @@ export function useChat(
 ): UseChatReturn {
   const { toast } = useToast()
   const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
-  const computerUseEnabled = useFeatureFlag('mothership-computer-use')
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
@@ -3940,7 +3939,7 @@ export function useChat(
             } else {
               const predecessor = queuedSendHandoff?.supersededStreamId
               if (!predecessor) throw new Error('The previous response could not be identified.')
-              const stopped = await requestJson(copilotChatAbortContract, {
+              const stopped = await requestJson(mothershipChatAbortContract, {
                 keepalive: true,
                 signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
                 headers: {},
@@ -4027,16 +4026,7 @@ export function useChat(
         const desktopChatCapabilities =
           options?.requestMode === 'assistant'
             ? {}
-            : await getDesktopChatCapabilities(
-                desktopScopeIdRef.current,
-                !computerUseEnabled
-                  ? null
-                  : organizationId
-                    ? { organizationId }
-                    : workspaceId
-                      ? { workspaceId }
-                      : null
-              )
+            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
 
         admissionUnknown = true
         /** A reload from here on may find the server holding this id. */
@@ -4398,7 +4388,6 @@ export function useChat(
       queryClient,
       upsertChatHistory,
       modelSelectorEnabled,
-      computerUseEnabled,
       processSSEStream,
       finalize,
       resumeOrFinalize,
@@ -4443,7 +4432,7 @@ export function useChat(
     ) => {
       if ((!message.trim() && !fileAttachments?.length) || !scopeKey) return
       if (chatPlanRequired) {
-        useChatPlanModalStore.getState().open()
+        useChatPlanModalStore.getState().open(workspaceId)
         return
       }
 
@@ -4905,7 +4894,7 @@ export function useChat(
           let abortSettled = false
           const postAbortRequest = async (chatId?: string): Promise<boolean> => {
             if (!sid) return true
-            const payload = await requestJson(copilotChatAbortContract, {
+            const payload = await requestJson(mothershipChatAbortContract, {
               keepalive: true,
               signal: createTimeoutSignal(STOP_REQUEST_TIMEOUT_MS),
               headers: {
@@ -5307,7 +5296,7 @@ export function useChat(
       if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIds.has(msg.id)) return
       if (chatPlanRequired) {
-        useChatPlanModalStore.getState().open()
+        useChatPlanModalStore.getState().open(workspaceId)
         return
       }
       /* Sent by hand, it still must not run a second turn: if the history shows it

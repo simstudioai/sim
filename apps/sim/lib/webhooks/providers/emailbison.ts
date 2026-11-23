@@ -7,6 +7,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -26,15 +27,13 @@ export const emailBisonHandler: WebhookProviderHandler = {
     if (!triggerId) return true
 
     if (!isRecordLike(body)) {
-      logger.warn(`[${requestId}] Email Bison webhook payload was not an object`)
+      logger.warn('Email Bison webhook payload was not an object', { requestId })
       return false
     }
 
     const { isEmailBisonEventMatch } = await import('@/triggers/emailbison/utils')
     if (!isEmailBisonEventMatch(triggerId, unwrapEmailBisonPayload(body))) {
-      logger.info(`[${requestId}] Email Bison event did not match trigger`, {
-        triggerId,
-      })
+      logger.info('Email Bison event did not match trigger', { requestId, triggerId })
       return false
     }
 
@@ -127,15 +126,15 @@ export const emailBisonHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (!apiKey?.trim()) {
-      throw new Error('Email Bison API Key is required.')
+      throw new WebhookDeploymentConfigurationError('Email Bison API Key is required.')
     }
 
     if (!apiBaseUrl?.trim()) {
-      throw new Error('Email Bison Instance URL is required.')
+      throw new WebhookDeploymentConfigurationError('Email Bison Instance URL is required.')
     }
 
     if (!triggerId) {
-      throw new Error('Email Bison trigger ID is required.')
+      throw new WebhookDeploymentConfigurationError('Email Bison trigger ID is required.')
     }
 
     const { getEmailBisonEventTypeForTrigger } = await import('@/triggers/emailbison/utils')
@@ -146,7 +145,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
 
     const notificationUrl = getNotificationUrl(webhook)
 
-    logger.info(`[${requestId}] Creating Email Bison webhook`, {
+    logger.info('Creating Email Bison webhook', {
+      requestId,
       triggerId,
       eventType,
       webhookId: webhook.id,
@@ -155,7 +155,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
     const targetUrl = emailBisonUrl('/api/webhook-url', {}, apiBaseUrl)
     const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
     if (!urlValidation.isValid) {
-      logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`)
+      logger.warn(`Invalid Email Bison Instance URL: ${urlValidation.error}`, { requestId })
       throw new Error('Email Bison Instance URL could not be validated.')
     }
 
@@ -173,7 +173,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
     const responseBody = await parseJsonResponse(response)
     if (!response.ok) {
       const message = extractEmailBisonError(responseBody)
-      logger.error(`[${requestId}] Failed to create Email Bison webhook`, {
+      logger.error('Failed to create Email Bison webhook', {
+        requestId,
         status: response.status,
         message,
         response: responseBody,
@@ -196,7 +197,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
       throw new Error('Email Bison webhook was created but the API response did not include an ID.')
     }
 
-    logger.info(`[${requestId}] Successfully created Email Bison webhook`, {
+    logger.info('Successfully created Email Bison webhook', {
+      requestId,
       externalId,
       webhookId: webhook.id,
     })
@@ -214,7 +216,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
       const externalId = providerConfig.externalId as string | undefined
 
       if (!apiKey?.trim() || !apiBaseUrl?.trim() || !externalId?.trim()) {
-        logger.warn(`[${requestId}] Missing Email Bison webhook cleanup configuration`, {
+        logger.warn('Missing Email Bison webhook cleanup configuration', {
+          requestId,
           webhookId: webhook.id,
           hasApiKey: Boolean(apiKey),
           hasApiBaseUrl: Boolean(apiBaseUrl),
@@ -232,7 +235,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
       )
       const urlValidation = await validateUrlWithDNS(targetUrl, 'apiBaseUrl', 'configuredEndpoint')
       if (!urlValidation.isValid) {
-        logger.warn(`[${requestId}] Invalid Email Bison Instance URL: ${urlValidation.error}`, {
+        logger.warn(`Invalid Email Bison Instance URL: ${urlValidation.error}`, {
+          requestId,
           webhookId: webhook.id,
         })
         if (ctx.strict)
@@ -248,7 +252,8 @@ export const emailBisonHandler: WebhookProviderHandler = {
 
       if (!response.ok && response.status !== 404) {
         const responseBody = await parseJsonResponse(response)
-        logger.warn(`[${requestId}] Failed to delete Email Bison webhook`, {
+        logger.warn('Failed to delete Email Bison webhook', {
+          requestId,
           status: response.status,
           response: responseBody,
         })
@@ -258,13 +263,15 @@ export const emailBisonHandler: WebhookProviderHandler = {
       }
 
       await response.body?.cancel()
-      logger.info(`[${requestId}] Successfully deleted Email Bison webhook`, {
+      logger.info('Successfully deleted Email Bison webhook', {
+        requestId,
         externalId,
         webhookId: webhook.id,
       })
     } catch (error) {
       if (!(error instanceof AlreadyLoggedError)) {
-        logger.warn(`[${requestId}] Error deleting Email Bison webhook`, {
+        logger.warn('Error deleting Email Bison webhook', {
+          requestId,
           message: toError(error).message,
         })
       }

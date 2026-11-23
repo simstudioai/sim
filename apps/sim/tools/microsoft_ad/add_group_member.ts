@@ -3,6 +3,7 @@ import type {
   MicrosoftAdAddGroupMemberResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const addGroupMemberTool: ToolConfig<
   MicrosoftAdAddGroupMemberParams,
@@ -41,7 +42,7 @@ export const addGroupMemberTool: ToolConfig<
     url: (params) => {
       const groupId = params.groupId?.trim()
       if (!groupId) throw new Error('Group ID is required')
-      return `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}/members/$ref`
+      return `https://graph.microsoft.com/v1.0/groups/${safeUrlPathSegment(groupId, 'groupId')}/members/$ref`
     },
     method: 'POST',
     headers: (params) => ({
@@ -52,7 +53,7 @@ export const addGroupMemberTool: ToolConfig<
       const memberId = params.memberId?.trim()
       if (!memberId) throw new Error('Member ID is required')
       return {
-        '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${memberId}`,
+        '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${safeUrlPathSegment(memberId, 'memberId')}`,
       }
     },
   },

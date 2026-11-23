@@ -1,4 +1,5 @@
 import type { EnrichSearchJobsParams, EnrichSearchJobsResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchJobsTool: ToolConfig<EnrichSearchJobsParams, EnrichSearchJobsResponse> = {
@@ -7,6 +8,7 @@ export const searchJobsTool: ToolConfig<EnrichSearchJobsParams, EnrichSearchJobs
   description:
     'Search LinkedIn job postings by keywords with filters for location, job type, workplace type, experience level, and company.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

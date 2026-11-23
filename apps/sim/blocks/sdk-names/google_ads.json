@@ -1,0 +1,16 @@
+{
+  "namespace": "googleAds",
+  "methods": {
+    "ad_performance": "adPerformance",
+    "campaign_performance": "campaignPerformance",
+    "list_ad_groups": "listAdGroups",
+    "list_campaigns": "listCampaigns",
+    "list_customers": "listCustomers",
+    "search": "customQueryGaql"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

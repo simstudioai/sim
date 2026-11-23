@@ -1,11 +1,14 @@
 import type { RipplingGetObjectCategoryParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetObjectCategoryTool: ToolConfig<RipplingGetObjectCategoryParams> = {
   id: 'rippling_get_object_category',
   name: 'Rippling Get ObjectCategory',
   description: 'Get a specific object category',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -17,7 +20,7 @@ export const ripplingGetObjectCategoryTool: ToolConfig<RipplingGetObjectCategory
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/object-categories/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/object-categories/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

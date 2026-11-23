@@ -3,6 +3,7 @@ import type {
   CbInsightsPagedOrgListResponse,
 } from '@/tools/cbinsights/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { CBINSIGHTS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export interface CbInsightsListBusinessRelationshipsParams extends CbInsightsOrgListParams {
@@ -18,6 +19,7 @@ export const cbinsightsListBusinessRelationshipsTool: InternalToolConfig<
   description:
     'Retrieve partnerships, client/vendor relationships, and licensing activity for up to 100 organizations at once, with AI-generated insights on each.',
   version: '1.0.0',
+  oauth: CBINSIGHTS_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {

@@ -12,7 +12,7 @@ const logger = createLogger('GuardrailsToolExecution')
 
 function unexpectedFailure(error: unknown, requestId: string): Response {
   const message = getErrorMessage(error, 'Validation failed due to unexpected error')
-  logger.error(`[${requestId}] Guardrails validation failed`, { error: message })
+  logger.error('Guardrails validation failed', { requestId, error: message })
   return Response.json({
     success: true,
     output: {

@@ -12,7 +12,7 @@ const logger = createLogger('CopilotByokValidate')
 
 /**
  * Authoritative entitlement gate for enterprise BYOK, called server-to-server by
- * the mothership (Go) before it uses a workspace's own provider key. Gated by
+ * the mothership worker before it uses a workspace's own provider key. Gated by
  * INTERNAL_API_SECRET — never exposed to the browser.
  *
  * Returns 200 when EITHER:
@@ -22,7 +22,7 @@ const logger = createLogger('CopilotByokValidate')
  *     another org's stored key to be used) AND the workspace is on an
  *     enterprise plan.
  *
- * Any other case returns 403 (not entitled) or 401 (bad internal auth). The Go
+ * Any other case returns 403 (not entitled) or 401 (bad internal auth). The
  * caller fails closed to hosted keys on anything but a 200.
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {

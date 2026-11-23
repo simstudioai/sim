@@ -1,6 +1,6 @@
 import { normalizeEmail } from '@sim/utils/string'
+import { zonedWallClockToUtc } from '@sim/utils/timezone'
 import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
-import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import type { ConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
 import {
   array,

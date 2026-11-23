@@ -2,6 +2,7 @@ import type {
   IdentityCenterListAccountAssignmentsResponse,
   IdentityCenterListAssignmentsForAccountParams,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listAssignmentsForAccountTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const listAssignmentsForAccountTool: InternalToolConfig<
   description:
     'List every principal assigned a specific permission set on a specific AWS account. Use for per-account access reviews.',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

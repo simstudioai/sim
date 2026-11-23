@@ -239,4 +239,22 @@ describe('organization search scope enforcement', () => {
     expect(await verify({ id: 'https://coda.io:444/d/doc' })).toBe(false)
     expect(await verify({ id: 'https://evil.test/d/doc' })).toBe(false)
   })
+  it.each(['jama', 'flow'] as const)(
+    'applies selected and excluded project IDs to current %s documents',
+    async (provider) => {
+      const verify = createPolicyVerifier(provider, selected(['7', '8'], ['8']), client({}), '')
+      expect(await verify({ id: 'item', container: '7' })).toBe(true)
+      expect(await verify({ id: 'item', container: '8' })).toBe(false)
+      expect(await verify({ id: 'item', container: '9' })).toBe(false)
+      expect(await verify({ id: 'item' })).toBe(false)
+      const excluding = createPolicyVerifier(
+        provider,
+        { ...defaultLiveSearchPolicy(), excluded: ['8'] },
+        client({}),
+        ''
+      )
+      expect(await excluding({ id: 'item', container: '7' })).toBe(true)
+      expect(await excluding({ id: 'item', container: '8' })).toBe(false)
+    }
+  )
 })

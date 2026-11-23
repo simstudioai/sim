@@ -3,6 +3,7 @@
  */
 import {
   authMockFns,
+  createRouteContext,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
@@ -15,8 +16,9 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpsertCustomTools } = vi.hoisted(() => ({
+const { mockUpsertCustomTools, MockCustomToolTitleConflictError } = vi.hoisted(() => ({
   mockUpsertCustomTools: vi.fn(),
+  MockCustomToolTitleConflictError: class extends Error {},
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
@@ -82,11 +84,12 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   upsertCustomTools: (...args: unknown[]) => mockUpsertCustomTools(...args),
+  CustomToolTitleConflictError: MockCustomToolTitleConflictError,
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-import { DELETE } from '@/app/api/tools/custom/route'
+import { DELETE, POST } from '@/app/api/tools/custom/route'
 
 describe('Custom Tools API Routes', () => {
   const mockSession = { user: { id: 'user-123' } }
@@ -111,6 +114,41 @@ describe('Custom Tools API Routes', () => {
 
   afterAll(() => {
     resetDbChainMock()
+  })
+
+  describe('POST /api/tools/custom', () => {
+    function saveRequest() {
+      return new NextRequest('http://localhost:3000/api/tools/custom', {
+        method: 'POST',
+        body: JSON.stringify({
+          workspaceId: 'workspace-123',
+          tools: [{ title: sampleTools[0].title, schema: sampleTools[0].schema, code: 'return 1' }],
+        }),
+      })
+    }
+
+    it('answers a title the workspace already holds with 409, not 500', async () => {
+      mockUpsertCustomTools.mockRejectedValueOnce(
+        new MockCustomToolTitleConflictError('A tool with that title already exists')
+      )
+
+      const response = await POST(saveRequest(), createRouteContext({}))
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({ error: 'A tool with that title already exists' })
+    })
+
+    it('answers a unique violation from a concurrent save with 409', async () => {
+      mockUpsertCustomTools.mockRejectedValueOnce(
+        Object.assign(new Error('duplicate key value violates unique constraint'), {
+          code: '23505',
+        })
+      )
+
+      const response = await POST(saveRequest(), createRouteContext({}))
+
+      expect(response.status).toBe(409)
+    })
   })
 
   /**

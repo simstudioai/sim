@@ -2,7 +2,7 @@ import { GoogleTasksIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
+import { parseOptionalBooleanInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
 /**
  * Canonical basic/advanced pair for the task list, shared by the card
@@ -159,6 +159,23 @@ Return ONLY the timestamp - no explanations, no extra text.`,
       ],
     },
 
+    {
+      id: 'parent',
+      title: 'Parent Task ID',
+      type: 'short-input',
+      placeholder: 'Create as a subtask of this task',
+      condition: { field: 'operation', value: 'create' },
+      mode: 'advanced',
+    },
+    {
+      id: 'previous',
+      title: 'Previous Sibling Task ID',
+      type: 'short-input',
+      placeholder: 'Place after this task (first if empty)',
+      condition: { field: 'operation', value: 'create' },
+      mode: 'advanced',
+    },
+
     // Get/Update/Delete Task Fields - Task ID
     {
       id: 'taskId',
@@ -231,6 +248,133 @@ Return ONLY the timestamp - no explanations, no extra text.`,
         { label: 'No', id: 'false' },
       ],
     },
+    {
+      id: 'showHidden',
+      title: 'Show Hidden',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'list' },
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+    },
+    {
+      id: 'showDeleted',
+      title: 'Show Deleted',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'list' },
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+    },
+    {
+      id: 'showAssigned',
+      title: 'Show Assigned',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'list' },
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+    },
+    {
+      id: 'dueMin',
+      title: 'Due After',
+      type: 'short-input',
+      placeholder: '2025-06-01T00:00:00.000Z',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'dueMax',
+      title: 'Due Before',
+      type: 'short-input',
+      placeholder: '2025-06-30T00:00:00.000Z',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'completedMin',
+      title: 'Completed After',
+      type: 'short-input',
+      placeholder: '2025-06-01T00:00:00.000Z',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'completedMax',
+      title: 'Completed Before',
+      type: 'short-input',
+      placeholder: '2025-06-30T00:00:00.000Z',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'updatedMin',
+      title: 'Updated After',
+      type: 'short-input',
+      placeholder: '2025-06-01T00:00:00.000Z',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 3339 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SS.000Z (UTC timezone).
+
+Return ONLY the timestamp - no explanations, no extra text.`,
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous response',
+      condition: { field: 'operation', value: ['list', 'list_task_lists'] },
+      mode: 'advanced',
+    },
   ],
 
   tools: {
@@ -276,6 +420,10 @@ Return ONLY the timestamp - no explanations, no extra text.`,
           processedParams.showCompleted = showCompleted === 'true'
         }
 
+        for (const key of ['showHidden', 'showDeleted', 'showAssigned'] as const) {
+          processedParams[key] = parseOptionalBooleanInput(processedParams[key])
+        }
+
         return {
           oauthCredential,
           ...processedParams,
@@ -295,6 +443,20 @@ Return ONLY the timestamp - no explanations, no extra text.`,
     taskId: { type: 'string', description: 'Task identifier' },
     maxResults: { type: 'string', description: 'Maximum number of results' },
     showCompleted: { type: 'string', description: 'Whether to show completed tasks' },
+    parent: { type: 'string', description: 'Parent task ID for a subtask' },
+    previous: { type: 'string', description: 'Previous sibling task ID' },
+    showHidden: { type: 'string', description: 'Whether to show hidden tasks' },
+    showDeleted: { type: 'string', description: 'Whether to show deleted tasks' },
+    showAssigned: {
+      type: 'string',
+      description: 'Whether to show tasks assigned from Docs or Chat',
+    },
+    dueMin: { type: 'string', description: 'Lower bound for due date' },
+    dueMax: { type: 'string', description: 'Upper bound for due date' },
+    completedMin: { type: 'string', description: 'Lower bound for completion date' },
+    completedMax: { type: 'string', description: 'Upper bound for completion date' },
+    updatedMin: { type: 'string', description: 'Lower bound for last modification time' },
+    pageToken: { type: 'string', description: 'Pagination token' },
   },
 
   outputs: {
@@ -310,7 +472,18 @@ Return ONLY the timestamp - no explanations, no extra text.`,
     position: { type: 'string', description: 'Position among sibling tasks' },
     completed: { type: 'string', description: 'Completion date' },
     deleted: { type: 'boolean', description: 'Whether the task is deleted' },
-    tasks: { type: 'json', description: 'Array of tasks (list operation)' },
+    hidden: { type: 'boolean', description: 'Whether the task is hidden' },
+    links: { type: 'json', description: 'Links attached to the task [{type, description, link}]' },
+    assignmentInfo: {
+      type: 'json',
+      description:
+        'Source of a task assigned from Docs or Chat (linkToTask, surfaceType, driveResourceInfo, spaceInfo)',
+    },
+    tasks: {
+      type: 'json',
+      description:
+        'Array of tasks (list operation): [{id, title, notes, status, due, completed, updated, selfLink, webViewLink, parent, position, hidden, deleted, links, assignmentInfo}]',
+    },
     taskLists: { type: 'json', description: 'Array of task lists (list_task_lists operation)' },
     taskId: { type: 'string', description: 'Deleted task ID (delete operation)' },
     nextPageToken: { type: 'string', description: 'Token for next page of results' },

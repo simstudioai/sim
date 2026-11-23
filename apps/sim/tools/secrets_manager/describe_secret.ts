@@ -2,6 +2,7 @@ import type {
   SecretsManagerDescribeSecretParams,
   SecretsManagerDescribeSecretResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeSecretTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const describeSecretTool: InternalToolConfig<
   description:
     'Retrieve full metadata for a secret in AWS Secrets Manager, including rotation configuration and replication status, without exposing the secret value',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

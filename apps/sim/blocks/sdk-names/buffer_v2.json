@@ -1,0 +1,23 @@
+{
+  "namespace": "buffer",
+  "methods": {
+    "create_idea": "createIdea",
+    "create_post": "createPost",
+    "delete_post": "deletePost",
+    "edit_post": "editPost",
+    "get_account": "getAccount",
+    "get_aggregated_post_metrics": "getAggregatedPostMetrics",
+    "get_channel": "getChannel",
+    "get_channels": "getChannels",
+    "get_daily_posting_limits": "getDailyPostingLimits",
+    "get_idea_groups": "getIdeaGroups",
+    "get_ideas": "getIdeas",
+    "get_post": "getPost",
+    "get_posts": "getPosts"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

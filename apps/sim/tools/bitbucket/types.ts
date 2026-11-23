@@ -52,7 +52,11 @@ export interface BitbucketDeleteBranchParams extends BitbucketRepositoryParams {
 
 export interface BitbucketListCommitsParams
   extends BitbucketRepositoryParams,
-    BitbucketPaginationParams {}
+    BitbucketPaginationParams {
+  include?: string[]
+  exclude?: string[]
+  path?: string
+}
 
 export interface BitbucketGetCommitParams extends BitbucketRepositoryParams {
   commit: string
@@ -288,6 +292,8 @@ export interface BitbucketPullRequestEndpoint {
   commitHash: string | null
   repositoryUuid: string | null
   repositoryFullName: string | null
+  mergeStrategies: string[] | null
+  defaultMergeStrategy: string | null
 }
 
 export interface BitbucketParticipant {
@@ -615,6 +621,17 @@ export const BITBUCKET_PR_ENDPOINT_OUTPUT_PROPERTIES: Record<string, ToolOutputP
   commitHash: { type: 'string', description: 'Commit hash', nullable: true },
   repositoryUuid: { type: 'string', description: 'Repository UUID', nullable: true },
   repositoryFullName: { type: 'string', description: 'Repository full name', nullable: true },
+  mergeStrategies: {
+    type: 'array',
+    description: 'Merge strategies available when this endpoint is the destination',
+    nullable: true,
+    items: { type: 'string' },
+  },
+  defaultMergeStrategy: {
+    type: 'string',
+    description: 'Default merge strategy when this endpoint is the destination',
+    nullable: true,
+  },
 }
 
 export const BITBUCKET_PULL_REQUEST_OUTPUT_PROPERTIES: Record<string, ToolOutputProperty> = {

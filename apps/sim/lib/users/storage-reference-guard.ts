@@ -107,7 +107,7 @@ type UrlRowPage = (
 /**
  * The columns that hold a stored asset as a URL rather than a row: `user.image`,
  * `workspace.logo_url`, `custom_block.icon_url`, `chat.customizations` (deployed-chat logo and
- * avatar), `oauth_client.icon`, and `organization.logo`, `.whitelabel_settings`, `.metadata`.
+ * avatar), `oauth_client.icon`, and `organization.logo`, `.metadata`.
  */
 const URL_ROW_PAGES: readonly UrlRowPage[] = [
   (mentions, afterId) =>
@@ -155,25 +155,18 @@ const URL_ROW_PAGES: readonly UrlRowPage[] = [
       .select({
         id: organization.id,
         logo: organization.logo,
-        whitelabel: organization.whitelabelSettings,
         metadata: organization.metadata,
       })
       .from(organization)
       .where(
         and(
-          or(
-            mentions(organization.logo),
-            mentions(organization.whitelabelSettings),
-            mentions(organization.metadata)
-          ),
+          or(mentions(organization.logo), mentions(organization.metadata)),
           gt(organization.id, afterId)
         )
       )
       .orderBy(organization.id)
       .limit(URL_ROW_PAGE_SIZE)
-      .then((rows) =>
-        rows.map((row) => ({ id: row.id, values: [row.logo, row.whitelabel, row.metadata] }))
-      ),
+      .then((rows) => rows.map((row) => ({ id: row.id, values: [row.logo, row.metadata] }))),
 ]
 
 /**

@@ -2,22 +2,16 @@ import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface VideoParams {
-  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'falai'
+  provider: 'runway' | 'veo' | 'luma' | 'minimax' | 'falai' | 'higgsfield'
   apiKey: string
   model?: string
   prompt: string
   duration?: number
   aspectRatio?: string
   resolution?: string
-  /** Runway only, required for Runway generation */
+  /** Runway reference image; required for image-only models */
   visualReference?: UserFile
-  cameraControl?: {
-    pan?: number
-    zoom?: number
-    tilt?: number
-    truck?: number
-    tracking?: boolean
-  }
+  cameraControl?: { key: string }[]
   endpoint?: string
   promptOptimizer?: boolean
   generateAudio?: boolean

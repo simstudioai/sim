@@ -11,6 +11,7 @@ import {
   genieSpacePath,
   mapGenieSpace,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieGetSpaceTool: ToolConfig<
@@ -22,6 +23,7 @@ export const genieGetSpaceTool: ToolConfig<
   description:
     "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions).",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: {
     ...GENIE_SPACE_PARAMS,

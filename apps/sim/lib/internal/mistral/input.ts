@@ -12,8 +12,9 @@ export const mistralParseInputSchema = z.object({
   resultType: z.string().optional(),
   pages: z.array(z.number()).max(MISTRAL_OCR_REQUEST_POLICY.maxPages).optional(),
   includeImageBase64: z.boolean().optional(),
-  imageLimit: z.number().optional(),
-  imageMinSize: z.number().optional(),
+  imageLimit: z.number().int().min(0).optional(),
+  imageMinSize: z.number().int().min(0).optional(),
+  tableFormat: z.enum(['markdown', 'html']).optional(),
   [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
 })
 

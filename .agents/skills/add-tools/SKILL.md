@@ -89,6 +89,10 @@ export const {serviceName}{Action}Tool: ToolConfig<
     provider: '{service}',            // Must match the service id in OAUTH_PROVIDERS
     // credentialKind: 'service-account', // service-account-only integrations
   },
+  // A token credential (API key, PAT, token + host) instead uses the service's shared policy from
+  // tools/shared/saved-credentials.ts, built with tokenCredentialOAuth('{service}', { apiKey:
+  // 'accessToken' }). Its keys are the tool's own token/host/account params, which the executor
+  // fills after authorizing the credential.
 
   params: {
     // Hidden params (system-injected, e.g. the OAuth accessToken)
@@ -616,7 +620,7 @@ If creating V2 tools (API-aligned outputs), use `_v2` suffix:
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
 - [ ] `bun run generate:tool-metadata` run and the regenerated artifacts committed
-- [ ] `bun run scripts/generate-docs.ts` run and the refreshed docs committed — the integration's
+- [ ] `bun run generate:docs` run and the refreshed docs committed — the integration's
       docs page is rendered from each tool's description, params, and outputs, and CI's
       `bun run check:docs` fails on stale pages
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs

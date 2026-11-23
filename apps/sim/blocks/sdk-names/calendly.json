@@ -1,0 +1,30 @@
+{
+  "namespace": "legacy.calendly",
+  "methods": {
+    "calendly_cancel_event": "cancelEvent",
+    "calendly_create_event_invitee": "bookMeeting",
+    "calendly_create_invitee_no_show": "markInviteeNoShow",
+    "calendly_create_scheduling_link": "createSchedulingLink",
+    "calendly_delete_invitee_no_show": "unmarkInviteeNoShow",
+    "calendly_get_current_user": "getCurrentUser",
+    "calendly_get_event_invitee": "getEventInvitee",
+    "calendly_get_event_type": "getEventType",
+    "calendly_get_scheduled_event": "getScheduledEvent",
+    "calendly_get_user": "getUser",
+    "calendly_list_event_invitees": "listEventInvitees",
+    "calendly_list_event_type_available_times": "listEventTypeAvailableTimes",
+    "calendly_list_event_types": "listEventTypes",
+    "calendly_list_organization_memberships": "listOrganizationMemberships",
+    "calendly_list_routing_form_submissions": "listRoutingFormSubmissions",
+    "calendly_list_routing_forms": "listRoutingForms",
+    "calendly_list_scheduled_events": "listScheduledEvents",
+    "calendly_list_user_availability_schedules": "listUserAvailabilitySchedules",
+    "calendly_list_user_busy_times": "listUserBusyTimes"
+  },
+  "triggers": {
+    "calendly_invitee_canceled": "inviteeCanceled",
+    "calendly_invitee_created": "inviteeCreated",
+    "calendly_routing_form_submitted": "routingFormSubmitted",
+    "calendly_webhook": "webhook"
+  }
+}

@@ -1,6 +1,8 @@
 import { truncate } from '@sim/utils/string'
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { CommentsListResponse, ListPRCommentsParams } from '@/tools/github/types'
 import { PR_COMMENT_OUTPUT_PROPERTIES, USER_OUTPUT } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListResponse> = {
@@ -8,6 +10,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
   name: 'GitHub PR Review Comments Lister',
   description: 'List all review comments on a GitHub pull request',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -72,7 +75,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/comments`
+      const baseUrl = `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/pulls/${githubPathSegment(params.pullNumber, 'pullNumber')}/comments`
       const queryParams = new URLSearchParams()
 
       if (params.sort) queryParams.append('sort', params.sort)
@@ -101,7 +104,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
             .slice(0, 5)
             .map(
               (c: any) =>
-                `- ${c.user.login} on ${c.path}${c.line ? `:${c.line}` : ''} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body, 80)}"`
+                `- ${c.user?.login ?? 'unknown'} on ${c.path}${c.line ? `:${c.line}` : ''} (${new Date(c.created_at).toLocaleDateString()}): "${truncate(c.body ?? '', 80)}"`
             )
             .join('\n')}`
         : ''
@@ -115,7 +118,7 @@ export const listPRCommentsTool: ToolConfig<ListPRCommentsParams, CommentsListRe
           comments: data.map((comment: any) => ({
             id: comment.id,
             body: comment.body,
-            user: { login: comment.user.login },
+            user: { login: comment.user?.login ?? null },
             created_at: comment.created_at,
             html_url: comment.html_url,
           })),
@@ -162,6 +165,7 @@ export const listPRCommentsV2Tool: ToolConfig<ListPRCommentsParams, any> = {
   name: listPRCommentsTool.name,
   description: listPRCommentsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listPRCommentsTool.params,
   request: listPRCommentsTool.request,
 

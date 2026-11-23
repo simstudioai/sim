@@ -2,6 +2,8 @@ import type {
   InfisicalListSecretsParams,
   InfisicalListSecretsResponse,
 } from '@/tools/infisical/types'
+import { infisicalApiUrl } from '@/tools/infisical/utils'
+import { INFISICAL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalListSecretsResponse> =
@@ -11,6 +13,7 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
     description:
       'List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata.',
     version: '1.0.0',
+    oauth: INFISICAL_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {
@@ -22,7 +25,7 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
       baseUrl: {
         type: 'string',
         required: false,
-        visibility: 'user-or-llm',
+        visibility: 'user-only',
         description:
           'Infisical instance URL (default: "https://us.infisical.com"). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL.',
       },
@@ -91,8 +94,7 @@ export const listSecretsTool: ToolConfig<InfisicalListSecretsParams, InfisicalLi
         if (params.includeImports != null)
           searchParams.set('includeImports', String(params.includeImports))
         if (params.tagSlugs) searchParams.set('tagSlugs', params.tagSlugs)
-        const base = params.baseUrl?.replace(/\/+$/, '') ?? 'https://us.infisical.com'
-        return `${base}/api/v4/secrets?${searchParams.toString()}`
+        return infisicalApiUrl(params.baseUrl, `/api/v4/secrets?${searchParams.toString()}`)
       },
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

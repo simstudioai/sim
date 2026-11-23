@@ -43,7 +43,7 @@ afterAll(resetEnvMock)
 
 function renderFirstFrame(search: string): string {
   mockUseSearchParams.mockReturnValue(new URLSearchParams(search))
-  return renderToString(<SSOForm registrationDisabled={false} />)
+  return renderToString(<SSOForm registrationDisabled={false} emailPasswordEnabled />)
 }
 
 /**

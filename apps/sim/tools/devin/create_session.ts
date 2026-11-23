@@ -1,4 +1,6 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
 import { normalizeTags } from './utils'
@@ -12,6 +14,7 @@ export const devinCreateSessionTool: ToolConfig<
   description:
     'Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -57,7 +60,8 @@ export const devinCreateSessionTool: ToolConfig<
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
     },
-    url: (params) => `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions`,
+    url: (params) =>
+      `https://api.devin.ai/v3/organizations/${safeUrlPathSegment(params.orgId, 'orgId')}/sessions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

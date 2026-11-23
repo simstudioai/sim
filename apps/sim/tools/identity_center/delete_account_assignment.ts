@@ -2,6 +2,7 @@ import type {
   IdentityCenterAssignmentStatusResponse,
   IdentityCenterDeleteAccountAssignmentParams,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteAccountAssignmentTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const deleteAccountAssignmentTool: InternalToolConfig<
   description:
     'Revoke a user or group access to an AWS account by removing a permission set assignment',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

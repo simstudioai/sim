@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetLogContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
@@ -26,8 +25,6 @@ export const revalidate = 0
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateId().slice(0, 8)
-
     try {
       const rateLimit = await checkRateLimit(request, 'logs-detail')
       if (!rateLimit.allowed) {
@@ -109,7 +106,7 @@ export const GET = withRouteHandler(
 
       return NextResponse.json(apiResponse.body, { headers: apiResponse.headers })
     } catch (error: any) {
-      logger.error(`[${requestId}] Log details fetch error`, { error: error.message })
+      logger.error('Log details fetch error', { error: error.message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

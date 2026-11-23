@@ -116,7 +116,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
     const classified = orchestrationErrorResponse(error)
     if (classified) return classified
 
-    logger.error(`[${requestId}] Error upserting row:`, error)
+    logger.error('Error upserting row:', error)
     return NextResponse.json({ error: 'Failed to upsert row' }, { status: 500 })
   }
 })

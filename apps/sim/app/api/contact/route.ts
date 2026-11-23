@@ -11,7 +11,7 @@ import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isTurnstileConfigured, verifyTurnstileToken } from '@/lib/core/security/turnstile'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -50,12 +50,10 @@ const TOO_MANY_REQUESTS_RESPONSE = { error: 'Too many requests. Please try again
  * tokens.
  */
 export const POST = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const ip = getClientIp(req)
     if (!ip) {
-      logger.warn(`[${requestId}] Unable to resolve client IP for public rate limit`)
+      logger.warn('Unable to resolve client IP for public rate limit')
       return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
     }
     const storageKey = `public:contact:${ip}`
@@ -65,7 +63,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
 
     if (!allowed) {
-      logger.warn(`[${requestId}] Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
+      logger.warn(`Rate limit exceeded for IP ${ip}`, { remaining, resetAt })
       return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, {
         status: 429,
         headers: { 'Retry-After': String(Math.ceil((resetAt.getTime() - Date.now()) / 1000)) },
@@ -74,7 +72,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const parsed = await parseRequest(submitContactContract, req, {})
     if (!parsed.success) {
-      logger.warn(`[${requestId}] Invalid contact request data`)
+      logger.warn('Invalid contact request data')
       return parsed.response
     }
 
@@ -82,7 +80,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       parsed.data.body
 
     if (typeof website === 'string' && website.trim().length > 0) {
-      logger.warn(`[${requestId}] Honeypot triggered, discarding`, { ip })
+      logger.warn('Honeypot triggered, discarding', { ip })
       return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
     }
 
@@ -96,7 +94,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         if (verification.success) {
           captchaVerified = true
         } else if (!verification.transportError) {
-          logger.warn(`[${requestId}] Captcha verification failed`, {
+          logger.warn('Captcha verification failed', {
             ip,
             errorCodes: verification.errorCodes,
           })
@@ -105,10 +103,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             { status: 400 }
           )
         } else {
-          logger.warn(
-            `[${requestId}] Captcha transport error, falling back to no-captcha rate limit`,
-            { ip }
-          )
+          logger.warn('Captcha transport error, falling back to no-captcha rate limit', { ip })
         }
       }
 
@@ -120,7 +115,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           { failClosed: true }
         )
         if (!nocaptchaAllowed) {
-          logger.warn(`[${requestId}] Rate limit rejected (no-captcha) for IP ${ip}`)
+          logger.warn(`Rate limit rejected (no-captcha) for IP ${ip}`)
           return NextResponse.json(TOO_MANY_REQUESTS_RESPONSE, { status: 429 })
         }
       }
@@ -128,7 +123,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const topicLabel = getContactTopicLabel(topic)
 
-    logger.info(`[${requestId}] Processing contact request`, {
+    logger.info('Processing contact request', {
       email: `${email.substring(0, 3)}***`,
       topic,
     })
@@ -157,11 +152,11 @@ ${message}
     })
 
     if (!emailResult.success) {
-      logger.error(`[${requestId}] Error sending contact request email`, emailResult.message)
+      logger.error('Error sending contact request email', emailResult.message)
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
     }
 
-    logger.info(`[${requestId}] Contact request email sent successfully`)
+    logger.info('Contact request email sent successfully')
 
     try {
       const confirmationHtml = await renderHelpConfirmationEmail(
@@ -178,17 +173,17 @@ ${message}
         emailType: 'transactional',
       })
     } catch (err) {
-      logger.warn(`[${requestId}] Failed to send contact confirmation email`, err)
+      logger.warn('Failed to send contact confirmation email', err)
     }
 
     return NextResponse.json(SUCCESS_RESPONSE, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message.includes('not configured')) {
-      logger.error(`[${requestId}] Email service configuration error`, error)
+      logger.error('Email service configuration error', error)
       return NextResponse.json({ error: 'Email service configuration error.' }, { status: 500 })
     }
 
-    logger.error(`[${requestId}] Error processing contact request`, error)
+    logger.error('Error processing contact request', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

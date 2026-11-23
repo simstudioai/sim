@@ -11,11 +11,22 @@ interface GoogleSlidesMetadata {
   createdTime?: string
   modifiedTime?: string
   url?: string
+  revisionId?: string | null
+  locale?: string | null
+}
+
+interface GoogleSlidesSlideContent {
+  objectId: string | null
+  index: number
+  text: string
+  speakerNotes: string
+  isSkipped: boolean
 }
 
 export interface GoogleSlidesReadResponse extends ToolResponse {
   output: {
     slides: any[]
+    slideContents?: GoogleSlidesSlideContent[]
     metadata: GoogleSlidesMetadata
   }
 }

@@ -186,4 +186,89 @@ describe('FileV5Block', () => {
       })
     ).toThrow('Manage Sharing accepts a single file at a time')
   })
+
+  describe('on a tool call, where the operation arrives only in context', () => {
+    it('sends the file picked on a Get Content row', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { getContentInput: 'file-1', offset: 5 },
+          { operation: 'file_get_content' }
+        )
+      ).toEqual({ fileId: ['file-1'], workspaceId: undefined })
+    })
+
+    it('keeps the model folder the canonical pass republished as folderRef on write', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { fileName: 'notes.md', content: 'hi', folderRef: '/Reports' },
+          { operation: 'file_write' }
+        )
+      ).toMatchObject({ fileName: 'notes.md', folderPath: '/Reports', content: 'hi' })
+    })
+
+    it('moves the model-named folder under the destination parent the row pins', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { destinationParentRef: '/Archive', path: '/Reports/Q1', destinationPath: '/Other/Q1' },
+          { operation: 'file_update_folder' }
+        )
+      ).toMatchObject({ path: '/Reports/Q1', destinationPath: '/Archive/Q1' })
+    })
+
+    it('creates the model-named folder under the parent the row pins', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { createParentRef: '/Reports', path: '/Other/New' },
+          { operation: 'file_create_folder' }
+        )
+      ).toMatchObject({ path: '/Reports/New' })
+    })
+
+    it('keeps the model path for Create Folder when the row pins no parent', () => {
+      expect(
+        FileV5Block.tools.config?.params?.(
+          { path: '/Other/New' },
+          { operation: 'file_create_folder' }
+        )
+      ).toMatchObject({ path: '/Other/New' })
+    })
+
+    /** The tool-call executor spreads the mapper result over the merged row and model params. */
+    const toolCallRequest = (params: Record<string, unknown>, operation: string) => ({
+      ...params,
+      ...FileV5Block.tools.config?.params?.(params, { operation }),
+    })
+
+    it('sends only the row folder on Append when the model also names folderPaths', () => {
+      const request = toolCallRequest(
+        {
+          folderScopeRef: '/Reports',
+          fileName: 'notes.md',
+          content: 'x',
+          folderPaths: ['/Reports'],
+        },
+        'file_append'
+      )
+      expect(request).toMatchObject({ fileName: 'notes.md', folderPath: '/Reports', content: 'x' })
+      expect(request.folderPaths).toBeUndefined()
+    })
+
+    it('sends only the model folderPath on Edit when the model names both folder args', () => {
+      const request = toolCallRequest(
+        { fileName: 'notes.md', content: 'x', folderRef: '/Reports', folderPaths: ['/Other'] },
+        'file_edit'
+      )
+      expect(request).toMatchObject({ fileName: 'notes.md', folderPath: '/Reports' })
+      expect(request.folderPaths).toBeUndefined()
+    })
+
+    it('keeps the model folderPaths on Append when the row pins no folder', () => {
+      const request = toolCallRequest(
+        { fileName: 'notes.md', content: 'x', folderPaths: ['/Reports', '/Archive'] },
+        'file_append'
+      )
+      expect(request.folderPaths).toEqual(['/Reports', '/Archive'])
+      expect(request.folderPath).toBeUndefined()
+    })
+  })
 })

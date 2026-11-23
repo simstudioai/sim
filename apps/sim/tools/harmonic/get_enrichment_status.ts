@@ -20,7 +20,7 @@ export const harmonicGetEnrichmentStatusTool: ToolConfig<
   description:
     'Check enrichment jobs Harmonic queued for people it did not already have, and read the person URN each one produced.',
   version: '1.0.0',
-  oauth: { required: true, provider: 'harmonic' },
+  oauth: { required: true, provider: 'harmonic', credentialKind: 'service-account' },
   errorExtractor: ErrorExtractorId.HARMONIC_ERRORS,
 
   params: {

@@ -10,6 +10,7 @@ import {
   webhooksProcessorMockFns,
 } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 
 vi.mock('@/lib/core/idempotency/service', () => idempotencyServiceMock)
 
@@ -24,8 +25,11 @@ import type {
   WorkflowRecord,
 } from '@/lib/webhooks/polling/types'
 
-const { mockUpdateWebhookProviderConfig: mockUpdateConfig, mockResolveOAuthCredential } =
-  webhooksPollingUtilsMockFns
+const {
+  mockUpdateWebhookProviderConfig: mockUpdateConfig,
+  mockResolveOAuthCredential,
+  mockMarkWebhookFailed,
+} = webhooksPollingUtilsMockFns
 const mockProcessEvent = webhooksProcessorMockFns.mockProcessPolledWebhookEvent
 
 const EXPIRED_HISTORY_ID = '30000'
@@ -128,6 +132,7 @@ function mailboxWithExpiredHistory(state: MailboxState) {
     return new Response('unexpected request', { status: 500 })
   })
   vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
 }
 
 function persistedHistoryIds() {
@@ -189,5 +194,129 @@ describe('gmailPollingHandler history cursor', () => {
     expect(mockUpdateConfig).toHaveBeenCalledTimes(1)
     const [, updates] = mockUpdateConfig.mock.calls[0]
     expect(updates).not.toHaveProperty('historyId')
+  })
+})
+
+describe('gmailPollingHandler egress outage', () => {
+  it('skips the poll without counting a failure when the egress route is down', async () => {
+    mockResolveOAuthCredential.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('skipped')
+
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+  })
+
+  it('leaves the mail for a later poll without counting a failure when the route drops mid-batch', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    mailboxWithExpiredHistory({
+      profileHistoryId: '40100',
+      inboxMessages: [{ id: 'm-new', historyId: '40050' }],
+    })
+    mockProcessEvent.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('skipped')
+
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
+
+  it('keeps the cursor when the route drops after earlier mail in the batch succeeded', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    mailboxWithExpiredHistory({
+      profileHistoryId: '40100',
+      inboxMessages: [
+        { id: 'm-first', historyId: '40040' },
+        { id: 'm-second', historyId: '40050' },
+      ],
+    })
+    mockProcessEvent
+      .mockResolvedValueOnce({ success: true })
+      .mockRejectedValueOnce(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+
+    await expect(gmailPollingHandler.pollWebhook(context({}))).resolves.toBe('skipped')
+
+    expect(mockProcessEvent).toHaveBeenCalledTimes(2)
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
+
+  it('delivers a message once even when marking it read hits an outage', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    mockProcessEvent.mockResolvedValue({ success: true })
+    const fetchMock = mailboxWithExpiredHistory({
+      profileHistoryId: '40100',
+      inboxMessages: [{ id: 'm-new', historyId: '40050' }],
+    })
+    const mailbox = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString())
+      if (url.pathname.endsWith('/modify')) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      return mailbox ? mailbox(input) : jsonResponse({})
+    })
+
+    await expect(gmailPollingHandler.pollWebhook(context({ markAsRead: true }))).resolves.toBe(
+      'success'
+    )
+
+    expect(mockProcessEvent).toHaveBeenCalledTimes(1)
+    expect(mockUpdateConfig).toHaveBeenCalled()
+  })
+
+  it('keeps the history cursor when the route drops while fetching message details', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(typeof input === 'string' ? input : input.toString())
+        if (url.pathname.endsWith('/users/me/history')) {
+          return jsonResponse({
+            historyId: '40100',
+            history: [{ messagesAdded: [{ message: { id: 'm-new' } }] }],
+          })
+        }
+        throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+      })
+    )
+
+    await expect(
+      gmailPollingHandler.pollWebhook(context({ historyId: EXPIRED_HISTORY_ID }))
+    ).resolves.toBe('skipped')
+
+    expect(mockProcessEvent).not.toHaveBeenCalled()
+    expect(mockMarkWebhookFailed).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
+  })
+
+  it('leaves mail for a later poll instead of emitting it without attachments when the route drops', async () => {
+    mockResolveOAuthCredential.mockResolvedValue('access-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(typeof input === 'string' ? input : input.toString())
+        if (url.pathname.includes('/attachments/')) {
+          throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+        }
+        if (url.pathname.endsWith('/users/me/messages')) {
+          return jsonResponse({ messages: [{ id: 'm-new', threadId: 'm-new' }] })
+        }
+        return jsonResponse({
+          id: 'm-new',
+          threadId: 'm-new',
+          historyId: '40050',
+          labelIds: ['INBOX'],
+          payload: {
+            headers: [{ name: 'Subject', value: 'invoice' }],
+            parts: [{ filename: 'invoice.pdf', body: { attachmentId: 'att-1', size: 10 } }],
+          },
+        })
+      })
+    )
+
+    await expect(
+      gmailPollingHandler.pollWebhook(context({ includeAttachments: true }))
+    ).resolves.toBe('skipped')
+
+    expect(mockProcessEvent).not.toHaveBeenCalled()
+    expect(mockUpdateConfig).not.toHaveBeenCalled()
   })
 })

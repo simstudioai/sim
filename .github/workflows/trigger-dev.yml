@@ -19,6 +19,9 @@ jobs:
     name: deploy
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -31,12 +34,22 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           node-version: ''
 
+      # The deploy syncs an environment listed in `vars.TRIGGER_ENV_SYNC_TARGETS` from the app's
+      # env-vars secret (see `@sim/runtime-secrets/trigger-env`), which needs read access to that secret.
+      - name: Configure AWS credentials for the env sync
+        if: contains(format(',{0},', vars.TRIGGER_ENV_SYNC_TARGETS), ',preview,')
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.DEV_AWS_REGION }}
+
       - name: Upload preview version
         id: deploy
         working-directory: ./apps/sim
         env:
           TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN_PREVIEW || secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          TRIGGER_ENV_SYNC_TARGETS: ${{ vars.TRIGGER_ENV_SYNC_TARGETS }}
         run: |
           set -euo pipefail
           : "${TRIGGER_ACCESS_TOKEN:?TRIGGER_ACCESS_TOKEN_PREVIEW or TRIGGER_ACCESS_TOKEN must be configured}"

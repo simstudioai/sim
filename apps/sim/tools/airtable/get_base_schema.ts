@@ -66,7 +66,7 @@ export const airtableGetBaseSchemaTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.airtable.com/v0/meta/bases/${params.baseId}/tables`,
+    url: (params) => `https://api.airtable.com/v0/meta/bases/${params.baseId?.trim()}/tables`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

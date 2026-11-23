@@ -1,5 +1,6 @@
 import { ConvexIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /**
  * A List Documents page is resumed with either the page cursor or the snapshot
@@ -9,6 +10,8 @@ const PAGE_RESUME_FIELD = ['pageCursor', 'snapshot'] as const
 
 export const ConvexBlock: BlockConfig = {
   type: 'convex',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'convex_v2' },
   name: 'Convex',
   description: 'Use Convex database',
   authMode: AuthMode.ApiKey,
@@ -333,3 +336,17 @@ export const ConvexBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ConvexV2Block: BlockConfig = {
+  ...ConvexBlock,
+  type: 'convex_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ConvexBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'convex',
+    title: 'Convex Credential',
+  }),
+}

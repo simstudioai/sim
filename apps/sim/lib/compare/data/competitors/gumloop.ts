@@ -966,25 +966,6 @@ export const gumloopProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          "No: Gumloop offers only partial branding controls. A custom Slack app lets an agent appear under the customer's own bot name/avatar, and a dedicated org-specific login page is available at gumloop.com/{your-org}, but the platform's logo, product name, and theme colors are not fully replaceable across the workspace/builder and deployed-app UI.",
-        detail: 'The core canvas/builder UI itself has no comprehensive white-labeling.',
-        shortValue: 'No: partial branding only (Slack bot, login page)',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://docs.gumloop.com/core-concepts/custom_slack_app',
-            label: 'Custom Slack App Integration - Gumloop docs',
-            asOf: '2026-07-02',
-          },
-          {
-            url: 'https://docs.gumloop.com/enterprise-features/sso_saml_scim',
-            label: 'SSO, SAML & SCIM - Gumloop docs (mentions dedicated login page)',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'Yes: Gumloop\'s Enterprise plan includes custom data retention rules and an "Incognito Mode" for ephemeral runs with no history retention for legal/compliance-sensitive flows, alongside audit logs retained per custom policy.',

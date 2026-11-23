@@ -1,3 +1,7 @@
+import {
+  savedCredentialTokenParam,
+  ZOOMINFO_CREDENTIAL_OAUTH,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type {
   ZoomInfoSearchIntentParams,
@@ -18,6 +22,7 @@ export const zoominfoSearchIntentTool: InternalToolConfig<
   name: 'ZoomInfo Search Intent',
   description: 'Search for companies showing intent signals on specific topics.',
   version: '1.0.0',
+  oauth: ZOOMINFO_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -32,6 +37,7 @@ export const zoominfoSearchIntentTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'ZoomInfo OAuth client secret',
     },
+    accessToken: savedCredentialTokenParam('ZoomInfo'),
     topics: {
       type: 'string',
       required: true,

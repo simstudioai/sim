@@ -8,6 +8,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
@@ -18,12 +19,15 @@ import {
   getStampedPeriodRangeUsageCostByUser,
 } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { getPlanWeeklyRefreshDollars, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
-import { ENTITLED_SUBSCRIPTION_STATUSES, getPlanPricing } from '@/lib/billing/subscriptions/utils'
+import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
+import {
+  getPlanPricing,
+  getSubscriptionWeeklyRefreshDollars,
+  SETTLED_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -149,7 +153,7 @@ export async function isSubscriptionCycleCloseCurrent(
  * Close any elapsed-but-unclosed billing period for a subscription that is
  * being deleted, ahead of its terminal settlement. A deleted subscription
  * leaves the sweep's candidate set (its status leaves
- * `ENTITLED_SUBSCRIPTION_STATUSES`), so this is the last chance to settle a
+ * `SETTLED_SUBSCRIPTION_STATUSES`), so this is the last chance to settle a
  * period the sweep has not caught up to — without it, `claimTerminalPeriod`
  * would advance the marker past the elapsed period and silently forgive its
  * final overage, while the elapsed period's threshold collections would
@@ -446,7 +450,7 @@ export async function closeElapsedBillingPeriod(
       })
       totalOverage = computed
     } else {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(sub)
       let refreshConsumed = 0
       if (weeklyRefreshDollars > 0) {
         refreshConsumed = await computeWeeklyRefreshConsumed({
@@ -824,19 +828,19 @@ const SWEEP_PAGE_SIZE = 250
 const SWEEP_CLOSE_CONCURRENCY = 10
 
 /**
- * Entitled statuses inlined as SQL literals rather than bind parameters: the
+ * Settled statuses inlined as SQL literals rather than bind parameters: the
  * candidate scan targets the partial index on exactly this predicate, and the
  * planner can only prove a query implies a partial index's predicate from
  * literals — a parameterized generic plan would fall back to scanning the
  * whole table.
  */
-const ENTITLED_STATUS_LITERALS = sql.raw(
-  ENTITLED_SUBSCRIPTION_STATUSES.map((status) => `'${status}'`).join(', ')
+const SETTLED_STATUS_LITERALS = sql.raw(
+  SETTLED_SUBSCRIPTION_STATUSES.map((status) => `'${status}'`).join(', ')
 )
 
 /**
  * Daily catch-all that closes every elapsed billing period. Candidates are
- * entitled subscriptions whose close marker lags their current `periodStart`
+ * settled subscriptions whose close marker lags their current `periodStart`
  * — i.e. the period advanced (via Stripe sync) since the last close.
  *
  * Iterates candidates in keyset pages (matching the partial index on exactly
@@ -862,7 +866,7 @@ export async function sweepBillingCycleCloses(): Promise<CycleCloseSweepSummary>
       .from(subscriptionTable)
       .where(
         and(
-          sql`${subscriptionTable.status} in (${ENTITLED_STATUS_LITERALS})`,
+          sql`${subscriptionTable.status} in (${SETTLED_STATUS_LITERALS})`,
           sql`${subscriptionTable.periodStart} IS NOT NULL`,
           or(
             isNull(subscriptionTable.lastClosedPeriodStart),

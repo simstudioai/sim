@@ -62,7 +62,7 @@ export async function performDeleteTable(
     if (error instanceof OrchestrationError) {
       return { success: false, error: error.message, errorCode: error.code }
     }
-    logger.error(`[${requestId}] Failed to delete table ${table.id}`, { error })
+    logger.error(`Failed to delete table ${table.id}`, { requestId, error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 
@@ -126,7 +126,7 @@ export async function performDeleteTableRow(
     if (error instanceof OrchestrationError) {
       return { success: false, error: error.message, errorCode: error.code }
     }
-    logger.error(`[${requestId}] Failed to delete row ${rowId} from table ${table.id}`, { error })
+    logger.error(`Failed to delete row ${rowId} from table ${table.id}`, { requestId, error })
     return { success: false, error: toError(error).message, errorCode: 'internal' }
   }
 }
@@ -164,7 +164,7 @@ function classifyTableMutation(error: unknown, requestId: string, tableId: strin
   if (error instanceof OrchestrationError) {
     return { success: false as const, error: error.message, errorCode: error.code }
   }
-  logger.error(`[${requestId}] Table mutation failed for ${tableId}`, { error })
+  logger.error(`Table mutation failed for ${tableId}`, { requestId, error })
   return {
     success: false as const,
     error: toError(error).message,

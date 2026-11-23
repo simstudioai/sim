@@ -13,5 +13,5 @@ The rendering-parity guarantee (identical to Chrome of the pinned version) is on
    - Workflow canvas (WebGL/ReactFlow), Monaco editing, a table export download.
    - Offline page appears with networking off; Retry recovers.
 6. **E2E:** `bun run test:e2e` green locally on the new pin; `desktop-e2e.yml` green in CI (the `latest` canary leg should already have hinted at surprises).
-7. **Signing/notarization smoke:** run `desktop-release.yml` via `workflow_dispatch` with `publish: false` against a test tag; `spctl`/`stapler` steps must pass.
+7. **Signing/notarization smoke:** run `desktop-release.yml` via `workflow_dispatch` with `publish: false`, selecting a test tag under "Use workflow from" and entering the same version; `spctl`/`stapler` steps must pass.
 8. **Ship** behind a staged rollout (10% `stagingPercentage`) and watch `update_error` / `renderer_gone` rates in the event logs before raising.

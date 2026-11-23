@@ -1,5 +1,7 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import type { BranchProtectionResponse, UpdateBranchProtectionParams } from '@/tools/github/types'
 import { BRANCH_PROTECTION_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -75,6 +77,7 @@ export const updateBranchProtectionTool: ToolConfig<
   description:
     'Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -133,7 +136,7 @@ export const updateBranchProtectionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/branches/${params.branch}/protection`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/branches/${githubRefPath(params.branch, 'branch')}/protection`,
     method: 'PUT',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

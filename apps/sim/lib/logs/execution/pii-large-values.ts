@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { env, envNumber } from '@/lib/core/config/env'
 import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import {
   appendLargeArrayManifest,
@@ -43,6 +43,12 @@ export interface RedactLargeValueRefsOptions {
    * than feeding a marker (or leaking raw bytes) downstream.
    */
   onFailure?: PiiRedactionFailureMode
+  /**
+   * @internal Set by {@link redactLargeValueRefs}, the execution log's entry point,
+   * so encoded file bodies inside its large values are replaced like inline ones
+   * (see `PiiRedactionOptions.replaceEncodedBinary`). Callers never set it.
+   */
+  replaceEncodedBinary?: boolean
   /**
    * @internal Shared across every nested invocation spawned from one entry-point
    * call, so oversized hydrations serialize globally — not just within their own
@@ -100,7 +106,7 @@ export async function redactLargeValueRefs(
   payload: RedactablePayload,
   options: RedactLargeValueRefsOptions
 ): Promise<RedactablePayload> {
-  const gatedOptions = withOversizedGate(options)
+  const gatedOptions = withOversizedGate({ ...options, replaceEncodedBinary: true })
   // Collect refs across the WHOLE payload first (shared `seen`), so every ref is
   // hydrated+masked+re-stored in one bounded-concurrency pass instead of one
   // sequential pass per key. A ref shared across keys is walked/masked once.
@@ -150,7 +156,7 @@ async function redactValueRefs(
  * Multiplies with the mask-batch chunk concurrency for total in-flight Presidio
  * load, which the load-balanced fleet behind the internal ALB absorbs.
  */
-const REF_CONCURRENCY = env.PII_REF_CONCURRENCY ?? 4
+const REF_CONCURRENCY = envNumber(env.PII_REF_CONCURRENCY, 4, { min: 1, integer: true })
 
 /**
  * A single ref past the default inline ceiling hydrates its whole blob at once
@@ -269,6 +275,7 @@ async function maskMaterializedValue(
     language: options.language,
     customPatterns: options.customPatterns,
     onFailure: options.onFailure ?? 'scrub',
+    replaceEncodedBinary: options.replaceEncodedBinary,
   })
   return redactValueRefs(masked, options)
 }

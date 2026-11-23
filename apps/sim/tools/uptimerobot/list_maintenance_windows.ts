@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   MAINTENANCE_WINDOW_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const uptimeRobotListMaintenanceWindowsTool: ToolConfig<
   name: 'UptimeRobot List Maintenance Windows',
   description: 'List maintenance windows in your UptimeRobot account',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

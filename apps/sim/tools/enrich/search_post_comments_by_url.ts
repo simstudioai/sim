@@ -2,6 +2,7 @@ import type {
   EnrichSearchPostCommentsByUrlParams,
   EnrichSearchPostCommentsResponse,
 } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchPostCommentsByUrlTool: ToolConfig<
@@ -12,6 +13,7 @@ export const searchPostCommentsByUrlTool: ToolConfig<
   name: 'Enrich Search Post Comments by URL',
   description: 'Get comments on a LinkedIn post by its URL.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

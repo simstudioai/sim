@@ -6,6 +6,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListCashStatementsTool: ToolConfig<
@@ -16,6 +17,7 @@ export const brexListCashStatementsTool: ToolConfig<
   name: 'Brex List Cash Statements',
   description: 'List finalized statements for a Brex cash account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

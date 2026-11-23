@@ -9,15 +9,13 @@ import {
   STSClient,
   type Tag,
 } from '@aws-sdk/client-sts'
+import { organizationAwsRequestHandler } from '@/lib/core/network/organization-aws-handler.server'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { STSConnectionConfig } from '@/tools/sts/types'
 
 export function createSTSClient(config: STSConnectionConfig): STSClient {
   return new STSClient({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 
@@ -37,6 +35,7 @@ export function createUnauthenticatedSTSClient(region: string): STSClient {
   return new STSClient({
     region,
     credentials: { accessKeyId: 'anonymous', secretAccessKey: 'anonymous' },
+    requestHandler: organizationAwsRequestHandler(),
   })
 }
 
@@ -79,6 +78,7 @@ export async function assumeRole(
   policyArns?: string | null,
   tags?: string | null,
   transitiveTagKeys?: string | null,
+  sourceIdentity?: string | null,
   signal?: AbortSignal
 ) {
   const command = new AssumeRoleCommand({
@@ -89,6 +89,7 @@ export async function assumeRole(
     ...(externalId ? { ExternalId: externalId } : {}),
     ...(serialNumber ? { SerialNumber: serialNumber } : {}),
     ...(tokenCode ? { TokenCode: tokenCode } : {}),
+    ...(sourceIdentity ? { SourceIdentity: sourceIdentity } : {}),
     ...(() => {
       const arns = parsePolicyArns(policyArns)
       return arns ? { PolicyArns: arns } : {}

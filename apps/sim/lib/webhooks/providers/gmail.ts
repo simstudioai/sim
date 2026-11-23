@@ -3,6 +3,7 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import type {
   FormatInputContext,
@@ -27,21 +28,22 @@ export const gmailHandler: WebhookProviderHandler = {
     requestId,
     persistProviderConfig,
   }: PollingConfigContext) {
-    logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
+    logger.info(`Setting up Gmail polling for webhook ${webhookData.id}`, { requestId })
 
     try {
       const providerConfig = toRecord(webhookData.providerConfig)
       const credentialId = providerConfig.credentialId as string | undefined
 
       if (!credentialId) {
-        logger.error(`[${requestId}] Missing credentialId for Gmail webhook ${webhookData.id}`)
+        logger.error(`Missing credentialId for Gmail webhook ${webhookData.id}`, { requestId })
         return false
       }
 
       const resolvedGmail = await resolveOAuthAccountId(credentialId)
       if (!resolvedGmail) {
         logger.error(
-          `[${requestId}] Could not resolve credential ${credentialId} for Gmail webhook ${webhookData.id}`
+          `Could not resolve credential ${credentialId} for Gmail webhook ${webhookData.id}`,
+          { requestId }
         )
         return false
       }
@@ -52,9 +54,9 @@ export const gmailHandler: WebhookProviderHandler = {
         .where(eq(account.id, resolvedGmail.accountId))
         .limit(1)
       if (rows.length === 0) {
-        logger.error(
-          `[${requestId}] Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`
-        )
+        logger.error(`Credential ${credentialId} not found for Gmail webhook ${webhookData.id}`, {
+          requestId,
+        })
         return false
       }
 
@@ -66,9 +68,9 @@ export const gmailHandler: WebhookProviderHandler = {
         requestId
       )
       if (!accessToken) {
-        logger.error(
-          `[${requestId}] Failed to refresh/access Gmail token for credential ${credentialId}`
-        )
+        logger.error(`Failed to refresh/access Gmail token for credential ${credentialId}`, {
+          requestId,
+        })
         return false
       }
 
@@ -106,13 +108,15 @@ export const gmailHandler: WebhookProviderHandler = {
           .where(eq(webhook.id, webhookData.id as string))
       }
 
-      logger.info(
-        `[${requestId}] Successfully configured Gmail polling for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully configured Gmail polling for webhook ${webhookData.id}`, {
+        requestId,
+      })
       return true
     } catch (error: unknown) {
+      if (isUnavailableFailure(error)) throw error
       const err = error as Error
-      logger.error(`[${requestId}] Failed to configure Gmail polling`, {
+      logger.error('Failed to configure Gmail polling', {
+        requestId,
         webhookId: webhookData.id,
         error: err.message,
         stack: err.stack,

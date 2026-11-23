@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { LambdaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 type ParamKind = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'jsonArray'
 
@@ -16,6 +17,7 @@ const PARAM_KINDS = {
   logType: 'string',
   clientContext: 'string',
   qualifier: 'string',
+  tenantId: 'string',
   functionVersion: 'string',
   masterRegion: 'string',
   marker: 'string',
@@ -46,6 +48,8 @@ const PARAM_KINDS = {
   snapStartApplyOn: 'string',
   logFormat: 'string',
   logGroup: 'string',
+  applicationLogLevel: 'string',
+  systemLogLevel: 'string',
   dryRun: 'boolean',
   revisionId: 'string',
   codeSha256: 'string',
@@ -118,7 +122,15 @@ const ALL_PARAM_NAMES = Object.keys(PARAM_KINDS) as ParamName[]
  * executor's `{ ...inputs, ...transformedParams }` merge.
  */
 const OPERATION_PARAMS: Record<string, readonly ParamName[]> = {
-  invoke: ['functionName', 'payload', 'invocationType', 'logType', 'clientContext', 'qualifier'],
+  invoke: [
+    'functionName',
+    'payload',
+    'invocationType',
+    'logType',
+    'clientContext',
+    'qualifier',
+    'tenantId',
+  ],
   list_functions: ['functionVersion', 'masterRegion', 'marker', 'maxItems'],
   get_function: ['functionName', 'qualifier'],
   get_function_configuration: ['functionName', 'qualifier'],
@@ -182,6 +194,8 @@ const OPERATION_PARAMS: Record<string, readonly ParamName[]> = {
     'snapStartApplyOn',
     'logFormat',
     'logGroup',
+    'applicationLogLevel',
+    'systemLogLevel',
     'revisionId',
   ],
   delete_function: ['functionName', 'qualifier'],
@@ -403,6 +417,8 @@ function parseJson(value: unknown, name: string): unknown {
 
 export const LambdaBlock: BlockConfig = {
   type: 'lambda',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'lambda_v2' },
   name: 'Lambda',
   description: 'Invoke, deploy, and manage AWS Lambda functions',
   longDescription:
@@ -820,10 +836,21 @@ export const LambdaBlock: BlockConfig = {
       },
     },
     {
+      id: 'tenantId',
+      title: 'Tenant ID',
+      type: 'short-input',
+      placeholder: 'Tenant identifier, for functions with tenant isolation',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'invoke' },
+    },
+    {
       id: 'functionVersion',
       title: 'Include All Versions',
       type: 'dropdown',
-      options: [{ label: 'ALL', id: 'ALL' }],
+      options: [
+        { label: 'Unpublished only ($LATEST)', id: '' },
+        { label: 'ALL', id: 'ALL' },
+      ],
       mode: 'advanced',
       condition: { field: 'operation', value: 'list_functions' },
     },
@@ -913,6 +940,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Package Type',
       type: 'dropdown',
       options: [
+        { label: 'Infer from code source', id: '' },
         { label: 'Zip (.zip archive)', id: 'Zip' },
         { label: 'Image (container image)', id: 'Image' },
       ],
@@ -1093,6 +1121,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'X-Ray Tracing',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'Pass Through', id: 'PassThrough' },
         { label: 'Active', id: 'Active' },
       ],
@@ -1134,6 +1163,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'SnapStart',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'None', id: 'None' },
         { label: 'Published Versions', id: 'PublishedVersions' },
       ],
@@ -1148,6 +1178,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Log Format',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'Text', id: 'Text' },
         { label: 'JSON', id: 'JSON' },
       ],
@@ -1167,6 +1198,35 @@ export const LambdaBlock: BlockConfig = {
         field: 'operation',
         value: ['create_function', 'update_function_configuration'],
       },
+    },
+    {
+      id: 'applicationLogLevel',
+      title: 'Application Log Level',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'TRACE', id: 'TRACE' },
+        { label: 'DEBUG', id: 'DEBUG' },
+        { label: 'INFO', id: 'INFO' },
+        { label: 'WARN', id: 'WARN' },
+        { label: 'ERROR', id: 'ERROR' },
+        { label: 'FATAL', id: 'FATAL' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_function_configuration' },
+    },
+    {
+      id: 'systemLogLevel',
+      title: 'System Log Level',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'DEBUG', id: 'DEBUG' },
+        { label: 'INFO', id: 'INFO' },
+        { label: 'WARN', id: 'WARN' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_function_configuration' },
     },
     {
       id: 'dryRun',
@@ -1301,6 +1361,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Function URL Auth Type',
       type: 'dropdown',
       options: [
+        { label: 'Not set', id: '' },
         { label: 'NONE', id: 'NONE' },
         { label: 'AWS_IAM', id: 'AWS_IAM' },
       ],
@@ -1322,6 +1383,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Enabled',
       type: 'dropdown',
       options: [
+        { label: 'Default (enabled on create, unchanged on update)', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
@@ -1356,6 +1418,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Starting Position',
       type: 'dropdown',
       options: [
+        { label: 'Not set (not used for SQS)', id: '' },
         { label: 'Latest', id: 'LATEST' },
         { label: 'Trim Horizon (oldest)', id: 'TRIM_HORIZON' },
         { label: 'At Timestamp', id: 'AT_TIMESTAMP' },
@@ -1416,6 +1479,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Bisect Batch On Error',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
@@ -1563,6 +1627,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'DocumentDB Full Document',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'Default (change delta only)', id: 'Default' },
         { label: 'Update Lookup (full document)', id: 'UpdateLookup' },
       ],
@@ -1659,6 +1724,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Invoke Mode',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'Buffered', id: 'BUFFERED' },
         { label: 'Response Stream', id: 'RESPONSE_STREAM' },
       ],
@@ -1673,6 +1739,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'CORS Allow Credentials',
       type: 'dropdown',
       options: [
+        { label: 'Default (unchanged on update)', id: '' },
         { label: 'No', id: 'false' },
         { label: 'Yes', id: 'true' },
       ],
@@ -1758,6 +1825,7 @@ export const LambdaBlock: BlockConfig = {
       title: 'Compatible Architecture',
       type: 'dropdown',
       options: [
+        { label: 'Any', id: '' },
         { label: 'x86_64', id: 'x86_64' },
         { label: 'arm64', id: 'arm64' },
       ],
@@ -1889,11 +1957,11 @@ export const LambdaBlock: BlockConfig = {
         }
         return `lambda_${operation}`
       },
-      params: (params) => {
-        const operation = String(params.operation ?? '')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const owned = OPERATION_PARAMS[operation]
         if (!owned) {
-          throw new Error(`Invalid Lambda operation: ${params.operation}`)
+          throw new Error(`Invalid Lambda operation: ${operation}`)
         }
 
         const ownedNames = new Set<ParamName>(owned)
@@ -1920,6 +1988,7 @@ export const LambdaBlock: BlockConfig = {
     logType: { type: 'string', description: 'Log Type' },
     clientContext: { type: 'string', description: 'Client Context' },
     qualifier: { type: 'string', description: 'Qualifier' },
+    tenantId: { type: 'string', description: 'Tenant ID' },
     functionVersion: { type: 'string', description: 'Include All Versions' },
     masterRegion: { type: 'string', description: 'Master Region' },
     marker: { type: 'string', description: 'Marker' },
@@ -1950,6 +2019,8 @@ export const LambdaBlock: BlockConfig = {
     snapStartApplyOn: { type: 'string', description: 'SnapStart' },
     logFormat: { type: 'string', description: 'Log Format' },
     logGroup: { type: 'string', description: 'Log Group' },
+    applicationLogLevel: { type: 'string', description: 'Application Log Level' },
+    systemLogLevel: { type: 'string', description: 'System Log Level' },
     dryRun: { type: 'boolean', description: 'Dry Run' },
     revisionId: { type: 'string', description: 'Revision ID' },
     codeSha256: { type: 'string', description: 'Code SHA256' },
@@ -2060,11 +2131,17 @@ export const LambdaBlock: BlockConfig = {
     },
     code: {
       type: 'json',
-      description: 'Presigned download URL for the deployment package, or the container image URI',
+      description:
+        'Deployment package location (repositoryType, location presigned download URL, imageUri, resolvedImageUri, sourceKmsKeyArn, error)',
     },
     tags: {
       type: 'json',
       description: "The function's tags",
+    },
+    tagsError: {
+      type: 'json',
+      description:
+        'Why the tags could not be read, when a partial tag-read failure occurred (errorCode, message)',
     },
     reservedConcurrentExecutions: {
       type: 'number',
@@ -2292,3 +2369,19 @@ export const LambdaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LambdaV2Block: BlockConfig = {
+  ...LambdaBlock,
+  type: 'lambda_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags.',
+  ...withSavedCredential(LambdaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

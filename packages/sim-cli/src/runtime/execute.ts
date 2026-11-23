@@ -8,6 +8,7 @@ import {
   waitWorkspaceOperation,
   workspaceWaitTimeout,
 } from '../commands/protocol/workspace-operation-wait'
+import type { ResolvedProfile } from '../config/index'
 import type { CommandSpec } from '../contract/types'
 import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
@@ -231,7 +232,11 @@ const RESULT_NOTES: Readonly<
   Partial<
     Record<
       V2OperationName,
-      (payload: Record<string, unknown>, body: Record<string, unknown> | undefined) => string | null
+      (
+        payload: Record<string, unknown>,
+        body: Record<string, unknown> | undefined,
+        flags: Readonly<Record<string, unknown>>
+      ) => string | null
     >
   >
 > = {
@@ -241,13 +246,25 @@ const RESULT_NOTES: Readonly<
       ? 'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
       : null
   },
+  /**
+   * An export's credentials always, and its workspace bindings unless asked for, print as `null`, which reads as "this block is
+   * unset" to anyone who has not read the help. The document goes to stdout untouched (it is the
+   * portable artifact), so the pointer to where the bindings can be read goes to stderr.
+   */
+  exportWorkflow: (_payload, _body, flags) =>
+    `note: ${
+      flags.includeWorkspaceBindings === true
+        ? 'a credential always prints as null here'
+        : 'a table, child workflow, knowledge base or other workspace binding prints as null here, and a credential always does'
+    }: that is the export, not an unset block. Read what blocks are set to with \`sim workflows outline <workflowId>\` or \`sim workflows state get <workflowId>\`.`,
 }
 
 /** Writes the operation's result note to stderr, when it has one and the result calls for it. */
 function writeResultNote(
   operation: V2OperationName,
   payload: unknown,
-  body: Record<string, unknown> | undefined
+  body: Record<string, unknown> | undefined,
+  flags: Readonly<Record<string, unknown>>
 ): void {
   const note = RESULT_NOTES[operation]
   if (!note) return
@@ -255,7 +272,7 @@ function writeResultNote(
     payload && typeof payload === 'object' && !Array.isArray(payload)
       ? (payload as Record<string, unknown>)
       : {}
-  const message = note(record, body)
+  const message = note(record, body, flags)
   if (message) writeStderr(styles().dim(`${message}\n`))
 }
 
@@ -393,6 +410,31 @@ function foldOtherSpellings(
   }
 }
 
+/**
+ * A 404 from a request scoped to the resolved workspace, stating which workspace was searched and
+ * where that came from: a table or file that lives in another workspace answers only "not found",
+ * and a workspace taken from the profile or `SIM_WORKSPACE` is not on the command line to check.
+ */
+function withSearchedWorkspace(error: unknown, profile: ResolvedProfile): unknown {
+  if (!(error instanceof SimApiError) || error.status !== 404 || !profile.workspaceId) return error
+  const source = profile.sources.workspaceId
+  const from =
+    source === 'env'
+      ? ', from SIM_WORKSPACE; pass -w <workspaceId> to search another'
+      : source === 'config'
+        ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+        : ''
+  const searched = `searched workspace ${safeOneLine(profile.workspaceId)}${from}`
+  return new SimApiError(
+    `${error.message} (${searched})`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
+}
+
 /** Executes a parsed generated command, including cursor pagination. */
 export async function executeOperation(
   operation: V2OperationName,
@@ -459,7 +501,7 @@ export async function executeOperation(
   const omitsWorkspace = commandSpec.allWorkspaces && requestFlags.allWorkspaces === true
   /**
    * A workspace carried in the path is resolved exactly like one carried in a
-   * field. `workspaces get` and `workspaces members` take theirs as a path
+   * field. `workspaces get` and `workspaces members list` take theirs as a path
    * parameter, so they skipped `requireWorkspace` and fell into `buildRequest`'s
    * own fallback: a second wording for the same precondition, and — because
    * `requireWorkspace` checks the key first — advice to set a workspace on an
@@ -505,6 +547,11 @@ export async function executeOperation(
       throw new SimApiError('--cursor must be a non-empty string', 0)
     }
     const limit = pagedLimit === 0 ? Number.POSITIVE_INFINITY : pagedLimit
+    /** An operation whose contract caps its page below the CLI's default page asks for less. */
+    const maxPageSize = Math.min(
+      DEFAULT_PAGE_SIZE,
+      operationSpec[paging]?.limit?.maximum ?? Number.POSITIVE_INFINITY
+    )
     const rows: unknown[] = []
     const seenCursors = new Set<string>(initialCursor ? [initialCursor] : [])
     const progress = pageProgress()
@@ -516,7 +563,7 @@ export async function executeOperation(
     // would otherwise leave the progress text on the line the error prints onto.
     try {
       do {
-        const pageSize = Math.min(DEFAULT_PAGE_SIZE, limit - rows.length)
+        const pageSize = Math.min(maxPageSize, limit - rows.length)
         const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
         const page: V2Page<unknown> = await client.request(operation, {
           params: request.params,
@@ -539,6 +586,8 @@ export async function executeOperation(
         cursor = page.nextCursor
         if (cursor && rows.length < limit) progress.advance(rows.length)
       } while (cursor && rows.length < limit)
+    } catch (error) {
+      throw needsWorkspace ? withSearchedWorkspace(error, profile) : error
     } finally {
       progress.finish()
     }
@@ -579,10 +628,11 @@ export async function executeOperation(
           reconciliation:
             'Find the operation using this requestId, or retry identical inputs with the same requestId.',
         },
-        failure.exitCode
+        failure.exitCode,
+        failure.requestId
       )
     }
-    throw error
+    throw needsWorkspace ? withSearchedWorkspace(error, profile) : error
   }
   let payload = result?.data ?? result
   if (
@@ -636,7 +686,7 @@ export async function executeOperation(
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
-  writeResultNote(operation, payload, request.body)
+  writeResultNote(operation, payload, request.body, requestFlags)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

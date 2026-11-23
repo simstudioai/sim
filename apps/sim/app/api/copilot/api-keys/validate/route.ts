@@ -28,13 +28,14 @@ import {
 } from '@/lib/billing/core/attribution'
 import { payerHasChatAccess } from '@/lib/billing/core/chat-access'
 import {
-  isFreeRunPayer,
+  isCappedRunPayer,
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,
 } from '@/lib/billing/core/mid-run-usage'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { billsOverage } from '@/lib/billing/subscriptions/utils'
 import { resolveUsageUpgradePayload, type UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -58,11 +59,11 @@ import {
   COPILOT_VALIDATION_PURPOSE,
   type CopilotBillingProtocol,
 } from '@/lib/mothership/generated/billing-protocol-v1'
-import { CopilotValidateOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { CopilotValidateOutcome } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { checkInternalApiKey } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
@@ -92,7 +93,7 @@ type AdmissionBillingDecision =
     }
 
 /**
- * Resolves new-turn admission against the versioned Go callback protocol.
+ * Resolves new-turn admission against the versioned worker callback protocol.
  *
  * Markerless self-hosted admission is legacy-v0. A locally resolvable
  * workspace selects its current payer; an absent or opaque workspace preserves
@@ -292,6 +293,7 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
             : {}),
         },
         ...(subscription ? { payerSubscriptionId: subscription.id } : {}),
+        payerBillsOverage: billsOverage(subscription),
       },
     }
   }
@@ -313,13 +315,13 @@ async function checkAdmissionUsage(admission: AdmissionBillingDecision): Promise
 }
 
 /**
- * Incoming-from-Go: extracts traceparent so this handler's work shows up as
- * a child of the Go-side `sim.validate_api_key` span in the same trace. If
+ * Incoming from the worker: extracts traceparent so this handler's work shows
+ * up as a child of the worker's span in the same trace. If
  * there's no traceparent (manual curl / browser), the helper falls back to a
  * new root span.
  */
 export const POST = withRouteHandler((req: NextRequest) =>
-  withIncomingGoSpan(
+  withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotAuthValidateApiKey,
     {
@@ -431,7 +433,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
           })
           // A continuation, and a worker's periodic re-check of a long run, also reads the
           // original payer's spend through the cached execution usage gate. A read that fails
-          // refuses a free payer, whose spend past the limit is never billed, and admits a paid
+          // refuses a capped payer, whose spend past the limit is never billed, and admits a paid
           // one: the run is already under way, and the next re-check reads again.
           const verdict =
             !blocked?.blocked && purpose === COPILOT_VALIDATION_PURPOSE.continuation && billing
@@ -458,14 +460,14 @@ export const POST = withRouteHandler((req: NextRequest) =>
               { status: 402 }
             )
           }
-          const unreadFreePayer =
+          const unreadCappedPayer =
             verdict?.status === 'unknown' &&
             billing !== null &&
-            isFreeRunPayer(billing.kind === 'attributed' ? billing.attribution : billing.decision)
-          if (verdict?.status === 'exceeded' || unreadFreePayer) {
+            isCappedRunPayer(billing.kind === 'attributed' ? billing.attribution : billing.decision)
+          if (verdict?.status === 'exceeded' || unreadCappedPayer) {
             logger.info('[API VALIDATION] Continuation usage exceeded', {
               userId,
-              unread: unreadFreePayer,
+              unread: unreadCappedPayer,
             })
             span.setAttribute(
               TraceAttr.CopilotValidateOutcome,

@@ -1,4 +1,5 @@
 import type { LoopsUpdateContactParams, LoopsUpdateContactResponse } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsUpdateContactTool: ToolConfig<
@@ -10,6 +11,7 @@ export const loopsUpdateContactTool: ToolConfig<
   description:
     'Update an existing contact in Loops by email or userId. Creates a new contact if no match is found (upsert). Can update name, subscription status, user group, mailing lists, and custom properties.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

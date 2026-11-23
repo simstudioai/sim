@@ -2,6 +2,7 @@ import type {
   AthenaGetTableMetadataParams,
   AthenaGetTableMetadataResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getTableMetadataTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const getTableMetadataTool: InternalToolConfig<
   description:
     'Get the columns, partition keys, and properties of a single table in an Athena data catalog database',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

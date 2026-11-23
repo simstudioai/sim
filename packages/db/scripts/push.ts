@@ -9,6 +9,7 @@ const RECONCILIATION_COMMANDS = [
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-project-membership.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-credential-group-resource-policies.ts'],
   ['bun', '--env-file=.env', 'run', './scripts/reconcile-oauth-provider.ts'],
+  ['bun', '--env-file=.env', 'run', './scripts/apply-dev-table-triggers.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0016_backfill_search_vectors.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0021_embedding_search_connector.ts'],
   ['bun', '--env-file=.env', 'run', './script-migrations/0024_knowledge_projection_async.ts'],

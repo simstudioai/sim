@@ -1,5 +1,30 @@
 import type { SentryCreateReleaseParams, SentryCreateReleaseResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+
+const COMMITS_FORMAT_ERROR =
+  'Commits must be a JSON array of commit objects, e.g. [{"id":"abc123","message":"Fix bug"}]'
+
+/**
+ * Accepts commits as an array (a resolved block reference or a model value) or as a JSON array
+ * string, and rejects anything else instead of creating the release without its commits.
+ */
+function parseCommits(value: SentryCreateReleaseParams['commits']): unknown[] | undefined {
+  if (Array.isArray(value)) return value
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') throw new Error(COMMITS_FORMAT_ERROR)
+  if (value.trim() === '') return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error(COMMITS_FORMAT_ERROR)
+  }
+  if (!Array.isArray(parsed)) throw new Error(COMMITS_FORMAT_ERROR)
+  return parsed
+}
 
 export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCreateReleaseResponse> =
   {
@@ -8,8 +33,10 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
     description:
       'Create a new release in Sentry. A release is a version of your code deployed to an environment. Can include commit information and associated projects. Returns the created release details.',
     version: '1.0.0',
+    oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
+      region: SENTRY_REGIONS.param,
       apiKey: {
         type: 'string',
         required: true,
@@ -64,19 +91,20 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
     },
 
     request: {
-      url: (params) => `https://sentry.io/api/0/organizations/${params.organizationSlug}/releases/`,
+      url: (params) =>
+        `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/releases/`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }),
       body: (params) => {
+        const projects = Array.isArray(params.projects)
+          ? params.projects
+          : String(params.projects ?? '').split(',')
         const body: Record<string, any> = {
           version: params.version,
-          projects: params.projects
-            .split(',')
-            .map((p: string) => p.trim())
-            .filter((p: string) => p.length > 0),
+          projects: projects.map((p) => String(p).trim()).filter((p) => p.length > 0),
         }
 
         if (params.ref && params.ref !== null && params.ref !== '') {
@@ -91,10 +119,9 @@ export const createReleaseTool: ToolConfig<SentryCreateReleaseParams, SentryCrea
           body.dateReleased = params.dateReleased
         }
 
-        if (params.commits && params.commits !== null && params.commits !== '') {
-          try {
-            body.commits = JSON.parse(params.commits)
-          } catch {}
+        const commits = parseCommits(params.commits)
+        if (commits) {
+          body.commits = commits
         }
 
         return body

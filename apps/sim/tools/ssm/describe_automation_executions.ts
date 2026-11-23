@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmDescribeAutomationExecutionsParams,
   SsmDescribeAutomationExecutionsResponse,
@@ -12,6 +13,7 @@ export const describeAutomationExecutionsTool: InternalToolConfig<
   name: 'SSM Describe Automation Executions',
   description: 'List Automation runbook executions in an AWS account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

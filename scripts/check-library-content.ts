@@ -29,13 +29,27 @@
  * - `search-title` / `search-description`: a published post's search title (`seoTitle ?? title`
  *   with the " | Sim" suffix) fits in 60 characters and its search description
  *   (`seoDescription ?? description`) in 160, the lengths Google shows before truncating.
+ * - `sim-count`: a library post's count of Sim's integrations, actions, or triggers is true
+ *   against the generated catalog (`INTEGRATION_TOTALS`): no higher than the total, and no
+ *   lower than 90% of it. Answer engines quote these figures, so an overclaim such as
+ *   "1,000+ integrations" or a figure left from an older catalog spreads to third-party sites.
+ *   A count belongs to Sim when "Sim" comes before it in the same clause and no other product's
+ *   possessive directly precedes it, or when it sits in a table row whose label cell is Sim
+ *   (other rows are read cell by cell). A comparison that opens a sentence or names a new subject
+ *   ("while Zapier", "Zapier, like Sim,") is its own clause up to the next comma, and the main
+ *   clause resumes after it; ", and" before a new subject also starts a clause.
+ *   A count whose owner is ambiguous within its clause is treated as Sim's; when it belongs to
+ *   another product, name that product as its owner ("Zapier's 9,000+") or give it a sentence.
+ *   Blog and changelog posts are dated, so their counts are true as of publication.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { compile } from '@mdx-js/mdx'
+import { INTEGRATION_TOTALS } from '@sim/deployment-config/integration-totals'
 import integrationsJson from '@sim/deployment-config/integrations.json'
+import { formatLowerBound } from '@sim/utils/formatting'
 import { SIM_DOCS_URL, SIM_SITE_URL } from '@sim/utils/site'
 import matter from 'gray-matter'
 import type { Root } from 'mdast'
@@ -65,6 +79,10 @@ export type Rule =
   | 'internal-link'
   | 'search-title'
   | 'search-description'
+  | 'sim-count'
+
+/** The catalog units a Sim count claim can name. */
+type SimCountUnit = 'integrations' | 'actions' | 'triggers'
 
 /** Appended to every post title by the root layout's `title.template`. */
 const SEARCH_TITLE_SUFFIX = ' | Sim'
@@ -94,6 +112,8 @@ export interface ContentCheckConfig {
   customerSlugs: readonly string[]
   /** Canonical integration, model, and documentation pages served by the current source tree. */
   linkedPages: ReadonlySet<string>
+  /** Sim's catalog totals that `sim-count` holds library claims to. */
+  simCatalog: Readonly<Record<SimCountUnit, number>>
 }
 
 /** Post folders per section, keyed by slug, with each post's `draft` flag. */
@@ -116,8 +136,109 @@ const TRAILING_PUNCTUATION = /[.,;:!]+$/
 const LINK_TARGET_OPENER = /(?:\]\(\s*|href=\{?["'`])$/
 const MARKDOWN_LINK = /\[[^\]\n]*\]\([^)\n]*\)/
 const FAQ_HEADING = /^#{1,6}\s+FAQs?\s*:?\s*$/i
-const CODE_FENCE = /^\s*(```|~~~)/
+/** An opening or closing code fence: three or more backticks or tildes. */
+const CODE_FENCE = /^\s*(`{3,}|~{3,})/
 const ROUTE_FILES = ['page.tsx', 'page.ts', 'route.tsx', 'route.ts']
+/** A catalog count such as "1,000+ integrations": group 1 is the number, group 2 the unit. */
+const COUNT_CLAIM = /\b(\d{1,3}(?:,\d{3})+|\d+)\+?\s+(integrations|actions|triggers)\b/gi
+/** Inline emphasis and code markers, which would otherwise split "**1,000+** integrations". */
+const INLINE_MARKERS = /\*\*|__|[*`]/g
+/** A Markdown link, read as its visible text so "[Zapier](https://zapier.com)'s" names Zapier. */
+const LINK_TEXT = /\[([^\]\n]*)\]\([^)\n]*\)/g
+/** List, heading, and quote markers, or a quoted YAML key such as `a: "`, ahead of the sentence. */
+const LINE_PREFIX = /^\s*(?:(?:[-*+>]|\d+[.)]|#{1,6})\s+)*(?:\w+:\s*["'])?/
+const SIM_NAME = /\bSim\b/
+/** Words that turn a sentence toward another product: "while Zapier lists ...", "unlike Zapier". */
+const CONTRAST = String.raw`(?:while|whereas|but|unlike|compared (?:with|to)|versus|vs\.?)`
+/** The same words opening a sentence, plus "Like" ("Like Sim, n8n ..."). */
+const OPENING_CONTRAST = String.raw`(?:While|Whereas|But|Unlike|Like|Compared (?:with|to)|Versus|Vs\.?)`
+/** Sentence punctuation, with any closing quote or bracket, before whitespace. */
+const SENTENCE_END = /(?<=[.!?;]['"”’)\]]*)\s+/
+/** The start of a new subject: a capitalized word, or a lowercase product name with a digit (n8n). */
+const SUBJECT = String.raw`(?:[A-Z]|[a-z]+\d)`
+/** ", and" before a new subject, which starts a clause of its own ("..., and Zapier has ..."). */
+const NEW_SUBJECT = new RegExp(String.raw`,\s+and\s+(?=${SUBJECT})`)
+/**
+ * Where a comparison clause starts: a sentence-opening contrast ("Unlike Sim, ..."), or a contrast
+ * followed by a new subject ("..., while Zapier", "Zapier, like Sim, ..."). A contrast that keeps
+ * the subject ("open source but has ...", "while working") does not start one.
+ */
+const COMPARISON_START = new RegExp(
+  String.raw`^(?=${OPENING_CONTRAST}\b)|,\s*(?=(?:like|${CONTRAST})\s+${SUBJECT})|\s+(?=${CONTRAST}\s+${SUBJECT})`
+)
+/** A count continuing a list ("..., 9,000+ actions, and 530+ triggers, ..."), not a new clause. */
+const COUNT_LIST_ITEM = String.raw`(?:and\s+)?\d[\d,]*\+?\s+(?:integrations|actions|triggers)\b\s*(?:,|and\b|$)`
+/**
+ * Where a comparison clause ends: the first comma that is not a thousands separator, not the
+ * start of a relative clause continuing it ("unlike Zapier, which has 9,000+ integrations"), and
+ * not the next item in a list of counts.
+ */
+const COMPARISON_END = new RegExp(
+  String.raw`,(?!\d)(?!\s*(?:which|that|who)\b)(?!\s*${COUNT_LIST_ITEM})`
+)
+/** A contrast with a new subject inside a comparison clause ("..., but Zapier has ..."). */
+const INNER_CONTRAST = new RegExp(String.raw`,?\s+(?=${CONTRAST}\s+${SUBJECT})`)
+/** The product whose possessive directly precedes a count, as in "Zapier's 9,000+". */
+const POSSESSIVE_OWNER = /([\w.-]+)['’]s\s*$/
+/** A Sim count below this share of the catalog total is left from an older catalog. */
+const SIM_COUNT_FLOOR = 0.9
+
+/**
+ * The Sim counts in a table row: every count when its label (first non-empty cell) names Sim, and
+ * otherwise each cell's own Sim claims, read like prose ("| Catalog | Sim has 280+ integrations |").
+ */
+function simTableRowCounts(cells: string[]): RegExpMatchArray[] {
+  const label = cells.map((cell) => cell.trim()).find((cell) => cell !== '') ?? ''
+  return SIM_NAME.test(label.split(/\s/)[0])
+    ? cells.flatMap((cell) => [...cell.matchAll(COUNT_CLAIM)])
+    : cells.flatMap(simProseCounts)
+}
+
+/**
+ * A sentence's clauses: its main clause, with each comparison taken out and read as a clause of
+ * its own, so "Sim, unlike Zapier, has ..." reads as "Sim has ..." plus "unlike Zapier".
+ */
+function sentenceClauses(sentence: string): string[] {
+  const main: string[] = []
+  const comparisons: string[] = []
+  let rest = sentence
+  for (let start = COMPARISON_START.exec(rest); start; start = COMPARISON_START.exec(rest)) {
+    main.push(rest.slice(0, start.index))
+    const comparison = rest.slice(start.index + start[0].length)
+    const end = COMPARISON_END.exec(comparison)
+    comparisons.push(...(end ? comparison.slice(0, end.index) : comparison).split(INNER_CONTRAST))
+    rest = end ? comparison.slice(end.index + 1) : ''
+  }
+  return [[...main, rest].join(' '), ...comparisons]
+}
+
+/** Each count whose clause names Sim before it, unless another product's possessive owns it. */
+function simProseCounts(text: string): RegExpMatchArray[] {
+  const clauses = text
+    .replace(LINE_PREFIX, '')
+    .split(SENTENCE_END)
+    .flatMap((sentence) => sentence.split(NEW_SUBJECT))
+    .flatMap(sentenceClauses)
+  return clauses.flatMap((clause) =>
+    [...clause.matchAll(COUNT_CLAIM)].filter((match) => {
+      const before = clause.slice(0, match.index)
+      const owner = POSSESSIVE_OWNER.exec(before)?.[1]
+      return SIM_NAME.test(before) && (owner === undefined || owner === 'Sim')
+    })
+  )
+}
+
+/** The counts on one line of text that belong to Sim, with the claim as written. */
+function simCountClaims(line: string): { claim: string; count: number; unit: SimCountUnit }[] {
+  const text = line.replace(INLINE_MARKERS, '').replace(LINK_TEXT, '$1')
+  const cells = text.split('|')
+  const matches = cells.length > 2 ? simTableRowCounts(cells) : simProseCounts(text)
+  return matches.map((match) => ({
+    claim: match[0],
+    count: Number.parseInt(match[1].replaceAll(',', ''), 10),
+    unit: match[2].toLowerCase() as SimCountUnit,
+  }))
+}
 
 function isSection(value: string): value is Section {
   return (SECTIONS as readonly string[]).includes(value)
@@ -397,6 +518,23 @@ export async function checkPost(
 
   const data = parsed.data as Record<string, unknown>
 
+  const checkSimCounts = (text: string, line: number) => {
+    if (section !== 'library') return
+    for (const { claim, count, unit } of simCountClaims(text)) {
+      const total = config.simCatalog[unit]
+      if (count <= total && count >= total * SIM_COUNT_FLOOR) continue
+      report(
+        line,
+        'sim-count',
+        count > total
+          ? `"${claim}" overstates Sim's catalog, which has ${total} ${unit}.`
+          : `"${claim}" is stale: Sim's catalog has ${total} ${unit}.`,
+        `Write ${formatLowerBound(total)} ${unit}, the catalog-derived figure (INTEGRATION_TOTALS in packages/deployment-config/src/integration-totals.ts). If the count is another product's, name it as the owner ("Zapier's 9,000+") or give it its own sentence.`
+      )
+    }
+  }
+  frontmatterLines.forEach((text, index) => checkSimCounts(text, index + 2))
+
   if (section === 'changelog' && result.success) {
     const { date, updated, draft, ogAlt } = result.data
     if (!draft && (date.getTime() > Date.now() || (updated && updated.getTime() > Date.now()))) {
@@ -535,11 +673,12 @@ export async function checkPost(
     const fenceMatch = CODE_FENCE.exec(text)
     if (fenceMatch) {
       if (fence === null) fence = fenceMatch[1]
-      else if (fenceMatch[1] === fence) fence = null
+      else if (fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null
       return
     }
     if (fence !== null) return
     const line = bodyOffset + index + 1
+    checkSimCounts(text, line)
     if (FAQ_HEADING.test(text.trim())) {
       report(
         line,
@@ -771,6 +910,7 @@ async function main() {
     movedBlogSlugs: LIBRARY_MOVED_BLOG_SLUGS,
     customerSlugs: CUSTOMER_STORIES.map((story) => story.slug),
     linkedPages: readLinkedPages(path.join(root, 'apps/docs')),
+    simCatalog: INTEGRATION_TOTALS,
   }
 
   const args = process.argv.slice(2)

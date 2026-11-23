@@ -14,7 +14,7 @@ import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-se
 const input: NativeSearchInput = { query: 'contractor offboarding runbook', limit: 4, scopes: [] }
 
 /** The any-term search's own budget, which a slow provider must not outlast. */
-const BUDGET_MS = 4000
+const BUDGET_MS = 2000
 
 /** A caller that never cancels. */
 const live = new AbortController().signal

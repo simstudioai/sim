@@ -1,6 +1,7 @@
 import { LoopsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** How a contact is identified — email or user id, whichever the user filled. */
@@ -8,6 +9,8 @@ const CONTACT_FIELD = ['contactEmail', 'userId'] as const
 
 export const LoopsBlock: BlockConfig = {
   type: 'loops',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'loops_v2' },
   name: 'Loops',
   description: 'Manage contacts and send emails with Loops',
   authMode: AuthMode.ApiKey,
@@ -507,8 +510,9 @@ Return ONLY the JSON object - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => `loops_${params.operation}`,
-      params: (params) => {
-        const { operation, apiKey } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { apiKey } = params
         const result: Record<string, unknown> = { apiKey }
 
         switch (operation) {
@@ -568,8 +572,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
             break
 
           case 'create_contact_property':
-            result.name = params.propertyName
-            result.type = params.propertyType
+            result.name = params.propertyName ?? toolCallArg(context, params.name)
+            result.type = params.propertyType ?? toolCallArg(context, params.type)
             break
 
           case 'list_contact_properties':
@@ -800,3 +804,17 @@ export const LoopsBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LoopsV2Block: BlockConfig = {
+  ...LoopsBlock,
+  type: 'loops_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(LoopsBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'loops',
+    title: 'Loops Credential',
+  }),
+}

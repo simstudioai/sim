@@ -57,6 +57,23 @@ describe('getBedrockInferenceProfileId', () => {
     )
   })
 
+  /** Profiles published on each model's AWS model card; an unprefixed base ID fails on demand. */
+  it.each([
+    ['anthropic.claude-opus-5-5', 'eu-west-1', 'eu.anthropic.claude-opus-5-5'],
+    ['anthropic.claude-sonnet-5-5', 'ca-central-1', 'us.anthropic.claude-sonnet-5-5'],
+    ['anthropic.claude-haiku-5-5', 'ap-southeast-2', 'au.anthropic.claude-haiku-5-5'],
+    ['anthropic.claude-fable-5-1', 'us-west-2', 'us.anthropic.claude-fable-5-1'],
+    ['anthropic.claude-fable-5-2', 'us-east-1', 'us.anthropic.claude-fable-5-2'],
+  ])('routes %s from %s through %s', (model, region, profile) => {
+    expect(getBedrockInferenceProfileId(`bedrock/${model}`, region)).toBe(profile)
+  })
+
+  it.concurrent('points Fable 5.2 outside the US at its global profile', () => {
+    expect(() =>
+      getBedrockInferenceProfileId('bedrock/anthropic.claude-fable-5-2', 'eu-west-1')
+    ).toThrow('Supply an explicit bedrock/global.')
+  })
+
   it.concurrent('returns the bare model ID for models without geo profile support', () => {
     expect(
       getBedrockInferenceProfileId('bedrock/mistral.mistral-large-3-675b-instruct', 'us-east-1')

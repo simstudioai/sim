@@ -224,7 +224,7 @@ describe('organization Assistant from Slack', () => {
         userId: 'member1',
         organizationId: 'org1',
         chatId: 'chat1',
-        goRoute: '/api/mothership',
+        workerRoute: '/api/mothership',
         autoExecuteTools: true,
         searchSurface: 'slack',
         billingAttribution: { organizationId: 'org1', actorUserId: 'member1' },

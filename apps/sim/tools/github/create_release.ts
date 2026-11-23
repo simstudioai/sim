@@ -1,9 +1,11 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { CreateReleaseParams, ReleaseResponse } from '@/tools/github/types'
 import {
   RELEASE_ASSET_OUTPUT_PROPERTIES,
   RELEASE_OUTPUT_PROPERTIES,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse> = {
@@ -12,6 +14,7 @@ export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse>
   description:
     'Create a new release for a GitHub repository. Specify tag name, target commit, title, description, and whether it should be a draft or prerelease.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -75,7 +78,8 @@ export const createReleaseTool: ToolConfig<CreateReleaseParams, ReleaseResponse>
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}/releases`,
+    url: (params) =>
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/releases`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',

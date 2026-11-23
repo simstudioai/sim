@@ -2,7 +2,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { credentialGroup as credentialGroupTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import type { StartOrganizationAccountConnectionBody } from '@/lib/api/contracts/organization-accounts'
+import type {
+  OrganizationAccountsSettings,
+  StartOrganizationAccountConnectionBody,
+} from '@/lib/api/contracts/organization-accounts'
 import { loadAssistantIntegrationTools } from '@/lib/assistant-actions/catalog'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
@@ -49,6 +52,7 @@ import {
   listViewerOrganizationMcpAccounts,
 } from '@/lib/credential-groups/viewer-accounts'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { listSavedSearchCredentials } from '@/lib/sim-search/live/accounts'
 
 export const organizationAccountOperations = {
   read: defineOrganizationOperation({
@@ -172,6 +176,23 @@ export const getOrganizationAccountsSettings = defineOrganizationAccountsUseCase
     const credentialGroup = await getOrganizationAccountsGroup(context.organizationId)
     return {
       credentialGroup,
+      viewerSavedAccounts: (
+        await listSavedSearchCredentials(
+          { kind: 'organization', organizationId: context.organizationId },
+          context.userId
+        )
+      ).flatMap<NonNullable<OrganizationAccountsSettings['viewerSavedAccounts']>[number]>((row) =>
+        row.providerId === 'jama-service-account' || row.providerId === 'flow-service-account'
+          ? [
+              {
+                credentialId: row.id,
+                displayName: row.displayName,
+                providerId: row.providerId,
+                status: 'active' as const,
+              },
+            ]
+          : []
+      ),
       viewerMcpAccounts: credentialGroup
         ? await listViewerOrganizationMcpAccounts({
             organizationId: context.organizationId,
@@ -281,6 +302,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
           mcpServerId: input.mcpServerId,
           completionId: input.oauthCompletionId,
           returnTo: input.returnTo,
+          connectionIntent: input.connectionIntent ?? { kind: 'create' },
         })
       }
       const { invitationLink } = await createViewerCredentialGroupEnrollment({
@@ -306,7 +328,7 @@ export const startOrganizationAccountConnection = defineOrganizationAccountsUseC
         optionId: input.optionId,
         completionId: input.oauthCompletionId,
         returnTo: input.returnTo,
-        connectionIntent: input.connectionIntent,
+        connectionIntent: input.connectionIntent ?? { kind: 'create' },
       })
     }
     const { invitationLink } = await createViewerCredentialGroupEnrollment({

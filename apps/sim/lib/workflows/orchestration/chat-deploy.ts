@@ -12,6 +12,7 @@ import { encryptSecret } from '@/lib/core/security/encryption'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
+  type PerformFullDeployParams,
   performFullDeploy,
 } from '@/lib/workflows/orchestration/deploy'
 
@@ -45,6 +46,8 @@ export interface ChatDeployPayload {
   captureDeploymentAnalytics?: false
   projectLegacyAudit?: boolean
   captureLegacyTelemetry?: boolean
+  /** Checks the draft a redeploy this chat write needs would publish (see `performFullDeploy`). */
+  admitDraft?: PerformFullDeployParams['admitDraft']
 }
 
 export interface PerformChatDeployResult {
@@ -206,6 +209,7 @@ export async function performChatDeploy(
       versionName: params.versionName,
       idempotencyKey: params.idempotencyKey,
       captureAnalytics: params.captureDeploymentAnalytics,
+      ...(params.admitDraft ? { admitDraft: params.admitDraft } : {}),
     })
     if (!deployResult.success) {
       return {
@@ -271,7 +275,7 @@ export async function performChatDeploy(
       passwordToStore = null
     }
 
-    await db
+    const [updated] = await db
       .update(chat)
       .set({
         identifier,
@@ -284,9 +288,16 @@ export async function performChatDeploy(
         outputConfigs,
         includeThinking,
         includeToolCalls,
+        // Deploying is the explicit re-enable for a chat restored with its archive's `isActive: false`.
+        isActive: true,
         updatedAt: new Date(),
       })
-      .where(eq(chat.id, chatId))
+      // An archive landing during the deploy above must not be undone by this write.
+      .where(and(eq(chat.id, chatId), isNull(chat.archivedAt)))
+      .returning({ id: chat.id })
+    if (!updated) {
+      return { success: false, error: 'Chat deployment not found', errorCode: 'not_found' }
+    }
   } else {
     chatId = generateId()
     await db.insert(chat).values({

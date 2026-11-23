@@ -1,6 +1,8 @@
 import type { GitLabDeleteIssueParams, GitLabDeleteIssueResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDeleteIssueResponse> =
   {
@@ -9,6 +11,7 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
     name: 'GitLab Delete Issue',
     description: 'Delete an issue from a GitLab project',
     version: '1.0.0',
+    oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {
       accessToken: {
@@ -39,8 +42,8 @@ export const gitlabDeleteIssueTool: ToolConfig<GitLabDeleteIssueParams, GitLabDe
 
     request: {
       url: (params) => {
-        const encodedId = encodeURIComponent(String(params.projectId).trim())
-        return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues/${params.issueIid}`
+        const encodedId = encodeGitLabResourceId(params.projectId)
+        return `${getGitLabApiBase(params.host)}/projects/${encodedId}/issues/${safeUrlPathSegment(params.issueIid, 'issueIid')}`
       },
       method: 'DELETE',
       headers: (params) => ({

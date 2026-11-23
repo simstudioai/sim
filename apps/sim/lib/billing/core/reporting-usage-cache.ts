@@ -131,8 +131,8 @@ function parseStoredCost(text: string): number | undefined {
 }
 
 /**
- * A sum another process stored, or `undefined` when there is none to use. Redis being absent,
- * not ready, slow, or failing, and a value that is not a non-negative number, are all misses:
+ * A sum another process stored, or `undefined` when there is none to use. Redis being not
+ * ready, slow, or failing, and a value that is not a non-negative number, are all misses:
  * the caller sums the ledger, so the cache can cost a read its latency but never its answer.
  */
 async function readSharedReportingUsageCost(key: string): Promise<number | undefined> {

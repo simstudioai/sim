@@ -1,7 +1,7 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
 import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetEnvFlagsMock)
 
@@ -26,6 +26,9 @@ const { mockProviders } = vi.hoisted(() => ({
       litellm: { models: [] as string[], isLoading: false },
       openrouter: { models: [] as string[], isLoading: false },
       fireworks: { models: [] as string[], isLoading: false },
+      'ollama-cloud': { models: [] as string[], isLoading: false },
+      together: { models: [] as string[], isLoading: false },
+      baseten: { models: [] as string[], isLoading: false },
     },
   },
 }))
@@ -58,14 +61,25 @@ vi.mock('@/stores/providers/store', () => ({
 
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
+import { S3Icon } from '@/components/icons'
+import type { BlockConfig } from '@/blocks/types'
 import {
+  findConfiguredModelProvider,
+  getAgentModelOptions,
   getApiKeyCondition,
-  getSerializedModelProviderId,
+  getModelOptions,
+  getModelOptionsWithAuto,
+  getProviderCredentialSubBlocks,
+  getSelectedBedrockCredential,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
   requiresProviderFamilyCredentials,
+  resolveModelProviderId,
+  withSavedCredential,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 import { getProviderFromModel } from '@/providers/utils'
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
@@ -99,6 +113,96 @@ describe('requiresProviderFamilyCredentials', () => {
   })
 })
 
+describe('Bedrock credential fields', () => {
+  const BEDROCK_FIELDS = [
+    'bedrockAuthMode',
+    'bedrockCredential',
+    'bedrockManualCredential',
+    'bedrockAccessKeyId',
+    'bedrockSecretKey',
+    'bedrockRegion',
+  ]
+
+  const visibleBedrockFields = (
+    values: Record<string, unknown>,
+    subBlocks = getProviderCredentialSubBlocks({ bedrockSavedCredential: true })
+  ) =>
+    subBlocks
+      .filter((subBlock) => BEDROCK_FIELDS.includes(subBlock.id))
+      .filter((subBlock) => evaluateSubBlockCondition(subBlock.condition, values))
+      .map((subBlock) => subBlock.id)
+
+  it('keeps showing access keys, and no credential picker, on a block saved before auth modes', () => {
+    expect(visibleBedrockFields({ model: 'bedrock/my-inference-profile' })).toEqual([
+      'bedrockAuthMode',
+      'bedrockAccessKeyId',
+      'bedrockSecretKey',
+      'bedrockRegion',
+    ])
+  })
+
+  it('swaps the access keys for the AWS credential picker when a saved credential is chosen', () => {
+    expect(
+      visibleBedrockFields({ model: 'bedrock/my-inference-profile', bedrockAuthMode: 'credential' })
+    ).toEqual(['bedrockAuthMode', 'bedrockCredential', 'bedrockManualCredential', 'bedrockRegion'])
+  })
+
+  it('shows no Bedrock field for a model of another provider', () => {
+    expect(visibleBedrockFields({ model: 'gpt-4o', bedrockAuthMode: 'credential' })).toEqual([])
+  })
+
+  it('offers no saved credential, and keeps the access keys, for a block that cannot forward one', () => {
+    expect(
+      visibleBedrockFields(
+        { model: 'bedrock/my-inference-profile', bedrockAuthMode: 'credential' },
+        getProviderCredentialSubBlocks()
+      )
+    ).toEqual(['bedrockAccessKeyId', 'bedrockSecretKey', 'bedrockRegion'])
+  })
+})
+
+describe('getSelectedBedrockCredential', () => {
+  it('returns the trimmed saved credential a block signs Bedrock calls with', () => {
+    expect(
+      getSelectedBedrockCredential({ bedrockAuthMode: 'credential', bedrockCredential: ' cred-1 ' })
+    ).toBe('cred-1')
+  })
+
+  it('refuses a block set to a saved credential whose ID resolves blank', () => {
+    expect(() =>
+      getSelectedBedrockCredential({ bedrockAuthMode: 'credential', bedrockCredential: '' })
+    ).toThrow('Select an AWS credential for Bedrock')
+    expect(() => getSelectedBedrockCredential({ bedrockAuthMode: 'credential' })).toThrow(
+      'Select an AWS credential for Bedrock'
+    )
+  })
+
+  it('returns nothing for a block on access keys or saved before auth modes', () => {
+    expect(
+      getSelectedBedrockCredential({ bedrockAuthMode: 'access_keys', bedrockCredential: 'cred-1' })
+    ).toBeUndefined()
+    expect(getSelectedBedrockCredential({})).toBeUndefined()
+  })
+
+  it('signs with a credential exactly when the block shows and serializes the credential picker', () => {
+    const picker = getProviderCredentialSubBlocks({ bedrockSavedCredential: true }).find(
+      (subBlock) => subBlock.id === 'bedrockCredential'
+    )
+    const cases: Record<string, unknown>[] = [
+      { bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: '', bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: 'access_keys', bedrockCredential: 'cred-1' },
+      { bedrockAuthMode: 'credential', bedrockCredential: 'cred-1' },
+    ]
+    for (const values of cases) {
+      const withModel = { model: 'bedrock/my-inference-profile', ...values }
+      expect(getSelectedBedrockCredential(values) !== undefined, JSON.stringify(values)).toBe(
+        evaluateSubBlockCondition(picker?.condition, withModel)
+      )
+    }
+  })
+})
+
 describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
   const evaluateCondition = (model: string): boolean => {
     const conditionFn = getApiKeyCondition()
@@ -117,6 +221,9 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       litellm: { models: [], isLoading: false },
       openrouter: { models: [], isLoading: false },
       fireworks: { models: [], isLoading: false },
+      'ollama-cloud': { models: [], isLoading: false },
+      together: { models: [], isLoading: false },
+      baseten: { models: [], isLoading: false },
     }
     mockGetHostedModels.mockReturnValue([])
     mockGetProviderModels.mockReturnValue([])
@@ -227,32 +334,315 @@ describe('parseOptionalBooleanInput', () => {
   })
 })
 
-describe('getSerializedModelProviderId', () => {
+describe('model options', () => {
+  const ids = (options: { id: string }[]) => options.map(({ id }) => id)
+
+  const empty = { models: [] as string[], isLoading: false }
+  const originalProviders = mockProviders.value
+
+  beforeEach(() => {
+    mockProviders.value = {
+      base: { models: ['gpt-4o'], isLoading: false },
+      ollama: empty,
+      'ollama-cloud': empty,
+      vllm: empty,
+      litellm: empty,
+      openrouter: empty,
+      fireworks: empty,
+      together: empty,
+      baseten: empty,
+    }
+  })
+
+  afterEach(() => {
+    mockProviders.value = originalProviders
+    setEnvFlags({ isHosted: false })
+  })
+
+  it('offers Auto on hosted Sim only to blocks that resolve it through the model router', () => {
+    setEnvFlags({ isHosted: true })
+
+    expect(ids(getModelOptions())).toEqual(['gpt-4o'])
+    expect(ids(getModelOptionsWithAuto())).toEqual(['gpt-4o', 'sim-auto'])
+    expect(ids(getAgentModelOptions())).toEqual(['gpt-4o', 'sim-auto'])
+  })
+
+  it('never offers Auto on self-hosted Sim', () => {
+    expect(ids(getModelOptionsWithAuto())).toEqual(['gpt-4o'])
+    expect(ids(getAgentModelOptions())).toEqual(['gpt-4o'])
+  })
+})
+
+describe('resolveModelProviderId', () => {
   const resolver = vi.mocked(getProviderFromModel)
 
   beforeEach(() => {
     resolver.mockReset()
     resolver.mockImplementation(((model: string) => {
       if (model.startsWith('openrouter/')) return 'openrouter'
-      if (model === 'gpt-4o') return 'openai'
-      if (model === 'claude-sonnet-5') return 'anthropic'
+      if (model === DEFAULT_BLOCK_MODEL) return 'anthropic'
       throw new Error(`No provider found for model: ${model}`)
     }) as unknown as typeof getProviderFromModel)
   })
 
   it('resolves a gateway model that the base model map deliberately omits', () => {
-    expect(getSerializedModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe(
-      'openrouter'
-    )
+    expect(resolveModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe('openrouter')
   })
 
-  it('uses the fallback model when the model is still an unresolved reference', () => {
-    expect(getSerializedModelProviderId('openrouter/<variable.vllm>')).toBe('openai')
+  it('uses the default block model when the model is unset or still an unresolved reference', () => {
+    expect(resolveModelProviderId('openrouter/<variable.vllm>')).toBe('anthropic')
+    expect(resolveModelProviderId(undefined)).toBe('anthropic')
     expect(resolver).not.toHaveBeenCalledWith('openrouter/<variable.vllm>')
   })
 
+  it('looks up sim-auto as the model it falls back to, never as itself', () => {
+    expect(resolveModelProviderId('sim-auto')).toBe('anthropic')
+    expect(resolveModelProviderId(' SIM-AUTO ')).toBe('anthropic')
+    expect(resolver).toHaveBeenCalledWith(DEFAULT_BLOCK_MODEL)
+    expect(resolver).not.toHaveBeenCalledWith('sim-auto')
+    expect(resolver).not.toHaveBeenCalledWith(' SIM-AUTO ')
+  })
+
   it('never throws when the resolver rejects the model', () => {
-    expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
-    expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
+    expect(() => resolveModelProviderId('totally-unknown-model')).not.toThrow()
+    expect(resolveModelProviderId('totally-unknown-model')).toBe('openai')
+  })
+})
+
+describe('findConfiguredModelProvider', () => {
+  const resolver = vi.mocked(getProviderFromModel)
+
+  beforeEach(() => {
+    resolver.mockReset()
+    resolver.mockImplementation(((model: string) => {
+      if (model.startsWith('openrouter/')) return 'openrouter'
+      if (model === 'sim-auto') throw new Error('sim-auto has no provider')
+      if (model === 'blacklisted-model') throw new Error('blacklisted')
+      return 'anthropic'
+    }) as unknown as typeof getProviderFromModel)
+  })
+
+  it('keeps the explicit namespace of a model reference', () => {
+    expect(findConfiguredModelProvider('openrouter/<variable.vllm>')).toBe('openrouter')
+  })
+
+  it('names no provider for sim-auto or a blacklisted model', () => {
+    expect(findConfiguredModelProvider('sim-auto')).toBeNull()
+    expect(findConfiguredModelProvider('blacklisted-model')).toBeNull()
+  })
+})
+
+describe('withSavedCredential', () => {
+  const picker = {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  } as const
+  const legacy: BlockConfig = {
+    type: 'example',
+    name: 'Example',
+    description: '',
+    category: 'tools',
+    bgColor: '#000',
+    icon: S3Icon,
+    subBlocks: [
+      { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
+      { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+      { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+      { id: 'accessKeyId', title: 'Webhook key', type: 'short-input', mode: 'trigger' },
+      {
+        id: 'triggerPicker',
+        title: 'Trigger picker',
+        type: 'short-input',
+        mode: 'trigger',
+        dependsOn: ['accessKeyId'],
+      },
+    ],
+    tools: { access: [] },
+    inputs: { accessKeyId: { type: 'string' }, secretAccessKey: { type: 'string' } },
+    outputs: {},
+  }
+
+  it('places the picker right under the operation picker, ahead of the other fields', () => {
+    const { subBlocks } = withSavedCredential(
+      {
+        ...legacy,
+        subBlocks: [
+          { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
+          { id: 'bucket', title: 'Bucket', type: 'short-input' },
+          { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+          { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+        ],
+      },
+      picker
+    )
+
+    expect(subBlocks.map((subBlock) => subBlock.id)).toEqual([
+      'operation',
+      'credential',
+      'manualCredential',
+      'bucket',
+    ])
+  })
+
+  it('keeps the picker where the secret was when the block has no operation picker', () => {
+    const { subBlocks } = withSavedCredential(
+      {
+        ...legacy,
+        subBlocks: [
+          { id: 'region', title: 'Region', type: 'short-input' },
+          { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
+          { id: 'secretAccessKey', title: 'Secret', type: 'short-input', required: true },
+          { id: 'bucket', title: 'Bucket', type: 'short-input' },
+        ],
+      },
+      picker
+    )
+
+    expect(subBlocks.map((subBlock) => subBlock.id)).toEqual([
+      'region',
+      'credential',
+      'manualCredential',
+      'bucket',
+    ])
+  })
+
+  it('keeps trigger fields that share a replaced secret id, untouched', () => {
+    const { subBlocks } = withSavedCredential(legacy, picker)
+    const triggerFields = legacy.subBlocks.filter((subBlock) => subBlock.mode === 'trigger')
+
+    for (const field of triggerFields) expect(subBlocks).toContain(field)
+    expect(
+      subBlocks.filter((subBlock) => subBlock.mode !== 'trigger').map((subBlock) => subBlock.id)
+    ).toEqual(['operation', 'credential', 'manualCredential'])
+  })
+
+  it('refuses a selector that authenticates with a replaced secret but has no twin', () => {
+    const withSelector: BlockConfig = {
+      ...legacy,
+      subBlocks: [
+        ...legacy.subBlocks,
+        {
+          id: 'logGroup',
+          title: 'Log group',
+          type: 'file-selector',
+          selectorKey: 'cloudwatch.logGroups',
+          dependsOn: ['accessKeyId'],
+        },
+      ],
+    }
+
+    expect(() => withSavedCredential(withSelector, picker)).toThrow(/saved-credential twin/)
+  })
+
+  it('points fields that depended on a secret at the credential, keeping their other dependencies', () => {
+    const withDependents: BlockConfig = {
+      ...legacy,
+      subBlocks: [
+        ...legacy.subBlocks,
+        { id: 'region', title: 'Region', type: 'short-input' },
+        {
+          id: 'logGroup',
+          title: 'Log group',
+          type: 'file-selector',
+          selectorKey: 'cloudwatch.logGroups',
+          dependsOn: ['accessKeyId', 'secretAccessKey', 'region'],
+        },
+        {
+          id: 'bucket',
+          title: 'Bucket',
+          type: 'short-input',
+          dependsOn: { all: ['secretAccessKey'], any: ['region'] },
+        },
+      ],
+    }
+
+    const { subBlocks } = withSavedCredential(withDependents, picker, {
+      selectorKeys: { 'cloudwatch.logGroups': 'cloudwatch.savedLogGroups' },
+    })
+    const byId = new Map(subBlocks.map((subBlock) => [subBlock.id, subBlock]))
+
+    expect(byId.get('logGroup')).toMatchObject({
+      selectorKey: 'cloudwatch.savedLogGroups',
+      dependsOn: ['credential', 'region'],
+    })
+    expect(byId.get('bucket')?.dependsOn).toEqual({ all: ['credential'], any: ['region'] })
+  })
+
+  it('shows and requires the picker exactly where the replaced secret was', () => {
+    const conditional: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        ['accessKeyId', 'secretAccessKey'].includes(subBlock.id) && subBlock.mode !== 'trigger'
+          ? {
+              ...subBlock,
+              condition: { field: 'operation', value: 'unsigned', not: true },
+              required: { field: 'operation', value: 'unsigned', not: true },
+            }
+          : subBlock
+      ),
+    }
+
+    const { subBlocks } = withSavedCredential(conditional, picker)
+    const credential = subBlocks.find((subBlock) => subBlock.id === 'credential')
+
+    expect(credential?.condition).toEqual({ field: 'operation', value: 'unsigned', not: true })
+    expect(credential?.required).toEqual({ field: 'operation', value: 'unsigned', not: true })
+  })
+
+  it('refuses replaced secrets that show or require differently', () => {
+    const mismatched: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'secretAccessKey' ? { ...subBlock, required: false } : subBlock
+      ),
+    }
+
+    expect(() => withSavedCredential(mismatched, picker)).toThrow(/show or require differently/)
+  })
+
+  it('accepts replaced fields that differ only in what the successor states itself', () => {
+    const optionalHost: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'secretAccessKey' ? { ...subBlock, required: false } : subBlock
+      ),
+    }
+
+    const { subBlocks } = withSavedCredential(optionalHost, picker, { required: true })
+
+    expect(subBlocks.find((subBlock) => subBlock.id === 'credential')?.required).toBe(true)
+  })
+
+  it('shows the picker in every operation when the successor says so, over secrets shown differently', () => {
+    const partlyConditional: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'accessKeyId' && subBlock.mode !== 'trigger'
+          ? { ...subBlock, condition: { field: 'operation', value: 'read' } }
+          : subBlock
+      ),
+    }
+
+    expect(() => withSavedCredential(partlyConditional, picker)).toThrow(
+      /show or require differently/
+    )
+    const { subBlocks } = withSavedCredential(partlyConditional, picker, { condition: null })
+    const credential = subBlocks.find((subBlock) => subBlock.id === 'credential')
+
+    expect(credential).not.toHaveProperty('condition')
+    expect(credential?.required).toBe(true)
+  })
+
+  it('refuses options that would silently do nothing', () => {
+    expect(() =>
+      withSavedCredential(legacy, picker, {
+        selectorKeys: { 'cloudwatch.logGroups': 'cloudwatch.savedLogGroups' },
+      })
+    ).toThrow(/unused selector twins/)
+    expect(() => withSavedCredential(legacy, picker, { params: () => ({}) })).toThrow(
+      /no tool params builder/
+    )
   })
 })

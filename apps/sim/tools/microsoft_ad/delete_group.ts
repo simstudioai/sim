@@ -3,6 +3,7 @@ import type {
   MicrosoftAdDeleteGroupResponse,
 } from '@/tools/microsoft_ad/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const deleteGroupTool: ToolConfig<
   MicrosoftAdDeleteGroupParams,
@@ -36,7 +37,7 @@ export const deleteGroupTool: ToolConfig<
     url: (params) => {
       const groupId = params.groupId?.trim()
       if (!groupId) throw new Error('Group ID is required')
-      return `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(groupId)}`
+      return `https://graph.microsoft.com/v1.0/groups/${safeUrlPathSegment(groupId, 'groupId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

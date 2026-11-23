@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
+import Redis from 'ioredis'
 import postgres from 'postgres'
 
 /**
@@ -30,6 +32,7 @@ function requiredEnvironment(name: string): string {
 
 const baseUrl = new URL(requiredEnvironment('SCIM_E2E_BASE_URL'))
 const databaseUrl = new URL(requiredEnvironment('SCIM_E2E_DATABASE_URL'))
+const redisUrl = new URL(requiredEnvironment('SCIM_E2E_REDIS_URL'))
 const authSecret = requiredEnvironment('SCIM_E2E_AUTH_SECRET')
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]'])
 assert(loopbackHosts.has(baseUrl.hostname), 'The app must use a loopback host')
@@ -39,9 +42,12 @@ assert.equal(baseUrl.pathname, '/', 'App URL must be an origin without a path')
 assert(loopbackHosts.has(databaseUrl.hostname), 'The database must use a loopback host')
 assert(['postgres:', 'postgresql:'].includes(databaseUrl.protocol), 'Expected a PostgreSQL URL')
 assert(/(?:test|scim)/i.test(databaseUrl.pathname), 'Use a dedicated test or SCIM database')
+assert(loopbackHosts.has(redisUrl.hostname), 'Redis must use a loopback host')
+assert(['redis:', 'rediss:'].includes(redisUrl.protocol), 'Expected a Redis URL')
 assert(authSecret.length >= 32, 'Use a local Better Auth secret of at least 32 characters')
 
 const sql = postgres(databaseUrl.toString(), { max: 2 })
+const redis = new Redis(redisUrl.toString(), { maxRetriesPerRequest: 2 })
 const fixtures: Fixture[] = []
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
@@ -212,6 +218,11 @@ async function permission(userId: string, workspaceId: string) {
   return rows[0]?.permission_type
 }
 
+/** The app's Redis token bucket for one SCIM connection's shared rate limit. */
+function connectionBucketKey(connectionId: string): string {
+  return `ratelimit:tb:route:scim:connection:${connectionId}`
+}
+
 async function cleanup() {
   for (const fixture of [...fixtures].reverse()) {
     await sql.begin(async (tx) => {
@@ -222,9 +233,12 @@ async function cleanup() {
         await tx`delete from workspace where owner_id in ${tx(userIds)} or billed_account_user_id in ${tx(userIds)}`
       }
       await tx`delete from subscription where reference_id = ${fixture.orgId}`
-      await tx`delete from rate_limit_bucket where key in (
-        select 'route:scim:connection:' || id from scim_connection where organization_id = ${fixture.orgId}
-      )`
+      const connections =
+        await tx`select id from scim_connection where organization_id = ${fixture.orgId}`
+      for (const connection of connections) {
+        await redis.del(connectionBucketKey(string(connection.id)))
+      }
+      if (userIds.length) await tx`delete from project where owner_id in ${tx(userIds)}`
       await tx`delete from project where organization_id = ${fixture.orgId}`
       await tx`delete from organization where id = ${fixture.orgId}`
       if (userIds.length) await tx`delete from "user" where id in ${tx(userIds)}`
@@ -292,6 +306,13 @@ async function run() {
       try {
         const denied = await admin(primary, '', { expected: 403 })
         assert.match(string(denied.body.error), /active enterprise subscription/)
+        await request(`/api/organizations/${primary.orgId}/people/import`, {
+          method: 'POST',
+          fixture: primary,
+          contentType: 'application/json',
+          body: { source: 'directory', apply: false },
+          expected: 403,
+        })
         await scim(token, '/Users', { expected: 401 })
       } finally {
         await sql`update subscription set status = 'active' where reference_id = ${primary.orgId}`
@@ -363,6 +384,374 @@ async function run() {
         body: { schemas: [USER_SCHEMA], userName: aliceEmail },
       })
       assert.equal(duplicate.body.scimType, 'uniqueness')
+    }
+  )
+
+  await check(
+    'People previews then imports mapped profiles and same-directory reporting lines',
+    async () => {
+      const enterprise = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+      const people = `/api/organizations/${primary.orgId}/people`
+      const pull = (apply: boolean, previewDigest?: string, expected = 200) =>
+        request(`${people}/import`, {
+          method: 'POST',
+          fixture: primary,
+          contentType: 'application/json',
+          body: { source: 'directory', apply, previewDigest },
+          expected,
+        })
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: 'title', value: 'Engineer' },
+        { op: 'replace', path: `${enterprise}:department`, value: 'Engineering' },
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      const before = await pull(false)
+      assert.equal(before.body.updated, 1)
+      const alice =
+        await sql`select id from member where organization_id = ${primary.orgId} and user_id = ${aliceUserId}`
+      const focusPath = `${people}/chart?memberId=${string(alice[0]?.id)}`
+      assert.deepEqual((await request(focusPath, { fixture: primary })).body.chain, [])
+      const digest = string(before.body.previewDigest)
+      await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Director' }])
+      await pull(true, digest, 409)
+      assert.equal(record((await request(focusPath, { fixture: primary })).body.person).title, null)
+      await patch(token, `/Users/${aliceId}`, [{ op: 'replace', path: 'title', value: 'Engineer' }])
+      const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+      if (screenshotDir) {
+        const { chromium, expect: browserExpect } = await import('@playwright/test')
+        const expect = browserExpect.configure({ timeout: 60_000 })
+        const browser = await chromium.launch()
+        try {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
+            ])
+          await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href, {
+            waitUntil: 'domcontentloaded',
+            timeout: 180_000,
+          })
+          await page.getByRole('button', { name: 'Import people', exact: true }).click()
+          const picker = page.getByRole('dialog', { name: 'Import people data' })
+          await picker.getByRole('button', { name: 'SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Import from SCIM provisioning' })
+            .getByRole('button', { name: 'Preview import' })
+            .click()
+          const modal = page.getByRole('dialog', { name: 'Review import' })
+          await expect(modal.getByText(/1 profile will be updated/)).toBeVisible()
+          await mkdir(screenshotDir, { recursive: true })
+          await page.screenshot({ path: join(screenshotDir, 'provisioned-import.png') })
+          await modal.getByRole('button', { name: 'Import', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+        } finally {
+          await browser.close()
+        }
+      } else {
+        assert.equal((await pull(true, digest)).body.updated, 1)
+      }
+      const focus = (await request(focusPath, { fixture: primary })).body
+      assert.equal(record(focus.person).title, 'Engineer')
+      assert.equal(record(focus.person).department, 'Engineering')
+      assert.equal(record(record(focus.person).manager).email, bobEmail)
+      assert.equal((await pull(true, digest)).body.updated, 0)
+      const foreign = await scim(otherToken, '/Users', {
+        method: 'POST',
+        expected: 201,
+        body: { schemas: [USER_SCHEMA], userName: `manager@${other.domain}`, active: true },
+      })
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: string(foreign.body.id) },
+        { op: 'remove', path: `${enterprise}:department` },
+      ])
+      const nextPreview = await pull(false)
+      const unresolved = await pull(true, string(nextPreview.body.previewDigest))
+      assert.equal(unresolved.body.warnings, 1)
+      const retained = record((await request(focusPath, { fixture: primary })).body.person)
+      assert.equal(record(retained.manager).email, bobEmail)
+      assert.equal(retained.department, 'Engineering')
+      await scim(otherToken, `/Users/${string(foreign.body.id)}`, {
+        method: 'DELETE',
+        expected: 204,
+      })
+    }
+  )
+
+  await check(
+    'SCIM changes refresh the chart through the cron, retain the last good tree on failure, and recover',
+    async () => {
+      const syncPath = `/api/organizations/${primary.orgId}/people/sync`
+      const cronPath = '/api/cron/people-directory-sync'
+      const connection = (options: RequestOptions = {}) =>
+        request(syncPath, { fixture: primary, contentType: 'application/json', ...options })
+      const tick = () => request(cronPath, { token: requiredEnvironment('CRON_SECRET') })
+      const chart = async () => {
+        const result = await request(
+          `/api/organizations/${primary.orgId}/people/chart?memberId=${aliceMemberId}`,
+          { fixture: primary }
+        )
+        return record(result.body.person)
+      }
+      const enterprise = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'
+      const [membership] =
+        await sql`select id from member where user_id = ${aliceUserId} and organization_id = ${primary.orgId}`
+      const aliceMemberId = string(membership.id)
+      await request(cronPath, { expected: 401 })
+      await request(syncPath, { expected: 401 })
+      assert.equal((await connection()).body.sync, null)
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      const initial = record(
+        (await connection({ method: 'PUT', body: { source: 'scim' } })).body.sync
+      )
+      assert.equal(initial.state, 'scheduled')
+      assert(initial.lastSuccessAt)
+      assert.equal(record((await chart()).manager).email, bobEmail)
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: 'title', value: 'Principal Engineer' },
+        { op: 'remove', path: `${enterprise}:manager` },
+      ])
+      assert.equal(record((await connection()).body.sync).state, 'queued')
+      await tick()
+      assert.equal((await chart()).manager, null)
+      assert.equal((await chart()).title, 'Principal Engineer')
+      const success = record((await connection()).body.sync).lastSuccessAt
+
+      await patch(token, `/Users/${aliceId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: bobId },
+      ])
+      await patch(token, `/Users/${bobId}`, [
+        { op: 'replace', path: `${enterprise}:manager.value`, value: aliceId },
+      ])
+      await tick()
+      const failed = record((await connection()).body.sync)
+      assert.equal(failed.state, 'failed')
+      assert.equal(failed.lastSuccessAt, success)
+      assert.equal(failed.retryAt, failed.nextSyncAt)
+      assert.equal(failed.retryBlocked, false)
+      assert.match(string(failed.lastError), /reporting loop/i)
+      assert(failed.lastFailedAt)
+      assert.equal((await chart()).manager, null)
+      await patch(token, `/Users/${bobId}`, [{ op: 'remove', path: `${enterprise}:manager` }])
+      const screenshotDir = process.env.PEOPLE_E2E_SCREENSHOT_DIR
+      if (screenshotDir) {
+        const { chromium, expect: browserExpect } = await import('@playwright/test')
+        const expect = browserExpect.configure({ timeout: 60_000 })
+        const browser = await chromium.launch()
+        try {
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+          page.setDefaultTimeout(60_000)
+          await page
+            .context()
+            .addCookies([
+              { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
+            ])
+          await page.goto(
+            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
+          )
+          const statusUrl = new URL(syncPath, baseUrl).href
+          await page.route(statusUrl, (route) =>
+            route.fulfill({ status: 503, json: { error: 'Unavailable' } })
+          )
+          await page.getByRole('button', { name: 'Directory sync', exact: true }).click()
+          const modal = page.getByRole('dialog', { name: 'Directory sync', exact: true })
+          await modal.getByRole('button', { name: 'Retry connection' }).waitFor()
+          await page.unroute(statusUrl)
+          await expect(modal.getByText('Sync failed', { exact: true })).toBeVisible({
+            timeout: 60_000,
+          })
+          await expect(modal.getByText(/reporting loop/)).toBeVisible()
+          await page.screenshot({ path: join(screenshotDir, 'sync-failure.png') })
+          await modal.getByRole('button', { name: 'Retry sync' }).click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+          await expect(modal.getByText('Last successful sync')).toBeVisible()
+          await page.setViewportSize({ width: 390, height: 844 })
+          await page.screenshot({ path: join(screenshotDir, 'sync-recovered-mobile.png') })
+          const dialogBox = await modal.boundingBox()
+          assert(dialogBox && dialogBox.x >= 0 && dialogBox.x + dialogBox.width <= 391)
+          assert.equal(record((await chart()).manager).email, bobEmail)
+          await expect(page.getByText('Principal Engineer', { exact: true })).toBeAttached()
+          await patch(token, `/Users/${aliceId}`, [
+            { op: 'replace', path: 'title', value: 'Staff Platform Engineer' },
+          ])
+          await tick()
+          await expect(page.getByText('Staff Platform Engineer', { exact: true })).toBeAttached({
+            timeout: 60_000,
+          })
+          await modal.getByRole('button', { name: 'Disconnect', exact: true }).click()
+          await page
+            .getByRole('dialog', { name: 'Disconnect directory' })
+            .getByRole('button', { name: 'Disconnect', exact: true })
+            .click()
+          await expect(
+            modal.getByRole('button', { name: 'Connect SCIM provisioning' })
+          ).toBeVisible()
+          await modal.getByRole('button', { name: 'Connect SCIM provisioning' }).click()
+          await page
+            .getByRole('dialog', { name: 'Connect SCIM provisioning' })
+            .getByRole('button', { name: 'Connect and sync' })
+            .click()
+          await expect(modal.getByText('Connected', { exact: true })).toBeVisible()
+        } finally {
+          await browser.close()
+        }
+      } else {
+        const recovered = record(
+          (await request(`${syncPath}/run`, { method: 'POST', fixture: primary })).body.sync
+        )
+        assert.equal(recovered.state, 'scheduled')
+        assert.equal(recovered.lastError, null)
+        assert.equal(recovered.lastFailedAt, failed.lastFailedAt)
+      }
+      assert.equal(record((await chart()).manager).email, bobEmail)
+      await connection({ method: 'DELETE' })
+      assert.equal((await connection()).body.sync, null)
+      assert.equal((await chart()).title, 'Engineer')
+    }
+  )
+
+  await check(
+    'a SCIM directory beyond 10,000 users publishes its full chart over HTTP',
+    async () => {
+      const fixture = await seedFixture()
+      await configure(fixture)
+      const [source] =
+        await sql`select id from scim_connection where organization_id = ${fixture.orgId}`
+      const prefix = `${generateId()}-scim-`
+      const size = 10_004
+      const longPrefix = `Team 49 ${'界'.repeat(2039)}`
+      const longA = `${longPrefix}A`
+      const longB = `${longPrefix}B`
+      const legacy = `Team 60 ${'x'.repeat(220)}`
+      const longName = `Person 00050 ${'界'.repeat(450)}`
+      const managerEmail = `person${size}@${fixture.domain}`
+      const directoryPath = `/api/organizations/${fixture.orgId}/people`
+      try {
+        await sql.begin(async (tx) => {
+          await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at)
+          select ${prefix}::text || n, case when n=50 then ${longName} else 'Person ' || lpad(n::text, 5, '0') end, 'person' || n || '@' || ${fixture.domain}::text, true, now(), now()
+          from generate_series(1, ${size}::integer) n`
+          await tx`insert into scim_user (id, connection_id, user_id, user_name, active, attributes, order_key)
+          select 'scim-' || ${prefix}::text || n, ${source.id}, ${prefix}::text || n, email, true,
+            jsonb_build_object('active', true, 'userName', email, 'name', jsonb_build_object('formatted', name),
+              'emails', jsonb_build_array(jsonb_build_object('value', email, 'primary', true)),
+              'enterprise', jsonb_build_object('department', case n % 71 when 49 then ${longA} when 50 then ${longB}
+                when 60 then ${legacy} else 'Team ' || lpad((n % 71)::text,2,'0') end) ||
+                case when n = ${size} then '{}'::jsonb else jsonb_build_object('manager',
+                  jsonb_build_object('value', 'scim-' || ${prefix}::text || ${size}::text)) end),
+            lpad(n::text, 5, '0')
+          from generate_series(1, ${size}::integer) n join "user" on id = ${prefix}::text || n`
+        })
+        const result = await request(`${directoryPath}/sync`, {
+          method: 'PUT',
+          fixture,
+          contentType: 'application/json',
+          body: { source: 'scim' },
+        })
+        assert.equal(record(result.body.sync).state, 'scheduled')
+        const first = (await request(`${directoryPath}/departments`, { fixture })).body
+        assert(Array.isArray(first.departments) && first.departments.length === 50)
+        assert.equal(record(first.departments.at(-1)).name, longB)
+        assert(
+          string(first.nextCursor).length < 512,
+          'A department page cursor must fit in a short URL'
+        )
+        const second = (
+          await request(
+            `${directoryPath}/departments?cursor=${encodeURIComponent(string(first.nextCursor))}`,
+            { fixture }
+          )
+        ).body
+        assert(Array.isArray(second.departments) && second.nextCursor === null)
+        const teams = [...first.departments, ...second.departments].map(record)
+        assert.equal(new Set(teams.map((team) => team.name)).size, 71)
+        assert.equal(
+          teams.reduce((sum, team) => sum + Number(team.count), 0),
+          size
+        )
+        for (const label of [longA, longB]) {
+          const key = string(teams.find((team) => team.name === label)?.departmentKey)
+          assert(key.length <= 64)
+          const path = `${directoryPath}?departmentKey=${encodeURIComponent(key)}`
+          const selected = (await request(path, { fixture })).body
+          assert.equal(selected.selectedDepartment, label)
+          assert(Array.isArray(selected.people) && selected.people.length === 50)
+          assert(selected.people.every((person) => record(person).department === label))
+          const person = record(selected.people[0])
+          const profile = record(
+            (await request(`${directoryPath}/${person.memberId}`, { fixture })).body.person
+          )
+          assert.equal(
+            profile.departmentKey,
+            key,
+            'Profile and facet must link to the same department'
+          )
+          const empty = (await request(`${path}&search=does-not-exist`, { fixture })).body
+          assert.deepEqual(empty.people, [])
+          assert.equal(empty.selectedDepartment, label)
+          await request(
+            `${path}&cursor=${encodeURIComponent(string(selected.nextCursor))}&search=changed`,
+            { fixture, expected: 400 }
+          )
+        }
+        const legacyList = (
+          await request(`${directoryPath}?department=${encodeURIComponent(legacy)}`, { fixture })
+        ).body
+        assert(Array.isArray(legacyList.people) && legacyList.people.length === 50)
+        assert(legacyList.people.every((person) => record(person).department === legacy))
+        const byName = (await request(`${directoryPath}?search=person`, { fixture })).body
+        assert(Array.isArray(byName.people) && record(byName.people.at(-1)).name === longName)
+        assert(
+          string(byName.nextCursor).length < 512,
+          'A long name must not inflate a people cursor'
+        )
+        const nextNames = (
+          await request(
+            `${directoryPath}?search=person&cursor=${encodeURIComponent(string(byName.nextCursor))}`,
+            { fixture }
+          )
+        ).body
+        assert(
+          Array.isArray(nextNames.people) &&
+            record(nextNames.people[0]).email === `person51@${fixture.domain}`
+        )
+        const filtered = (
+          await request(`${directoryPath}/departments?search=Team%2070`, { fixture })
+        ).body
+        assert(Array.isArray(filtered.departments) && filtered.departments.length === 1)
+        const listed = await request(
+          `${directoryPath}?search=${encodeURIComponent(managerEmail)}`,
+          { fixture }
+        )
+        assert(Array.isArray(listed.body.people) && listed.body.people.length === 1)
+        const managerId = string(record(listed.body.people[0]).memberId)
+        const page = await request(
+          `${directoryPath}/chart?memberId=${encodeURIComponent(managerId)}&size=4&page=2501`,
+          { fixture }
+        )
+        assert.equal(page.body.totalReports, size - 1)
+        assert.equal(page.body.page, 2501)
+        assert(Array.isArray(page.body.reports) && page.body.reports.length === 3)
+        assert.equal(record(page.body.reports[2]).email, `person10003@${fixture.domain}`)
+
+        await sql`update scim_user set attributes=jsonb_set(attributes, '{enterprise,department}', to_jsonb(repeat('x',2049)))
+          where connection_id=${source.id} and user_id=${`${prefix}${size}`}`
+        const rejected = record(
+          (await request(`${directoryPath}/sync/run`, { method: 'POST', fixture })).body.sync
+        )
+        assert.equal(rejected.state, 'failed')
+        assert.match(string(rejected.lastError), /department exceeds 2048 characters/i)
+        const retained = record(
+          (await request(`${directoryPath}/${managerId}`, { fixture })).body.person
+        )
+        assert.equal(retained.department, `Team ${String(size % 71).padStart(2, '0')}`)
+      } finally {
+        await sql`delete from people_directory_sync where organization_id = ${fixture.orgId}`
+        await sql`delete from "user" where id like ${`${prefix}%`}`
+      }
     }
   )
 
@@ -1360,6 +1749,102 @@ async function run() {
   )
 
   await check(
+    'SCIM writes commit while a People publication waits and the next tick includes them',
+    async () => {
+      const fixture = await seedFixture()
+      const { secret } = await configure(fixture)
+      const create = (name: string) =>
+        scim(secret, '/Users', {
+          method: 'POST',
+          expected: 201,
+          body: { schemas: [USER_SCHEMA], userName: `${name}@${fixture.domain}`, active: true },
+        })
+      const anchor = string((await create('held')).body.id)
+      const retiring = string((await create('retiring')).body.id)
+      const people = `/api/organizations/${fixture.orgId}/people`
+      const syncPath = `${people}/sync`
+      const initial = await request(syncPath, {
+        method: 'PUT',
+        fixture,
+        contentType: 'application/json',
+        body: { source: 'scim' },
+      })
+      assert.equal(record(initial.body.sync).state, 'scheduled')
+      const [retired] =
+        await sql`select id from people_directory_entry where organization_id=${fixture.orgId} and external_id=${retiring}`
+      assert(retired, 'Expected a previously published SCIM profile')
+      await patch(secret, `/Users/${anchor}`, [
+        { op: 'replace', path: 'title', value: 'Updated title' },
+      ])
+
+      let publication: ReturnType<typeof request> | undefined
+      let writes: Promise<void> | undefined
+      let createdId = ''
+      try {
+        await sql.begin(async (tx) => {
+          const [held] = await tx`select pg_backend_pid() as pid from people_directory_entry
+          where organization_id=${fixture.orgId} and external_id=${anchor} for update`
+          assert(held)
+          publication = request(`${syncPath}/run`, { method: 'POST', fixture })
+          void publication.catch(() => {})
+          let publisher: number | undefined
+          const deadline = performance.now() + 15_000
+          while (publisher === undefined) {
+            const [waiting] = await sql<{ pid: number }[]>`select pid from pg_stat_activity
+            where ${held.pid} = any(pg_blocking_pids(pid)) and query ilike '%insert into%people_directory_entry%'`
+            if (waiting) publisher = waiting.pid
+            else {
+              assert(
+                performance.now() < deadline,
+                'The People publish must reach the held profile row'
+              )
+              await sleep(20)
+            }
+          }
+
+          writes = (async () => {
+            createdId = string((await create('during-publish')).body.id)
+            await scim(secret, `/Users/${retiring}`, { method: 'DELETE', expected: 204 })
+            await request(`${people}/${retired.id}`, { fixture, expected: 404 })
+          })()
+          let settled = false
+          void writes.then(
+            () => {
+              settled = true
+            },
+            () => {
+              settled = true
+            }
+          )
+          const writeDeadline = performance.now() + 15_000
+          while (!settled) {
+            const [blocked] = await sql`select pid from pg_stat_activity
+            where ${publisher} = any(pg_blocking_pids(pid)) and query ilike '%update%people_directory_sync%next_sync_at%'`
+            assert(!blocked, 'A SCIM write must not wait behind the People publisher')
+            assert(
+              performance.now() < writeDeadline,
+              'SCIM writes must finish before the held People profile is released'
+            )
+            await sleep(20)
+          }
+          await writes
+        })
+      } finally {
+        await Promise.allSettled([publication, writes])
+      }
+      await publication
+      await request(`${people}/${retired.id}`, { fixture, expected: 404 })
+      assert.equal(record((await request(syncPath, { fixture })).body.sync).state, 'queued')
+      await request('/api/cron/people-directory-sync', {
+        token: requiredEnvironment('CRON_SECRET'),
+      })
+      const active =
+        await sql`select external_id from people_directory_entry where organization_id=${fixture.orgId}`
+      assert.deepEqual(active.map((row) => row.external_id).sort(), [anchor, createdId].sort())
+    }
+  )
+
+  await check(
     'Bearer scopes, shared connection rate limits, rotation, revocation, expiry, and disable apply immediately',
     async () => {
       await sql`update scim_credential set scopes = ${sql.json(['users:read'])} where id = ${credentialId}`
@@ -1382,10 +1867,13 @@ async function run() {
       const connectionId = string(
         (await sql`select id from scim_connection where organization_id = ${primary.orgId}`)[0]?.id
       )
-      const bucketKey = `route:scim:connection:${connectionId}`
-      const exhausted = await sql`update rate_limit_bucket set tokens = 0, last_refill_at = now()
-        where key = ${bucketKey} returning key`
-      assert.equal(exhausted.length, 1, 'Run the local app with PostgreSQL rate-limit storage')
+      const bucketKey = connectionBucketKey(connectionId)
+      assert.equal(
+        await redis.exists(bucketKey),
+        1,
+        'The connection bucket is missing; point the app and the harness at the same Redis'
+      )
+      await redis.hset(bucketKey, { tokens: 0, lastRefillAt: Date.now() })
       try {
         const limited = await scim(token, '/Users', { expected: 429 })
         assert(Number(limited.headers.get('retry-after')) >= 1)
@@ -1393,12 +1881,19 @@ async function run() {
         await scim(newToken, '/Users', { expected: 429 })
         await scim(otherToken, '/Users')
       } finally {
-        await sql`delete from rate_limit_bucket where key = ${bucketKey}`
+        await redis.del(bucketKey)
       }
       await admin(primary, `/credentials/${credentialId}`, { method: 'DELETE' })
       await scim(token, '/Users', { expected: 401 })
       await scim(newToken, '/Users')
       await admin(primary, '', { method: 'PUT', body: { status: 'disabled' } })
+      await request(`/api/organizations/${primary.orgId}/people/import`, {
+        method: 'POST',
+        fixture: primary,
+        contentType: 'application/json',
+        body: { source: 'directory', apply: false },
+        expected: 400,
+      })
       await scim(newToken, '/Users', { expected: 401 })
       await admin(primary, '', { method: 'PUT', body: { status: 'active' } })
       await scim(newToken, '/Users')
@@ -1427,11 +1922,13 @@ try {
     process.exitCode = 1
   }
   await sql.end()
+  redis.disconnect()
   const report = {
     startedAt,
     completedAt: new Date().toISOString(),
     status: process.exitCode ? 'failed' : 'passed',
-    transport: 'Real HTTP against a local Next.js app and PostgreSQL; provider payload emulation',
+    transport:
+      'Real HTTP against a local Next.js app, PostgreSQL, and Redis; provider payload emulation',
     requestCount,
     checks,
   }

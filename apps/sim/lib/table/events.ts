@@ -188,8 +188,8 @@ export type TableEventsReadResult = EventLogReadResult<TableEventEntry>
 
 /**
  * Append an event to the table's buffer. Fire-and-forget — never throws, returns
- * null on failure (a Redis blip must not fail a cell-write). The Redis (Lua splice)
- * and in-memory paths are built to produce byte-identical entries.
+ * null on failure (a Redis blip must not fail a cell-write). The returned entry is
+ * built to match the Lua-spliced stored entry byte for byte.
  */
 export async function appendTableEvent(event: TableEvent): Promise<TableEventEntry | null> {
   return appendEvent<TableEventEntry>(TABLE_EVENT_LOG, event.tableId, {

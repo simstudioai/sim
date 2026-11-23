@@ -96,14 +96,6 @@ interface CreateCredentialGroupOAuthAttemptParams {
   invitationToken: string
 }
 
-function requireRedis() {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Credential group OAuth requires Redis')
-  }
-  return redis
-}
-
 function attemptKey(state: string): string {
   return `credential-group:oauth-attempt:${sha256Hex(state)}`
 }
@@ -178,7 +170,7 @@ export async function createCredentialGroupOAuthAttempt(
     throw new Error('GitHub installation OAuth requires an organization-bound setup attempt')
   }
   if (params.connectionIntent) credentialGroupConnectionIntentSchema.parse(params.connectionIntent)
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const state = `${OAUTH_ATTEMPT_STATE_PREFIX}${generateId()}`
   const nonce = generateId()
   const [encryptedCodeVerifier, encryptedInvitationToken] = await Promise.all([
@@ -227,7 +219,7 @@ export function isCredentialGroupOAuthState(state: string): boolean {
 export async function consumeCredentialGroupOAuthAttempt(
   state: string
 ): Promise<CredentialGroupOAuthAttempt | null> {
-  const redis = requireRedis()
+  const redis = getRedisClient()
   const raw = await redis.eval(CONSUME_SCRIPT, 1, attemptKey(state))
   if (raw === null) return null
   if (typeof raw !== 'string') throw new Error('Credential group OAuth state is malformed')

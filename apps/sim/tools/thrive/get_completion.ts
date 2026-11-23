@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveCompletionResponse, ThriveGetCompletionParams } from '@/tools/thrive/types'
 import { THRIVE_COMPLETION_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getCompletionTool: ToolConfig<ThriveGetCompletionParams, ThriveCompletionResponse> = {
   id: 'thrive_get_completion',
   name: 'Thrive Get Completion',
   description: 'Get a single learning completion record in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -38,7 +41,7 @@ export const getCompletionTool: ToolConfig<ThriveGetCompletionParams, ThriveComp
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/learning/completions/${encodeURIComponent(params.id)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/learning/completions/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

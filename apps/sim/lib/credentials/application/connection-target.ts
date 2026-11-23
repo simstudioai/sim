@@ -21,7 +21,7 @@ export interface ResolvedCredentialConnectionTarget {
   displayName?: string
 }
 
-export class CredentialConnectionProviderMismatchError extends OrchestrationError {
+class CredentialConnectionProviderMismatchError extends OrchestrationError {
   constructor() {
     super('validation', 'Credential provider does not match the requested OAuth provider')
     this.name = 'CredentialConnectionProviderMismatchError'

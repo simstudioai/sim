@@ -2,6 +2,7 @@ import type {
   CloudflareDeleteZoneParams,
   CloudflareDeleteZoneResponse,
 } from '@/tools/cloudflare/types'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -11,6 +12,7 @@ export const deleteZoneTool: ToolConfig<CloudflareDeleteZoneParams, CloudflareDe
     name: 'Cloudflare Delete Zone',
     description: 'Deletes a zone (domain) from the Cloudflare account.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {
       zoneId: {

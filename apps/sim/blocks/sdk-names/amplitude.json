@@ -1,0 +1,18 @@
+{
+  "namespace": "legacy.amplitude",
+  "methods": {
+    "event_segmentation": "eventSegmentation",
+    "funnels": "funnels",
+    "get_active_users": "getActiveUsers",
+    "get_revenue": "getRevenue",
+    "group_identify": "groupIdentify",
+    "identify_user": "identifyUser",
+    "list_events": "listEvents",
+    "realtime_active_users": "realTimeActiveUsers",
+    "retention": "retention",
+    "send_event": "sendEvent",
+    "user_activity": "userActivity",
+    "user_profile": "userProfile",
+    "user_search": "userSearch"
+  }
+}

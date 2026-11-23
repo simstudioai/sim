@@ -1,6 +1,7 @@
 import type { GoogleDriveFile, GoogleDriveToolParams } from '@/tools/google_drive/types'
 import { ALL_FILE_FIELDS } from '@/tools/google_drive/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 interface GoogleDriveGetFileParams extends GoogleDriveToolParams {
   fileId: string
@@ -41,7 +42,9 @@ export const getFileTool: ToolConfig<GoogleDriveGetFileParams, GoogleDriveGetFil
 
   request: {
     url: (params) => {
-      const url = new URL(`https://www.googleapis.com/drive/v3/files/${params.fileId?.trim()}`)
+      const url = new URL(
+        `https://www.googleapis.com/drive/v3/files/${safeUrlPathSegment(params.fileId, 'fileId')}`
+      )
       url.searchParams.append('fields', ALL_FILE_FIELDS)
       url.searchParams.append('supportsAllDrives', 'true')
       return url.toString()
@@ -98,6 +101,23 @@ export const getFileTool: ToolConfig<GoogleDriveGetFileParams, GoogleDriveGetFil
         capabilities: { type: 'json', description: 'User capabilities on file' },
         md5Checksum: { type: 'string', description: 'MD5 hash', optional: true },
         version: { type: 'string', description: 'Version number' },
+        driveId: {
+          type: 'string',
+          description: 'ID of the shared drive the file is in',
+          optional: true,
+        },
+        fileExtension: { type: 'string', description: 'File extension', optional: true },
+        exportLinks: {
+          type: 'json',
+          description: 'Export format links for Google Workspace files',
+          optional: true,
+        },
+        sharingUser: {
+          type: 'json',
+          description: 'User who shared the file with the current user',
+          optional: true,
+        },
+        headRevisionId: { type: 'string', description: 'Head revision ID', optional: true },
       },
     },
   },

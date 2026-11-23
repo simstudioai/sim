@@ -6,6 +6,7 @@ import {
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeConnectorMemberSyncLog,
+  knowledgeConnectorPermissionImport,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
@@ -18,6 +19,7 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 import { revokeKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
 import { KNOWLEDGE_CONNECTOR_CLEANUP_EVENT } from '@/lib/knowledge/connectors/outbox-events'
+import { drainPermissionImport } from '@/lib/knowledge/connectors/permission-import-cleanup'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 
@@ -60,7 +62,7 @@ export async function enqueueConnectorDeletion(
 
 /**
  * Final phase of both connector removals, once no document references the connector: deletes one
- * bounded page of its sync history and member rows per call, then the connector row itself. The
+ * bounded page of its sync history, members, or permission imports per call, then the connector. The
  * row delete is guarded by the removal's own tombstone so a superseded event cannot delete it.
  */
 export async function removeDrainedConnector(
@@ -86,6 +88,16 @@ export async function removeDrainedConnector(
         rows.map(({ id }) => id)
       )
     )
+    signal.throwIfAborted()
+    return 'progress'
+  }
+  const [permissionImport] = await tx
+    .select({ id: knowledgeConnectorPermissionImport.id })
+    .from(knowledgeConnectorPermissionImport)
+    .where(eq(knowledgeConnectorPermissionImport.connectorId, target.connectorId))
+    .limit(1)
+  if (permissionImport) {
+    await drainPermissionImport(tx, permissionImport.id)
     signal.throwIfAborted()
     return 'progress'
   }

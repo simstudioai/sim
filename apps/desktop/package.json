@@ -40,11 +40,11 @@
     "@sim/terminal-protocol": "workspace:*",
     "@sim/utils": "workspace:*",
     "@xterm/headless": "6.0.0",
-    "electron-updater": "6.8.9",
+    "electron-updater": "6.8.12",
     "lru-cache": "11.5.3",
     "micromatch": "4.0.8",
     "safe-regex2": "5.1.2",
-    "tldts": "7.4.18",
+    "tldts": "7.4.19",
     "pdf-lib": "1.17.1",
     "@sim/auth-ui": "workspace:*"
   },
@@ -58,7 +58,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "electron": "43.8.1",
-    "electron-builder": "26.15.3",
+    "electron-builder": "26.18.0",
     "esbuild": "0.28.2",
     "jsdom": "^26.0.0",
     "postcss": "^8.5.30",
@@ -67,6 +67,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

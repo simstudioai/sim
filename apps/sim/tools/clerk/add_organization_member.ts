@@ -5,7 +5,9 @@ import type {
   ClerkApiError,
   ClerkOrganizationMembership,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ClerkAddOrganizationMember')
 
@@ -17,6 +19,7 @@ export const clerkAddOrganizationMemberTool: ToolConfig<
   name: 'Add Organization Member in Clerk',
   description: 'Add a user as a member of a Clerk organization with a given role',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {
@@ -47,7 +50,7 @@ export const clerkAddOrganizationMemberTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.clerk.com/v1/organizations/${params.organizationId?.trim()}/memberships`,
+      `https://api.clerk.com/v1/organizations/${safeUrlPathSegment(params.organizationId, 'organizationId')}/memberships`,
     method: 'POST',
     headers: (params) => {
       if (!params.secretKey) {

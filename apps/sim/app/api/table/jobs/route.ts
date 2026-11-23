@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { listTableJobsContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { listWorkspaceExportJobs } from '@/lib/table/jobs/service'
@@ -21,8 +20,6 @@ export const dynamic = 'force-dynamic'
  * excluded from the table-level job derivation, so the tray reads them here.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success || !authResult.userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -58,6 +55,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   const jobs = await listWorkspaceExportJobs(workspaceId)
-  logger.info(`[${requestId}] Listed ${jobs.length} export jobs`, { workspaceId })
+  logger.info(`Listed ${jobs.length} export jobs`, { workspaceId })
   return NextResponse.json({ success: true, data: { jobs } })
 })

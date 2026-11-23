@@ -3,6 +3,7 @@ import {
   type LumaSendInvitesParams,
   type LumaSendInvitesResponse,
 } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendInvitesTool: ToolConfig<LumaSendInvitesParams, LumaSendInvitesResponse> = {
@@ -11,6 +12,7 @@ export const sendInvitesTool: ToolConfig<LumaSendInvitesParams, LumaSendInvitesR
   description:
     'Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

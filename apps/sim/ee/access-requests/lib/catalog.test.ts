@@ -145,7 +145,7 @@ describe('access request catalog deployment ceilings', () => {
         name: 'Slack',
         tools: { access: ['slack_send_message_v2', 'missing'] },
       },
-      github_v2: { type: 'github_v2', name: 'GitHub', tools: { access: ['github_create_issue'] } },
+      github_v3: { type: 'github_v3', name: 'GitHub', tools: { access: ['github_create_issue'] } },
       github: {
         type: 'github',
         name: 'Retired GitHub',
@@ -168,7 +168,7 @@ describe('access request catalog deployment ceilings', () => {
       'loop',
       'parallel',
       'slack_v2',
-      'github_v2',
+      'github_v3',
       'revealed',
     ])
     expect([...catalog.tools.keys()]).toEqual(['slack_send_message_v2', 'github_create_issue'])
@@ -193,16 +193,16 @@ describe('access request catalog deployment ceilings', () => {
     mocks.allowedIntegrations.mockReturnValue(['slack'])
     const catalog = await loadAccessRequestCatalog(context, 'integration')
     expect(
-      validateAccessRequestTarget({ kind: 'integration', id: 'github_v2' }, catalog)
+      validateAccessRequestTarget({ kind: 'integration', id: 'github_v3' }, catalog)
     ).toBeNull()
-    const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['github_v2'] }
+    const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: ['github_v3'] }
     const delta = buildAccessRequestPolicyDelta(
       { kind: 'integration', id: 'slack_v2' },
       config,
       catalog
     )
-    expect(delta.config.allowedIntegrations).toEqual(['github_v2', 'slack_v2'])
-    expect(config.allowedIntegrations).toEqual(['github_v2'])
+    expect(delta.config.allowedIntegrations).toEqual(['github_v3', 'slack_v2'])
+    expect(config.allowedIntegrations).toEqual(['github_v3'])
   })
 
   it('omits blacklisted/retired models, unconfigured endpoints, and private dynamic names', async () => {

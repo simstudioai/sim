@@ -1,0 +1,8 @@
+{
+  "namespace": "arxiv",
+  "methods": {
+    "arxiv_get_author_papers": "getAuthorPapers",
+    "arxiv_get_paper": "getPaperDetails",
+    "arxiv_search": "searchPapers"
+  }
+}

@@ -5,6 +5,7 @@ import {
   type Ec2DescribeNetworkInterfacesResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeNetworkInterfacesTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeNetworkInterfacesTool: InternalToolConfig<
   name: 'EC2 Describe Network Interfaces',
   description: 'List elastic network interfaces with their IPs, attachment, and security groups',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

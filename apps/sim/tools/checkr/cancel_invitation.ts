@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapInvitation,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCancelInvitationTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrCancelInvitationTool: ToolConfig<
   name: 'Checkr Cancel Invitation',
   description: 'Cancel a pending invitation so the candidate can no longer complete it.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

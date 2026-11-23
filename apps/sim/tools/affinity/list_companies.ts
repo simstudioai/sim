@@ -11,6 +11,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListCompaniesTool: ToolConfig<
@@ -22,6 +23,7 @@ export const affinityListCompaniesTool: ToolConfig<
   description:
     'Page through companies. Companies come back without field data unless Field IDs or Field Types asks for it.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

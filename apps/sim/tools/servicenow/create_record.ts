@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { SERVICENOW_CREDENTIAL_PARAMS } from '@/tools/servicenow/params'
 import type { ServiceNowCreateParams, ServiceNowCreateResponse } from '@/tools/servicenow/types'
 import {
   buildServiceNowHeaders,
@@ -6,7 +7,9 @@ import {
   parseServiceNowResponse,
   toRecordObject,
 } from '@/tools/servicenow/utils'
+import { SERVICENOW_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('ServiceNowCreateRecordTool')
 
@@ -15,6 +18,7 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
   name: 'Create ServiceNow Record',
   description: 'Create a new record in a ServiceNow table',
   version: '1.0.0',
+  oauth: SERVICENOW_CREDENTIAL_OAUTH,
 
   params: {
     instanceUrl: {
@@ -35,6 +39,7 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
       visibility: 'user-only',
       description: 'ServiceNow password',
     },
+    ...SERVICENOW_CREDENTIAL_PARAMS,
     tableName: {
       type: 'string',
       required: true,
@@ -53,7 +58,7 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
   request: {
     url: (params) => {
       const baseUrl = normalizeInstanceUrl(params.instanceUrl)
-      return `${baseUrl}/api/now/table/${params.tableName.trim()}`
+      return `${baseUrl}/api/now/table/${safeUrlPathSegment(params.tableName, 'tableName')}`
     },
     method: 'POST',
     headers: (params) => buildServiceNowHeaders(params, { json: true }),

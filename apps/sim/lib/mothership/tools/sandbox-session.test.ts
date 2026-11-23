@@ -1,17 +1,19 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
 import { setEnv } from '@sim/testing/mocks/env.mock'
 import {
   mothershipAgentUrlMock,
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { read, mint, connection, endpoint, workspaceFileCopy } = vi.hoisted(() => ({
+const { read, mint, connection, endpoint, workspaceFileCopy, entitlements } = vi.hoisted(() => ({
   connection: vi.fn(),
+  entitlements: vi.fn(),
   endpoint: vi.fn(),
   read: vi.fn(),
   mint: vi.fn(),
@@ -20,27 +22,35 @@ const { read, mint, connection, endpoint, workspaceFileCopy } = vi.hoisted(() =>
 vi.mock('@/lib/mothership/transport/connection', () => ({ getSimConnection: connection }))
 vi.mock('node:fs/promises', () => ({ readFile: read }))
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({
   mothershipRequestHeaders: () => ({ 'x-api-key': 'worker-test-key' }),
 }))
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
+vi.mock('@/lib/mothership/entitlements', () => ({ computeEntitlements: entitlements }))
 
+import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
 
-const fetchBootstrap = mothershipGoFetchMockFns.mockFetchGo
+const fetchBootstrap = mothershipWorkerFetchMockFns.mockFetchWorker
 const baseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://unused.test')
 setEnv({ MOTHERSHIP_SANDBOX_CLI_ENDPOINT: 'https://sim.test', ENCRYPTION_KEY: 'a'.repeat(64) })
 
-const request = { sessionKey: 'chat', workspaceId: 'workspace', userId: 'user' }
+const principal = createDelegatedPrincipal({
+  subjectUserId: 'user',
+  workspaceId: 'workspace',
+  audience: 'sim:function-executions',
+})
+const request = { sessionKey: 'chat', workspaceId: 'workspace', userId: 'user', principal }
 
 describe('deployment-owned workbench tooling', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     connection.mockReturnValue({ mode: 'direct' })
     mint.mockResolvedValue('test-delegation')
+    entitlements.mockResolvedValue([])
     endpoint.mockImplementation(async (url) => `${url}/api/mothership/sandbox/owned-token`)
     baseURL.mockResolvedValue('https://worker.test')
     fetchBootstrap.mockImplementation(async () =>
@@ -92,6 +102,61 @@ describe('deployment-owned workbench tooling', () => {
     const session = await buildMothershipSandboxSession(request)
     expect(session.envs).toMatchObject({ SIM_WORKSPACE_FILE_COPY: '1' })
     expect(session.envs).not.toHaveProperty('SIM_FILE_OWNER_PROTOCOL')
+  })
+
+  it('exposes the owner entitlements computed for this execution to the workbench CLI', async () => {
+    read.mockResolvedValue('bundle')
+    entitlements
+      .mockResolvedValueOnce(['dashboards', 'workflow-code'])
+      .mockResolvedValueOnce(['dashboards'])
+    const first = await buildMothershipSandboxSession(request)
+    const second = await buildMothershipSandboxSession(request)
+    expect(first.envs).toMatchObject({ SIM_ENTITLEMENTS: 'dashboards,workflow-code' })
+    expect(second.envs).toMatchObject({ SIM_ENTITLEMENTS: 'dashboards' })
+    expect(entitlements).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({
+          subjectUserId: 'user',
+          workspaceId: 'workspace',
+          delegationId: principal.delegationId,
+          audience: 'sim:workspaces',
+        }),
+        workspaceId: 'workspace',
+      })
+    )
+  })
+
+  it('scopes organization chat entitlements to the organization', async () => {
+    read.mockResolvedValue('bundle')
+    entitlements.mockResolvedValue(['workflow-code'])
+    const session = await buildMothershipSandboxSession({
+      sessionKey: 'chat',
+      organizationId: 'org',
+      userId: 'user',
+      principal: createTrustedOrganizationCopilotPrincipal(
+        { userId: 'user', organizationId: 'org', chatId: 'chat', delegationId: 'run' },
+        { audience: 'sim:function-executions', ttlMs: 60_000 }
+      ),
+    })
+    expect(session.envs).toMatchObject({
+      SIM_ORGANIZATION_ID: 'org',
+      SIM_ENTITLEMENTS: 'workflow-code',
+    })
+    expect(entitlements.mock.calls[0][0]).toMatchObject({
+      principal: { organizationId: 'org', delegationId: 'run', audience: 'sim:workspaces' },
+      workspaceId: undefined,
+    })
+  })
+
+  it('omits SIM_ENTITLEMENTS when none are granted or they cannot be read', async () => {
+    read.mockResolvedValue('bundle')
+    expect((await buildMothershipSandboxSession(request)).envs).not.toHaveProperty(
+      'SIM_ENTITLEMENTS'
+    )
+    entitlements.mockRejectedValueOnce(new Error('flag store down'))
+    const degraded = await buildMothershipSandboxSession(request)
+    expect(degraded.envs).toMatchObject({ SIM_WORKSPACE: 'workspace' })
+    expect(degraded.envs).not.toHaveProperty('SIM_ENTITLEMENTS')
   })
 
   it('refuses setup when the deployment artifact is missing instead of fetching another CLI release', async () => {

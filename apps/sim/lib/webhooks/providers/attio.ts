@@ -4,11 +4,13 @@ import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -46,13 +48,14 @@ export const attioHandler: WebhookProviderHandler = {
 
     if (!secret) {
       logger.debug(
-        `[${requestId}] Attio webhook ${webhook.id as string} has no signing secret, skipping signature verification`
+        `Attio webhook ${webhook.id as string} has no signing secret, skipping signature verification`,
+        { requestId }
       )
     } else {
       const signature = request.headers.get('Attio-Signature')
 
       if (!signature) {
-        logger.warn(`[${requestId}] Attio webhook missing signature header`)
+        logger.warn('Attio webhook missing signature header', { requestId })
         return new NextResponse('Unauthorized - Missing Attio signature', {
           status: 401,
         })
@@ -61,7 +64,7 @@ export const attioHandler: WebhookProviderHandler = {
       const isValidSignature = validateAttioSignature(secret, signature, rawBody)
 
       if (!isValidSignature) {
-        logger.warn(`[${requestId}] Attio signature verification failed`)
+        logger.warn('Attio signature verification failed', { requestId })
         return new NextResponse('Unauthorized - Invalid Attio signature', {
           status: 401,
         })
@@ -81,8 +84,9 @@ export const attioHandler: WebhookProviderHandler = {
         const event = getAttioEvent(obj)
         const eventType = event?.event_type as string | undefined
         logger.debug(
-          `[${requestId}] Attio event mismatch for trigger ${triggerId}. Event: ${eventType}. Skipping execution.`,
+          `Attio event mismatch for trigger ${triggerId}. Event: ${eventType}. Skipping execution.`,
           {
+            requestId,
             webhookId: webhook.id,
             workflowId: workflow.id,
             triggerId,
@@ -113,10 +117,11 @@ export const attioHandler: WebhookProviderHandler = {
       }
 
       if (!credentialId) {
-        logger.warn(`[${requestId}] Missing credentialId for Attio webhook creation.`, {
+        logger.warn('Missing credentialId for Attio webhook creation.', {
+          requestId,
           webhookId: webhookRecord.id,
         })
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Attio account connection required. Please connect your Attio account in the trigger configuration and try again.'
         )
       }
@@ -125,7 +130,8 @@ export const attioHandler: WebhookProviderHandler = {
 
       if (!accessToken) {
         logger.warn(
-          `[${requestId}] Could not retrieve Attio access token for user ${userId}. Cannot create webhook.`
+          `Could not retrieve Attio access token for user ${userId}. Cannot create webhook.`,
+          { requestId }
         )
         throw new Error(
           'Attio account connection required. Please connect your Attio account in the trigger configuration and try again.'
@@ -148,7 +154,8 @@ export const attioHandler: WebhookProviderHandler = {
       } else {
         const events = TRIGGER_EVENT_MAP[triggerId as string]
         if (!events || events.length === 0) {
-          logger.warn(`[${requestId}] No event types mapped for trigger ${triggerId}`, {
+          logger.warn(`No event types mapped for trigger ${triggerId}`, {
+            requestId,
             webhookId: webhookRecord.id,
           })
           throw new Error(`Unknown Attio trigger type: ${triggerId}`)
@@ -163,7 +170,7 @@ export const attioHandler: WebhookProviderHandler = {
         },
       }
 
-      const attioResponse = await fetch('https://api.attio.com/v2/webhooks', {
+      const attioResponse = await outboundFetch('https://api.attio.com/v2/webhooks', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -175,8 +182,8 @@ export const attioHandler: WebhookProviderHandler = {
       if (!attioResponse.ok) {
         const errorBody = await attioResponse.json().catch(() => ({}))
         logger.error(
-          `[${requestId}] Failed to create webhook in Attio for webhook ${webhookRecord.id}. Status: ${attioResponse.status}`,
-          { response: errorBody }
+          `Failed to create webhook in Attio for webhook ${webhookRecord.id}. Status: ${attioResponse.status}`,
+          { requestId, response: errorBody }
         )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in Attio'
@@ -197,36 +204,35 @@ export const attioHandler: WebhookProviderHandler = {
 
       if (!webhookId) {
         logger.error(
-          `[${requestId}] Attio webhook created but no webhook_id returned for webhook ${webhookRecord.id}`,
-          { response: responseBody }
+          `Attio webhook created but no webhook_id returned for webhook ${webhookRecord.id}`,
+          { requestId, response: responseBody }
         )
         throw new Error('Attio webhook creation succeeded but no webhook ID was returned')
       }
 
       if (!secret) {
         logger.warn(
-          `[${requestId}] Attio webhook created but no secret returned for webhook ${webhookRecord.id}. Signature verification will be skipped.`,
-          { response: responseBody }
+          `Attio webhook created but no secret returned for webhook ${webhookRecord.id}. Signature verification will be skipped.`,
+          { requestId, response: responseBody }
         )
       }
 
-      logger.info(
-        `[${requestId}] Successfully created webhook in Attio for webhook ${webhookRecord.id}.`,
-        {
-          attioWebhookId: webhookId,
-          targetUrl: notificationUrl,
-          subscriptionCount: subscriptions.length,
-          status: data.status,
-        }
-      )
+      logger.info(`Successfully created webhook in Attio for webhook ${webhookRecord.id}.`, {
+        requestId,
+        attioWebhookId: webhookId,
+        targetUrl: notificationUrl,
+        subscriptionCount: subscriptions.length,
+        status: data.status,
+      })
 
       return { providerConfigUpdates: { externalId: webhookId, webhookSecret: secret || '' } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const message = toError(error).message
-      logger.error(
-        `[${requestId}] Exception during Attio webhook creation for webhook ${webhookRecord.id}.`,
-        { message }
-      )
+      logger.error(`Exception during Attio webhook creation for webhook ${webhookRecord.id}.`, {
+        requestId,
+        message,
+      })
       throw error
     }
   },
@@ -243,7 +249,8 @@ export const attioHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.warn(
-          `[${requestId}] Missing externalId for Attio webhook deletion ${webhookRecord.id}, skipping cleanup`
+          `Missing externalId for Attio webhook deletion ${webhookRecord.id}, skipping cleanup`,
+          { requestId }
         )
         if (strict) throw new Error('Missing Attio externalId for webhook deletion')
         return
@@ -251,7 +258,8 @@ export const attioHandler: WebhookProviderHandler = {
 
       if (!credentialId) {
         logger.warn(
-          `[${requestId}] Missing credentialId for Attio webhook deletion ${webhookRecord.id}, skipping cleanup`
+          `Missing credentialId for Attio webhook deletion ${webhookRecord.id}, skipping cleanup`,
+          { requestId }
         )
         if (strict) throw new Error('Missing Attio credentialId for webhook deletion')
         return
@@ -260,13 +268,13 @@ export const attioHandler: WebhookProviderHandler = {
       const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
       if (!accessToken) {
-        const message = `[${requestId}] Could not retrieve Attio access token. Cannot delete webhook.`
-        logger.warn(message, { webhookId: webhookRecord.id })
+        const message = 'Could not retrieve Attio access token. Cannot delete webhook.'
+        logger.warn(message, { requestId, webhookId: webhookRecord.id })
         if (strict) throw new Error(message)
         return
       }
 
-      const attioResponse = await fetch(`https://api.attio.com/v2/webhooks/${externalId}`, {
+      const attioResponse = await outboundFetch(`https://api.attio.com/v2/webhooks/${externalId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -275,16 +283,16 @@ export const attioHandler: WebhookProviderHandler = {
 
       if (!attioResponse.ok && attioResponse.status !== 404) {
         const responseBody = await attioResponse.json().catch(() => ({}))
-        logger.warn(
-          `[${requestId}] Failed to delete Attio webhook (non-fatal): ${attioResponse.status}`,
-          { response: responseBody }
-        )
+        logger.warn(`Failed to delete Attio webhook (non-fatal): ${attioResponse.status}`, {
+          requestId,
+          response: responseBody,
+        })
         if (strict) throw new Error(`Failed to delete Attio webhook: ${attioResponse.status}`)
       } else {
-        logger.info(`[${requestId}] Successfully deleted Attio webhook ${externalId}`)
+        logger.info(`Successfully deleted Attio webhook ${externalId}`, { requestId })
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Attio webhook (non-fatal)`, error)
+      logger.warn('Error deleting Attio webhook (non-fatal)', error, { requestId })
       if (strict) throw error
     }
   },

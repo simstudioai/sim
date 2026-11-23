@@ -3,6 +3,7 @@ import {
   buildBatchUpdateMetadata,
   buildInsertLocation,
   resolveDocumentId,
+  resolveTabId,
 } from '@/tools/google_docs/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -42,6 +43,13 @@ export const insertTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertTe
       description:
         'The character index (the document body starts at index 1) at which to insert the text. When omitted, text is appended to the end of the document.',
     },
+    tabId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'ID of the tab to insert the text into (from Read with includeTabsContent). When omitted, the first tab is used.',
+    },
   },
   request: {
     url: (params) => {
@@ -66,7 +74,7 @@ export const insertTextTool: ToolConfig<GoogleDocsToolParams, GoogleDocsInsertTe
         requests: [
           {
             insertText: {
-              ...buildInsertLocation(params.index),
+              ...buildInsertLocation(params.index, resolveTabId(params.tabId)),
               text: params.text,
             },
           },

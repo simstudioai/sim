@@ -5,6 +5,7 @@ import {
   datadogHeaders,
   datadogPathSegment,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse> = {
@@ -13,6 +14,7 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
   description:
     'Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     monitorId: {

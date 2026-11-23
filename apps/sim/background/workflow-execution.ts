@@ -32,6 +32,7 @@ import {
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import type { RequestAttribution } from '@/lib/core/utils/request-attribution'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import {
   isWorkflowStateRejection,
   type PreprocessExecutionError,
@@ -47,6 +48,11 @@ import {
   isRecordedWorkflowFailure,
   resolveDeletedExecutionScope,
 } from '@/lib/workflows/executor/recorded-failure'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
+  resolveDeployedRunVariables,
+} from '@/lib/workflows/persistence/utils'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -106,6 +112,11 @@ export type WorkflowExecutionPayload = {
    */
   enforceCredentialAccess?: boolean
   isPublicApiAccess?: boolean
+  /**
+   * Deployment version validated by the enqueuing use case. Only the id rides the
+   * payload; jobs queued without it run the active deployment.
+   */
+  pinnedDeploymentVersionId?: string
 }
 
 type LegacyWorkflowExecutionPayload = Omit<WorkflowExecutionPayload, 'principal'> & {
@@ -220,7 +231,8 @@ export async function executeWorkflowJob(
     }
 
     return await runWithRequestContext({ requestId, ...payload.attribution }, async () => {
-      logger.info(`[${requestId}] Starting workflow execution job: ${workflowId}`, {
+      logger.info(`Starting workflow execution job: ${workflowId}`, {
+        requestId,
         userId: payload.userId,
         triggerType: payload.triggerType,
         executionId,
@@ -252,7 +264,8 @@ export async function executeWorkflowJob(
         })
 
         if (!preprocessResult.success) {
-          logger.error(`[${requestId}] Preprocessing failed: ${preprocessResult.error?.message}`, {
+          logger.error(`Preprocessing failed: ${preprocessResult.error?.message}`, {
+            requestId,
             workflowId,
             statusCode: preprocessResult.error?.statusCode,
           })
@@ -267,9 +280,27 @@ export async function executeWorkflowJob(
           throw new Error(`Workflow ${workflowId} has no associated workspace`)
         }
 
-        logger.info(`[${requestId}] Preprocessing passed. Using actor: ${actorUserId}`)
+        logger.info(`Preprocessing passed. Using actor: ${actorUserId}`, { requestId })
 
         const workflow = preprocessResult.workflowRecord!
+        /**
+         * The version this run executes, loaded once: the core runs this same version's
+         * blocks, so a deploy landing mid-setup cannot pair one version's variables with
+         * another's graph. A pinned version runs with only its own snapshot, as a sync run
+         * of it does, never the editor's current variables.
+         */
+        const pinnedDeploymentVersionId = payload.pinnedDeploymentVersionId
+        const deployedState = await withDatabaseReadRetry(
+          () =>
+            pinnedDeploymentVersionId
+              ? loadWorkflowDeploymentVersionState(
+                  workflowId,
+                  pinnedDeploymentVersionId,
+                  workspaceId
+                )
+              : loadDeployedWorkflowState(workflowId, workspaceId),
+          { label: 'loadDeployedRunState' }
+        )
 
         const metadata: ExecutionMetadata = {
           requestId,
@@ -284,6 +315,7 @@ export async function executeWorkflowJob(
           triggerType: payload.triggerType || 'api',
           triggerBlockId: payload.triggerBlockId,
           useDraftState: false,
+          pinnedDeploymentVersionId: deployedState.deploymentVersionId,
           startTime: new Date().toISOString(),
           isClientSession: false,
           enforceCredentialAccess: payload.enforceCredentialAccess ?? false,
@@ -297,7 +329,9 @@ export async function executeWorkflowJob(
           metadata,
           workflow,
           payload.input,
-          workflow.variables || {},
+          pinnedDeploymentVersionId
+            ? (deployedState.variables ?? {})
+            : resolveDeployedRunVariables(deployedState, workflow.variables),
           []
         )
 
@@ -319,7 +353,8 @@ export async function executeWorkflowJob(
           timeoutController.timeoutMs
         ) {
           const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
-          logger.info(`[${requestId}] Workflow execution timed out`, {
+          logger.info('Workflow execution timed out', {
+            requestId,
             timeoutMs: timeoutController.timeoutMs,
           })
           await loggingSession.markAsFailed(timeoutErrorMessage)
@@ -332,7 +367,8 @@ export async function executeWorkflowJob(
 
         if (timeoutError) throw timeoutError
 
-        logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
+        logger.info(`Workflow execution completed: ${workflowId}`, {
+          requestId,
           success: result.success,
           executionTime: result.metadata?.duration,
           executionId,
@@ -347,13 +383,18 @@ export async function executeWorkflowJob(
           metadata: payload.metadata,
         }
       } catch (error: unknown) {
-        logFailureOnce(logger, `[${requestId}] Workflow execution failed: ${workflowId}`, error, {
-          metadata: () => loggingSession.projectDiagnosticError(error),
+        logFailureOnce(logger, 'Workflow execution failed', error, {
+          metadata: () => ({
+            requestId,
+            workflowId,
+            ...loggingSession.projectDiagnosticError(error),
+          }),
           executionId,
         })
 
         const completeWithDeletedScope = (scope: ExecutionScope) => {
-          logger.info(`[${requestId}] Workflow execution ended: its ${scope} was deleted`, {
+          logger.info(`Workflow execution ended: its ${scope} was deleted`, {
+            requestId,
             workflowId,
             executionId,
           })

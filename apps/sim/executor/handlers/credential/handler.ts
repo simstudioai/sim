@@ -111,18 +111,19 @@ export class CredentialBlockHandler implements BlockHandler {
             credentialProviderIds: find
               ? [requireString(inputs.organizationProvider, 'Provider')]
               : parseStringList(inputs.organizationProviders, 'Providers'),
-            limit: find ? 2 : parseLimit(inputs.limit),
+            limit: find ? 1 : parseLimit(inputs.limit),
             cursor: find ? undefined : parseOptionalString(inputs.cursor, 'Cursor'),
           },
         })
         if (!find) {
           return { ...result, emails: result.credentials.map((account) => account.accountEmail) }
         }
-        if (result.credentials.length !== 1 || result.hasMore)
+        const [first] = result.credentials
+        if (!first)
           throw new Error(
-            `Expected exactly one organization account; found ${result.credentials.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status.`
+            'No organization account found. Check the email, provider, and connection status.'
           )
-        return omit(result.credentials[0]!, ['accountEmail'])
+        return omit(first, ['accountEmail'])
       }
       case 'find_organization_mcp_connection':
       case 'list_organization_mcp_connections': {
@@ -137,16 +138,17 @@ export class CredentialBlockHandler implements BlockHandler {
             connectorId: find
               ? requireString(inputs.mcpProvider, 'MCP provider')
               : parseOptionalString(inputs.mcpProvider, 'MCP provider'),
-            limit: find ? 2 : parseLimit(inputs.limit),
+            limit: find ? 1 : parseLimit(inputs.limit),
             cursor: find ? undefined : parseOptionalString(inputs.cursor, 'Cursor'),
           },
         })
         if (!find) return result
-        if (result.mcpConnections.length !== 1 || result.hasMore)
+        const [first] = result.mcpConnections
+        if (!first)
           throw new Error(
-            `Expected exactly one organization MCP connection; found ${result.mcpConnections.length}${result.hasMore ? '+' : ''}. Check the email, provider, and connection status.`
+            'No organization MCP connection found. Check the email, provider, and connection status.'
           )
-        return result.mcpConnections[0]!
+        return first
       }
       default:
         throw new Error(`Unsupported Credential operation: ${operation}`)

@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 const SEARCH_STALE_TIME = 60_000
 const SEARCH_GC_TIME = 300_000
+const SEARCH_TIMEOUT_MS = 5000
 const searchKeys = {
   all: ['docs-search'] as const,
   query: (query: string) => [...searchKeys.all, query] as const,
@@ -28,9 +29,21 @@ export function useDocsSearch(query: string) {
     gcTime: SEARCH_GC_TIME,
     retry: false,
     queryFn: async ({ signal }) => {
-      const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`, { signal })
-      if (!response.ok) throw new Error('Search is unavailable. Try again.')
-      return resultsSchema.parse(await response.json())
+      const controller = new AbortController()
+      const abort = () => controller.abort(signal.reason)
+      signal.addEventListener('abort', abort, { once: true })
+      if (signal.aborted) abort()
+      const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS)
+      try {
+        const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        })
+        if (!response.ok) throw new Error('Search is unavailable. Try again.')
+        return resultsSchema.parse(await response.json())
+      } finally {
+        clearTimeout(timeout)
+        signal.removeEventListener('abort', abort)
+      }
     },
   })
 }

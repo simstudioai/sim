@@ -1,11 +1,14 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisKeysParams, UpstashRedisKeysResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisKeysTool: ToolConfig<UpstashRedisKeysParams, UpstashRedisKeysResponse> = {
   id: 'upstash_redis_keys',
   name: 'Upstash Redis Keys',
   description: 'List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*).',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {
@@ -31,7 +34,7 @@ export const upstashRedisKeysTool: ToolConfig<UpstashRedisKeysParams, UpstashRed
   request: {
     url: (params) => {
       const pattern = params.pattern || '*'
-      return `${params.restUrl}/keys/${encodeURIComponent(pattern)}`
+      return `${params.restUrl}/keys/${upstashPathSegment(pattern, 'pattern')}`
     },
     method: 'GET',
     headers: (params) => ({

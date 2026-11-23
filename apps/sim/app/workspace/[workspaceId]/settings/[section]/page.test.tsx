@@ -43,7 +43,6 @@ vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
       'security',
       'data-retention',
       'data-drains',
-      'whitelabeling',
     ].includes(id)
       ? { id, meta: { title: id } }
       : null

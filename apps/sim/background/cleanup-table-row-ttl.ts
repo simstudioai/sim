@@ -1,6 +1,7 @@
 import { dbFor } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { TTL_TIMESTAMP_VALIDATION } from '@sim/table-cells/ttl'
 import { task } from '@trigger.dev/sdk'
 import { type SQL, sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -13,7 +14,6 @@ import type { DbTransaction } from '@/lib/table/planner'
 import type { DeletedTableRow } from '@/lib/table/rows/ordering'
 import { withLockedTable } from '@/lib/table/service'
 import { fireTableTrigger } from '@/lib/table/trigger'
-import { TTL_TIMESTAMP_VALIDATION } from '@/lib/table/ttl-values'
 import type { RowData, TableSchema } from '@/lib/table/types'
 
 const logger = createLogger('CleanupTableRowTtl')

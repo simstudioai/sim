@@ -6,11 +6,13 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
   getProviderConfig,
 } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   DeleteSubscriptionContext,
   EventMatchContext,
@@ -70,7 +72,7 @@ function bitbucketHooksUrl(workspaceSlug: string, repoSlug: string): string {
 }
 
 function fetchBitbucketManagement(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, {
+  return outboundFetch(url, {
     ...init,
     signal: AbortSignal.timeout(BITBUCKET_MANAGEMENT_REQUEST_TIMEOUT_MS),
   })
@@ -89,7 +91,7 @@ async function resolveBitbucketAccessToken(
   requestId: string
 ): Promise<string> {
   if (!credentialId) {
-    throw new Error(
+    throw new WebhookDeploymentConfigurationError(
       'Bitbucket account connection required. Connect or reconnect Bitbucket in the trigger configuration and try again.'
     )
   }
@@ -112,7 +114,9 @@ function readRequiredConfigString(
 ): string {
   const value = config[key]
   if (typeof value !== 'string' || !value.trim()) {
-    throw new Error(`Bitbucket ${label} is required to manage the repository webhook.`)
+    throw new WebhookDeploymentConfigurationError(
+      `Bitbucket ${label} is required to manage the repository webhook.`
+    )
   }
   return value.trim()
 }
@@ -187,7 +191,8 @@ async function findBitbucketCandidateHook(
       headers: bitbucketHeaders(accessToken),
     })
   } catch (error) {
-    logger.warn(`[${requestId}] Could not inspect Bitbucket hooks for candidate reconciliation`, {
+    logger.warn('Could not inspect Bitbucket hooks for candidate reconciliation', {
+      requestId,
       error: getErrorMessage(error),
     })
     return {
@@ -256,16 +261,20 @@ async function deleteProvenBitbucketCandidate(
       }
     )
   } catch (error) {
-    logger.warn(`[${requestId}] Failed to delete proven Bitbucket candidate ${externalId}`, {
+    logger.warn('Failed to delete proven Bitbucket candidate', {
+      requestId,
+      externalId,
       error: getErrorMessage(error),
     })
     return false
   }
 
   if (!response.ok && response.status !== 404) {
-    logger.warn(
-      `[${requestId}] Failed to delete proven Bitbucket candidate ${externalId} (${response.status})`
-    )
+    logger.warn('Failed to delete proven Bitbucket candidate', {
+      requestId,
+      externalId,
+      status: response.status,
+    })
     return false
   }
 
@@ -290,13 +299,11 @@ async function rollbackAmbiguousBitbucketCandidate(
   )
 
   if (candidate.kind !== 'found') {
-    logger.warn(
-      `[${requestId}] Bitbucket candidate cleanup skipped because identity was not unique`,
-      {
-        lookup: candidate.kind,
-        matchCount: candidate.kind === 'ambiguous' ? candidate.matchCount : undefined,
-      }
-    )
+    logger.warn('Bitbucket candidate cleanup skipped because identity was not unique', {
+      requestId,
+      lookup: candidate.kind,
+      matchCount: candidate.kind === 'ambiguous' ? candidate.matchCount : undefined,
+    })
     return
   }
 
@@ -451,9 +458,11 @@ export const bitbucketHandler: WebhookProviderHandler = {
     const { isBitbucketEventMatch } = await import('@/triggers/bitbucket/utils')
 
     if (!triggerId || !isBitbucketEventMatch(triggerId, eventKey)) {
-      logger.debug(
-        `[${requestId}] Bitbucket event '${eventKey}' does not match trigger '${triggerId || 'unknown'}', skipping`
-      )
+      logger.debug('Bitbucket event does not match trigger, skipping', {
+        requestId,
+        eventKey,
+        triggerId: triggerId || 'unknown',
+      })
       return false
     }
     return true
@@ -516,9 +525,10 @@ export const bitbucketHandler: WebhookProviderHandler = {
           existingCandidate.events.length === 1 &&
           existingCandidate.events[0] === eventKey
         if (candidateMatchesCheckpoint && checkpointedSecret) {
-          logger.info(
-            `[${ctx.requestId}] Reusing checkpointed Bitbucket candidate ${existingCandidate.externalId}`
-          )
+          logger.info('Reusing checkpointed Bitbucket candidate', {
+            requestId: ctx.requestId,
+            externalId: existingCandidate.externalId,
+          })
           return {
             providerConfigUpdates: {
               externalId: existingCandidate.externalId,
@@ -573,7 +583,9 @@ export const bitbucketHandler: WebhookProviderHandler = {
 
     if (!response.ok) {
       const detail = await readBitbucketErrorDetail(response)
-      logger.error(`[${ctx.requestId}] Failed to create Bitbucket webhook (${response.status})`, {
+      logger.error('Failed to create Bitbucket webhook', {
+        requestId: ctx.requestId,
+        status: response.status,
         detail,
         workspaceSlug,
         repoSlug,
@@ -609,9 +621,12 @@ export const bitbucketHandler: WebhookProviderHandler = {
       throw new Error('Bitbucket webhook was created but no hook UUID was returned.')
     }
 
-    logger.info(
-      `[${ctx.requestId}] Created Bitbucket webhook ${externalId} for ${workspaceSlug}/${repoSlug}`
-    )
+    logger.info('Created Bitbucket webhook', {
+      requestId: ctx.requestId,
+      externalId,
+      workspaceSlug,
+      repoSlug,
+    })
     return {
       providerConfigUpdates: { externalId, webhookSecret, eventTypes: [eventKey] },
     }
@@ -631,7 +646,7 @@ export const bitbucketHandler: WebhookProviderHandler = {
         const message =
           'Missing Bitbucket credential, workspace, repository, or hook UUID for webhook deletion.'
         if (ctx.strict) throw new Error(message)
-        logger.warn(`[${ctx.requestId}] ${message}`)
+        logger.warn(message, { requestId: ctx.requestId })
         return
       }
 
@@ -650,9 +665,11 @@ export const bitbucketHandler: WebhookProviderHandler = {
         throw createBitbucketApiError(response.status, 'delete', detail)
       }
 
-      logger.info(`[${ctx.requestId}] Deleted Bitbucket webhook ${externalId}`)
+      logger.info('Deleted Bitbucket webhook', { requestId: ctx.requestId, externalId })
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Bitbucket webhook (non-fatal)`, error)
+      logger.warn('Error deleting Bitbucket webhook (non-fatal)', error, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },

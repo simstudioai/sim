@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetProjectTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneGetProjectTool: ToolConfig<
   name: 'Rocketlane Get Project',
   description: 'Retrieve a Rocketlane project by its unique identifier',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

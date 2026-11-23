@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetTagParams,
@@ -33,7 +34,8 @@ export const getTagTool: ToolConfig<WordPressGetTagParams, WordPressGetTagRespon
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/tags/${params.tagId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/tags/${safeUrlPathSegment(params.tagId, 'tagId')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

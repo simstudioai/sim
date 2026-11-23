@@ -12,26 +12,56 @@ import {
   expect as browserExpect,
   chromium,
   type Frame,
+  type Locator,
   type Page,
   type Request,
+  type Route,
+  type WebSocketRoute,
 } from '@playwright/test'
 import { pageSnapshotSchema } from '@sim/browser-extension-protocol'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import { dropOnChat } from '@/scripts/browser-extension-e2e/chat-file-drop'
 
 /** Authenticated packaged-browser acceptance against a real local Sim app and disposable Postgres. */
 const logger = createLogger('BrowserExtensionAppE2E')
 const expect = browserExpect.configure({ timeout: 30_000 })
 const ACCESS_REVALIDATION_TIMEOUT_MS = 35_000
 const ACCESS_POLL_INTERVAL_MS = 30_000
+/** The options a fixture API call takes, as `APIRequestContext.fetch` does. */
+type FixtureRequestOptions = Omit<
+  NonNullable<Parameters<BrowserContext['request']['fetch']>[1]>,
+  'method'
+>
+
+/**
+ * A fixture API call through `context`'s request context (its cookies, so its session), always on
+ * a connection of its own: `next start` on Node 24 destroys a keep-alive socket idle for 6s
+ * (keepAliveTimeout plus its 1s buffer), and a request reusing that socket as it closes hangs up
+ * (ECONNRESET). Every fixture call goes through here, so none can forget the header.
+ */
+function fixtureRequest(
+  context: BrowserContext,
+  method: 'GET' | 'POST' | 'PATCH',
+  url: string,
+  options: FixtureRequestOptions = {}
+) {
+  return context.request.fetch(url, {
+    ...options,
+    method,
+    headers: { ...options.headers, Connection: 'close' },
+  })
+}
 function required(name: string): string {
   const value = process.env[name]
   assert(value, `${name} must be explicitly provided`)
@@ -42,7 +72,14 @@ const database = assertDisposableTestDatabaseUrl(required('EXTENSION_APP_E2E_DAT
 const report = resolve(required('EXTENSION_APP_E2E_REPORT_PATH'))
 const liveChat = process.env.EXTENSION_APP_E2E_LIVE_CHAT === '1'
 const group = process.env.EXTENSION_APP_E2E_GROUP ?? 'all'
-assert(group === 'all' || group === 'native' || group === 'access', 'Unknown extension E2E group')
+assert(
+  group === 'all' ||
+    group === 'native' ||
+    group === 'navigation' ||
+    group === 'composer' ||
+    group === 'access',
+  'Unknown extension E2E group'
+)
 assert(!liveChat || group === 'all', 'Live-provider acceptance requires the complete suite')
 const loopback = ['127.0.0.1', 'localhost', '[::1]']
 assert(
@@ -64,6 +101,8 @@ const checks: {
 }[] = []
 const screenshots: string[] = []
 const browserErrors: string[] = []
+const voiceDiagnostics: Record<string, unknown>[] = []
+const signInRecoveryReceipts: Record<string, unknown>[] = []
 const httpErrors: { path: string; status: number; injected: boolean }[] = []
 const injectedRequests = new WeakSet<Request>()
 const pendingRequests = new Set<Request>()
@@ -74,7 +113,27 @@ const chatResponses: {
   events: { type: string | null; seq: number | null }[]
   error?: string
 }[] = []
+const uploadRequests: { event: string; stage: string; method: string; status?: number }[] = []
+const draftRemovalReceipts: { scope: string; phase: string; matches: number }[] = []
 const responseDiagnostics: Promise<void>[] = []
+const chatTurns = new Map<string, number>()
+const chatAttempts: {
+  attempt: number
+  turn: number | null
+  check: string
+  scenario: string
+  phase: string
+  scope: string
+  sender: string
+}[] = []
+const dropReceipts: {
+  scope: string
+  phase: string
+  receipt: Awaited<ReturnType<typeof dropOnChat>>
+}[] = []
+let currentCheck = ''
+let scenario = ''
+let phase = ''
 let failureState: { path: string; chatId: string | null; text: string }[] = []
 let pendingAtFailure: { path: string; method: string; resourceType: string }[] = []
 const uploadedPaths = new Set<string>()
@@ -115,8 +174,28 @@ await once(fixture, 'listening')
 const fixtureAddress = fixture.address()
 assert(fixtureAddress && typeof fixtureAddress !== 'string')
 
-async function check(owner: 'native' | 'access', name: string, run: () => Promise<void>) {
-  if (group !== 'all' && group !== owner) return
+function reportError(error: unknown) {
+  // Playwright includes request headers and session cookies in its call log.
+  return getErrorMessage(error).split('\nCall log:', 1)[0].trimEnd()
+}
+
+function submittedPages(body: Record<string, unknown>) {
+  const contexts = Array.isArray(body.contexts) ? body.contexts : []
+  return contexts
+    .map(toRecord)
+    .filter((context) => context.kind === 'browser_page')
+    .map((context) => pageSnapshotSchema.parse(context.snapshot))
+}
+
+async function check(
+  owner: 'navigation' | 'composer' | 'access',
+  name: string,
+  run: () => Promise<void>
+) {
+  if (group !== 'all' && group !== owner && !(group === 'native' && owner !== 'access')) return
+  currentCheck = name
+  scenario = ''
+  phase = ''
   const started = performance.now()
   try {
     await run()
@@ -127,17 +206,35 @@ async function check(owner: 'native' | 'access', name: string, run: () => Promis
       name,
       status: 'failed',
       durationMs: Math.round(performance.now() - started),
-      error: getErrorMessage(error),
+      error: reportError(error),
     })
     throw error
   }
 }
-const checkNative = (name: string, run: () => Promise<void>) => check('native', name, run)
+const checkNavigation = (name: string, run: () => Promise<void>) => check('navigation', name, run)
+const checkComposer = (name: string, run: () => Promise<void>) => check('composer', name, run)
 const checkAccess = (name: string, run: () => Promise<void>) => check('access', name, run)
 
-async function screenshot(name: string) {
-  if (!panel) return
-  for (const frame of panel.frames()) {
+/**
+ * A screenshot taken once two consecutive captures match, so a pixel comparison between two
+ * renderings of an element is not decided by a frame captured mid-paint.
+ */
+async function settledScreenshot(
+  target: Locator,
+  options: Parameters<Locator['screenshot']>[0]
+): Promise<Buffer> {
+  let previous = await target.screenshot(options)
+  for (let capture = 0; capture < 10; capture++) {
+    const next = await target.screenshot(options)
+    if (next.equals(previous)) return next
+    previous = next
+  }
+  throw new Error('The element kept repainting across ten screenshots')
+}
+
+async function screenshot(name: string, target = panel) {
+  if (!target) return
+  for (const frame of target.frames()) {
     await frame.evaluate(() =>
       Promise.all(
         document
@@ -164,7 +261,7 @@ async function screenshot(name: string) {
     }
   }
   const path = `${report}.${name}.png`
-  await panel.screenshot({ path, fullPage: true, animations: 'disabled' })
+  await target.screenshot({ path, fullPage: true, animations: 'disabled' })
   screenshots.push(path)
 }
 
@@ -206,6 +303,7 @@ async function seed() {
       await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${`Extension QA workspace ${index + 1}`}, ${owner}, ${owner})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${owner}, 'workspace', ${id}, 'admin')`
     }
+    await tx`update workspace set created_at = '2020-01-01T00:00:00Z' where id = ${alphaId}`
     await tx`insert into workflow (id, user_id, workspace_id, name, last_synced, created_at, updated_at) values (${workflowId}, ${owner}, ${alphaId}, 'Extension QA workflow', now(), now(), now())`
     await tx`insert into "user" (id, name, email, email_verified, created_at, updated_at) values (${otherUserId}, 'Other extension QA user', ${`extension-other-${otherUserId}@example.test`}, false, now(), now())`
     await tx`insert into project (id, name, owner_id) values (${deniedId}, 'Inaccessible QA project', ${otherUserId})`
@@ -295,8 +393,8 @@ try {
   // Only the synthetic page is pregranted; native permission prompts are a separate acceptance check.
   manifest.host_permissions.push(`${fixtureOrigin}/*`)
   await writeFile(resolve(extensionPath, 'manifest.json'), JSON.stringify(manifest))
-  const launchBrowserContext = () =>
-    chromium.launchPersistentContext(resolve(temporary, 'profile'), {
+  const launchBrowserContext = async () => {
+    const opened = await chromium.launchPersistentContext(resolve(temporary, 'profile'), {
       channel: 'chromium',
       headless: process.env.EXTENSION_APP_E2E_HEADED !== '1',
       viewport: { width: 390, height: 844 },
@@ -306,19 +404,78 @@ try {
         '--use-fake-device-for-media-stream',
       ],
     })
+    opened.on('request', (request) => {
+      const url = new URL(request.url())
+      if (
+        url.origin !== base.origin ||
+        url.pathname !== '/api/mothership/chat' ||
+        request.method() !== 'POST'
+      )
+        return
+      const body = toRecord(request.postDataJSON())
+      const id = toStringOrNull(body.userMessageId)
+      if (id && !chatTurns.has(id)) chatTurns.set(id, chatTurns.size + 1)
+      let sender = 'unknown'
+      try {
+        sender = request.frame().page() === panel ? 'current-panel' : 'other-page'
+      } catch {}
+      chatAttempts.push({
+        attempt: chatAttempts.length + 1,
+        turn: id ? (chatTurns.get(id) ?? null) : null,
+        check: currentCheck,
+        scenario,
+        phase,
+        scope:
+          body.organizationId === organizationId
+            ? 'organization'
+            : body.workspaceId === alphaId
+              ? 'workspace'
+              : 'other',
+        sender,
+      })
+    })
+    return opened
+  }
   context = await launchBrowserContext()
   let browserContext = context
   context.setDefaultTimeout(30_000)
   context.setDefaultNavigationTimeout(120_000)
   let worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
   const extensionId = worker.url().split('/')[2]
-  const openPanel = async () => {
+  const setPageViewport = async (page: Page, width: number, height: number) => {
+    await page.setViewportSize({ width, height })
+    const session = await browserContext.newCDPSession(page)
+    try {
+      const { windowId } = await session.send('Browser.getWindowForTarget')
+      // OOPIF hit testing uses the native content bounds, including below the browser toolbar.
+      await session.send('Browser.setContentsSize', { windowId, width, height })
+    } finally {
+      await session.detach()
+    }
+  }
+  const openPage = async () => {
     const page = await browserContext.newPage()
+    const viewport = page.viewportSize()
+    assert(viewport, 'Browser fixture must declare its viewport')
+    await setPageViewport(page, viewport.width, viewport.height)
+    return page
+  }
+  const openPanel = async () => {
+    const page = await openPage()
     await page.route('**/api/settings/voice', (route) =>
       route.fulfill({ json: { sttAvailable: true } })
     )
     page.on('pageerror', (error) => browserErrors.push(error.message))
-    page.on('request', (request) => pendingRequests.add(request))
+    page.on('request', (request) => {
+      pendingRequests.add(request)
+      const url = new URL(request.url())
+      if (url.origin === base.origin && url.pathname.startsWith('/api/files/uploads'))
+        uploadRequests.push({
+          event: 'request',
+          stage: url.pathname.endsWith('/complete') ? 'complete' : 'session',
+          method: request.method(),
+        })
+    })
     page.on('requestfinished', (request) => pendingRequests.delete(request))
     page.on('requestfailed', (request) => {
       pendingRequests.delete(request)
@@ -329,6 +486,13 @@ try {
     })
     page.on('response', (response) => {
       const url = new URL(response.url())
+      if (url.origin === base.origin && url.pathname.startsWith('/api/files/uploads'))
+        uploadRequests.push({
+          event: 'response',
+          stage: url.pathname.endsWith('/complete') ? 'complete' : 'session',
+          method: response.request().method(),
+          status: response.status(),
+        })
       if (url.origin === base.origin && url.pathname === '/api/mothership/chat') {
         const entry: (typeof chatResponses)[number] = {
           status: response.status(),
@@ -350,7 +514,7 @@ try {
               }
             })
             .catch((error) => {
-              entry.error = getErrorMessage(error)
+              entry.error = reportError(error)
             })
         )
       }
@@ -365,17 +529,7 @@ try {
   }
   panel = await openPanel()
   let shell = panel
-  const setPanelViewport = async (width: number, height: number) => {
-    await shell.setViewportSize({ width, height })
-    const session = await browserContext.newCDPSession(shell)
-    try {
-      const { windowId } = await session.send('Browser.getWindowForTarget')
-      // OOPIF hit testing uses the native content bounds, including below the browser toolbar.
-      await session.send('Browser.setContentsSize', { windowId, width, height })
-    } finally {
-      await session.detach()
-    }
-  }
+  const setPanelViewport = (width: number, height: number) => setPageViewport(shell, width, height)
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`)
   const frame = () => {
     const app = shell.frames().find((candidate) => candidate.url().startsWith(base.origin))
@@ -387,7 +541,7 @@ try {
     await frame().evaluate((destination) => window.location.assign(destination), url)
     await navigation
   }
-  await checkNative('Signed-out users get the real top-level Sim sign-in flow', async () => {
+  await checkNavigation('Signed-out users get the real top-level Sim sign-in flow', async () => {
     await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
     await screenshot('signed-out')
     const link = frame().getByRole('link', { name: 'Sign in', exact: true })
@@ -397,16 +551,29 @@ try {
     await login.waitForURL('**/login**')
     assert.equal(new URL(login.url()).origin, base.origin)
     await login.close()
+    const draft = await openPage()
+    try {
+      await draft.goto(`${base.origin}/extension/create-link`)
+      await expect(draft.getByRole('heading', { name: 'Sign in to create a link' })).toBeVisible()
+      await screenshot('create-link-sign-in', draft)
+    } finally {
+      await draft.close()
+    }
   })
   const signInAndSeed = async () => {
-    const signup = await browserContext.request.post(`${base.origin}/api/auth/sign-up/email`, {
-      headers: { origin: base.origin },
-      data: {
-        name: 'Extension QA',
-        email: `extension-${generateId()}@example.test`,
-        password: generateRandomHex(24),
-      },
-    })
+    const signup = await fixtureRequest(
+      browserContext,
+      'POST',
+      `${base.origin}/api/auth/sign-up/email`,
+      {
+        headers: { origin: base.origin },
+        data: {
+          name: 'Extension QA',
+          email: `extension-${generateId()}@example.test`,
+          password: generateRandomHex(24),
+        },
+      }
+    )
     assert.equal(signup.status(), 200, `Sign-up failed: ${await signup.text()}`)
     const payload: unknown = await signup.json()
     const id = toRecord(toRecord(payload).user).id
@@ -414,9 +581,91 @@ try {
     userId = String(id)
     await seed()
   }
-  await checkNative('A real Better Auth session reaches the extension iframe', async () => {
-    await signInAndSeed()
-    await shell.reload()
+  let login: Page | null = null
+  await checkNavigation(
+    'Manual refresh recovers sign-in without focus or visibility changes',
+    async () => {
+      login = await openPage()
+      await login.goto(`${base.origin}/login`)
+      const recovery = await openPanel()
+      try {
+        const signedOutSession = recovery.waitForResponse(
+          (response) => new URL(response.url()).pathname === '/api/auth/get-session'
+        )
+        await recovery.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        const app = recovery.frames().find((candidate) => candidate.url().startsWith(base.origin))
+        assert(app, 'Recovery panel must load the real app')
+        await app.getByRole('heading', { name: 'Sign in to Sim', exact: true }).click()
+        assert.equal(await (await signedOutSession).json(), null)
+        await expect
+          .poll(
+            () =>
+              [...pendingRequests].filter(
+                (request) =>
+                  request.frame().page() === recovery &&
+                  new URL(request.url()).pathname === '/api/auth/get-session'
+              ).length
+          )
+          .toBe(0)
+        const events = await app.evaluateHandle(() => {
+          let focus = 0
+          let visibility = 0
+          const focused = () => focus++
+          const visible = () => visibility++
+          window.addEventListener('focus', focused)
+          document.addEventListener('visibilitychange', visible)
+          return {
+            snapshot: () => ({
+              focus,
+              visibility,
+              focused: document.hasFocus(),
+              visibilityState: document.visibilityState,
+            }),
+            dispose: () => {
+              window.removeEventListener('focus', focused)
+              document.removeEventListener('visibilitychange', visible)
+            },
+          }
+        })
+        try {
+          await signInAndSeed()
+          const beforeRefresh = await events.evaluate((observer) => observer.snapshot())
+          signInRecoveryReceipts.push({ phase: 'before-refresh', ...beforeRefresh })
+          assert.deepEqual(beforeRefresh, {
+            focus: 0,
+            visibility: 0,
+            focused: true,
+            visibilityState: 'visible',
+          })
+          await expect(
+            app.getByRole('heading', { name: 'Sign in to Sim', exact: true })
+          ).toBeVisible()
+          await screenshot('sign-in-manual-refresh', recovery)
+          const [response] = await Promise.all([
+            app.waitForNavigation({ waitUntil: 'load' }),
+            app.getByRole('button', { name: 'Refresh', exact: true }).click(),
+          ])
+          assert(response, 'Refresh must return a document response')
+          assert.equal(response.status(), 200)
+          assert(response.request().isNavigationRequest(), 'Refresh must reload the app document')
+          await expect(
+            app.getByRole('link', { name: 'Extension QA alpha', exact: true })
+          ).toBeVisible()
+          signInRecoveryReceipts.push({ phase: 'recovered', documentStatus: response.status() })
+          await screenshot('sign-in-manual-recovered', recovery)
+        } finally {
+          await events.evaluate((observer) => observer.dispose()).catch(() => {})
+          await events.dispose()
+        }
+      } finally {
+        await recovery.close()
+      }
+    }
+  )
+  await checkNavigation('A real Better Auth session reaches the extension iframe', async () => {
+    assert(login, 'The sign-in tab must remain open until returning to the original panel')
+    await login.close()
+    await shell.bringToFront()
     await expect(
       frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
     ).toBeVisible()
@@ -436,8 +685,12 @@ try {
       timeout: 120_000,
     })
   })
-  if (group === 'access') await signInAndSeed()
-  let source = await context.newPage()
+  if (group === 'access' || group === 'composer') await signInAndSeed()
+  if (group === 'composer') {
+    await navigate(`${base.origin}/extension/${alphaId}`)
+    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
+  }
+  let source = await openPage()
   await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
   const observeCaptureReceipts = () =>
     shell.evaluate((origin) => {
@@ -454,6 +707,8 @@ try {
         )
           return
         document.body.dataset.captureReceipts = String(++receipts)
+        if ('sessionId' in event.data && typeof event.data.sessionId === 'string')
+          document.body.dataset.captureSession = event.data.sessionId
       })
     }, base.origin)
   await observeCaptureReceipts()
@@ -474,30 +729,296 @@ try {
     await expect(shell.locator('body')).toHaveAttribute('data-capture-receipts', String(before + 1))
   }
   const attachments = () => frame().getByRole('group', { name: 'Page attached to next message' })
-  const attachFile = async (name = 'extension-notes.txt') => {
-    const completion = shell.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        new URL(response.url()).pathname.startsWith('/api/files/uploads/') &&
-        new URL(response.url()).pathname.endsWith('/complete')
-    )
-    await frame()
-      .locator('input[type="file"]')
-      .setInputFiles({
-        name,
-        mimeType: 'text/plain',
-        buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
-      })
-    const response = await completion
+  const isUploadCompletion = (url: URL) =>
+    url.pathname.startsWith('/api/files/uploads/') && url.pathname.endsWith('/complete')
+  const uploadFile = async (name: string, add: () => Promise<void>): Promise<string> => {
+    const [response] = await Promise.all([
+      shell.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' && isUploadCompletion(new URL(response.url()))
+      ),
+      add(),
+    ])
     assert.equal(response.status(), 200, await response.text())
     const body: unknown = await response.json()
-    const asset = toRecord(toRecord(toRecord(body).data).result)
-    assert.equal(typeof asset.key, 'string')
-    trackUploadedFile(String(asset.key))
+    const { key } = toRecord(toRecord(toRecord(body).data).result)
+    assert(typeof key === 'string')
+    trackUploadedFile(key)
     await expect(frame().getByRole('button', { name: `Remove ${name}`, exact: true })).toBeEnabled()
+    return key
   }
-  await checkNative(
-    'Capture, preview, removal, and the three-page cap use the real composer',
+  const attachFile = (name = 'extension-notes.txt') =>
+    uploadFile(name, () =>
+      frame()
+        .locator('input[type="file"]')
+        .setInputFiles({
+          name,
+          mimeType: 'text/plain',
+          buffer: Buffer.from('This synthetic file belongs only to extension QA.'),
+        })
+    )
+  const screenshotFile = async () => {
+    const name = 'drop-fixture.png'
+    const png = resolve(temporary, name)
+    await writeFile(
+      png,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNwWXX3PwAFzALLC/VkdQAAAABJRU5ErkJggg==',
+        'base64'
+      )
+    )
+    return { name, png }
+  }
+  const attachScreenshot = async (target: Locator, scope?: string) => {
+    const { name, png } = await screenshotFile()
+    return uploadFile(name, async () => {
+      const receipt = await dropOnChat(shell, target, { files: [png] })
+      if (scope) {
+        dropReceipts.push({ scope, phase: 'recovery', receipt })
+        assert(
+          receipt.events.some(
+            (event) =>
+              event.type === 'drop' &&
+              event.trusted &&
+              event.files === 1 &&
+              event.chatBody &&
+              event.intendedTarget &&
+              event.defaultPrevented
+          ),
+          `${scope}: the recovery file drop did not reach the chat body`
+        )
+      }
+    })
+  }
+  const installCaptureGate = () =>
+    shell.addInitScript((parentOrigin) => {
+      if (window.parent === window) return
+      let held: MessageEvent<unknown> | undefined
+      let armed = false
+      const receive = (event: MessageEvent<unknown>) => {
+        const message = event.data
+        if (
+          !armed ||
+          event.source !== window.parent ||
+          event.origin !== parentOrigin ||
+          typeof message !== 'object' ||
+          message === null ||
+          !('channel' in message) ||
+          message.channel !== 'sim-extension' ||
+          !('type' in message) ||
+          message.type !== 'send-context'
+        )
+          return
+        held = event
+        document.documentElement.dataset.qaCaptureGate = 'held'
+        event.stopImmediatePropagation()
+      }
+      const arm = () => {
+        armed = true
+        document.documentElement.dataset.qaCaptureGate = 'armed'
+      }
+      const release = () => {
+        armed = false
+        const received = held
+        held = undefined
+        if (received)
+          window.dispatchEvent(
+            new MessageEvent('message', {
+              data: received.data,
+              origin: received.origin,
+              source: received.source,
+              lastEventId: received.lastEventId,
+              ports: [...received.ports],
+            })
+          )
+        document.documentElement.dataset.qaCaptureGate = 'released'
+      }
+      const dispose = () => {
+        armed = false
+        held = undefined
+        window.removeEventListener('message', receive, true)
+        window.removeEventListener('sim-qa-arm-capture', arm)
+        window.removeEventListener('sim-qa-release-capture', release)
+        window.removeEventListener('sim-qa-dispose-capture', dispose)
+      }
+      // Window message listeners run in registration order, including capture listeners.
+      window.addEventListener('message', receive, true)
+      window.addEventListener('sim-qa-arm-capture', arm)
+      window.addEventListener('sim-qa-release-capture', release)
+      window.addEventListener('sim-qa-dispose-capture', dispose)
+    }, `chrome-extension://${extensionId}`)
+  const verifyPendingCaptureDrop = async (scope: 'workspace' | 'organization' | 'assistant') => {
+    const app = frame()
+    const input = app.getByRole('textbox', {
+      name: scope === 'workspace' ? 'Message' : 'Ask Sim',
+      exact: true,
+    })
+    await expect(input).toBeVisible()
+    const editorElement = await input.elementHandle()
+    assert(editorElement, 'The pending capture needs a mounted composer')
+    await expect(attachments()).toHaveCount(0)
+    const greeting = app.getByRole('heading', { name: 'How can I help?', exact: true })
+    await expect(greeting).toBeVisible()
+    const priorPreference = await worker.evaluate(() =>
+      chrome.storage.local.get('referenceCurrentPage')
+    )
+    const endpoint = `${base.origin}/api/mothership/chat`
+    const uploadEndpoint = `${base.origin}/api/files/uploads`
+    const submitted: Record<string, unknown>[] = []
+    let uploadAttempts = 0
+    const interceptChat = (route: Route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      submitted.push(toRecord(route.request().postDataJSON()))
+      injectedRequests.add(route.request())
+      return route.fulfill({ status: 403, json: { error: 'QA pending capture admission check' } })
+    }
+    const interceptUpload = (route: Route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      uploadAttempts++
+      injectedRequests.add(route.request())
+      return route.fulfill({ status: 409, json: { error: 'QA unexpected pending upload' } })
+    }
+    await browserContext.route(endpoint, interceptChat)
+    await browserContext.route(uploadEndpoint, interceptUpload)
+    try {
+      await app.getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
+      const preference = app.getByRole('menuitemcheckbox', { name: 'Reference current page' })
+      await expect(preference).toBeVisible()
+      if ((await preference.getAttribute('aria-checked')) !== 'true')
+        await preference.press('Enter')
+      else await preference.press('Escape')
+      await expect(
+        app.getByRole('button', { name: 'Attach current page', exact: true })
+      ).toHaveText('Current page')
+      const draft = `Preserve the original ${scope} send during a screenshot drop.`
+      await input.fill(draft)
+      await expect(attachments()).toHaveCount(0)
+      await app.evaluate(() => window.dispatchEvent(new Event('sim-qa-arm-capture')))
+      await expect(
+        app.locator('html'),
+        `${scope}: capture gate installed before app startup`
+      ).toHaveAttribute('data-qa-capture-gate', 'armed')
+      await source.bringToFront()
+      await input.press('Enter')
+      await expect(
+        app.locator('html'),
+        `${scope}: genuine send-context held before app delivery`
+      ).toHaveAttribute('data-qa-capture-gate', 'held')
+      const preparing = () =>
+        editorElement.evaluate((element) => Boolean(element.closest('[inert][aria-busy="true"]')))
+      await expect
+        .poll(preparing, { message: `${scope}: held capture keeps the composer inert` })
+        .toBe(true)
+      assert.equal(
+        submitted.length,
+        0,
+        `${scope}: the capture gate did not defer the original send`
+      )
+      const { name, png } = await screenshotFile()
+      const pageCount = browserContext.pages().length
+      const previousUrl = app.url()
+      const receipt = await dropOnChat(shell, greeting, { files: [png] })
+      dropReceipts.push({ scope, phase: 'held-capture', receipt })
+      assert(
+        receipt.events.some(
+          (event) =>
+            event.type === 'dragover' &&
+            event.trusted &&
+            event.types.includes('Files') &&
+            event.intendedTarget &&
+            event.chatBody &&
+            event.defaultPrevented
+        ),
+        `${scope}: the held-capture file drag did not reach the intended chat body`
+      )
+      await app.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      )
+      await screenshot(`pending-capture-drop-${scope}`)
+      assert.equal(uploadAttempts, 0, `${scope}: a body drop started uploading during capture`)
+      await expect.poll(() => editorElement.inputValue()).toBe(draft)
+      await expect(app.getByRole('button', { name: `Remove ${name}`, exact: true })).toHaveCount(0)
+      assert.equal(submitted.length, 0, `${scope}: the held capture committed early`)
+      assert.equal(app.url(), previousUrl)
+      assert.equal(browserContext.pages().length, pageCount)
+      await expect
+        .poll(preparing, { message: `${scope}: held capture keeps the composer inert` })
+        .toBe(true)
+      await app.evaluate(() => window.dispatchEvent(new Event('sim-qa-release-capture')))
+      await expect.poll(() => submitted.length).toBe(1)
+      const body = submitted[0]
+      assert(String(body.message).startsWith(draft))
+      assert.equal(
+        body[scope === 'workspace' ? 'workspaceId' : 'organizationId'],
+        scope === 'workspace' ? alphaId : organizationId
+      )
+      if (scope === 'assistant') assert.equal(body.mode, 'assistant')
+      const pages = submittedPages(body)
+      assert.equal(pages.length, 1)
+      assert(pages[0].text.includes('ORCHID-482'))
+      assert.equal(pages[0].url, `${fixtureOrigin}/page`)
+      assert.equal(body.fileAttachments, undefined)
+      await expect
+        .poll(
+          () => input.evaluate((element) => Boolean(element.closest('[inert][aria-busy="true"]'))),
+          { message: `${scope}: the current composer resumes after capture` }
+        )
+        .toBe(false)
+      await expect(
+        app.getByText('Your draft changed while the page was being read. Send again to continue.', {
+          exact: true,
+        })
+      ).toHaveCount(0)
+      assert.equal(uploadAttempts, 0)
+      await browserContext.unroute(uploadEndpoint, interceptUpload)
+      const recoveryKey = await attachScreenshot(app.getByRole('main'), scope)
+      await screenshot(`pending-capture-drop-${scope}-recovered`)
+      await app.getByRole('button', { name: `Remove ${name}`, exact: true }).click()
+      await expect(app.getByRole('button', { name: `Remove ${name}`, exact: true })).toHaveCount(0)
+      const persistedMatches = async () => {
+        const stored: unknown = await app.evaluate(() =>
+          JSON.parse(localStorage.getItem('mothership-drafts:v1') ?? '{}')
+        )
+        const drafts = toRecord(toRecord(toRecord(stored).state).drafts)
+        return Object.values(drafts).filter((draft) => {
+          const files = toRecord(draft).fileAttachments
+          return Array.isArray(files) && files.some((file) => toRecord(file).key === recoveryKey)
+        }).length
+      }
+      draftRemovalReceipts.push({
+        scope,
+        phase: 'after-ui-removal',
+        matches: await persistedMatches(),
+      })
+      await expect
+        .poll(persistedMatches, {
+          message: `${scope}: removed recovery file leaves persisted drafts`,
+        })
+        .toBe(0)
+      draftRemovalReceipts.push({
+        scope,
+        phase: 'before-tab-close',
+        matches: await persistedMatches(),
+      })
+      assert.equal(submitted.length, 1, `${scope}: recovering drops duplicated the turn`)
+    } finally {
+      await app
+        .evaluate(() => window.dispatchEvent(new Event('sim-qa-release-capture')))
+        .catch(() => {})
+      await app
+        .evaluate(() => window.dispatchEvent(new Event('sim-qa-dispose-capture')))
+        .catch(() => {})
+      await editorElement.dispose()
+      await browserContext.unroute(endpoint, interceptChat)
+      await browserContext.unroute(uploadEndpoint, interceptUpload)
+      await worker.evaluate(async (previous) => {
+        if ('referenceCurrentPage' in previous) await chrome.storage.local.set(previous)
+        else await chrome.storage.local.remove('referenceCurrentPage')
+      }, priorPreference)
+    }
+  }
+  await checkNavigation(
+    'Capture, preview, and removal support ten pages in the real composer',
     async () => {
       await capture()
       await expect(attachments()).toHaveCount(1)
@@ -513,14 +1034,116 @@ try {
         captureText.replace('QA_PRIVATE_PAGE_MARKER:', 'Delivery plan\nQA_PRIVATE_PAGE_MARKER:')
       )
       await screenshot('page-preview')
-      await preview.getByRole('button', { name: 'Close', exact: true }).click()
-      await capture()
-      await capture()
-      await capture()
-      await expect(attachments()).toHaveCount(3)
-      await expect(frame().getByRole('alert').filter({ hasText: 'Remove one' })).toBeVisible()
-      await screenshot('page-limit')
-      await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+      const focusSession = await shell.locator('body').getAttribute('data-capture-session')
+      assert(focusSession, 'The real capture did not acknowledge its session')
+      const focusObserver = await shell.evaluateHandle(
+        ({ origin, sessionId }) => {
+          let focused = 0
+          let processed = 0
+          document.body.dataset.composerFocused = '0'
+          document.body.dataset.focusProcessed = '0'
+          const receive = (event: MessageEvent<unknown>) => {
+            if (
+              event.origin !== origin ||
+              event.source !== document.querySelector('iframe')?.contentWindow ||
+              typeof event.data !== 'object' ||
+              event.data === null ||
+              !('sessionId' in event.data) ||
+              event.data.sessionId !== sessionId ||
+              !('type' in event.data)
+            )
+              return
+            if (event.data.type === 'composer-focused')
+              document.body.dataset.composerFocused = String(++focused)
+            if (event.data.type === 'e2e-focus-processed')
+              document.body.dataset.focusProcessed = String(++processed)
+          }
+          window.addEventListener('message', receive)
+          return () => window.removeEventListener('message', receive)
+        },
+        { origin: base.origin, sessionId: focusSession }
+      )
+      const focusBarrier = await frame().evaluateHandle(
+        ({ origin, sessionId }) => {
+          const receive = (event: MessageEvent<unknown>) => {
+            if (
+              event.origin !== origin ||
+              event.source !== parent ||
+              typeof event.data !== 'object' ||
+              event.data === null ||
+              !('sessionId' in event.data) ||
+              event.data.sessionId !== sessionId ||
+              !('type' in event.data) ||
+              event.data.type !== 'focus-composer'
+            )
+              return
+            parent.postMessage({ type: 'e2e-focus-processed', sessionId }, origin)
+          }
+          window.addEventListener('message', receive)
+          return () => window.removeEventListener('message', receive)
+        },
+        { origin: `chrome-extension://${extensionId}`, sessionId: focusSession }
+      )
+      const requestComposerFocus = async (processed: number) => {
+        await shell.evaluate(
+          ({ origin, sessionId }) =>
+            document
+              .querySelector('iframe')
+              ?.contentWindow?.postMessage(
+                { channel: 'sim-extension', version: 1, type: 'focus-composer', sessionId },
+                origin
+              ),
+          { origin: base.origin, sessionId: focusSession }
+        )
+        await expect(shell.locator('body')).toHaveAttribute(
+          'data-focus-processed',
+          String(processed)
+        )
+      }
+      try {
+        await shell.bringToFront()
+        const close = preview.getByRole('button', { name: 'Close', exact: true })
+        await close.focus()
+        await expect(close).toBeFocused()
+        assert(await frame().evaluate(() => document.hasFocus()))
+        await requestComposerFocus(1)
+        assert.equal(
+          await shell.locator('body').getAttribute('data-composer-focused'),
+          '0',
+          'An app dialog must not acknowledge composer focus'
+        )
+        await expect(close).toBeFocused()
+        await close.press('Tab')
+        assert(await preview.evaluate((element) => element.contains(document.activeElement)))
+        await requestComposerFocus(2)
+        assert.equal(await shell.locator('body').getAttribute('data-composer-focused'), '0')
+        await screenshot('focus-deferred-by-page-preview')
+        await close.click()
+        await expect(preview).toHaveCount(0)
+        await requestComposerFocus(3)
+        const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
+        await expect(editor).toBeFocused()
+        await expect(shell.locator('body')).toHaveAttribute('data-composer-focused', '1')
+        await shell.keyboard.type('Keyboard input belongs to the composer.')
+        await expect(editor).toHaveValue('Keyboard input belongs to the composer.')
+        await screenshot('focus-confirmed-in-composer')
+        await editor.fill('')
+      } finally {
+        await focusBarrier.evaluate((stop) => stop())
+        await focusObserver.evaluate((stop) => stop())
+        await focusBarrier.dispose()
+        await focusObserver.dispose()
+      }
+      for (let count = 2; count <= 10; count++) {
+        await capture()
+        await expect(attachments()).toHaveCount(count)
+      }
+      await expect(frame().getByRole('alert').filter({ hasText: 'Remove a page' })).toHaveCount(0)
+      await screenshot('many-pages')
+      for (let count = 10; count > 2; count--) {
+        await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+        await expect(attachments()).toHaveCount(count - 1)
+      }
       await expect(attachments()).toHaveCount(2)
       const stored = await frame().evaluate(() => JSON.stringify(localStorage))
       assert(
@@ -529,11 +1152,13 @@ try {
       )
     }
   )
-  await checkNative(
+  await checkNavigation(
     'Toolbar and authenticated chat align at 320/390 pixels in light and dark themes',
     async () => {
       for (const theme of ['light', 'dark'] as const) {
-        const settings = await browserContext.request.patch(
+        const settings = await fixtureRequest(
+          browserContext,
+          'PATCH',
           `${base.origin}/api/users/me/settings`,
           { data: { theme } }
         )
@@ -570,8 +1195,10 @@ try {
               `Season font is not applied in ${surface === shell ? 'shell' : 'app'}: ${dimensions.font}`
             )
           }
+          await expect(attachments()).toHaveCount(0)
           await screenshot(`${theme}-${width}`)
           await capture()
+          await expect(attachments()).toHaveCount(1)
           await expect
             .poll(() =>
               frame()
@@ -582,6 +1209,19 @@ try {
                 })
             )
             .toBe(true)
+          if (width === 320) {
+            const chip = attachments().first()
+            const visible = await settledScreenshot(chip, { animations: 'disabled' })
+            const withoutEdgeMask = await settledScreenshot(chip, {
+              animations: 'disabled',
+              style:
+                'div:has(> div > [aria-label="Page attached to next message"]) { mask-image: none !important; }',
+            })
+            assert(
+              visible.equals(withoutEdgeMask),
+              'The attachment strip faded a fully visible chip'
+            )
+          }
           await screenshot(`${theme}-${width}-attached`)
           if (theme === 'light' && width === 320) {
             await frame()
@@ -589,24 +1229,26 @@ try {
               .evaluate((button) => (button as HTMLButtonElement).click())
             await screenshot('capture-menu')
             await frame()
-              .getByRole('menuitem', { name: 'Site access', exact: true })
+              .getByRole('menuitem', { name: 'Page access', exact: true })
               .evaluate((button) => (button as HTMLElement).click())
-            const access = shell.getByRole('dialog', { name: 'Site access', exact: true })
+            const access = shell.getByRole('dialog', { name: 'Page access', exact: true })
             await expect(
-              access.getByRole('button', { name: 'Remove access to localhost', exact: true })
+              access.getByRole('button', { name: 'Allow across websites', exact: true })
             ).toBeVisible()
             await expect(
-              frame().getByRole('menuitem', { name: 'Site access', exact: true })
+              frame().getByRole('menuitem', { name: 'Page access', exact: true })
             ).toHaveCount(0)
             await screenshot('site-options')
             await access.getByRole('button', { name: 'Close', exact: true }).click()
           }
-          await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
+          await shell.bringToFront()
+          await attachments().getByRole('button', { name: 'Remove page context' }).click()
+          await expect(attachments()).toHaveCount(0)
         }
       }
     }
   )
-  await checkNative(
+  await checkNavigation(
     'Workspace and conversation navigation clear pending page context',
     async () => {
       await capture()
@@ -633,7 +1275,7 @@ try {
       await expect(frame().getByText('QA history response.', { exact: false })).toBeVisible()
     }
   )
-  await checkNative(
+  await checkNavigation(
     'Page chips protect draft history and support page-only Enter at the HTTP boundary',
     async () => {
       const editor = frame().getByRole('textbox', { name: 'Message', exact: true })
@@ -692,95 +1334,439 @@ try {
       contentType: 'application/javascript',
     })
   )
-  await checkNative('Saved page previews stay out of session replay in the full app', async () => {
-    const opened = browserContext.waitForEvent('page')
-    await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
-    const app = await opened
-    try {
-      await app.waitForURL(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
-      await app.getByRole('button', { name: 'Review page context: Extension QA page' }).click()
-      const preview = app.getByRole('dialog', { name: 'Page context', exact: true })
-      await expect(preview).toBeVisible()
-      await expect(preview.getByText(captureText, { exact: false })).toBeVisible()
-      await app.evaluate(() => {
-        const control = document.createElement('p')
-        control.textContent = 'QA_PUBLIC_REPLAY_CONTROL'
-        document.body.append(control)
-      })
-      const recorded = await recordSnapshot(app)
-      assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
-      assert(recorded.includes('QA_PUBLIC_REPLAY_CONTROL'), 'Ordinary page text was not recorded')
-      assert(!recorded.includes('QA_PRIVATE_PAGE_MARKER'), 'Page text entered session replay')
-      assert(!recorded.includes('Extension QA page'), 'Page title entered session replay')
-      assert(!recorded.includes(fixtureOrigin), 'Page URL entered session replay')
-      await app
-        .getByText('QA_PUBLIC_REPLAY_CONTROL', { exact: true })
-        .evaluate((element) => element.remove())
-      const path = `${report}.full-app-page-preview.png`
-      await app.screenshot({ path, fullPage: true, animations: 'disabled' })
-      screenshots.push(path)
-    } finally {
-      await app.close()
-    }
-  })
-  await checkNative('Sources and resource actions preserve their real destinations', async () => {
-    await frame().getByRole('button', { name: '1 source', exact: true }).click()
-    await frame().getByRole('button', { name: 'View all sources' }).click()
-    const dialog = frame().getByRole('dialog', { name: 'Cited sources' })
-    await expect(dialog).toBeVisible()
-    await screenshot('sources')
-    await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
-      'href',
-      'https://example.com/qa-evidence'
-    )
-    await shell.bringToFront()
-    await dialog.getByRole('button', { name: 'Actions for QA evidence' }).click()
-    await frame().getByRole('menuitem', { name: 'Copy link', exact: true }).click()
-    await expect(dialog.getByRole('button', { name: 'Link copied', exact: true })).toBeVisible()
-    await screenshot('source-link-copied')
-    const recorded = await recordSnapshot(frame())
-    assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
-    assert(!recorded.includes('QA evidence'), 'Portaled citation content entered session replay')
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-    await expect(dialog).toHaveCount(0)
-    await expect.poll(() => new URL(frame().url()).searchParams.get('source-message')).toBeNull()
-    await navigate(
-      `${base.origin}/extension/${alphaId}?chat=${historyId}&source-message=live-assistant:${historyRequestId}&source-request=${historyRequestId}`
-    )
-    await expect(dialog).toBeVisible()
-    await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
-      'href',
-      'https://example.com/qa-evidence'
-    )
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-    const popup = browserContext.waitForEvent('page')
-    await frame().getByRole('button', { name: 'Extension QA workflow', exact: true }).click()
-    const resource = await popup
-    await resource.waitForURL(`${base.origin}/workspace/${alphaId}/w/${workflowId}`)
-    assert.equal(await resource.evaluate(() => window.opener), null)
-    await resource.close()
-    await frame().getByRole('button', { name: 'New chat', exact: true }).click()
-    await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
-  })
-  await checkNative(
-    'The extension blocks microphone capture even when the Sim origin has permission',
+  await checkNavigation(
+    'Saved page previews stay out of session replay in the full app',
     async () => {
-      await browserContext.grantPermissions(['microphone'], { origin: base.origin })
-      const denied = await frame().evaluate(async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          stream.getTracks().forEach((track) => track.stop())
-          return false
-        } catch (error) {
-          return error instanceof DOMException && error.name === 'NotAllowedError'
-        }
-      })
-      assert(denied, 'Microphone capture escaped the extension permissions policy')
-      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toHaveCount(0)
-      await browserContext.clearPermissions()
+      const opened = browserContext.waitForEvent('page')
+      await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
+      const app = await opened
+      try {
+        await app.waitForURL(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
+        await app.getByRole('button', { name: 'Review page context: Extension QA page' }).click()
+        const preview = app.getByRole('dialog', { name: 'Page context', exact: true })
+        await expect(preview).toBeVisible()
+        await expect(preview.getByText(captureText, { exact: false })).toBeVisible()
+        await app.evaluate(() => {
+          const control = document.createElement('p')
+          control.textContent = 'QA_PUBLIC_REPLAY_CONTROL'
+          document.body.append(control)
+        })
+        const recorded = await recordSnapshot(app)
+        assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
+        assert(recorded.includes('QA_PUBLIC_REPLAY_CONTROL'), 'Ordinary page text was not recorded')
+        assert(!recorded.includes('QA_PRIVATE_PAGE_MARKER'), 'Page text entered session replay')
+        assert(!recorded.includes('Extension QA page'), 'Page title entered session replay')
+        assert(!recorded.includes(fixtureOrigin), 'Page URL entered session replay')
+        await app
+          .getByText('QA_PUBLIC_REPLAY_CONTROL', { exact: true })
+          .evaluate((element) => element.remove())
+        const path = `${report}.full-app-page-preview.png`
+        await app.screenshot({ path, fullPage: true, animations: 'disabled' })
+        screenshots.push(path)
+      } finally {
+        await app.close()
+      }
     }
   )
-  await checkNative(
+  await checkComposer(
+    'The ordinary web composer accepts text selections and rejects links and remote images',
+    async () => {
+      const app = await openPage()
+      const remote = new URL('/ordinary-drop-image.png', fixtureOrigin)
+      const navigationAttempts: string[] = []
+      await browserContext.route(remote.href, (route) => {
+        navigationAttempts.push(route.request().url())
+        return route.abort()
+      })
+      try {
+        await app.goto(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
+        const input = app.getByRole('textbox', { name: 'Message', exact: true })
+        await input.fill('Keep the ordinary draft')
+        const drop = await app.evaluateHandle(() => {
+          let received: DragEvent | undefined
+          document.addEventListener(
+            'drop',
+            (event) => {
+              received = event
+            },
+            { capture: true, once: true }
+          )
+          return () => received?.defaultPrevented
+        })
+        const pageCount = browserContext.pages().length
+        const image = { text: remote.href, html: `<img src="${remote.href}">`, uri: remote.href }
+        await dropOnChat(
+          app,
+          app.getByRole('button', { name: 'Add resources', exact: true }),
+          image
+        )
+        assert.equal(await drop.evaluate((prevented) => prevented()), true)
+        for (const payload of [
+          image,
+          { text: 'Image caption', html: `<img src="${remote.href}" alt="Image caption">` },
+          { text: 'Link caption', html: `<a href="${remote.href}">Link caption</a>` },
+          {
+            text: 'Selected text',
+            html: `<strong>${' '.repeat(PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS)}Selected text</strong>`,
+          },
+        ]) {
+          await dropOnChat(app, input, payload)
+          await expect(input).toHaveValue('Keep the ordinary draft')
+        }
+        assert.equal(browserContext.pages().length, pageCount)
+        assert.deepEqual(navigationAttempts, [])
+        for (const payload of [
+          { text: 'Plain text from another app' },
+          { text: 'Selected text', html: '<p>Selected <strong>text</strong></p>' },
+        ]) {
+          await input.fill('')
+          await dropOnChat(app, input, payload)
+          await expect(input).toHaveValue(payload.text)
+        }
+      } finally {
+        await browserContext.unroute(remote.href)
+        await app.close()
+      }
+    }
+  )
+  await checkNavigation(
+    'Sources and resource actions preserve their real destinations',
+    async () => {
+      await frame().getByRole('button', { name: '1 source', exact: true }).click()
+      await frame().getByRole('button', { name: 'View all sources' }).click()
+      const dialog = frame().getByRole('dialog', { name: 'Cited sources' })
+      await expect(dialog).toBeVisible()
+      await screenshot('sources')
+      await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
+        'href',
+        'https://example.com/qa-evidence'
+      )
+      await shell.bringToFront()
+      await dialog.getByRole('button', { name: 'Actions for QA evidence' }).click()
+      await frame().getByRole('menuitem', { name: 'Copy link', exact: true }).click()
+      await expect(dialog.getByRole('button', { name: 'Link copied', exact: true })).toBeVisible()
+      await screenshot('source-link-copied')
+      const recorded = await recordSnapshot(frame())
+      assert(recorded.includes('"type":2'), 'Recorder did not produce a full DOM snapshot')
+      assert(!recorded.includes('QA evidence'), 'Portaled citation content entered session replay')
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await expect(dialog).toHaveCount(0)
+      await expect.poll(() => new URL(frame().url()).searchParams.get('source-message')).toBeNull()
+      await navigate(
+        `${base.origin}/extension/${alphaId}?chat=${historyId}&source-message=live-assistant:${historyRequestId}&source-request=${historyRequestId}`
+      )
+      await expect(dialog).toBeVisible()
+      await expect(dialog.getByRole('link', { name: 'QA evidence' })).toHaveAttribute(
+        'href',
+        'https://example.com/qa-evidence'
+      )
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      const popup = browserContext.waitForEvent('page')
+      await frame().getByRole('button', { name: 'Extension QA workflow', exact: true }).click()
+      const resource = await popup
+      await resource.waitForURL(`${base.origin}/workspace/${alphaId}/w/${workflowId}`)
+      assert.equal(await resource.evaluate(() => window.opener), null)
+      await resource.close()
+      await frame().getByRole('button', { name: 'New chat', exact: true }).click()
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveValue('')
+    }
+  )
+  await checkNavigation(
+    'A sanitized link draft saves in the current organization and opens its destination',
+    async () => {
+      let draft = await openPage()
+      await setPageViewport(draft, 1280, 900)
+      const endpoint = `/api/organizations/${organizationId}/sim-links`
+      let writes = 0
+      draft.on('request', (request) => {
+        if (new URL(request.url()).pathname === endpoint && request.method() === 'POST') writes++
+      })
+      try {
+        await draft.goto(`${base.origin}/extension/create-link`)
+        await expect(
+          draft.getByRole('heading', { name: 'Links unavailable', exact: true })
+        ).toBeVisible()
+        await screenshot('create-link-unavailable', draft)
+        await draft.close()
+        await seedViewerOrganization()
+        draft = await openPage()
+        await setPageViewport(draft, 1280, 900)
+        draft.on('request', (request) => {
+          if (new URL(request.url()).pathname === endpoint && request.method() === 'POST') writes++
+        })
+        const destination = `${fixtureOrigin}/page`
+        const hash = new URLSearchParams({
+          url: `${destination}?private=QUERY_SECRET#FRAGMENT_SECRET`,
+        })
+        await draft.goto(`${base.origin}/extension/create-link#${hash}`)
+        const dialog = draft.getByRole('dialog', { name: 'New link', exact: true })
+        await expect(
+          dialog.getByRole('textbox', { name: 'Destination URL', exact: true })
+        ).toHaveValue(destination)
+        await expect.poll(() => new URL(draft.url()).hash).toBe('')
+        await screenshot('create-link-draft', draft)
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        await expect(dialog.getByRole('textbox', { name: 'Name', exact: true })).toHaveAttribute(
+          'aria-invalid',
+          'true'
+        )
+        assert.equal(writes, 0, 'An invalid draft reached the create boundary')
+        await screenshot('create-link-validation', draft)
+        await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('qa-draft')
+        const saved = draft.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === endpoint && response.request().method() === 'POST'
+        )
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        assert.equal((await saved).status(), 200)
+        await draft.waitForURL(`${base.origin}/o/${organizationId}/links`)
+        const [row] =
+          await sql`select name, url from sim_link where organization_id=${organizationId}`
+        assert.equal(row?.name, 'qa-draft')
+        assert.equal(row?.url, destination)
+        const link = draft.getByRole('row').filter({ hasText: 'qa-draft' })
+        await expect(link).toBeVisible()
+        await screenshot('create-link-saved', draft)
+        const opened = browserContext.waitForEvent('page')
+        await link.click()
+        const resolved = await opened
+        try {
+          await resolved.waitForURL(destination)
+        } finally {
+          await resolved.close()
+        }
+      } catch (error) {
+        if (!draft.isClosed()) await screenshot('create-link-failure', draft).catch(() => {})
+        throw error
+      } finally {
+        await draft.close()
+        await sql`delete from organization where id=${organizationId}`
+      }
+    }
+  )
+  await checkComposer(
+    'Voice input cancels startup, recovers permission, and preserves drafts through Send or restart',
+    async () => {
+      const input = frame().getByRole('textbox', { name: 'Message', exact: true })
+      const mic = frame().getByRole('button', { name: 'Voice input', exact: true })
+      const stop = frame().getByRole('button', { name: 'Stop listening', exact: true })
+      const sessions: { socket: WebSocketRoute; chunks: number; closed: boolean }[] = []
+      const connectionGate = createDeferred<void>()
+      const tokenGate = createDeferred<void>()
+      let holdToken = false
+      let tokenRequested = false
+      await shell.route('**/api/speech/token', async (route) => {
+        injectedRequests.add(route.request())
+        if (holdToken) {
+          tokenRequested = true
+          await tokenGate.promise
+        }
+        return route.fulfill({ json: { token: 'synthetic-extension-voice' } })
+      })
+      await shell.routeWebSocket(
+        'wss://api.elevenlabs.io/v1/speech-to-text/realtime*',
+        async (socket) => {
+          const session = { socket, chunks: 0, closed: false }
+          sessions.push(session)
+          socket.onMessage((message) => {
+            const data = toRecord(JSON.parse(String(message)))
+            if (typeof data.audio_base_64 === 'string' && data.audio_base_64.length > 0) {
+              assert.equal(data.sample_rate, 16000)
+              assert(Buffer.from(data.audio_base_64, 'base64').length > 0)
+              session.chunks++
+            }
+          })
+          socket.onClose(async () => {
+            await socket.close()
+            session.closed = true
+          })
+          if (sessions.length === 1) await connectionGate.promise
+        }
+      )
+      type VoiceCaptureWindow = typeof window & {
+        __voiceCaptureProbe?: {
+          getUserMedia: MediaDevices['getUserMedia']
+          WebSocket: typeof WebSocket
+          tracks: MediaStreamTrack[]
+          sockets: WebSocket[]
+        }
+      }
+      await frame().evaluate(() => {
+        const probe = {
+          getUserMedia: navigator.mediaDevices.getUserMedia,
+          WebSocket: window.WebSocket,
+          tracks: [] as MediaStreamTrack[],
+          sockets: [] as WebSocket[],
+        }
+        ;(window as VoiceCaptureWindow).__voiceCaptureProbe = probe
+        navigator.mediaDevices.getUserMedia = async (constraints) => {
+          const stream = await probe.getUserMedia.call(navigator.mediaDevices, constraints)
+          probe.tracks.push(...stream.getTracks())
+          return stream
+        }
+        window.WebSocket = class extends probe.WebSocket {
+          constructor(url: string | URL, protocols?: string | string[]) {
+            super(url, protocols)
+            probe.sockets.push(this)
+          }
+        }
+      })
+      const captureState = () =>
+        frame().evaluate(() => {
+          const probe = (window as VoiceCaptureWindow).__voiceCaptureProbe
+          return {
+            tracks: probe?.tracks.map((track) => track.readyState) ?? [],
+            sockets: probe?.sockets.map((socket) => socket.readyState) ?? [],
+          }
+        })
+      const microphone = await browserContext.newCDPSession(shell)
+      const setMicrophonePermission = async (setting: 'granted' | 'denied') => {
+        await microphone.send('Browser.setPermission', {
+          permission: { name: 'microphone' },
+          setting,
+          origin: `chrome-extension://${extensionId}`,
+          embeddedOrigin: base.origin,
+        })
+        const state = await frame().evaluate(
+          async () =>
+            (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state
+        )
+        voiceDiagnostics.push({ event: 'permission', setting, state })
+        assert.equal(state, setting)
+      }
+      const submitted: Record<string, unknown>[] = []
+      await shell.route('**/api/mothership/chat', (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        submitted.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      try {
+        await expect(mic).toBeVisible()
+        await input.fill('Keep my draft')
+        assert.equal(sessions.length, 0, 'Voice started before an explicit click')
+        await screenshot('microphone-ready')
+        await setMicrophonePermission('denied')
+        await mic.click()
+        const settings = frame().getByRole('button', { name: 'Open settings', exact: true })
+        await expect(settings).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        assert.equal(sessions.length, 0, 'Denied microphone started transcription')
+        await screenshot('microphone-blocked')
+        const opened = browserContext.waitForEvent('page')
+        await settings.click()
+        const settingsPage = await opened
+        await settingsPage.waitForURL('chrome://settings/content/microphone')
+        await settingsPage.close()
+        await shell.bringToFront()
+        const viewport = shell.viewportSize()
+        assert(viewport)
+        await setPanelViewport(viewport.width, viewport.height)
+        await setMicrophonePermission('granted')
+        await mic.click()
+        await expect.poll(() => sessions.length).toBe(1)
+        await expect.poll(captureState).toEqual({ tracks: ['live'], sockets: [0] })
+        await screenshot('microphone-connecting')
+        await frame()
+          .getByRole('button', { name: /^(Voice input|Stop listening)$/ })
+          .click()
+        await expect.poll(captureState).toEqual({ tracks: ['ended'], sockets: [3] })
+        await expect.poll(() => sessions[0].closed).toBe(true)
+        voiceDiagnostics.push({ event: 'cancel-connecting', ...(await captureState()) })
+        connectionGate.resolve()
+        await expect(mic).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        assert.equal(sessions[0].chunks, 0, 'Cancelled startup sent audio')
+
+        holdToken = true
+        await mic.click()
+        await expect.poll(() => tokenRequested).toBe(true)
+        await stop.click()
+        tokenGate.resolve()
+        holdToken = false
+        await expect(mic).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft')
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions[1]?.chunks ?? 0).toBeGreaterThan(0)
+        assert.equal(sessions.length, 2, 'Cancelled token request started another session')
+        assert.deepEqual((await captureState()).tracks, ['ended', 'live'])
+        sessions[1].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'first thought' })
+        )
+        await expect(input).toHaveValue('Keep my draft first thought')
+        await screenshot('microphone-listening')
+        await stop.click()
+        await expect(mic).toBeVisible()
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions.length).toBe(3)
+        sessions[1].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'stale thought' })
+        )
+        await expect.poll(() => sessions[1].closed).toBe(true)
+        await expect(stop).toBeVisible()
+        await expect(input).toHaveValue('Keep my draft first thought')
+        const chunks = sessions[2].chunks
+        await expect.poll(() => sessions[2].chunks).toBeGreaterThan(chunks)
+        sessions[2].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'second thought' })
+        )
+        await expect(input).toHaveValue('Keep my draft first thought second thought')
+        await input.press('Enter')
+        await expect.poll(() => submitted.length).toBe(1)
+        assert.equal(submitted[0].message, 'Keep my draft first thought second thought')
+        await expect(input).toHaveValue('')
+        await expect(mic).toBeVisible()
+        await expect.poll(() => sessions[2].closed).toBe(true)
+        await expect(
+          frame().getByRole('button', { name: 'Send message', exact: true })
+        ).toBeVisible()
+        await input.fill('Another draft')
+        await mic.click()
+        await expect(stop).toBeVisible()
+        await expect.poll(() => sessions[3]?.chunks ?? 0).toBeGreaterThan(0)
+        sessions[3].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'ready to send' })
+        )
+        await expect(input).toHaveValue('Another draft ready to send')
+        await screenshot('microphone-dictated-draft')
+        await stop.click()
+        await input.press('Enter')
+        await expect(input).toHaveValue('')
+        assert.equal(sessions[3].closed, false, 'Final-transcript grace must still be open')
+        sessions[3].socket.send(
+          JSON.stringify({ message_type: 'partial_transcript', text: 'late words' })
+        )
+        await expect.poll(() => sessions[3].closed).toBe(true)
+        await expect(input).toHaveValue('')
+        assert.equal(submitted.length, 2, 'Dictation submitted a message without Send')
+        await screenshot('microphone-after-send')
+      } finally {
+        voiceDiagnostics.push({ event: 'capture-finally', ...(await captureState()) })
+        connectionGate.resolve()
+        tokenGate.resolve()
+        await frame().evaluate(() => {
+          const probeWindow = window as VoiceCaptureWindow
+          const probe = probeWindow.__voiceCaptureProbe
+          if (!probe) return
+          navigator.mediaDevices.getUserMedia = probe.getUserMedia
+          window.WebSocket = probe.WebSocket
+          probe.tracks.forEach((track) => track.stop())
+          probeWindow.__voiceCaptureProbe = undefined
+        })
+        voiceDiagnostics.push({
+          event: 'finally',
+          sessions: sessions.map(({ chunks, closed }) => ({ chunks, closed })),
+        })
+        await shell.unroute('**/api/speech/token')
+        await shell.unroute('**/api/mothership/chat')
+        await microphone.send('Browser.resetPermissions')
+        await microphone.detach()
+      }
+    }
+  )
+  await checkComposer(
     'Files and pages share the attachment row, remove independently, and reach the submission boundary together',
     async () => {
       await capture()
@@ -815,9 +1801,20 @@ try {
           .evaluate((chip) => {
             const strip = chip.parentElement?.parentElement
             if (!strip) throw new Error('Missing attachment strip')
-            return { height: strip.clientHeight, contentHeight: strip.scrollHeight }
+            const style = getComputedStyle(strip)
+            const padding =
+              Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom)
+            return {
+              height: strip.clientHeight,
+              contentHeight: strip.scrollHeight,
+              usableHeight: strip.clientHeight - padding,
+            }
           })
-        assert(touchGeometry.height <= 102, 'Touch attachments lost their height limit')
+        assert.equal(
+          touchGeometry.usableHeight,
+          102,
+          'Two 48px attachment rows and their gap must fit on touch'
+        )
         assert(
           touchGeometry.contentHeight > touchGeometry.height,
           'Touch overflow fixture did not wrap'
@@ -876,7 +1873,7 @@ try {
       await expect(attachments()).toHaveCount(0)
     }
   )
-  await checkNative(
+  await checkComposer(
     'Selected text attaches only the selected excerpt through the shared plus menu',
     async () => {
       await source.evaluate(() => {
@@ -1135,7 +2132,7 @@ try {
     assert.equal(toRecord(submitted[0]).workspaceId, scope.organizationId ? undefined : alphaId)
   }
   if (liveChat) {
-    await checkNative(
+    await checkComposer(
       'Workspace live admission preserves queued pages, files, and the active draft',
       () =>
         verifyLiveChat({
@@ -1145,9 +2142,9 @@ try {
           draftKey: `extension:${userId}:${alphaId}:new`,
         })
     )
-  } else if (group !== 'access')
+  } else if (group === 'all' || group === 'native' || group === 'composer')
     checks.push({ name: 'Live Mothership send and admission', status: 'skipped', durationMs: 0 })
-  await checkNative(
+  await checkComposer(
     'Another user’s existing workspace fails closed and returns to an authorized workspace',
     async () => {
       await navigate(`${base.origin}/extension/${deniedId}`)
@@ -1158,7 +2155,7 @@ try {
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
-  await checkNative(
+  await checkComposer(
     'Organization default landing binds page-only submissions to the organization',
     async () => {
       await seedViewerOrganization()
@@ -1167,7 +2164,11 @@ try {
         .poll(() => new URL(frame().url()).pathname)
         .toBe(`/extension/o/${organizationId}`)
       await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await screenshot('organization-new-chat')
+      await setPanelViewport(320, 844)
+      await screenshot('organization-microphone-320')
+      await setPanelViewport(390, 844)
       await capture()
       await expect(attachments()).toHaveCount(1)
       let submitted: unknown
@@ -1208,7 +2209,9 @@ try {
     }
   )
   const setActiveOrganization = async () => {
-    const active = await browserContext.request.post(
+    const active = await fixtureRequest(
+      browserContext,
+      'POST',
       `${base.origin}/api/auth/organization/set-active`,
       {
         headers: { origin: base.origin },
@@ -1217,7 +2220,7 @@ try {
     )
     assert.equal(active.status(), 200)
   }
-  await checkNative(
+  await checkComposer(
     'A shared workspace returns to the viewer’s own organization chat',
     async () => {
       await seedHostedWorkspace()
@@ -1242,7 +2245,380 @@ try {
       await screenshot('shared-workspace-organization-navigation')
     }
   )
-  await checkNative(
+  await checkComposer(
+    'A delayed extension handshake lets ordinary and manually attached messages through',
+    async () => {
+      const endpoint = `${base.origin}/api/mothership/chat`
+      const received: Record<string, unknown>[] = []
+      let holdHandshake: Awaited<ReturnType<Page['addInitScript']>> | undefined
+      const openScenario = async () => {
+        await holdHandshake?.dispose()
+        // Rejected sends can recover from this tab's session when the next scenario navigates.
+        await shell.close()
+        panel = await openPanel()
+        shell = panel
+        holdHandshake = await shell.addInitScript(() => {
+          if (window.parent === window) return
+          window.addEventListener(
+            'message',
+            (event) => {
+              const type = event.data?.type
+              if (
+                event.source !== window.parent ||
+                (type !== 'connected' && type !== 'reference-preference')
+              )
+                return
+              const state = document.documentElement.dataset
+              if (type === 'connected') state.heldSession = event.data.sessionId
+              if (state.release === type) state.delivered = type
+              else event.stopImmediatePropagation()
+            },
+            true
+          )
+        })
+        await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        await observeCaptureReceipts()
+        await navigate(`${base.origin}/extension/${betaId}`)
+        await expect(frame().locator('html')).toHaveAttribute('data-held-session', /.+/)
+      }
+      await browserContext.route(endpoint, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        received.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      const input = () => frame().getByRole('textbox', { name: 'Message', exact: true })
+      const release = async (type: 'connected' | 'reference-preference') => {
+        await frame().evaluate(
+          ({ origin, type }) => {
+            const state = document.documentElement.dataset
+            state.release = type
+            parent.postMessage(
+              { channel: 'sim-extension', version: 1, type: 'ready', sessionId: state.heldSession },
+              origin
+            )
+          },
+          { type, origin: `chrome-extension://${extensionId}` }
+        )
+        await expect(frame().locator('html')).toHaveAttribute('data-delivered', type)
+      }
+      try {
+        for (const enabled of [false, true]) {
+          await worker.evaluate(
+            (value) => chrome.storage.local.set({ referenceCurrentPage: value }),
+            enabled
+          )
+          await openScenario()
+          const draft = enabled ? 'This draft needs its page' : 'An ordinary question'
+          await input().fill(draft)
+          if (!enabled) {
+            await release('reference-preference')
+            await input().press('Enter')
+            await expect.poll(() => received.length).toBe(1)
+            assert.equal(received[0].message, draft)
+            assert.equal(submittedPages(received[0]).length, 0)
+            continue
+          }
+          const expectDraftHeld = async () => {
+            await input().press('Enter')
+            await expect(
+              frame().getByText('Connecting to Sim. Try again in a moment.').first()
+            ).toBeVisible()
+            await expect(input()).toHaveValue(draft)
+            assert.equal(received.length, 1)
+          }
+          await expectDraftHeld()
+          await release('reference-preference')
+          await expectDraftHeld()
+
+          await source.bringToFront()
+          await frame().evaluate((origin) => {
+            parent.postMessage(
+              {
+                channel: 'sim-extension',
+                version: 1,
+                type: 'action',
+                action: 'capture-page',
+                sessionId: document.documentElement.dataset.heldSession,
+              },
+              origin
+            )
+          }, `chrome-extension://${extensionId}`)
+          await expect(attachments()).toHaveCount(1)
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(2)
+          const pages = submittedPages(received[1])
+          assert.equal(pages.length, 1)
+          assert(pages[0].text.includes('ORCHID-482'))
+        }
+        await openScenario()
+        await release('connected')
+        await input().fill('A question from an older extension')
+        await input().press('Enter')
+        await expect.poll(() => received.length).toBe(3)
+        assert.equal(received[2].message, 'A question from an older extension')
+        assert.equal(submittedPages(received[2]).length, 0)
+      } finally {
+        await holdHandshake?.dispose()
+        await worker.evaluate(() => chrome.storage.local.remove('referenceCurrentPage'))
+        await browserContext.unroute(endpoint)
+      }
+    }
+  )
+  await checkComposer(
+    'Reference current page captures the active tab only on Send and preserves denied drafts in both composers',
+    async () => {
+      const endpoint = `${base.origin}/api/mothership/chat`
+      const received: Record<string, unknown>[] = []
+      const second = await openPage()
+      await second.goto(`${fixtureOrigin}/reference-second?private=DO_NOT_SEND#private`)
+      await second.locator('article p').evaluate((el) => {
+        el.textContent = 'Second active tab: JADE-231.'
+      })
+      const restricted = await openPage()
+      await restricted.goto(`http://ungranted.localhost:${fixtureAddress.port}/denied`)
+      await browserContext.route(endpoint, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        received.push(toRecord(route.request().postDataJSON()))
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
+      })
+      const preference = () =>
+        frame().getByRole('menuitemcheckbox', { name: 'Reference current page' })
+      const setReference = async (enabled: boolean) => {
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).press('Enter')
+        await expect(preference()).toBeVisible()
+        if ((await preference().getAttribute('aria-checked')) !== String(enabled)) {
+          await preference().press('Enter')
+        } else await preference().press('Escape')
+        const globe = frame().getByRole('button', { name: 'Attach current page', exact: true })
+        if (enabled) await expect(globe).toHaveText('Current page')
+        else await expect(globe).not.toHaveText('Current page')
+      }
+      const openScenario = async (target: string, name: string) => {
+        scenario = name
+        phase = 'opening'
+        await shell.close()
+        panel = await openPanel()
+        shell = panel
+        await setPanelViewport(320, 844)
+        await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        await observeCaptureReceipts()
+        await navigate(base.origin + target)
+        await expect(
+          frame().getByRole('heading', { name: 'How can I help?', exact: true })
+        ).toBeVisible()
+        await setReference(true)
+      }
+      try {
+        for (const org of [false, true]) {
+          const target = org ? `/extension/o/${organizationId}` : `/extension/${alphaId}`
+          const input = () =>
+            frame().getByRole('textbox', { name: org ? 'Ask Sim' : 'Message', exact: true })
+          await openScenario(target, `${org ? 'organization' : 'workspace'}-reference`)
+          await expect(input()).toBeVisible()
+          await input().fill('Summarize the current page')
+          const submit = frame().getByRole('button', {
+            name: org ? 'Send' : 'Send message',
+            exact: true,
+          })
+          await submit.click({ trial: true })
+          await screenshot(`reference-${org ? 'organization' : 'workspace'}-enabled-320`)
+          await second.bringToFront()
+          let count = received.length
+          phase = 'send'
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(count + 1)
+          const pages = submittedPages(received[count])
+          assert.equal(pages.length, 1)
+          assert.equal(pages[0].url, `${fixtureOrigin}/reference-second`)
+          assert(pages[0].text.includes('JADE-231') && !pages[0].text.includes('ORCHID-482'))
+          assert.equal(
+            received[count][org ? 'organizationId' : 'workspaceId'],
+            org ? organizationId : alphaId
+          )
+
+          await openScenario(target, `${org ? 'organization' : 'workspace'}-manual`)
+          await expect(input()).toBeVisible()
+          await capture()
+          await second.bringToFront()
+          await input().fill('Compare the attached snapshot')
+          count = received.length
+          phase = 'send'
+          await input().press('Enter')
+          await expect.poll(() => received.length).toBe(count + 1)
+          const manual = submittedPages(received[count])
+          assert.equal(manual.length, 1)
+          assert(manual[0].text.includes('ORCHID-482') && !manual[0].text.includes('JADE-231'))
+
+          for (const gesture of ['keyboard', 'mouse'] as const) {
+            await openScenario(target, `${org ? 'organization' : 'workspace'}-denied-${gesture}`)
+            await expect(input()).toBeVisible()
+            await restricted.bringToFront()
+            const draft = 'Keep this draft if access is unavailable'
+            await input().fill(draft)
+            count = received.length
+            phase = `denied-${gesture}-send`
+            if (gesture === 'keyboard') await input().press('Enter')
+            else
+              await frame()
+                .getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
+                .click()
+            await expect(
+              shell.getByRole('button', { name: 'Allow across websites', exact: true })
+            ).toBeEnabled()
+            await expect(input()).toHaveValue(draft)
+            await expect
+              .poll(() => input().evaluate((element) => Boolean(element.closest('[inert]'))))
+              .toBe(false)
+            assert.equal(received.length, count)
+            assert(
+              await frame().evaluate(() => document.hasFocus()),
+              `The denied ${gesture} send must keep the chat document focused`
+            )
+            await expect(input()).toBeFocused()
+            await shell.keyboard.type(' Continue typing after the denied capture.')
+            await expect(input()).toHaveValue(`${draft} Continue typing after the denied capture.`)
+            assert.equal(received.length, count)
+            await screenshot(`reference-${org ? 'organization' : 'workspace'}-denied-${gesture}`)
+            const accessNotice = await shell
+              .getByRole('status')
+              .first()
+              .evaluate((status) => status.firstChild?.textContent?.trim())
+            assert(accessNotice)
+            assert.equal(
+              await frame().getByText(accessNotice, { exact: true }).count(),
+              0,
+              'Access guidance covered the composer twice'
+            )
+            await setReference(false)
+            phase = 'opt-out-send'
+            await input().press('Enter')
+            await expect.poll(() => received.length).toBe(count + 1)
+            assert.equal(submittedPages(received[count]).length, 0)
+          }
+        }
+      } finally {
+        await browserContext.unroute(endpoint)
+        await restricted.close()
+        await second.close()
+        await setPanelViewport(390, 844)
+        await source.bringToFront()
+      }
+    }
+  )
+  await checkComposer(
+    'Pending page reference freezes body file drops in workspace and organization chat',
+    async () => {
+      for (const scope of ['workspace', 'organization'] as const) {
+        await shell.close()
+        panel = await openPanel()
+        shell = panel
+        const captureGate = await installCaptureGate()
+        try {
+          await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+          await observeCaptureReceipts()
+          await navigate(
+            `${base.origin}/extension/${scope === 'workspace' ? alphaId : `o/${organizationId}`}`
+          )
+          await verifyPendingCaptureDrop(scope)
+        } finally {
+          await captureGate.dispose()
+        }
+      }
+    }
+  )
+  await checkComposer(
+    'A screenshot dropped on the workspace or organization chat body uploads once and can be sent by itself',
+    async () => {
+      // A previous rejected send can be restored from tab session storage on navigation.
+      await shell.close()
+      panel = await openPanel()
+      shell = panel
+      await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+      const remote = new URL('/external-drop.png', fixtureOrigin)
+      const remoteRequests: Request[] = []
+      await browserContext.route(remote.href, (route) => {
+        remoteRequests.push(route.request())
+        return route.abort()
+      })
+      const endpoint = `${base.origin}/api/mothership/chat`
+      const submitted: unknown[] = []
+      await browserContext.route(endpoint, (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        submitted.push(route.request().postDataJSON())
+        injectedRequests.add(route.request())
+        return route.fulfill({ status: 403, json: { error: 'QA screenshot admission check' } })
+      })
+      try {
+        for (const surface of ['workspace', 'organization'] as const) {
+          const org = surface === 'organization'
+          await navigate(`${base.origin}/extension/${org ? `o/${organizationId}` : alphaId}`)
+          const greeting = frame().getByRole('heading', { name: 'How can I help?', exact: true })
+          await expect(greeting).toBeVisible()
+          await expect(
+            frame().getByRole('button', { name: /^Remove (?!page context$)/ }),
+            `${surface}: screenshot scenario starts without a previous file draft`
+          ).toHaveCount(0)
+          let release = () => {}
+          const gate = new Promise<void>((resolve) => {
+            release = resolve
+          })
+          await browserContext.route(isUploadCompletion, async (route) => {
+            await gate
+            await route.continue()
+          })
+          const input = frame().getByRole('textbox', {
+            name: org ? 'Ask Sim' : 'Message',
+            exact: true,
+          })
+          await input.fill('')
+          const count = submitted.length
+          const verifyPending = async () => {
+            try {
+              await shell.waitForRequest(
+                (request) =>
+                  request.method() === 'POST' && isUploadCompletion(new URL(request.url()))
+              )
+              await input.press('Enter')
+              await expect(
+                frame().getByRole('button', { name: org ? 'Send' : 'Send message', exact: true })
+              ).toBeDisabled()
+              assert.equal(submitted.length, count, 'A pending upload triggered a chat send')
+            } finally {
+              release()
+            }
+          }
+          const [key] = await Promise.all([attachScreenshot(greeting), verifyPending()]).finally(
+            () => {
+              release()
+              return browserContext.unroute(isUploadCompletion)
+            }
+          )
+          await screenshot(org ? 'organization-dropped-screenshot' : 'workspace-dropped-screenshot')
+          await dropOnChat(shell, input, {
+            text: remote.href,
+            html: `<img src="${remote.href}">`,
+            uri: remote.href,
+          })
+          await expect(input).toHaveValue('')
+          await input.press('Enter')
+          await expect.poll(() => submitted.length).toBe(count + 1)
+          const body = toRecord(submitted[count])
+          assert.equal(body.message, '')
+          assert.equal(body[org ? 'organizationId' : 'workspaceId'], org ? organizationId : alphaId)
+          assert(Array.isArray(body.fileAttachments) && body.fileAttachments.length === 1)
+          assert.equal(toRecord(body.fileAttachments[0]).key, key)
+          assert.equal(toRecord(body.fileAttachments[0]).media_type, 'image/png')
+        }
+        assert.equal(remoteRequests.length, 0, 'Dropping a web image URL fetched its source')
+      } finally {
+        await browserContext.unroute(remote.href)
+        await browserContext.unroute(endpoint)
+      }
+    }
+  )
+  await checkComposer(
     'A first-open toolbar capture survives authenticated organization landing',
     async () => {
       await source.bringToFront()
@@ -1280,7 +2656,7 @@ try {
       await screenshot('organization-first-open-capture')
     }
   )
-  await checkNative('The current-page shortcut attaches in both shared composers', async () => {
+  await checkComposer('The current-page shortcut attaches in both shared composers', async () => {
     for (const path of [`/extension/${alphaId}`, `/extension/o/${organizationId}`]) {
       await navigate(`${base.origin}${path}`)
       await expect(attachments()).toHaveCount(0)
@@ -1299,7 +2675,7 @@ try {
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
     }
   })
-  await checkNative(
+  await checkComposer(
     'Large attachment stacks keep the composer reachable without nested desktop scrolling',
     async () => {
       const names = Array.from(
@@ -1411,7 +2787,7 @@ try {
     }
   )
   if (liveChat) {
-    await checkNative(
+    await checkComposer(
       'Organization live admission preserves queued pages, files, and the admitted conversation mode',
       () =>
         verifyLiveChat({
@@ -1423,13 +2799,67 @@ try {
         })
     )
   }
+  await checkComposer(
+    'Page controls stay reachable above a long organization workspace list',
+    async () => {
+      assert(userId)
+      const projectId = generateId()
+      await sql`insert into project (id, name, owner_id, organization_id)
+      values (${projectId}, 'Menu QA project', ${userId}, ${organizationId})`
+      try {
+        const workspaces =
+          await sql`update workspace set organization_id = ${organizationId}, project_id = ${projectId}
+        where project_id = ${alphaId} and name like 'Extension QA workspace %' returning id`
+        assert.equal(workspaces.length, 24)
+        await setPanelViewport(320, 640)
+        await navigate(`${base.origin}/extension/o/${organizationId}`)
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
+        const rows = frame().getByRole('menuitem', { name: /^Extension QA workspace / })
+        await expect(rows).toHaveCount(workspaces.length)
+        const toggle = frame().getByRole('menuitemcheckbox', { name: 'Reference current page' })
+        await expect(toggle).toBeInViewport({ ratio: 1 })
+        await rows.last().scrollIntoViewIfNeeded()
+        await expect(rows.first()).not.toBeInViewport()
+        await expect(toggle).toBeInViewport({ ratio: 1 })
+        await screenshot('page-controls-many-workspaces')
+        const checked = (await toggle.getAttribute('aria-checked')) === 'true'
+        await toggle.click()
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
+        await expect(toggle).toHaveAttribute('aria-checked', String(!checked))
+        const search = frame().getByPlaceholder('Search resources')
+        await search.press('ArrowDown')
+        await expect(
+          frame().getByRole('menuitem', { name: 'Current page', exact: true })
+        ).toBeFocused()
+        await shell.keyboard.press('ArrowDown')
+        await expect(
+          frame().getByRole('menuitem', { name: 'Selected text', exact: true })
+        ).toBeFocused()
+        await shell.keyboard.press('ArrowDown')
+        await expect(toggle).toBeFocused()
+        await shell.keyboard.press('Tab')
+        await expect(toggle).not.toBeVisible()
+        await setPanelViewport(320, 240)
+        await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
+        await expect(toggle).toHaveAttribute('aria-checked', String(checked))
+        await rows.last().scrollIntoViewIfNeeded()
+        await expect(rows.last()).toBeInViewport({ ratio: 1 })
+        await screenshot('page-controls-short-panel')
+        await rows.last().press('Escape')
+      } finally {
+        await sql`update workspace set organization_id = null, project_id = ${alphaId} where project_id = ${projectId}`
+        await sql`delete from project where id = ${projectId}`
+        await setPanelViewport(390, 844)
+      }
+    }
+  )
   if (group === 'access') {
     await seedViewerOrganization()
     await seedOtherOrganization()
     await seedHostedWorkspace()
     await setActiveOrganization()
   }
-  if (group !== 'native' && !liveChat) {
+  if ((group === 'all' || group === 'access') && !liveChat) {
     // Install timers before app code in a fresh context; live provider checks keep native timing.
     await browserContext.close()
     context = await launchBrowserContext()
@@ -1460,7 +2890,7 @@ try {
         return animation
       }
     })
-    source = await browserContext.newPage()
+    source = await openPage()
     await source.goto(`${fixtureOrigin}/page?private=QUERY_SECRET#FRAGMENT_SECRET`)
     await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
     await observeCaptureReceipts()
@@ -1491,7 +2921,9 @@ try {
           await input.fill('Keep text, but discard the page when Chat access is revoked.')
           await expect(attachments()).toHaveCount(1)
           await shell.bringToFront()
-          const discovery = await browserContext.request.get(
+          const discovery = await fixtureRequest(
+            browserContext,
+            'GET',
             `${base.origin}/api/access-requests/discovery?kind=workspace&workspaceId=${hostedWorkspaceId}&targetKind=feature`
           )
           assert.equal(discovery.status(), 200)
@@ -1499,7 +2931,9 @@ try {
           await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
             values (${permissionGroupId}, ${otherOrganizationId}, 'Revoked Chat access',
             ${sql.json({ hideCopilot: true })}, ${otherUserId}, true)`
-          const policy = await browserContext.request.get(
+          const policy = await fixtureRequest(
+            browserContext,
+            'GET',
             `${base.origin}/api/permission-groups/user?workspaceId=${hostedWorkspaceId}`
           )
           assert.equal(policy.status(), 200)
@@ -1569,7 +3003,16 @@ try {
       await attachments().first().getByRole('button', { name: 'Remove page context' }).click()
       await capture('shortcut')
       await expect(attachments()).toHaveCount(1)
+      const droppedImage = !liveChat
+        ? await attachScreenshot(
+            frame().getByRole('heading', { name: 'How can I help?', exact: true })
+          )
+        : undefined
+      await expect(frame().getByRole('button', { name: 'Voice input', exact: true })).toBeVisible()
       await screenshot('organization-assistant-page')
+      await setPanelViewport(320, 844)
+      await screenshot('assistant-microphone-320')
+      await setPanelViewport(390, 844)
       if (!liveChat)
         await shell.route('**/api/mothership/chat', (route) =>
           route.fulfill({ status: 403, json: { error: 'QA submission boundary' } })
@@ -1583,6 +3026,10 @@ try {
       )
       await input.press('Enter')
       const body = toRecord((await submitted).postDataJSON())
+      if (droppedImage) {
+        assert(Array.isArray(body.fileAttachments) && body.fileAttachments.length === 1)
+        assert.equal(toRecord(body.fileAttachments[0]).key, droppedImage)
+      }
       assert.equal(body.mode, 'assistant')
       assert.equal(body.organizationId, organizationId)
       assert.equal(body.workspaceId, undefined)
@@ -1616,6 +3063,27 @@ try {
         ).toBeVisible({ timeout: 120_000 })
         await screenshot('organization-assistant-response')
       } else await shell.unroute('**/api/mothership/chat')
+    }
+  )
+  await checkAccess(
+    'Restricted Assistant freezes body file drops while a page reference is pending',
+    async () => {
+      await shell.close()
+      panel = await openPanel()
+      shell = panel
+      if (!liveChat) await shell.clock.install()
+      const captureGate = await installCaptureGate()
+      try {
+        await shell.goto(`chrome-extension://${extensionId}/sidepanel.html`)
+        await observeCaptureReceipts()
+        await navigate(`${base.origin}/extension/o/${organizationId}`)
+        await expect(
+          frame().getByRole('button', { name: 'Attach image', exact: true })
+        ).toBeVisible()
+        await verifyPendingCaptureDrop('assistant')
+      } finally {
+        await captureGate.dispose()
+      }
     }
   )
   await checkAccess(
@@ -1732,6 +3200,10 @@ try {
             'A transient workspace-list refetch unmounted the picker'
           )
           assert.equal(await scroller.evaluate((element) => element.scrollTop), scrollTop)
+          await expect(choices.getByRole('link').last()).toHaveAttribute(
+            'href',
+            `/extension/${alphaId}`
+          )
           await screenshot('workspace-picker-refetch-outage')
           await choices.getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
           await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
@@ -1752,22 +3224,38 @@ try {
       }
     })
   }
-  await checkAccess('An initial workspace-list 401 opens sign-in recovery', async () => {
-    await browserContext.route(workspaceListUrl, async (route) => {
-      injectedRequests.add(route.request())
-      await route.fulfill({ status: 401, json: { error: 'QA workspace-list session expired' } })
-    })
-    try {
-      await navigate(`${base.origin}/extension`)
-      await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
-      await expect(
-        frame().getByRole('navigation', { name: 'Workspaces', exact: true })
-      ).toHaveCount(0)
-      await screenshot('workspace-picker-initial-session-expired')
-    } finally {
-      await browserContext.unroute(workspaceListUrl)
+  await checkAccess(
+    'An initial workspace-list 401 recovers when the same user returns',
+    async () => {
+      await browserContext.route(workspaceListUrl, async (route) => {
+        injectedRequests.add(route.request())
+        await route.fulfill({ status: 401, json: { error: 'QA workspace-list session expired' } })
+      })
+      try {
+        await navigate(`${base.origin}/extension`)
+        await expect(frame().getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
+        await expect(
+          frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+        ).toHaveCount(0)
+        await screenshot('workspace-picker-initial-session-expired')
+      } finally {
+        await browserContext.unroute(workspaceListUrl)
+      }
+      const returnedFrom = await openPage()
+      try {
+        await returnedFrom.goto(`${fixtureOrigin}/page`)
+        await returnedFrom.bringToFront()
+      } finally {
+        await returnedFrom.close()
+      }
+      await shell.bringToFront()
+      const choices = frame().getByRole('navigation', { name: 'Workspaces', exact: true })
+      await expect(choices).toBeVisible()
+      await screenshot('workspace-picker-session-restored')
+      await choices.getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
+      await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
-  })
+  )
   await checkAccess(
     'Transient session, workspace, and permission-policy refetch failures preserve the mounted composer and page draft',
     async () => {
@@ -1886,10 +3374,15 @@ try {
     'Signing out removes authenticated chat and captured page context',
     async () => {
       await capture()
-      const response = await browserContext.request.post(`${base.origin}/api/auth/sign-out`, {
-        headers: { origin: base.origin },
-        data: {},
-      })
+      const response = await fixtureRequest(
+        browserContext,
+        'POST',
+        `${base.origin}/api/auth/sign-out`,
+        {
+          headers: { origin: base.origin },
+          data: {},
+        }
+      )
       assert.equal(response.status(), 200)
       await shell.clock.setFixedTime(Date.now() + 360_000)
       await reconnect()
@@ -1915,9 +3408,9 @@ try {
       name: 'Suite setup',
       status: 'failed',
       durationMs: 0,
-      error: getErrorMessage(error),
+      error: reportError(error),
     })
-  logger.error('Browser acceptance failed', { error: getErrorMessage(error) })
+  logger.error('Browser acceptance failed', { error: reportError(error) })
   pendingAtFailure = [...pendingRequests].map((request) => ({
     path: new URL(request.url()).pathname,
     method: request.method(),
@@ -1961,16 +3454,20 @@ try {
   const cleanup =
     group === 'access'
       ? cleanupFixtures()
-      : checkNative('Disposable database fixtures are removed', cleanupFixtures)
+      : check(
+          group === 'navigation' ? 'navigation' : 'composer',
+          'Disposable database fixtures are removed',
+          cleanupFixtures
+        )
   await cleanup.catch((error) => {
     if (group === 'access')
       checks.push({
         name: 'Fixture cleanup',
         status: 'failed',
         durationMs: 0,
-        error: getErrorMessage(error),
+        error: reportError(error),
       })
-    logger.error('Fixture cleanup failed', { error: getErrorMessage(error) })
+    logger.error('Fixture cleanup failed', { error: reportError(error) })
     process.exitCode = 1
   })
   await sql.end()
@@ -1984,11 +3481,17 @@ try {
         checks,
         screenshots,
         browserErrors,
+        voiceDiagnostics,
+        signInRecoveryReceipts,
         failedRequests,
         pendingRequests: pendingAtFailure,
         failureState,
         httpErrors,
         chatResponses,
+        chatAttempts,
+        dropReceipts,
+        uploadRequests,
+        draftRemovalReceipts,
       },
       null,
       2

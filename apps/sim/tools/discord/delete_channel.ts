@@ -2,7 +2,9 @@ import type {
   DiscordDeleteChannelParams,
   DiscordDeleteChannelResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordDeleteChannelTool: ToolConfig<
   DiscordDeleteChannelParams,
@@ -12,6 +14,7 @@ export const discordDeleteChannelTool: ToolConfig<
   name: 'Discord Delete Channel',
   description: 'Delete a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -28,7 +31,7 @@ export const discordDeleteChannelTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -36,7 +39,7 @@ export const discordDeleteChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordDeleteChannelParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -2,15 +2,16 @@
 title: Flint
 description: Run background agent tasks on your Flint sites
 integration:
-  type: "flint"
+  type: "flint_v2"
   color: "#F6F54F"
 ---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Flint](https://www.flint.com/) in Sim to start site changes from a natural-language prompt, generate up to 10 pages from a template, and check task status. Create an API key in your Flint team settings. Leave publishing off when changes need review, then use **Get Task** to collect preview URLs and the list of created, modified, or deleted pages. Poll the task until it finishes and inspect its error if it fails.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -22,11 +23,12 @@ Create background agent tasks that modify your Flint sites from natural-language
 
 Start a background Flint agent task that modifies a site from a natural-language prompt.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 | `siteId` | string | Yes | ID of the Flint site the agent should modify |
 | `prompt` | string | Yes | Natural-language instructions for the agent \(e.g., "Add a new About page with a team section"\) |
 | `callbackUrl` | string | No | HTTPS webhook URL that Flint will POST to when the task completes or fails |
@@ -40,15 +42,18 @@ Start a background Flint agent task that modifies a site from a natural-language
 | `status` | string | Initial task status \(running\) |
 | `createdAt` | string | ISO 8601 timestamp when the task was created |
 
+</ReferenceDetails>
+
 ### Flint Generate Pages
 
 Start a background Flint agent task that generates up to 10 pages from a template page.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 | `siteId` | string | Yes | ID of the Flint site the agent should modify |
 | `templatePageSlug` | string | Yes | Slug of the existing template page to generate from \(e.g., /case-studies/template\) |
 | `items` | array | Yes | JSON array of 1-10 pages to generate. Each item requires targetPageSlug \(slug for the new page\) and context \(content details the agent should use\). |
@@ -63,15 +68,18 @@ Start a background Flint agent task that generates up to 10 pages from a templat
 | `status` | string | Initial task status \(running\) |
 | `createdAt` | string | ISO 8601 timestamp when the task was created |
 
+</ReferenceDetails>
+
 ### Flint Get Task
 
 Get the status and results of a background Flint agent task.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Flint API key \(found in Flint team settings, starts with ak_\) |
 | `taskId` | string | Yes | Identifier of the task returned when it was created \(e.g., bg-...\) |
 
 #### Output
@@ -84,5 +92,7 @@ Get the status and results of a background Flint agent task.
 | `pagesModified` | array | Pages modified by the task \(populated when completed\) |
 | `pagesDeleted` | array | Pages deleted by the task \(populated when completed\) |
 | `errorMessage` | string | Error message when the task failed |
+
+</ReferenceDetails>
 
 

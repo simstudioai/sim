@@ -19,18 +19,27 @@ export function TableOfContents({ headings, active, compact = false }: TableOfCo
       {headings.map(({ id, title, depth }) => (
         <li key={id}>
           <a
-            href={`#${id}`}
+            href={`#${encodeURIComponent(id)}`}
             aria-current={active === id ? 'location' : undefined}
             onClick={(event) => {
+              if (
+                event.defaultPrevented ||
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
               const details = event.currentTarget.closest('details')
               if (details) details.open = false
             }}
             className={cn(
-              'dark:-mx-2 block rounded-md pointer-coarse:py-3 text-docs-control leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 dark:px-2 dark:hover:bg-[var(--docs-hover)]',
+              'dark:-mx-2 block rounded-md pointer-coarse:py-3 text-docs-control leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-[var(--docs-link)] focus-visible:outline-offset-2 dark:px-2',
               depth > 2 && 'pl-3 dark:pl-5',
               active === id
-                ? 'text-[var(--docs-toc-current)] dark:underline dark:underline-offset-[3px]'
-                : 'text-[var(--docs-muted)] hover:text-[var(--docs-heading)] dark:hover:text-[var(--docs-muted)]'
+                ? 'text-[var(--docs-toc-current)] underline underline-offset-[3px]'
+                : 'text-[var(--docs-muted)]'
             )}
           >
             {title}
@@ -40,7 +49,16 @@ export function TableOfContents({ headings, active, compact = false }: TableOfCo
     </ul>
   )
   return compact ? (
-    <details className='group relative min-w-0'>
+    <details
+      className='group relative min-w-0'
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !event.currentTarget.open) return
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.open = false
+        event.currentTarget.querySelector('summary')?.focus()
+      }}
+    >
       <summary className='flex min-h-11 list-none items-center gap-2 text-docs-control [&::-webkit-details-marker]:hidden'>
         On this page
         <ChevronDown className='size-4 transition-transform group-open:rotate-180' />

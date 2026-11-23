@@ -15,7 +15,6 @@ import {
   apiClientRequestMock,
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
-import { sleep } from '@sim/utils/helpers'
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -271,9 +270,9 @@ describe('useWorkspaceFileContent stale storage key', () => {
     const { queryClient, unmount } = renderContentHook()
     const refetchQueries = vi.spyOn(queryClient, 'refetchQueries')
 
-    await act(async () => {
-      await sleep(50)
-    })
+    await vi.waitFor(() => expect(refetchQueries).toHaveBeenCalled())
+    // Settled, so a fetch or refetch that would follow the first one has had its chance to show.
+    await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
     expect(fetchCount).toBe(1)
     expect(refetchQueries).toHaveBeenCalledWith(
@@ -368,11 +367,8 @@ describe('useWorkspaceFileContent while a superseded key is being re-resolved', 
       })
     )
     const { getResult, resolveRecord, unmount } = renderDuringRecovery()
-    await act(async () => {
-      await sleep(50)
-    })
-
-    expect(getResult().error).not.toBeNull()
+    // The record re-resolve stays held open, so this error can only be the surfaced failure.
+    await vi.waitFor(() => expect(getResult().error).not.toBeNull())
     resolveRecord()
     unmount()
   })

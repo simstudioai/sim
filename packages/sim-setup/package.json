@@ -48,8 +48,8 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@clack/prompts": "1.7.0",
-    "@next/env": "16.4.1",
+    "@clack/prompts": "1.8.1",
+    "@next/env": "16.4.5",
     "@sim/deployment-config": "workspace:*",
     "@sim/security": "workspace:*",
     "@sim/tsconfig": "workspace:*",
@@ -58,6 +58,6 @@
     "chalk": "5.6.2",
     "postgres": "^3.4.5",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.1.0"
   }
 }

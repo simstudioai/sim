@@ -14,9 +14,9 @@ function profile(fields: Partial<MemberProfileFields>): MemberProfileFields {
   }
 }
 
-const ada = { memberId: 'm-ada', email: 'ada@example.com', profile: null, active: true }
-const bo = { memberId: 'm-bo', email: 'bo@example.com', profile: null, active: true }
-const cy = { memberId: 'm-cy', email: 'cy@example.com', profile: null, active: true }
+const ada = { memberId: 'm-ada', email: 'ada@example.com', profile: null }
+const bo = { memberId: 'm-bo', email: 'bo@example.com', profile: null }
+const cy = { memberId: 'm-cy', email: 'cy@example.com', profile: null }
 
 function plan(
   headers: string[],
@@ -330,33 +330,8 @@ describe('planPeopleImport', () => {
     expect(result.issues).toEqual([expect.objectContaining({ row: 2, severity: 'skipped' })])
   })
 
-  it('follows a suspended manager when checking for loops, but never matches them', () => {
-    const suspended = {
-      memberId: 'm-sus',
-      email: 'sus@example.com',
-      active: false,
-      profile: profile({ managerMemberId: 'm-ada' }),
-    }
-    const reportsToSuspended = { ...bo, profile: profile({ managerMemberId: 'm-sus' }) }
-    const result = plan(
-      ['email', 'manager email'],
-      [
-        { email: 'ada@example.com', 'manager email': 'bo@example.com' },
-        { email: 'cy@example.com', 'manager email': 'sus@example.com' },
-        { email: 'sus@example.com', 'manager email': '' },
-      ],
-      [ada, reportsToSuspended, cy, suspended]
-    )
-    expect(result.changes).toEqual([])
-    expect(result.issues.map((issue) => [issue.row, issue.severity])).toEqual([
-      [2, 'warning'],
-      [3, 'warning'],
-      [4, 'skipped'],
-    ])
-  })
-
   it('refuses an address two members share once case and spaces are ignored', () => {
-    const twin = { memberId: 'm-twin', email: ' ADA@example.com', profile: null, active: true }
+    const twin = { memberId: 'm-twin', email: ' ADA@example.com', profile: null }
     const result = plan(
       ['email', 'title', 'manager email'],
       [

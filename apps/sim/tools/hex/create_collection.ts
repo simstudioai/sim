@@ -1,4 +1,6 @@
 import type { HexCreateCollectionParams, HexCreateCollectionResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createCollectionTool: ToolConfig<
@@ -9,8 +11,10 @@ export const createCollectionTool: ToolConfig<
   name: 'Hex Create Collection',
   description: 'Create a new collection in the Hex workspace to organize projects.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -32,7 +36,7 @@ export const createCollectionTool: ToolConfig<
   },
 
   request: {
-    url: 'https://app.hex.tech/api/v1/collections',
+    url: (params) => `${hexApiBase(params.host)}/collections`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

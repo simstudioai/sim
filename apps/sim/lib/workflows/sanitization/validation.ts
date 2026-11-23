@@ -70,6 +70,8 @@ export function sanitizeAgentToolsInBlocks(blocks: Record<string, BlockState>): 
       if (!toolsSubBlock) continue
 
       let value = toolsSubBlock.value
+      // No value is no tools: canvas creation and a source agent without tools both store it.
+      if (value === null || value === undefined) continue
 
       // Parse legacy string format
       if (typeof value === 'string') {

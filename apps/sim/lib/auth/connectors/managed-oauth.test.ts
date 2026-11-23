@@ -9,18 +9,19 @@ const ATLASSIAN_SCOPES = ['read:me', 'read:jira-work', 'offline_access']
 
 describe('Atlassian managed OAuth connector', () => {
   it('uses the existing connector callback contract and verifies the current account', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          account_type: 'atlassian',
-          account_id: 'account-1',
-          email: 'person@example.com',
-          name: 'Person',
-          picture: 'https://example.com/avatar.png',
-          account_status: 'active',
-        }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      )
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            account_type: 'atlassian',
+            account_id: 'account-1',
+            email: 'person@example.com',
+            name: 'Person',
+            picture: 'https://example.com/avatar.png',
+            account_status: 'active',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
     )
     vi.stubGlobal('fetch', fetchMock)
     const connector = createAtlassianManagedOAuthConnector('jira')
@@ -60,18 +61,76 @@ describe('Atlassian managed OAuth connector', () => {
     })
   })
 
+  const ATLASSIAN_PROFILE = {
+    account_type: 'atlassian',
+    account_id: 'account-1',
+    email: 'person@example.com',
+    account_status: 'active',
+  }
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  function stubAtlassian(sites: () => Response) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url === 'https://api.atlassian.com/me' ? json(ATLASSIAN_PROFILE) : sites()
+      )
+    )
+  }
+  const verify = (provider: 'jira' | 'confluence' = 'confluence') =>
+    createAtlassianManagedOAuthConnector(provider).verifyIdentity({
+      tokens: { tokenType: 'Bearer', accessToken: 'access-1', scopes: ATLASSIAN_SCOPES },
+      clientId: 'client-1',
+    })
+
+  it('records the sites the grant reaches, so an added site is visible', async () => {
+    stubAtlassian(() =>
+      json([
+        { id: 'cloud-1', name: 'Acme', url: 'https://acme.example.net', scopes: [] },
+        { id: 'cloud-2', name: 'Beta', url: 'https://beta.example.net/', scopes: [] },
+        { id: 'cloud-3', name: 'Insecure', url: 'http://insecure.example.net' },
+        { id: 'cloud-4', url: 'https://unnamed.example.net' },
+      ])
+    )
+
+    expect((await verify()).sites).toEqual([
+      { name: 'Acme', url: 'https://acme.example.net' },
+      { name: 'Beta', url: 'https://beta.example.net' },
+    ])
+  })
+
+  it.each([
+    ['an error status', () => json({ message: 'unavailable' }, 503)],
+    [
+      'a network failure',
+      () => {
+        throw new TypeError('fetch failed')
+      },
+    ],
+    ['a malformed body', () => json({ sites: 'nope' })],
+  ])('still connects without a site list after %s', async (_name, sites) => {
+    stubAtlassian(sites)
+    const identity = await verify('jira')
+    expect(identity).toMatchObject({ providerSubjectId: 'account-1' })
+    expect(identity.sites).toBeUndefined()
+  })
+
   it('fails closed for an inactive or incomplete Atlassian identity', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            account_type: 'atlassian',
-            account_id: 'account-1',
-            account_status: 'inactive',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        )
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              account_type: 'atlassian',
+              account_id: 'account-1',
+              account_status: 'inactive',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
       )
     )
     const connector = createAtlassianManagedOAuthConnector('confluence')
@@ -276,6 +335,8 @@ describe('userinfo-backed managed OAuth connectors', () => {
           type: 'user',
           user: { id: 'user-1', name: 'Person', person: { email: 'person@example.com' } },
         },
+        workspace_id: 'workspace-1',
+        workspace_name: 'Engineering',
       },
     })
 
@@ -286,6 +347,7 @@ describe('userinfo-backed managed OAuth connectors', () => {
 
     expect(identity).toMatchObject({
       providerSubjectId: 'user-1',
+      providerTenantId: 'workspace-1',
       email: 'person@example.com',
       emailVerified: true,
     })

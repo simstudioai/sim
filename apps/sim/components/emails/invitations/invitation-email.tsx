@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface InvitationEmailProps {
   inviterName?: string
@@ -18,7 +17,6 @@ export function InvitationEmail({
   organizationName = 'an organization',
   inviteLink = '',
 }: InvitationEmailProps) {
-  const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
   let enhancedLink = inviteLink
@@ -37,13 +35,13 @@ export function InvitationEmail({
 
   return (
     <EmailLayout
-      preview={`You've been invited to join ${organizationName} on ${brand.name}`}
+      preview={`You've been invited to join ${organizationName} on Sim`}
       showUnsubscribe={false}
     >
       <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         <EmailStrong>{inviterName}</EmailStrong> invited you to join{' '}
-        <EmailStrong>{organizationName}</EmailStrong> on {brand.name}.
+        <EmailStrong>{organizationName}</EmailStrong> on Sim.
       </Text>
 
       <EmailButton href={enhancedLink}>Accept Invitation</EmailButton>

@@ -1,9 +1,12 @@
 import { InfisicalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 export const InfisicalBlock: BlockConfig = {
   type: 'infisical',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'infisical_v2' },
   name: 'Infisical',
   description: 'Manage secrets with Infisical',
   longDescription: 'List, get, create, update, and delete secrets across project environments.',
@@ -189,7 +192,7 @@ export const InfisicalBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `infisical_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {
           apiKey: params.apiKey,
           projectId: params.projectId,
@@ -199,7 +202,7 @@ export const InfisicalBlock: BlockConfig = {
         if (params.baseUrl) result.baseUrl = params.baseUrl
         if (params.secretPath) result.secretPath = params.secretPath
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'list_secrets':
             if (params.recursive != null) result.recursive = params.recursive
             if (params.includeImports != null) result.includeImports = params.includeImports
@@ -263,6 +266,11 @@ export const InfisicalBlock: BlockConfig = {
       type: 'json',
       description:
         'Secret object from get/create/update/delete operations (id, secretKey, secretValue, secretComment, secretPath, version, type, environment, isRotatedSecret, rotationId, tags, secretMetadata, actor, createdAt, updatedAt)',
+    },
+    approval: {
+      type: 'json',
+      description:
+        'Pending change request (id, policyId, slug, status, hasMerged, folderId, createdAt, updatedAt) returned by create/update/delete instead of the secret when the environment has a secret approval policy',
     },
   },
 }
@@ -364,3 +372,23 @@ export const InfisicalBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const InfisicalV2Block: BlockConfig = {
+  ...InfisicalBlock,
+  type: 'infisical_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'List, get, create, update, and delete secrets across project environments on Infisical Cloud or a self-hosted instance.',
+  ...withSavedCredential(
+    InfisicalBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'infisical',
+      title: 'Infisical Credential',
+    },
+    { required: true }
+  ),
+}

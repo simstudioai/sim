@@ -1,12 +1,47 @@
 import { closeSync, existsSync, fstatSync, openSync, readSync } from 'node:fs'
+import { isRecordLike } from '@sim/utils/object'
 import { CLI_CONTRACT } from '../contract/commands'
-import type { CommandSpec, FlagSpec } from '../contract/types'
+import type { BodyVariantSpec, CommandSpec, FlagSpec } from '../contract/types'
 import { embedStore } from '../embed-context'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { type QueryValue, SimApiError } from '../http/client'
 import { embeddedFileContent } from '../transfer/local-file'
 import { camel, kebab } from './derive'
 import type { OperationSpec } from './types'
+
+const BODY_VARIANT_EXAMPLES: Readonly<Record<BodyVariantSpec['kind'], string>> = {
+  array: `'[{"key":"value"}]'`,
+  object: `'{"key":"value"}'`,
+}
+
+function jsonShape(value: unknown): BodyVariantSpec['kind'] | undefined {
+  if (Array.isArray(value)) return 'array'
+  if (isRecordLike(value)) return 'object'
+  return undefined
+}
+
+/**
+ * The refusal for a body variant given the wrong JSON shape, stating what came
+ * in and the spelling that takes it. Neither `--rows '{"rows":[...]}'` nor a
+ * single-row `--rows` is reshaped, because guessing which part the caller
+ * meant is the server's write to make.
+ */
+function bodyVariantShapeError(
+  variant: BodyVariantSpec,
+  parsed: unknown,
+  shape: BodyVariantSpec['kind'] | undefined,
+  variants: readonly BodyVariantSpec[]
+): string {
+  const flag = `--${variant.name}`
+  const got = shape ? `a JSON ${shape}` : parsed === null ? 'null' : `a JSON ${typeof parsed}`
+  const base = `${flag} must be a JSON ${variant.kind}, e.g. ${flag} ${BODY_VARIANT_EXAMPLES[variant.kind]}; got ${got}.`
+  if (variant.kind === 'array' && isRecordLike(parsed) && Array.isArray(parsed[variant.property])) {
+    return `${base} Pass the array under its "${variant.property}" key itself, not the object wrapping it.`
+  }
+  const other =
+    shape && variants.find((candidate) => candidate !== variant && candidate.kind === shape)
+  return other ? `${base} For that shape use --${other.name}.` : base
+}
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {
@@ -16,6 +51,8 @@ export interface FieldSpec {
   nullable?: true
   values?: readonly string[]
   default?: unknown
+  /** The largest value the API accepts for a numeric field, when the contract bounds it. */
+  maximum?: number
   /** The field's `.describe()` from the route contract, used as `--help` text. */
   describe?: string
 }
@@ -186,7 +223,17 @@ function readArgumentDescriptor(descriptor: number): string {
     chunks.push(Buffer.from(buffer.subarray(0, read)))
   }
 
-  return Buffer.concat(chunks).toString('utf8')
+  return decodeArgumentBytes(Buffer.concat(chunks))
+}
+
+/**
+ * Decodes UTF-8, or UTF-16LE when the bytes start with its byte-order mark, and drops the mark.
+ * Windows PowerShell 5.1 writes `>` redirects as UTF-16LE and `Out-File -Encoding utf8` with a
+ * UTF-8 mark, so a file saved from `sim … > workflow.json` would otherwise not parse as JSON.
+ */
+function decodeArgumentBytes(bytes: Buffer): string {
+  const utf16le = bytes[0] === 0xff && bytes[1] === 0xfe
+  return new TextDecoder(utf16le ? 'utf-16le' : 'utf-8').decode(bytes)
 }
 
 /**
@@ -558,7 +605,7 @@ export async function coerce(
  * floor rather than the wording a caller sees.
  */
 const NO_WORKSPACE_FALLBACK =
-  'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+  'No workspace set. Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --set-workspace <id>'
 
 export interface BuiltRequest {
   /** The values filling the operation's `[param]` path segments, encoded when routed. */
@@ -798,12 +845,12 @@ export async function buildRequest(
       const raw = flags[camel(variant.name)]
       if (typeof raw !== 'string') throw new SimApiError(`--${variant.name} is required`, 0)
       const parsed = await coerce(raw, { kind: variant.kind }, { json: true }, variant.name)
-      if (
-        (variant.kind === 'object' &&
-          (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) ||
-        (variant.kind === 'array' && !Array.isArray(parsed))
-      ) {
-        throw new SimApiError(`--${variant.name} must be a JSON ${variant.kind}`, 0)
+      const shape = jsonShape(parsed)
+      if (shape !== variant.kind) {
+        throw new SimApiError(
+          bodyVariantShapeError(variant, parsed, shape, commandSpec.bodyVariants),
+          0
+        )
       }
       return boundedRequest({
         params,

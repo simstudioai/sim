@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -35,9 +37,9 @@ export const revenueCatHandler: WebhookProviderHandler = {
     const secret = providerConfig.authHeaderSecret as string | undefined
 
     if (!secret) {
-      logger.warn(
-        `[${requestId}] RevenueCat webhook missing Authorization secret in provider configuration`
-      )
+      logger.warn('RevenueCat webhook missing Authorization secret in provider configuration', {
+        requestId,
+      })
       return new NextResponse('Unauthorized - RevenueCat Authorization secret is required', {
         status: 401,
       })
@@ -45,14 +47,14 @@ export const revenueCatHandler: WebhookProviderHandler = {
 
     const authHeader = request.headers.get('authorization')
     if (!authHeader) {
-      logger.warn(`[${requestId}] RevenueCat webhook missing Authorization header`)
+      logger.warn('RevenueCat webhook missing Authorization header', { requestId })
       return new NextResponse('Unauthorized - Missing RevenueCat Authorization header', {
         status: 401,
       })
     }
 
     if (!safeCompare(authHeader, secret)) {
-      logger.warn(`[${requestId}] RevenueCat Authorization header verification failed`)
+      logger.warn('RevenueCat Authorization header verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid RevenueCat Authorization header', {
         status: 401,
       })
@@ -81,13 +83,15 @@ export const revenueCatHandler: WebhookProviderHandler = {
     }
 
     if (!apiKey) {
-      throw new Error(
+      throw new WebhookDeploymentConfigurationError(
         'RevenueCat Secret API key is required to create the webhook. Provide a v2 Secret API key with the project_configuration:integrations:read_write permission.'
       )
     }
 
     if (!projectId) {
-      throw new Error('RevenueCat Project ID is required to create the webhook.')
+      throw new WebhookDeploymentConfigurationError(
+        'RevenueCat Project ID is required to create the webhook.'
+      )
     }
 
     const { REVENUECAT_TRIGGER_TO_API_EVENT_TYPE } = await import('@/triggers/revenuecat/utils')
@@ -106,7 +110,7 @@ export const revenueCatHandler: WebhookProviderHandler = {
       requestBody.environment = environment
     }
 
-    const response = await fetch(
+    const response = await outboundFetch(
       `${REVENUECAT_API_BASE}/projects/${encodeURIComponent(projectId)}/integrations/webhooks`,
       {
         method: 'POST',
@@ -121,8 +125,8 @@ export const revenueCatHandler: WebhookProviderHandler = {
     if (!response.ok) {
       const errorBody = (await response.json().catch(() => ({}))) as Record<string, unknown>
       logger.error(
-        `[${ctx.requestId}] Failed to create RevenueCat webhook for webhook ${ctx.webhook.id}. Status: ${response.status}`,
-        { response: errorBody }
+        `Failed to create RevenueCat webhook for webhook ${ctx.webhook.id}. Status: ${response.status}`,
+        { requestId: ctx.requestId, response: errorBody }
       )
 
       let message = 'Failed to create webhook integration in RevenueCat'
@@ -144,14 +148,15 @@ export const revenueCatHandler: WebhookProviderHandler = {
 
     if (!integrationId) {
       logger.error(
-        `[${ctx.requestId}] RevenueCat webhook created but no integration id was returned for webhook ${ctx.webhook.id}`,
-        { response: responseBody }
+        `RevenueCat webhook created but no integration id was returned for webhook ${ctx.webhook.id}`,
+        { requestId: ctx.requestId, response: responseBody }
       )
       throw new Error('RevenueCat webhook creation succeeded but no integration id was returned')
     }
 
     logger.info(
-      `[${ctx.requestId}] Created RevenueCat webhook integration ${integrationId} for webhook ${ctx.webhook.id}`
+      `Created RevenueCat webhook integration ${integrationId} for webhook ${ctx.webhook.id}`,
+      { requestId: ctx.requestId }
     )
 
     return { providerConfigUpdates: { externalId: integrationId, authHeaderSecret } }
@@ -176,13 +181,14 @@ export const revenueCatHandler: WebhookProviderHandler = {
 
       if (!apiKey || !projectId || !externalId) {
         logger.warn(
-          `[${ctx.requestId}] Missing apiKey/projectId/externalId for RevenueCat webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing apiKey/projectId/externalId for RevenueCat webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing RevenueCat credentials for webhook deletion')
         return
       }
 
-      const response = await fetch(
+      const response = await outboundFetch(
         `${REVENUECAT_API_BASE}/projects/${encodeURIComponent(projectId)}/integrations/webhooks/${encodeURIComponent(externalId)}`,
         {
           method: 'DELETE',
@@ -192,18 +198,22 @@ export const revenueCatHandler: WebhookProviderHandler = {
 
       if (!response.ok && response.status !== 404) {
         const errorBody = await response.json().catch(() => ({}))
-        logger.warn(
-          `[${ctx.requestId}] Failed to delete RevenueCat webhook (non-fatal): ${response.status}`,
-          { response: errorBody }
-        )
+        logger.warn(`Failed to delete RevenueCat webhook (non-fatal): ${response.status}`, {
+          requestId: ctx.requestId,
+          response: errorBody,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete RevenueCat webhook: ${response.status}`)
         }
       } else {
-        logger.info(`[${ctx.requestId}] Deleted RevenueCat webhook integration ${externalId}`)
+        logger.info(`Deleted RevenueCat webhook integration ${externalId}`, {
+          requestId: ctx.requestId,
+        })
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting RevenueCat webhook (non-fatal)`, error)
+      logger.warn('Error deleting RevenueCat webhook (non-fatal)', error, {
+        requestId: ctx.requestId,
+      })
       if (ctx.strict) throw error
     }
   },
@@ -218,7 +228,8 @@ export const revenueCatHandler: WebhookProviderHandler = {
     if (!isRevenueCatEventMatch(triggerId, (body as Record<string, unknown>) || {})) {
       const event = (body as Record<string, unknown>)?.event as Record<string, unknown> | undefined
       logger.debug(
-        `[${requestId}] RevenueCat event type '${event?.type as string | undefined}' does not match trigger ${triggerId}, skipping`
+        `RevenueCat event type '${event?.type as string | undefined}' does not match trigger ${triggerId}, skipping`,
+        { requestId }
       )
       return false
     }

@@ -6,6 +6,7 @@ import type {
   ElevenLabsAudioIsolationParams,
   ElevenLabsAudioResponse,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const elevenLabsAudioIsolationTool: InternalToolConfig<
@@ -16,6 +17,7 @@ export const elevenLabsAudioIsolationTool: InternalToolConfig<
   name: 'ElevenLabs Audio Isolation',
   description: 'Remove background noise from an audio file, isolating the speech using ElevenLabs',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   EnrichSearchPeopleActivitiesParams,
   EnrichSearchPeopleActivitiesResponse,
 } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchPeopleActivitiesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const searchPeopleActivitiesTool: ToolConfig<
   name: 'Enrich Search People Activities',
   description: "Get a person's LinkedIn activities (posts, comments, or articles) by profile ID.",
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

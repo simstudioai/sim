@@ -4,13 +4,14 @@ import { TOOL_RUNTIME_SCHEMAS } from '@/lib/mothership/generated/tool-schemas-v1
 
 /**
  * The ffmpeg bounds live twice: here, where the executor enforces them, and in
- * the Go tool catalog, where they become the JSON Schema the model reads and
- * Ajv checks at the router. Drift between the two is silent and user-visible —
+ * the worker's tool catalog, where they become the JSON Schema the model reads
+ * and the worker checks arguments against. Drift between the two is silent and user-visible —
  * the model is told one ceiling and the transcode refuses at another — so pin
  * the generated schema against the executor's own numbers.
  *
- * When this fails, change `ffmpeg.go` in the copilot repo and regenerate; do
- * not edit the generated schema.
+ * When this fails, change the ffmpeg entry in the mothership repo's
+ * `worker/packages/contracts/tool-catalog-v1.json` and run
+ * `bun run mship-tools:generate`; do not edit the generated schema.
  */
 interface SchemaNode {
   properties?: Record<string, SchemaNode>

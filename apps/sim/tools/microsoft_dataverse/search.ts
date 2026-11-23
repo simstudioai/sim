@@ -3,7 +3,11 @@ import type {
   DataverseSearchParams,
   DataverseSearchResponse,
 } from '@/tools/microsoft_dataverse/types'
-import { getDataverseBaseUrl } from '@/tools/microsoft_dataverse/utils'
+import {
+  DATAVERSE_OAUTH_CONFIG,
+  getDataverseRequestBaseUrl,
+  isSet,
+} from '@/tools/microsoft_dataverse/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DataverseSearch')
@@ -15,7 +19,7 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
     'Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax.',
   version: '1.0.0',
 
-  oauth: { required: true, provider: 'microsoft-dataverse' },
+  oauth: DATAVERSE_OAUTH_CONFIG,
   errorExtractor: 'nested-error-object',
 
   params: {
@@ -94,7 +98,7 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
 
   request: {
     url: (params) => {
-      const baseUrl = getDataverseBaseUrl(params.environmentUrl)
+      const baseUrl = getDataverseRequestBaseUrl(params)
       return `${baseUrl}/api/data/v9.2/searchquery`
     },
     method: 'POST',
@@ -119,8 +123,8 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
       if (params.entities) body.entities = params.entities
       if (params.filter) body.filter = params.filter
       if (params.facets) body.facets = params.facets
-      if (params.top) body.top = params.top
-      if (params.skip) body.skip = params.skip
+      if (isSet(params.top)) body.top = params.top
+      if (isSet(params.skip)) body.skip = params.skip
       if (params.orderBy) body.orderby = params.orderBy
 
       const options: Record<string, string> = {}
@@ -152,6 +156,18 @@ export const dataverseSearchTool: ToolConfig<DataverseSearchParams, DataverseSea
       } catch {
         parsedResponse = {}
       }
+    }
+
+    const searchError = parsedResponse?.Error
+    if (searchError) {
+      const message =
+        typeof searchError.message === 'string' && searchError.message.trim()
+          ? searchError.message.trim()
+          : typeof searchError.code === 'string' && searchError.code.trim()
+            ? `Dataverse Search error: ${searchError.code.trim()}`
+            : 'Dataverse Search returned an error'
+      logger.error('Dataverse search returned an error', { code: searchError.code })
+      throw new Error(message)
     }
 
     const results = parsedResponse?.Value ?? []

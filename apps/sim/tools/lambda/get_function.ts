@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaGetFunctionParams, LambdaGetFunctionResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getFunctionTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const getFunctionTool: InternalToolConfig<
   name: 'Lambda Get Function',
   description: "Get a function's configuration, code location, tags, and reserved concurrency",
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -84,7 +86,8 @@ export const getFunctionTool: InternalToolConfig<
     },
     code: {
       type: 'json',
-      description: 'Presigned download URL for the deployment package, or the container image URI',
+      description:
+        'Deployment package location (repositoryType, location presigned download URL, imageUri, resolvedImageUri, sourceKmsKeyArn, and error when the code cannot be retrieved)',
       nullable: true,
     },
     tags: {

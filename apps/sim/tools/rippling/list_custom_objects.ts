@@ -1,5 +1,7 @@
 import type { RipplingListCustomObjectsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { cursorQuery, nextCursorFromLink } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjectsParams> = {
@@ -7,6 +9,7 @@ export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjects
   name: 'Rippling List Custom Objects',
   description: 'List all custom objects',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -14,9 +17,15 @@ export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjects
       visibility: 'user-only',
       description: 'Rippling API key',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor: the nextCursor output of the previous page',
+    },
   },
   request: {
-    url: `https://rest.ripplingapis.com/custom-objects/`,
+    url: (params) => `https://rest.ripplingapis.com/custom-objects/${cursorQuery(params.cursor)}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -49,6 +58,7 @@ export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjects
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        nextCursor: nextCursorFromLink(data.next_link),
       },
     }
   },
@@ -60,5 +70,12 @@ export const ripplingListCustomObjectsTool: ToolConfig<RipplingListCustomObjects
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+      optional: true,
+      nullable: true,
+    },
   },
 }

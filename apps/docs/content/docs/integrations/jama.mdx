@@ -1,0 +1,901 @@
+---
+title: Jama Connect
+description: Manage requirements, traceability, and verification in Jama Connect
+integration:
+  type: "jama"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Jama Connect](https://www.jamasoftware.com/) manages requirements, their relationships, and verification records. Use the Jama Connect block to search and edit items, inspect relationships and comments, compare versions and baselines, and work with test execution results.
+
+## Connect your account
+
+In Jama Connect, open your profile and select **Set API credentials**. Create a client ID and secret, then save them with your Jama instance URL in the block's **Jama Account** field. Use the instance's base URL, such as `https://example.jamacloud.com`, including a context path if your self-hosted instance uses one.
+
+Jama uses the OAuth client credentials grant for these personal API credentials. Sim obtains short-lived access tokens when needed. The credentials retain their owner's Jama permissions; they do not grant administrator access. Jama requires a **Named Creator** license and REST API access. This authentication method supports Jama Cloud and self-hosted Jama Connect 8.62 or later, including instances that use SSO. See [Jama's API authentication guide](https://dev.jamasoftware.com/api/#advanced-authentication).
+
+## Work with requirements and tests
+
+- **Custom fields:** Use **Get Item Type** to read the internal field names, types, and required fields before creating or updating an item. Use **List Pick List Options** for valid option IDs. Field names and status values vary by instance.
+- **Create items:** Select a project and item type, then supply **Fields** as a JSON object. **Parent Item ID** places the new item inside an existing container. Sets and folders also require **Child Item Type ID**.
+- **Update items:** Supply a JSON Patch array, for example `[{"op":"replace","path":"/fields/name","value":"Updated requirement"}]`. Only the listed paths change. The supported operations are `add`, `remove`, and `replace`.
+- **Search:** **Search Items** uses Jama's abstract item search, which can return requirements, test plans, test cycles, test runs, and attachments. Results include their item type and current fields. File downloads are not included.
+- **Filters:** For a saved filter with `projectScope` set to `CURRENT`, provide **Project** when listing its results.
+- **Test execution:** Read the test run and its item type before updating execution fields. Use Jama's configured field names and status values, and supply ISO 8601 timestamps for execution dates.
+- **Pagination:** List and search operations return one page, with a default of 20 and a maximum of 50 results. Set the next **Start Offset** to `pageInfo.startIndex + pageInfo.resultCount` and stop when it reaches `pageInfo.totalResults`, or when the page is empty.
+
+Requests use the supported `/rest/v1` API. Read requests and idempotent updates retry bounded transient failures; creates and JSON Patch updates are not automatically replayed. Jama Cloud and self-hosted instances can apply their own API throttling. See [Jama's API cookbook](https://dev.jamasoftware.com/cookbook/).
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Search and manage requirements, inspect custom item types and pick lists, trace upstream and downstream relationships, collaborate with comments, compare item versions and baselines, and read test plans, cycles, and runs or update execution results. Connect with saved Jama API client credentials that retain the account owner’s permissions.
+
+## Actions
+
+### Jama List Projects
+
+List Projects in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List Projects result |
+
+</ReferenceDetails>
+
+### Jama Get Project
+
+Get Project in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | object | Get Project result |
+
+</ReferenceDetails>
+
+### Jama List Item Types
+
+List Item Types in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | No | Only item types enabled in this project |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `itemTypes` | array | List Item Types result |
+
+</ReferenceDetails>
+
+### Jama Get Item Type
+
+Get Item Type in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemTypeId` | string | Yes | itemType ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `itemType` | object | Get Item Type result |
+
+</ReferenceDetails>
+
+### Jama List Items
+
+List Items in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | Yes | project ID |
+| `rootOnly` | boolean | No | Only root-level items in the project |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List Items result |
+
+</ReferenceDetails>
+
+### Jama Search Items
+
+Search Items in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `query` | string | Yes | Text to find in item names, descriptions, and fields |
+| `projectId` | string | No | Restrict search to a project |
+| `itemTypeId` | string | No | Restrict search to an item type |
+| `documentKey` | string | No | Exact document key |
+| `modifiedSince` | string | No | Only items modified since this ISO 8601 date |
+| `sortBy` | string | No | Sort field and direction, for example modifiedDate.desc |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Search Items result |
+
+</ReferenceDetails>
+
+### Jama Get Item
+
+Get Item in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Get Item result |
+
+</ReferenceDetails>
+
+### Jama Create Item
+
+Create Item in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | project ID |
+| `itemTypeId` | string | Yes | itemType ID |
+| `fields` | json | Yes | Jama field names and values, including name and required custom fields |
+| `parentItemId` | string | No | Parent item ID; otherwise create at the project root |
+| `childItemTypeId` | string | No | Child item type ID, required for sets and folders |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Created resource ID |
+| `location` | string | API URL of the created resource |
+
+</ReferenceDetails>
+
+### Jama Update Item
+
+Update Item in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | item ID |
+| `patch` | json | Yes | JSON Patch array using add, remove, or replace, for example \[\{"op":"replace","path":"/fields/name","value":"Updated name"\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Successful HTTP status code |
+
+</ReferenceDetails>
+
+### Jama Delete Item
+
+Delete Item in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Successful HTTP status code |
+
+</ReferenceDetails>
+
+### Jama List Item Children
+
+List Item Children in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List Item Children result |
+
+</ReferenceDetails>
+
+### Jama List Upstream Items
+
+List Upstream Items in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List Upstream Items result |
+
+</ReferenceDetails>
+
+### Jama List Downstream Items
+
+List Downstream Items in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List Downstream Items result |
+
+</ReferenceDetails>
+
+### Jama List Relationships
+
+List Relationships in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | Yes | project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `relationships` | array | List Relationships result |
+
+</ReferenceDetails>
+
+### Jama Get Relationship
+
+Get Relationship in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `relationshipId` | string | Yes | relationship ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `relationship` | object | Get Relationship result |
+
+</ReferenceDetails>
+
+### Jama Create Relationship
+
+Create Relationship in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromItemId` | string | Yes | fromItem ID |
+| `toItemId` | string | Yes | toItem ID |
+| `relationshipTypeId` | string | No | Relationship type ID; defaults to the instance default |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Created resource ID |
+| `location` | string | API URL of the created resource |
+
+</ReferenceDetails>
+
+### Jama Delete Relationship
+
+Delete Relationship in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `relationshipId` | string | Yes | relationship ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Successful HTTP status code |
+
+</ReferenceDetails>
+
+### Jama List Relationship Types
+
+List Relationship Types in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `relationshipTypes` | array | List Relationship Types result |
+
+</ReferenceDetails>
+
+### Jama List Item Comments
+
+List Item Comments in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | List Item Comments result |
+
+</ReferenceDetails>
+
+### Jama Create Comment
+
+Create Comment in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | item ID |
+| `text` | string | Yes | Comment text |
+| `inReplyTo` | string | No | Parent comment ID when replying |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | Created resource ID |
+| `location` | string | API URL of the created resource |
+
+</ReferenceDetails>
+
+### Jama List Item Versions
+
+List Item Versions in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `itemId` | string | Yes | item ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `versions` | array | List Item Versions result |
+
+</ReferenceDetails>
+
+### Jama Get Item Version
+
+Get Item Version in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `itemId` | string | Yes | item ID |
+| `versionNumber` | string | Yes | Version number returned by List Item Versions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `item` | object | Get Item Version result |
+
+</ReferenceDetails>
+
+### Jama List Filters
+
+List Filters in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | No | Only filters for this project |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filters` | array | List Filters result |
+
+</ReferenceDetails>
+
+### Jama Get Filter
+
+Get Filter in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filterId` | string | Yes | filter ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filter` | object | Get Filter result |
+
+</ReferenceDetails>
+
+### Jama List Filter Results
+
+List Filter Results in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `filterId` | string | Yes | filter ID |
+| `projectId` | string | No | Project ID required for a filter whose projectScope is CURRENT |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List Filter Results result |
+
+</ReferenceDetails>
+
+### Jama List Baselines
+
+List Baselines in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | Yes | project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `baselines` | array | List Baselines result |
+
+</ReferenceDetails>
+
+### Jama Get Baseline
+
+Get Baseline in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baselineId` | string | Yes | baseline ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `baseline` | object | Get Baseline result |
+
+</ReferenceDetails>
+
+### Jama List Baseline Items
+
+List Baseline Items in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `baselineId` | string | Yes | baseline ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | List Baseline Items result |
+
+</ReferenceDetails>
+
+### Jama List Test Plans
+
+List Test Plans in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | Yes | project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `testPlans` | array | List Test Plans result |
+
+</ReferenceDetails>
+
+### Jama Get Test Plan
+
+Get Test Plan in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `testPlanId` | string | Yes | testPlan ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `testPlan` | object | Get Test Plan result |
+
+</ReferenceDetails>
+
+### Jama List Test Cycles
+
+List Test Cycles in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `testPlanId` | string | Yes | testPlan ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `testCycles` | array | List Test Cycles result |
+
+</ReferenceDetails>
+
+### Jama Get Test Cycle
+
+Get Test Cycle in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `testCycleId` | string | Yes | testCycle ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `testCycle` | object | Get Test Cycle result |
+
+</ReferenceDetails>
+
+### Jama List Test Runs
+
+List Test Runs in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `testCycleId` | string | Yes | testCycle ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `testRuns` | array | List Test Runs result |
+
+</ReferenceDetails>
+
+### Jama Get Test Run
+
+Get Test Run in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `testRunId` | string | Yes | testRun ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `testRun` | object | Get Test Run result |
+
+</ReferenceDetails>
+
+### Jama Update Test Run
+
+Update Test Run in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `testRunId` | string | Yes | testRun ID |
+| `fields` | json | Yes | Complete execution fields to update, including testRunStatus, testRunSteps, or executionDate as supported by the item type |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | Successful HTTP status code |
+
+</ReferenceDetails>
+
+### Jama List Releases
+
+List Releases in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | Yes | project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `releases` | array | List Releases result |
+
+</ReferenceDetails>
+
+### Jama List Tags
+
+List Tags in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `projectId` | string | Yes | project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | List Tags result |
+
+</ReferenceDetails>
+
+### Jama List Pick Lists
+
+List Pick Lists in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pickLists` | array | List Pick Lists result |
+
+</ReferenceDetails>
+
+### Jama List Pick List Options
+
+List Pick List Options in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `startAt` | number | No | Zero-based result offset \(default 0\) |
+| `maxResults` | number | No | Results per page, from 1 to 50 \(default 20\) |
+| `pickListId` | string | Yes | pickList ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `options` | array | List Pick List Options result |
+
+</ReferenceDetails>
+
+### Jama Get Current User
+
+Get Current User in Jama Connect using the connected user's access permissions.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Get Current User result |
+
+</ReferenceDetails>
+
+

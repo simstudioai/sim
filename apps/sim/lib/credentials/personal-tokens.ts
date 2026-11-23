@@ -192,16 +192,17 @@ export interface CreatePersonalTokenParams {
 
 /** Stores a verified personal token in its immutable owner/provider/instance/subject slot. */
 export async function createPersonalTokenCredential(input: CreatePersonalTokenParams) {
-  if (input.providerId !== 'gitlab' || !input.apiToken)
+  const apiToken = input.apiToken?.trim()
+  if (input.providerId !== 'gitlab' || !apiToken)
     throw new OrchestrationError('validation', 'A personal GitLab access token is required')
-  const verified = await verifyGitLabPersonalToken(input.apiToken, input.domain)
+  const verified = await verifyGitLabPersonalToken(apiToken, input.domain)
   const encryptedPersonalToken = await encryptPersonalToken({
     providerId: verified.providerId,
     ownerUserId: input.userId,
     organizationId: input.accounts.organizationId,
     subjectId: verified.subjectId,
     instanceUrl: verified.instanceUrl,
-    accessToken: input.apiToken,
+    accessToken: apiToken,
   })
   const { enrollment } = await createViewerCredentialGroupEnrollment({
     userId: input.userId,
@@ -347,8 +348,9 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
       'validation',
       'Connect a new personal token to use another GitLab instance'
     )
-  if (input.apiToken) {
-    const verified = await verifyGitLabPersonalToken(input.apiToken, current.providerTenantId)
+  const apiToken = input.apiToken?.trim()
+  if (apiToken) {
+    const verified = await verifyGitLabPersonalToken(apiToken, current.providerTenantId)
     if (
       verified.subjectId !== current.providerSubjectId ||
       verified.instanceUrl !== current.providerTenantId
@@ -363,7 +365,7 @@ export async function updatePersonalTokenCredential(input: UpdatePersonalTokenPa
       ...resourceScopeFields(scope),
       subjectId: current.providerSubjectId,
       instanceUrl: current.providerTenantId,
-      accessToken: input.apiToken,
+      accessToken: apiToken,
     })
     updates.grantedScopes = verified.grantedScopes
     updates.accessTokenExpiresAt = verified.expiresAt

@@ -2,7 +2,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import type { NewRelicCustomAttributes } from '@/tools/new_relic/types'
+import { NEW_RELIC_REGIONS } from '@/tools/new_relic/utils'
 
 function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undefined {
   if (!value) return undefined
@@ -20,6 +22,8 @@ function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undef
 
 export const NewRelicBlock: BlockConfig = {
   type: 'new_relic',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'new_relic_v2' },
   name: 'New Relic',
   description: 'Query observability data and record deployments in New Relic',
   longDescription:
@@ -74,10 +78,7 @@ export const NewRelicBlock: BlockConfig = {
       id: 'region',
       title: 'Region',
       type: 'dropdown',
-      options: [
-        { label: 'US', id: 'us' },
-        { label: 'EU', id: 'eu' },
-      ],
+      options: NEW_RELIC_REGIONS.options.map(({ value, label }) => ({ id: value, label })),
       value: () => 'us',
     },
     {
@@ -284,13 +285,13 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
     ],
     config: {
       tool: (params) => String(params.operation || 'new_relic_nrql_query'),
-      params: (params) => {
+      params: (params, context) => {
         const baseParams = {
           apiKey: params.apiKey,
           region: params.region || 'us',
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'new_relic_nrql_query':
             return {
               ...baseParams,
@@ -476,3 +477,23 @@ export const NewRelicBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const NewRelicV2Block: BlockConfig = {
+  ...NewRelicBlock,
+  type: 'new_relic_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run NRQL queries, search monitored entities, fetch entity details, and record deployment change events.',
+  ...withSavedCredential(
+    NewRelicBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'new_relic',
+      title: 'New Relic Credential',
+    },
+    { required: true }
+  ),
+}

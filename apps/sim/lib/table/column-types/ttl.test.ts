@@ -1,16 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
-import { isValueCompatible } from '@/lib/table/column-types'
-import { ttlColumnType } from '@/lib/table/column-types/ttl'
-import { retypeCellRewrite } from '@/lib/table/columns/service'
 import {
   isTtlTimestamp,
   normalizeTtlTimestamp,
   TTL_FORMAT_ERROR,
-  todayAtTtlOffset,
   ttlInstantForComparison,
-  ttlValueFromPicker,
-  ttlValueToPickerParts,
-} from '@/lib/table/ttl-values'
+} from '@sim/table-cells/ttl'
+import { describe, expect, it, vi } from 'vitest'
+import { isValueCompatible } from '@/lib/table/column-types'
+import { ttlColumnType } from '@/lib/table/column-types/ttl'
+import { retypeCellRewrite } from '@/lib/table/columns/service'
+import { todayAtTtlOffset, ttlValueFromPicker, ttlValueToPickerParts } from '@/lib/table/ttl-picker'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 import { coerceRowToSchema } from '@/lib/table/validation'
 

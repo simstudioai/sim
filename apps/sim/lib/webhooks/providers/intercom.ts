@@ -54,12 +54,12 @@ export const intercomHandler: WebhookProviderHandler = {
 
     const signature = request.headers.get('X-Hub-Signature')
     if (!signature) {
-      logger.warn(`[${requestId}] Intercom webhook missing X-Hub-Signature header`)
+      logger.warn('Intercom webhook missing X-Hub-Signature header', { requestId })
       return new NextResponse('Unauthorized - Missing Intercom signature', { status: 401 })
     }
 
     if (!validateIntercomSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Intercom signature verification failed`)
+      logger.warn('Intercom signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Intercom signature', { status: 401 })
     }
 
@@ -69,9 +69,9 @@ export const intercomHandler: WebhookProviderHandler = {
   handleReachabilityTest(body: unknown, requestId: string) {
     const obj = body as Record<string, unknown> | null
     if (obj?.topic === 'ping') {
-      logger.info(
-        `[${requestId}] Intercom ping event detected - returning 200 without triggering workflow`
-      )
+      logger.info('Intercom ping event detected - returning 200 without triggering workflow', {
+        requestId,
+      })
       return NextResponse.json({
         status: 'ok',
         message: 'Webhook endpoint verified',
@@ -93,12 +93,8 @@ export const intercomHandler: WebhookProviderHandler = {
       const { isIntercomEventMatch } = await import('@/triggers/intercom/utils')
       if (!isIntercomEventMatch(triggerId, topic || '')) {
         logger.debug(
-          `[${requestId}] Intercom event mismatch for trigger ${triggerId}. Topic: ${topic}. Skipping execution.`,
-          {
-            webhookId: webhook.id,
-            triggerId,
-            receivedTopic: topic,
-          }
+          `Intercom event mismatch for trigger ${triggerId}. Topic: ${topic}. Skipping execution.`,
+          { requestId, webhookId: webhook.id, triggerId, receivedTopic: topic }
         )
         return false
       }

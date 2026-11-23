@@ -6,6 +6,7 @@ import {
   extractDaytonaError,
   mapDaytonaSandbox,
 } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const daytonaGetSandboxTool: ToolConfig<DaytonaGetSandboxParams, DaytonaSandboxResponse> = {
@@ -13,6 +14,7 @@ export const daytonaGetSandboxTool: ToolConfig<DaytonaGetSandboxParams, DaytonaS
   name: 'Daytona Get Sandbox',
   description: 'Get details of a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

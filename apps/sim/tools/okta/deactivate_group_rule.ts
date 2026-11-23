@@ -5,7 +5,9 @@ import type {
   OktaDeactivateGroupRuleResponse,
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaDeactivateGroupRule')
 
@@ -18,6 +20,7 @@ export const oktaDeactivateGroupRuleTool: ToolConfig<
   description:
     'Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -43,7 +46,7 @@ export const oktaDeactivateGroupRuleTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}/lifecycle/deactivate`
+      return `https://${domain}/api/v1/groups/rules/${safeUrlPathSegment(params.groupRuleId, 'groupRuleId')}/lifecycle/deactivate`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

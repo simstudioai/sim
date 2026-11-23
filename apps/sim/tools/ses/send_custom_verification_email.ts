@@ -2,6 +2,7 @@ import type {
   SESSendCustomVerificationEmailParams,
   SESSendCustomVerificationEmailResponse,
 } from '@/tools/ses/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const sendCustomVerificationEmailTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const sendCustomVerificationEmailTool: InternalToolConfig<
   description:
     'Send a branded custom verification email to an address using a custom verification email template',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

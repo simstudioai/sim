@@ -55,7 +55,8 @@ interface RegistrationGate {
 }
 
 /**
- * Stamps DISABLE_REGISTRATION onto every social provider config.
+ * Stamps a closed `REGISTRATION_MODE` (`closed`, `closed-no-email`) onto every
+ * social provider config.
  *
  * The `/sign-up*` gate cannot see OAuth account creation, which happens on
  * `/sign-in/social` and its callback — without this, a registration-disabled
@@ -105,6 +106,12 @@ export const SSO_REQUIRED_ERROR_CODE = 'SSO_REQUIRED'
 
 export const SSO_REQUIRED_MESSAGE =
   'Your organization requires single sign-on. Sign in through your identity provider.'
+
+/**
+ * How an SSO sign-in refused before any session exists identifies itself in the callback's error
+ * redirect, which the SSO sign-in page explains.
+ */
+export const SSO_PROVISIONING_FAILED_ERROR_CODE = 'sso_provisioning_failed'
 
 /**
  * How an account creation refused for a disposable email domain identifies itself, so the OAuth

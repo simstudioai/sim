@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_SELECTOR_OPTIONS } from '@/lib/selectors/limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import {
@@ -54,6 +55,8 @@ interface SnowflakeObject {
 
 interface SnowflakeDestination {
   accessToken: string
+  /** Token type from the credential: set for a keyless credential, absent for a programmatic access token. */
+  authStyle?: string
   baseUrl: string
 }
 
@@ -89,7 +92,7 @@ function requireStatementHandle(value: string): string {
 }
 
 async function fetchSnowflakeResponse(url: string, init: RequestInit): Promise<Response> {
-  const response = await fetch(url, { ...init, redirect: 'error' })
+  const response = await outboundFetch(url, { ...init, redirect: 'error' })
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined)
     throw selectorProviderStatusError(response.status)
@@ -132,6 +135,7 @@ async function prepareSnowflakeDestination(
   try {
     return {
       accessToken: token.accessToken,
+      authStyle: token.authStyle,
       baseUrl: normalizeSnowflakeHost(token.domain),
     }
   } catch {
@@ -162,7 +166,7 @@ async function executeSnowflake(
 
   const timeoutSignal = AbortSignal.timeout(SELECTOR_FETCH_TIMEOUT_MS)
   const signal = args.signal ? AbortSignal.any([args.signal, timeoutSignal]) : timeoutSignal
-  const headers = buildSnowflakeAuthHeaders(destination.accessToken)
+  const headers = buildSnowflakeAuthHeaders(destination.accessToken, destination.authStyle)
   const byteBudget = { remainingBytes: SELECTOR_MAX_AGGREGATE_RESPONSE_BYTES }
   try {
     const response = await fetchSnowflakeResponse(`${destination.baseUrl}/api/v2/statements`, {

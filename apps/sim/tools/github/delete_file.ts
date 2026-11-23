@@ -1,4 +1,7 @@
+import { encodeContentPath } from '@/tools/github/content-path'
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { DeleteFileParams, DeleteFileResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = {
@@ -7,6 +10,7 @@ export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = 
   description:
     'Delete a file from a GitHub repository. Requires the file SHA. This operation cannot be undone through the API.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -55,7 +59,7 @@ export const deleteFileTool: ToolConfig<DeleteFileParams, DeleteFileResponse> = 
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${params.path}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/contents/${encodeContentPath(params.path)}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -153,6 +157,7 @@ export const deleteFileV2Tool: ToolConfig<DeleteFileParams, any> = {
   name: deleteFileTool.name,
   description: deleteFileTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteFileTool.params,
   request: deleteFileTool.request,
 

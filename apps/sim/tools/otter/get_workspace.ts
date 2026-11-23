@@ -8,6 +8,7 @@ import {
   readOtterDataObject,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const otterGetWorkspaceTool: ToolConfig<OtterGetWorkspaceParams, OtterGetWorkspaceResponse> =
@@ -17,6 +18,7 @@ export const otterGetWorkspaceTool: ToolConfig<OtterGetWorkspaceParams, OtterGet
     description:
       'Get the Otter workspace of the authenticated user, including its ID, name, owner, member count, handle, and type.',
     version: '1.0.0',
+    oauth: OTTER_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

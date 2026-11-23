@@ -3,7 +3,7 @@ import type {
   SharepointGetDriveItemResponse,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getDriveItemTool: ToolConfig<SharepointToolParams, SharepointGetDriveItemResponse> = {
@@ -44,7 +44,7 @@ export const getDriveItemTool: ToolConfig<SharepointToolParams, SharepointGetDri
       const driveItemId = optionalTrim(params.driveItemId)
       if (!driveId) throw new Error('driveId must be provided')
       if (!driveItemId) throw new Error('driveItemId must be provided')
-      return `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(driveItemId)}`
+      return `https://graph.microsoft.com/v1.0/drives/${graphPathSegment(driveId, 'driveId')}/items/${graphPathSegment(driveItemId, 'driveItemId')}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -66,6 +66,8 @@ export const getDriveItemTool: ToolConfig<SharepointToolParams, SharepointGetDri
       file: (data.file as SharepointDriveItem['file']) ?? null,
       folder: (data.folder as SharepointDriveItem['folder']) ?? null,
       parentReference: (data.parentReference as SharepointDriveItem['parentReference']) ?? null,
+      createdBy: (data.createdBy as SharepointDriveItem['createdBy']) ?? null,
+      lastModifiedBy: (data.lastModifiedBy as SharepointDriveItem['lastModifiedBy']) ?? null,
     }
 
     return {
@@ -98,6 +100,16 @@ export const getDriveItemTool: ToolConfig<SharepointToolParams, SharepointGetDri
         parentReference: {
           type: 'object',
           description: 'Reference to the parent folder/drive',
+          optional: true,
+        },
+        createdBy: {
+          type: 'object',
+          description: 'Identity set of the creator (e.g. user.displayName, user.email)',
+          optional: true,
+        },
+        lastModifiedBy: {
+          type: 'object',
+          description: 'Identity set of the last modifier (e.g. user.displayName, user.email)',
           optional: true,
         },
       },

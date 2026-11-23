@@ -2,7 +2,10 @@ import type {
   RootlyAddIncidentEventParams,
   RootlyAddIncidentEventResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rootlyAddIncidentEventTool: ToolConfig<
   RootlyAddIncidentEventParams,
@@ -12,6 +15,7 @@ export const rootlyAddIncidentEventTool: ToolConfig<
   name: 'Rootly Add Incident Event',
   description: 'Add a timeline event to an existing incident in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -41,7 +45,8 @@ export const rootlyAddIncidentEventTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}/events`,
+    url: (params) =>
+      `https://api.rootly.com/v1/incidents/${safeUrlPathSegment(params.incidentId, 'incidentId')}/events`,
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
@@ -69,7 +74,7 @@ export const rootlyAddIncidentEventTool: ToolConfig<
           createdAt: '',
           updatedAt: '',
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

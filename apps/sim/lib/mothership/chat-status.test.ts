@@ -1,20 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type ChatStatusEvent,
   chatPubSub,
   publishChatStatusChanged,
 } from '@/lib/mothership/chat-status'
 
-/** Events as a subscriber receives them from the channel (process-local without Redis). */
+/** Events as they are handed to the Redis status channel. */
 let received: ChatStatusEvent[] = []
-let unsubscribe: () => void = () => {}
 
 beforeEach(() => {
   received = []
-  unsubscribe = chatPubSub?.onStatusChanged((event) => received.push(event)) ?? (() => {})
+  vi.spyOn(chatPubSub, 'publishStatusChanged').mockImplementation((event) => {
+    received.push(event)
+  })
 })
-
-afterEach(() => unsubscribe())
 
 describe('chat status ownership', () => {
   it('names the chat owner on workspace events, so each member can tell their own chats', () => {

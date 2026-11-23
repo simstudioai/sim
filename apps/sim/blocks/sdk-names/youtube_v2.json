@@ -1,0 +1,19 @@
+{
+  "namespace": "youtube",
+  "methods": {
+    "youtube_channel_info": "getChannelInfo",
+    "youtube_channel_playlists": "getChannelPlaylists",
+    "youtube_channel_videos": "getChannelVideos",
+    "youtube_comments": "getVideoComments",
+    "youtube_playlist_items": "getPlaylistItems",
+    "youtube_search": "searchVideos",
+    "youtube_trending": "getTrendingVideos",
+    "youtube_video_categories": "getVideoCategories",
+    "youtube_video_details": "getVideoDetails"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

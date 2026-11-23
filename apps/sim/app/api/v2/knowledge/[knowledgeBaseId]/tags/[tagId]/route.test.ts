@@ -31,7 +31,7 @@ beforeEach(() => {
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
   v2RouteMocks.authenticate.mockResolvedValue({
-    principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
     rateLimitSubjectIds: ['api-key:key-1'],
     rateLimitSubscription: null,
     keyType: 'personal',

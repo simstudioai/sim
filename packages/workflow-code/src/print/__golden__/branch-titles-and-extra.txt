@@ -1,0 +1,17 @@
+// @sim-sdk 1
+import { condition, js, response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { amount: 'number' } })
+  const check = condition(
+    'Check',
+    { big: js`${start.amount} > 100`, elseIf0: js``, else: js`true` },
+    { branches: { big: { title: 'Large amount' }, elseIf0: { extra: { legacyFlag: true } } } }
+  )
+  const done = response('Done', {})
+
+  start.to(check)
+  check.big.to(done)
+  check.elseIf0.to(done)
+  check.else.to(done)
+})

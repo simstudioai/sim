@@ -88,10 +88,10 @@ export const PATCH = withRouteHandler(
         })
 
         if (name !== undefined || description !== undefined) {
-          logger.info(
-            `[${requestId}] Updated deployment version ${version} metadata during activation`,
-            { name, description }
-          )
+          logger.info(`Updated deployment version ${version} metadata during activation`, {
+            name,
+            description,
+          })
         }
 
         return createSuccessResponse({
@@ -111,7 +111,7 @@ export const PATCH = withRouteHandler(
         request,
       })
 
-      logger.info(`[${requestId}] Updated deployment version ${version} for workflow ${id}`, {
+      logger.info(`Updated deployment version ${version} for workflow ${id}`, {
         name,
         description,
       })
@@ -130,7 +130,7 @@ export const PATCH = withRouteHandler(
           statusForOrchestrationError(orchestrationError.code)
         )
       }
-      logger.error(`[${requestId}] Error updating deployment version`, { error })
+      logger.error('Error updating deployment version', { error })
       return createCodedErrorResponse('Failed to update deployment version', 500)
     }
   }

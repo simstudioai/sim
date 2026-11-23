@@ -1,324 +1,14 @@
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
-import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
-interface TestStreamEntry {
-  id: string
-  message: Record<string, string>
-}
-
-interface TestRedisClient {
-  isOpen: boolean
-  connect(): Promise<void>
-  quit(): Promise<void>
-  on(): TestRedisClient
-  duplicate(): TestRedisClient
-  xAdd(key: string, id: string, fields: Record<string, string>): Promise<string>
-  xRange(
-    key: string,
-    start: string,
-    end: string,
-    options?: { COUNT?: number }
-  ): Promise<TestStreamEntry[]>
-  xRevRange(
-    key: string,
-    start: string,
-    end: string,
-    options?: { COUNT?: number }
-  ): Promise<TestStreamEntry[]>
-  xLen(key: string): Promise<number>
-  xTrim(key: string, strategy: string, minId: string): Promise<void>
-  xRead(
-    streams: { key: string; id: string }[],
-    options?: { BLOCK?: number; COUNT?: number }
-  ): Promise<{ name: string; messages: TestStreamEntry[] }[] | null>
-  set(key: string, value: string, options?: { NX?: boolean }): Promise<string | null>
-  get(key: string): Promise<string | null>
-  del(keys: string | string[]): Promise<number>
-  eval(
-    script: string,
-    options: { keys: string[]; arguments: string[] }
-  ): Promise<string | number | boolean | null>
-  expire(): Promise<number>
-}
-
-/**
- * One shared in-memory Redis backing per test, so several {@link FileDocStore} instances (modelling
- * several ECS tasks) all talk to the "same Redis". A minimal fake of just the stream/lock ops the
- * store uses.
- */
-interface Backing {
-  streams: Map<string, TestStreamEntry[]>
-  kv: Map<string, string>
-  dedupe: Map<string, string[]>
-  seq: number
-  /** Override generated IDs to model a recreated stream restarting its same-millisecond sequence. */
-  nextIds?: string[]
-  /** Number of upcoming xAdd calls to fail with a transient error (to exercise publish retry). */
-  failXAdd: number
-  /** Set to fail every xRead the way node-redis does once a client has been closed. */
-  readerClosed: boolean
-  /** Failed reads served, so a test can prove the loop is not spinning at the read cadence. */
-  reads: number
-  /** When each FAILED read was attempted, so a test can measure one backoff interval exactly. */
-  failedReadTimes: number[]
-  /** Reads that returned (the idle steady state) — the event that ends a failure streak. */
-  idleReads: number
-  /** `connect()` calls, so a test can prove a closed reader is re-opened rather than abandoned. */
-  connects: number
-  /** Largest stream range response requested, proving replay is paginated. */
-  maxRangeCount: number
-  /** Optional deterministic compaction hook invoked before each range page is read. */
-  onRange?: (call: number, key: string, start: string) => void
-  rangeCalls: number
-  /** Largest multiplexed XREAD request and COUNT observed. */
-  maxReadStreams: number
-  maxReadCount: number
-  onSnapshot?: () => Promise<void>
-  failSnapshotTrim?: boolean
-  onLength?: () => Promise<void>
-}
-
-const state = vi.hoisted(() => ({ backing: null as Backing | null }))
-
-function compareStreamIds(left: string, right: string): bigint {
-  const [leftMs, leftSequence] = left.split('-').map(BigInt)
-  const [rightMs, rightSequence] = right.split('-').map(BigInt)
-  return leftMs === rightMs ? leftSequence - rightSequence : leftMs - rightMs
-}
-
-function makeClient(): TestRedisClient {
-  const b = () => {
-    if (!state.backing) throw new Error('backing not initialized')
-    return state.backing
-  }
-  const nextId = () => b().nextIds?.shift() ?? `${++b().seq}-0`
-  const client: TestRedisClient = {
-    isOpen: true,
-    connect: async () => {
-      client.isOpen = true
-      b().connects++
-    },
-    quit: async () => {},
-    on: () => client,
-    duplicate: () => makeClient(),
-    xAdd: async (key: string, _star: string, fields: Record<string, string>) => {
-      if (b().failXAdd > 0) {
-        b().failXAdd--
-        throw new Error('transient xAdd failure')
-      }
-      const id = nextId()
-      const arr = b().streams.get(key) ?? []
-      arr.push({ id, message: { ...fields } })
-      b().streams.set(key, arr)
-      return id
-    },
-    xRange: async (key: string, start: string, end: string, options?: { COUNT?: number }) => {
-      b().rangeCalls++
-      b().onRange?.(b().rangeCalls, key, start)
-      const startId = start.startsWith('(') ? start.slice(1) : start
-      const entries = (b().streams.get(key) ?? []).filter(
-        (entry) =>
-          (start === '-' || compareStreamIds(entry.id, startId) > 0n) &&
-          (end === '+' || compareStreamIds(entry.id, end) <= 0n)
-      )
-      const count = options?.COUNT ?? entries.length
-      b().maxRangeCount = Math.max(b().maxRangeCount, count)
-      return entries.slice(0, count).map((entry) => ({ ...entry }))
-    },
-    xRevRange: async (key: string, _start: string, _end: string, options?: { COUNT?: number }) =>
-      [...(b().streams.get(key) ?? [])]
-        .reverse()
-        .slice(0, options?.COUNT)
-        .map((entry) => ({ ...entry })),
-    xLen: async (key: string) => {
-      await b().onLength?.()
-      return (b().streams.get(key) ?? []).length
-    },
-    xTrim: async (key: string, _strategy: string, minid: string) => {
-      const arr = b().streams.get(key) ?? []
-      b().streams.set(
-        key,
-        arr.filter((e) => compareStreamIds(e.id, minid) >= 0n)
-      )
-    },
-    xRead: async (
-      streams: { key: string; id: string }[],
-      options?: { BLOCK?: number; COUNT?: number }
-    ) => {
-      b().reads++
-      b().maxReadStreams = Math.max(b().maxReadStreams, streams.length)
-      b().maxReadCount = Math.max(b().maxReadCount, options?.COUNT ?? 0)
-      if (b().readerClosed) {
-        b().failedReadTimes.push(Date.now())
-        client.isOpen = false
-        throw new Error('The client is closed')
-      }
-      const res: { name: string; messages: TestStreamEntry[] }[] = []
-      for (const { key, id } of streams) {
-        const after = (b().streams.get(key) ?? [])
-          .filter((e) => compareStreamIds(e.id, id) > 0n)
-          .slice(0, options?.COUNT)
-        if (after.length) res.push({ name: key, messages: after.map((e) => ({ ...e })) })
-      }
-      if (res.length) {
-        b().idleReads++
-        return res
-      }
-      await sleep(5)
-      b().idleReads++
-      return null
-    },
-    set: async (key: string, val: string, opts?: { NX?: boolean }) => {
-      if (opts?.NX && b().kv.has(key)) return null
-      b().kv.set(key, val)
-      return 'OK'
-    },
-    get: async (key: string) => b().kv.get(key) ?? null,
-    del: async (keys: string | string[]) => {
-      const targets = Array.isArray(keys) ? keys : [keys]
-      for (const key of targets) {
-        b().kv.delete(key)
-        b().streams.delete(key)
-        b().dedupe.delete(key)
-      }
-      return targets.length
-    },
-    eval: async (script: string, opts: { keys: string[]; arguments: string[] }) => {
-      const [key] = opts.keys
-      if (script.startsWith('for _, key in ipairs(KEYS)')) return 1
-      if (script.includes("redis.call('exists', KEYS[1])") && !b().streams.has(key)) {
-        return script.includes('zscore') ? -1 : false
-      }
-      if (script.includes('return ARGV[1]')) {
-        const generation = b().kv.get(opts.keys[1])
-        if (generation !== undefined) return generation
-        if (!b().streams.get(key)?.length) return false
-        b().kv.set(opts.keys[1], opts.arguments[0])
-        return opts.arguments[0]
-      }
-      if (script.includes("redis.call('del', KEYS[1], KEYS[4], KEYS[5])")) {
-        const [, generationKey, versionKey, dedupeKey, agentKey, invalidationKey] = opts.keys
-        const [version, , marker] = opts.arguments
-        const current = b().kv.get(versionKey)
-        const invalidated = b().kv.get(invalidationKey)
-        if (invalidated && Number(invalidated) >= Number(version)) return null
-        if (current && Number(current) > Number(version)) return null
-        if (current === version && b().kv.get(generationKey) === marker) return null
-        const generation = b().kv.get(generationKey) ?? ''
-        b().kv.set(generationKey, marker)
-        b().kv.set(versionKey, version)
-        b().kv.set(invalidationKey, version)
-        b().streams.delete(key)
-        b().dedupe.delete(dedupeKey)
-        b().kv.delete(agentKey)
-        return generation
-      }
-      if (script.includes('zscore')) {
-        const [, dedupeKey, generationKey] = opts.keys
-        const [member, field, value, capacityText, , expectedGeneration] = opts.arguments
-        const generation = b().kv.get(generationKey)
-        if ((generation ?? '') !== expectedGeneration) return -1
-        const members = b().dedupe.get(dedupeKey) ?? []
-        if (members.includes(member)) return 0
-        const id = nextId()
-        const arr = b().streams.get(key) ?? []
-        arr.push({ id, message: { [field]: value, eu: opts.arguments[6], ec: opts.arguments[7] } })
-        b().streams.set(key, arr)
-        members.push(member)
-        const capacity = Number(capacityText)
-        if (members.length > capacity) members.splice(0, members.length - capacity)
-        b().dedupe.set(dedupeKey, members)
-        return 1
-      }
-      // Atomic seed-if-empty (SEED_IF_EMPTY_SCRIPT): append the entry iff the stream is empty, in one
-      // synchronous step — mirroring Redis's atomic Lua execution, so two concurrent evals can never both
-      // append (the second sees a non-empty stream).
-      if (script.includes('xlen')) {
-        const [, generationKey, versionKey] = opts.keys
-        const [field, value, generation, , generationField, version] = opts.arguments
-        if (Number(b().kv.get(versionKey) ?? 0) > Number(version)) return 0
-        const arr = b().streams.get(key) ?? []
-        if (arr.length > 0) return 0
-        b().kv.set(generationKey, generation)
-        if (version !== '0') b().kv.set(versionKey, version)
-        const id = nextId()
-        arr.push({ id, message: { [field]: value, [generationField]: generation } })
-        b().streams.set(key, arr)
-        return 1
-      }
-      if (script.includes('ARGV[5], ARGV[4]')) {
-        const [, generationKey] = opts.keys
-        const [field, value, marker, expectedGeneration, generationField, upTo, compactionField] =
-          opts.arguments
-        const generation = b().kv.get(generationKey)
-        if ((generation ?? '') !== expectedGeneration) return false
-        const id = nextId()
-        const arr = b().streams.get(key) ?? []
-        arr.push({
-          id,
-          message: {
-            [field]: value,
-            [marker]: '1',
-            [generationField]: expectedGeneration,
-            ...(compactionField ? { [compactionField]: '1' } : {}),
-            eu: opts.arguments[7],
-            ec: opts.arguments[8],
-            ei: opts.arguments[9],
-          },
-        })
-        b().streams.set(key, arr)
-        if (script.includes("redis.call('xtrim'")) {
-          if (b().failSnapshotTrim) throw new Error('snapshot trim failed')
-          b().streams.set(
-            key,
-            arr.filter((entry) => compareStreamIds(entry.id, upTo) >= 0n)
-          )
-        }
-        await b().onSnapshot?.()
-        return id
-      }
-      if (script.includes("ARGV[3] ~= ''")) {
-        const [, generationKey] = opts.keys
-        const generation = b().kv.get(generationKey)
-        const expectedGeneration = opts.arguments[3]
-        if ((generation ?? '') !== expectedGeneration) return false
-        if (b().failXAdd > 0) {
-          b().failXAdd--
-          throw new Error('transient xAdd failure')
-        }
-        const [field, value, marker] = opts.arguments
-        const id = nextId()
-        const arr = b().streams.get(key) ?? []
-        arr.push({ id, message: { [field]: value, ...(marker ? { [marker]: '1' } : {}) } })
-        b().streams.set(key, arr)
-        return id
-      }
-      if (script.includes('tonumber(c)')) {
-        const [value, , expectedGeneration] = opts.arguments
-        const generation = b().kv.get(opts.keys[1])
-        if ((generation ?? '') !== expectedGeneration) return 0
-        const current = b().kv.get(key)
-        if (current === undefined || Number(current) < Number(value)) b().kv.set(key, value)
-        return 1
-      }
-      // Compare-and-delete Lua (RELEASE_LOCK_SCRIPT): del only if the stored value matches the token.
-      const [token] = opts.arguments
-      if (b().kv.get(key) === token) {
-        b().kv.delete(key)
-        return 1
-      }
-      return 0
-    },
-    expire: async () => 1,
-  }
-  return client
-}
-
-vi.mock('redis', () => ({ createClient: () => makeClient() }))
+vi.mock('redis', async () => {
+  const { makeClient } = await import('@/handlers/fixtures/redis.fixture')
+  return { createClient: () => makeClient() }
+})
 
 import { FileDocStore, REDIS_AGENT_ORIGIN, REDIS_ORIGIN } from '@/handlers/file-doc-store'
+import { type Backing, createBacking, fakeRedis } from '@/handlers/fixtures/redis.fixture'
 
 const REDIS_URL = 'redis://fake'
 const NAME = 'workspace-file-doc:file-1'
@@ -336,7 +26,6 @@ interface StoreRoomTestAccess {
 }
 
 interface StoreTestAccess {
-  localInvalidations: Map<string, { version: number; expiresAt: number }>
   rooms: Map<string, StoreRoomTestAccess>
   maybeCompact(name: string): Promise<void>
   appendUpdate(name: string, update: Uint8Array): Promise<void>
@@ -380,9 +69,15 @@ function seedFor(text: string): Uint8Array {
 
 let stores: FileDocStore[] = []
 
+/** The in-memory Redis behind every fake client; each test starts a fresh one. */
+function currentBacking(): Backing {
+  if (!fakeRedis.backing) throw new Error('backing not initialized')
+  return fakeRedis.backing
+}
+
 /** An existing stream from a relay predating generation markers; modern seeds use seedIfEmpty. */
 function seedLegacyStream(update = updateFor('')): void {
-  const backing = state.backing!
+  const backing = currentBacking()
   backing.streams.set(`filedoc:stream:${NAME}`, [
     { id: `${++backing.seq}-0`, message: { u: Buffer.from(update).toString('base64') } },
   ])
@@ -451,22 +146,7 @@ describe('FileDocStore', () => {
   })
 
   beforeEach(() => {
-    state.backing = {
-      streams: new Map(),
-      kv: new Map(),
-      dedupe: new Map(),
-      seq: 0,
-      failXAdd: 0,
-      readerClosed: false,
-      reads: 0,
-      failedReadTimes: [],
-      idleReads: 0,
-      connects: 0,
-      maxRangeCount: 0,
-      rangeCalls: 0,
-      maxReadStreams: 0,
-      maxReadCount: 0,
-    }
+    fakeRedis.backing = createBacking()
     stores = []
   })
 
@@ -486,21 +166,49 @@ describe('FileDocStore', () => {
       const store = await newStore()
       const doc = new Y.Doc()
       await store.attachRoom(NAME, doc)
-      state.backing!.readerClosed = true
+      currentBacking().readerClosed = true
 
-      state.backing!.connects = 0 // ignore the two `init` connects; count only recovery attempts
-      const before = state.backing!.reads
+      currentBacking().connects = 0 // ignore the two `init` connects; count only recovery attempts
+      const before = currentBacking().reads
       await vi.advanceTimersByTimeAsync(3000)
-      const attempts = state.backing!.reads - before
+      const attempts = currentBacking().reads - before
 
       // A fixed 500ms retry manages 6 attempts in this window; backing off (500 → 1s → 2s → …)
       // manages about 3. The ±20% jitter moves the exact count, so assert that it slowed down.
       expect(attempts).toBeGreaterThan(0)
       expect(attempts).toBeLessThanOrEqual(4)
       // …and it tried to bring the connection back rather than leaving the tailer dead forever.
-      expect(state.backing!.connects).toBeGreaterThan(0)
+      expect(currentBacking().connects).toBeGreaterThan(0)
       doc.destroy()
     } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('opens one pair of connections when init is called concurrently', async () => {
+    const store = new FileDocStore(REDIS_URL)
+    stores.push(store)
+    await Promise.all([store.init(), store.init(), store.init()])
+    expect(currentBacking().connects).toBe(2)
+  })
+
+  /**
+   * A restart that lands while the previous reader loop is between reads must retire that loop:
+   * otherwise it resumes on the new connection and two loops tail the same rooms forever.
+   */
+  it('runs a single reader loop after a shutdown and restart', async () => {
+    vi.useFakeTimers()
+    const doc = new Y.Doc()
+    try {
+      const store = await newStore()
+      await store.shutdown()
+      await store.init()
+      await store.attachRoom(NAME, doc)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(currentBacking().idleReads).toBeGreaterThan(0)
+      expect(currentBacking().maxInFlightReads).toBe(1)
+    } finally {
+      doc.destroy()
       vi.useRealTimers()
     }
   })
@@ -561,7 +269,7 @@ describe('FileDocStore', () => {
       userId: 'editor',
       connectionId: 'socket-editor',
     })
-    state.backing!.streams.delete(`filedoc:stream:${NAME}`)
+    currentBacking().streams.delete(`filedoc:stream:${NAME}`)
 
     await expect(store.publishAndWait(NAME, delta, generation)).rejects.toThrow('replaced')
     await expect(
@@ -576,14 +284,14 @@ describe('FileDocStore', () => {
         connectionId: 'socket-editor',
       })
     ).rejects.toThrow('replaced')
-    expect(state.backing!.streams.has(`filedoc:stream:${NAME}`)).toBe(false)
+    expect(currentBacking().streams.has(`filedoc:stream:${NAME}`)).toBe(false)
   })
 
   it('rejects a shared replay if the document generation changes between pages', async () => {
     const store = await newStore()
     await store.seedIfEmpty(NAME, seedFor('old generation'), 10)
-    state.backing!.onRange = () => {
-      state.backing!.kv.set(`filedoc:generation:${NAME}`, 'new generation')
+    currentBacking().onRange = () => {
+      currentBacking().kv.set(`filedoc:generation:${NAME}`, 'new generation')
     }
     await expect(store.getStreamState(NAME)).rejects.toThrow('replaced')
   })
@@ -591,14 +299,14 @@ describe('FileDocStore', () => {
   it('fails safely when an uncompacted stream exceeds the replay entry budget', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(updateFor('')).toString('base64')
-    state.backing!.streams.set(
+    currentBacking().streams.set(
       streamKey,
       Array.from({ length: 2_001 }, (_, index) => ({
         id: `${index + 1}-0`,
         message: { u: noop },
       }))
     )
-    state.backing!.seq = 2_001
+    currentBacking().seq = 2_001
     const store = await newStore()
 
     await expect(store.getStreamState(NAME)).rejects.toThrow('replay exceeded its safety limit')
@@ -607,14 +315,14 @@ describe('FileDocStore', () => {
   it('never exposes a partially replayed document when room attachment exceeds its budget', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(updateFor('')).toString('base64')
-    state.backing!.streams.set(
+    currentBacking().streams.set(
       streamKey,
       Array.from({ length: 2_001 }, (_, index) => ({
         id: `${index + 1}-0`,
         message: { u: noop },
       }))
     )
-    state.backing!.seq = 2_001
+    currentBacking().seq = 2_001
     const store = await newStore()
     const doc = new Y.Doc()
 
@@ -628,24 +336,24 @@ describe('FileDocStore', () => {
   it('recovers from compaction that trims unread pages during replay', async () => {
     const streamKey = `filedoc:stream:${NAME}`
     const noop = Buffer.from(updateFor('')).toString('base64')
-    state.backing!.streams.set(
+    currentBacking().streams.set(
       streamKey,
       Array.from({ length: 8 }, (_, index) => ({
         id: `${index + 1}-0`,
         message: { u: noop },
       }))
     )
-    state.backing!.seq = 8
-    state.backing!.onRange = (call, key) => {
+    currentBacking().seq = 8
+    currentBacking().onRange = (call, key) => {
       if (call !== 2 || key !== streamKey) return
-      state.backing!.streams.set(streamKey, [
+      currentBacking().streams.set(streamKey, [
         {
           id: '9-0',
           message: { u: Buffer.from(updateFor('compacted')).toString('base64'), s: '1' },
         },
       ])
-      state.backing!.seq = 9
-      state.backing!.onRange = undefined
+      currentBacking().seq = 9
+      currentBacking().onRange = undefined
     }
     const store = await newStore()
 
@@ -668,16 +376,16 @@ describe('FileDocStore', () => {
     for (let i = 1; i <= 8; i++)
       source.getText('body').insert(source.getText('body').length, String(i))
     const snapshot = Y.encodeStateAsUpdate(source)
-    state.backing!.streams.set(streamKey, entries.slice())
+    currentBacking().streams.set(streamKey, entries.slice())
     for (let i = 9; i <= 11; i++)
       source.getText('body').insert(source.getText('body').length, String(i))
-    state.backing!.onRange = (_call, key, start) => {
+    currentBacking().onRange = (_call, key, start) => {
       if (key !== streamKey || start !== '(4-0') return
-      state.backing!.streams.set(streamKey, [
+      currentBacking().streams.set(streamKey, [
         ...entries.slice(7),
         { id: '12-0', message: { u: Buffer.from(snapshot).toString('base64'), s: '1' } },
       ])
-      state.backing!.onRange = undefined
+      currentBacking().onRange = undefined
     }
     const store = await newStore()
     const recovered = new Y.Doc()
@@ -709,8 +417,8 @@ describe('FileDocStore', () => {
     }))
     entries.push({ id: '401-0', message: { u: Buffer.from(peerUpdates[0]).toString('base64') } })
     entries.push({ id: '402-0', message: { u: Buffer.from(peerUpdates[1]).toString('base64') } })
-    state.backing!.streams.set(streamKey, entries)
-    state.backing!.seq = 402
+    currentBacking().streams.set(streamKey, entries)
+    currentBacking().seq = 402
 
     const a = await newStore()
     // This task has integrated only up to entry 400 (all no-ops) — its local doc is empty and lags the
@@ -736,7 +444,7 @@ describe('FileDocStore', () => {
 
     // The appended snapshot entry must carry the snapshot marker, so a fresh catch-up task treats it as
     // edited content (not a bare seed) and persists on last-disconnect.
-    const stream = state.backing!.streams.get(streamKey)!
+    const stream = currentBacking().streams.get(streamKey)!
     expect(stream[stream.length - 1].message.s).toBe('1')
   })
 
@@ -759,7 +467,7 @@ describe('FileDocStore', () => {
     // the peer tailer applies it as REDIS_AGENT_ORIGIN — excluded from the relay's edited/persist gate.
     a.publish(NAME, updateFor('agent frame'), true)
     await vi.waitFor(() => expect(origins).toContain(REDIS_AGENT_ORIGIN), { timeout: 2000 })
-    const stream = state.backing!.streams.get(streamKey)!
+    const stream = currentBacking().streams.get(streamKey)!
     expect(stream.some((e) => e.message.a === '1')).toBe(true)
     // The normal edit's entry carries no agent marker.
     expect(stream.filter((e) => e.message.a === '1')).toHaveLength(1)
@@ -797,7 +505,7 @@ describe('FileDocStore', () => {
     }
 
     await vi.waitFor(() => {
-      const stream = state.backing!.streams.get(`filedoc:stream:${NAME}`)!
+      const stream = currentBacking().streams.get(`filedoc:stream:${NAME}`)!
       expect(stream.length).toBeLessThan(400)
       expect(stream.some((entry) => entry.message.c === '1')).toBe(true)
     })
@@ -813,7 +521,7 @@ describe('FileDocStore', () => {
   it('retries a transient append failure so the edit is not lost from the shared log', async () => {
     seedLegacyStream()
     const a = await newStore()
-    state.backing!.failXAdd = 2 // first two xAdd attempts throw; the third must succeed
+    currentBacking().failXAdd = 2 // first two xAdd attempts throw; the third must succeed
     a.publish(NAME, updateFor('resilient'))
     await vi.waitFor(
       async () => {
@@ -840,7 +548,7 @@ describe('FileDocStore', () => {
       connectionId: 'socket-editor',
     })
 
-    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
+    expect(currentBacking().streams.get(`filedoc:stream:${NAME}`)).toHaveLength(2)
   })
 
   it('does not drop different payloads that reuse an acknowledged update id', async () => {
@@ -856,7 +564,7 @@ describe('FileDocStore', () => {
       connectionId: 'socket-editor',
     })
 
-    expect(state.backing!.streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
+    expect(currentBacking().streams.get(`filedoc:stream:${NAME}`)).toHaveLength(3)
   })
 
   it('preserves the inclusive barrier and delta bytes observed during compaction', async () => {
@@ -868,7 +576,7 @@ describe('FileDocStore', () => {
     room.uncompactedDeltaBytes = 12 * 1024 * 1024
     const retainedBarrierBytes = room.lastDeltaBytes
     const lateUpdate = updateFor('concurrent edit')
-    state.backing!.onSnapshot = async () => {
+    currentBacking().onSnapshot = async () => {
       await store.publishAndWait(NAME, lateUpdate)
       await store.catchUp(NAME)
     }
@@ -886,7 +594,7 @@ describe('FileDocStore', () => {
     const replacer = await newStore()
     const oldDoc = docWithText('old')
     oldDoc.getMap('config').set('docId', 'old-generation')
-    state.backing!.nextIds = ['1000-0', '1000-1', '1000-2']
+    currentBacking().nextIds = ['1000-0', '1000-1', '1000-2']
     await store.seedIfEmpty(NAME, Y.encodeStateAsUpdate(oldDoc), 10)
     await store.publishAndWait(NAME, updateFor('first edit'), 'old-generation')
     await store.publishAndWait(NAME, updateFor('second edit'), 'old-generation')
@@ -900,31 +608,33 @@ describe('FileDocStore', () => {
     freshDoc.getText('body').insert(5, ' accepted edit')
     const freshEdit = Y.encodeStateAsUpdate(freshDoc, beforeEdit)
     const streamKey = `filedoc:stream:${NAME}`
-    state.backing!.nextIds = ['1000-3', '1000-0', '1000-1']
-    state.backing!.onSnapshot = async () => {
+    currentBacking().nextIds = ['1000-3', '1000-0', '1000-1']
+    currentBacking().onSnapshot = async () => {
       await replacer.invalidateDocument(NAME, 20)
       await replacer.seedIfEmpty(NAME, freshSeed, 20)
       await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation', {
         userId: 'editor',
         connectionId: 'socket-editor',
       })
-      expect(state.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
-        '1000-0',
-        '1000-1',
-      ])
+      expect(
+        currentBacking()
+          .streams.get(streamKey)
+          ?.map((entry) => entry.id)
+      ).toEqual(['1000-0', '1000-1'])
     }
 
     await storeInternals(store).maybeCompact(NAME)
 
-    expect(state.backing!.streams.get(streamKey)?.map((entry) => entry.id)).toEqual([
-      '1000-0',
-      '1000-1',
-    ])
+    expect(
+      currentBacking()
+        .streams.get(streamKey)
+        ?.map((entry) => entry.id)
+    ).toEqual(['1000-0', '1000-1'])
     await replacer.publishClientUpdateAndWait(NAME, 'fresh-edit', freshEdit, 'new-generation', {
       userId: 'editor',
       connectionId: 'socket-editor',
     })
-    expect(state.backing!.streams.get(streamKey)).toHaveLength(2)
+    expect(currentBacking().streams.get(streamKey)).toHaveLength(2)
     const persisted = await replacer.getStreamState(NAME)
     expect(persisted).not.toBeNull()
     const replayed = new Y.Doc()
@@ -980,7 +690,7 @@ describe('FileDocStore', () => {
     const tokenA = await a.shouldSeed(NAME)
     expect(tokenA).toBeTruthy()
     // Simulate A's lock expiring mid-seed so B also wins the freed lock over a still-empty stream.
-    state.backing!.kv.delete(`filedoc:seedlock:${NAME}`)
+    currentBacking().kv.delete(`filedoc:seedlock:${NAME}`)
     const tokenB = await b.shouldSeed(NAME)
     expect(tokenB).toBeTruthy()
     // Both tasks now race to seed with distinct client ids.
@@ -1040,8 +750,8 @@ describe('FileDocStore', () => {
     }))
     entries.push({ id: '401-0', message: { u: Buffer.from(peerUpdates[0]).toString('base64') } })
     entries.push({ id: '402-0', message: { u: Buffer.from(peerUpdates[1]).toString('base64') } })
-    state.backing!.streams.set(streamKey, entries)
-    state.backing!.seq = 402
+    currentBacking().streams.set(streamKey, entries)
+    currentBacking().seq = 402
 
     // Two tasks whose local docs lag at DIFFERENT points (400 and 401): both cross the threshold and
     // compact concurrently. Each must only trim what its own snapshot subsumes, so the union of both

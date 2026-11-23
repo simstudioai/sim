@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   SPACE_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneUpdateSpaceTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneUpdateSpaceTool: ToolConfig<
   name: 'Rocketlane Update Space',
   description: 'Update a Rocketlane space by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

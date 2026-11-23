@@ -4,7 +4,9 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -25,12 +27,12 @@ export const instantlyHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secretToken = providerConfig.secretToken as string | undefined
     if (!secretToken) {
-      logger.warn(`[${requestId}] Instantly webhook secret token is missing`)
+      logger.warn('Instantly webhook secret token is missing', { requestId })
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
     if (!verifyTokenAuth(request, secretToken, SIM_WEBHOOK_TOKEN_HEADER)) {
-      logger.warn(`[${requestId}] Unauthorized Instantly webhook request`)
+      logger.warn('Unauthorized Instantly webhook request', { requestId })
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
@@ -42,13 +44,14 @@ export const instantlyHandler: WebhookProviderHandler = {
     if (!triggerId) return true
 
     if (!isRecordLike(body)) {
-      logger.warn(`[${requestId}] Instantly webhook payload was not an object`)
+      logger.warn('Instantly webhook payload was not an object', { requestId })
       return false
     }
 
     const { isInstantlyEventMatch } = await import('@/triggers/instantly/utils')
     if (!isInstantlyEventMatch(triggerId, body)) {
-      logger.info(`[${requestId}] Instantly event did not match trigger`, {
+      logger.info('Instantly event did not match trigger', {
+        requestId,
         triggerId,
         eventType: body.event_type,
       })
@@ -127,11 +130,11 @@ export const instantlyHandler: WebhookProviderHandler = {
     const campaignId = optionalId(providerConfig.triggerCampaignId)
 
     if (!apiKey?.trim()) {
-      throw new Error('Instantly API Key is required.')
+      throw new WebhookDeploymentConfigurationError('Instantly API Key is required.')
     }
 
     if (!triggerId) {
-      throw new Error('Instantly trigger ID is required.')
+      throw new WebhookDeploymentConfigurationError('Instantly trigger ID is required.')
     }
 
     const { getInstantlySubscriptionEventTypeForTrigger } = await import(
@@ -160,14 +163,15 @@ export const instantlyHandler: WebhookProviderHandler = {
       requestBody.campaign = campaignId
     }
 
-    logger.info(`[${requestId}] Creating Instantly webhook`, {
+    logger.info('Creating Instantly webhook', {
+      requestId,
       triggerId,
       eventType,
       hasCampaignId: Boolean(campaignId),
       webhookId: webhook.id,
     })
 
-    const response = await fetch(instantlyUrl('/api/v2/webhooks'), {
+    const response = await outboundFetch(instantlyUrl('/api/v2/webhooks'), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey.trim()}`,
@@ -179,7 +183,8 @@ export const instantlyHandler: WebhookProviderHandler = {
     const responseBody = await parseJsonResponse(response)
     if (!response.ok) {
       const message = extractInstantlyError(responseBody)
-      logger.error(`[${requestId}] Failed to create Instantly webhook`, {
+      logger.error('Failed to create Instantly webhook', {
+        requestId,
         status: response.status,
         message,
         response: responseBody,
@@ -203,7 +208,8 @@ export const instantlyHandler: WebhookProviderHandler = {
       throw new Error('Instantly webhook was created but the API response did not include an ID.')
     }
 
-    logger.info(`[${requestId}] Successfully created Instantly webhook`, {
+    logger.info('Successfully created Instantly webhook', {
+      requestId,
       externalId,
       webhookId: webhook.id,
     })
@@ -220,7 +226,8 @@ export const instantlyHandler: WebhookProviderHandler = {
       const externalId = providerConfig.externalId as string | undefined
 
       if (!apiKey?.trim() || !externalId?.trim()) {
-        logger.warn(`[${requestId}] Missing Instantly webhook cleanup configuration`, {
+        logger.warn('Missing Instantly webhook cleanup configuration', {
+          requestId,
           webhookId: webhook.id,
           hasApiKey: Boolean(apiKey),
           hasExternalId: Boolean(externalId),
@@ -229,7 +236,7 @@ export const instantlyHandler: WebhookProviderHandler = {
         return
       }
 
-      const response = await fetch(
+      const response = await outboundFetch(
         instantlyUrl(`/api/v2/webhooks/${encodeURIComponent(externalId.trim())}`),
         {
           method: 'DELETE',
@@ -241,7 +248,8 @@ export const instantlyHandler: WebhookProviderHandler = {
 
       if (!response.ok && response.status !== 404) {
         const responseBody = await parseJsonResponse(response)
-        logger.warn(`[${requestId}] Failed to delete Instantly webhook`, {
+        logger.warn('Failed to delete Instantly webhook', {
+          requestId,
           status: response.status,
           response: responseBody,
         })
@@ -250,12 +258,14 @@ export const instantlyHandler: WebhookProviderHandler = {
       }
 
       await response.body?.cancel()
-      logger.info(`[${requestId}] Successfully deleted Instantly webhook`, {
+      logger.info('Successfully deleted Instantly webhook', {
+        requestId,
         externalId,
         webhookId: webhook.id,
       })
     } catch (error) {
-      logger.warn(`[${requestId}] Error deleting Instantly webhook`, {
+      logger.warn('Error deleting Instantly webhook', {
+        requestId,
         message: toError(error).message,
       })
       if (ctx.strict) throw error

@@ -1,0 +1,29 @@
+{
+  "namespace": "legacy.profound",
+  "methods": {
+    "bot_logs": "botLogs",
+    "bots_report": "botsReport",
+    "category_assets": "categoryAssets",
+    "category_personas": "categoryPersonas",
+    "category_prompts": "categoryPrompts",
+    "category_tags": "categoryTags",
+    "category_topics": "categoryTopics",
+    "citation_prompts": "citationPrompts",
+    "citations_report": "citationsReport",
+    "list_assets": "listAssets",
+    "list_categories": "listCategories",
+    "list_domains": "listDomains",
+    "list_models": "listModels",
+    "list_optimizations": "listOptimizations",
+    "list_personas": "listPersonas",
+    "list_regions": "listRegions",
+    "optimization_analysis": "optimizationAnalysis",
+    "prompt_answers": "promptAnswers",
+    "prompt_volume": "promptVolume",
+    "query_fanouts": "queryFanouts",
+    "raw_logs": "rawLogs",
+    "referrals_report": "referralsReport",
+    "sentiment_report": "sentimentReport",
+    "visibility_report": "visibilityReport"
+  }
+}

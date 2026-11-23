@@ -1,6 +1,9 @@
 import type { RipplingListSupergroupInclusionMembersParams } from '@/tools/rippling/types'
 import { GROUP_MEMBER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { nextCursorFromLink } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingListSupergroupInclusionMembersParams> =
   {
@@ -8,6 +11,7 @@ export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingList
     name: 'Rippling List Supergroup Inclusion Members',
     description: 'List inclusion members of a supergroup',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -31,7 +35,14 @@ export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingList
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Sort field',
+        description:
+          'Sort field(s), comma-separated; append " desc" for descending (e.g. created_at desc)',
+      },
+      cursor: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Pagination cursor: the nextCursor output of the previous page',
       },
     },
     request: {
@@ -39,8 +50,9 @@ export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingList
         const query = new URLSearchParams()
         if (params.expand != null) query.set('expand', params.expand)
         if (params.orderBy != null) query.set('order_by', params.orderBy)
+        if (params.cursor) query.set('cursor', params.cursor)
         const qs = query.toString()
-        return `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/inclusion-members/${qs ? `?${qs}` : ''}`
+        return `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.groupId, 'groupId')}/inclusion-members/${qs ? `?${qs}` : ''}`
       },
       method: 'GET',
       headers: (params) => ({
@@ -69,6 +81,7 @@ export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingList
           })),
           totalCount: results.length,
           nextLink: (data.next_link as string) ?? null,
+          nextCursor: nextCursorFromLink(data.next_link),
           __meta: data.__meta ?? null,
         },
       }
@@ -81,6 +94,13 @@ export const ripplingListSupergroupInclusionMembersTool: ToolConfig<RipplingList
       },
       totalCount: { type: 'number', description: 'Number of members returned' },
       nextLink: { type: 'string', description: 'Next page link', optional: true },
+      nextCursor: {
+        type: 'string',
+        description:
+          'Cursor for the next page; pass it back as the cursor param (null on the last page)',
+        optional: true,
+        nullable: true,
+      },
       __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
     },
   }

@@ -1,0 +1,18 @@
+{
+  "namespace": "powerbi",
+  "methods": {
+    "powerbi_execute_query": "executeDaxQuery",
+    "powerbi_get_dataset": "getSemanticModel",
+    "powerbi_get_refresh_history": "getRefreshHistory",
+    "powerbi_get_report": "getReport",
+    "powerbi_list_datasets": "listSemanticModels",
+    "powerbi_list_reports": "listReports",
+    "powerbi_list_workspaces": "listWorkspaces",
+    "powerbi_refresh_dataset": "refreshSemanticModel"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

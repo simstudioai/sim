@@ -98,12 +98,13 @@ export const githubHandler: WebhookProviderHandler = {
     const signature =
       request.headers.get('X-Hub-Signature-256') || request.headers.get('X-Hub-Signature')
     if (!signature) {
-      logger.warn(`[${requestId}] GitHub webhook missing signature header`)
+      logger.warn('GitHub webhook missing signature header', { requestId })
       return new NextResponse('Unauthorized - Missing GitHub signature', { status: 401 })
     }
 
     if (!validateGitHubSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] GitHub signature verification failed`, {
+      logger.warn('GitHub signature verification failed', {
+        requestId,
         usingSha256: !!request.headers.get('X-Hub-Signature-256'),
       })
       return new NextResponse('Unauthorized - Invalid GitHub signature', { status: 401 })
@@ -155,8 +156,9 @@ export const githubHandler: WebhookProviderHandler = {
       const { isGitHubEventMatch } = await import('@/triggers/github/utils')
       if (!isGitHubEventMatch(triggerId, eventType || '', action, obj)) {
         logger.debug(
-          `[${requestId}] GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
+          `GitHub event mismatch for trigger ${triggerId}. Event: ${eventType}, Action: ${action}. Skipping execution.`,
           {
+            requestId,
             webhookId: webhook.id,
             workflowId: workflow.id,
             triggerId,

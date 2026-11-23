@@ -1,5 +1,11 @@
 import { isRecordLike } from '@sim/utils/object'
 import { forEachSearchOccurrence, projectEscapedMarkdownForSearch } from '@sim/utils/string'
+import {
+  buildCanonicalIndex,
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
@@ -31,11 +37,8 @@ import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/valu
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
-  buildCanonicalIndex,
   buildCanonicalIndexForSurface,
   buildSubBlockValues,
-  type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
@@ -43,7 +46,6 @@ import {
   normalizeDependencyValue,
   parseDependsOn,
   resolveDependencyValue,
-  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
@@ -137,7 +139,6 @@ const DISPLAY_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>([
   'webhook-config',
 ])
 
-const TEXT_VALUE_ONLY_SUBBLOCK_TYPES = new Set<SubBlockType>(['filter-builder', 'variables-input'])
 const DISPLAY_LABEL_READONLY_REASON = 'Display labels cannot be replaced'
 
 const TOOL_INPUT_TEXT_EXCLUDED_LEAF_KEYS = new Set([
@@ -226,9 +227,6 @@ function isSearchableLeafPath(
     ) {
       return false
     }
-  }
-  if (mode === 'text' && subBlockType && TEXT_VALUE_ONLY_SUBBLOCK_TYPES.has(subBlockType)) {
-    return lastSegment === 'value'
   }
   if (
     mode === 'text' &&

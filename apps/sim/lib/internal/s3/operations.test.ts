@@ -7,7 +7,7 @@ import {
   filesAuthorizationMock,
   filesAuthorizationMockFns,
 } from '@sim/testing/mocks/files-authorization.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createS3Client: vi.fn(),
@@ -26,8 +26,9 @@ vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
+import { runWithAwsSession } from '@/lib/internal/aws/credentials'
 import { S3OperationError } from '@/lib/internal/s3/errors'
-import { executeS3PutObject } from '@/lib/internal/s3/operations'
+import { executeS3PresignedUrl, executeS3PutObject } from '@/lib/internal/s3/operations'
 
 const { mockAssertToolFileAccess } = filesAuthorizationMockFns
 const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
@@ -76,5 +77,72 @@ describe('S3 operations', () => {
       )
     ).rejects.toEqual(new S3OperationError('File not found', 404))
     expect(mocks.createS3Client).not.toHaveBeenCalled()
+  })
+})
+
+describe('S3 presigned URLs', () => {
+  const NOW = new Date('2030-01-01T00:00:00.000Z')
+  const SESSION = {
+    accessKeyId: 'ASIASESSIONKEY',
+    secretAccessKey: 'session-secret',
+    sessionToken: 'session-token',
+    durationSeconds: 3600,
+    expiration: new Date(NOW.getTime() + 3600 * 1000),
+  }
+  const presign = (accessKeyId: string, expiresIn: number) =>
+    executeS3PresignedUrl({
+      accessKeyId,
+      secretAccessKey: 'secret',
+      region: 'us-east-1',
+      bucketName: 'bucket',
+      objectKey: 'report.csv',
+      method: 'get',
+      expiresIn,
+    })
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+    mocks.createS3Client.mockReturnValue({ send: mocks.send, destroy: mocks.destroy })
+    mocks.getSignedUrl.mockResolvedValue(
+      'https://bucket.s3.amazonaws.com/report.csv?X-Amz-Signature=x'
+    )
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('refuses an expiry past the end of the role session that signs it', async () => {
+    await expect(
+      runWithAwsSession(SESSION, () => presign(SESSION.accessKeyId, 7200))
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/3600 seconds.*session duration/),
+    })
+    expect(mocks.getSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it('allows the full session duration after the time spent minting the session', async () => {
+    vi.setSystemTime(NOW.getTime() + 750)
+
+    const result = await runWithAwsSession(SESSION, () => presign(SESSION.accessKeyId, 3600))
+
+    expect(mocks.getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      expiresIn: 3600,
+    })
+    expect(result.output.expiresAt).toBe(SESSION.expiration.toISOString())
+  })
+
+  it('reports an expiry the role session outlives', async () => {
+    const result = await runWithAwsSession(SESSION, () => presign(SESSION.accessKeyId, 3600))
+
+    expect(result.output.expiresAt).toBe('2030-01-01T01:00:00.000Z')
+    expect(mocks.getSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      expiresIn: 3600,
+    })
+  })
+
+  it('keeps the full seven days for long-lived access keys', async () => {
+    const result = await presign('AKIASTATICKEY', 604800)
+
+    expect(result.output.expiresAt).toBe('2030-01-08T00:00:00.000Z')
   })
 })

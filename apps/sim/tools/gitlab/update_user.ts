@@ -1,6 +1,8 @@
 import type { GitLabUpdateUserParams, GitLabUserResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUserResponse> = {
   id: 'gitlab_update_user',
@@ -9,6 +11,7 @@ export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUser
   description:
     'Modify an existing GitLab user. Requires an administrator token with admin_mode on the instance.',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -57,7 +60,8 @@ export const gitlabUpdateUserTool: ToolConfig<GitLabUpdateUserParams, GitLabUser
   },
 
   request: {
-    url: (params) => `${getGitLabApiBase(params.host)}/users/${params.userId}`,
+    url: (params) =>
+      `${getGitLabApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',

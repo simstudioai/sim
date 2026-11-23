@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const s3HeadObjectTool: InternalToolConfig = {
@@ -5,6 +6,7 @@ export const s3HeadObjectTool: InternalToolConfig = {
   name: 'S3 Head Object',
   description: 'Retrieve metadata for an S3 object without downloading its body',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {

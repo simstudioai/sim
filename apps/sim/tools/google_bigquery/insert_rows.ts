@@ -3,6 +3,7 @@ import type {
   GoogleBigQueryInsertRowsResponse,
 } from '@/tools/google_bigquery/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const googleBigQueryInsertRowsTool: ToolConfig<
   GoogleBigQueryInsertRowsParams,
@@ -65,7 +66,7 @@ export const googleBigQueryInsertRowsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://bigquery.googleapis.com/bigquery/v2/projects/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId)}/tables/${encodeURIComponent(params.tableId)}/insertAll`,
+      `https://bigquery.googleapis.com/bigquery/v2/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/datasets/${safeUrlPathSegment(params.datasetId, 'datasetId')}/tables/${safeUrlPathSegment(params.tableId, 'tableId')}/insertAll`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

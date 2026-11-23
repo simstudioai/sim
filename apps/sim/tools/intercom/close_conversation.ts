@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomCloseConversationParams {
   accessToken: string
@@ -47,7 +49,9 @@ const closeConversationBase = {
 
   request: {
     url: (params: IntercomCloseConversationParams) =>
-      buildIntercomUrl(`/conversations/${params.conversationId}/parts`),
+      buildIntercomUrl(
+        `/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/parts`
+      ),
     method: 'POST',
     headers: (params: IntercomCloseConversationParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -79,6 +83,7 @@ export const intercomCloseConversationV2Tool: ToolConfig<
   name: 'Close Conversation in Intercom',
   description: 'Close a conversation in Intercom',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

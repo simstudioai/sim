@@ -87,7 +87,7 @@ jobs:
       # makes `tailscale up` reject the duplicate flag.
       - name: Join the tailnet
         if: vars.CI_DB_TAILNET == 'true'
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}

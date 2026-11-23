@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
@@ -38,7 +39,7 @@ export async function registerLinqAttachment(
   signal?: AbortSignal
 ): Promise<RegisteredLinqAttachment> {
   signal?.throwIfAborted()
-  const response = await fetch(`${LINQ_API_BASE}/attachments`, {
+  const response = await outboundFetch(`${LINQ_API_BASE}/attachments`, {
     method: 'POST',
     headers: linqHeaders(input.apiKey),
     body: JSON.stringify({

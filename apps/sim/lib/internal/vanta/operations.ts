@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
   isPayloadSizeLimitError,
@@ -415,7 +416,7 @@ export async function executeVantaQuery(
   const response = await fetchVantaWithAuth(
     params,
     (accessToken) =>
-      fetch(apiRequest.url, {
+      outboundFetch(apiRequest.url, {
         method: apiRequest.method,
         headers: {
           Accept: 'application/json',
@@ -471,7 +472,7 @@ export async function executeVantaUploadDocumentFile(
   const response = await fetchVantaWithAuth(
     input,
     (accessToken) =>
-      fetch(uploadUrl, {
+      outboundFetch(uploadUrl, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
         body: formData,
@@ -508,7 +509,7 @@ export async function executeVantaDownloadDocumentFile(
   const response = await fetchVantaWithAuth(
     input,
     (accessToken) =>
-      fetch(mediaUrl, {
+      outboundFetch(mediaUrl, {
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: 'no-store',

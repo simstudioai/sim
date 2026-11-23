@@ -23,7 +23,7 @@ interface SocialLoginButtonsProps {
   microsoftAvailable: boolean
   view: 'login' | 'signup'
   callbackURL?: string
-  ssoEnabled?: boolean
+  ssoEnabled: boolean
   disabled?: boolean
 }
 

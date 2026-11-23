@@ -21,7 +21,7 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
     MAX_VERSIONS_PER_RUN
   )
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
-  logger.info(`[${payload.label}] File version cleanup: ${deleted} released in ${elapsed}s`)
+  logger.info(`File version cleanup: ${deleted} released in ${elapsed}s`, { label: payload.label })
 }
 
 export const cleanupFileVersionsTask = task({

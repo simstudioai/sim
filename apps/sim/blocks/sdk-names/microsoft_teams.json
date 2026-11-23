@@ -1,0 +1,35 @@
+{
+  "namespace": "microsoftTeams",
+  "methods": {
+    "delete_channel_message": "deleteChannelMessage",
+    "delete_chat_message": "deleteChatMessage",
+    "get_message": "getMessage",
+    "list_channel_members": "listChannelMembers",
+    "list_channels": "listChannels",
+    "list_chat_members": "listChatMembers",
+    "list_chats": "listChats",
+    "list_team_members": "listTeamMembers",
+    "list_teams": "listTeams",
+    "read_channel": "readChannelMessages",
+    "read_chat": "readChatMessages",
+    "reply_to_message": "replyToChannelMessage",
+    "set_reaction": "addReaction",
+    "unset_reaction": "removeReaction",
+    "update_channel_message": "updateChannelMessage",
+    "update_chat_message": "updateChatMessage",
+    "write_channel": "writeChannelMessage",
+    "write_chat": "writeChatMessage"
+  },
+  "triggers": {
+    "microsoftteams_chat_subscription": "microsoftteamsChatSubscription",
+    "microsoftteams_webhook": "microsoftteamsWebhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "triggerCredentials": "credential"
+    }
+  }
+}

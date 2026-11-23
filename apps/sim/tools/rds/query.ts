@@ -1,4 +1,6 @@
 import type { RdsQueryParams, RdsQueryResponse } from '@/tools/rds/types'
+import { parseStatementParameters } from '@/tools/rds/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const queryTool: InternalToolConfig<RdsQueryParams, RdsQueryResponse> = {
@@ -6,6 +8,7 @@ export const queryTool: InternalToolConfig<RdsQueryParams, RdsQueryResponse> = {
   name: 'RDS Query',
   description: 'Execute a SELECT query on Amazon RDS using the Data API',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -51,6 +54,13 @@ export const queryTool: InternalToolConfig<RdsQueryParams, RdsQueryResponse> = {
       visibility: 'user-or-llm',
       description: 'SQL SELECT query to execute (e.g., SELECT * FROM users WHERE status = :status)',
     },
+    parameters: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Values bound to :name placeholders in the query, so input never needs to be spliced into the SQL. Either an object (e.g., {"status": "active", "id": 5}) or an array of {name, value, typeHint} entries, where typeHint is DATE, DECIMAL, JSON, TIME, TIMESTAMP, or UUID (e.g., [{"name": "id", "value": "6f1c...", "typeHint": "UUID"}])',
+    },
   },
 
   operation: {
@@ -62,6 +72,7 @@ export const queryTool: InternalToolConfig<RdsQueryParams, RdsQueryResponse> = {
       secretArn: params.secretArn,
       ...(params.database && { database: params.database }),
       query: params.query,
+      ...(params.parameters && { parameters: parseStatementParameters(params.parameters) }),
     }),
   },
 

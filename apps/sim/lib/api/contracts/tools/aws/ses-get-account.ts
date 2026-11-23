@@ -23,6 +23,8 @@ const GetAccountResponseSchema = z.object({
   max24HourSend: z.number(),
   maxSendRate: z.number(),
   sentLast24Hours: z.number(),
+  productionAccessEnabled: z.boolean().nullable(),
+  enforcementStatus: z.string().nullable(),
 })
 
 export const awsSesGetAccountContract = defineRouteContract({

@@ -15,7 +15,6 @@ import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetAuditLogContract } from '@/lib/api/contracts/v1/audit-logs'
@@ -41,8 +40,6 @@ export const revalidate = 0
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateId().slice(0, 8)
-
     try {
       const rateLimit = await checkRateLimit(request, 'audit-logs')
       if (!rateLimit.allowed) {
@@ -89,7 +86,7 @@ export const GET = withRouteHandler(
       return NextResponse.json(response.body, { headers: response.headers })
     } catch (error: unknown) {
       const message = getErrorMessage(error, 'Unknown error')
-      logger.error(`[${requestId}] Audit log detail fetch error`, { error: message })
+      logger.error('Audit log detail fetch error', { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

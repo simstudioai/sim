@@ -2,9 +2,14 @@ import { z } from 'zod'
 import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
 
 export const sendGridSendInputSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
+  region: z
+    .string()
+    .refine((value) => SENDGRID_REGIONS.has(value), 'Unknown SendGrid region')
+    .optional(),
   from: z.string().min(1, 'From email is required'),
   fromName: z.string().optional().nullable(),
   to: z.string().min(1, 'To email is required'),

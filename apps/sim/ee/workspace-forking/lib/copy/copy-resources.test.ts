@@ -1176,6 +1176,7 @@ describe('planForkMappedKbDocumentCopies', () => {
     const { tx, inserted } = makeTx([sourceRow('doc-1', 'src-kb')])
     const result = await planForkMappedKbDocumentCopies({
       tx,
+      sourceWorkspaceId: 'source-ws',
       resolver: mappedKbResolver,
       referencedDocumentIds: ['doc-1'],
       alreadyCopiedSourceDocIds: new Set(),
@@ -1215,6 +1216,7 @@ describe('planForkMappedKbDocumentCopies', () => {
     const { tx, wheres } = makeTx([])
     await planForkMappedKbDocumentCopies({
       tx,
+      sourceWorkspaceId: 'source-ws',
       resolver: mappedKbResolver,
       referencedDocumentIds: ['doc-1'],
       alreadyCopiedSourceDocIds: new Set(),
@@ -1234,6 +1236,7 @@ describe('planForkMappedKbDocumentCopies', () => {
     const { tx, inserted } = makeTx([sourceRow('doc-1', 'unmapped-kb')])
     const result = await planForkMappedKbDocumentCopies({
       tx,
+      sourceWorkspaceId: 'source-ws',
       resolver: mappedKbResolver,
       referencedDocumentIds: ['doc-1'],
       alreadyCopiedSourceDocIds: new Set(),
@@ -1261,6 +1264,7 @@ describe('planForkMappedKbDocumentCopies', () => {
 
     const result = await planForkMappedKbDocumentCopies({
       tx,
+      sourceWorkspaceId: 'source-ws',
       resolver: mappedKbResolver,
       referencedDocumentIds: ['doc-1'],
       alreadyCopiedSourceDocIds: new Set(),
@@ -1289,6 +1293,7 @@ describe('planForkMappedKbDocumentCopies', () => {
 
     const result = await planForkMappedKbDocumentCopies({
       tx,
+      sourceWorkspaceId: 'source-ws',
       resolver: mappedKbResolver,
       referencedDocumentIds: ['doc-1'],
       alreadyCopiedSourceDocIds: new Set(),
@@ -1320,6 +1325,7 @@ describe('planForkMappedKbDocumentCopies', () => {
     await expect(
       planForkMappedKbDocumentCopies({
         tx,
+        sourceWorkspaceId: 'source-ws',
         resolver: mappedKbResolver,
         referencedDocumentIds: ['doc-1'],
         alreadyCopiedSourceDocIds: new Set(),

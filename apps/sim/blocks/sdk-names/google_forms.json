@@ -1,0 +1,22 @@
+{
+  "namespace": "googleForms",
+  "methods": {
+    "batch_update": "batchUpdate",
+    "create_form": "createForm",
+    "create_watch": "createWatch",
+    "delete_watch": "deleteWatch",
+    "get_form": "getForm",
+    "get_responses": "getResponses",
+    "list_watches": "listWatches",
+    "renew_watch": "renewWatch",
+    "set_publish_settings": "setPublishSettings"
+  },
+  "triggers": {
+    "google_forms_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

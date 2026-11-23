@@ -1,5 +1,6 @@
 import type { AshbySourceSummary } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListSourcesParams {
@@ -18,6 +19,7 @@ export const listSourcesTool: ToolConfig<AshbyListSourcesParams, AshbyListSource
   name: 'Ashby List Sources',
   description: 'Lists all candidate sources configured in Ashby.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

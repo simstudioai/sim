@@ -19,6 +19,8 @@
  * 2. Add the ID to ErrorExtractorId constant at the bottom of this file
  */
 
+import { isRecordLike } from '@sim/utils/object'
+import { truncateAtCodePoint } from '@sim/utils/string'
 import { parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
 import { formatQuickBooksFaultDetail, sanitizeQuickBooksFaultData } from '@/tools/quickbooks/fault'
 
@@ -57,6 +59,8 @@ interface ErrorExtractorConfig {
 
 const CODA_MAX_VALIDATION_MESSAGES = 5
 const HELPSCOUT_MAX_FIELD_ERRORS = 5
+/** Caps a plain-text or HTML error body (a proxy or gateway page) so it is not dumped whole. */
+const TAVILY_MAX_TEXT_ERROR_LENGTH = 500
 
 /**
  * Flattens Coda's validation detail (`validationErrors` or nested schema `issues`) into
@@ -642,6 +646,42 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'tavily-errors',
+    description:
+      'Tavily error bodies: FastAPI `detail` as an object with `error`, a string, or a validation array; a top-level `error`; or a plain-text body',
+    examples: ['Tavily'],
+    explicitOnly: true,
+    // A proxy or gateway page is capped on the retained body too, not only in the message.
+    redactData: (errorInfo) =>
+      typeof errorInfo?.data === 'string'
+        ? truncateAtCodePoint(errorInfo.data, TAVILY_MAX_TEXT_ERROR_LENGTH, '…')
+        : errorInfo?.data,
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (typeof data === 'string') {
+        const text = data.trim()
+        return text
+          ? truncateAtCodePoint(text, TAVILY_MAX_TEXT_ERROR_LENGTH, '…')
+          : errorInfo?.statusText
+      }
+      const detail = data?.detail
+      if (typeof detail === 'string') return detail
+      if (typeof detail?.error === 'string') return detail.error
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((issue: unknown) =>
+            isRecordLike(issue) && typeof issue.msg === 'string' ? issue.msg : undefined
+          )
+          .filter((message): message is string => Boolean(message))
+        if (messages.length > 0) return messages.join('; ')
+      }
+      if (typeof data?.error === 'string') return data.error
+      if (typeof data?.error?.message === 'string') return data.error.message
+      if (typeof data?.message === 'string') return data.message
+      return errorInfo?.statusText
+    },
+  },
+  {
     id: 'http-status-text',
     description: 'HTTP response status text fallback',
     examples: ['Generic HTTP errors'],
@@ -735,6 +775,7 @@ export const ErrorExtractorId = {
   CRUNCHBASE_ERRORS: 'crunchbase-errors',
   PITCHBOOK_ERRORS: 'pitchbook-errors',
   SPLUNK_ERRORS: 'splunk-errors',
+  TAVILY_ERRORS: 'tavily-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

@@ -1,5 +1,8 @@
 import type { GetPipelineRunParams, GetPipelineRunResponse } from '@/tools/azure_devops/types'
+import { azureDevOpsProjectUrl } from '@/tools/azure_devops/utils'
+import { AZURE_DEVOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getPipelineRunTool: ToolConfig<GetPipelineRunParams, GetPipelineRunResponse> = {
   id: 'azure_devops_get_pipeline_run',
@@ -7,6 +10,7 @@ export const getPipelineRunTool: ToolConfig<GetPipelineRunParams, GetPipelineRun
   description:
     'Get details for a specific pipeline run in an Azure DevOps project. Returns run state, result, timestamps, and the pipeline reference.',
   version: '1.0.0',
+  oauth: AZURE_DEVOPS_CREDENTIAL_OAUTH,
 
   params: {
     organization: {
@@ -44,7 +48,7 @@ export const getPipelineRunTool: ToolConfig<GetPipelineRunParams, GetPipelineRun
   request: {
     url: (params) => {
       const url = new URL(
-        `https://dev.azure.com/${params.organization.trim()}/${params.project.trim()}/_apis/pipelines/${params.pipelineId}/runs/${params.runId}`
+        `${azureDevOpsProjectUrl(params)}/_apis/pipelines/${safeUrlPathSegment(params.pipelineId, 'pipelineId')}/runs/${safeUrlPathSegment(params.runId, 'runId')}`
       )
       url.searchParams.set('api-version', '7.2-preview.1')
       return url.toString()

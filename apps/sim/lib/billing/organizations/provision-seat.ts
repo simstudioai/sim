@@ -15,7 +15,10 @@ import {
   isTeam,
 } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
-import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import {
+  hasUsableSubscriptionStatus,
+  isTrialingSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import {
   enqueueCancelAtPeriodEndSync,
   enqueueSubscriptionSeatsSync,
@@ -164,7 +167,13 @@ async function convertPersonalSubscriptionToTeam(
     onError: 'throw',
     executor,
   })
-  if (!personalSub || !hasUsableSubscriptionStatus(personalSub.status)) {
+  // A trial cannot become a seat-billed team: the team would inherit Pro's trial without its
+  // capped allowance, and nothing has been paid yet.
+  if (
+    !personalSub ||
+    !hasUsableSubscriptionStatus(personalSub.status) ||
+    isTrialingSubscription(personalSub)
+  ) {
     return { success: false, failureCode: 'upgrade-required' }
   }
 

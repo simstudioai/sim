@@ -1,14 +1,16 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
+import { toRecord } from '@sim/utils/object'
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { boundedAccountSites } from '@/lib/credential-groups/account-sites'
 import { ORGANIZATION_VIEWER_ACCOUNT_LIMIT } from '@/lib/credential-groups/limits'
 
 /** Own grant metadata remains manageable even while provider setup or enrollment is disabled. */
 export async function listViewerOrganizationAccounts(input: {
   organizationId: string
   userId: string
-  matching: SQL
+  matching?: SQL
 }) {
   const scope = { kind: 'organization', organizationId: input.organizationId } as const
   const accounts = await db
@@ -19,6 +21,7 @@ export async function listViewerOrganizationAccounts(input: {
       groupId: credentialGroup.id,
       optionId: credential.credentialGroupOptionId,
       providerId: credential.providerId,
+      metadata: credential.providerMetadata,
     })
     .from(credential)
     .innerJoin(
@@ -47,11 +50,13 @@ export async function listViewerOrganizationAccounts(input: {
       (account.status !== 'active' && account.status !== 'needs_reauth')
     )
       throw new Error('Invalid personal account metadata')
+    const { metadata, ...rest } = account
     return {
-      ...account,
+      ...rest,
       optionId: account.optionId,
       providerId: account.providerId,
       status: account.status,
+      sites: boundedAccountSites(toRecord(metadata).sites),
     }
   })
 }

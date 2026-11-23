@@ -189,6 +189,40 @@ export const selectorManifest = {
     listMode: 'paginated',
     detail: true,
   }),
+  'gauge.organizations': providerSelector([], { detail: true, unknownDetail: true }),
+  'gauge.categories': providerSelector(['organization'], {
+    readiness: { all: ['oauthCredential', 'organization'] },
+    sourceFields: { organization: ['org'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'gauge.topics': providerSelector(['organization', 'category'], {
+    readiness: { all: ['oauthCredential', 'organization', 'category'] },
+    sourceFields: { organization: ['org'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'gauge.prompts': providerSelector(['organization', 'category'], {
+    readiness: { all: ['oauthCredential', 'organization', 'category'] },
+    sourceFields: { organization: ['org'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'gauge.tags': providerSelector(['organization'], {
+    readiness: { all: ['oauthCredential', 'organization'] },
+    sourceFields: { organization: ['org'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'gauge.answers': providerSelector(['organization', 'category'], {
+    readiness: { all: ['oauthCredential', 'organization', 'category'] },
+    sourceFields: { organization: ['org'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
   'fivetran.groups': providerSelector([], {
     listMode: 'paginated',
     detail: true,
@@ -218,6 +252,19 @@ export const selectorManifest = {
     readiness: { all: ['oauthCredential', 'spreadsheetId'] },
   }),
   'harmonic.savedSearches': providerSelector([], { detail: true, unknownDetail: true }),
+  'jama.projects': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'jama.itemTypes': providerSelector(['projectId'], { listMode: 'paginated' }),
+  'flow.projects': providerSelector(),
+  'flow.categories': providerSelector(['projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+  }),
+  'flow.branches': providerSelector(['projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+  }),
   'helpscout.mailboxes': providerSelector([], { listMode: 'paginated', detail: true }),
   'helpscout.assignees': providerSelector([], { listMode: 'paginated', detail: true }),
   'hubspot.lists': providerSelector([], { listMode: 'paginated', search: true, detail: true }),
@@ -432,6 +479,31 @@ export const selectorManifest = {
       detail: true,
     }
   ),
+  'planetscale.savedDatabases': providerSelector(['organization'], {
+    readiness: { all: ['oauthCredential', 'organization'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'planetscale.savedBranches': providerSelector(['organization', 'database'], {
+    readiness: { all: ['oauthCredential', 'organization', 'database'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'planetscale.savedBackups': providerSelector(['organization', 'database', 'branch'], {
+    sourceFields: { branch: ['branch', 'parentBranch'] },
+    readiness: { all: ['oauthCredential', 'organization', 'database'] },
+    listMode: 'paginated',
+    search: false,
+    detail: true,
+  }),
+  'planetscale.savedDeployRequests': providerSelector(['organization', 'database'], {
+    readiness: { all: ['oauthCredential', 'organization', 'database'] },
+    listMode: 'paginated',
+    search: false,
+    detail: true,
+  }),
   'cloudwatch.logGroups': rawProviderSelector(
     ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
     {
@@ -454,6 +526,18 @@ export const selectorManifest = {
       detail: true,
     }
   ),
+  'cloudwatch.savedLogGroups': providerSelector(['awsRegion'], {
+    readiness: { all: ['oauthCredential', 'awsRegion'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'cloudwatch.savedLogStreams': providerSelector(['awsRegion', 'logGroupName'], {
+    readiness: { all: ['oauthCredential', 'awsRegion', 'logGroupName'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'imap.mailboxes': rawProviderSelector(['host', 'port', 'secure', 'username', 'password'], {
     readiness: { all: ['host', 'username', 'password'] },
     sensitive: ['username', 'password'],

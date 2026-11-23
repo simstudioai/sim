@@ -34,6 +34,8 @@ const UpdateFunctionConfigurationSchema = z
     snapStartApplyOn: z.enum(['PublishedVersions', 'None']).optional(),
     logFormat: z.enum(['JSON', 'Text']).optional(),
     logGroup: z.string().optional(),
+    applicationLogLevel: z.enum(['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional(),
+    systemLogLevel: z.enum(['DEBUG', 'INFO', 'WARN']).optional(),
     revisionId: z.string().optional(),
   })
   .superRefine((value, ctx) => {

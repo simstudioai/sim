@@ -79,14 +79,15 @@ export async function verifyTwilioAuth(
 
   if (!authToken) {
     logger.warn(
-      `[${requestId}] ${providerLabel} webhook has no auth token configured — accepting request without signature verification. Configure an auth token to require signed requests.`
+      `${providerLabel} webhook has no auth token configured — accepting request without signature verification. Configure an auth token to require signed requests.`,
+      { requestId }
     )
     return null
   }
 
   const signature = request.headers.get('x-twilio-signature')
   if (!signature) {
-    logger.warn(`[${requestId}] ${providerLabel} webhook missing signature header`)
+    logger.warn(`${providerLabel} webhook missing signature header`, { requestId })
     return new NextResponse('Unauthorized - Missing Twilio signature', { status: 401 })
   }
 
@@ -97,10 +98,9 @@ export async function verifyTwilioAuth(
       params = Object.fromEntries(urlParams.entries())
     }
   } catch (error) {
-    logger.error(
-      `[${requestId}] Error parsing ${providerLabel} webhook body for signature validation:`,
-      error
-    )
+    logger.error(`Error parsing ${providerLabel} webhook body for signature validation:`, error, {
+      requestId,
+    })
     return new NextResponse('Bad Request - Invalid body format', { status: 400 })
   }
 
@@ -108,7 +108,8 @@ export async function verifyTwilioAuth(
   const isValidSignature = await validateTwilioSignature(authToken, signature, fullUrl, params)
 
   if (!isValidSignature) {
-    logger.warn(`[${requestId}] ${providerLabel} signature verification failed`, {
+    logger.warn(`${providerLabel} signature verification failed`, {
+      requestId,
       url: fullUrl,
       signatureLength: signature.length,
       paramsCount: Object.keys(params).length,

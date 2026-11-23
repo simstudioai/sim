@@ -14,12 +14,12 @@ setEnv({
 afterAll(resetEnvMock)
 
 describe('OAuth service availability projection', () => {
-  it('uses the repository App while the workflow block keeps its API-key path', () => {
+  it('uses the repository App while the workflow block keeps its saved-token path', () => {
     expect(
       getOAuthServiceAvailability([{ providerId: 'github-repositories', authType: 'oauth' }])
     ).toEqual([{ providerId: 'github-repositories', available: true }])
-    expect(getIntegrationAvailability().find((item) => item.type === 'github_v2')).toMatchObject({
-      state: 'ready',
+    expect(getIntegrationAvailability().find((item) => item.type === 'github_v3')).toMatchObject({
+      state: 'limited',
       oauthAvailable: false,
     })
   })

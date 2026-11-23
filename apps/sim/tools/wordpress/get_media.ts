@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   WORDPRESS_COM_API_BASE,
   type WordPressGetMediaParams,
@@ -33,7 +34,8 @@ export const getMediaTool: ToolConfig<WordPressGetMediaParams, WordPressGetMedia
   },
 
   request: {
-    url: (params) => `${WORDPRESS_COM_API_BASE}/${params.siteId}/media/${params.mediaId}`,
+    url: (params) =>
+      `${WORDPRESS_COM_API_BASE}/${safeUrlPathSegment(params.siteId, 'siteId')}/media/${safeUrlPathSegment(params.mediaId, 'mediaId')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',

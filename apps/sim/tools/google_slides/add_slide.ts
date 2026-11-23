@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateRandomString } from '@sim/utils/random'
+import { batchUpdateUrl } from '@/tools/google_slides/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesAddSlideTool')
@@ -93,7 +94,7 @@ export const addSlideTool: ToolConfig<AddSlideParams, AddSlideResponse> = {
       if (!presentationId) {
         throw new Error('Presentation ID is required')
       }
-      return `https://slides.googleapis.com/v1/presentations/${presentationId}:batchUpdate`
+      return batchUpdateUrl(presentationId)
     },
     method: 'POST',
     headers: (params) => {

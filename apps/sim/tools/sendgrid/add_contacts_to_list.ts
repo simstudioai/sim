@@ -1,4 +1,6 @@
 import type { AddContactsToListParams, SendGridContactObject } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, ToolResponse> = {
@@ -7,8 +9,10 @@ export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, 
   description:
     'Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marketing/contacts)',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -31,7 +35,7 @@ export const sendGridAddContactsToListTool: ToolConfig<AddContactsToListParams, 
   },
 
   request: {
-    url: () => 'https://api.sendgrid.com/v3/marketing/contacts',
+    url: (params) => `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/contacts`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

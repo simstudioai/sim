@@ -1,6 +1,6 @@
 /**
- * Exercises real repository queries against temporary PostgreSQL tables and,
- * when configured, the production confirmation/permission boundary over Redis.
+ * Exercises real repository queries against temporary PostgreSQL tables and
+ * the production confirmation/permission boundary over Redis.
  * Set TEST_DATABASE_URL to a local PostgreSQL database and
  * TEST_REDIS_URL to an isolated local Redis service.
  */
@@ -80,7 +80,7 @@ import {
 import {
   createProviderToolCallIdentity,
   scopeProviderToolCallId,
-} from '@/lib/mothership/request/go/tool-call-identity'
+} from '@/lib/mothership/request/worker/tool-call-identity'
 
 const connection = postgres(databaseUrl, { max: 1 })
 const providerId = 'call_reused_fixture'
@@ -136,18 +136,28 @@ describe('Copilot tool identity with PostgreSQL', () => {
     `)
     await connection`INSERT INTO copilot_runs (id, execution_id, chat_id, stream_id, user_id, tool_execution_version)
       VALUES (${firstRunId}, ${generateId()}, ${generateId()}, ${generateId()}, 'approval-user', 3)`
-    if (redisUrl) {
-      redisState.current = new Redis(redisUrl, { maxRetriesPerRequest: 1 })
-      await redisState.current.ping()
-      await vi.waitFor(async () => {
-        const counts = await redisState.current?.pubsub(
-          'NUMSUB',
-          'copilot:tool-confirmation',
-          'copilot:tool-permission'
-        )
-        expect(Array.isArray(counts) ? [Number(counts[1]), Number(counts[3])] : []).toEqual([1, 1])
-      })
+    redisState.current = new Redis(redisUrl, { maxRetriesPerRequest: 1 })
+    await redisState.current.ping()
+    const channels = globalThis as typeof globalThis & {
+      _toolConfirmationChannel?: { ready(): Promise<void> }
+      _toolPermissionChannel?: { ready(): Promise<void> }
     }
+    if (!channels._toolConfirmationChannel || !channels._toolPermissionChannel) {
+      throw new Error('Tool confirmation and permission channels were not created on import')
+    }
+    /** The channels connect on first use; open both so no publication below precedes them. */
+    await Promise.all([
+      channels._toolConfirmationChannel.ready(),
+      channels._toolPermissionChannel.ready(),
+    ])
+    await vi.waitFor(async () => {
+      const counts = await redisState.current?.pubsub(
+        'NUMSUB',
+        'copilot:tool-confirmation',
+        'copilot:tool-permission'
+      )
+      expect(Array.isArray(counts) ? [Number(counts[1]), Number(counts[3])] : []).toEqual([1, 1])
+    })
   })
 
   beforeEach(async () => {
@@ -477,7 +487,7 @@ describe('Copilot tool identity with PostgreSQL', () => {
     expect((await getAsyncToolCall(firstId))?.result).toEqual(winner?.result)
   })
 
-  describe.skipIf(!redisUrl)('with actual Redis confirmation and permission channels', () => {
+  describe('with actual Redis confirmation and permission channels', () => {
     it.each(['abort', 'timeout'] as const)(
       'stops durable permission reads after %s',
       async (ending) => {

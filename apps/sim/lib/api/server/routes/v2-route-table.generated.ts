@@ -71,6 +71,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/credentials/providers/route'),
   },
   {
+    pattern: '/api/v2/credentials/workload-identity/subjects',
+    load: () => import('@/app/api/v2/credentials/workload-identity/subjects/route'),
+  },
+  {
     pattern: '/api/v2/custom-tools',
     load: () => import('@/app/api/v2/custom-tools/route'),
   },
@@ -219,6 +223,11 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       import(
         '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/chunks/[chunkId]/route'
       ),
+  },
+  {
+    pattern: '/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/content',
+    load: () =>
+      import('@/app/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content/route'),
   },
   {
     pattern: '/api/v2/knowledge/{knowledgeBaseId}/documents/from-workspace-files',
@@ -447,6 +456,49 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
       ),
   },
   {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/search/sources/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}',
+    load: () =>
+      import('@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/route'),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions/imports',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/route'
+      ),
+  },
+  {
+    pattern:
+      '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions/imports/{importId}/complete',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/complete/route'
+      ),
+  },
+  {
+    pattern:
+      '/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions/imports/{importId}/parts/{partNumber}',
+    load: () =>
+      import(
+        '@/app/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions/imports/[importId]/parts/[partNumber]/route'
+      ),
+  },
+  {
+    pattern: '/api/v2/organizations/{organizationId}/search/sources/prepare',
+    load: () => import('@/app/api/v2/organizations/[organizationId]/search/sources/prepare/route'),
+  },
+  {
     pattern: '/api/v2/organizations/{organizationId}/sso/policy',
     load: () => import('@/app/api/v2/organizations/[organizationId]/sso/policy/route'),
   },
@@ -583,6 +635,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/sandboxes/{sandboxId}',
     load: () => import('@/app/api/v2/sandboxes/[sandboxId]/route'),
+  },
+  {
+    pattern: '/api/v2/schedules',
+    load: () => import('@/app/api/v2/schedules/route'),
   },
   {
     pattern: '/api/v2/secrets',
@@ -801,6 +857,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/operations/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/outline',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/outline/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/restore',
     load: () => import('@/app/api/v2/workflows/[workflowId]/restore/route'),
   },
@@ -829,8 +889,24 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/source',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/source/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/source/plan',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/source/plan/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/state',
     load: () => import('@/app/api/v2/workflows/[workflowId]/state/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/triggers',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/triggers/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/triggers/{blockId}',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/triggers/[blockId]/route'),
   },
   {
     pattern: '/api/v2/workflows/{workflowId}/variables',
@@ -871,6 +947,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workflows/move',
     load: () => import('@/app/api/v2/workflows/move/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/runs/paused',
+    load: () => import('@/app/api/v2/workflows/runs/paused/route'),
   },
   {
     pattern: '/api/v2/workspaces',
@@ -958,6 +1038,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/route'),
   },
   {
+    pattern: '/api/v2/workspaces/{workspaceId}/members/{userId}',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/members/[userId]/route'),
+  },
+  {
     pattern: '/api/v2/workspaces/{workspaceId}/operations',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/operations/route'),
   },
@@ -968,5 +1052,33 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workspaces/{workspaceId}/permission-config',
     load: () => import('@/app/api/v2/workspaces/[workspaceId]/permission-config/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/blobs',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/blobs/missing',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/blobs/missing/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/source/plan',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/source/plan/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source/catalog',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/catalog/route'),
+  },
+  {
+    pattern: '/api/v2/workspaces/{workspaceId}/workflows/source/resources',
+    load: () => import('@/app/api/v2/workspaces/[workspaceId]/workflows/source/resources/route'),
   },
 ]

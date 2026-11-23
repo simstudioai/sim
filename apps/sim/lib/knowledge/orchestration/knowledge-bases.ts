@@ -82,7 +82,7 @@ export async function performCreateKnowledgeBase(
     return classifyKnowledgeFailure(error, requestId, `Create knowledge base "${name}"`)
   }
 
-  logger.info(`[${requestId}] Created knowledge base ${created.id} for user ${params.userId}`)
+  logger.info(`Created knowledge base ${created.id} for user ${params.userId}`, { requestId })
 
   PlatformEvents.knowledgeBaseCreated({
     knowledgeBaseId: created.id,
@@ -170,7 +170,7 @@ export async function performUpdateKnowledgeBase(
     return classifyKnowledgeFailure(error, requestId, `Update knowledge base ${knowledgeBaseId}`)
   }
 
-  logger.info(`[${requestId}] Updated knowledge base ${knowledgeBaseId}`)
+  logger.info(`Updated knowledge base ${knowledgeBaseId}`, { requestId })
 
   recordAudit({
     // The destination workspace when this update moved it, so the audit row
@@ -229,7 +229,7 @@ export async function performDeleteKnowledgeBase(
     return classifyKnowledgeFailure(error, requestId, `Delete knowledge base ${knowledgeBase.id}`)
   }
 
-  logger.info(`[${requestId}] Deleted knowledge base ${knowledgeBase.id}`)
+  logger.info(`Deleted knowledge base ${knowledgeBase.id}`, { requestId })
 
   PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: knowledgeBase.id })
 

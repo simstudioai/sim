@@ -1,8 +1,8 @@
 import { Link, Section, Text } from '@react-email/components'
+import { SIM_SUPPORT_EMAIL } from '@sim/utils/site'
 import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getEmailSubject } from '@/components/emails/subjects'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PaymentFailedEmailProps {
   userName?: string
@@ -19,8 +19,6 @@ export function PaymentFailedEmail({
   billingPortalUrl,
   failureReason,
 }: PaymentFailedEmailProps) {
-  const brand = getBrandConfig()
-
   const previewText = getEmailSubject('payment-failed')
 
   return (
@@ -38,7 +36,7 @@ export function PaymentFailedEmail({
       </Text>
 
       <Text style={baseStyles.paragraph}>
-        Your {brand.name} account has been temporarily blocked to prevent service interruptions and
+        Your Sim account has been temporarily blocked to prevent service interruptions and
         unexpected charges. To restore access immediately, please update your payment method.
       </Text>
 
@@ -76,8 +74,8 @@ export function PaymentFailedEmail({
 
       <Text style={baseStyles.footnote}>
         Common issues: expired card, insufficient funds, or incorrect billing info. Need help?{' '}
-        <Link href={`mailto:${brand.supportEmail}`} style={baseStyles.link}>
-          {brand.supportEmail}
+        <Link href={`mailto:${SIM_SUPPORT_EMAIL}`} style={baseStyles.link}>
+          {SIM_SUPPORT_EMAIL}
         </Link>
       </Text>
     </EmailLayout>

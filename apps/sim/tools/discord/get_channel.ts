@@ -1,5 +1,7 @@
 import type { DiscordGetChannelParams, DiscordGetChannelResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordGetChannelResponse> =
   {
@@ -7,6 +9,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
     name: 'Discord Get Channel',
     description: 'Get information about a Discord channel',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {
@@ -23,7 +26,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
       },
       serverId: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
         description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
       },
@@ -31,7 +34,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
 
     request: {
       url: (params: DiscordGetChannelParams) => {
-        return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
+        return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}`
       },
       method: 'GET',
       headers: (params) => ({
@@ -59,7 +62,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
           id: { type: 'string', description: 'Channel ID' },
           name: { type: 'string', description: 'Channel name' },
           type: { type: 'number', description: 'Channel type' },
-          topic: { type: 'string', description: 'Channel topic' },
+          topic: { type: 'string', description: 'Channel topic', optional: true, nullable: true },
           guild_id: { type: 'string', description: 'Server ID' },
         },
       },

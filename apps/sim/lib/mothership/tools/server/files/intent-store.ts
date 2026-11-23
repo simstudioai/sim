@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import type Redis from 'ioredis'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
 
@@ -50,11 +51,6 @@ const INTENT_TTL_MS = 60 * 60 * 1000
 const INTENT_TTL_SECONDS = INTENT_TTL_MS / 1000
 const REDIS_KEY_PREFIX = 'mothership_file_intent:'
 const RETRY_DELAYS_MS = [0, 50, 150] as const
-const memoryStore = new Map<string, PendingFileIntent>()
-
-function buildKey(workspaceId: string, fileId: string): string {
-  return `${workspaceId}:${fileId}`
-}
 
 function getWorkspaceRedisKey(workspaceId: string): string {
   return `${REDIS_KEY_PREFIX}${workspaceId}`
@@ -76,24 +72,12 @@ function buildScopedField(fileId: string, scope?: FileIntentScope): string {
   return `${scope?.chatId ?? ''}:${scope?.messageId ?? ''}:${fileId}`
 }
 
-function cleanupStale(): void {
-  const now = Date.now()
-  for (const [key, intent] of memoryStore) {
-    if (now - intent.createdAt > INTENT_TTL_MS) {
-      memoryStore.delete(key)
-    }
-  }
-}
-
 async function withRedisRetry<T>(
   operation: string,
   workspaceId: string,
-  work: (redis: NonNullable<ReturnType<typeof getRedisClient>>) => Promise<T>
+  work: (redis: Redis) => Promise<T>
 ): Promise<T> {
   const redis = getRedisClient()
-  if (!redis) {
-    throw new Error('Redis client unavailable')
-  }
 
   let lastError: unknown
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
@@ -140,13 +124,6 @@ export async function storeFileIntent(
   fileId: string,
   intent: PendingFileIntent
 ): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) {
-    cleanupStale()
-    memoryStore.set(buildKey(workspaceId, buildScopedField(fileId, intent)), intent)
-    return
-  }
-
   await withRedisRetry('store_file_intent', workspaceId, async (client) => {
     const key = getWorkspaceRedisKey(workspaceId)
     const pipeline = client.pipeline()
@@ -161,12 +138,6 @@ export async function peekFileIntent(
   fileId: string,
   scope?: FileIntentScope
 ): Promise<PendingFileIntent | undefined> {
-  const redis = getRedisClient()
-  if (!redis) {
-    cleanupStale()
-    return memoryStore.get(buildKey(workspaceId, buildScopedField(fileId, scope)))
-  }
-
   const raw = await withRedisRetry('peek_file_intent', workspaceId, async (client) => {
     const key = getWorkspaceRedisKey(workspaceId)
     return client.hget(key, buildScopedField(fileId, scope))
@@ -185,7 +156,7 @@ const INTENT_WAIT_INTERVAL_MS = 300
 
 /**
  * Bounded wait for the paired prepare_file_edit to stage its intent. The model
- * may batch prepare_file_edit and apply_file_edit into one round, and the Go
+ * may batch prepare_file_edit and apply_file_edit into one round, and the worker's
  * loop executes same-round tools concurrently — so apply_file_edit can reach
  * this executor before its prepare has run. Failing instantly turns that
  * ordinary race into a model-visible error, a wasted retry round, and a
@@ -214,29 +185,6 @@ export async function consumeLatestFileIntent(
   workspaceId: string,
   scope?: FileIntentScope
 ): Promise<PendingFileIntent | undefined> {
-  const redis = getRedisClient()
-  if (!redis) {
-    cleanupStale()
-    let latest: PendingFileIntent | undefined
-    let latestKey: string | undefined
-    for (const [key, intent] of memoryStore) {
-      if (
-        intent.workspaceId === workspaceId &&
-        scopeMatches(intent, scope) &&
-        channelMatches(intent, scope)
-      ) {
-        if (!latest || intent.createdAt > latest.createdAt) {
-          latest = intent
-          latestKey = key
-        }
-      }
-    }
-    if (latestKey) {
-      memoryStore.delete(latestKey)
-    }
-    return latest
-  }
-
   const entries = await withRedisRetry('read_workspace_file_intents', workspaceId, async (client) =>
     client.hgetall(getWorkspaceRedisKey(workspaceId))
   )

@@ -14,6 +14,8 @@ import { admitProjectFileProvenance } from '@/lib/mothership/agent-cli/project-f
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import type { AgentCliAugmentationInvocation } from '@/lib/mothership/generated/agent-cli'
 import { listProjectFiles, readProjectFileText } from '@/lib/projects/files/application'
+import { observedMediaType } from '@/lib/uploads/utils/file'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
 /** Project grep materializes only freshly authorized files and imports evidence before matching. */
 export function grepProjectFiles(
@@ -34,6 +36,7 @@ export function grepProjectFiles(
       refusal: 'Project grep supports only --scope files. Search workspace resources separately.',
     },
     async materialize(_scopes, nameFilter, reportIncomplete) {
+      const skipped: GrepMaterialized[] = []
       const selectedFiles: {
         item: Awaited<ReturnType<typeof listProjectFiles.execute>>['files'][number]
         label: string
@@ -61,6 +64,16 @@ export function grepProjectFiles(
             !label.toLowerCase().includes(nameFilter)
           )
             continue
+          // Same gate as the Project text read, so a skipped file is one it would refuse.
+          if (
+            !workspaceFileTextFormat({
+              name: item.name,
+              type: observedMediaType(item.type, item.name),
+            })
+          ) {
+            skipped.push({ scope: 'files', id: item.id, label, text: null, nonText: true })
+            continue
+          }
           if (selectedFiles.length >= MAX_GREP_FILES) {
             reportIncomplete(
               `files: searched the first ${MAX_GREP_FILES} selected files; narrow with --in files/<name-or-id>.`
@@ -74,46 +87,50 @@ export function grepProjectFiles(
         if (pageNumber === MAX_GREP_LIST_PAGES - 1)
           reportIncomplete(grepListingStoppedMessage('files'))
       }
-      return mapGrepFileReads(selectedFiles, async ({ item, label }): Promise<GrepMaterialized> => {
-        context.signal?.throwIfAborted()
-        const target = { projectId, fileId: item.id }
-        let read: Awaited<ReturnType<typeof readProjectFileText.execute>>
-        try {
-          read = await withGrepReadSlot(
-            () =>
-              executeCopilotProjectFileUseCase(
-                context,
-                readProjectFileText,
-                { ...target, maxBytes: MAX_GREP_BYTES_PER_FILE, skipFolderPath: true },
-                target
-              ),
-            context.signal
-          )
-        } catch {
+      const searched = await mapGrepFileReads(
+        selectedFiles,
+        async ({ item, label }): Promise<GrepMaterialized> => {
           context.signal?.throwIfAborted()
-          reportIncomplete(
-            `files/${label} (${item.id}): could not read text; use files read to inspect the error.`
-          )
-          return { scope: 'files', id: item.id, label, text: null }
+          const target = { projectId, fileId: item.id }
+          let read: Awaited<ReturnType<typeof readProjectFileText.execute>>
+          try {
+            read = await withGrepReadSlot(
+              () =>
+                executeCopilotProjectFileUseCase(
+                  context,
+                  readProjectFileText,
+                  { ...target, maxBytes: MAX_GREP_BYTES_PER_FILE, skipFolderPath: true },
+                  target
+                ),
+              context.signal
+            )
+          } catch {
+            context.signal?.throwIfAborted()
+            reportIncomplete(
+              `files/${label} (${item.id}): could not read text; use files read to inspect the error.`
+            )
+            return { scope: 'files', id: item.id, label, text: null }
+          }
+          if (
+            !(await admitProjectFileProvenance(
+              context.resolvedSecretTraceRegistry,
+              read.secretProvenance
+            ))
+          ) {
+            reportIncomplete(
+              `files/${label} (${item.id}): text withheld without its secret provenance; use files read to inspect it.`
+            )
+            return { scope: 'files', id: item.id, label, text: null }
+          }
+          if (read.degraded || read.truncated) {
+            reportIncomplete(
+              `files/${label} (${item.id}): text extraction is ${read.degraded ? 'degraded' : 'truncated'}; use files read or files get to inspect it.`
+            )
+          }
+          return { scope: 'files', id: item.id, label, text: read.degraded ? null : read.text }
         }
-        if (
-          !(await admitProjectFileProvenance(
-            context.resolvedSecretTraceRegistry,
-            read.secretProvenance
-          ))
-        ) {
-          reportIncomplete(
-            `files/${label} (${item.id}): text withheld without its secret provenance; use files read to inspect it.`
-          )
-          return { scope: 'files', id: item.id, label, text: null }
-        }
-        if (read.degraded || read.truncated) {
-          reportIncomplete(
-            `files/${label} (${item.id}): text extraction is ${read.degraded ? 'degraded' : 'truncated'}; use files read or files get to inspect it.`
-          )
-        }
-        return { scope: 'files', id: item.id, label, text: read.degraded ? null : read.text }
-      })
+      )
+      return [...searched, ...skipped]
     },
   })
 }

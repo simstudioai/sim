@@ -41,7 +41,7 @@ export const spotifyAddTracksToPlaylistTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks`,
+    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/items`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

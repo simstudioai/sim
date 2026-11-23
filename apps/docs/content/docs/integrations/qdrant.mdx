@@ -2,15 +2,16 @@
 title: Qdrant
 description: Use Qdrant vector database
 integration:
-  type: "qdrant"
+  type: "qdrant_v2"
   color: "#1A223F"
 ---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Qdrant](https://qdrant.tech) in Sim to upsert points, search for similar vectors with optional payload filters, and fetch points by ID. Points contain vectors and associated payload data; fetch and search options control which fields are returned.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -22,12 +23,12 @@ Upsert, search, and fetch points.
 
 Insert or update points in a Qdrant collection
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io) |
-| `apiKey` | string | No | Qdrant API key for authentication |
 | `collection` | string | Yes | Collection name for upsert \(e.g., "my_collection"\) |
 | `points` | array | Yes | Array of points to upsert |
 
@@ -40,16 +41,18 @@ Insert or update points in a Qdrant collection
 |   ↳ `operation_id` | number | Operation ID for async tracking |
 |   ↳ `status` | string | Operation status \(acknowledged, completed\) |
 
+</ReferenceDetails>
+
 ### Qdrant Search Vector
 
 Search for similar vectors in a Qdrant collection
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io) |
-| `apiKey` | string | No | Qdrant API key for authentication |
 | `collection` | string | Yes | Collection name to search \(e.g., "my_collection"\) |
 | `vector` | array | Yes | Query vector for similarity search \(e.g., \[0.1, 0.2, 0.3, ...\]\) |
 | `limit` | number | No | Maximum number of results to return \(e.g., 10\) |
@@ -72,16 +75,18 @@ Search for similar vectors in a Qdrant collection
 |   ↳ `shard_key` | string | Shard key for routing |
 |   ↳ `order_value` | number | Order value for sorting |
 
+</ReferenceDetails>
+
 ### Qdrant Fetch Points
 
 Fetch points by ID from a Qdrant collection
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | Qdrant instance URL \(e.g., https://your-cluster.qdrant.io) |
-| `apiKey` | string | No | Qdrant API key for authentication |
 | `collection` | string | Yes | Collection name to fetch from \(e.g., "my_collection"\) |
 | `ids` | array | Yes | Array of point IDs to fetch \(e.g., \["id1", "id2"\] or \[1, 2\]\) |
 | `fetch_return_data` | string | No | Data to return from fetch |
@@ -99,5 +104,7 @@ Fetch points by ID from a Qdrant collection
 |   ↳ `vector` | json | Point vector\(s\) - single array or named vectors object |
 |   ↳ `shard_key` | string | Shard key for routing |
 |   ↳ `order_value` | number | Order value for sorting |
+
+</ReferenceDetails>
 
 

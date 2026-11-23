@@ -19,6 +19,11 @@ import {
   executionLimitsMockFns,
 } from '@sim/testing/mocks/execution-limits.mock'
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import {
+  MockPublicApiNotAllowedError,
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,6 +47,8 @@ const {
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
+
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 const {
   mockAssertBillingAttributionSnapshot,
@@ -80,6 +87,7 @@ const PERSONAL_API_KEY_PRINCIPAL = {
   kind: 'personal_api_key',
   userId: 'user-1',
   keyId: 'personal-key-1',
+  access: 'write',
 } as const
 
 const OAUTH_WRITE_PRINCIPAL = {
@@ -643,6 +651,31 @@ describe('MCP Serve Route', () => {
 
     expect(response.status).toBe(403)
     expect(body.error).toBe(PERSONAL_KEY_DENIED)
+    expect(mockExecuteWorkflowService).not.toHaveBeenCalled()
+  })
+
+  it('refuses a public server tool call when public execution is governed off', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        name: 'Public Server',
+        workspaceId: 'ws-1',
+        isPublic: true,
+        createdBy: 'owner-1',
+        workspaceBilledAccountUserId: 'payer-1',
+      },
+    ])
+    permissionCheckMockFns.mockValidatePublicApiAllowed.mockRejectedValueOnce(
+      new MockPublicApiNotAllowedError()
+    )
+
+    const response = await POST(toolCallRequest({}), createRouteContext({ serverId: 'server-1' }))
+
+    expect(response.status).toBe(403)
+    expect(permissionCheckMockFns.mockValidatePublicApiAllowed).toHaveBeenCalledWith(
+      'payer-1',
+      'ws-1'
+    )
     expect(mockExecuteWorkflowService).not.toHaveBeenCalled()
   })
 

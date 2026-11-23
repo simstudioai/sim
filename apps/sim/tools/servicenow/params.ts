@@ -1,6 +1,21 @@
+import { savedCredentialTokenParam } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 type ServiceNowParams = ToolConfig['params']
+
+/**
+ * Hidden params a saved ServiceNow credential fills: the token an OAuth client credential mints,
+ * and the `authStyle` naming it a bearer token. Every ServiceNow tool declares them.
+ */
+export const SERVICENOW_CREDENTIAL_PARAMS = {
+  accessToken: savedCredentialTokenParam('ServiceNow'),
+  authStyle: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Token type injected by the executor from the selected ServiceNow credential',
+  },
+} satisfies ServiceNowParams
 
 /** Instance URL plus Basic Auth credentials, shared by every ServiceNow tool. */
 export const authParams: ServiceNowParams = {
@@ -22,6 +37,7 @@ export const authParams: ServiceNowParams = {
     visibility: 'user-only',
     description: 'ServiceNow password',
   },
+  ...SERVICENOW_CREDENTIAL_PARAMS,
 }
 
 /**

@@ -273,7 +273,7 @@ async function run() {
       body: fields({ name: 'team.handbook', url: 'https://other.example.com' }),
       expected: 409,
     })
-    assert.match(String(error), /sim\/Team-Handbook already exists/)
+    assert.match(String(error), /A link named Team-Handbook already exists/)
   })
 
   await check('unlisted links are hidden from other members but still resolve', async () => {
@@ -286,6 +286,17 @@ async function run() {
   await check('search matches names regardless of punctuation and the sim/ prefix', async () => {
     assert.deepEqual(await listedNames(member, { search: 'sim/teamhand' }), ['Team-Handbook'])
     assert.deepEqual(await listedNames(member, { search: 'everything lives' }), ['Team-Handbook'])
+  })
+
+  await check('a destination lookup finds only links that open exactly that address', async () => {
+    await create(member, { name: 'plan', url: 'https://plan.example.com' })
+    await create(member, { name: 'plan-faq', url: 'https://plan.example.com/faq' })
+    assert.deepEqual(await listedNames(member, { url: 'https://plan.example.com' }), ['plan'])
+    assert.deepEqual(await listedNames(owner, { url: 'https://plan.example.com' }), [
+      'plan',
+      'secret-plan',
+    ])
+    assert.deepEqual(await listedNames(member, { url: 'https://plan.example.com/missing' }), [])
   })
 
   await check('restricted links refuse edits from other members', async () => {
@@ -325,6 +336,38 @@ async function run() {
     assert.match(text, /doesn.*t exist yet/)
     assert.match(text, /links\?create=team-handbook/)
     await api({ ...outsider, orgId }, '', { expected: 404 })
+  })
+
+  await check('the address bar learns whether links are on and matches inside names', async () => {
+    const suggest = (caller: Member | null, q: string) =>
+      send(`/api/sim-links/suggestions?q=${encodeURIComponent(q)}`, caller)
+    assert.equal((await suggest(null, '')).status, 401)
+    const { enabled, links } = (await (await suggest(member, 'handbook')).json()) as {
+      enabled: boolean
+      links: { name: string }[]
+    }
+    assert.equal(enabled, true)
+    assert(links.some((link) => link.name === 'Team-Handbook'))
+    const withoutOrganization = await seedMember(orgId, 'member')
+    await sql`delete from member where user_id = ${withoutOrganization.userId}`
+    assert.deepEqual(await (await suggest(withoutOrganization, '')).json(), {
+      enabled: false,
+      links: [],
+    })
+    assert.match((await open(withoutOrganization, 'handbook')).text, /aren.*t available/)
+  })
+
+  await check('a typed phrase searches links and a near miss offers what exists', async () => {
+    const phrase = await open(member, 'team%20handbook')
+    assert(phrase.location, 'Expected a redirect to search')
+    assert.equal(new URL(phrase.location).searchParams.get('search'), 'team handbook')
+    const { links } = await api(member, '?search=team%20handbook', {})
+    assert(
+      Array.isArray(links) &&
+        links.some((link) => isRecordLike(link) && link.name === 'Team-Handbook'),
+      'Expected a typed phrase to find the hyphenated name'
+    )
+    assert.match((await open(member, 'handbook')).text, /Team-Handbook/)
   })
 
   await check('redirects are counted and order the most-used view', async () => {

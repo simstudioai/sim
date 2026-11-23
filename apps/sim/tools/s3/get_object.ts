@@ -6,13 +6,17 @@ import {
   getSignatureKey,
   parseS3Uri,
 } from '@/tools/s3/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+
+const S3_USER_METADATA_HEADER_PREFIX = 'x-amz-meta-'
 
 export const s3GetObjectTool: ToolConfig = {
   id: 's3_get_object',
   name: 'S3 Get Object',
   description: 'Retrieve an object from an AWS S3 bucket',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {
@@ -81,9 +85,16 @@ export const s3GetObjectTool: ToolConfig = {
         const canonicalQueryString = ''
         const payloadHash = crypto.createHash('sha256').update('').digest('hex')
         const host = `${params.bucketName}.s3.${params.region}.amazonaws.com`
+        // Saved AWS credentials resolve to temporary keys that must carry their session token.
+        const sessionToken: string | undefined = params.sessionToken || undefined
         const canonicalHeaders =
-          `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amzDate}\n`
-        const signedHeaders = 'host;x-amz-content-sha256;x-amz-date'
+          `host:${host}\n` +
+          `x-amz-content-sha256:${payloadHash}\n` +
+          `x-amz-date:${amzDate}\n` +
+          (sessionToken ? `x-amz-security-token:${sessionToken}\n` : '')
+        const signedHeaders = sessionToken
+          ? 'host;x-amz-content-sha256;x-amz-date;x-amz-security-token'
+          : 'host;x-amz-content-sha256;x-amz-date'
         const canonicalRequest = `${method}\n${canonicalUri}\n${canonicalQueryString}\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`
 
         const algorithm = 'AWS4-HMAC-SHA256'
@@ -99,6 +110,7 @@ export const s3GetObjectTool: ToolConfig = {
           Host: host,
           'X-Amz-Content-Sha256': payloadHash,
           'X-Amz-Date': amzDate,
+          ...(sessionToken ? { 'X-Amz-Security-Token': sessionToken } : {}),
           Authorization: authorizationHeader,
         }
       } catch (error) {
@@ -129,6 +141,13 @@ export const s3GetObjectTool: ToolConfig = {
     const fileName = params.objectKey.split('/').pop() || params.objectKey
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    const userMetadata: Record<string, string> = {}
+    response.headers.forEach((value, name) => {
+      const lowerName = name.toLowerCase()
+      if (lowerName.startsWith(S3_USER_METADATA_HEADER_PREFIX)) {
+        userMetadata[lowerName.slice(S3_USER_METADATA_HEADER_PREFIX.length)] = value
+      }
+    })
 
     // Generate pre-signed URL for download
     const url = generatePresignedUrl(params, 3600)
@@ -148,6 +167,11 @@ export const s3GetObjectTool: ToolConfig = {
           size: buffer.length,
           name: fileName,
           lastModified: lastModified,
+          etag: response.headers.get('etag') ?? null,
+          versionId: response.headers.get('x-amz-version-id') ?? null,
+          storageClass: response.headers.get('x-amz-storage-class') ?? null,
+          serverSideEncryption: response.headers.get('x-amz-server-side-encryption') ?? null,
+          userMetadata,
         },
       },
     }
@@ -164,7 +188,8 @@ export const s3GetObjectTool: ToolConfig = {
     },
     metadata: {
       type: 'object',
-      description: 'File metadata including type, size, name, and last modified date',
+      description:
+        'File metadata: fileType, size, name, lastModified, etag, versionId (versioned buckets), storageClass (omitted by S3 for STANDARD), serverSideEncryption, and userMetadata (x-amz-meta-* values keyed without the prefix)',
     },
   },
 }

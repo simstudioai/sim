@@ -19,7 +19,7 @@ vi.mock('@sim/db', async () => {
   })
   return { db: drizzle(fixture.client) }
 })
-vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isHosted: true, isBillingEnabled: false }))
 vi.mock('@/providers/models', () => ({ getHostedModels: () => ['gpt-4.1-mini'] }))
 vi.mock('@/providers/utils', () => ({ PROVIDER_PLACEHOLDER_KEY: 'fixture-placeholder' }))
 vi.mock('@/lib/api-key/byok-entitlement', () => ({

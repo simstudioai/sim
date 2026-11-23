@@ -1,9 +1,12 @@
 import { ZoomInfoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const ZoomInfoBlock: BlockConfig = {
   type: 'zoominfo',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'zoominfo_v2' },
   name: 'ZoomInfo',
   description: 'Search and enrich B2B company and contact data with ZoomInfo.',
   authMode: AuthMode.ApiKey,
@@ -687,3 +690,17 @@ export const ZoomInfoBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ZoomInfoV2Block: BlockConfig = {
+  ...ZoomInfoBlock,
+  type: 'zoominfo_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(ZoomInfoBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'zoominfo',
+    title: 'ZoomInfo Credential',
+  }),
+}

@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { webhookPollingContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { runDetached } from '@/lib/core/utils/background'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
 
@@ -20,7 +20,7 @@ export const maxDuration = 180
 
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ provider: string }> }) => {
-    const requestId = generateShortId()
+    const requestId = generateRequestId()
     let provider: string | undefined
 
     try {
@@ -75,7 +75,7 @@ export const GET = withRouteHandler(
       )
     } catch (error) {
       const providerLabel = provider ?? 'webhook'
-      logger.error(`Error during ${providerLabel} polling (${requestId}):`, error)
+      logger.error(`Error during ${providerLabel} polling:`, error)
       return NextResponse.json(
         {
           success: false,

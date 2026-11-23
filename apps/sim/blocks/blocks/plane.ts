@@ -1,6 +1,7 @@
 import { PlaneIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 interface PlaneOperationField {
@@ -922,6 +923,8 @@ const OPERATION_FIELDS: Record<string, Record<string, PlaneOperationField>> = {
 export const PlaneBlock: BlockConfig = {
   triggerAllowed: true,
   type: 'plane',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'plane_v2' },
   name: 'Plane',
   description: 'Manage projects and work items in Plane',
   authMode: AuthMode.ApiKey,
@@ -4186,8 +4189,8 @@ export const PlaneBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => String(params.operation || 'plane_list_projects'),
-      params: (params) => {
-        const operation = String(params.operation || 'plane_list_projects')
+      params: (params, context) => {
+        const operation = mapperOperation(params, context) || 'plane_list_projects'
         const result: Record<string, unknown> = {
           apiKey: params.apiKey,
           baseUrl: params.baseUrl,
@@ -4530,4 +4533,17 @@ export const PlaneBlockMeta: BlockMeta = {
       tags: ['project-management', 'automation'],
     },
   ],
+}
+
+export const PlaneV2Block: BlockConfig = {
+  ...PlaneBlock,
+  type: 'plane_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    PlaneBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'plane', title: 'Plane Credential' },
+    { required: true }
+  ),
 }

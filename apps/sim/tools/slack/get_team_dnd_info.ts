@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createSlackWebApiTool, slackId, slackJson } from '@/tools/slack/web-api'
+import { createSlackWebApiTool, slackId, slackIdList } from '@/tools/slack/web-api'
 import { dndSchema } from '@/tools/slack/web-api-responses'
 
 /** https://docs.slack.dev/reference/methods/dnd.teamInfo/ */
@@ -16,7 +16,13 @@ export const slackGetTeamDndInfoTool = createSlackWebApiTool({
     credentialKind: 'service-account',
   },
   params: {
-    users: { type: 'json', required: true, visibility: 'user-or-llm', description: 'User IDs' },
+    users: {
+      type: 'json',
+      required: true,
+      visibility: 'user-or-llm',
+      description:
+        'Slack user IDs to read, up to 50, as a JSON array (["U123","W456"]) or a comma-separated string (U123,W456)',
+    },
     team_id: {
       type: 'string',
       required: false,
@@ -25,7 +31,7 @@ export const slackGetTeamDndInfoTool = createSlackWebApiTool({
     },
   },
   input: z.object({
-    users: slackJson(z.array(slackId).min(1)).transform((ids) => ids.join(',')),
+    users: slackIdList(z.array(slackId).min(1).max(50)).transform((ids) => ids.join(',')),
     team_id: z.string().trim().min(1).optional(),
   }),
   output: z.object({ ok: z.literal(true), users: z.record(z.string(), dndSchema) }),

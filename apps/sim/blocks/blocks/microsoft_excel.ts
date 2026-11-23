@@ -2,7 +2,7 @@ import { MicrosoftExcelIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, isToolCall, mapperOperation } from '@/blocks/utils'
 
 /** Maps the read/write operation to its `_v2` tool id, falling back to read on unknown ops. */
 const versionedReadWriteSelector = createVersionedToolSelector<Record<string, unknown>>({
@@ -66,7 +66,10 @@ function optionalNumber(value: unknown): number | undefined {
   return num
 }
 
-/** Normalizes stored agent inputs when the selected operation is carried outside the parameter map. */
+/**
+ * Normalizes tool-call params (a stored tool row merged with model args keyed by the tool's own
+ * param names) and canvas inputs that carry no operation, without the per-operation validation.
+ */
 function normalizeExcelAgentParams(params: Record<string, unknown>, separateSheet: boolean) {
   const result: Record<string, unknown> = { ...params }
   for (const field of ['index', 'top', 'skip', 'position', 'fontSize', 'sortColumn']) {
@@ -82,6 +85,7 @@ function normalizeExcelAgentParams(params: Record<string, unknown>, separateShee
     'showTotals',
     'rowHidden',
     'columnHidden',
+    'valuesOnly',
   ])
     result[field] = optionalBoolean(params[field])
   for (const field of [
@@ -701,8 +705,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             throw new Error(`Invalid Microsoft Excel operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        if (!params.operation) return normalizeExcelAgentParams(params, false)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (isToolCall(context) || !operation) return normalizeExcelAgentParams(params, false)
         const {
           oauthCredential,
           values,
@@ -711,7 +716,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           worksheetName,
           driveId,
           range,
-          operation,
           applyTo,
           fillColor,
           fontBold,
@@ -1505,6 +1509,19 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => '',
     },
     {
+      id: 'valuesOnly',
+      title: 'Used Range Cells',
+      type: 'dropdown',
+      description: 'Applies only when no cell range is set and the used range is read.',
+      condition: { field: 'operation', value: ['read'] },
+      mode: 'advanced',
+      options: [
+        { label: 'Cells with values', id: '' },
+        { label: 'Cells with values or formatting', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
       id: 'fontUnderline',
       title: 'Underline',
       type: 'dropdown',
@@ -1831,8 +1848,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             return versionedReadWriteSelector(params)
         }
       },
-      params: (params) => {
-        if (!params.operation) return normalizeExcelAgentParams(params, true)
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        if (isToolCall(context) || !operation) return normalizeExcelAgentParams(params, true)
         const {
           oauthCredential,
           values,
@@ -1842,7 +1860,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           driveId,
           siteId: _siteId,
           fileSource: _fileSource,
-          operation,
           applyTo,
           fillColor,
           fontBold,
@@ -2006,7 +2023,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               throw new Error('Sheet name is required. Please select or enter a sheet name.')
             }
             const rangeParams = { ...base, sheetName: effectiveSheetName, cellRange: trimmedRange }
-            if (operation === 'read') return rangeParams
+            if (operation === 'read')
+              return { ...rangeParams, valuesOnly: optionalBoolean(params.valuesOnly) }
             return {
               ...rangeParams,
               values: optionalJson(values),
@@ -2048,6 +2066,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     numberFormat: { type: 'json', description: 'Number Formats' },
     columnHidden: { type: 'string', description: 'Hide Columns' },
     rowHidden: { type: 'string', description: 'Hide Rows' },
+    valuesOnly: { type: 'string', description: 'Used range counts only cells with values' },
     fontUnderline: { type: 'string', description: 'Underline' },
     operation: { type: 'string', description: 'Operation to perform' },
     fileSource: { type: 'string', description: 'File source (onedrive or sharepoint)' },

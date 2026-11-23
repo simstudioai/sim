@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapVerification,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListVerificationsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const checkrListVerificationsTool: ToolConfig<
   description:
     'List the verifications on a report, such as requests for the candidate to confirm their SSN or upload an ID.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

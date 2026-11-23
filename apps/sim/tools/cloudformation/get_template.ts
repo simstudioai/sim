@@ -2,6 +2,7 @@ import type {
   CloudFormationGetTemplateParams,
   CloudFormationGetTemplateResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getTemplateTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getTemplateTool: InternalToolConfig<
   name: 'CloudFormation Get Template',
   description: 'Retrieve the template body for a CloudFormation stack',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

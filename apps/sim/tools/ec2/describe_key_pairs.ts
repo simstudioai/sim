@@ -4,6 +4,7 @@ import {
   type Ec2DescribeKeyPairsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeKeyPairsTool: InternalToolConfig<
@@ -14,6 +15,7 @@ export const describeKeyPairsTool: InternalToolConfig<
   name: 'EC2 Describe Key Pairs',
   description: 'List EC2 key pairs with their type, fingerprint, and creation time',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

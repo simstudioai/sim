@@ -168,22 +168,36 @@ function encodeSegment(segment: string, paramName: string): string {
  * @param options.allowSeparators - Percent-encode `/` and `\` instead of
  *   rejecting them, for opaque ids (such as base64) that may legitimately
  *   contain them. Empty values and dot segments are still rejected.
- * @returns The trimmed, percent-encoded segment, safe to interpolate.
+ * @param options.preserveWhitespace - Encode the value as given instead of
+ *   trimming it, for ids where surrounding whitespace is significant (an
+ *   exact-match document id). Blank values and dot segments are still rejected.
+ * @param options.stripTabsAndNewlines - Remove tabs, carriage returns and
+ *   newlines before encoding, as the WHATWG URL parser does to a raw URL. For
+ *   call sites that once interpolated the id unencoded, so an id ending in a
+ *   newline keeps addressing the same resource.
+ * @returns The percent-encoded segment (trimmed unless `preserveWhitespace`), safe to interpolate.
  * @throws If the value is not a string or a usable number, is empty, is a dot
  *   segment, contains a path separator (unless allowed), or cannot be encoded.
  */
 export function safeUrlPathSegment(
   value: string | number | bigint,
   paramName: string,
-  options?: { allowSeparators?: boolean }
+  options?: {
+    allowSeparators?: boolean
+    preserveWhitespace?: boolean
+    stripTabsAndNewlines?: boolean
+  }
 ): string {
-  const trimmed = toGuardedString(value, paramName).trim()
+  const raw = toGuardedString(value, paramName)
+  const trimmed = raw.trim()
+  const kept = options?.preserveWhitespace ? raw : trimmed
+  const segment = options?.stripTabsAndNewlines ? kept.replace(/[\t\r\n]/g, '') : kept
 
   if (!trimmed) {
     throw new Error(`${paramName} is required`)
   }
 
-  if (trimmed === '.' || trimmed === '..') {
+  if (trimmed === '.' || trimmed === '..' || segment === '.' || segment === '..') {
     throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
   }
 
@@ -191,7 +205,7 @@ export function safeUrlPathSegment(
     throw new Error(`${paramName} cannot contain a path separator`)
   }
 
-  return encodeSegment(trimmed, paramName)
+  return encodeSegment(segment, paramName)
 }
 
 /** Matches a scheme and authority, which end at the first `/`, `\`, `?`, or `#` in a special-scheme URL. */

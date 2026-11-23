@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SqsStartMessageMoveTaskParams,
   SqsStartMessageMoveTaskResponse,
@@ -12,6 +13,7 @@ export const startMessageMoveTaskTool: InternalToolConfig<
   name: 'SQS Start Message Move Task',
   description: 'Start redriving messages out of an Amazon SQS dead-letter queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

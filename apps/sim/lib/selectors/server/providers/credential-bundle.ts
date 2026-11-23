@@ -1,3 +1,4 @@
+import { isUnavailableFailure } from '@/lib/core/orchestration/types'
 import { resolveOrganizationCredentialTokenBundle } from '@/lib/credentials/application/organization-credentials'
 import {
   resolveCredentialTokenBundle,
@@ -61,7 +62,7 @@ export async function resolveSelectorCredentialBundle(input: {
     )
     credential.signal?.throwIfAborted()
   } catch (error) {
-    if (credential.signal?.aborted) throw error
+    if (credential.signal?.aborted || isUnavailableFailure(error)) throw error
     throw new SelectorConnectionUnavailableError()
   }
   if (!bundle?.accessToken) throw new SelectorConnectionUnavailableError()
@@ -69,6 +70,7 @@ export async function resolveSelectorCredentialBundle(input: {
   input.protectedValues.add(bundle.accessToken)
   input.protectedValues.add(bundle.cloudId, 'reference')
   input.protectedValues.add(bundle.domain, 'reference')
+  input.protectedValues.add(bundle.providerWorkspaceId, 'reference')
   input.protectedValues.add(bundle.instanceUrl, 'reference')
   input.protectedValues.add(bundle.apiDomain, 'reference')
   if (input.providerId) input.recordCredentialUse?.(credential.providerId ?? input.providerId)

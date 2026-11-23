@@ -1,10 +1,14 @@
+import { queueTableRows, schemaMock } from '@sim/testing'
 import {
   knowledgeAccessScopeMock,
   knowledgeAccessScopeMockFns,
 } from '@sim/testing/mocks/knowledge-access-scope.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { groupToken } from '@/lib/knowledge/access/tokens'
-import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
+import {
+  createAdminGitLabSession,
+  listAdminGitLabAccounts,
+} from '@/lib/sim-search/live/gitlab-admin'
 import {
   gitLabCsvGroupToken,
   setGitLabCsvContext,
@@ -19,13 +23,15 @@ const mocks = vi.hoisted(() => ({
   search: vi.fn(),
   read: vi.fn(),
   grant: vi.fn(),
+  metadata: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/access/scope', () => knowledgeAccessScopeMock)
 vi.mock('@/connectors/gitlab/permission-config/repository', () => ({
-  seedGitLabCsvContext: mocks.seed,
+  seedGitLabPermissionContext: mocks.seed,
 }))
 vi.mock('@/lib/knowledge/connectors/permission-store', () => ({
   hasConnectorPermissionGrant: mocks.grant,
+  readConnectorPermissionMetadata: mocks.metadata,
 }))
 vi.mock('@/connectors/gitlab/permissions', () => ({
   openGitLabDirectory: mocks.directory,
@@ -234,5 +240,18 @@ describe('non-admin token and CSV permissions', () => {
     mocks.access.mockResolvedValue({ kind: 'user', userId: 'reader', tokens: [own] })
     mocks.grant.mockResolvedValue(false)
     await expect(session()).rejects.toThrow('not available')
+  })
+})
+
+describe('administrator-managed GitLab source listing', () => {
+  it('lists every source when its grants cannot be checked, leaving the session to refuse it', async () => {
+    queueTableRows(schemaMock.knowledgeConnector, [
+      { id: 'source-a', config: source.config, encryptedApiKey: 'sealed' },
+    ])
+    mocks.metadata.mockRejectedValue(new Error('connection reset'))
+
+    const accounts = await listAdminGitLabAccounts({ organizationId: 'org' }, 'reader')
+
+    expect(accounts.map((account) => account.id)).toEqual(['gitlab-source:source-a'])
   })
 })

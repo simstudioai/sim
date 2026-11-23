@@ -3,16 +3,16 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
 import type { ForkChatRequest } from '@/lib/mothership/generated/protocol'
 
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 const request: ForkChatRequest = {
@@ -52,8 +52,8 @@ beforeEach(() => {
   mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('http://worker.test')
   received = []
   script = []
-  mothershipGoFetchMockFns.mockFetchGo.mockReset()
-  mothershipGoFetchMockFns.mockFetchGo.mockImplementation(
+  mothershipWorkerFetchMockFns.mockFetchWorker.mockReset()
+  mothershipWorkerFetchMockFns.mockFetchWorker.mockImplementation(
     async (_url: string, init: { body: string }) => {
       received.push(JSON.parse(init.body))
       return (script.shift() ?? receipt)()

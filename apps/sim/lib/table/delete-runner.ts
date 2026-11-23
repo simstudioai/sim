@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
+import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, TableDefinition } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent, signalTableRowsChanged } from '@/lib/table/events'
@@ -63,7 +63,7 @@ export interface TableDeletePayload {
  */
 export async function runTableDelete(payload: TableDeletePayload): Promise<void> {
   const { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff, maxRows } = payload
-  const requestId = generateId().slice(0, 8)
+  const requestId = generateRequestId()
   const budget = maxRows ?? Number.POSITIVE_INFINITY
 
   // Whether any row was actually deleted this run. Signalled in `finally` so open editors refetch the
@@ -82,7 +82,8 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // releases the job slot without burning this task's remaining
     // `maxAttempts` on a deterministic failure.
     const cancelForLock = async (processedSoFar: number): Promise<void> => {
-      logger.info(`[${requestId}] Delete job stopped — table is delete-locked`, {
+      logger.info('Delete job stopped — table is delete-locked', {
+        requestId,
         tableId,
         jobId,
         processedSoFar,
@@ -238,19 +239,17 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
         status: 'ready',
         progress: processed,
       })
-      logger.info(`[${requestId}] Delete complete`, { tableId, rows: processed })
+      logger.info('Delete complete', { requestId, tableId, rows: processed })
     } else {
-      logger.info(
-        `[${requestId}] Delete finished but no longer owns the run (canceled/superseded)`,
-        {
-          tableId,
-          jobId,
-        }
-      )
+      logger.info('Delete finished but no longer owns the run (canceled/superseded)', {
+        requestId,
+        tableId,
+        jobId,
+      })
     }
   } catch (err) {
     if (err instanceof JobSupersededError) {
-      logger.info(`[${requestId}] Delete superseded by a newer run; stopping`, { tableId, jobId })
+      logger.info('Delete superseded by a newer run; stopping', { requestId, tableId, jobId })
       return
     }
     // Rethrow the root cause, not the wrapper: drizzle query errors embed the full SQL + params
@@ -259,7 +258,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // must already be the thrown error's own `message`.
     const cause = toError(err).cause
     const error = cause ? toError(cause) : toError(err)
-    logger.error(`[${requestId}] Delete failed for table ${tableId}:`, error)
+    logger.error(`Delete failed for table ${tableId}:`, error, { requestId })
     throw error
   } finally {
     // Guaranteed final grid refetch on every exit — completion, cancel/supersede, mid-batch lock, or a

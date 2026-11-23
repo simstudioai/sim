@@ -5,6 +5,7 @@ import type {
 import { APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<
   MicrosoftAdListServicePrincipalAppRoleAssignmentsParams,
@@ -54,7 +55,7 @@ export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<
         return assertGraphNextPageUrlForCollection(params.nextLink, ['appRoleAssignedTo'])
       const servicePrincipalId = params.servicePrincipalId?.trim()
       if (!servicePrincipalId) throw new Error('Service principal ID is required')
-      const base = `https://graph.microsoft.com/v1.0/servicePrincipals/${encodeURIComponent(servicePrincipalId)}/appRoleAssignedTo`
+      const base = `https://graph.microsoft.com/v1.0/servicePrincipals/${safeUrlPathSegment(servicePrincipalId, 'servicePrincipalId')}/appRoleAssignedTo`
       return params.filter ? `${base}?$filter=${encodeURIComponent(params.filter)}` : base
     },
     method: 'GET',

@@ -1,6 +1,8 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { CalComIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const EVENT_TYPE_FIELD = ['eventTypeSelector', 'eventTypeId'] as const
@@ -349,6 +351,58 @@ Return ONLY the IANA timezone string - no explanations or quotes.`,
         { label: 'Unconfirmed', id: 'unconfirmed' },
       ],
       condition: { field: 'operation', value: 'calcom_list_bookings' },
+    },
+    {
+      id: 'filterAttendeeEmail',
+      title: 'Attendee Email',
+      type: 'short-input',
+      placeholder: 'Only bookings with this attendee',
+      condition: { field: 'operation', value: 'calcom_list_bookings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'afterStart',
+      title: 'Starts After',
+      type: 'short-input',
+      placeholder: 'ISO 8601 (e.g., 2024-01-15T00:00:00Z)',
+      condition: { field: 'operation', value: 'calcom_list_bookings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'beforeEnd',
+      title: 'Ends Before',
+      type: 'short-input',
+      placeholder: 'ISO 8601 (e.g., 2024-01-22T00:00:00Z)',
+      condition: { field: 'operation', value: 'calcom_list_bookings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sortStart',
+      title: 'Sort by Start',
+      type: 'dropdown',
+      options: [
+        { label: 'None', id: '' },
+        { label: 'Ascending', id: 'asc' },
+        { label: 'Descending', id: 'desc' },
+      ],
+      condition: { field: 'operation', value: 'calcom_list_bookings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'take',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: 'Bookings to return (default 100)',
+      condition: { field: 'operation', value: 'calcom_list_bookings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'skip',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: 'Bookings to skip (default 0)',
+      condition: { field: 'operation', value: 'calcom_list_bookings' },
+      mode: 'advanced',
     },
 
     // Event Type fields
@@ -712,9 +766,9 @@ Return ONLY valid JSON - no explanations.`,
     ],
     config: {
       tool: (params) => params.operation || 'calcom_list_bookings',
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           oauthCredential,
           attendeeName,
           attendeeEmail,
@@ -745,6 +799,11 @@ Return ONLY valid JSON - no explanations.`,
           duration,
           metadata,
           availability,
+          attendee,
+          status,
+          filterAttendeeEmail,
+          take,
+          skip,
           ...rest
         } = params
 
@@ -759,12 +818,23 @@ Return ONLY valid JSON - no explanations.`,
         }
 
         switch (operation) {
-          case 'calcom_create_booking':
-            result.attendee = {
-              name: attendeeName,
-              ...(attendeeEmail && { email: attendeeEmail }),
-              timeZone: attendeeTimeZone,
-              ...(attendeePhone && { phoneNumber: attendeePhone }),
+          case 'calcom_create_booking': {
+            const modelAttendee = toolCallArg(context, attendee)
+            if (isPlainRecord(modelAttendee)) {
+              const pinned = Object.entries({
+                name: attendeeName,
+                email: attendeeEmail,
+                timeZone: attendeeTimeZone,
+                phoneNumber: attendeePhone,
+              }).filter(([, value]) => value !== undefined && value !== null && value !== '')
+              result.attendee = { ...modelAttendee, ...Object.fromEntries(pinned) }
+            } else if (modelAttendee === undefined || attendeeName || attendeeTimeZone) {
+              result.attendee = {
+                name: attendeeName,
+                ...(attendeeEmail && { email: attendeeEmail }),
+                timeZone: attendeeTimeZone,
+                ...(attendeePhone && { phoneNumber: attendeePhone }),
+              }
             }
             {
               const eventTypeIdNum = toNumber(eventTypeId)
@@ -772,7 +842,13 @@ Return ONLY valid JSON - no explanations.`,
             }
             if (start) result.start = start
             if (end) result.end = end
-            if (guests) result.guests = guests.split(',').map((g: string) => g.trim())
+            if (guests) {
+              result.guests = Array.isArray(guests)
+                ? guests
+                : String(guests)
+                    .split(',')
+                    .map((g: string) => g.trim())
+            }
             {
               const lengthNum = toNumber(lengthInMinutes)
               if (lengthNum !== undefined) result.lengthInMinutes = lengthNum
@@ -785,6 +861,7 @@ Return ONLY valid JSON - no explanations.`,
               }
             }
             break
+          }
 
           case 'calcom_cancel_booking':
             if (bookingUid) result.bookingUid = bookingUid
@@ -797,20 +874,28 @@ Return ONLY valid JSON - no explanations.`,
             if (reschedulingReason) result.reschedulingReason = reschedulingReason
             break
 
-          case 'calcom_list_bookings':
-            if (bookingStatus) result.status = bookingStatus
+          case 'calcom_list_bookings': {
+            const statusFilter = bookingStatus || toolCallArg(context, status)
+            if (statusFilter) result.status = statusFilter
+            result.attendeeEmail = filterAttendeeEmail || toolCallArg(context, attendeeEmail)
+            result.take = toNumber(take)
+            result.skip = toNumber(skip)
             break
+          }
 
           case 'calcom_create_event_type':
           case 'calcom_update_event_type':
             {
               if (operation === 'calcom_update_event_type') {
-                const eventTypeIdNum = toNumber(eventTypeIdParam)
+                const eventTypeIdNum =
+                  toNumber(eventTypeIdParam) ?? toolCallArg(context, toNumber(eventTypeId))
                 if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
               }
-              const lengthNum = toNumber(eventLength)
+              const lengthNum =
+                toNumber(eventLength) ?? toolCallArg(context, toNumber(lengthInMinutes))
               if (lengthNum !== undefined) result.lengthInMinutes = lengthNum
-              const scheduleIdNum = toNumber(eventTypeScheduleId)
+              const scheduleIdNum =
+                toNumber(eventTypeScheduleId) ?? toolCallArg(context, toNumber(scheduleId))
               if (scheduleIdNum !== undefined) result.scheduleId = scheduleIdNum
               const slotIntervalNum = toNumber(slotInterval)
               if (slotIntervalNum !== undefined) result.slotInterval = slotIntervalNum
@@ -829,7 +914,8 @@ Return ONLY valid JSON - no explanations.`,
           case 'calcom_get_event_type':
           case 'calcom_delete_event_type':
             {
-              const eventTypeIdNum = toNumber(eventTypeIdParam)
+              const eventTypeIdNum =
+                toNumber(eventTypeIdParam) ?? toolCallArg(context, toNumber(eventTypeId))
               if (eventTypeIdNum !== undefined) result.eventTypeId = eventTypeIdNum
             }
             break
@@ -943,9 +1029,24 @@ Return ONLY valid JSON - no explanations.`,
     eventTypeSlug: { type: 'string', description: 'Event type slug' },
     username: { type: 'string', description: 'Cal.com username' },
     duration: { type: 'number', description: 'Slot duration in minutes' },
+    filterAttendeeEmail: { type: 'string', description: 'List Bookings attendee email filter' },
+    afterStart: { type: 'string', description: 'List bookings starting after this time' },
+    beforeEnd: { type: 'string', description: 'List bookings ending before this time' },
+    sortStart: { type: 'string', description: 'Sort bookings by start time (asc or desc)' },
+    take: { type: 'number', description: 'Number of bookings to return' },
+    skip: { type: 'number', description: 'Number of bookings to skip' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether operation succeeded' },
+    data: {
+      type: 'json',
+      description:
+        'Cal.com response data: a booking, event type, or schedule object, an array of them for list operations, or the slots map keyed by date (YYYY-MM-DD) for Get Available Slots',
+    },
+    pagination: {
+      type: 'json',
+      description: 'List Bookings pagination (totalItems, remainingItems, hasNextPage, ...)',
+    },
     bookingUid: { type: 'string', description: 'Booking unique identifier' },
     bookingId: { type: 'number', description: 'Booking ID' },
     status: { type: 'string', description: 'Booking or event status' },

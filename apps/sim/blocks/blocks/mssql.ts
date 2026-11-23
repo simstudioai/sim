@@ -1,7 +1,8 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { MicrosoftSqlIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const MSSQL_WAND_PROMPT = `You are an expert Microsoft SQL Server developer. Write T-SQL queries based on the user's request.
 
@@ -67,6 +68,8 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`
 
 export const MSSQLBlock: BlockConfig = {
   type: 'mssql',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'mssql_v2' },
   name: 'Microsoft SQL Server',
   description: 'Connect to Microsoft SQL Server database',
   longDescription: 'Query, insert, update, delete, execute raw T-SQL, and introspect schemas.',
@@ -404,6 +407,46 @@ export const MSSQLBlock: BlockConfig = {
       description: 'Explanation of the ceiling that truncated the result',
     },
   },
+}
+
+/**
+ * Microsoft SQL Server on a saved connection: host, port, database, login, password, and
+ * transport-security settings come from the credential, never the block.
+ */
+export const MSSQLV2Block: BlockConfig = {
+  ...MSSQLBlock,
+  type: 'mssql_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft SQL Server',
+    sentences: {
+      byOperation: {
+        query: [{ text: 'Run SELECT query', field: 'query', core: true }],
+        insert: [
+          { text: 'Insert', field: 'data', core: true },
+          { text: 'into', field: 'table', core: true },
+        ],
+        update: [
+          { text: 'Update rows in', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete: [
+          { text: 'Delete rows from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        execute: [{ text: 'Execute raw T-SQL', field: 'query', core: true }],
+        introspect: ['Read the database schema', { text: ', under', field: 'schema' }],
+      },
+    },
+  },
+  ...withSavedCredential(
+    MSSQLBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'mssql', title: 'SQL Server Connection' },
+    { required: true }
+  ),
 }
 
 export const MSSQLBlockMeta = {

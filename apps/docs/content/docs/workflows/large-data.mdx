@@ -1,0 +1,50 @@
+---
+title: Large data
+description: Pass large outputs, loop results, and files between blocks within Sim's size limits.
+---
+
+Sim stores block outputs larger than 8 MiB with the run and loads them only when a block reads them. Read the fields a block needs rather than a whole large output, and keep loop results small.
+
+## Size limits
+
+| Limit | Size |
+| --- | --- |
+| One stored value | 64 MiB |
+| One stored value loaded by a block at once | 16 MiB |
+| One file read by Function code | 64 MiB |
+| One `sim.files` read or chunk | 10 MiB |
+
+Sim stores large fields and array chunks as separate values, so a whole block output can exceed 64 MiB when no single piece does. A block that exceeds a limit fails with an `Execution memory limit exceeded` error that names the size and the limit.
+
+## Reference fields, not whole outputs
+
+Use `<api.data.items[0].id>` instead of `<api.data>`. Sim stores large arrays in chunks, so an indexed path loads only the chunk it reads. A field inside a large object still loads that whole object, so the object must fit the 16 MiB limit; when it does not, have the block that produces it return less.
+
+Only JavaScript Function code without imports can receive a whole large value; Sim loads it when the code runs, up to 16 MiB. Agent, API, and other block inputs, Python and Shell code, and JavaScript with imports must reference a smaller field. A reference to an object that contains a large value fails with `contains nested large values`; reference the nested field instead.
+
+An Agent prompt is also bound by its model's context window. Pass a summary or the fields the model needs, not a full dataset.
+
+## Keep loop results small
+
+A Loop or Parallel `results` value holds every block output from every iteration. It grows with both the iteration count and the number of blocks inside, so a loop that reads a table on each pass stores a copy of those rows for every iteration.
+
+- Read data that does not change between iterations once, before the loop.
+- Read one entry with an indexed path, such as `<processreviews.results[0][0].content>`. Indexed paths load only that entry.
+- To collect a summary from a Loop, have its last block return a compact record and append it to a [workflow variable](/workflows/variables) or a Table row. Read that after the loop instead of `results`. In a Parallel, write each branch's record to a Table rather than a shared variable.
+
+## Large files
+
+A file output is metadata: `<file.name>` and `<file.url>` do not load its contents. In JavaScript Function code without imports, read contents with the [`sim.files` helpers](/workflows/blocks/function#large-inputs). For files over 10 MiB, read in chunks with `readTextChunk` or `readBase64Chunk`.
+
+## Keep reusable datasets in a Table
+
+For data that several blocks or runs need, write it to a [Table](/tables) and query the rows each step needs. Pass row IDs or filters between blocks instead of the rows themselves.
+
+## Related docs
+
+- [How blocks pass data](/workflows/data-flow)
+- [Connection syntax](/workflows/connections)
+- [Loop](/workflows/blocks/loop)
+- [Parallel](/workflows/blocks/parallel)
+- [Function](/workflows/blocks/function)
+- [Tables in workflows](/tables/using-in-workflows)

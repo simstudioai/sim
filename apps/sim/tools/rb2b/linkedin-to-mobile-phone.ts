@@ -1,5 +1,6 @@
 import type { Rb2bLinkedinParams, Rb2bMobilePhoneResponse } from '@/tools/rb2b/types'
 import { RB2B_API_BASE, rb2bHeaders } from '@/tools/rb2b/utils'
+import { RB2B_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rb2bLinkedinToMobilePhoneTool: ToolConfig<
@@ -11,6 +12,7 @@ export const rb2bLinkedinToMobilePhoneTool: ToolConfig<
   description:
     'Return the mobile phone number with the most recent known network activity for a LinkedIn profile.',
   version: '1.0.0',
+  oauth: RB2B_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

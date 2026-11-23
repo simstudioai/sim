@@ -40,7 +40,6 @@ import {
   WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
   WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY,
 } from '@/lib/mothership/generated/protocol'
-import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
 import { listOrganizationSecretNames } from '@/lib/organization-secrets/application/use-cases'
@@ -87,7 +86,6 @@ interface BuildPayloadParams {
   assistantFast?: boolean
   assistantSearch?: WorkspaceSearchFilters
   workspaceContext?: string
-  vfs?: VfsSnapshotV1
   userPermission?: string
   /** Plan/flag-gated org capabilities (e.g. "custom-blocks") the mothership gates tools/prompts on. */
   userTimezone?: string
@@ -99,6 +97,7 @@ interface BuildPayloadParams {
   browser?: boolean
   terminalCapable?: boolean
   computerUse?: boolean
+  computerUseAppCommands?: boolean
   terminals?: Array<{
     id: string
     cwd?: string
@@ -556,6 +555,7 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
             browser: params.browser === true,
             terminal: params.terminalCapable === true,
             computerUse,
+            computerUseAppCommands: computerUse && params.computerUseAppCommands === true,
             terminals: params.terminalCapable ? (params.terminals ?? []).slice(0, 20) : [],
             browserSessions: params.browser ? (params.browserSessions ?? []).slice(0, 20) : [],
           },

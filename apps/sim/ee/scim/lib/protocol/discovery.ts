@@ -95,6 +95,7 @@ export function schemaDefinitions(baseUrl: string) {
         attribute('userName', { required: true, uniqueness: 'server' }),
         attribute('externalId'),
         attribute('displayName', { mutability: 'readWrite' }),
+        attribute('title'),
         attribute('active', { type: 'boolean' }),
         attribute('name', {
           type: 'complex',

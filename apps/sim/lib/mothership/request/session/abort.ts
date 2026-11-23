@@ -3,9 +3,9 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { acquireLock, extendLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
-import { AbortBackend } from '@/lib/mothership/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { AbortBackend } from '@/lib/mothership/observability/trace-attribute-values'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { AbortReason } from './abort-reason'
 import { clearAbortMarker, hasAbortMarker, refreshBufferTtl, writeAbortMarker } from './buffer'
@@ -19,10 +19,7 @@ import {
 const logger = createLogger('SessionAbort')
 
 const activeStreams = new Map<string, AbortController>()
-const pendingChatStreams = new Map<
-  string,
-  { promise: Promise<void>; resolve: () => void; streamId: string; lease: ChatStreamLease }
->()
+const pendingChatStreams = new Map<string, { streamId: string; lease: ChatStreamLease }>()
 
 const DEFAULT_ABORT_POLL_MS = 250
 
@@ -48,17 +45,12 @@ export interface ChatStreamLockOwnersResult {
 }
 
 function registerPendingChatStream(chatId: string, streamId: string, lease: ChatStreamLease): void {
-  let resolve!: () => void
-  const promise = new Promise<void>((r) => {
-    resolve = r
-  })
-  pendingChatStreams.set(chatId, { promise, resolve, streamId, lease })
+  pendingChatStreams.set(chatId, { streamId, lease })
 }
 
 function resolvePendingChatStream(chatId: string, streamId: string, lease?: ChatStreamLease): void {
   const entry = pendingChatStreams.get(chatId)
   if (entry && entry.streamId === streamId && (!lease || entry.lease.value === lease.value)) {
-    entry.resolve()
     pendingChatStreams.delete(chatId)
   }
 }
@@ -91,24 +83,20 @@ export async function waitForPendingChatStream(
     const entry = pendingChatStreams.get(chatId)
     const localPending = !!entry && (!expectedStreamId || entry.streamId === expectedStreamId)
 
-    if (redis) {
-      try {
-        const ownerStreamId = await redis.get(chatStreamLockKey(chatId))
-        const lockReleased =
-          !ownerStreamId ||
-          (expectedStreamId !== undefined && streamIdFromLock(ownerStreamId) !== expectedStreamId)
-        if (!localPending && lockReleased) {
-          return true
-        }
-      } catch (error) {
-        logger.warn('Failed to inspect chat stream lock while waiting', {
-          chatId,
-          expectedStreamId,
-          error: toError(error).message,
-        })
+    try {
+      const ownerStreamId = await redis.get(chatStreamLockKey(chatId))
+      const lockReleased =
+        !ownerStreamId ||
+        (expectedStreamId !== undefined && streamIdFromLock(ownerStreamId) !== expectedStreamId)
+      if (!localPending && lockReleased) {
+        return true
       }
-    } else if (!localPending) {
-      return true
+    } catch (error) {
+      logger.warn('Failed to inspect chat stream lock while waiting', {
+        chatId,
+        expectedStreamId,
+        error: toError(error).message,
+      })
     }
 
     if (Date.now() >= deadline) {
@@ -125,10 +113,6 @@ export async function getPendingChatStreamId(chatId: string): Promise<string | n
   }
 
   const redis = getRedisClient()
-  if (!redis) {
-    return null
-  }
-
   try {
     const value = await redis.get(chatStreamLockKey(chatId))
     return value ? streamIdFromLock(value) : null
@@ -145,9 +129,9 @@ export async function getPendingChatStreamId(chatId: string): Promise<string | n
  * Loads canonical stream lock owners for chat IDs.
  *
  * `status: 'verified'` means Redis was queried successfully, so a missing
- * owner is authoritative. `status: 'unknown'` means only the process-local
- * pending map is known, which is not enough to declare remote streams inactive
- * in a multi-pod deployment.
+ * owner is authoritative. `status: 'unknown'` means the Redis read failed and
+ * only the process-local pending map is known, which is not enough to declare
+ * remote streams inactive in a multi-pod deployment.
  */
 export async function getChatStreamLockOwners(
   chatIds: string[]
@@ -163,10 +147,6 @@ export async function getChatStreamLockOwners(
   }
 
   const redis = getRedisClient()
-  if (!redis) {
-    return { status: 'unknown', ownersByChatId: localOwnersByChatId }
-  }
-
   try {
     const keys = chatIds.map(chatStreamLockKey)
     const values = await redis.mget(keys)
@@ -193,8 +173,7 @@ export async function releasePendingChatStream(
   try {
     // A lifecycle releases its exact token. Stop may release the current owner
     // after saving durable cancellation, including an owner on another pod.
-    const redis = getRedisClient()
-    const value = lease?.value ?? (redis ? await redis.get(chatStreamLockKey(chatId)) : undefined)
+    const value = lease?.value ?? (await getRedisClient().get(chatStreamLockKey(chatId)))
     if (value && streamIdFromLock(value) === streamId) {
       await releaseLock(chatStreamLockKey(chatId), value)
     }
@@ -231,66 +210,45 @@ export async function acquirePendingChatStream(
         key: chatStreamLockKey(chatId),
         value: `${streamId}\n${generateId()}`,
       }
-      span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
-      if (redis) {
-        const deadline = Date.now() + timeoutMs
-        for (;;) {
-          try {
-            const attemptedAt = Date.now()
-            const acquired = await acquireLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
-            if (acquired) {
-              lease.acquiredAt = attemptedAt
-              registerPendingChatStream(chatId, streamId, lease)
-              span.setAttribute(TraceAttr.LockAcquired, true)
-              return true
-            }
-            if (!pendingChatStreams.has(chatId)) {
-              const ownerStreamId = await redis.get(chatStreamLockKey(chatId))
-              if (ownerStreamId) {
-                const settled = await waitForPendingChatStream(
-                  chatId,
-                  0,
-                  streamIdFromLock(ownerStreamId)
-                )
-                if (settled) {
-                  continue
-                }
+      span.setAttribute(TraceAttr.LockBackend, AbortBackend.Redis)
+      const deadline = Date.now() + timeoutMs
+      for (;;) {
+        try {
+          const attemptedAt = Date.now()
+          const acquired = await acquireLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
+          if (acquired) {
+            lease.acquiredAt = attemptedAt
+            registerPendingChatStream(chatId, streamId, lease)
+            span.setAttribute(TraceAttr.LockAcquired, true)
+            return true
+          }
+          if (!pendingChatStreams.has(chatId)) {
+            const ownerStreamId = await redis.get(chatStreamLockKey(chatId))
+            if (ownerStreamId) {
+              const settled = await waitForPendingChatStream(
+                chatId,
+                0,
+                streamIdFromLock(ownerStreamId)
+              )
+              if (settled) {
+                continue
               }
             }
-          } catch (error) {
-            logger.warn('Failed to acquire chat stream lock', {
-              chatId,
-              streamId,
-              error: toError(error).message,
-            })
           }
-
-          if (Date.now() >= deadline) {
-            span.setAttribute(TraceAttr.LockAcquired, false)
-            span.setAttribute(TraceAttr.LockTimedOut, true)
-            return false
-          }
-          await sleep(200)
-        }
-      }
-
-      for (;;) {
-        const existing = pendingChatStreams.get(chatId)
-        if (!existing) {
-          registerPendingChatStream(chatId, streamId, lease)
-          span.setAttribute(TraceAttr.LockAcquired, true)
-          return true
+        } catch (error) {
+          logger.warn('Failed to acquire chat stream lock', {
+            chatId,
+            streamId,
+            error: toError(error).message,
+          })
         }
 
-        const settled = await Promise.race([
-          existing.promise.then(() => true),
-          sleep(timeoutMs).then(() => false as const),
-        ])
-        if (!settled) {
+        if (Date.now() >= deadline) {
           span.setAttribute(TraceAttr.LockAcquired, false)
           span.setAttribute(TraceAttr.LockTimedOut, true)
           return false
         }
+        await sleep(200)
       }
     }
   )

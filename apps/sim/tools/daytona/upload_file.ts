@@ -1,4 +1,5 @@
 import type { DaytonaUploadFileParams, DaytonaUploadFileResponse } from '@/tools/daytona/types'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const daytonaUploadFileTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const daytonaUploadFileTool: InternalToolConfig<
   name: 'Daytona Upload File',
   description: 'Upload a file to a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

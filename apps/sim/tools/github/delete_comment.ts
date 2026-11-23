@@ -1,4 +1,6 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { DeleteCommentParams, DeleteCommentResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentResponse> = {
@@ -6,6 +8,7 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
   name: 'GitHub Comment Deleter',
   description: 'Delete a comment on a GitHub issue or pull request',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -36,7 +39,7 @@ export const deleteCommentTool: ToolConfig<DeleteCommentParams, DeleteCommentRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/issues/comments/${params.comment_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues/comments/${githubPathSegment(params.comment_id, 'comment_id')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -82,6 +85,7 @@ export const deleteCommentV2Tool: ToolConfig<DeleteCommentParams, any> = {
   name: deleteCommentTool.name,
   description: deleteCommentTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteCommentTool.params,
   request: deleteCommentTool.request,
 

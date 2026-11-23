@@ -3,6 +3,7 @@ import type {
   CalendlyListUserAvailabilitySchedulesResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUserAvailabilitySchedulesTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listUserAvailabilitySchedulesTool: ToolConfig<
   name: 'Calendly List User Availability Schedules',
   description: "Retrieve a user's availability schedules, working hours, and date overrides",
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -14,7 +14,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { reorderWorkflowsContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -22,10 +21,9 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 const logger = createLogger('WorkflowReorderAPI')
 
 export const PUT = withRouteHandler(async (req: NextRequest) => {
-  const requestId = generateRequestId()
   const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
   if (!auth.success || !auth.userId) {
-    logger.warn(`[${requestId}] Unauthorized reorder attempt`)
+    logger.warn('Unauthorized reorder attempt')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const userId = auth.userId
@@ -37,9 +35,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permission || permission === 'read') {
-      logger.warn(
-        `[${requestId}] User ${userId} lacks write permission for workspace ${workspaceId}`
-      )
+      logger.warn(`User ${userId} lacks write permission for workspace ${workspaceId}`)
       return NextResponse.json({ error: 'Write access required' }, { status: 403 })
     }
 
@@ -80,9 +76,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       }
     })
 
-    logger.info(
-      `[${requestId}] Reordered ${validUpdates.length} workflows in workspace ${workspaceId}`
-    )
+    logger.info(`Reordered ${validUpdates.length} workflows in workspace ${workspaceId}`)
 
     await notifyWorkspaceWorkflowsChanged(workspaceId)
 
@@ -96,7 +90,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
-    logger.error(`[${requestId}] Error reordering workflows`, error)
+    logger.error('Error reordering workflows', error)
     return NextResponse.json({ error: 'Failed to reorder workflows' }, { status: 500 })
   }
 })

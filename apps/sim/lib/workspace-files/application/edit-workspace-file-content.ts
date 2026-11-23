@@ -67,8 +67,8 @@ export interface EditWorkspaceFileContentResult {
  *
  * Two guards, because they cover different failures. The advisory lock
  * serializes concurrent edits to one file so two agents do not both read the
- * same text and each write a version missing the other's change; it is
- * best-effort and no-ops without Redis. `expectedUpdatedAt` is the guard that
+ * same text and each write a version missing the other's change; it is a TTL
+ * lease, so it can lapse under a slow edit. `expectedUpdatedAt` is the guard that
  * actually holds: the manager compares it under `select ... for update` and
  * refuses a stale write outright. It is deliberately `contentUpdatedAt` and not
  * `updatedAt`, because a rename or a move bumps the latter and would fail an

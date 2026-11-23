@@ -158,8 +158,18 @@ describe('Credential Group Settings application operations', () => {
   })
 
   it.each([
-    { kind: 'personal_api_key', userId: 'admin-1', keyId: 'personal-key' } as const,
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'workspace-key' } as const,
+    {
+      kind: 'personal_api_key',
+      userId: 'admin-1',
+      keyId: 'personal-key',
+      access: 'write',
+    } as const,
+    {
+      kind: 'workspace_api_key',
+      workspaceId: 'workspace-1',
+      keyId: 'workspace-key',
+      access: 'write',
+    } as const,
   ])('refuses $kind account metadata before loading workspace context', async (principal) => {
     await expect(
       getWorkspaceAccountsSettings.execute({ principal, input: { workspaceId: 'workspace-1' } })
@@ -225,8 +235,18 @@ describe('Credential Group Settings application operations', () => {
 
   it.each([
     enrollmentPrincipal,
-    { kind: 'personal_api_key', userId: 'admin-1', keyId: 'personal-key' } as const,
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'workspace-key' } as const,
+    {
+      kind: 'personal_api_key',
+      userId: 'admin-1',
+      keyId: 'personal-key',
+      access: 'write',
+    } as const,
+    {
+      kind: 'workspace_api_key',
+      workspaceId: 'workspace-1',
+      keyId: 'workspace-key',
+      access: 'write',
+    } as const,
   ])('refuses $kind account setup before resolving protected context', async (principal) => {
     await expect(
       ensureWorkspaceAccounts.execute({ principal, input: { workspaceId: 'workspace-1' } })

@@ -10,6 +10,9 @@
  * lives in `@/lib/credentials/client-credential-accounts/server`.
  */
 
+import { CROWDSTRIKE_CLOUDS } from '@/tools/crowdstrike/types'
+import { DATADOG_SITE_LABELS, DATADOG_SITES } from '@/tools/datadog/types'
+
 /** Discriminator stored inside every encrypted client-credential secret blob. */
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
@@ -24,6 +27,7 @@ export type ClientCredentialAccountFieldId =
   | 'authMethod'
   | 'privateKey'
   | 'username'
+  | 'apiToken'
 
 /**
  * The field id that selects between a descriptor's auth methods. A descriptor
@@ -106,6 +110,16 @@ export interface ClientCredentialAccountDescriptor {
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
   /**
+   * Builds the provider's one-time consent URL from the values in the connect
+   * modal, for providers whose grant fails with `consent_required` until a user
+   * approves the app (DocuSign JWT Grant). `redirectUri` is the Sim origin the
+   * modal is open on. Returns `undefined` when the values can't form one.
+   */
+  consentUrl?: (
+    values: Partial<Record<ClientCredentialAccountFieldId, string>>,
+    redirectUri: string
+  ) => string | undefined
+  /**
    * Optional one-line caveat, rendered under the `orgId` field of the connect modal. A descriptor
    * without an `orgId` field puts its guidance in a field `hint` instead.
    */
@@ -123,7 +137,14 @@ export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' a
 export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
 export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-account' as const
+export const JAMA_SERVICE_ACCOUNT_PROVIDER_ID = 'jama-service-account' as const
 export const HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID = 'helpscout-service-account' as const
+export const DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID = 'docusign-service-account' as const
+export const CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID = 'crowdstrike-service-account' as const
+export const DATADOG_SERVICE_ACCOUNT_PROVIDER_ID = 'datadog-service-account' as const
+export const SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID = 'sailpoint-service-account' as const
+export const ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID = 'zoominfo-service-account' as const
+export const ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zendesk-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -148,6 +169,13 @@ export type ClientCredentialAccountProviderId =
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HELPSCOUT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof JAMA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof DATADOG_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -383,10 +411,438 @@ export function resolveZohoDeskDataCenter(rawDataCenter?: string): {
   return { id, ...ZOHO_DESK_DATA_CENTERS[id] }
 }
 
+/**
+ * A SailPoint Identity Security Cloud API host: one tenant label under `api.identitynow.com`, or
+ * under `api.identitynowgov.com` for government tenants. Stricter than the legacy block's inline
+ * tenant, which also admits a dotted prefix under either domain.
+ */
+const SAILPOINT_API_HOST_REGEX =
+  /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.api\.identitynow(?:gov)?\.com$/
+
+const SAILPOINT_TENANT_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+const SAILPOINT_UI_HOST_REGEX = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.identitynow\.com$/
+/** `api.identitynow.com` is SailPoint's API domain itself, so `api` never names a tenant. */
+const SAILPOINT_API_DOMAIN_AS_TENANT = 'api.api.identitynow.com'
+
+/**
+ * Normalizes a SailPoint tenant name, API host, UI host, or https URL of either
+ * to the tenant's API host (`{tenant}.api.identitynow.com`, or the same under
+ * `api.identitynowgov.com` for a government tenant) for API calls and token
+ * requests. Returns `undefined`
+ * for anything else (other domains, credentials, ports, more than one tenant
+ * label, or `api`, SailPoint's own API domain) rather than throwing, so the
+ * connect modal's format hint and the minter share one admission rule.
+ * @see https://developer.sailpoint.com/docs/api/authentication
+ */
+export function normalizeSailPointTenantHost(rawTenant: string): string | undefined {
+  const host = toSailPointApiHost(rawTenant.trim().toLowerCase())
+  return host === SAILPOINT_API_DOMAIN_AS_TENANT ? undefined : host
+}
+
+function toSailPointApiHost(tenant: string): string | undefined {
+  if (!tenant) return undefined
+  if (SAILPOINT_TENANT_LABEL_REGEX.test(tenant)) return `${tenant}.api.identitynow.com`
+  let parsed: URL
+  try {
+    parsed = new URL(tenant.includes('://') ? tenant : `https://${tenant}`)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) {
+    return undefined
+  }
+  if (SAILPOINT_API_HOST_REGEX.test(parsed.hostname)) return parsed.hostname
+  const uiHost = SAILPOINT_UI_HOST_REGEX.exec(parsed.hostname)
+  return uiHost ? `${uiHost[1]}.api.identitynow.com` : undefined
+}
+
+/**
+ * DocuSign's two account systems. Each environment has its own authentication
+ * service and its own eSignature REST hosts, and a token from one is never
+ * accepted by the other, so the credential stores which one it belongs to and
+ * nothing a caller types can change it.
+ * @see https://developers.docusign.com/platform/auth/jwt/jwt-get-token/
+ */
+export const DOCUSIGN_ENVIRONMENTS = {
+  demo: { authHost: 'account-d.docusign.com', label: 'Developer (demo)' },
+  production: { authHost: 'account.docusign.com', label: 'Production' },
+} as const satisfies Record<string, { authHost: string; label: string }>
+
+export type DocuSignEnvironment = keyof typeof DOCUSIGN_ENVIRONMENTS
+
+/** Resolves a stored environment value, or `undefined` when it is not exactly one of the two. */
+export function resolveDocuSignEnvironment(
+  value: string | undefined
+): DocuSignEnvironment | undefined {
+  const trimmed = value?.trim()
+  return trimmed && Object.hasOwn(DOCUSIGN_ENVIRONMENTS, trimmed)
+    ? (trimmed as DocuSignEnvironment)
+    : undefined
+}
+
+/** DocuSign integration keys, user IDs, and account IDs are all GUIDs. */
+export const DOCUSIGN_GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** An unencrypted PEM RSA private key, in the PKCS#1 form DocuSign generates or PKCS#8. */
+const DOCUSIGN_PRIVATE_KEY_REGEX =
+  /^-----BEGIN (RSA )?PRIVATE KEY-----[\s\S]+-----END (RSA )?PRIVATE KEY-----$/
+
+/** Scopes a JWT Grant credential requests; `impersonation` is what JWT consent covers. */
+export const DOCUSIGN_JWT_SCOPES = 'signature impersonation'
+
+/**
+ * The one-time consent URL the impersonated user opens to let the integration
+ * key act as them. DocuSign requires a `redirect_uri` registered on the key;
+ * the JWT flow ignores the `code` it receives.
+ * @see https://developers.docusign.com/platform/auth/jwt/jwt-get-token/
+ */
+function buildDocuSignConsentUrl(
+  integrationKey: string,
+  environment: string | undefined,
+  redirectUri: string
+): string | undefined {
+  const resolved = resolveDocuSignEnvironment(environment)
+  const key = integrationKey.trim()
+  if (!resolved || !DOCUSIGN_GUID_REGEX.test(key)) return undefined
+  const params = new URLSearchParams({
+    response_type: 'code',
+    scope: DOCUSIGN_JWT_SCOPES,
+    client_id: key,
+    redirect_uri: redirectUri,
+  })
+  return `https://${DOCUSIGN_ENVIRONMENTS[resolved].authHost}/oauth/auth?${params.toString()}`
+}
+
+/** A Zendesk account subdomain: the `{subdomain}` in `{subdomain}.zendesk.com`. */
+export const ZENDESK_SUBDOMAIN_REGEX = /^[a-z0-9][a-z0-9-]*$/
+
+/**
+ * Normalizes a pasted Zendesk subdomain, accepting the full `https://acme.zendesk.com` URL as
+ * well as the bare `acme`. Shared by the connect modal's format hint and the server-side minter
+ * so both judge the same value; the minter refuses anything that does not then match
+ * {@link ZENDESK_SUBDOMAIN_REGEX}.
+ */
+export function normalizeZendeskSubdomain(rawSubdomain: string): string {
+  return rawSubdomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/[/?#].*$/, '')
+    .replace(/\.zendesk\.com$/, '')
+}
+
+/** Zendesk's two server-to-server sign-ins: an OAuth client's client-credentials grant, or an API token. */
+export const ZENDESK_AUTH_METHODS = {
+  clientCredentials: 'client_credentials',
+  apiToken: 'api_token',
+} as const
+
+/** Permissions a Zendesk client-credentials token requests. */
+const ZENDESK_SCOPE_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> = [
+  { value: 'read', label: 'Read only' },
+  { value: 'read write', label: 'Read and write' },
+]
+
+export const ZENDESK_SCOPES: ReadonlySet<string> = new Set(
+  ZENDESK_SCOPE_OPTIONS.map((option) => option.value)
+)
+
 export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
   ClientCredentialAccountProviderId,
   ClientCredentialAccountDescriptor
 > = {
+  [JAMA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: JAMA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Jama Connect',
+    connectNoun: 'API credential',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Jama URL',
+        placeholder: 'https://your-company.jamacloud.com',
+        secret: false,
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Enter your Jama client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Enter your Jama client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/jama',
+    helpText:
+      'Create API credentials in your Jama profile. Your account needs REST API access and a Named Creator license.',
+  },
+  [ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZOOMINFO_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'ZoomInfo',
+    connectNoun: 'API app',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Create a client credentials app in the ZoomInfo Developer Portal. Its integration user and scopes apply to every call.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/zoominfo',
+  },
+  [SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SAILPOINT_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'SailPoint',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'Tenant',
+        placeholder: 'acme or acme.api.identitynow.com',
+        secret: false,
+        hintPattern: SAILPOINT_API_HOST_REGEX,
+        hintNormalize: (value) => normalizeSailPointTenantHost(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected your tenant name or its API host, like acme, acme.api.identitynow.com, or agency.api.identitynowgov.com.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Use an API client with the client credentials grant, or a personal access token.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/sailpoint',
+    helpText:
+      'The tenant name is shown under Admin > Dashboard > Overview. For a vanity domain, use the tenant name.',
+  },
+  [DATADOG_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DATADOG_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Datadog',
+    connectNoun: 'API key pair',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Site',
+        placeholder: 'Select a site',
+        secret: false,
+        options: DATADOG_SITES.map((site) => ({ value: site, label: DATADOG_SITE_LABELS[site] })),
+        hint: 'The site in the address you sign in to Datadog with.',
+      },
+      {
+        id: 'clientId',
+        label: 'API key',
+        placeholder: 'Paste the API key',
+        secret: true,
+        hint: 'Create keys in Datadog under Organization Settings > API Keys and Application Keys.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Application key',
+        placeholder: 'Paste the application key',
+        secret: true,
+        hint: 'Workflows act with this key and its scopes. Datadog checks it on the first request that needs it.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/datadog',
+  },
+  [CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CROWDSTRIKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'CrowdStrike',
+    connectNoun: 'API client',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Cloud',
+        placeholder: 'Select a cloud',
+        secret: false,
+        // The Falcon console names each cloud by its id in upper case (US-1, US-GOV-1).
+        options: CROWDSTRIKE_CLOUDS.map((cloud) => ({ value: cloud, label: cloud.toUpperCase() })),
+        hint: 'The Falcon cloud your console signs in to.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+        hint: 'Create the API client in Falcon under Support and resources > API clients and keys, with the scopes your workflows need.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+      {
+        id: 'orgId',
+        label: 'Member CID',
+        placeholder: 'Only for an MSSP parent CID',
+        secret: false,
+        optional: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/crowdstrike',
+    helpText:
+      'Leave blank unless the API client belongs to a parent CID and every call should act on one child CID.',
+  },
+  [DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: DOCUSIGN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'DocuSign',
+    connectNoun: 'JWT Grant app',
+    fields: [
+      {
+        id: 'dataCenter',
+        label: 'Environment',
+        placeholder: 'Select an environment',
+        secret: false,
+        options: (Object.keys(DOCUSIGN_ENVIRONMENTS) as DocuSignEnvironment[]).map((id) => ({
+          value: id,
+          label: DOCUSIGN_ENVIRONMENTS[id].label,
+        })),
+        hint: 'Where the integration key was created. Keys start in the developer environment until they go live.',
+      },
+      {
+        id: 'clientId',
+        label: 'Integration key',
+        placeholder: '00000000-0000-0000-0000-000000000000',
+        secret: false,
+        hintPattern: DOCUSIGN_GUID_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage: 'Expected the integration key GUID from Apps and Keys.',
+      },
+      {
+        id: 'username',
+        label: 'Impersonated user ID',
+        placeholder: '00000000-0000-0000-0000-000000000000',
+        secret: false,
+        hintPattern: DOCUSIGN_GUID_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage: 'Expected the User ID GUID from Apps and Keys, not an email address.',
+        hint: 'Every call runs as this user, with their DocuSign permissions.',
+      },
+      {
+        id: 'privateKey',
+        label: 'RSA private key',
+        placeholder: '-----BEGIN RSA PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+        hintPattern: DOCUSIGN_PRIVATE_KEY_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage:
+          'Expected the full PEM private key from the RSA keypair, including its BEGIN and END lines.',
+      },
+      {
+        id: 'orgId',
+        label: 'Account ID',
+        placeholder: "Defaults to the user's default account",
+        secret: false,
+        optional: true,
+        hintPattern: DOCUSIGN_GUID_REGEX,
+        hintNormalize: (value) => value.trim(),
+        hintMessage: 'Expected the API Account ID GUID from Apps and Keys.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/docusign-service-account',
+    helpText:
+      "Only needed when the user belongs to more than one account and the one to use isn't their default.",
+    consentUrl: (values, redirectUri) =>
+      buildDocuSignConsentUrl(values.clientId ?? '', values.dataCenter, redirectUri),
+  },
+  [ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Zendesk',
+    connectNoun: 'API credential',
+    fields: [
+      {
+        id: 'authMethod',
+        label: 'Authentication method',
+        placeholder: 'Select a method',
+        secret: false,
+        optional: true,
+        options: [
+          {
+            value: ZENDESK_AUTH_METHODS.clientCredentials,
+            label: 'OAuth client (client credentials)',
+          },
+          { value: ZENDESK_AUTH_METHODS.apiToken, label: 'API token (deprecated by Zendesk)' },
+        ],
+      },
+      {
+        id: 'orgId',
+        label: 'Subdomain',
+        placeholder: 'your-company',
+        secret: false,
+        hintPattern: ZENDESK_SUBDOMAIN_REGEX,
+        hintNormalize: normalizeZendeskSubdomain,
+        hintMessage: 'Expected the subdomain from your-company.zendesk.com, like your-company.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client identifier',
+        placeholder: 'Paste the OAuth client unique identifier',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.clientCredentials],
+        hint: 'Create a confidential OAuth client in Admin Center under Apps and integrations > APIs > OAuth Clients.',
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.clientCredentials],
+      },
+      {
+        id: 'scope',
+        label: 'Permissions',
+        placeholder: 'Select permissions',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.clientCredentials],
+        options: ZENDESK_SCOPE_OPTIONS,
+        hint: 'Every call runs as the user the OAuth client belongs to, with that user’s Zendesk role.',
+      },
+      {
+        id: 'username',
+        label: 'Agent email',
+        placeholder: 'agent@your-company.com',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.apiToken],
+        hint: 'Every call runs as this agent or admin, with their Zendesk role.',
+      },
+      {
+        id: 'apiToken',
+        label: 'API token',
+        placeholder: 'Paste the API token',
+        secret: true,
+        optional: true,
+        requiredForAuthMethods: [ZENDESK_AUTH_METHODS.apiToken],
+        hint: 'Zendesk has deprecated API tokens in favor of OAuth. Use an OAuth client unless you cannot create one.',
+      },
+    ],
+    defaultAuthMethod: ZENDESK_AUTH_METHODS.clientCredentials,
+    docsUrl: 'https://docs.sim.ai/integrations/zendesk',
+    helpText: 'Sim connects only to your-company.zendesk.com; host-mapped domains are not used.',
+  },
   [RAMP_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: RAMP_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'Ramp',
@@ -866,6 +1322,16 @@ export function resolveSalesforceAuthMethod(authMethod: string | undefined): str
       CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS[SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID],
       authMethod
     ) ?? SALESFORCE_DEFAULT_AUTH_METHOD
+  )
+}
+
+/** Resolves a stored Zendesk auth method against the descriptor's options, for the minter. */
+export function resolveZendeskAuthMethod(authMethod: string | undefined): string {
+  return (
+    resolveClientCredentialAuthMethod(
+      CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS[ZENDESK_SERVICE_ACCOUNT_PROVIDER_ID],
+      authMethod
+    ) ?? ZENDESK_AUTH_METHODS.clientCredentials
   )
 }
 

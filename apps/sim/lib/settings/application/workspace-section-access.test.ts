@@ -90,7 +90,7 @@ const mocks = {
   deploymentShape: createMockDeploymentShape({
     hosted: true,
     billingEnabled: true,
-    features: { inbox: false, sessionPolicies: false, whitelabeling: false },
+    features: { inbox: false, sessionPolicies: false },
   }),
   checkWorkspaceAccess: permissionsMockFns.mockCheckWorkspaceAccess,
   isOrganizationOnEnterprisePlan: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,

@@ -7,19 +7,20 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
+import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
+import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
@@ -80,12 +81,12 @@ export default async function OrganizationLayout({
     modelSelectorEnabled,
     dashboardsEnabled,
     benchmarkEnabled,
-    computerUseEnabled,
     workflowTestsEnabled,
     changelogEnabled,
     projectsEnabled,
     simLinksEnabled,
     peopleEnabled,
+    simLinkOrganizationId,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -99,12 +100,16 @@ export default async function OrganizationLayout({
       logger.warn('Could not resolve benchmark navigation access')
       return false
     }),
-    isComputerUseAvailable(organizationId),
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
     simLinksEnabledLookup,
     peopleEnabledLookup,
+    resolveSimLinkOrganization({
+      kind: 'session',
+      userId: session.user.id,
+      sessionId: session.session.id,
+    }),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -114,35 +119,37 @@ export default async function OrganizationLayout({
         flags={{
           dashboards: dashboardsEnabled,
           'workflow-tests': workflowTestsEnabled,
+          'workflow-code': false,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
-          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': benchmarkEnabled,
           'mothership-memory-spaces': benchmarkEnabled,
           projects: projectsEnabled,
         }}
       >
         <OrganizationProvider context={context}>
-          <GlobalCommandsProvider>
-            <WorkspaceViewport className='workspace-root'>
-              <ImpersonationBanner />
-              <SessionExpired />
-              <SettingsNavigationProvider>
-                <WorkspaceChrome
-                  sidebar={
-                    <OrganizationSidebar
-                      benchmarkEnabled={benchmarkEnabled}
-                      simLinksEnabled={simLinksEnabled}
-                      peopleEnabled={peopleEnabled}
-                    />
-                  }
-                  initialSidebarCollapsed={initialSidebarCollapsed}
-                >
-                  {children}
-                </WorkspaceChrome>
-              </SettingsNavigationProvider>
-            </WorkspaceViewport>
-          </GlobalCommandsProvider>
+          <SimLinkOrganizationProvider organizationId={simLinkOrganizationId}>
+            <GlobalCommandsProvider>
+              <WorkspaceViewport className='workspace-root'>
+                <ImpersonationBanner />
+                <SessionExpired />
+                <SettingsNavigationProvider>
+                  <WorkspaceChrome
+                    sidebar={
+                      <OrganizationSidebar
+                        benchmarkEnabled={benchmarkEnabled}
+                        simLinksEnabled={simLinksEnabled}
+                        peopleEnabled={peopleEnabled}
+                      />
+                    }
+                    initialSidebarCollapsed={initialSidebarCollapsed}
+                  >
+                    {children}
+                  </WorkspaceChrome>
+                </SettingsNavigationProvider>
+              </WorkspaceViewport>
+            </GlobalCommandsProvider>
+          </SimLinkOrganizationProvider>
         </OrganizationProvider>
       </FeatureFlagsProvider>
     </HydrationBoundary>

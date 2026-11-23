@@ -1,4 +1,5 @@
 import { toArray, toRecord } from '@sim/utils/object'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
 
@@ -33,7 +34,7 @@ export class AsanaClient {
 
   private async fetch(path: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
     signal?.throwIfAborted()
-    return fetch(this.url(path), {
+    return outboundFetch(this.url(path), {
       ...init,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,

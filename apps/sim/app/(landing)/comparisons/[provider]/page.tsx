@@ -11,15 +11,19 @@ import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/componen
 import { ComparisonCards } from '@/app/(landing)/comparisons/components/comparison-cards'
 import { ComparisonLinkRow } from '@/app/(landing)/comparisons/components/comparison-link-row'
 import { ComparisonTable } from '@/app/(landing)/comparisons/components/comparison-table'
+import { GlanceTable } from '@/app/(landing)/comparisons/components/glance-table'
 import { MigrationSection } from '@/app/(landing)/comparisons/components/migration-section'
 import { ProseText } from '@/app/(landing)/comparisons/components/prose-text'
+import { QuestionSections } from '@/app/(landing)/comparisons/components/question-sections'
 import { getLibraryPostsForCompetitor } from '@/app/(landing)/comparisons/library-links'
 import {
   ALL_COMPETITORS,
+  answersQuestionsInPlace,
   buildBottomLine,
   buildComparisonFaqs,
   getCompetitorBySlug,
   getLatestVerifiedDate,
+  getQuestionSectionGroups,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
 import { BackLink, ContentRelatedPosts } from '@/app/(landing)/components'
@@ -93,6 +97,13 @@ export default async function ComparisonProviderPage({
   }
 
   const faqs = buildComparisonFaqs(competitor)
+  const questionGroups = getQuestionSectionGroups(competitor)
+  const { lead } = questionGroups
+  const leadAnswer = competitor.leadAnswer ? (
+    <p className='max-w-[720px] text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+      <ProseText prose={competitor.leadAnswer} />
+    </p>
+  ) : null
   const relatedPosts = await getLibraryPostsForCompetitor(competitor)
   const verdict = buildBottomLine(competitor)
   const CompetitorIcon = competitor.brand?.icon
@@ -115,6 +126,17 @@ export default async function ComparisonProviderPage({
 
   const latestVerified = new Date(
     Math.max(SIM_LATEST_VERIFIED.getTime(), getLatestVerifiedDate(competitor).getTime())
+  )
+
+  const verifiedDate = (
+    <time dateTime={latestVerified.toISOString().slice(0, 10)}>
+      {latestVerified.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })}
+    </time>
   )
 
   const productComparisonJsonLd = {
@@ -186,25 +208,28 @@ export default async function ComparisonProviderPage({
             >
               Sim vs {competitor.name}
             </h1>
-            {competitor.leadAnswer ? (
-              <p className='max-w-[720px] text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
-                <ProseText prose={competitor.leadAnswer} />
-              </p>
-            ) : null}
+            {lead ? (
+              <section
+                id='lead-question'
+                aria-labelledby='lead-question-heading'
+                className='flex flex-col gap-3'
+              >
+                <h2
+                  id='lead-question-heading'
+                  className='max-w-[720px] text-balance text-[var(--text-primary)] text-xl leading-[120%] tracking-[-0.02em] lg:text-2xl'
+                >
+                  {lead.question}
+                </h2>
+                {leadAnswer}
+              </section>
+            ) : (
+              leadAnswer
+            )}
             <p className='max-w-[720px] text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
-              Sim is the open-source AI workspace where teams build, deploy, and manage AI agents
-              visually, conversationally, or with code. Here is how Sim compares to{' '}
-              {competitor.name} on platform architecture, AI capabilities, integrations, pricing,
-              security, and support. Every fact below is sourced and dated, last verified{' '}
-              <time dateTime={latestVerified.toISOString().slice(0, 10)}>
-                {latestVerified.toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                  timeZone: 'UTC',
-                })}
-              </time>
-              .
+              {lead
+                ? null
+                : `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. Here is how Sim compares to ${competitor.name} on platform architecture, AI capabilities, integrations, pricing, security, and support. `}
+              Every fact below is sourced and dated, last verified {verifiedDate}.
             </p>
             <p className='sr-only'>
               Sim is an open-source AI workspace for building, deploying, and managing AI agents.
@@ -225,22 +250,7 @@ export default async function ComparisonProviderPage({
                 <div className='h-px w-full bg-[var(--border)]' />
               </>
             ) : null}
-            {competitor.betterThanAnswer ? (
-              <>
-                <section aria-labelledby='better-than-heading' className='px-6 py-10'>
-                  <h2
-                    id='better-than-heading'
-                    className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
-                  >
-                    Is Sim better than {competitor.name}?
-                  </h2>
-                  <p className='max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
-                    <ProseText prose={competitor.betterThanAnswer} />
-                  </p>
-                </section>
-                <div className='h-px w-full bg-[var(--border)]' />
-              </>
-            ) : null}
+            <QuestionSections questions={questionGroups.opening} idPrefix='opening-question' />
             <div className='grid grid-cols-1 sm:grid-cols-2'>
               <section
                 aria-labelledby='what-is-sim-heading'
@@ -279,6 +289,14 @@ export default async function ComparisonProviderPage({
             </div>
 
             <div className='h-px w-full bg-[var(--border)]' />
+
+            {competitor.glance ? (
+              <>
+                <GlanceTable rows={competitor.glance} competitorName={competitor.name} />
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            ) : null}
+            <QuestionSections questions={questionGroups.glance} idPrefix='glance-question' />
 
             <section aria-labelledby='comparison-table-heading' className='px-6 pt-10 pb-4'>
               <h2
@@ -351,6 +369,8 @@ export default async function ComparisonProviderPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
+            <QuestionSections questions={questionGroups.closing} idPrefix='closing-question' />
+
             <section aria-labelledby='bottom-line-heading' className='px-6 py-10'>
               <h2
                 id='bottom-line-heading'
@@ -406,17 +426,19 @@ export default async function ComparisonProviderPage({
               </ul>
             </section>
 
-            <section aria-labelledby='faq-heading' className='px-6 py-10'>
-              <h2
-                id='faq-heading'
-                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
-              >
-                Frequently asked questions
-              </h2>
-              <div>
-                <LandingFAQ faqs={faqs} />
-              </div>
-            </section>
+            {answersQuestionsInPlace(competitor) ? null : (
+              <section aria-labelledby='faq-heading' className='px-6 py-10'>
+                <h2
+                  id='faq-heading'
+                  className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
+                >
+                  Frequently asked questions
+                </h2>
+                <div>
+                  <LandingFAQ faqs={faqs} />
+                </div>
+              </section>
+            )}
           </div>
         </div>
 

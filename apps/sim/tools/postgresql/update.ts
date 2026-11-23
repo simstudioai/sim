@@ -1,4 +1,5 @@
 import type { PostgresUpdateParams, PostgresUpdateResponse } from '@/tools/postgresql/types'
+import { POSTGRESQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const updateTool: InternalToolConfig<PostgresUpdateParams, PostgresUpdateResponse> = {
@@ -6,6 +7,7 @@ export const updateTool: InternalToolConfig<PostgresUpdateParams, PostgresUpdate
   name: 'PostgreSQL Update',
   description: 'Update data in PostgreSQL database',
   version: '1.0',
+  oauth: POSTGRESQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

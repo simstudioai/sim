@@ -10,19 +10,27 @@ After your admin adds a source in **Settings → Sources**, connect your own acc
 ## Connect and verify
 
 1. Join the Sim organization through its invitation or SSO. Use the verified email required by the provider connection.
-2. Open **Integrations**, select the app, and choose **Connect** in its header.
-3. Complete authorization in the new tab. If the popup is blocked, allow it and select **Connect** again.
+2. Open **Integrations**, select the app, and choose the app's button under **Connect your account**.
+3. Complete authorization in the new tab. If the popup is blocked, allow it and select the button again.
 4. Return to **Search** or **Search → Assistant** and search for content your account can open. Read a result and follow its source link.
 
 <Image
   src="/static/search/connect-account-details.png"
-  alt="Coda integration details with Connect in the resource header and no account connected"
+  alt="Coda integration details with a connect button and no account connected"
   width={1440}
   height={1000}
   variant="overview"
 />
 
-Your organization currently supports one connected account per provider. Open the app to see that account's permissions and connection actions.
+To connect another account of the same app, such as Google Drive for two different work accounts, open the app and choose **Add account**, then pick the other account when the provider asks. You can connect up to five accounts per app, and Search looks across all of them. Open an account to see its tool permissions when the app supports them; each account's menu has **Reconnect** and **Disconnect**.
+
+- Slack accounts must belong to your organization's connected workspace.
+- For another Confluence or Jira site on the same Atlassian login, choose **Add account** or **Reconnect** and pick the site. The site joins your existing account. Search reads up to four sites per Atlassian account in one search and notes when it leaves sites out.
+- Each Notion workspace is its own account, so add one per workspace. If Sim asks you to reconnect first, reconnect your existing Notion account once, then add the other workspace.
+- Zoom, Lucid, and Databricks allow one account, because Sim cannot yet tell their accounts apart.
+- If the provider signs you straight back into a connected account, sign in to the other account with the provider first, then choose **Add account** again.
+
+Reconnecting keeps the same account. To use a different one, add it as a new account or disconnect the old one first. If Sim asks you to reconnect before adding another account, it could not confirm which account an existing connection belongs to. Reconnect that one, then add the other. Your organization and the provider must allow each account to authorize Sim.
 
 The connection is usable when authorization completes; no initial indexing run is required. If a provider is missing, ask an admin to add it in **Sources**. `Not configured` means its app or deployment setup needs an admin's attention.
 
@@ -33,7 +41,7 @@ You do not choose repositories, channels, labels, or an indexing method during p
 | Source setup | Personal connection |
 | --- | --- |
 | **Member accounts** | Connect your own provider account. |
-| **GitHub App** | Connect GitHub once per Sim organization. Each selected repository must be readable by you and the installation. |
+| **GitHub App** | Connect one or more GitHub accounts. Each selected repository must be readable by you and the installation. |
 | Google service account: Gmail, Calendar, Drive | Connect each corresponding Google service. The source verifies your identity and resource access through delegation. |
 | Confluence service account | Connect Confluence. Both your account and the service connection must read the selected content. |
 | Coda | Connect personal Coda MCP. Service mode also verifies the parent document with its REST token. |
@@ -46,7 +54,7 @@ Creating Jira sprints requires the Jira sprint permission. If your account was c
 
 ## Tool permissions
 
-Open the app in **Integrations** and select your account. Tool permissions appear in its details when the app has supported Assistant tools available to you. Hover over or focus the info button beside a tool to read its description. Set a preference for each operation or use the **Read-only tools** and **Write tools** group controls:
+Open the app in **Integrations**. If you connected several accounts, select one. Tool permissions appear in its details when the app has supported Assistant tools available to you. Hover over or focus the info button beside a tool to read its description. Set a preference for each operation or use the **Read-only tools** and **Write tools** group controls:
 
 | Preference | Behavior |
 | --- | --- |

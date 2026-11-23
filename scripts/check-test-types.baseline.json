@@ -14,23 +14,13 @@
   "apps/sim/app/api/auth/forget-password/route.test.ts": {
     "TS2554": 8
   },
-  "apps/sim/app/api/auth/instagram/authorize/route.test.ts": {
-    "TS2554": 2
-  },
   "apps/sim/app/api/auth/oauth/credentials/route.test.ts": {
     "TS2322": 1,
     "TS2345": 2,
     "TS2554": 5
   },
-  "apps/sim/app/api/auth/oauth/token/route.test.ts": {
-    "TS2322": 1,
-    "TS2345": 1,
-    "TS2554": 11,
-    "TS2739": 2
-  },
   "apps/sim/app/api/auth/oauth2/authorize/route.test.ts": {
-    "TS2345": 2,
-    "TS2554": 22
+    "TS2345": 2
   },
   "apps/sim/app/api/auth/oauth2/callback/quickbooks/route.test.ts": {
     "TS2554": 3
@@ -67,9 +57,6 @@
   "apps/sim/app/api/billing/switch-plan/route.test.ts": {
     "TS2554": 1
   },
-  "apps/sim/app/api/billing/update-cost/replay.live.test.ts": {
-    "TS2554": 1
-  },
   "apps/sim/app/api/billing/update-cost/route.test.ts": {
     "TS2554": 50
   },
@@ -99,12 +86,6 @@
   },
   "apps/sim/app/api/copilot/api-keys/validate/route.test.ts": {
     "TS2554": 52
-  },
-  "apps/sim/app/api/copilot/chat/stop/route.test.ts": {
-    "TS18046": 2,
-    "TS2345": 1,
-    "TS2554": 1,
-    "TS2571": 2
   },
   "apps/sim/app/api/copilot/feedback/route.test.ts": {
     "TS2554": 1
@@ -218,6 +199,12 @@
   },
   "apps/sim/app/api/mcp/servers/test-connection/route.test.ts": {
     "TS2554": 5
+  },
+  "apps/sim/app/api/mothership/chat/stop/route.test.ts": {
+    "TS18046": 2,
+    "TS2345": 1,
+    "TS2554": 1,
+    "TS2571": 2
   },
   "apps/sim/app/api/mothership/chats/[chatId]/fork/route.test.ts": {
     "TS2488": 1,
@@ -405,10 +392,6 @@
   "apps/sim/app/api/v2/workflows/[workflowId]/versions/[version]/route.test.ts": {
     "TS2345": 1
   },
-  "apps/sim/app/api/webhooks/[id]/reactivation-gate.test.ts": {
-    "TS2322": 1,
-    "TS2345": 1
-  },
   "apps/sim/app/api/webhooks/agentmail/route.test.ts": {
     "TS2554": 6
   },
@@ -539,7 +522,6 @@
   "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
     "TS2304": 1,
     "TS2322": 4,
-    "TS2353": 1,
     "TS2550": 1
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form.test.tsx": {
@@ -638,9 +620,6 @@
   "apps/sim/blocks/blocks/airtable.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/blocks/blocks/ashby.test.ts": {
-    "TS18048": 11
-  },
   "apps/sim/blocks/blocks/cloudtrail.test.ts": {
     "TS2554": 1
   },
@@ -656,10 +635,6 @@
   "apps/sim/blocks/blocks/gitlab.test.ts": {
     "TS18048": 7
   },
-  "apps/sim/blocks/blocks/google_drive.test.ts": {
-    "TS18048": 1,
-    "TS2554": 4
-  },
   "apps/sim/blocks/blocks/instagram.test.ts": {
     "TS18048": 1
   },
@@ -670,18 +645,9 @@
   "apps/sim/blocks/blocks/mem0.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/blocks/blocks/microsoft_ad.test.ts": {
-    "TS18048": 1
-  },
-  "apps/sim/blocks/blocks/mintlify.test.ts": {
-    "TS18048": 1
-  },
   "apps/sim/blocks/blocks/mssql.test.ts": {
     "TS18048": 1,
     "TS2339": 2
-  },
-  "apps/sim/blocks/blocks/outlook.test.ts": {
-    "TS18048": 2
   },
   "apps/sim/blocks/blocks/slack.test.ts": {
     "TS2339": 1
@@ -804,7 +770,7 @@
   },
   "apps/sim/executor/handlers/agent/handler.test.ts": {
     "TS18046": 2,
-    "TS2339": 3,
+    "TS2339": 1,
     "TS2345": 1,
     "TS2352": 1,
     "TS7006": 1
@@ -1015,8 +981,7 @@
   },
   "apps/sim/lib/billing/credits/weekly-refresh.test.ts": {
     "TS2352": 1,
-    "TS2493": 1,
-    "TS2739": 1
+    "TS2493": 1
   },
   "apps/sim/lib/billing/enterprise-outbox.test.ts": {
     "TS2345": 4
@@ -1125,16 +1090,13 @@
   "apps/sim/lib/core/rate-limiter/hosted-key/rate-limiter.test.ts": {
     "TS2352": 1
   },
-  "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": {
-    "TS2345": 1
-  },
   "apps/sim/lib/core/rate-limiter/rate-limiter.test.ts": {
     "TS2307": 4,
     "TS2352": 1,
     "TS2664": 2
   },
   "apps/sim/lib/core/rate-limiter/storage/factory.test.ts": {
-    "TS2345": 2
+    "TS2345": 1
   },
   "apps/sim/lib/core/security/encryption.test.ts": {
     "TS2352": 2
@@ -1176,7 +1138,7 @@
     "TS2739": 1
   },
   "apps/sim/lib/credential-groups/oauth.test.ts": {
-    "TS2345": 10
+    "TS2345": 9
   },
   "apps/sim/lib/credential-groups/organization-account-options.test.ts": {
     "TS18048": 1
@@ -1190,9 +1152,6 @@
   },
   "apps/sim/lib/credential-groups/slack-managed-users.test.ts": {
     "TS2339": 1
-  },
-  "apps/sim/lib/credential-groups/slack-provider.test.ts": {
-    "TS2741": 2
   },
   "apps/sim/lib/credential-groups/standard-oauth-provider.test.ts": {
     "TS2739": 1,
@@ -1903,9 +1862,6 @@
   "apps/sim/lib/mothership/request/context/result.test.ts": {
     "TS2739": 1
   },
-  "apps/sim/lib/mothership/request/go/file-preview-adapter.test.ts": {
-    "TS2322": 1
-  },
   "apps/sim/lib/mothership/request/handlers/handlers.test.ts": {
     "TS2339": 1
   },
@@ -1941,6 +1897,9 @@
     "TS2345": 2
   },
   "apps/sim/lib/mothership/request/tools/workflow-context.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/request/worker/file-preview-adapter.test.ts": {
     "TS2322": 1
   },
   "apps/sim/lib/mothership/resources/search.test.ts": {
@@ -2094,9 +2053,6 @@
     "TS2502": 1
   },
   "apps/sim/lib/table/dispatcher.test.ts": {
-    "TS2322": 1
-  },
-  "apps/sim/lib/table/events.test.ts": {
     "TS2322": 1
   },
   "apps/sim/lib/table/jobs/service.test.ts": {
@@ -2322,9 +2278,6 @@
   },
   "apps/sim/lib/workflows/dynamic-handle-topology.test.ts": {
     "TS2352": 1
-  },
-  "apps/sim/lib/workflows/editing/operations.test.ts": {
-    "TS2353": 1
   },
   "apps/sim/lib/workflows/editing/validation.test.ts": {
     "TS2322": 1
@@ -2608,8 +2561,7 @@
     "TS2345": 25
   },
   "apps/sim/tools/ashby/ashby.test.ts": {
-    "TS2339": 3,
-    "TS2345": 50
+    "TS2339": 3
   },
   "apps/sim/tools/assistant-execution.test.ts": {
     "TS2554": 2

@@ -1,10 +1,14 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import { ResendIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const ResendBlock: BlockConfig = {
   type: 'resend',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'resend_v2' },
   name: 'Resend',
   description: 'Send emails and manage contacts with Resend.',
   longDescription:
@@ -36,7 +40,7 @@ export const ResendBlock: BlockConfig = {
         delete_audience: [{ text: 'Delete audience', field: 'audienceId', core: true }],
         create_broadcast: [
           'Draft a broadcast',
-          { text: 'for audience', field: 'audienceId', core: true },
+          { text: 'for', field: ['segmentId', 'audienceId'], core: true },
           { text: ', subject', field: 'broadcastSubject' },
           { text: ', named', field: 'broadcastName' },
         ],
@@ -298,6 +302,13 @@ Return ONLY the email body - no explanations, no extra text.`,
       required: true,
     },
     {
+      id: 'segmentId',
+      title: 'Segment ID',
+      type: 'short-input',
+      placeholder: 'Segment ID (takes precedence over Audience ID)',
+      condition: { field: 'operation', value: 'create_broadcast' },
+    },
+    {
       id: 'audienceId',
       title: 'Audience ID',
       type: 'short-input',
@@ -306,10 +317,18 @@ Return ONLY the email body - no explanations, no extra text.`,
         field: 'operation',
         value: ['get_audience', 'delete_audience', 'create_broadcast'],
       },
-      required: {
+      /**
+       * Create Broadcast needs an audience only when no segment is set. Without block values (the
+       * public catalog, Copilot validation) a segment may still be given, so only the audience
+       * operations require it.
+       */
+      required: (values) => ({
         field: 'operation',
-        value: ['get_audience', 'delete_audience', 'create_broadcast'],
-      },
+        value:
+          values && !String(values.segmentId ?? '').trim()
+            ? ['get_audience', 'delete_audience', 'create_broadcast']
+            : ['get_audience', 'delete_audience'],
+      }),
     },
 
     {
@@ -392,6 +411,23 @@ Return ONLY the email body - no explanations, no extra text.`,
       },
     },
 
+    {
+      id: 'limit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '20 (max 100)',
+      condition: { field: 'operation', value: ['list_contacts', 'list_domains'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'after',
+      title: 'After (Cursor)',
+      type: 'short-input',
+      placeholder: 'ID of the last item from the previous page',
+      condition: { field: 'operation', value: ['list_contacts', 'list_domains'] },
+      mode: 'advanced',
+    },
+
     ...getTrigger('resend_email_sent').subBlocks,
     ...getTrigger('resend_email_delivered').subBlocks,
     ...getTrigger('resend_email_bounced').subBlocks,
@@ -427,13 +463,19 @@ Return ONLY the email body - no explanations, no extra text.`,
         if (operation === 'send_email') return 'resend_send'
         return `resend_${operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const { operation, ...rest } = params
 
-        if (rest.unsubscribed === undefined || rest.unsubscribed === '') {
-          rest.unsubscribed = undefined
-        } else {
-          rest.unsubscribed = rest.unsubscribed === 'true'
+        rest.unsubscribed = toBooleanFromInput(rest.unsubscribed)
+
+        // The tool prefers a segment, so a model's segmentId would retarget a row's pinned audience.
+        if (context?.pinnedParams?.has('audienceId') && !context.pinnedParams.has('segmentId')) {
+          rest.segmentId = undefined
+        }
+
+        if (typeof rest.limit === 'string') {
+          const limit = rest.limit.trim()
+          rest.limit = limit ? Number(limit) : undefined
         }
 
         return rest
@@ -463,6 +505,9 @@ Return ONLY the email body - no explanations, no extra text.`,
     cancelEmailId: { type: 'string', description: 'Scheduled email ID to cancel' },
     audienceName: { type: 'string', description: 'Audience name' },
     audienceId: { type: 'string', description: 'Audience ID' },
+    segmentId: { type: 'string', description: 'Segment ID for a broadcast' },
+    limit: { type: 'number', description: 'Number of items to return when listing (1-100)' },
+    after: { type: 'string', description: 'Pagination cursor: ID of the last item already read' },
     broadcastFrom: { type: 'string', description: 'Broadcast sender email address' },
     broadcastSubject: { type: 'string', description: 'Broadcast subject' },
     broadcastHtml: { type: 'string', description: 'Broadcast HTML content' },
@@ -497,7 +542,7 @@ Return ONLY the email body - no explanations, no extra text.`,
     name: { type: 'string', description: 'Audience or broadcast name' },
     audienceId: { type: 'string', description: 'Audience ID (legacy)' },
     segmentId: { type: 'string', description: 'Broadcast segment ID (current recipient field)' },
-    replyTo: { type: 'string', description: 'Broadcast reply-to email address' },
+    replyTo: { type: 'json', description: 'Broadcast reply-to email addresses' },
     previewText: { type: 'string', description: 'Broadcast inbox preview text' },
     status: { type: 'string', description: 'Broadcast status' },
     sentAt: { type: 'string', description: 'Broadcast sent timestamp' },
@@ -598,3 +643,18 @@ export const ResendBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ResendV2Block: BlockConfig = {
+  ...ResendBlock,
+  type: 'resend_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription: 'Send emails, retrieve email status, manage contacts, and view domains.',
+  ...withSavedCredential(ResendBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'resend',
+    title: 'Resend Credential',
+  }),
+}

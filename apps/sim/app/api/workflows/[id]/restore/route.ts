@@ -66,7 +66,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: result.error }, { status })
       }
 
-      logger.info(`[${requestId}] Restored workflow ${workflowId}`)
+      logger.info(`Restored workflow ${workflowId}`)
 
       captureServerEvent(
         auth.userId,
@@ -81,7 +81,7 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: error.status })
       }
 
-      logger.error(`[${requestId}] Error restoring workflow ${workflowId}`, error)
+      logger.error(`Error restoring workflow ${workflowId}`, error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Internal server error') },
         { status: 500 }

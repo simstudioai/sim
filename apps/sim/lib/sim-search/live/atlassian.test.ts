@@ -244,6 +244,13 @@ describe('Jira any-term search', () => {
     const page = await searchAtlassian(api, 'confluence', { ...query, textMatch: 'any' })
     expect(page.documents.map((document) => document.id)).toEqual(['5'])
   })
+
+  it('searches nothing for a Confluence query with no word left, which would list every page', async () => {
+    const api = client({})
+    const page = await searchAtlassian(api, 'confluence', { ...query, query: String.raw` :\ ` })
+    expect(page.documents).toEqual([])
+    expect(api.json).not.toHaveBeenCalled()
+  })
 })
 
 describe('Confluence plain search ranking', () => {

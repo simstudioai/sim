@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsMessageResponse, SqsSetQueueAttributesParams } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const setQueueAttributesTool: InternalToolConfig<
   name: 'SQS Set Queue Attributes',
   description: 'Update configuration attributes of an existing Amazon SQS queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

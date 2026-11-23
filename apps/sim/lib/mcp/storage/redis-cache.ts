@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type Redis from 'ioredis'
+import { getRedisClient } from '@/lib/core/config/redis'
 import type { McpTool } from '@/lib/mcp/types'
 import type { McpCacheEntry, McpCacheStorageAdapter } from './adapter'
 
@@ -8,7 +9,14 @@ const logger = createLogger('McpRedisCache')
 const REDIS_KEY_PREFIX = 'mcp:tools:'
 
 export class RedisMcpCache implements McpCacheStorageAdapter {
-  constructor(private redis: Redis) {}
+  /**
+   * Resolved per command rather than captured, so the module-scope MCP service
+   * imports without Redis (as `next build` does) and follows the shared client
+   * across a health-check reconnect.
+   */
+  private get redis(): Redis {
+    return getRedisClient()
+  }
 
   private getKey(key: string): string {
     return `${REDIS_KEY_PREFIX}${key}`

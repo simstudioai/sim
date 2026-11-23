@@ -7,6 +7,7 @@ import { requestSlackApi } from '@/lib/internal/slack/client'
 import {
   authorizeSlackSearchInstallation,
   requireSlackInstallationPrincipal,
+  withSlackSearchOutboundScope,
 } from '@/lib/knowledge/application/slack-search/authorization'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -89,7 +90,7 @@ export const publishSlackSearchHome: OperationUseCase<
   typeof operation,
   { job: SlackSearchHomeJob; signal: AbortSignal },
   void
-> = {
+> = withSlackSearchOutboundScope({
   operation,
   async execute({ principal, input: { job, signal } }) {
     requireSlackInstallationPrincipal(principal)
@@ -121,4 +122,4 @@ export const publishSlackSearchHome: OperationUseCase<
     if (response.status !== 200 || response.data.ok !== true)
       throw new Error('Could not publish the Slack Search Home tab')
   },
-}
+})

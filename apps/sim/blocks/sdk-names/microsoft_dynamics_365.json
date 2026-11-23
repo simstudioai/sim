@@ -1,0 +1,15 @@
+{
+  "namespace": "microsoftDynamics365",
+  "methods": {
+    "assign_record": "assignRecord",
+    "close_case": "closeCase",
+    "close_opportunity": "closeOpportunity",
+    "create_record": "createRecord",
+    "get_record": "getRecord",
+    "list_owners": "listOwners",
+    "list_records": "listRecords",
+    "qualify_lead": "qualifyLead",
+    "search_records": "searchRecords",
+    "update_record": "updateRecord"
+  }
+}

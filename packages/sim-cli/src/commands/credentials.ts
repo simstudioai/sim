@@ -1,12 +1,14 @@
-import { type Command, Option } from 'commander'
+import { Argument, type Command, Option } from 'commander'
 import type { CommandSpec } from '../contract/types'
 import {
   type CreateCredentialConnectionResponse,
+  type CreateCredentialWorkloadIdentitySubjectBody,
+  type CreateCredentialWorkloadIdentitySubjectResponse,
   type CreateServiceAccountCredentialResponse,
   type ListCredentialProvidersResponse,
   V2_OPERATIONS,
 } from '../generated/v2-api'
-import { SimApiError } from '../http/client'
+import { refusalCode, SimApiError } from '../http/client'
 import { describeOperation } from '../runtime/build'
 import { apiCommand, type Connection } from '../runtime/called-operations'
 import { coerce } from '../runtime/request'
@@ -28,6 +30,62 @@ const SERVICE_ACCOUNT_RESULT: CommandSpec = {
     { header: 'created', path: 'createdAt', format: 'timestamp' },
   ],
 }
+
+const KEYLESS_SUBJECT_RESULT: CommandSpec = {
+  fields: [
+    { header: 'issuer' },
+    { header: 'audience' },
+    { header: 'subject' },
+    { header: 'subject proof', path: 'subjectProof' },
+    { header: 'expires', path: 'expiresAt', format: 'timestamp' },
+    { header: 'held until', path: 'subjectHeldUntil', format: 'timestamp' },
+    { header: 'auth type', path: 'keylessConfig.authType' },
+    { header: 'required fields', path: 'requiredConfigFields' },
+    { header: 'optional fields', path: 'optionalConfigFields' },
+  ],
+}
+
+type KeylessProviderId = CreateCredentialWorkloadIdentitySubjectBody['providerId']
+
+/** The generated enum of providers that can hold a keyless credential. */
+const KEYLESS_PROVIDER_IDS =
+  V2_OPERATIONS.createCredentialWorkloadIdentitySubject.body.providerId.values
+
+/** The refusal a renewed proof fixes: the subject still holds, only its proof aged out. */
+const KEYLESS_PROOF_EXPIRED = 'WORKLOAD_IDENTITY_PROOF_EXPIRED'
+
+/** The refusal of a renewal: Sim no longer holds the subject (saved, expired, or someone else's). */
+const KEYLESS_NOT_PENDING = 'WORKLOAD_IDENTITY_SUBJECT_NOT_PENDING'
+
+/** Refusals a fresh subject fixes: the proof belongs to someone else, or the subject is missing or already used. */
+const KEYLESS_RETRY_CODES: ReadonlySet<string> = new Set([
+  'WORKLOAD_IDENTITY_PROOF_INVALID',
+  'WORKLOAD_IDENTITY_SUBJECT_REQUIRED',
+  'WORKLOAD_IDENTITY_SUBJECT_IN_USE',
+])
+
+/**
+ * Paragraphs separated by blank lines, then one `Examples:` block: the shape
+ * the CLI docs generator renders as separate paragraphs and a code block.
+ */
+const KEYLESS_FLOW_HELP = [
+  'Keyless (workload identity) credentials take two steps.',
+  '',
+  "Step 1: run `sim credentials keyless-subject <providerId> --output json` and configure your cloud to trust the printed issuer, audience, and subject. Its requiredConfigFields lists the values your provider's keylessConfig still needs.",
+  '',
+  "The printed audience is the default. To have Sim sign tokens for your own audience instead, set audience in keylessConfig and trust that value. Google Cloud prints no audience: its default is the credential's own workload identity pool provider.",
+  '',
+  'Step 2: add those values to keylessConfig and pass it to `sim credentials create <providerId> --credentials @file`.',
+  '',
+  'The proof expires after 24 hours and works only for the user who requested it, with the same providerId. Sim holds the subject for you for 30 days until a credential saves it, so a trust configuration that takes longer to apply still works: renew the proof with `sim credentials keyless-subject <providerId> --subject <subject>`. The subject stays the same, and each renewal restarts the 30 days. Sim holds up to 20 unsaved subjects per person and provider in a workspace; issuing more drops the one shown least recently.',
+  '',
+  `If creation reports ${KEYLESS_PROOF_EXPIRED}, renew the proof and retry. If it reports ${[...KEYLESS_RETRY_CODES].join(', ')}, run step 1 again, trust the new subject, and retry.`,
+  '',
+  'Examples:',
+  '  $ sim credentials keyless-subject aws-service-account --output json > subject.json',
+  `  $ jq '.keylessConfig + {"roleArn":"arn:aws:iam::123456789012:role/SimWorkflows"}' subject.json > keyless.json`,
+  '  $ sim credentials create aws-service-account --name "Keyless" --credentials @keyless.json',
+].join('\n')
 
 type ConnectionBody = { providerId: string; displayName: string } | { credentialId: string }
 type CredentialProvider = ListCredentialProvidersResponse['data'][number]
@@ -66,8 +124,8 @@ async function credentialValues(
     throw new SimApiError('--credentials must be a JSON object', 0)
   }
 
-  const values = parsed as Record<string, unknown>
   const fields = new Map(provider.fields.map((field) => [field.id, field]))
+  const values = asServiceAccountJson(parsed as Record<string, unknown>, provider)
   for (const [id, value] of Object.entries(values)) {
     const field = fields.get(id)
     if (!field) {
@@ -87,13 +145,16 @@ async function credentialValues(
     }
   }
 
+  if (
+    values.serviceAccountJson !== undefined &&
+    (provider.keyless !== undefined || offersConfigurationAlternative(provider))
+  ) {
+    return values as Record<string, string>
+  }
+
   const authMethod = typeof values.authMethod === 'string' ? values.authMethod : undefined
   const missing = provider.fields
-    .filter(
-      (field) =>
-        field.required ||
-        (authMethod !== undefined && field.requiredForAuthMethods?.includes(authMethod))
-    )
+    .filter((field) => isFieldRequired(field, authMethod))
     .filter((field) => values[field.id] === undefined)
     .map((field) => field.id)
   if (missing.length > 0) {
@@ -104,6 +165,107 @@ async function credentialValues(
   }
 
   return values as Record<string, string>
+}
+
+/**
+ * Whether a create must give the field. With an `authMethod` chosen, a field that lists the
+ * methods it belongs to is required exactly for those (a ServiceNow password is not, once
+ * `client_credentials` replaces it); otherwise the catalog's `required` decides, which describes
+ * the provider's default method.
+ */
+function isFieldRequired(
+  field: ServiceAccountProvider['fields'][number],
+  authMethod: string | undefined
+): boolean {
+  if (authMethod === undefined || !field.requiredForAuthMethods) return field.required
+  return field.requiredForAuthMethods.includes(authMethod)
+}
+
+/**
+ * Whether the catalog lists `serviceAccountJson` as an optional alternative to
+ * the provider's other fields (such as a Snowflake key pair).
+ */
+function offersConfigurationAlternative(provider: ServiceAccountProvider): boolean {
+  return provider.fields.some((field) => field.id === 'serviceAccountJson' && !field.required)
+}
+
+/**
+ * Accepts a configuration object as it is: the keylessConfig from
+ * `sim credentials keyless-subject` (an object that carries a subject and its
+ * proof, or the provider's keyless `authType`), or an object with an
+ * `authType` where `serviceAccountJson` is an optional alternative, is sent as
+ * `serviceAccountJson`.
+ * Anything else is read as the provider's fields, so a misspelled field is
+ * still reported as unsupported.
+ */
+function asServiceAccountJson(
+  values: Record<string, unknown>,
+  provider: ServiceAccountProvider
+): Record<string, unknown> {
+  const configuration =
+    (values.subject !== undefined && values.subjectProof !== undefined) ||
+    (provider.keyless !== undefined && values.authType === provider.keyless.authType) ||
+    (values.authType !== undefined &&
+      values.serviceAccountJson === undefined &&
+      !provider.fields.some((field) => field.id === 'authType') &&
+      offersConfigurationAlternative(provider))
+  return configuration ? { serviceAccountJson: JSON.stringify(values) } : values
+}
+
+/** The command that fixes a refused keyless subject or renewal, or null when none does. */
+function keylessHint(code: string | null, providerId: string): string | null {
+  if (code === KEYLESS_PROOF_EXPIRED) {
+    return `Run \`sim credentials keyless-subject ${providerId} --subject <subject>\` to renew the proof for the same subject, and retry.`
+  }
+  if (code === KEYLESS_NOT_PENDING) {
+    return `Run \`sim credentials keyless-subject ${providerId}\` without --subject for a new subject, trust it in your cloud, and retry.`
+  }
+  if (code !== null && KEYLESS_RETRY_CODES.has(code)) {
+    return `Run \`sim credentials keyless-subject ${providerId}\` for a new subject, trust it in your cloud, and retry.`
+  }
+  return null
+}
+
+/** Names the command that fixes a refused keyless subject, keeping the API's code and details. */
+function withKeylessHint(error: unknown, providerId: string): unknown {
+  if (!(error instanceof SimApiError)) return error
+  const hint = keylessHint(refusalCode(error), providerId)
+  if (hint === null) return error
+  return new SimApiError(
+    `${error.message} ${hint}`,
+    error.status,
+    error.code,
+    error.details,
+    error.exitCode,
+    error.requestId
+  )
+}
+
+async function createKeylessSubject(
+  { client, profile }: Connection<'createCredentialWorkloadIdentitySubject'>,
+  providerId: KeylessProviderId,
+  options: { subject?: string }
+): Promise<void> {
+  const response = await client
+    .request<CreateCredentialWorkloadIdentitySubjectResponse>(
+      'createCredentialWorkloadIdentitySubject',
+      {
+        body: {
+          workspaceId: client.requireWorkspace(),
+          providerId,
+          ...(options.subject !== undefined ? { subject: options.subject } : {}),
+        },
+      }
+    )
+    .catch((error: unknown) => {
+      throw withKeylessHint(error, providerId)
+    })
+  renderResult(
+    'createCredentialWorkloadIdentitySubject',
+    profile.output,
+    response.data,
+    KEYLESS_SUBJECT_RESULT
+  )
 }
 
 async function createServiceAccount(
@@ -121,9 +283,8 @@ async function createServiceAccount(
   }
 
   const credentialFields = await credentialValues(provider, options.credentials)
-  const response = await client.request<CreateServiceAccountCredentialResponse>(
-    'createServiceAccountCredential',
-    {
+  const response = await client
+    .request<CreateServiceAccountCredentialResponse>('createServiceAccountCredential', {
       body: {
         workspaceId,
         type: 'service_account',
@@ -133,8 +294,10 @@ async function createServiceAccount(
         ...(options.id ? { id: options.id } : {}),
         credentials: JSON.stringify(credentialFields),
       },
-    }
-  )
+    })
+    .catch((error: unknown) => {
+      throw withKeylessHint(error, providerId)
+    })
 
   renderResult(
     'createServiceAccountCredential',
@@ -222,8 +385,41 @@ export function attachCredentialCommands(program: Command): void {
       '--id <credentialId>',
       'Client-generated credential ID when provider discovery requires it'
     )
+    .addHelpText(
+      'after',
+      [
+        '',
+        "--credentials takes the provider's fields, or the keylessConfig from `sim credentials keyless-subject` (with the required fields filled in). Pass @path or @- to keep secrets out of shell history.",
+        '',
+        KEYLESS_FLOW_HELP,
+      ].join('\n')
+    )
     .action((providerId: string, options: CreateServiceAccountOptions) =>
       createServiceAccount(connectCreate(), providerId, options)
+    )
+
+  const [keylessSubject, connectKeylessSubject] = apiCommand(credentials, 'keyless-subject', [
+    'createCredentialWorkloadIdentitySubject',
+  ])
+  keylessSubject
+    .addArgument(
+      new Argument('<providerId>', 'Service-account provider for the keyless credential').choices([
+        ...KEYLESS_PROVIDER_IDS,
+      ])
+    )
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialWorkloadIdentitySubject,
+        'Issue the subject and proof for a new keyless (workload identity) credential'
+      )
+    )
+    .option(
+      '--subject <subject>',
+      'Renew the proof for a subject Sim issued to you earlier, instead of issuing a new one'
+    )
+    .addHelpText('after', `\n${KEYLESS_FLOW_HELP}`)
+    .action((providerId: KeylessProviderId, options: { subject?: string }) =>
+      createKeylessSubject(connectKeylessSubject(), providerId, options)
     )
 
   const [connect, connectLink] = apiCommand(credentials, 'connect', ['createCredentialConnection'])

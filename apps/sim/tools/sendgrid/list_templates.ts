@@ -1,13 +1,18 @@
 import type { ListTemplatesParams, SendGridTemplate, TemplatesResult } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, TemplatesResult> = {
   id: 'sendgrid_list_templates',
   name: 'SendGrid List Templates',
-  description: 'Get all email templates from SendGrid',
+  description:
+    'List email templates from SendGrid. Returns legacy templates only unless generations includes dynamic',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -18,7 +23,8 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by generation (legacy, dynamic, or both)',
+      description:
+        'Template generations to return: legacy, dynamic, or legacy,dynamic (default when omitted: legacy only)',
     },
     pageSize: {
       type: 'number',
@@ -39,7 +45,7 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
 
   request: {
     url: (params) => {
-      const url = new URL('https://api.sendgrid.com/v3/templates')
+      const url = new URL(`${SENDGRID_REGIONS.apiBase(params.region)}/templates`)
       if (params.generations) {
         url.searchParams.append('generations', params.generations)
       }

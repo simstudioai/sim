@@ -1,4 +1,5 @@
 import type { MSSQLDeleteParams, MSSQLDeleteResponse } from '@/tools/mssql/types'
+import { MSSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteTool: InternalToolConfig<MSSQLDeleteParams, MSSQLDeleteResponse> = {
@@ -6,6 +7,7 @@ export const deleteTool: InternalToolConfig<MSSQLDeleteParams, MSSQLDeleteRespon
   name: 'Microsoft SQL Server Delete',
   description: 'Delete rows from a Microsoft SQL Server table',
   version: '1.0',
+  oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

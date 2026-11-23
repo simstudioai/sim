@@ -12,7 +12,6 @@ import {
   SNOWFLAKE_CORTEX_ANALYST_ASK_OUTPUTS,
   type SnowflakeCortexAnalystAskParams,
   type SnowflakeCortexAnalystAskResponse,
-  type SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import {
   getSnowflakeBaseUrl,
@@ -144,35 +143,26 @@ export const cortexAnalystAskTool: ToolConfig<
       ),
     }
   },
-  postProcess: async (result, params, executeTool) => {
+  postProcess: async (result, params, _executeTool, context) => {
     const { sql } = result.output
     if (!sql || !shouldExecuteSql(params.executeSql)) return result
 
-    /** A thrown nested call would otherwise leave the answer without its promised rows. */
+    /** A thrown statement would otherwise leave the answer without its promised rows. */
     try {
-      const execution = (await executeTool('snowflake_execute_sql', {
-        /*
-         * The token and host were already resolved for this call. Passing the credential ID
-         * instead would re-resolve it without the caller's scope, which Chat does not forward
-         * to nested tools.
-         */
-        accessToken: params.accessToken,
-        domain: params.domain,
-        statement: sql,
-        ...cortexAnalystSqlContext(params, result.output.semanticModelSelection?.index),
-        warehouse: params.warehouse,
-        role: params.role,
-        maxRows: params.maxRows,
-        statementTimeoutSeconds: params.statementTimeoutSeconds,
-      })) as SnowflakeStatementResponse
-      if (!execution.success) {
-        return {
-          ...result,
-          success: false,
-          error: `Cortex Analyst generated SQL, but running it failed: ${execution.error ?? 'Unknown error'}`,
-        }
-      }
-      return { ...result, output: { ...result.output, execution: execution.output } }
+      /*
+       * The token, token type, and host were resolved from this call's credential. The SQL
+       * runs with them directly rather than as a nested tool call, which would discard the
+       * credential-derived host and token type, and re-resolving the credential would lose the
+       * caller's scope, which Chat does not forward to nested tools.
+       */
+      const { runSnowflakeStatement } = await import('@/tools/snowflake/run-statement.server')
+      const execution = await runSnowflakeStatement(
+        params,
+        sql,
+        cortexAnalystSqlContext(params, result.output.semanticModelSelection?.index),
+        context?.signal
+      )
+      return { ...result, output: { ...result.output, execution } }
     } catch (error) {
       logger.error('Error running Cortex Analyst SQL', {
         message: getErrorMessage(error, 'Unknown error'),

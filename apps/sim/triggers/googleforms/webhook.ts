@@ -108,6 +108,7 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
       responseId: formResponse.getId(),
       createTime: formResponse.getTimestamp().toISOString(),
       lastSubmittedTime: formResponse.getTimestamp().toISOString(),
+      respondentEmail: formResponse.getRespondentEmail() || null,
       answers: answers
     };
 
@@ -152,6 +153,12 @@ export const googleFormsWebhookTrigger: TriggerConfig = {
     createTime: { type: 'string', description: 'Response creation timestamp' },
     lastSubmittedTime: { type: 'string', description: 'Last submitted timestamp' },
     formId: { type: 'string', description: 'Google Form ID' },
+    respondentEmail: {
+      type: 'string',
+      description:
+        'Respondent email address (only when the form collects emails and the forwarder script sends it)',
+      optional: true,
+    },
     answers: { type: 'object', description: 'Normalized map of question -> answer' },
     raw: { type: 'object', description: 'Original payload (when enabled)' },
   },

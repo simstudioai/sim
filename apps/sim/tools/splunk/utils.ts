@@ -29,6 +29,12 @@ export const SPLUNK_CONNECTION_PARAMS: ToolConfig['params'] = {
     visibility: 'user-only',
     description: 'Splunk password, used for basic authentication when no token is supplied',
   },
+  authStyle: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Sign-in type injected by the executor from the selected Splunk credential',
+  },
   owner: {
     type: 'string',
     required: false,
@@ -102,11 +108,14 @@ export function splunkPathSegment(value: string): string {
   return encodeURIComponent(value.trim())
 }
 
+/** `authStyle` a saved Splunk username and password resolves with. */
+const SPLUNK_BASIC_AUTH_STYLE = 'basic' as const
+
 /**
  * Build auth headers. Splunk supports a bearer authentication token ("In version 7.3
  * and higher of the Splunk platform, you can also use Splunk authentication tokens to
  * access REST endpoints") and basic authentication; the token is preferred when both
- * are supplied.
+ * are supplied, unless a saved username and password names its `authStyle` basic.
  */
 export function buildSplunkHeaders(
   params: SplunkBaseParams,
@@ -114,16 +123,25 @@ export function buildSplunkHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = { Accept: 'application/json', ...extra }
 
+  const username = params.username?.trim()
+  const password = params.password
+  const basic =
+    username && password
+      ? `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+      : undefined
+  if (basic && params.authStyle === SPLUNK_BASIC_AUTH_STYLE) {
+    headers.Authorization = basic
+    return headers
+  }
+
   const token = params.authToken?.trim()
   if (token) {
     headers.Authorization = `Bearer ${token}`
     return headers
   }
 
-  const username = params.username?.trim()
-  const password = params.password
-  if (username && password) {
-    headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+  if (basic) {
+    headers.Authorization = basic
     return headers
   }
 

@@ -1,0 +1,25 @@
+{
+  "namespace": "legacy.confluence",
+  "methods": {
+    "create": "createPage",
+    "create_comment": "createComment",
+    "delete": "deletePage",
+    "delete_attachment": "deleteAttachment",
+    "delete_comment": "deleteComment",
+    "get_space": "getSpace",
+    "list_attachments": "listAttachments",
+    "list_comments": "listComments",
+    "list_labels": "listLabels",
+    "list_spaces": "listSpaces",
+    "read": "readPage",
+    "search": "searchContent",
+    "update": "updatePage",
+    "update_comment": "updateComment",
+    "upload_attachment": "uploadAttachment"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

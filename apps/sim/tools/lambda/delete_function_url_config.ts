@@ -3,6 +3,7 @@ import type {
   LambdaDeleteFunctionUrlConfigParams,
   LambdaDeleteFunctionUrlConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteFunctionUrlConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const deleteFunctionUrlConfigTool: InternalToolConfig<
   name: 'Lambda Delete Function URL',
   description: 'Delete the URL configuration of a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

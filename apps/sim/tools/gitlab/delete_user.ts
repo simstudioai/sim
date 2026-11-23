@@ -1,6 +1,8 @@
 import type { GitLabDeleteUserParams, GitLabDeleteUserResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDeleteUserResponse> = {
   id: 'gitlab_delete_user',
@@ -9,6 +11,7 @@ export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDele
   description:
     'Delete a GitLab user. Requires an administrator token with admin_mode on the instance.',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -45,7 +48,7 @@ export const gitlabDeleteUserTool: ToolConfig<GitLabDeleteUserParams, GitLabDele
         queryParams.append('hard_delete', String(params.hardDelete))
       }
       const query = queryParams.toString()
-      return `${getGitLabApiBase(params.host)}/users/${params.userId}${query ? `?${query}` : ''}`
+      return `${getGitLabApiBase(params.host)}/users/${safeUrlPathSegment(params.userId, 'userId')}${query ? `?${query}` : ''}`
     },
     method: 'DELETE',
     headers: (params) => ({

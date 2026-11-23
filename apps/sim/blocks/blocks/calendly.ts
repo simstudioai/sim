@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CalendlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -26,12 +27,14 @@ function parseJsonArray(value: unknown, field: string): unknown {
 
 export const CalendlyBlock: BlockConfig = {
   type: 'calendly',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'calendly_v2' },
   name: 'Calendly',
   description: 'Manage Calendly scheduling and events',
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
   longDescription:
-    'Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.',
+    'Manage event types, scheduled events, invitees, bookings, availability, and routing forms. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.',
   docsLink: 'https://docs.sim.ai/integrations/calendly',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
@@ -442,7 +445,41 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         prompt:
           'Generate a JSON array of guest email address strings, for example ["guest@example.com"]. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the guests to copy on the invite...',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'location',
+      title: 'Location',
+      type: 'long-input',
+      placeholder: '{"kind": "outbound_call", "location": "+14155551234"}',
+      description:
+        'Must match a location on the event type. Leave empty for round robin event types.',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Calendly invitee location JSON object with a "kind" (physical, inbound_call, outbound_call, zoom_conference, google_conference, gotomeeting_conference, microsoft_teams_conference, webex_conference, ask_invitee, or custom) and, for physical, outbound_call, ask_invitee, and custom, a "location" string. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe where the meeting takes place...',
         generationType: 'json-object',
+      },
+    },
+    {
+      id: 'questionsAndAnswers',
+      title: 'Questions and Answers',
+      type: 'long-input',
+      placeholder: '[{"question": "Company", "answer": "Acme", "position": 0}]',
+      description:
+        "Answers to the event type's booking questions. Questions must match exactly; required ones must be answered.",
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Calendly booking answers, each an object with "question" (the exact question text), "answer", and "position" (the question\'s zero-based order). Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the answers to the booking questions...',
+        generationType: 'json-array',
       },
     },
     {
@@ -580,8 +617,8 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
         return {
           ...rest,
-          // The switch cannot express "inactive only", so off means unfiltered, not `active=false`.
-          ...(active === true && { active: true }),
+          // Off means unfiltered, not `active=false`; always written so it overrides the raw input.
+          active: active === true ? true : undefined,
           ...(events !== undefined && { events: parseJsonArray(events, 'events') }),
           ...(eventGuests !== undefined && {
             eventGuests: parseJsonArray(eventGuests, 'eventGuests'),
@@ -618,6 +655,11 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     inviteeTimezone: { type: 'string', description: 'Timezone of the invitee' },
     textReminderNumber: { type: 'string', description: 'Phone number for SMS reminders' },
     eventGuests: { type: 'json', description: 'Array of additional guest email addresses' },
+    location: { type: 'json', description: 'Meeting location ({kind, location})' },
+    questionsAndAnswers: {
+      type: 'json',
+      description: 'Answers to booking questions ([{question, answer, position}])',
+    },
     role: { type: 'string', description: 'Filter memberships by role' },
     formUri: { type: 'string', description: 'Routing form UUID or URI' },
     count: { type: 'number', description: 'Results per page' },
@@ -792,3 +834,19 @@ export const CalendlyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CalendlyV2Block: BlockConfig = {
+  ...CalendlyBlock,
+  type: 'calendly_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Manage event types, scheduled events, invitees, bookings, availability, and routing forms. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).',
+  ...withSavedCredential(CalendlyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'calendly',
+    title: 'Calendly Credential',
+  }),
+}

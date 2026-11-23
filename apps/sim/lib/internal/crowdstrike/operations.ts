@@ -5,6 +5,7 @@ import { truncate } from '@sim/utils/string'
 import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
 import {
   buildUrl,
+  CrowdStrikeAuthError,
   type CrowdStrikeCallResult,
   callCrowdStrike,
   getAccessToken,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/internal/crowdstrike/normalizers'
 import type {
   CrowdStrikeActionParameter,
+  CrowdStrikeInlineCredentials,
   CrowdStrikeQuerySensorsParams,
   CrowdStrikeSensorAggregateBucket,
   CrowdStrikeSensorAggregateResult,
@@ -1000,13 +1002,25 @@ export async function executeCrowdStrikeOperation(
   }
 }
 
+function inlineCredentials(body: CrowdstrikeQueryBody): CrowdStrikeInlineCredentials {
+  if (!body.clientId || !body.clientSecret) {
+    throw new CrowdStrikeAuthError('CrowdStrike Client ID and Client Secret are required', 400)
+  }
+  return { clientId: body.clientId, clientSecret: body.clientSecret, cloud: body.cloud }
+}
+
+/**
+ * Runs one CrowdStrike operation against `body.cloud`. A token minted from a
+ * saved credential (`accessToken`) is used as is; inline credentials mint a
+ * new token for the request.
+ */
 export async function executeCrowdStrikeRequest(
   body: CrowdstrikeQueryBody,
   signal?: AbortSignal
 ): Promise<OperationResult> {
   signal?.throwIfAborted()
   const baseUrl = getCloudBaseUrl(body.cloud)
-  const accessToken = await getAccessToken(body, signal)
+  const accessToken = body.accessToken || (await getAccessToken(inlineCredentials(body), signal))
   signal?.throwIfAborted()
 
   logger.info('CrowdStrike request', {
@@ -1014,13 +1028,9 @@ export async function executeCrowdStrikeRequest(
     operation: body.operation,
   })
 
-  if (
-    body.operation === 'crowdstrike_query_sensors' ||
+  return body.operation === 'crowdstrike_query_sensors' ||
     body.operation === 'crowdstrike_get_sensor_details' ||
     body.operation === 'crowdstrike_get_sensor_aggregates'
-  ) {
-    return executeSensorOperation(body, baseUrl, accessToken, signal)
-  }
-
-  return executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
+    ? executeSensorOperation(body, baseUrl, accessToken, signal)
+    : executeCrowdStrikeOperation(body, baseUrl, accessToken, signal)
 }

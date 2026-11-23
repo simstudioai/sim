@@ -1,4 +1,5 @@
 import type { AlgoliaGetRecordParams, AlgoliaGetRecordResponse } from '@/tools/algolia/types'
+import { ALGOLIA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getRecordTool: ToolConfig<AlgoliaGetRecordParams, AlgoliaGetRecordResponse> = {
@@ -6,6 +7,7 @@ export const getRecordTool: ToolConfig<AlgoliaGetRecordParams, AlgoliaGetRecordR
   name: 'Algolia Get Record',
   description: 'Get a record by objectID from an Algolia index',
   version: '1.0',
+  oauth: ALGOLIA_CREDENTIAL_OAUTH,
 
   params: {
     applicationId: {

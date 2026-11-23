@@ -2,7 +2,7 @@
  * Client-side execution of `browser_*` copilot tools.
  *
  * Mirrors the other client-executed tool flows (run-tool, local filesystem):
- * the Go orchestrator emits a client-executed tool call and blocks on Redis;
+ * the worker emits a client-executed tool call and waits for its result;
  * this module performs the action through the desktop app's built-in agent
  * browser and reports the outcome via the confirm endpoint, which wakes the
  * server-side waiter.

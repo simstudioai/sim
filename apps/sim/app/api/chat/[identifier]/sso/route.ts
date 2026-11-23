@@ -8,7 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createCodedErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -39,8 +39,6 @@ function rateLimited(retryAfterMs: number | undefined, fallbackMs: number) {
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ identifier: string }> }) => {
-    const requestId = generateRequestId()
-
     const ip = getClientIp(request)
     if (ip) {
       const ipRateLimit = await rateLimiter.checkRateLimitDirect(
@@ -49,7 +47,7 @@ export const POST = withRouteHandler(
         { failClosed: true }
       )
       if (!ipRateLimit.allowed) {
-        logger.warn(`[${requestId}] SSO eligibility rate limit exceeded from ${ip}`)
+        logger.warn(`SSO eligibility rate limit exceeded from ${ip}`)
         return rateLimited(ipRateLimit.retryAfterMs, SSO_IP_RATE_LIMIT.refillIntervalMs)
       }
     }
@@ -72,7 +70,7 @@ export const POST = withRouteHandler(
       .limit(1)
 
     if (!deployment || !deployment.isActive) {
-      logger.warn(`[${requestId}] SSO check on missing/inactive chat: ${identifier}`)
+      logger.warn(`SSO check on missing/inactive chat: ${identifier}`)
       return createCodedErrorResponse('Chat not found', 404)
     }
 
@@ -86,7 +84,7 @@ export const POST = withRouteHandler(
       { failClosed: true }
     )
     if (!resourceRateLimit.allowed) {
-      logger.warn(`[${requestId}] SSO eligibility resource rate limit exceeded`, {
+      logger.warn('SSO eligibility resource rate limit exceeded', {
         deploymentId: deployment.id,
       })
       return rateLimited(resourceRateLimit.retryAfterMs, SSO_RESOURCE_RATE_LIMIT.refillIntervalMs)

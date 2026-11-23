@@ -2,6 +2,7 @@ import type {
   IdentityCenterListGroupMembershipsParams,
   IdentityCenterListGroupMembershipsResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listGroupMembershipsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listGroupMembershipsTool: InternalToolConfig<
   name: 'Identity Center List Group Memberships',
   description: 'List the users who belong to an Identity Store group',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

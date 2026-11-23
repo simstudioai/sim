@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevCreateWaitpointTokenParams,
   TriggerDevCreateWaitpointTokenResponse,
@@ -18,6 +19,7 @@ export const triggerDevCreateWaitpointTokenTool: ToolConfig<
   description:
     'Create a Trigger.dev waitpoint token that a task can wait on until it is completed from outside (e.g., a human approval).',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

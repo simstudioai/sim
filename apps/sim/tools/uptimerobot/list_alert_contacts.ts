@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   ALERT_CONTACT_OUTPUT_PROPERTIES,
@@ -17,6 +18,7 @@ export const uptimeRobotListAlertContactsTool: ToolConfig<
   name: 'UptimeRobot List Alert Contacts',
   description: 'List the personal alert contacts in your UptimeRobot account',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

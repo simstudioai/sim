@@ -1,4 +1,4 @@
-import { sanitizeTimezoneForDisplay } from '@/lib/core/utils/timezone'
+import { sanitizeTimezoneForDisplay } from '@sim/utils/timezone'
 import type { TimezoneState } from '@/hooks/queries/general-settings'
 
 export function getTimezoneEditBlockedMessage(state: TimezoneState): string | null {

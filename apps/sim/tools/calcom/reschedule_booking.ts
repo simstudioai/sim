@@ -9,6 +9,7 @@ import {
   HOSTS_OUTPUT,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const rescheduleBookingTool: ToolConfig<
   CalcomRescheduleBookingParams,
@@ -53,7 +54,7 @@ export const rescheduleBookingTool: ToolConfig<
 
   request: {
     url: (params: CalcomRescheduleBookingParams) => {
-      return `https://api.cal.com/v2/bookings/${encodeURIComponent(params.bookingUid)}/reschedule`
+      return `https://api.cal.com/v2/bookings/${safeUrlPathSegment(params.bookingUid, 'bookingUid')}/reschedule`
     },
     method: 'POST',
     headers: (params) => ({

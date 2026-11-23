@@ -4,6 +4,7 @@ import {
   type GrafanaListAlertRulesResponse,
 } from '@/tools/grafana/types'
 import { mapAlertRule } from '@/tools/grafana/utils'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAlertRulesTool: ToolConfig<
@@ -14,6 +15,7 @@ export const listAlertRulesTool: ToolConfig<
   name: 'Grafana List Alert Rules',
   description: 'List all alert rules in the Grafana instance',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

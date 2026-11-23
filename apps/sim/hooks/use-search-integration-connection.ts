@@ -9,6 +9,10 @@ import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import {
+  getCredentialGroupProviderService,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 import { isDesktopApp } from '@/lib/desktop'
 import {
   readSearchConnectionAttempt,
@@ -19,13 +23,13 @@ import {
   writeSearchConnectionAttempt,
 } from '@/lib/knowledge/search/connection-attempt'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
+import { refreshConnectedAccounts } from '@/hooks/queries/organization-accounts'
 import {
-  personalSearchIntegrationKeys,
   useConnectPersonalSearchIntegration,
   usePersonalSearchIntegrations,
 } from '@/hooks/queries/personal-search-integrations'
-import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 
 interface SearchIntegrationConnectionProps {
   organizationId: string
@@ -49,6 +53,7 @@ export function useSearchIntegrationConnection({
     `${controlId}:${JSON.stringify(target)}`
   )
   const [attempt, setAttempt] = useState(() => readSearchConnectionAttempt(key))
+  const [savedOpen, setSavedOpen] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const popup = useRef<Window | null>(null)
   const starting = useRef(false)
@@ -112,13 +117,7 @@ export function useSearchIntegrationConnection({
       writeSearchConnectionAttempt(key, { ...attempt, status: 'failed', error })
     channel.onmessage = ({ data }: MessageEvent<unknown>) => {
       if (isCredentialGroupOAuthFailure(data)) fail(CREDENTIAL_GROUP_OAUTH_FAILURE_MESSAGES[data])
-      else if (data === 'connected') {
-        void client.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() })
-        void client.invalidateQueries({
-          queryKey: searchSourceKeys.list({ kind: 'organization', organizationId }),
-        })
-        void client.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) })
-      }
+      else if (data === 'connected') void refreshConnectedAccounts(client)
     }
     const timer = window.setTimeout(
       () => {
@@ -131,7 +130,7 @@ export function useSearchIntegrationConnection({
       channel.close()
       window.clearTimeout(timer)
     }
-  }, [attempt, key, client, organizationId])
+  }, [attempt, key, client])
 
   useEffect(() => {
     if (!connected || !attempt) return
@@ -152,6 +151,10 @@ export function useSearchIntegrationConnection({
     if (pending && popup.current && !popup.current.closed) {
       popup.current.focus()
       return
+    }
+    if (target.savedProviderId) {
+      setSavedOpen(true)
+      return true
     }
     const desktop = isDesktopApp()
     if (desktop && pending) return
@@ -217,7 +220,45 @@ export function useSearchIntegrationConnection({
         error: 'Connection canceled. You can try again.',
       })
   }, [attempt, key])
+  const closeSavedConnection = useCallback(() => setSavedOpen(false), [])
+  const completeSavedConnection = useCallback(
+    (credentialId: string) => {
+      writeSearchConnectionAttempt(key, {
+        completionId: generateId(),
+        requestedAt: Date.now(),
+        status: 'connected',
+        credentialId,
+        error: null,
+      })
+      setSavedOpen(false)
+    },
+    [key]
+  )
+  const connector = SEARCH_CONNECTORS.find((entry) => entry.type === target.connectorType)
+  const service = isCredentialGroupProvider(target.provider)
+    ? getCredentialGroupProviderService(target.provider)
+    : getServiceConfigByProviderId(target.provider)
+  const name = connector?.meta.name ?? service?.name ?? target.provider
+  const action = target.credentialId ? 'Reconnect' : 'Connect'
   return {
+    savedConnection:
+      savedOpen && target.savedProviderId
+        ? { providerId: target.savedProviderId, credentialId: target.credentialId }
+        : null,
+    closeSavedConnection,
+    completeSavedConnection,
+    action,
+    icon: connector?.serviceIcon ?? service?.icon,
+    label: connected
+      ? `Connected ${name}`
+      : query.isPending
+        ? `Checking ${name} connections`
+        : pending
+          ? `Waiting for ${name} connection`
+          : !available
+            ? `${name} connection is no longer available`
+            : `${action} ${name}`,
+    disabled: query.isPending || isPending || connected || (!available && !pending),
     connect,
     cancel,
     inventoryError: query.error?.message,

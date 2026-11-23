@@ -154,6 +154,31 @@ describe('Vertex Gemini request compatibility', () => {
     })
   })
 
+  /** A saved or variable-resolved 'xhigh' bypasses the picker, so models without it must not receive XHIGH. */
+  it.each([
+    ['gemini-4-neon', 'XHIGH'],
+    ['gemini-4-carbon', 'HIGH'],
+    ['gemini-3.8-flash', 'HIGH'],
+  ])("sends the supported level for 'xhigh' on %s", async (model, thinkingLevel) => {
+    const generateContent = vi.fn().mockResolvedValue(textTurn())
+    await executeGeminiRequest({
+      ai: { models: { generateContent, generateContentStream: vi.fn() } } as never,
+      model,
+      providerType: 'google',
+      request: {
+        model,
+        apiKey: 'test-key',
+        messages: [{ role: 'user', content: 'Look this up' }],
+        thinkingLevel: 'xhigh',
+      },
+    })
+
+    expect(generateContent.mock.calls[0][0].config.thinkingConfig).toEqual({
+      thinkingLevel,
+      includeThoughts: false,
+    })
+  })
+
   it.each(['vertex/gemini-2.5-flash', 'vertex/Custom-Gemini-Model'])(
     'preserves temperature for supported or uncataloged %s',
     async (model) => {

@@ -1,5 +1,8 @@
 import type { RipplingUpdateSupergroupInclusionMembersParams } from '@/tools/rippling/types'
+import { unwrapBodyKey } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUpdateSupergroupInclusionMembersParams> =
   {
@@ -7,6 +10,7 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
     name: 'Rippling Update Supergroup Inclusion Members',
     description: 'Update inclusion members of a supergroup',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -29,14 +33,14 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/inclusion-members/`,
+        `https://rest.ripplingapis.com/supergroups/${safeUrlPathSegment(params.groupId, 'groupId')}/inclusion-members/`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       }),
-      body: (params) => ({ Operations: params.operations }),
+      body: (params) => ({ Operations: unwrapBodyKey(params.operations, 'Operations') }),
     },
     transformResponse: async (response: Response) => {
       if (!response.ok) {

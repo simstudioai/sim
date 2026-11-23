@@ -99,7 +99,7 @@ export const PUT = withRouteHandler(
     try {
       const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
       if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized state update attempt for workflow ${workflowId}`)
+        logger.warn(`Unauthorized state update attempt for workflow ${workflowId}`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       const userId = auth.userId
@@ -125,15 +125,12 @@ export const PUT = withRouteHandler(
       }
 
       const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
+      logger.info(`Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
       return NextResponse.json({ success: true, warnings: result.warnings }, { status: 200 })
     } catch (error: any) {
       const elapsed = Date.now() - startTime
-      logger.error(
-        `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
-        error
-      )
+      logger.error(`Error saving workflow ${workflowId} state after ${elapsed}ms`, error)
 
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

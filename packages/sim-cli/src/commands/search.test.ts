@@ -30,6 +30,15 @@ describe('sim cli search', () => {
     ['switch workspace', 'sim configure'],
     ['edit workflow blocks', 'sim workflows operations apply'],
     ['how much have i spent', 'sim billing status'],
+    ['build a workflow', 'sim workflows source create'],
+    ['create a new workflow', 'sim workflows source create'],
+    [
+      'build a workflow that answers questions from a knowledge base',
+      'sim workflows source create',
+    ],
+    ['change the model in every agent block', 'sim workspaces source get'],
+    ['promote dev to prod', 'sim workspaces source apply'],
+    ['promote a dev workspace to a prod workspace', 'sim workspaces source apply'],
   ])('ranks the intended command first for "%s"', (query, expected) => {
     expect(searchReal(query)[0]?.command).toBe(expected)
   })
@@ -125,5 +134,13 @@ describe('the agent discovery note', () => {
 
   it('is never shown to a person', () => {
     expect(helpOf(['--help'], {})).not.toContain('AGENT COMMAND DISCOVERY')
+  })
+
+  it('leaves the worked examples to a person, keeping the notes an agent needs', () => {
+    const agent = helpOf(['--help'], { CLAUDECODE: '1' })
+    const person = helpOf(['--help'], {})
+    expect(person).toContain('\nExamples:\n')
+    expect(agent).not.toContain('\nExamples:\n')
+    expect(agent).toContain('A command targets the profile')
   })
 })

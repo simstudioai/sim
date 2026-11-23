@@ -14,6 +14,10 @@
       "types": "./src/blocks.ts",
       "default": "./src/blocks.ts"
     },
+    "./resources": {
+      "types": "./src/resources.ts",
+      "default": "./src/resources.ts"
+    },
     "./workflow": {
       "types": "./src/workflow.ts",
       "default": "./src/workflow.ts"
@@ -31,7 +35,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@xyflow/react": "12.12.0",
+    "@xyflow/react": "12.12.1",
     "typescript": "^7.0.2"
   }
 }

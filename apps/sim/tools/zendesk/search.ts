@@ -1,3 +1,4 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   appendCursorPaginationParams,
@@ -6,6 +7,8 @@ import {
   handleZendeskError,
   METADATA_OUTPUT,
   PAGING_OUTPUT,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
 } from '@/tools/zendesk/types'
 
 export interface ZendeskSearchParams {
@@ -34,13 +37,38 @@ export interface ZendeskSearchResponse {
   }
 }
 
+/**
+ * The export endpoint takes the object type only from `filter[type]` and rejects a query that
+ * also names one, so a `type:` or `-type:` keyword is removed (`ticket_type:` and other keywords are kept).
+ * @see https://developer.zendesk.com/api-reference/ticketing/ticket-management/search/#export-search-results
+ */
+function withoutTypeKeyword(query: string): string {
+  const terms: string[] = []
+  let term = ''
+  let inQuotes = false
+  for (const char of query) {
+    if (char === '"') inQuotes = !inQuotes
+    if (!inQuotes && /\s/.test(char)) {
+      if (term) terms.push(term)
+      term = ''
+      continue
+    }
+    term += char
+  }
+  if (term) terms.push(term)
+  return terms.filter((t) => !/^-?type:/i.test(t)).join(' ')
+}
+
 export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchResponse> = {
   id: 'zendesk_search',
   name: 'Search Zendesk',
   description: 'Unified search across tickets, users, and organizations in Zendesk',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -64,7 +92,7 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Search query string using Zendesk search syntax (e.g., "type:ticket status:open")',
+        'Search query string using Zendesk search syntax (e.g., "status:open priority:urgent"). The resource type comes from filterType; a "type:" keyword in the query is dropped',
     },
     filterType: {
       type: 'string',
@@ -89,7 +117,7 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      queryParams.append('query', params.query)
+      queryParams.append('query', withoutTypeKeyword(params.query))
       queryParams.append('filter[type]', params.filterType)
       appendCursorPaginationParams(queryParams, params)
 
@@ -98,14 +126,10 @@ export const zendeskSearchTool: ToolConfig<ZendeskSearchParams, ZendeskSearchRes
       return `${url}?${query}`
     },
     method: 'GET',
-    headers: (params) => {
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async (response: Response) => {

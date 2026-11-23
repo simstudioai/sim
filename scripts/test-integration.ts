@@ -159,7 +159,7 @@ try {
     DATABASE_URL: databaseUrl,
     MIGRATION_DATABASE_URL: databaseUrl,
     TEST_DATABASE_URL: databaseUrl,
-    TEST_REDIS_URL: `redis://${redisEndpoint}`,
+    TEST_REDIS_URL: `redis://${redisEndpoint}/15`,
     ...(scale ? { KNOWLEDGE_SCALE_REPORT_FILE: scaleReportFile } : {}),
   }
   run('bun', ['run', `db:${provision}`], { cwd: path.join(root, 'packages/db'), env: environment })

@@ -34,10 +34,6 @@ networkPolicy:
 autoscaling:
   enabled: true
 
-monitoring:
-  serviceMonitor:
-    enabled: true
-
 telemetry:
   enabled: true
   jaeger:
@@ -46,9 +42,6 @@ telemetry:
     enabled: true
   otlp:
     enabled: true
-
-sharedStorage:
-  enabled: true
 
 ollama:
   enabled: true

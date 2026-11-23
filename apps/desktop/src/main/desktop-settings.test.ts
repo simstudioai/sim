@@ -30,6 +30,8 @@ function service(window: { url: string; focused: boolean } | null) {
     setBrowserDefaultZoom: vi.fn(),
     setTerminalDefaultZoom: vi.fn(),
     setPreventSleepWhileRunning: vi.fn(),
+    setQuickChatShortcut: vi.fn(),
+    isQuickChatShortcutAvailable: () => true,
     getDefaultBrowserDownloadDirectory: () => '/tmp',
     chooseBrowserDownloadDirectory: async () => null,
   })

@@ -136,9 +136,11 @@ export async function executeTool(
                     chatOrganizationId,
                     secretActorUserId: context.userId,
                     secretMountPolicy: undefined,
+                    // Only an organization chat takes the target's role: a workspace chat targets
+                    // its own workspace, and its context permission may be a deliberate cap.
+                    userPermission: target.permission ?? context.userPermission,
                   }
                 : {}),
-              userPermission: target.permission ?? context.userPermission,
             })
         )
         return chatOrganizationId && result.resources?.length
@@ -358,7 +360,11 @@ function buildAppToolParams(
     requestMode: context.requestMode,
     currentAgentId: context.currentAgentId,
     enforceCredentialAccess: true,
-    ...(context.requestMode === 'assistant' ? { envReferenceMode: 'off' } : {}),
+    // The secret authority `function_execute` applies, always written so a model-supplied
+    // `_context` cannot set it: no secret actor resolves nothing; the policy bounds names.
+    envReferenceMode:
+      context.requestMode === 'assistant' || context.secretActorUserId === null ? 'off' : undefined,
+    secretMountPolicy: context.secretMountPolicy,
     ...(context.billingAttribution ? { billingAttribution: context.billingAttribution } : {}),
   }
 

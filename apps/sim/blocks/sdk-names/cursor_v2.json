@@ -1,0 +1,17 @@
+{
+  "namespace": "legacy.cursorV2",
+  "methods": {
+    "cursor_add_followup": "addFollowUp",
+    "cursor_delete_agent": "deleteAgent",
+    "cursor_download_artifact": "downloadArtifact",
+    "cursor_get_agent": "getAgentStatus",
+    "cursor_get_api_key_info": "getApiKeyInfo",
+    "cursor_get_conversation": "getConversation",
+    "cursor_launch_agent": "launchAgent",
+    "cursor_list_agents": "listAgents",
+    "cursor_list_artifacts": "listArtifacts",
+    "cursor_list_models": "listModels",
+    "cursor_list_repositories": "listRepositories",
+    "cursor_stop_agent": "stopAgent"
+  }
+}

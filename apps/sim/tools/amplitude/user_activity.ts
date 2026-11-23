@@ -3,6 +3,7 @@ import type {
   AmplitudeUserActivityResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const userActivityTool: ToolConfig<
@@ -13,6 +14,7 @@ export const userActivityTool: ToolConfig<
   name: 'Amplitude User Activity',
   description: 'Get the event stream for a specific user by their Amplitude ID.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

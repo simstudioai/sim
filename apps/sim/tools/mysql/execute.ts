@@ -1,4 +1,5 @@
 import type { MySQLExecuteParams, MySQLResponse } from '@/tools/mysql/types'
+import { MYSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const executeTool: InternalToolConfig<MySQLExecuteParams, MySQLResponse> = {
@@ -6,6 +7,7 @@ export const executeTool: InternalToolConfig<MySQLExecuteParams, MySQLResponse> 
   name: 'MySQL Execute',
   description: 'Execute raw SQL query on MySQL database',
   version: '1.0',
+  oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

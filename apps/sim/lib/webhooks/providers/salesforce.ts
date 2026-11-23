@@ -80,12 +80,12 @@ export const salesforceHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret?.trim()) {
-      logger.warn(`[${requestId}] Salesforce webhook missing webhookSecret — rejecting`)
+      logger.warn('Salesforce webhook missing webhookSecret — rejecting', { requestId })
       return new NextResponse('Unauthorized - Webhook secret not configured', { status: 401 })
     }
 
     if (!verifySalesforceSharedSecret(request, secret.trim())) {
-      logger.warn(`[${requestId}] Salesforce webhook secret verification failed`)
+      logger.warn('Salesforce webhook secret verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid webhook secret', { status: 401 })
     }
 
@@ -103,10 +103,12 @@ export const salesforceHandler: WebhookProviderHandler = {
     const obj = toRecord(body)
 
     if (!isSalesforceEventMatch(triggerId, obj, configuredObjectType)) {
-      logger.debug(
-        `[${requestId}] Salesforce event mismatch for trigger ${triggerId}. Skipping execution.`,
-        { webhookId: webhook.id, workflowId: workflow.id, triggerId }
-      )
+      logger.debug(`Salesforce event mismatch for trigger ${triggerId}. Skipping execution.`, {
+        requestId,
+        webhookId: webhook.id,
+        workflowId: workflow.id,
+        triggerId,
+      })
       return false
     }
 

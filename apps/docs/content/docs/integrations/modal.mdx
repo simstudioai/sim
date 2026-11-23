@@ -6,13 +6,14 @@ integration:
   color: "#000000"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Modal](https://modal.com/) to call a deployed Web Function or Server over HTTPS, generate chat completions from a model served on a Modal Endpoint, or list available models.
 
 Create a proxy auth token in the Modal workspace settings and provide its token ID and secret. The endpoint or function must already be deployed; the block invokes it rather than provisioning compute.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -23,6 +24,8 @@ Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, gener
 ### Modal Call Function
 
 Invoke a deployed Modal Web Function or Server over HTTPS
+
+<ReferenceDetails>
 
 #### Input
 
@@ -44,9 +47,13 @@ Invoke a deployed Modal Web Function or Server over HTTPS
 | `status` | number | HTTP status code of the response |
 | `headers` | json | Response headers as key-value pairs |
 
+</ReferenceDetails>
+
 ### Modal Chat Completion
 
 Generate a chat completion from a model served by a Modal Endpoint
+
+<ReferenceDetails>
 
 #### Input
 
@@ -74,9 +81,13 @@ Generate a chat completion from a model served by a Modal Endpoint
 |   ↳ `completion_tokens` | number | Number of tokens in the completion |
 |   ↳ `total_tokens` | number | Total number of tokens used |
 
+</ReferenceDetails>
+
 ### Modal List Models
 
 List the model IDs a Modal proxy token can reach on an endpoint
+
+<ReferenceDetails>
 
 #### Input
 
@@ -92,5 +103,7 @@ List the model IDs a Modal proxy token can reach on an endpoint
 | --------- | ---- | ----------- |
 | `models` | array | Models the token can reach on the endpoint |
 | `count` | number | Number of models returned |
+
+</ReferenceDetails>
 
 

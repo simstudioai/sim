@@ -1,4 +1,5 @@
 import type { ApifyRun, GetRunParams, GetRunResult } from '@/tools/apify/types'
+import { APIFY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apifyGetRunTool: ToolConfig<GetRunParams, GetRunResult> = {
@@ -6,6 +7,7 @@ export const apifyGetRunTool: ToolConfig<GetRunParams, GetRunResult> = {
   name: 'APIFY Get Run',
   description: 'Get the status and details of an APIFY actor run',
   version: '1.0.0',
+  oauth: APIFY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

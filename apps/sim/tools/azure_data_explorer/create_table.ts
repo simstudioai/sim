@@ -9,6 +9,7 @@ import {
   renderEntityName,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerCreateTableTool: InternalToolConfig<
@@ -20,6 +21,7 @@ export const azureDataExplorerCreateTableTool: InternalToolConfig<
   description:
     'Create a table in an Azure Data Explorer database from a CSL column schema. Succeeds without changing anything if a table of the same name already exists.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

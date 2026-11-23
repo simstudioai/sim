@@ -1,19 +1,16 @@
+import { INPUT_TRIGGER_TYPES } from '@sim/workflow-code/start-inputs'
+
 /**
  * Trigger types that define workflow input parameters (inputFormat).
  * These are triggers where users can configure input schema for the workflow.
  *
- * This module is kept lightweight with no dependencies to avoid circular imports.
+ * This module is kept lightweight (the list is `@sim/workflow-code`'s, which the CLI's offline
+ * check reads child workflow inputs with) to avoid circular imports.
  *
  * Note: External triggers like webhook/schedule are NOT included here because
  * they receive input from external event payloads, not user-defined inputFormat.
  */
-export const INPUT_DEFINITION_TRIGGER_TYPES = [
-  'starter',
-  'start',
-  'start_trigger',
-  'api_trigger',
-  'input_trigger',
-] as const
+export const INPUT_DEFINITION_TRIGGER_TYPES = INPUT_TRIGGER_TYPES
 
 export type InputDefinitionTriggerType = (typeof INPUT_DEFINITION_TRIGGER_TYPES)[number]
 

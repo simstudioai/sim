@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { organizationKnowledgeMcpContract } from '@/lib/api/contracts/knowledge/mcp'
 import { parseRequest } from '@/lib/api/server'
@@ -13,8 +14,11 @@ import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { readSearchIndex } from '@/lib/knowledge/application/sim-search'
 import { withSearchMcpAuthChallenge } from '@/lib/knowledge/mcp/oauth-metadata'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import { repairToolCallMessage, toolCallInputIssues } from '@/lib/knowledge/mcp/tool-arguments'
 import { getSearchMcpUrl } from '@/lib/knowledge/mcp/urls'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
+
+const logger = createLogger('KnowledgeMcp')
 
 function mcpAuth(resource: string) {
   return mcpCredentialAuth({ resource, allowUnboundApiTokens: true })
@@ -47,12 +51,19 @@ export function createKnowledgeMcpHandlers() {
           input: parsed.data.params,
           request,
         })
+        const { organizationId } = parsed.data.params
+        const { message, repairs } = repairToolCallMessage(parsed.data.body)
+        if (repairs.length)
+          logger.info('Knowledge MCP tool input repaired', { organizationId, repairs })
+        const rejected = toolCallInputIssues(message)
+        if (rejected)
+          logger.warn('Knowledge MCP tool input rejected', { organizationId, ...rejected })
         const server = createKnowledgeMcpServer({
           request,
           auth: admission.auth,
           ...parsed.data.params,
         })
-        return await serveStatelessMcp(server, request, parsed.data.body)
+        return await serveStatelessMcp(server, request, message)
       } catch (error) {
         const response = v2CaughtOrchestrationError(error)
         if (response) return withSearchMcpAuthChallenge(response, resource)

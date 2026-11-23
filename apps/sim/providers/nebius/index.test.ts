@@ -48,7 +48,7 @@ describe('Nebius Chat Completions wire contract', () => {
         model: selectedModel,
       })) as ProviderResponse
       expect(result.model).toBe(selectedModel)
-      expect(result.tokens).toEqual({ input: 10, output: 5, total: 15 })
+      expect(result.tokens).toEqual({ input: 10, output: 5, cacheRead: 0, total: 15 })
     }
   )
 
@@ -159,7 +159,7 @@ describe('Nebius Chat Completions wire contract', () => {
     expect(events).toContain('Compute.')
     const output = await result.execution
     expect(output.output.content).toBe('42')
-    expect(output.output.tokens).toEqual({ input: 10, output: 5, total: 15 })
+    expect(output.output.tokens).toEqual({ input: 10, output: 5, cacheRead: 0, total: 15 })
     expect(output.output.cost?.total).toBeCloseTo(0.0000025)
   })
 

@@ -218,6 +218,24 @@ For **each tool** in `tools.access`:
   - True/false → `switch` (a Yes/No `dropdown` only when the tool needs a third "unset" state)
   - Credentials → `oauth-input` with correct `serviceId`
   - Every tool with a `credential`/`oauthCredential` param declares `oauth: { required: true, provider }` matching that `serviceId`, plus `credentialKind: 'service-account'` when only service accounts are supported
+- [ ] In a new block or credential-only successor, a pasted key, token, or token + host comes from a
+      saved token credential (add-integration → Token credentials), not an inline `password` field
+      (legacy blocks keep theirs); a successor changes its legacy block only by `hideFromToolbar`
+      and `sunset`, and its picker sits under the operation
+- [ ] For a token-credential integration, every tool in `tools.access` declares the service's
+      `tokenCredentialOAuth` policy, every
+      param that decides the request host is mapped, and the stored domain is in the form the tools
+      build URLs from (`check-block-registry.ts origin/staging` passes)
+- [ ] A non-successor token block's tools declare `oauth: { required: true, provider,
+      credentialKind: 'service-account' }` and pin every host or account param in
+      `authoritativeParams` (`check-block-registry` enforces this for every block with a
+      saved-credential picker)
+- [ ] A keyless provider appears in every table in `lib/credentials/workload-identity/audiences.ts`
+      and in `MIXED_MODE_PROVIDERS` (`prepare-workload-identity.ts`), and the provider catalog
+      shows `keyless` only when the deployment can sign tokens
+- [ ] The `tokenCheckValidator` request uses the tools' host and auth, its normalizers refuse
+      anything that could steer the host or path, and a fake key is rejected without a valid
+      scoped key being refused
 - [ ] Dropdown `value: () => 'default'` is set for dropdowns with a sensible default
 - [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder` — including
       password fields (`Enter your API key`). Formatted values show the shape
@@ -425,12 +443,10 @@ After reporting, fix every **critical** and **warning** issue. Apply **suggestio
 
 ### Regenerate Derived Artifacts
 
-Several files are generated from tool and block definitions. Editing a tool or block WITHOUT regenerating them fails CI, so run these before pushing:
+Several files are generated from tool and block definitions. Editing a tool or block WITHOUT regenerating them fails CI, so run this before pushing:
 
 ```bash
-bun run generate:tool-metadata       # repo root — apps/sim/tools/generated/*
-bun run scripts/generate-docs.ts     # docs .mdx + deployment-config/integrations.json + docs icons
-bun run generate:deployment-config  # canonical OAuth registry + catalog → provider-ID facts
+bun run generate                     # every generator below (and any other generate:<x>/check:<x> pair)
 bun run check:integration-catalog    # registry ↔ committed deployment metadata drift
 bun run check:docs                   # committed docs ↔ what the generator renders today
 bun run check:deployment-config     # OAuth registry/catalog ↔ provider-ID fact drift
@@ -439,12 +455,12 @@ bun run apps/sim/scripts/check-block-registry.ts origin/staging  # block ↔ too
 ```
 
 - **`generate:tool-metadata`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run check:tool-metadata`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
-- **`generate-docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `packages/deployment-config/src/integrations.json`, and the docs copy of `components/icons.tsx`.
+- **`generate:docs`** — required whenever block metadata changes (`bgColor`, `name`, `description`, operations, outputs). Regenerates the integration `.mdx`, `packages/deployment-config/src/integrations.json`, and the docs copy of `components/icons.tsx`.
 - **`generate:deployment-config`** — required for OAuth or service-account changes. Regenerates provider-ID facts from the canonical OAuth registry and integration catalog; special deployment requirements remain handwritten policy.
 - **`check:integration-catalog`** — loads the executable block registry, derives visible integration
   deployment fields, and compares them with the committed catalog. It catches missing/unexpected
   entries and stale auth/service IDs without loading the executable registry in client code.
-- **`check:docs`** — check mode of `generate-docs.ts`: renders every generated docs artifact in
+- **`check:docs`** — check mode of `generate:docs`: renders every generated docs artifact in
   memory and fails listing any committed file that differs. Runs in CI via `check:audits`.
 
 **Always diff the regen output before committing — but commit all of it.** These generators rewrite
@@ -507,7 +523,7 @@ After fixing, confirm:
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run generate:tool-metadata` if any tool outputs/params changed, and confirmed `bun run check:tool-metadata` passes
-- [ ] Ran `bun run scripts/generate-docs.ts` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run check:docs` fails CI on reverted generator output)
+- [ ] Ran `bun run generate:docs` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run check:docs` fails CI on reverted generator output)
 - [ ] Validated the docs page has an accurate `MANUAL-CONTENT-START:intro` section
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean

@@ -2,6 +2,7 @@ import { JiraServiceManagementIcon } from '@/components/icons'
 import { getDefaultToolScopesForProvider } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, parseOptionalBooleanInput, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /** Operations that accept Atlassian's `start`/`limit` pagination query params. */
@@ -23,10 +24,20 @@ const PAGINATED_OPERATIONS = [
  * Coerce an optional numeric block input into an integer, returning undefined for
  * empty or non-numeric values so no `NaN` reaches the API query string.
  */
-function toOptionalInt(value: string | undefined): number | undefined {
+function toOptionalInt(value: unknown): number | undefined {
   if (!value) return undefined
-  const parsed = Number.parseInt(value, 10)
+  const parsed = Number.parseInt(String(value), 10)
   return Number.isNaN(parsed) ? undefined : parsed
+}
+
+/** Parses a JSON string input; a model-sent object or array is already parsed and passes through. */
+function parseJsonInput(value: unknown, errorMessage: string): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error(errorMessage)
+  }
 }
 
 /**
@@ -648,6 +659,30 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'add_comment' },
     },
     {
+      id: 'includePublicComments',
+      title: 'Include Public Comments',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_comments' },
+    },
+    {
+      id: 'includeInternalComments',
+      title: 'Include Internal Comments',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_comments' },
+    },
+    {
       id: 'accountIds',
       title: 'Account IDs',
       type: 'short-input',
@@ -698,8 +733,46 @@ Return ONLY the comment text - no explanations.`,
         { label: 'My Requests', id: 'OWNED_REQUESTS' },
         { label: 'Participated', id: 'PARTICIPATED_REQUESTS' },
         { label: 'Approver', id: 'APPROVER' },
+        { label: 'Organization', id: 'ORGANIZATION' },
+        { label: 'All My Organizations', id: 'ALL_ORGANIZATIONS' },
       ],
       value: () => 'ALL_REQUESTS',
+      condition: { field: 'operation', value: 'get_requests' },
+    },
+    {
+      id: 'requestApprovalStatus',
+      title: 'Approval Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Pending My Approval', id: 'MY_PENDING_APPROVAL' },
+        { label: 'My Approval History', id: 'MY_HISTORY_APPROVAL' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'get_requests',
+        and: { field: 'requestOwnership', value: 'APPROVER' },
+      },
+    },
+    {
+      id: 'requestOrganizationId',
+      title: 'Organization ID',
+      type: 'short-input',
+      placeholder: 'Customer organization ID (e.g., 3)',
+      condition: {
+        field: 'operation',
+        value: 'get_requests',
+        and: { field: 'requestOwnership', value: 'ORGANIZATION' },
+      },
+    },
+    {
+      id: 'requestTypeFilter',
+      title: 'Request Type ID',
+      type: 'short-input',
+      placeholder: 'Filter by request type ID (e.g., 25)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'get_requests' },
     },
     {
@@ -1115,7 +1188,12 @@ Return ONLY the comment text - no explanations.`,
             return 'jsm_get_service_desks'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const pagination = {
+          start: toOptionalInt(params.startIndex) ?? toolCallArg(context, params.start),
+          limit: toOptionalInt(params.maxResults) ?? toolCallArg(context, params.limit),
+        }
         const baseParams = {
           oauthCredential: params.oauthCredential,
           domain: params.domain,
@@ -1125,15 +1203,14 @@ Return ONLY the comment text - no explanations.`,
         // route resolves the site's single Assets workspace automatically.
         const assetBaseParams = {
           ...baseParams,
-          workspaceId: params.assetWorkspaceId || undefined,
+          workspaceId: params.assetWorkspaceId || toolCallArg(context, params.workspaceId),
         }
 
-        switch (params.operation) {
+        switch (operation) {
           case 'get_service_desks':
             return {
               ...baseParams,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
           case 'get_request_types':
             if (!params.serviceDeskId) {
@@ -1144,8 +1221,7 @@ Return ONLY the comment text - no explanations.`,
               serviceDeskId: params.serviceDeskId,
               searchQuery: params.searchQuery,
               groupId: params.groupId,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
           case 'create_request':
             if (!params.serviceDeskId) {
@@ -1167,22 +1243,10 @@ Return ONLY the comment text - no explanations.`,
               requestParticipants: params.requestParticipants,
               channel: params.channel,
               requestFieldValues: params.requestFieldValues
-                ? (() => {
-                    try {
-                      return JSON.parse(params.requestFieldValues)
-                    } catch {
-                      throw new Error('requestFieldValues must be valid JSON')
-                    }
-                  })()
+                ? parseJsonInput(params.requestFieldValues, 'requestFieldValues must be valid JSON')
                 : undefined,
               formAnswers: params.formAnswers
-                ? (() => {
-                    try {
-                      return JSON.parse(params.formAnswers)
-                    } catch {
-                      throw new Error('formAnswers must be valid JSON')
-                    }
-                  })()
+                ? parseJsonInput(params.formAnswers, 'formAnswers must be valid JSON')
                 : undefined,
             }
           case 'get_request':
@@ -1200,24 +1264,34 @@ Return ONLY the comment text - no explanations.`,
               serviceDeskId: params.serviceDeskId,
               requestOwnership: params.requestOwnership,
               requestStatus: params.requestStatus,
+              approvalStatus:
+                (params.requestOwnership === 'APPROVER'
+                  ? params.requestApprovalStatus || undefined
+                  : undefined) ?? toolCallArg(context, params.approvalStatus),
+              organizationId:
+                (params.requestOwnership === 'ORGANIZATION'
+                  ? params.requestOrganizationId || undefined
+                  : undefined) ?? toolCallArg(context, params.organizationId),
+              requestTypeId: params.requestTypeFilter || toolCallArg(context, params.requestTypeId),
               searchTerm: params.searchTerm,
               expand: params.expand,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
-          case 'add_comment':
+          case 'add_comment': {
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
             }
-            if (!params.commentBody) {
+            const body = params.commentBody ?? toolCallArg(context, params.body)
+            if (!body) {
               throw new Error('Comment body is required')
             }
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              body: params.commentBody,
-              isPublic: params.isPublic === 'true',
+              body,
+              isPublic: parseOptionalBooleanInput(params.isPublic) === true,
             }
+          }
           case 'get_comments':
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
@@ -1225,9 +1299,16 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
+              isPublic:
+                params.includePublicComments === 'false'
+                  ? false
+                  : toolCallArg(context, params.isPublic),
+              internal:
+                params.includeInternalComments === 'false'
+                  ? false
+                  : toolCallArg(context, params.internal),
               expand: params.expand,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
           case 'get_customers':
             if (!params.serviceDeskId) {
@@ -1236,9 +1317,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
-              query: params.customerQuery,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              query: params.customerQuery ?? toolCallArg(context, params.query),
+              ...pagination,
             }
           case 'add_customer': {
             if (!params.serviceDeskId) {
@@ -1260,8 +1340,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
           case 'get_queues':
             if (!params.serviceDeskId) {
@@ -1270,9 +1349,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
-              includeCount: params.includeCount === 'true',
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              includeCount: parseOptionalBooleanInput(params.includeCount) === true,
+              ...pagination,
             }
           case 'get_sla':
             if (!params.issueIdOrKey) {
@@ -1281,8 +1359,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
           case 'get_transitions':
             if (!params.issueIdOrKey) {
@@ -1291,8 +1368,7 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
           case 'transition_request':
             if (!params.issueIdOrKey) {
@@ -1305,16 +1381,15 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
               transitionId: params.transitionId,
-              comment: params.transitionComment,
+              comment: params.transitionComment ?? toolCallArg(context, params.comment),
             }
-          case 'create_organization':
-            if (!params.organizationName) {
+          case 'create_organization': {
+            const name = params.organizationName ?? toolCallArg(context, params.name)
+            if (!name) {
               throw new Error('Organization name is required')
             }
-            return {
-              ...baseParams,
-              name: params.organizationName,
-            }
+            return { ...baseParams, name }
+          }
           case 'add_organization':
             if (!params.serviceDeskId) {
               throw new Error('Service Desk ID is required')
@@ -1334,21 +1409,19 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
-          case 'add_participants':
+          case 'add_participants': {
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
             }
-            if (!params.participantAccountIds) {
+            const accountIds =
+              params.participantAccountIds ?? toolCallArg(context, params.accountIds)
+            if (!accountIds) {
               throw new Error('Account IDs are required')
             }
-            return {
-              ...baseParams,
-              issueIdOrKey: params.issueIdOrKey,
-              accountIds: params.participantAccountIds,
-            }
+            return { ...baseParams, issueIdOrKey: params.issueIdOrKey, accountIds }
+          }
           case 'get_approvals':
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
@@ -1356,25 +1429,26 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              start: toOptionalInt(params.startIndex),
-              limit: toOptionalInt(params.maxResults),
+              ...pagination,
             }
-          case 'answer_approval':
+          case 'answer_approval': {
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
             }
             if (!params.approvalId) {
               throw new Error('Approval ID is required')
             }
-            if (!params.approvalDecision) {
+            const decision = params.approvalDecision ?? toolCallArg(context, params.decision)
+            if (!decision) {
               throw new Error('Decision is required')
             }
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
               approvalId: params.approvalId,
-              decision: params.approvalDecision,
+              decision,
             }
+          }
           case 'get_request_type_fields':
             if (!params.serviceDeskId) {
               throw new Error('Service Desk ID is required')
@@ -1427,28 +1501,24 @@ Return ONLY the comment text - no explanations.`,
               issueIdOrKey: params.issueIdOrKey,
               formTemplateId: params.formTemplateId,
             }
-          case 'save_form_answers':
+          case 'save_form_answers': {
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
             }
             if (!params.formId) {
               throw new Error('Form ID is required')
             }
-            if (!params.formAnswers) {
+            const answers = params.formAnswers ?? toolCallArg(context, params.answers)
+            if (!answers) {
               throw new Error('Form answers are required')
             }
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
               formId: params.formId,
-              answers: (() => {
-                try {
-                  return JSON.parse(params.formAnswers)
-                } catch {
-                  throw new Error('formAnswers must be valid JSON')
-                }
-              })(),
+              answers: parseJsonInput(answers, 'formAnswers must be valid JSON'),
             }
+          }
           case 'submit_form':
             if (!params.issueIdOrKey) {
               throw new Error('Issue ID or key is required')
@@ -1546,6 +1616,7 @@ Return ONLY the comment text - no explanations.`,
               targetIssueIdOrKey: params.targetIssueIdOrKey,
               formIds: params.formIds
                 ? (() => {
+                    if (Array.isArray(params.formIds)) return params.formIds
                     try {
                       const parsed = JSON.parse(params.formIds)
                       if (!Array.isArray(parsed)) {
@@ -1563,76 +1634,114 @@ Return ONLY the comment text - no explanations.`,
           case 'list_object_schemas':
             return {
               ...assetBaseParams,
-              startAt: toOptionalInt(params.assetStartAt),
-              maxResults: toOptionalInt(params.assetMaxResults),
-              includeCounts: params.assetIncludeCounts === 'true' ? true : undefined,
+              startAt: toOptionalInt(params.assetStartAt) ?? toolCallArg(context, params.startAt),
+              maxResults:
+                toOptionalInt(params.assetMaxResults) ?? toolCallArg(context, params.maxResults),
+              includeCounts:
+                params.assetIncludeCounts === 'true'
+                  ? true
+                  : toolCallArg(context, params.includeCounts),
             }
-          case 'get_object_schema':
-            if (!params.assetSchemaId) {
+          case 'get_object_schema': {
+            const schemaId = params.assetSchemaId ?? toolCallArg(context, params.schemaId)
+            if (!schemaId) {
               throw new Error('Schema ID is required')
             }
-            return { ...assetBaseParams, schemaId: params.assetSchemaId }
-          case 'list_object_types':
-            if (!params.assetSchemaId) {
+            return { ...assetBaseParams, schemaId }
+          }
+          case 'list_object_types': {
+            const schemaId = params.assetSchemaId ?? toolCallArg(context, params.schemaId)
+            if (!schemaId) {
               throw new Error('Schema ID is required')
             }
             return {
               ...assetBaseParams,
-              schemaId: params.assetSchemaId,
-              excludeAbstract: params.assetExcludeAbstract === 'true' ? true : undefined,
+              schemaId,
+              excludeAbstract:
+                params.assetExcludeAbstract === 'true'
+                  ? true
+                  : toolCallArg(context, params.excludeAbstract),
             }
-          case 'get_object_type_attributes':
-            if (!params.assetObjectTypeId) {
+          }
+          case 'get_object_type_attributes': {
+            const objectTypeId =
+              params.assetObjectTypeId ?? toolCallArg(context, params.objectTypeId)
+            if (!objectTypeId) {
               throw new Error('Object type ID is required')
             }
             return {
               ...assetBaseParams,
-              objectTypeId: params.assetObjectTypeId,
-              onlyValueEditable: params.assetOnlyValueEditable === 'true' ? true : undefined,
-              query: params.assetAttributeQuery || undefined,
+              objectTypeId,
+              onlyValueEditable:
+                params.assetOnlyValueEditable === 'true'
+                  ? true
+                  : toolCallArg(context, params.onlyValueEditable),
+              query: params.assetAttributeQuery || toolCallArg(context, params.query),
             }
-          case 'search_objects_aql':
-            if (!params.assetQlQuery) {
+          }
+          case 'search_objects_aql': {
+            const qlQuery = params.assetQlQuery ?? toolCallArg(context, params.qlQuery)
+            if (!qlQuery) {
               throw new Error('AQL query is required')
             }
             return {
               ...assetBaseParams,
-              qlQuery: params.assetQlQuery,
-              page: toOptionalInt(params.assetPage),
-              resultsPerPage: toOptionalInt(params.assetResultsPerPage),
-              includeAttributes: params.assetIncludeAttributes === 'false' ? false : undefined,
-              objectTypeId: params.assetObjectTypeId || undefined,
-              objectSchemaId: params.assetObjectSchemaId || undefined,
+              qlQuery,
+              page: toOptionalInt(params.assetPage) ?? toolCallArg(context, params.page),
+              resultsPerPage:
+                toOptionalInt(params.assetResultsPerPage) ??
+                toolCallArg(context, params.resultsPerPage),
+              includeAttributes:
+                params.assetIncludeAttributes === 'false'
+                  ? false
+                  : toolCallArg(context, params.includeAttributes),
+              objectTypeId: params.assetObjectTypeId || toolCallArg(context, params.objectTypeId),
+              objectSchemaId:
+                params.assetObjectSchemaId || toolCallArg(context, params.objectSchemaId),
             }
-          case 'get_object':
-            if (!params.assetObjectId) {
+          }
+          case 'get_object': {
+            const objectId = params.assetObjectId ?? toolCallArg(context, params.objectId)
+            if (!objectId) {
               throw new Error('Object ID is required')
             }
-            return { ...assetBaseParams, objectId: params.assetObjectId }
-          case 'create_object':
-            if (!params.assetObjectTypeId) {
+            return { ...assetBaseParams, objectId }
+          }
+          case 'create_object': {
+            const objectTypeId =
+              params.assetObjectTypeId ?? toolCallArg(context, params.objectTypeId)
+            if (!objectTypeId) {
               throw new Error('Object type ID is required')
             }
             return {
               ...assetBaseParams,
-              objectTypeId: params.assetObjectTypeId,
-              attributes: parseAssetAttributes(params.assetAttributes),
+              objectTypeId,
+              attributes: parseAssetAttributes(
+                params.assetAttributes ?? toolCallArg(context, params.attributes)
+              ),
             }
-          case 'update_object':
-            if (!params.assetObjectId) {
+          }
+          case 'update_object': {
+            const objectId = params.assetObjectId ?? toolCallArg(context, params.objectId)
+            if (!objectId) {
               throw new Error('Object ID is required')
             }
             return {
               ...assetBaseParams,
-              objectId: params.assetObjectId,
-              attributes: parseAssetAttributes(params.assetAttributes),
-              objectTypeId: params.assetObjectTypeId || undefined,
+              objectId,
+              attributes: parseAssetAttributes(
+                params.assetAttributes ?? toolCallArg(context, params.attributes)
+              ),
+              objectTypeId: params.assetObjectTypeId || toolCallArg(context, params.objectTypeId),
             }
-          case 'delete_object':
-            if (!params.assetObjectId) {
+          }
+          case 'delete_object': {
+            const objectId = params.assetObjectId ?? toolCallArg(context, params.objectId)
+            if (!objectId) {
               throw new Error('Object ID is required')
             }
-            return { ...assetBaseParams, objectId: params.assetObjectId }
+            return { ...assetBaseParams, objectId }
+          }
           default:
             return baseParams
         }
@@ -1662,6 +1771,17 @@ Return ONLY the comment text - no explanations.`,
     requestOwnership: { type: 'string', description: 'Request ownership filter' },
     requestStatus: { type: 'string', description: 'Request status filter' },
     searchTerm: { type: 'string', description: 'Search term for requests' },
+    requestApprovalStatus: {
+      type: 'string',
+      description: 'Approval status filter for approver requests',
+    },
+    requestOrganizationId: {
+      type: 'string',
+      description: 'Organization ID filter for organization requests',
+    },
+    requestTypeFilter: { type: 'string', description: 'Request type ID filter for requests' },
+    includePublicComments: { type: 'string', description: 'Include public comments' },
+    includeInternalComments: { type: 'string', description: 'Include internal comments' },
     includeCount: { type: 'string', description: 'Include issue count for queues' },
     startIndex: { type: 'string', description: 'Pagination start index' },
     maxResults: { type: 'string', description: 'Maximum results to return' },
@@ -1722,6 +1842,33 @@ Return ONLY the comment text - no explanations.`,
     request: { type: 'json', description: 'Request object' },
     requests: { type: 'json', description: 'Array of requests' },
     url: { type: 'string', description: 'URL to the request' },
+    webUrl: {
+      type: 'string',
+      description: 'Customer portal URL for the request (from _links.web)',
+    },
+    requestTypeId: { type: 'string', description: 'Request type ID' },
+    serviceDeskId: { type: 'string', description: 'Service desk ID' },
+    createdDate: {
+      type: 'json',
+      description: 'Creation date (iso8601, friendly, epochMillis)',
+    },
+    currentStatus: {
+      type: 'json',
+      description: 'Current request status (status, statusCategory, statusDate)',
+    },
+    reporter: {
+      type: 'json',
+      description: 'Reporter (accountId, displayName, emailAddress, active)',
+    },
+    requestFieldValues: {
+      type: 'json',
+      description: 'Request field values [{fieldId, label, value, renderedValue}]',
+    },
+    issueIdOrKey: { type: 'string', description: 'Issue ID or key the operation acted on' },
+    author: {
+      type: 'json',
+      description: 'Comment author (accountId, displayName, emailAddress)',
+    },
     commentId: { type: 'string', description: 'Comment ID' },
     body: { type: 'string', description: 'Comment body' },
     isPublic: { type: 'boolean', description: 'Whether comment is public' },
@@ -1739,6 +1886,21 @@ Return ONLY the comment text - no explanations.`,
     approval: { type: 'json', description: 'Approval object' },
     approvalId: { type: 'string', description: 'Approval ID' },
     decision: { type: 'string', description: 'Approval decision' },
+    id: { type: 'string', description: 'Approval ID (answer approval) or form ID (attach form)' },
+    finalDecision: {
+      type: 'string',
+      description: 'Final approval decision (approved, declined, pending)',
+    },
+    canAnswerApproval: {
+      type: 'boolean',
+      description: 'Whether the current user can answer the approval',
+    },
+    approvers: {
+      type: 'json',
+      description:
+        'Approvers [{approver: {accountId, displayName, emailAddress}, approverDecision}]',
+    },
+    completedDate: { type: 'json', description: 'Approval completion date' },
     total: { type: 'number', description: 'Total count' },
     isLastPage: { type: 'boolean', description: 'Whether this is the last page' },
     requestTypeFields: { type: 'json', description: 'Array of request type fields' },
@@ -1765,6 +1927,7 @@ Return ONLY the comment text - no explanations.`,
       description: 'Form publishing and request type configuration',
     },
     updated: { type: 'string', description: 'Last updated timestamp' },
+    projectIdOrKey: { type: 'string', description: 'Project ID or key for form templates' },
     forms: {
       type: 'json',
       description:
@@ -1817,7 +1980,13 @@ Return ONLY the comment text - no explanations.`,
       description: 'Single Assets object (id, label, objectKey, objectType, attributes)',
     },
     objectId: { type: 'string', description: 'Assets object ID (delete operation)' },
-    isLast: { type: 'boolean', description: 'Whether this is the last page of schemas' },
+    isLast: {
+      type: 'boolean',
+      description: 'Whether this is the last page of schemas or AQL search results',
+    },
+    pageNumber: { type: 'number', description: 'AQL search page number' },
+    pageSize: { type: 'number', description: 'Number of objects on this AQL search page' },
+    startAt: { type: 'number', description: 'Index of the first object on this AQL search page' },
   },
   triggers: {
     enabled: true,

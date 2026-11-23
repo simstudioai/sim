@@ -4,13 +4,11 @@
  * `@/blocks/registry` is globally mocked for import cost, so these read `BLOCK_REGISTRY`
  * directly — the point of the sweep is that it sees the actual shipped block definitions.
  */
+
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
 import { describe, expect, it } from 'vitest'
 import { getCardSubBlocks } from '@/lib/workflows/blocks/canvas-card-fields'
-import {
-  buildCanonicalIndex,
-  isCanonicalPair,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
-} from '@/lib/workflows/subblocks/visibility'
+import { shouldUseSubBlockForTriggerModeCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig } from '@/blocks/types'
 
@@ -94,5 +92,20 @@ describe('getCardSubBlocks', () => {
   it('shows a trigger field whose canonical id is also an action pair', () => {
     const onCard = triggerCardIds(BLOCK_REGISTRY.webflow)
     expect(onCard).toEqual(expect.arrayContaining(['triggerCredentials', 'triggerSiteId']))
+  })
+
+  it('reads the active start frame member when picking video settings', () => {
+    // The stale upload is the inactive member, so the card shows the prompt-only settings.
+    const videoGenerator = BLOCK_REGISTRY.video_generator_v3
+    const onCard = getCardSubBlocks(videoGenerator, {
+      advanced: true,
+      values: {
+        provider: 'falai',
+        model: 'alibaba/happy-horse/text-to-video',
+        visualReferenceUpload: { name: 'frame.png', key: 'k', size: 3, type: 'image/png' },
+      },
+      canonicalModeOverrides: { visualReference: 'advanced' },
+    }).map((subBlock) => subBlock.id)
+    expect(onCard).toContain('falAspectRatio')
   })
 })

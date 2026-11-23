@@ -17,6 +17,7 @@ import { getIncidentTool } from '@/tools/servicenow/get_incident'
 import { listIncidentsTool } from '@/tools/servicenow/list_incidents'
 import { readRecordTool } from '@/tools/servicenow/read_record'
 import { searchKnowledgeTool } from '@/tools/servicenow/search_knowledge'
+import type { ServiceNowDeleteParams, ServiceNowReadParams } from '@/tools/servicenow/types'
 import { updateChangeStateTool } from '@/tools/servicenow/update_change_state'
 import { updateRecordTool } from '@/tools/servicenow/update_record'
 
@@ -855,5 +856,35 @@ describe('the limit guidance matches what the block actually sends', () => {
     const url = urlOf(listIncidentsTool, { ...inputs, ...mapped })
 
     expect(url.searchParams.has('sysparm_limit')).toBe(false)
+  })
+})
+
+describe('ServiceNow URL path segments', () => {
+  function deleteUrl(params: ServiceNowDeleteParams): URL {
+    const { url } = deleteRecordTool.request
+    if (typeof url !== 'function') throw new Error('delete record url must be a builder')
+    return new URL(url(params))
+  }
+
+  function readUrl(params: ServiceNowReadParams): URL {
+    const { url } = readRecordTool.request
+    if (typeof url !== 'function') throw new Error('read record url must be a builder')
+    return new URL(url(params))
+  }
+
+  it('keeps valid table names and sys_ids byte-identical', () => {
+    const url = deleteUrl({
+      ...auth,
+      tableName: 'u_custom_table',
+      sysId: '46d44a5dc0a8010e0115a9c2b1a3a8e5',
+    })
+    expect(url.pathname).toBe('/api/now/table/u_custom_table/46d44a5dc0a8010e0115a9c2b1a3a8e5')
+  })
+
+  it('rejects a sys_id that would walk to another endpoint', () => {
+    expect(() =>
+      deleteUrl({ ...auth, tableName: 'incident', sysId: '../../sys_user/abc' })
+    ).toThrow()
+    expect(() => readUrl({ ...auth, tableName: '..', sysId: 'abc' })).toThrow()
   })
 })

@@ -60,7 +60,7 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
-import { setTableTxTimeouts } from '@/lib/table/tx'
+import { setTableTxTimeouts, type TableWriteTx } from '@/lib/table/tx'
 import {
   type CreateTableData,
   type TableDefinition,
@@ -131,17 +131,40 @@ function readLocks(row: {
 export async function withLockedTable<T>(
   tableId: string,
   mutate: (table: TableDefinition, trx: DbTransaction) => Promise<T>,
-  opts?: { includeArchived?: boolean; expectedWorkspaceId?: string }
+  opts?: { includeArchived?: boolean; expectedWorkspaceId?: string; tx?: TableWriteTx }
 ): Promise<T> {
-  return db.transaction(async (trx) => {
-    await setTableTxTimeouts(trx)
+  const locked = async (trx: DbTransaction) => {
+    // A write joining `opts.tx` keeps the timeouts its opener (or an earlier heavy step) set.
+    if (!opts?.tx) await setTableTxTimeouts(trx)
+    // Re-entrant: a write joining `opts.tx` that already holds this lock takes it again at once.
     await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
       throw new OrchestrationError('not_found', 'Table not found')
     }
     return mutate(table, trx)
-  })
+  }
+  return opts?.tx ? locked(opts.tx.trx) : db.transaction(locked)
+}
+
+/**
+ * Runs several table writes as one: `mutate` gets the locked table and a {@link TableWriteTx}
+ * that each write joins, so they all commit together or none does. The work they queue for after
+ * the commit runs once it has happened.
+ */
+export async function withTableWriteTx<T>(
+  tableId: string,
+  mutate: (table: TableDefinition, tx: TableWriteTx) => Promise<T>,
+  opts?: { expectedWorkspaceId?: string }
+): Promise<T> {
+  const committed: Array<() => unknown> = []
+  const result = await withLockedTable(
+    tableId,
+    (table, trx) => mutate(table, { trx, afterCommit: (task) => committed.push(task) }),
+    opts
+  )
+  for (const task of committed) await task()
+  return result
 }
 
 /**
@@ -726,7 +749,7 @@ export async function createTable(
     })
   }
 
-  logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
+  logger.info(`Created table ${tableId} in workspace ${data.workspaceId}`, { requestId })
 
   // Live tables list: tell everyone viewing this workspace's tables to refetch.
   await notifyWorkspaceTablesChanged(data.workspaceId)
@@ -842,7 +865,8 @@ export async function addTableColumnsWithTx(
     )
 
   logger.info(
-    `[${requestId}] Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`
+    `Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`,
+    { requestId }
   )
 
   return {
@@ -890,7 +914,7 @@ export async function renameTable(
   tableId: string,
   newName: string,
   requestId: string,
-  options?: { expectedWorkspaceId?: string; skipNotify?: boolean }
+  options?: { expectedWorkspaceId?: string; skipNotify?: boolean; tx?: TableWriteTx }
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
@@ -899,7 +923,7 @@ export async function renameTable(
 
   const now = new Date()
   try {
-    const result = await db
+    const result = await (options?.tx?.trx ?? db)
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
       .where(
@@ -921,10 +945,10 @@ export async function renameTable(
 
     const { workspaceId } = result[0]
 
-    logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+    logger.info(`Renamed table ${tableId} to "${newName}"`, { requestId })
 
     // Live tables list: a rename changes the list result, so everyone viewing refetches.
-    if (workspaceId && !options?.skipNotify) await notifyWorkspaceTablesChanged(workspaceId)
+    if (workspaceId && !options?.skipNotify) await notifyTablesChanged(workspaceId, options?.tx)
 
     return { id: tableId, name: newName }
   } catch (error: unknown) {
@@ -935,14 +959,21 @@ export async function renameTable(
   }
 }
 
+/** Live tables list: notifies now, or once `tx` commits when the write joined one. */
+async function notifyTablesChanged(workspaceId: string, tx: TableWriteTx | undefined) {
+  if (tx) tx.afterCommit(() => notifyWorkspaceTablesChanged(workspaceId))
+  else await notifyWorkspaceTablesChanged(workspaceId)
+}
+
 /** Updates a table description without changing its schema or placement. */
 export async function updateTableDescription(
   tableId: string,
   workspaceId: string,
   description: string | null,
-  requestId: string
+  requestId: string,
+  options?: { tx?: TableWriteTx }
 ): Promise<{ name: string }> {
-  const result = await db
+  const result = await (options?.tx?.trx ?? db)
     .update(userTableDefinitions)
     .set({ description, updatedAt: new Date() })
     .where(
@@ -958,8 +989,8 @@ export async function updateTableDescription(
     throw new OrchestrationError('not_found', `Table ${tableId} not found`)
   }
 
-  logger.info(`[${requestId}] Updated description for table ${tableId}`)
-  await notifyWorkspaceTablesChanged(workspaceId)
+  logger.info(`Updated description for table ${tableId}`, { requestId })
+  await notifyTablesChanged(workspaceId, options?.tx)
   return result[0]
 }
 
@@ -986,7 +1017,7 @@ export async function moveTableToFolder(
    * workspace-wide invalidation, so a per-item fan-out makes every connected
    * client refetch the same list once per moved table.
    */
-  options?: { notify?: boolean }
+  options?: { notify?: boolean; tx?: TableWriteTx }
 ): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
@@ -999,7 +1030,7 @@ export async function moveTableToFolder(
    * table must not be quietly reparented either — it would come back out of Recently Deleted
    * somewhere the user never put it.
    */
-  const result = await db
+  const result = await (options?.tx?.trx ?? db)
     .update(userTableDefinitions)
     .set(updates)
     .where(
@@ -1020,9 +1051,9 @@ export async function moveTableToFolder(
 
   const { name } = result[0]
 
-  logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
+  logger.info(`Moved table ${tableId} to folder ${folderId ?? 'root'}`, { requestId })
   // Live tables list: a move changes each table's folder placement in the list result.
-  if (options?.notify ?? true) await notifyWorkspaceTablesChanged(workspaceId)
+  if (options?.notify ?? true) await notifyTablesChanged(workspaceId, options?.tx)
 
   return { name }
 }
@@ -1056,10 +1087,10 @@ export async function updateTableLocks(
   })
 
   await appendTableEvent({ kind: 'definition', tableId, reason: 'locks' }).catch((error) => {
-    logger.warn(`[${requestId}] Failed to emit lock-change event for table ${tableId}`, { error })
+    logger.warn(`Failed to emit lock-change event for table ${tableId}`, { requestId, error })
   })
 
-  logger.info(`[${requestId}] Updated locks for table ${tableId}`)
+  logger.info(`Updated locks for table ${tableId}`, { requestId })
   return { table: updated, previousLocks }
 }
 
@@ -1194,7 +1225,7 @@ export async function deleteTable(
     }
     // Otherwise the table is missing or already archived — a silent no-op, as before.
   }
-  logger.info(`[${requestId}] Archived table ${tableId}`)
+  logger.info(`Archived table ${tableId}`, { requestId })
   // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
   // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
   // so we don't spam one relay call per archived table.
@@ -1302,7 +1333,7 @@ export async function restoreTable(
     }
   }
 
-  logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
+  logger.info(`Restored table ${tableId} as "${attemptedRestoreName}"`, { requestId })
 
   // Live tables list: a restore re-adds the table to the active list. Skipped under a folder cascade —
   // restoreFolder fires one folder-level notify for the whole subtree (see deleteTable).

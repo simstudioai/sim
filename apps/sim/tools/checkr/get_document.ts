@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapDocument,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetDocumentTool: ToolConfig<CheckrGetDocumentParams, CheckrDocumentResponse> = {
@@ -19,6 +20,7 @@ export const checkrGetDocumentTool: ToolConfig<CheckrGetDocumentParams, CheckrDo
   description:
     'Retrieve a report or candidate document by ID, including a download link valid for 15 minutes.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

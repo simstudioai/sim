@@ -2,13 +2,16 @@ import type {
   PagerDutyGetServiceParams,
   PagerDutyGetServiceResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getServiceTool: ToolConfig<PagerDutyGetServiceParams, PagerDutyGetServiceResponse> = {
   id: 'pagerduty_get_service',
   name: 'PagerDuty Get Service',
   description: 'Get a single service from PagerDuty by ID.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -27,7 +30,7 @@ export const getServiceTool: ToolConfig<PagerDutyGetServiceParams, PagerDutyGetS
 
   request: {
     url: (params) =>
-      `https://api.pagerduty.com/services/${params.serviceId.trim()}?include[]=escalation_policies`,
+      `https://api.pagerduty.com/services/${safeUrlPathSegment(params.serviceId, 'serviceId')}?include[]=escalation_policies`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Token token=${params.apiKey}`,

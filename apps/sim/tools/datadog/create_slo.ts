@@ -5,6 +5,7 @@ import {
   datadogErrorMessage,
   datadogHeaders,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createSloTool: ToolConfig<CreateSloParams, CreateSloResponse> = {
@@ -13,6 +14,7 @@ export const createSloTool: ToolConfig<CreateSloParams, CreateSloResponse> = {
   description:
     'Create a service level objective from a metric query, monitors, or a time-slice condition.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     name: {

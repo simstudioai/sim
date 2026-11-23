@@ -1,6 +1,10 @@
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { tenantPrincipal, userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
+  isHostNotFound,
+  type ProviderResponse,
   parseProviderJson,
   readProviderErrorSnippet,
   TokenServiceAccountValidationError,
@@ -10,7 +14,12 @@ import type {
   TokenServiceAccountFields,
   TokenServiceAccountValidationResult,
 } from '@/lib/credentials/token-service-accounts/server'
-import { buildSnowflakeAuthHeaders, normalizeSnowflakeHost } from '@/tools/snowflake/utils'
+import {
+  buildSnowflakeAuthHeaders,
+  normalizeSnowflakeHost,
+  SNOWFLAKE_KEY_PAIR_AUTH_STYLE,
+  SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE,
+} from '@/tools/snowflake/utils'
 
 /**
  * Context functions only — they resolve from the session the token opens and
@@ -25,6 +34,9 @@ const IDENTITY_STATEMENT = 'SELECT CURRENT_USER(), CURRENT_ACCOUNT(), CURRENT_RO
  * the user sees a statement error rather than "network error reaching provider".
  */
 const IDENTITY_STATEMENT_TIMEOUT_SECONDS = 5
+/** Matches `fetchProvider`'s abort on the PAT path. */
+const IDENTITY_FETCH_TIMEOUT_MS = 10_000
+const IDENTITY_MAX_RESPONSE_BYTES = 1024 * 1024
 
 interface SnowflakeStatementApiResponse {
   message?: string
@@ -37,49 +49,49 @@ function cell(row: Array<string | null> | undefined, index: number): string | un
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+/** Sends the identity statement to the account; the PAT path and the Sim-signed paths differ only here. */
+type SendIdentityStatement = (
+  url: string,
+  init: { headers: Record<string, string>; body: string }
+) => Promise<ProviderResponse & { json(): Promise<unknown> }>
+
+/** The account origin, or `site_not_found` before any request when the host is not a Snowflake account host. */
+function accountBaseUrl(domain: string | undefined): string {
+  try {
+    return normalizeSnowflakeHost(domain ?? '')
+  } catch {
+    throw new TokenServiceAccountValidationError('site_not_found', 400, {
+      step: 'host_validation',
+      domain,
+      reason: 'host is not a Snowflake account hostname',
+    })
+  }
+}
+
 /**
- * Validates a Snowflake programmatic access token by running a context-only
- * statement against the account's SQL API — the same endpoint, headers, and
- * host normalization every Sim Snowflake tool uses, so a passing validation
- * proves the credential works with the tools as written.
- *
- * `normalizeSnowflakeHost` is the SSRF guard: it rejects anything that is not
- * a bare `*.snowflakecomputing.com`/`.cn` hostname before any outbound fetch.
+ * Runs the context-only identity statement and reads who the token signed in
+ * as. Shared by both credential modes so they classify Snowflake's answers the
+ * same way.
  *
  * Snowflake wildcard-resolves `*.snowflakecomputing.com`, so an account that
  * does not exist still resolves and answers **404** rather than failing DNS —
  * that 404 is what identifies a mistyped host, and without the branch below it
- * would be blamed on the provider forever. The DNS mapping is kept only as a
- * defensive fallback for hosts outside the wildcard.
+ * would be blamed on the provider forever.
  */
-export async function validateSnowflakeServiceAccount(
-  fields: TokenServiceAccountFields
+async function verifySnowflakeIdentity(
+  baseUrl: string,
+  headers: Record<string, string>,
+  send: SendIdentityStatement
 ): Promise<TokenServiceAccountValidationResult> {
-  let baseUrl: string
-  try {
-    baseUrl = normalizeSnowflakeHost(fields.domain ?? '')
-  } catch {
-    throw new TokenServiceAccountValidationError('site_not_found', 400, {
-      step: 'host_validation',
-      domain: fields.domain,
-      reason: 'host is not a Snowflake account hostname',
-    })
-  }
   const domain = new URL(baseUrl).hostname
 
-  const res = await fetchProvider(
-    `${baseUrl}/api/v2/statements`,
-    {
-      method: 'POST',
-      headers: buildSnowflakeAuthHeaders(fields.apiToken),
-      body: JSON.stringify({
-        statement: IDENTITY_STATEMENT,
-        timeout: IDENTITY_STATEMENT_TIMEOUT_SECONDS,
-      }),
-    },
-    'identity_statement',
-    { dnsFailureCode: 'site_not_found', dnsFailureReason: 'account host does not resolve' }
-  )
+  const res = await send(`${baseUrl}/api/v2/statements`, {
+    headers,
+    body: JSON.stringify({
+      statement: IDENTITY_STATEMENT,
+      timeout: IDENTITY_STATEMENT_TIMEOUT_SECONDS,
+    }),
+  })
 
   // A wrong account host resolves through Snowflake's wildcard DNS and answers
   // 404, so it must be reported as a bad host rather than a provider outage.
@@ -125,7 +137,7 @@ export async function validateSnowflakeServiceAccount(
   const metadata = { account, ...(role ? { role } : {}) }
   return {
     displayName: user ? `${user} (${account})` : account,
-    // A PAT belongs to one Snowflake user, so the user is the finest identity
+    // A token belongs to one Snowflake user, so the user is the finest identity
     // available; accounts that mask it fall back to the account itself. The
     // account is carried in metadata rather than the principal's label slot,
     // which names the human actor.
@@ -134,4 +146,99 @@ export async function validateSnowflakeServiceAccount(
     storedMetadata: metadata,
     normalizedDomain: domain,
   }
+}
+
+/**
+ * Sends a Sim-signed token (a key-pair JWT or a keyless subject token) through
+ * the guarded egress path, so it can neither be redirected nor reach a private
+ * address the account host happens to resolve to.
+ */
+const sendThroughEgressGuard: SendIdentityStatement = async (url, init) => {
+  try {
+    return await secureFetchWithValidation(url, {
+      profile: 'configuredEndpoint',
+      method: 'POST',
+      headers: init.headers,
+      body: init.body,
+      timeout: IDENTITY_FETCH_TIMEOUT_MS,
+      maxRedirects: 0,
+      maxResponseBytes: IDENTITY_MAX_RESPONSE_BYTES,
+      logUrlValidationDetails: false,
+    })
+  } catch (error) {
+    // A host the egress policy refuses (a private address) is the user's input, not an outage.
+    if (error instanceof EgressRefusedError) {
+      throw new TokenServiceAccountValidationError('host_not_allowed', 400, {
+        step: 'identity_statement',
+        reason: 'account host not allowed',
+      })
+    }
+    const notFound = isHostNotFound(error)
+    throw new TokenServiceAccountValidationError(
+      notFound ? 'site_not_found' : 'provider_unavailable',
+      notFound ? 400 : 502,
+      {
+        step: 'identity_statement',
+        reason: notFound ? 'account host does not resolve' : 'account host unreachable',
+      }
+    )
+  }
+}
+
+/**
+ * Validates a Snowflake programmatic access token by running a context-only
+ * statement against the account's SQL API — the same endpoint, headers, and
+ * host normalization every Sim Snowflake tool uses, so a passing validation
+ * proves the credential works with the tools as written.
+ *
+ * `normalizeSnowflakeHost` is the SSRF guard: it rejects anything that is not
+ * a bare `*.snowflakecomputing.com`/`.cn` hostname before any outbound fetch.
+ * The DNS mapping is kept only as a defensive fallback for hosts outside
+ * Snowflake's wildcard.
+ */
+export async function validateSnowflakeServiceAccount(
+  fields: TokenServiceAccountFields
+): Promise<TokenServiceAccountValidationResult> {
+  return verifySnowflakeIdentity(
+    accountBaseUrl(fields.domain),
+    buildSnowflakeAuthHeaders(fields.apiToken),
+    (url, init) =>
+      fetchProvider(url, { method: 'POST', ...init }, 'identity_statement', {
+        dnsFailureCode: 'site_not_found',
+        dnsFailureReason: 'account host does not resolve',
+      })
+  )
+}
+
+/**
+ * Verifies a key-pair Snowflake connection: the JWT Sim signed with the user's
+ * private key is sent with the `KEYPAIR_JWT` token type, exactly as the tools
+ * send it, through the guarded egress path, so Snowflake's answer proves the
+ * user, key, and account all match.
+ */
+export async function validateSnowflakeKeyPair(input: {
+  domain: string
+  jwt: string
+}): Promise<TokenServiceAccountValidationResult> {
+  return verifySnowflakeIdentity(
+    accountBaseUrl(input.domain),
+    buildSnowflakeAuthHeaders(input.jwt, SNOWFLAKE_KEY_PAIR_AUTH_STYLE),
+    sendThroughEgressGuard
+  )
+}
+
+/**
+ * Verifies a keyless Snowflake connection: the token Sim signed for the
+ * credential's subject is presented as workload identity federation at the
+ * account host the credential pins, through the guarded egress path.
+ */
+export async function validateSnowflakeWorkloadIdentity(input: {
+  domain: string
+  subjectToken: string
+}): Promise<TokenServiceAccountValidationResult> {
+  return verifySnowflakeIdentity(
+    accountBaseUrl(input.domain),
+    buildSnowflakeAuthHeaders(input.subjectToken, SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE),
+    sendThroughEgressGuard
+  )
 }

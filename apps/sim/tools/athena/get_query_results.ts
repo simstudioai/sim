@@ -2,6 +2,7 @@ import type {
   AthenaGetQueryResultsParams,
   AthenaGetQueryResultsResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getQueryResultsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getQueryResultsTool: InternalToolConfig<
   name: 'Athena Get Query Results',
   description: 'Retrieve the results of a completed Athena query execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {
@@ -82,7 +84,7 @@ export const getQueryResultsTool: InternalToolConfig<
   outputs: {
     columns: {
       type: 'array',
-      description: 'Column metadata (name and type)',
+      description: 'Column metadata (name, type, label, precision, scale, nullable, caseSensitive)',
     },
     rows: {
       type: 'array',
@@ -95,7 +97,8 @@ export const getQueryResultsTool: InternalToolConfig<
     },
     updateCount: {
       type: 'number',
-      description: 'Number of rows affected (for INSERT/UPDATE statements)',
+      description:
+        'Number of rows inserted or updated by a CREATE TABLE AS SELECT, INSERT INTO, or UPDATE statement',
       optional: true,
     },
   },

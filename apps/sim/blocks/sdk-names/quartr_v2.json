@@ -1,0 +1,27 @@
+{
+  "namespace": "quartr",
+  "methods": {
+    "get_audio": "getAudio",
+    "get_company": "getCompany",
+    "get_event": "getEvent",
+    "get_event_summary": "getEventSummary",
+    "get_report": "getReport",
+    "get_slide_deck": "getSlideDeck",
+    "get_transcript": "getTranscript",
+    "list_audio": "listAudio",
+    "list_companies": "listCompanies",
+    "list_document_types": "listDocumentTypes",
+    "list_documents": "listDocuments",
+    "list_event_types": "listEventTypes",
+    "list_events": "listEvents",
+    "list_live_events": "listLiveEvents",
+    "list_reports": "listReports",
+    "list_slide_decks": "listSlideDecks",
+    "list_transcripts": "listTranscripts"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -12,6 +12,7 @@ import {
   normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListLiveEventsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const quartrListLiveEventsTool: ToolConfig<
   description:
     'List live and upcoming events from Quartr with live audio and transcript stream URLs, filterable by company, live state, and date range.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

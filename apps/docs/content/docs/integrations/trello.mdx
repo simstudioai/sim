@@ -83,6 +83,8 @@ List cards from a Trello board or list
 | `boardId` | string | No | Trello board ID to list open cards from. Provide either boardId or listId |
 | `listId` | string | No | Trello list ID to list cards from. Provide either boardId or listId |
 | `filter` | string | No | Which cards to return: open, closed, or all \(defaults to open\) |
+| `since` | string | No | Only return cards created since this date \(ISO 8601\) or card ID |
+| `before` | string | No | Only return cards created before this date \(ISO 8601\) or card ID |
 
 #### Output
 
@@ -103,6 +105,54 @@ List cards from a Trello board or list
 |     ↳ `color` | string | Label color |
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `start` | string | Card start date in ISO 8601 format |
+|   ↳ `pos` | number | Position of the card in its list |
+|   ↳ `shortUrl` | string | Short card URL without the name slug |
+|   ↳ `shortLink` | string | 8-character short card ID |
+|   ↳ `idShort` | number | Board-specific numeric card ID \(can change when the card moves\) |
+|   ↳ `idMembers` | array | Member IDs assigned to the card |
+|   ↳ `idChecklists` | array | Checklist IDs on the card |
+|   ↳ `dateLastActivity` | string | When the card last had activity \(ISO 8601\) |
+|   ↳ `badges` | object | Card badge counts shown on the front of the card |
+|     ↳ `votes` | number | Vote count |
+|     ↳ `comments` | number | Comment count |
+|     ↳ `attachments` | number | Attachment count |
+|     ↳ `checkItems` | number | Total checklist items |
+|     ↳ `checkItemsChecked` | number | Completed checklist items |
+|     ↳ `description` | boolean | Whether the card has a description |
+|     ↳ `subscribed` | boolean | Whether the current member is subscribed |
+|     ↳ `location` | boolean | Whether the card has a location |
+|     ↳ `due` | string | Due date |
+|     ↳ `start` | string | Start date |
+|     ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `checklists` | array | Checklists with their items. Only returned when checklists are requested |
+|     ↳ `id` | string | Checklist ID |
+|     ↳ `name` | string | Checklist name |
+|     ↳ `idCard` | string | Card ID |
+|     ↳ `idBoard` | string | Board ID |
+|     ↳ `pos` | number | Checklist position |
+|     ↳ `checkItems` | array | Checklist items |
+|       ↳ `id` | string | Checklist item ID |
+|       ↳ `name` | string | Checklist item name |
+|       ↳ `state` | string | complete or incomplete |
+|       ↳ `pos` | number | Item position |
+|       ↳ `idChecklist` | string | Checklist ID |
+|       ↳ `due` | string | Item due date |
+|       ↳ `idMember` | string | Assigned member ID |
+|   ↳ `attachments` | array | Card attachments. Only returned when attachments are requested |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | Attachment name |
+|     ↳ `url` | string | Attachment URL |
+|     ↳ `mimeType` | string | Attachment MIME type |
+|     ↳ `bytes` | number | File size in bytes |
+|     ↳ `date` | string | When the attachment was added |
+|     ↳ `idMember` | string | ID of the member who added it |
+|     ↳ `isUpload` | boolean | Whether the attachment was uploaded |
+|     ↳ `pos` | number | Attachment position |
+|   ↳ `members` | array | Member objects on the card. Only returned when members are requested |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
 | `count` | number | Number of cards returned |
 
 </ReferenceDetails>
@@ -121,6 +171,9 @@ Search Trello cards and boards by keyword
 | `idBoards` | array | No | Restrict the search to these board IDs |
 | `modelTypes` | string | No | Comma-separated result types to search: cards, boards, or all \(default all\) |
 | `cardsLimit` | number | No | Maximum number of cards to return \(1-1000, default 10\) |
+| `cardsPage` | number | No | Page of card results to return \(0-100, default 0\) |
+| `boardsLimit` | number | No | Maximum number of boards to return \(1-1000, default 10\) |
+| `partial` | boolean | No | Match the start of words as well as whole words \(default false\) |
 
 #### Output
 
@@ -134,6 +187,61 @@ Search Trello cards and boards by keyword
 |   ↳ `idBoard` | string | Board ID containing the card |
 |   ↳ `idList` | string | List ID containing the card |
 |   ↳ `closed` | boolean | Whether the card is archived |
+|   ↳ `labelIds` | array | Label IDs applied to the card |
+|   ↳ `labels` | array | Labels applied to the card |
+|     ↳ `id` | string | Label ID |
+|     ↳ `name` | string | Label name |
+|     ↳ `color` | string | Label color |
+|   ↳ `due` | string | Card due date in ISO 8601 format |
+|   ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `start` | string | Card start date in ISO 8601 format |
+|   ↳ `pos` | number | Position of the card in its list |
+|   ↳ `shortUrl` | string | Short card URL without the name slug |
+|   ↳ `shortLink` | string | 8-character short card ID |
+|   ↳ `idShort` | number | Board-specific numeric card ID \(can change when the card moves\) |
+|   ↳ `idMembers` | array | Member IDs assigned to the card |
+|   ↳ `idChecklists` | array | Checklist IDs on the card |
+|   ↳ `dateLastActivity` | string | When the card last had activity \(ISO 8601\) |
+|   ↳ `badges` | object | Card badge counts shown on the front of the card |
+|     ↳ `votes` | number | Vote count |
+|     ↳ `comments` | number | Comment count |
+|     ↳ `attachments` | number | Attachment count |
+|     ↳ `checkItems` | number | Total checklist items |
+|     ↳ `checkItemsChecked` | number | Completed checklist items |
+|     ↳ `description` | boolean | Whether the card has a description |
+|     ↳ `subscribed` | boolean | Whether the current member is subscribed |
+|     ↳ `location` | boolean | Whether the card has a location |
+|     ↳ `due` | string | Due date |
+|     ↳ `start` | string | Start date |
+|     ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `checklists` | array | Checklists with their items. Only returned when checklists are requested |
+|     ↳ `id` | string | Checklist ID |
+|     ↳ `name` | string | Checklist name |
+|     ↳ `idCard` | string | Card ID |
+|     ↳ `idBoard` | string | Board ID |
+|     ↳ `pos` | number | Checklist position |
+|     ↳ `checkItems` | array | Checklist items |
+|       ↳ `id` | string | Checklist item ID |
+|       ↳ `name` | string | Checklist item name |
+|       ↳ `state` | string | complete or incomplete |
+|       ↳ `pos` | number | Item position |
+|       ↳ `idChecklist` | string | Checklist ID |
+|       ↳ `due` | string | Item due date |
+|       ↳ `idMember` | string | Assigned member ID |
+|   ↳ `attachments` | array | Card attachments. Only returned when attachments are requested |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | Attachment name |
+|     ↳ `url` | string | Attachment URL |
+|     ↳ `mimeType` | string | Attachment MIME type |
+|     ↳ `bytes` | number | File size in bytes |
+|     ↳ `date` | string | When the attachment was added |
+|     ↳ `idMember` | string | ID of the member who added it |
+|     ↳ `isUpload` | boolean | Whether the attachment was uploaded |
+|     ↳ `pos` | number | Attachment position |
+|   ↳ `members` | array | Member objects on the card. Only returned when members are requested |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
 | `boards` | array | Boards matching the search query |
 |   ↳ `id` | string | Board ID |
 |   ↳ `name` | string | Board name |
@@ -160,6 +268,7 @@ Create a new card in a Trello list
 | `desc` | string | No | Description of the card |
 | `pos` | string | No | Position of the card \(top, bottom, or positive float\) |
 | `due` | string | No | Due date \(ISO 8601 format\) |
+| `start` | string | No | Start date \(ISO 8601 format\) |
 | `dueComplete` | boolean | No | Whether the due date should be marked complete |
 | `labelIds` | array | No | Label IDs to attach to the card |
 | `memberIds` | array | No | Member IDs to assign to the card |
@@ -168,7 +277,7 @@ Create a new card in a Trello list
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | json | Created card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
+| `card` | json | Created card \(id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members\) |
 |   ↳ `id` | string | Card ID |
 |   ↳ `name` | string | Card name |
 |   ↳ `desc` | string | Card description |
@@ -183,6 +292,54 @@ Create a new card in a Trello list
 |     ↳ `color` | string | Label color |
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `start` | string | Card start date in ISO 8601 format |
+|   ↳ `pos` | number | Position of the card in its list |
+|   ↳ `shortUrl` | string | Short card URL without the name slug |
+|   ↳ `shortLink` | string | 8-character short card ID |
+|   ↳ `idShort` | number | Board-specific numeric card ID \(can change when the card moves\) |
+|   ↳ `idMembers` | array | Member IDs assigned to the card |
+|   ↳ `idChecklists` | array | Checklist IDs on the card |
+|   ↳ `dateLastActivity` | string | When the card last had activity \(ISO 8601\) |
+|   ↳ `badges` | object | Card badge counts shown on the front of the card |
+|     ↳ `votes` | number | Vote count |
+|     ↳ `comments` | number | Comment count |
+|     ↳ `attachments` | number | Attachment count |
+|     ↳ `checkItems` | number | Total checklist items |
+|     ↳ `checkItemsChecked` | number | Completed checklist items |
+|     ↳ `description` | boolean | Whether the card has a description |
+|     ↳ `subscribed` | boolean | Whether the current member is subscribed |
+|     ↳ `location` | boolean | Whether the card has a location |
+|     ↳ `due` | string | Due date |
+|     ↳ `start` | string | Start date |
+|     ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `checklists` | array | Checklists with their items. Only returned when checklists are requested |
+|     ↳ `id` | string | Checklist ID |
+|     ↳ `name` | string | Checklist name |
+|     ↳ `idCard` | string | Card ID |
+|     ↳ `idBoard` | string | Board ID |
+|     ↳ `pos` | number | Checklist position |
+|     ↳ `checkItems` | array | Checklist items |
+|       ↳ `id` | string | Checklist item ID |
+|       ↳ `name` | string | Checklist item name |
+|       ↳ `state` | string | complete or incomplete |
+|       ↳ `pos` | number | Item position |
+|       ↳ `idChecklist` | string | Checklist ID |
+|       ↳ `due` | string | Item due date |
+|       ↳ `idMember` | string | Assigned member ID |
+|   ↳ `attachments` | array | Card attachments. Only returned when attachments are requested |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | Attachment name |
+|     ↳ `url` | string | Attachment URL |
+|     ↳ `mimeType` | string | Attachment MIME type |
+|     ↳ `bytes` | number | File size in bytes |
+|     ↳ `date` | string | When the attachment was added |
+|     ↳ `idMember` | string | ID of the member who added it |
+|     ↳ `isUpload` | boolean | Whether the attachment was uploaded |
+|     ↳ `pos` | number | Attachment position |
+|   ↳ `members` | array | Member objects on the card. Only returned when members are requested |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
 
 </ReferenceDetails>
 
@@ -203,12 +360,17 @@ Update an existing card on Trello
 | `idList` | string | No | Trello list ID to move card to \(24-character hex string\) |
 | `due` | string | No | Due date \(ISO 8601 format\) |
 | `dueComplete` | boolean | No | Mark the due date as complete |
+| `start` | string | No | Start date \(ISO 8601 format\) |
+| `pos` | string | No | Position of the card in its list \(top, bottom, or positive float\) |
+| `idBoard` | string | No | Trello board ID to move the card to \(use with idList\) |
+| `labelIds` | array | No | Replace the card labels with these label IDs \(array or comma-separated string\). An empty list leaves labels unchanged; use Remove Label to take one off |
+| `memberIds` | array | No | Replace the card members with these member IDs \(array or comma-separated string\). An empty list leaves members unchanged; use Remove Member to take one off |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | json | Updated card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
+| `card` | json | Updated card \(id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members\) |
 |   ↳ `id` | string | Card ID |
 |   ↳ `name` | string | Card name |
 |   ↳ `desc` | string | Card description |
@@ -223,6 +385,54 @@ Update an existing card on Trello
 |     ↳ `color` | string | Label color |
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `start` | string | Card start date in ISO 8601 format |
+|   ↳ `pos` | number | Position of the card in its list |
+|   ↳ `shortUrl` | string | Short card URL without the name slug |
+|   ↳ `shortLink` | string | 8-character short card ID |
+|   ↳ `idShort` | number | Board-specific numeric card ID \(can change when the card moves\) |
+|   ↳ `idMembers` | array | Member IDs assigned to the card |
+|   ↳ `idChecklists` | array | Checklist IDs on the card |
+|   ↳ `dateLastActivity` | string | When the card last had activity \(ISO 8601\) |
+|   ↳ `badges` | object | Card badge counts shown on the front of the card |
+|     ↳ `votes` | number | Vote count |
+|     ↳ `comments` | number | Comment count |
+|     ↳ `attachments` | number | Attachment count |
+|     ↳ `checkItems` | number | Total checklist items |
+|     ↳ `checkItemsChecked` | number | Completed checklist items |
+|     ↳ `description` | boolean | Whether the card has a description |
+|     ↳ `subscribed` | boolean | Whether the current member is subscribed |
+|     ↳ `location` | boolean | Whether the card has a location |
+|     ↳ `due` | string | Due date |
+|     ↳ `start` | string | Start date |
+|     ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `checklists` | array | Checklists with their items. Only returned when checklists are requested |
+|     ↳ `id` | string | Checklist ID |
+|     ↳ `name` | string | Checklist name |
+|     ↳ `idCard` | string | Card ID |
+|     ↳ `idBoard` | string | Board ID |
+|     ↳ `pos` | number | Checklist position |
+|     ↳ `checkItems` | array | Checklist items |
+|       ↳ `id` | string | Checklist item ID |
+|       ↳ `name` | string | Checklist item name |
+|       ↳ `state` | string | complete or incomplete |
+|       ↳ `pos` | number | Item position |
+|       ↳ `idChecklist` | string | Checklist ID |
+|       ↳ `due` | string | Item due date |
+|       ↳ `idMember` | string | Assigned member ID |
+|   ↳ `attachments` | array | Card attachments. Only returned when attachments are requested |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | Attachment name |
+|     ↳ `url` | string | Attachment URL |
+|     ↳ `mimeType` | string | Attachment MIME type |
+|     ↳ `bytes` | number | File size in bytes |
+|     ↳ `date` | string | When the attachment was added |
+|     ↳ `idMember` | string | ID of the member who added it |
+|     ↳ `isUpload` | boolean | Whether the attachment was uploaded |
+|     ↳ `pos` | number | Attachment position |
+|   ↳ `members` | array | Member objects on the card. Only returned when members are requested |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
 
 </ReferenceDetails>
 
@@ -460,12 +670,15 @@ Retrieve a single Trello card by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `cardId` | string | Yes | Trello card ID \(24-character hex string\) |
+| `includeChecklists` | boolean | No | Include each card checklist with its items \(default false\) |
+| `includeAttachments` | boolean | No | Include card attachments \(default false\) |
+| `includeMembers` | boolean | No | Include member objects for the members on the card \(default false\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `card` | json | Card \(id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete\) |
+| `card` | json | Card \(id, name, desc, url, shortUrl, shortLink, idShort, idBoard, idList, closed, pos, labelIds, labels, idMembers, idChecklists, due, start, dueComplete, dateLastActivity, badges, checklists, attachments, members\) |
 |   ↳ `id` | string | Card ID |
 |   ↳ `name` | string | Card name |
 |   ↳ `desc` | string | Card description |
@@ -480,6 +693,54 @@ Retrieve a single Trello card by ID
 |     ↳ `color` | string | Label color |
 |   ↳ `due` | string | Card due date in ISO 8601 format |
 |   ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `start` | string | Card start date in ISO 8601 format |
+|   ↳ `pos` | number | Position of the card in its list |
+|   ↳ `shortUrl` | string | Short card URL without the name slug |
+|   ↳ `shortLink` | string | 8-character short card ID |
+|   ↳ `idShort` | number | Board-specific numeric card ID \(can change when the card moves\) |
+|   ↳ `idMembers` | array | Member IDs assigned to the card |
+|   ↳ `idChecklists` | array | Checklist IDs on the card |
+|   ↳ `dateLastActivity` | string | When the card last had activity \(ISO 8601\) |
+|   ↳ `badges` | object | Card badge counts shown on the front of the card |
+|     ↳ `votes` | number | Vote count |
+|     ↳ `comments` | number | Comment count |
+|     ↳ `attachments` | number | Attachment count |
+|     ↳ `checkItems` | number | Total checklist items |
+|     ↳ `checkItemsChecked` | number | Completed checklist items |
+|     ↳ `description` | boolean | Whether the card has a description |
+|     ↳ `subscribed` | boolean | Whether the current member is subscribed |
+|     ↳ `location` | boolean | Whether the card has a location |
+|     ↳ `due` | string | Due date |
+|     ↳ `start` | string | Start date |
+|     ↳ `dueComplete` | boolean | Whether the due date is complete |
+|   ↳ `checklists` | array | Checklists with their items. Only returned when checklists are requested |
+|     ↳ `id` | string | Checklist ID |
+|     ↳ `name` | string | Checklist name |
+|     ↳ `idCard` | string | Card ID |
+|     ↳ `idBoard` | string | Board ID |
+|     ↳ `pos` | number | Checklist position |
+|     ↳ `checkItems` | array | Checklist items |
+|       ↳ `id` | string | Checklist item ID |
+|       ↳ `name` | string | Checklist item name |
+|       ↳ `state` | string | complete or incomplete |
+|       ↳ `pos` | number | Item position |
+|       ↳ `idChecklist` | string | Checklist ID |
+|       ↳ `due` | string | Item due date |
+|       ↳ `idMember` | string | Assigned member ID |
+|   ↳ `attachments` | array | Card attachments. Only returned when attachments are requested |
+|     ↳ `id` | string | Attachment ID |
+|     ↳ `name` | string | Attachment name |
+|     ↳ `url` | string | Attachment URL |
+|     ↳ `mimeType` | string | Attachment MIME type |
+|     ↳ `bytes` | number | File size in bytes |
+|     ↳ `date` | string | When the attachment was added |
+|     ↳ `idMember` | string | ID of the member who added it |
+|     ↳ `isUpload` | boolean | Whether the attachment was uploaded |
+|     ↳ `pos` | number | Attachment position |
+|   ↳ `members` | array | Member objects on the card. Only returned when members are requested |
+|     ↳ `id` | string | Member ID |
+|     ↳ `fullName` | string | Member full name |
+|     ↳ `username` | string | Member username |
 
 </ReferenceDetails>
 

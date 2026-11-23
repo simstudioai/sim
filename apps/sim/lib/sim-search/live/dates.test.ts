@@ -134,7 +134,7 @@ describe('generic live search dates', () => {
     const result = await searchSlack(api, input)
     expect(api.json).toHaveBeenCalledTimes(1)
     expect(api.json.mock.calls[0]?.[1].body).toMatchObject({
-      modifiers: 'after:2026-09-21 before:2026-09-24',
+      modifiers: 'after:2026-09-20 before:2026-09-25',
       after: Date.parse(filters.startDate) / 1000 - 1,
       before: Date.parse(filters.endDate) / 1000,
       sort: 'timestamp',
@@ -165,4 +165,30 @@ describe('generic live search dates', () => {
     expect(read.content).toContain('Thread continues')
     expect(api.json).toHaveBeenCalledTimes(3)
   })
+})
+
+describe('Slack date windows', () => {
+  const DAY = 86_400_000
+  const HOUR = 3_600_000
+  /** Slack reads `after:`/`before:` days in the member's zone, which may be UTC-12 to UTC+14. */
+  const firstIncludedInstant = (afterDay: string) => Date.parse(afterDay) + DAY + 12 * HOUR
+  const firstExcludedInstant = (beforeDay: string) => Date.parse(beforeDay) - 14 * HOUR
+
+  it.each([
+    ['UTC midnight', '2026-09-22T00:00:00Z', '2026-09-23T00:00:00Z'],
+    ['midnight ahead of UTC', '2026-09-22T00:00:00+09:00', '2026-09-23T00:00:00+09:00'],
+    ['midnight behind UTC', '2026-09-22T00:00:00-11:00', '2026-09-23T00:00:00-11:00'],
+  ])(
+    'day modifiers never narrow a window starting at %s in any member zone',
+    async (_, startDate, endDate) => {
+      const api = client()
+      api.json.mockResolvedValue({ ok: true, results: { messages: [] } })
+      await searchSlack(api, { ...input, filters: { startDate, endDate } })
+      const modifiers = String(api.json.mock.calls[0]?.[1].body.modifiers)
+      const after = modifiers.match(/after:(\S+)/)?.[1] ?? ''
+      const before = modifiers.match(/before:(\S+)/)?.[1] ?? ''
+      expect(firstIncludedInstant(after)).toBeLessThanOrEqual(Date.parse(startDate))
+      expect(firstExcludedInstant(before)).toBeGreaterThanOrEqual(Date.parse(endDate))
+    }
+  )
 })

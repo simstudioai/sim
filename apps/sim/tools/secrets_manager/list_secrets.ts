@@ -1,7 +1,9 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import type {
   SecretsManagerListSecretsParams,
   SecretsManagerListSecretsResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listSecretsTool: InternalToolConfig<
@@ -12,6 +14,7 @@ export const listSecretsTool: InternalToolConfig<
   name: 'Secrets Manager List Secrets',
   description: 'List secrets stored in AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
@@ -44,6 +47,32 @@ export const listSecretsTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination token from a previous request',
     },
+    filters: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filters as an array of {key, values}. key is one of description, name, tag-key, tag-value, primary-region, owning-service, all (e.g., [{"key":"name","values":["prod/"]}])',
+    },
+    sortOrder: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Sort order: asc or desc (default asc)',
+    },
+    sortBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Field to sort by: created-date, last-accessed-date, last-changed-date, or name (default created-date)',
+    },
+    includePlannedDeletion: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include secrets scheduled for deletion (default false)',
+    },
   },
 
   operation: {
@@ -53,6 +82,10 @@ export const listSecretsTool: InternalToolConfig<
       secretAccessKey: params.secretAccessKey,
       maxResults: params.maxResults,
       nextToken: params.nextToken,
+      filters: params.filters,
+      sortOrder: params.sortOrder || undefined,
+      sortBy: params.sortBy || undefined,
+      includePlannedDeletion: toBooleanFromInput(params.includePlannedDeletion),
     }),
   },
 
@@ -78,7 +111,7 @@ export const listSecretsTool: InternalToolConfig<
     secrets: {
       type: 'json',
       description:
-        'List of secrets with name, ARN, description, dates, rotation rules/window, and version-to-stage mappings',
+        'List of secrets with name, ARN, description, KMS key, rotation Lambda ARN, owning service, primary region, dates, tags, rotation rules/window, and version-to-stage mappings',
     },
     nextToken: {
       type: 'string',

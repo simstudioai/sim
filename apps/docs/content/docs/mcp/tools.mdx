@@ -3,7 +3,7 @@ title: Tools
 description: Discover an operation, inspect its request, and call it with the correct access.
 ---
 
-Sim MCP exposes four tools for discovering and calling its supported JSON API operations. Search for an operation, inspect its inputs, then call the read or write tool named in its description.
+Sim MCP exposes six tools for discovering and calling its supported JSON API operations. Search for an operation, inspect its inputs, then call the read or write tool named in its description, or run a program that makes many calls with a [code tool](#code-mode).
 
 ## Tools
 
@@ -67,6 +67,57 @@ correct its request.
   result, or with `async: true` and poll `getWorkflowRun`.
 - **No file bytes.** Downloads, knowledge base exports, and multipart document
   uploads are not available over MCP; use the [CLI](/cli/files) or the API.
+
+## Edit a whole workflow [#workflow-source]
+
+`getWorkflowSource` returns a workflow as TypeScript source files with its `lock` and `base`. Edit the files and send them back, with the same `lock` and `base`, through `applyWorkflowSource`, first with `query: {"dryRun": true}`. One call replaces a batch of graph operations. Workflows as code is in preview; see [Workflows as code](/workflows/code).
+
+## Code mode
+
+For a task that takes many calls, such as paging through a list, filtering, or
+updating every item that matches, the agent can write one program instead of
+making each call itself. Only the program's return value comes back, so
+intermediate results stay out of the model's context.
+
+| Tool | Does |
+| --- | --- |
+| `execute_read_code` | Runs a program that may call only operations `call_read_operation` could run. Anything that needs write access is refused. |
+| `execute_write_code` | Runs a program that may call any operation. Changes apply as each call runs. |
+
+`describe_operation` returns each operation's `signature`, a TypeScript
+declaration of its input and response. The program is the body of an async
+function. It calls operations through `sim.api` with the same `params`, `query`,
+`body`, and `headers` a call tool takes, and returns a JSON value. TypeScript
+is accepted; types are stripped, not checked.
+
+```ts
+const stale: string[] = []
+let cursor: string | undefined
+do {
+  const page = await sim.api.listTables({
+    query: { workspaceId: 'ws_91ab', limit: 100, ...(cursor ? { cursor } : {}) },
+  })
+  for (const table of page.data) {
+    if (table.rowCount === 0) stale.push(table.name)
+  }
+  cursor = page.nextCursor ?? undefined
+} while (cursor)
+return stale
+```
+
+The result holds `result` (the returned value), `calls` (each operation the
+program called, with its HTTP status and duration), and `logs` (console output).
+A failed API call throws a `SimApiError` with `status`, `code`, `message`, and
+`details`, which the program can catch. If the program fails, the error comes
+back with the calls it already made, so the agent can tell which changes
+happened.
+
+Each call runs through the API exactly as a call tool's would, with the same
+credential, permissions, and rate limits. The program has no network access and
+never sees your credential. A program runs for at most 45 seconds by default (up
+to 120 with `timeoutMs`), makes at most 200 calls, and returns at most 1 MiB.
+One call's input may be at most 256 KB as JSON; send a larger body, such as a
+big batch of rows, with `call_write_operation`.
 
 ## Related docs
 

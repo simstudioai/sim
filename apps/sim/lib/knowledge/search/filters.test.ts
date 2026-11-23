@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
+import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
+import { encodeLiveReference, liveReferenceOwner } from '@/lib/sim-search/live/reference'
+
+const owner = liveReferenceOwner('reader', 'workspace:w')
+const fields = {
+  account: 'account',
+  provider: 'slack' as const,
+  id: '1730912345.123456',
+  container: 'C1',
+}
+/** One Slack message in the current ID form and in the earlier form older conversations hold. */
+const currentId = encodeLiveReference(fields, owner)
+const earlierId = `live:${Buffer.from(
+  JSON.stringify({ v: 1, user: 'reader', scope: 'workspace:w', ...fields })
+).toString('base64url')}`
 
 describe('Assistant search scope', () => {
   it('keeps the narrower end of a date window and refuses an empty one', () => {
@@ -27,5 +42,23 @@ describe('Assistant search scope', () => {
     expect(() =>
       intersectWorkspaceSearchFilters({ documentIds: ['a'] }, { documentIds: ['b'] })
     ).toThrow('outside this search')
+  })
+
+  it('keeps a requested document the user selected in the other ID form', () => {
+    expect(
+      intersectWorkspaceSearchFilters({ documentIds: [currentId] }, { documentIds: [earlierId] })
+    ).toEqual({ documentIds: [currentId] })
+    expect(
+      intersectWorkspaceSearchFilters({ documentIds: [earlierId] }, { documentIds: [currentId] })
+    ).toEqual({ documentIds: [earlierId] })
+  })
+})
+
+describe('live citation IDs', () => {
+  it('cite one document as one source whichever ID form named it', () => {
+    expect(liveCitationId(earlierId)).toBe(liveCitationId(currentId))
+    expect(liveCitationId(currentId)).not.toBe(
+      liveCitationId(encodeLiveReference({ ...fields, id: '1730912345.123457' }, owner))
+    )
   })
 })

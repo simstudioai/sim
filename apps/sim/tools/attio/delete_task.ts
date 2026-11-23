@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioDeleteTaskParams, AttioDeleteTaskResponse } from './types'
 
 const logger = createLogger('AttioDeleteTask')
@@ -31,7 +32,8 @@ export const attioDeleteTaskTool: ToolConfig<AttioDeleteTaskParams, AttioDeleteT
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/tasks/${params.taskId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/tasks/${safeUrlPathSegment(params.taskId, 'taskId')}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

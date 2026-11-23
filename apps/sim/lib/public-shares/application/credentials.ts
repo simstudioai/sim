@@ -1,19 +1,14 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
 import { normalizeEmail } from '@sim/utils/string'
 import { getOtpSubject, renderOTPEmail } from '@/components/emails'
 import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { createDeploymentAuthCookie, isEmailAllowed } from '@/lib/core/security/deployment'
 import {
-  decodeOTPValue,
-  deleteOTP,
   generateOTP,
-  getOTP,
-  incrementOTPAttempts,
-  MAX_OTP_ATTEMPTS,
   OTP_EMAIL_RATE_LIMIT,
   OTP_RESOURCE_RATE_LIMIT,
   storeOTP,
+  verifyOTP,
 } from '@/lib/core/security/otp'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import {
@@ -114,19 +109,9 @@ export async function verifyPublicFileShareOtp({
     isEmailAllowed(normalizedEmail, share.allowedEmails)
   )
   if (!allowed) return OTP_FAILURE
-  const value = await getOTP('file', challenge.shareId, normalizedEmail)
+  const verification = await verifyOTP('file', challenge.shareId, normalizedEmail, otp)
   await challenge.withCurrentPolicy(() => undefined)
-  if (!value) return OTP_FAILURE
-  const stored = decodeOTPValue(value)
-  if (stored.attempts >= MAX_OTP_ATTEMPTS) {
-    await deleteOTP('file', challenge.shareId, normalizedEmail)
-    return OTP_FAILURE
-  }
-  if (!safeCompare(stored.otp, otp)) {
-    await incrementOTPAttempts('file', challenge.shareId, normalizedEmail, value)
-    return OTP_FAILURE
-  }
-  await deleteOTP('file', challenge.shareId, normalizedEmail)
+  if (verification !== 'valid') return OTP_FAILURE
   const resource = await challenge.withCurrentPolicy(({ share }) => share)
   const cookie = await createDeploymentAuthCookie({
     cookiePrefix: 'file',

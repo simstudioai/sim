@@ -10,7 +10,7 @@ import { waitForConnectionCleanup } from '@/handlers/connection'
 import { flushAllFileDocRooms, registerFileDocPresenceRelay } from '@/handlers/file-doc'
 import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
-import { type IRoomManager, MemoryRoomManager, RedisRoomManager } from '@/rooms'
+import { type IRoomManager, RedisRoomManager } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'
 
 const logger = createLogger('CollaborativeSocketServer')
@@ -19,15 +19,8 @@ const logger = createLogger('CollaborativeSocketServer')
 const SHUTDOWN_TIMEOUT_MS = 10000
 
 async function createRoomManager(io: SocketIOServer): Promise<IRoomManager> {
-  if (env.REDIS_URL) {
-    logger.info('Initializing Redis-backed RoomManager for multi-pod support')
-    const manager = new RedisRoomManager(io, env.REDIS_URL)
-    await manager.initialize()
-    return manager
-  }
-
-  logger.warn('No REDIS_URL configured - using in-memory RoomManager (single-pod only)')
-  const manager = new MemoryRoomManager(io)
+  logger.info('Initializing Redis-backed RoomManager')
+  const manager = new RedisRoomManager(io, env.REDIS_URL)
   await manager.initialize()
   return manager
 }
@@ -41,7 +34,6 @@ async function main() {
     nodeEnv: env.NODE_ENV,
     hasDatabase: !!env.DATABASE_URL,
     hasAuth: !!env.BETTER_AUTH_SECRET,
-    hasRedis: !!env.REDIS_URL,
   })
 
   // Register the HTTP handler before Socket.IO attaches: engine.io captures
@@ -52,14 +44,10 @@ async function main() {
   let httpHandler: ReturnType<typeof createHttpHandler> | undefined
   httpServer.on('request', (req, res) => httpHandler?.(req, res))
 
-  // Create Socket.IO server with Redis adapter if configured
   const io = await createSocketIOServer(httpServer)
 
-  // Initialize room manager (Redis or in-memory based on config)
   const roomManager = await createRoomManager(io)
 
-  // Initialize the shared Yjs backend for collaborative file docs (Redis Streams). Enabled only when
-  // REDIS_URL is set; otherwise the relay runs its original single-replica in-memory doc path.
   await initFileDocStore(env.REDIS_URL)
   registerFileDocPresenceRelay(io)
 

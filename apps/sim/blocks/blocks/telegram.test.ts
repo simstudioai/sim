@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TelegramBlock } from '@/blocks/blocks/telegram'
+import { TelegramBlock, TelegramV2Block } from '@/blocks/blocks/telegram'
 
 const MEDIA_OPS = [
   { operation: 'telegram_send_photo', key: 'photo', label: 'Photo' },
@@ -52,4 +52,50 @@ describe('Telegram media params', () => {
       })
     })
   }
+})
+
+/**
+ * A tool call (Agent tool row, Pi, Human v2) passes the operation only in the context, and the
+ * merged params hold the model's args under the tool's param names next to any block-only values
+ * the user stored on the row.
+ */
+function mapToolCall(operation: string, merged: Record<string, unknown>) {
+  const mapper = TelegramV2Block.tools.config?.params
+  if (!mapper) throw new Error('Telegram V2 has no params mapper')
+  return mapper({ chatId: '12345', ...merged }, { operation }) as Record<string, unknown>
+}
+
+describe('Telegram tool-call params', () => {
+  it('keeps the model emoji instead of clearing the reaction', () => {
+    const mapped = mapToolCall('telegram_set_message_reaction', { messageId: 5, reaction: '👍' })
+    expect(mapped.reaction).toBe('👍')
+  })
+
+  it('keeps the model poll options and coerces a stored dropdown boolean', () => {
+    const mapped = mapToolCall('telegram_send_poll', {
+      question: 'Lunch?',
+      options: ['Pizza', 'Sushi'],
+      isAnonymous: 'false',
+    })
+    expect(mapped.options).toEqual(['Pizza', 'Sushi'])
+    expect(mapped.isAnonymous).toBe(false)
+  })
+
+  it('sends poll options the user stored on the tool row', () => {
+    const mapped = mapToolCall('telegram_send_poll', {
+      question: 'Lunch?',
+      pollOptions: 'Pizza\nSushi',
+    })
+    expect(mapped.options).toBe('Pizza\nSushi')
+  })
+
+  it('sends a photo uploaded on the tool row as its https URL', () => {
+    const mapped = mapToolCall('telegram_send_photo', { photoSource: userFile })
+    expect(mapped.photo).toBe('https://storage.example/pic.jpg')
+  })
+
+  it('accepts a numeric chat ID from the model', () => {
+    const mapped = mapToolCall('telegram_get_chat', { chatId: -1001234 })
+    expect(mapped.chatId).toBe('-1001234')
+  })
 })

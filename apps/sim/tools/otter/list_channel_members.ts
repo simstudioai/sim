@@ -12,6 +12,7 @@ import {
   readOtterDataList,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -23,6 +24,7 @@ export const otterListChannelMembersTool: ToolConfig<
   name: 'Otter List Channel Members',
   description: 'List the members of an Otter channel, in alphabetical order.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

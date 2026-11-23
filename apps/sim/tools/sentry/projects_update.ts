@@ -1,5 +1,8 @@
 import type { SentryUpdateProjectParams, SentryUpdateProjectResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpdateProjectResponse> =
   {
@@ -8,8 +11,10 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
     description:
       'Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details.',
     version: '1.0.0',
+    oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
+      region: SENTRY_REGIONS.param,
       apiKey: {
         type: 'string',
         required: true,
@@ -68,7 +73,7 @@ export const updateProjectTool: ToolConfig<SentryUpdateProjectParams, SentryUpda
 
     request: {
       url: (params) =>
-        `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/`,
+        `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/`,
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

@@ -2,6 +2,7 @@ import type {
   CodePipelineListPipelinesParams,
   CodePipelineListPipelinesResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listPipelinesTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listPipelinesTool: InternalToolConfig<
   name: 'CodePipeline List Pipelines',
   description: 'List all CodePipeline pipelines in an AWS account and region',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -5,6 +5,7 @@ import type {
 import { APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
 import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listUserAppRoleAssignmentsTool: ToolConfig<
   MicrosoftAdListUserAppRoleAssignmentsParams,
@@ -64,7 +65,7 @@ export const listUserAppRoleAssignmentsTool: ToolConfig<
       const queryParts = ['$count=true']
       if (params.top) queryParts.push(`$top=${params.top}`)
       if (params.filter) queryParts.push(`$filter=${encodeURIComponent(params.filter)}`)
-      return `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/appRoleAssignments?${queryParts.join('&')}`
+      return `https://graph.microsoft.com/v1.0/users/${safeUrlPathSegment(userId, 'userId')}/appRoleAssignments?${queryParts.join('&')}`
     },
     method: 'GET',
     headers: (params) => ({

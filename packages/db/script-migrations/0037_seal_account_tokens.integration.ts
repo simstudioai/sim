@@ -358,7 +358,8 @@ describe('sealing stored account tokens in PostgreSQL', () => {
       await insertAccount('cancelled-access', 'cancelled-refresh')
       await onAccountUpdate('PERFORM pg_sleep(20)')
 
-      const run = migrate()
+      /** Handled from the start: the cancel can fail the run before the polling loop sees it. */
+      const failed = expect(migrate()).rejects.toThrow('canceling statement due to user request')
       for (let attempt = 0; attempt < 100; attempt++) {
         const [cancelled] = await admin<{ cancelled: boolean }[]>`
           SELECT pg_cancel_backend(pid) AS cancelled FROM pg_stat_activity
@@ -368,7 +369,7 @@ describe('sealing stored account tokens in PostgreSQL', () => {
         await sleep(50)
       }
 
-      await expect(run).rejects.toThrow('canceling statement due to user request')
+      await failed
       expect(await isRecorded()).toBe(false)
       expect((await storedRows())[0].access_token).toBe('cancelled-access')
     }, 30_000)

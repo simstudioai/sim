@@ -23,8 +23,7 @@ export const typesafeProvider: ProviderConfig = {
       request.systemPrompt ||
       request.context ||
       request.tools?.length ||
-      request.responseFormat ||
-      request.previousInteractionId
+      request.responseFormat
     ) {
       throw new Error(
         'Jev accepts evaluation state and questions, not chat messages, tools, or response formats'

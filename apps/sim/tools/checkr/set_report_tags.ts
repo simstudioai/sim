@@ -12,6 +12,7 @@ import {
   mapTags,
   parseCheckrStringList,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrSetReportTagsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const checkrSetReportTagsTool: ToolConfig<
   name: 'Checkr Set Report Tags',
   description: 'Replace all tags on a report with the given list. Pass [] to remove every tag.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

@@ -3,6 +3,7 @@ import type {
   AmplitudeUserSearchResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const userSearchTool: ToolConfig<AmplitudeUserSearchParams, AmplitudeUserSearchResponse> = {
@@ -11,6 +12,7 @@ export const userSearchTool: ToolConfig<AmplitudeUserSearchParams, AmplitudeUser
   description:
     'Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard REST API.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

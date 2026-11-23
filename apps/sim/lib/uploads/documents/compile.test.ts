@@ -92,6 +92,12 @@ describe('collectReferencedFileIds', () => {
     expect(collectReferencedFileIds(src, 'javascript')).toEqual(new Set(['pdf-img-2']))
   })
 
+  it('captures the id from a template literal with nothing substituted into it', () => {
+    expect(collectReferencedFileIds('await getFileBase64(`photo-1`)', 'javascript')).toEqual(
+      new Set(['photo-1'])
+    )
+  })
+
   it('still supports the legacy /home/user/inputs/<id> path form', () => {
     expect(
       collectReferencedFileIds(`fs.readFileSync('/home/user/inputs/legacy-1')`, 'javascript')

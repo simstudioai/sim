@@ -1,7 +1,12 @@
 import { BrexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /** Coerces a required money-amount field to a finite number, throwing on blank/non-numeric input rather than silently sending 0 or NaN to Brex. */
 function toRequiredAmount(value: unknown, fieldLabel: string): number {
@@ -59,6 +64,8 @@ const RECEIPT_FILE_FIELD = ['uploadReceiptFile', 'receiptFileReference'] as cons
 
 export const BrexBlock: BlockConfig = {
   type: 'brex',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'brex_v2' },
   name: 'Brex',
   description: 'Manage expenses, receipts, transactions, and team data in Brex',
   authMode: AuthMode.ApiKey,
@@ -638,7 +645,7 @@ export const BrexBlock: BlockConfig = {
       id: 'limitBufferPercentage',
       title: 'Limit Buffer Percentage',
       type: 'short-input',
-      placeholder: 'Flexible buffer on the limit as a 0-100 percentage',
+      placeholder: 'Flexible buffer on the limit as a whole-number percentage from 0 to 100',
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_spend_limit' },
     },
@@ -721,7 +728,7 @@ export const BrexBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a comma-separated list of Brex expense payment statuses to filter by.\n\nValid statuses: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\n\nExamples:\n- "only cleared payments" -> CLEARED\n- "refunded or refunding" -> REFUNDED,REFUNDING\n\nReturn ONLY the comma-separated status values - no explanations, no extra text.',
+          'Generate a comma-separated list of Brex expense payment statuses to filter by.\n\nValid statuses: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD\n\nExamples:\n- "only cleared payments" -> CLEARED\n- "refunded or refunding" -> REFUNDED,REFUNDING\n\nReturn ONLY the comma-separated status values - no explanations, no extra text.',
         placeholder: 'Describe which payment statuses to include...',
       },
     },
@@ -878,8 +885,9 @@ export const BrexBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `brex_${params.operation}`,
-      params: (params) => {
-        const { operation, apiKey } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { apiKey } = params
         const result: Record<string, unknown> = { apiKey }
 
         switch (operation) {
@@ -941,7 +949,7 @@ export const BrexBlock: BlockConfig = {
             result.budgetId = params.budgetId
             break
           case 'create_budget': {
-            result.name = params.resourceName
+            result.name = params.resourceName || toolCallArg(context, params.name)
             result.description = params.description
             result.parentBudgetId = params.parentBudgetId
             result.periodRecurrenceType = params.periodRecurrenceType
@@ -959,8 +967,10 @@ export const BrexBlock: BlockConfig = {
             result.spendLimitId = params.spendLimitId
             break
           case 'create_spend_limit': {
-            result.name = params.resourceName
-            result.periodRecurrenceType = params.spendLimitPeriodRecurrenceType
+            result.name = params.resourceName || toolCallArg(context, params.name)
+            result.periodRecurrenceType =
+              params.spendLimitPeriodRecurrenceType ||
+              toolCallArg(context, params.periodRecurrenceType)
             result.spendType = params.spendType
             result.expenseVisibility = params.expenseVisibility
             result.authorizationVisibility = params.authorizationVisibility
@@ -989,8 +999,8 @@ export const BrexBlock: BlockConfig = {
             if (transactionLimitAmount !== undefined)
               result.transactionLimitAmount = transactionLimitAmount
             if (params.ownerUserIds) result.ownerUserIds = params.ownerUserIds
-            if (params.spendLimitMemberUserIds)
-              result.memberUserIds = params.spendLimitMemberUserIds
+            result.memberUserIds =
+              params.spendLimitMemberUserIds || toolCallArg(context, params.memberUserIds)
             break
           }
           case 'get_vendor':
@@ -998,20 +1008,20 @@ export const BrexBlock: BlockConfig = {
             break
           case 'create_vendor':
             result.companyName = params.companyName
-            if (params.vendorEmail) result.email = params.vendorEmail
-            if (params.vendorPhone) result.phone = params.vendorPhone
+            result.email = params.vendorEmail || toolCallArg(context, params.email)
+            result.phone = params.vendorPhone || toolCallArg(context, params.phone)
             break
           case 'update_vendor':
             result.vendorId = params.vendorId
             if (params.companyName) result.companyName = params.companyName
-            if (params.vendorEmail) result.email = params.vendorEmail
-            if (params.vendorPhone) result.phone = params.vendorPhone
+            result.email = params.vendorEmail || toolCallArg(context, params.email)
+            result.phone = params.vendorPhone || toolCallArg(context, params.phone)
             break
           case 'get_transfer':
             result.transferId = params.transferId
             break
           case 'create_transfer': {
-            result.cashAccountId = params.accountId
+            result.cashAccountId = params.accountId || toolCallArg(context, params.cashAccountId)
             result.vendorPaymentInstrumentId = params.vendorPaymentInstrumentId
             result.amount = toRequiredAmount(params.amount, 'Amount')
             if (params.currency) result.currency = params.currency
@@ -1361,3 +1371,17 @@ export const BrexBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const BrexV2Block: BlockConfig = {
+  ...BrexBlock,
+  type: 'brex_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(BrexBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'brex',
+    title: 'Brex Credential',
+  }),
+}

@@ -45,7 +45,9 @@ describe('dropUnactionableExceptions', () => {
 
   it('drops a cancellation whose name is the coerced type', () => {
     expect(
-      dropUnactionableExceptions(browserRaised({ type: 'Canceled', value: 'Canceled' }))
+      dropUnactionableExceptions(
+        browserRaised({ type: 'AbortError', value: 'The operation was aborted.' })
+      )
     ).toBeNull()
   })
 

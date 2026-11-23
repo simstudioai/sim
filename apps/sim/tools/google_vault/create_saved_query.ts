@@ -1,6 +1,7 @@
 import type { GoogleVaultCreateSavedQueryParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams> = {
   id: 'google_vault_create_saved_query',
@@ -70,11 +71,24 @@ export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams>
       visibility: 'user-or-llm',
       description: 'Search query terms (e.g., "from:sender@example.com subject:invoice")',
     },
+    includeSharedDrives: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Set to true to include files in shared drives (DRIVE corpus only)',
+    },
+    dataScope: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Data to search: ALL_DATA (default), HELD_DATA (only data on hold), or UNPROCESSED_DATA (MAIL and GROUPS only)',
+    },
   },
 
   request: {
     url: (params) =>
-      `https://vault.googleapis.com/v1/matters/${params.matterId.trim()}/savedQueries`,
+      `https://vault.googleapis.com/v1/matters/${safeUrlPathSegment(params.matterId, 'matterId')}/savedQueries`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -116,16 +130,28 @@ export const createSavedQueryTool: ToolConfig<GoogleVaultCreateSavedQueryParams>
         )
       }
 
+      if (
+        params.dataScope === 'UNPROCESSED_DATA' &&
+        params.corpus !== 'MAIL' &&
+        params.corpus !== 'GROUPS'
+      ) {
+        throw new Error('Unprocessed data scope is only supported for MAIL and GROUPS')
+      }
+
+      const includeSharedDrives =
+        params.corpus === 'DRIVE' && String(params.includeSharedDrives) === 'true'
+
       return {
         displayName: params.displayName,
         query: {
           corpus: params.corpus,
-          dataScope: 'ALL_DATA',
+          dataScope: params.dataScope || 'ALL_DATA',
           method,
           terms: params.terms || undefined,
           startTime: params.startTime || undefined,
           endTime: params.endTime || undefined,
           ...scope,
+          ...(includeSharedDrives && { driveOptions: { sharedDrivesOption: 'INCLUDED' } }),
         },
       }
     },

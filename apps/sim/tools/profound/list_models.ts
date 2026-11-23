@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundListModelsParams, ProfoundListModelsResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundListModelsTool: ToolConfig<
   name: 'Profound List Models',
   description: 'List all AI models/platforms tracked in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioCreateListEntryParams, AttioCreateListEntryResponse } from './types'
 import { LIST_ENTRY_OUTPUT_PROPERTIES } from './types'
 
@@ -53,7 +54,8 @@ export const attioCreateListEntryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}/entries`,
+    url: (params) =>
+      `https://api.attio.com/v2/lists/${safeUrlPathSegment(params.list, 'list')}/entries`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -68,7 +70,7 @@ export const attioCreateListEntryTool: ToolConfig<
               ? JSON.parse(params.entryValues)
               : params.entryValues
         } catch {
-          entryValues = {}
+          throw new Error('Invalid JSON provided for entry values')
         }
       }
       const data: Record<string, unknown> = {

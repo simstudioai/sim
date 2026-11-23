@@ -104,6 +104,35 @@ describe('Jira operations', () => {
     expect(result.output).not.toHaveProperty('assigneeId')
   })
 
+  it('keeps the explicit assignee ahead of a customFields assignee on create', async () => {
+    mocks.request
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        statusText: 'Created',
+        text: '{"id":"100","key":"PROJ-1","self":"jira-self","fields":{"summary":"Created"}}',
+      })
+      .mockResolvedValueOnce({ ok: true, status: 204, statusText: 'No Content', text: '' })
+
+    await executeJiraWrite(
+      {
+        accessToken: 'token',
+        domain: 'example.atlassian.net',
+        projectId: 'PROJ',
+        summary: 'Created',
+        assignee: 'account-explicit',
+        customFields: { assignee: { accountId: 'account-other' }, customfield_10020: 5 },
+      },
+      context
+    )
+
+    const createBody = JSON.parse(String((mocks.request.mock.calls[0]?.[1] as RequestInit).body))
+    expect(createBody.fields).not.toHaveProperty('assignee')
+    expect(createBody.fields.customfield_10020).toBe(5)
+    const assignBody = JSON.parse(String((mocks.request.mock.calls[1]?.[1] as RequestInit).body))
+    expect(assignBody).toEqual({ accountId: 'account-explicit' })
+  })
+
   it('rejects unsafe attachment issue keys before file or provider work', async () => {
     await expect(
       executeJiraAddAttachment(

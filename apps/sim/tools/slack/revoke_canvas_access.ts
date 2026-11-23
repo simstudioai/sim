@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createSlackWebApiTool, slackId, slackJson } from '@/tools/slack/web-api'
+import { createSlackWebApiTool, slackId, slackIdList } from '@/tools/slack/web-api'
 
 /** https://docs.slack.dev/reference/methods/canvases.access.delete/ */
 export const slackRevokeCanvasAccessTool = createSlackWebApiTool({
@@ -17,19 +17,24 @@ export const slackRevokeCanvasAccessTool = createSlackWebApiTool({
       visibility: 'user-or-llm',
       description: 'Canvas ID',
     },
-    user_ids: { type: 'json', required: false, visibility: 'user-or-llm', description: 'User IDs' },
+    user_ids: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'One Slack user ID to remove, as ["U123"] or U123.',
+    },
     channel_ids: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Channel IDs',
+      description: 'One Slack channel ID to remove, as ["C123"] or C123.',
     },
   },
   input: z
     .object({
       canvas_id: z.string().trim().min(1),
-      user_ids: slackJson(z.array(slackId).min(1)).optional(),
-      channel_ids: slackJson(z.array(slackId).min(1)).optional(),
+      user_ids: slackIdList(z.array(slackId).min(1).max(1)).optional(),
+      channel_ids: slackIdList(z.array(slackId).min(1).max(1)).optional(),
     })
     .refine(
       (p) => p.user_ids !== undefined || p.channel_ids !== undefined,

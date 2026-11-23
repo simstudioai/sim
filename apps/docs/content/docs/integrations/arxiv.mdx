@@ -6,11 +6,12 @@ integration:
   color: "#FFFFFF"
 ---
 
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
 
 {/* MANUAL-CONTENT-START:intro */}
 [arXiv](https://arxiv.org/) hosts research papers. Search by keyword, author, title, or category, retrieve a paper’s metadata, or list papers by an author. This integration does not require an API key or OAuth connection.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
@@ -21,6 +22,8 @@ Search arXiv papers, retrieve paper metadata, or list an author’s papers. No A
 ### ArXiv Search
 
 Search for academic papers on ArXiv by keywords, authors, titles, or other fields.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -36,12 +39,22 @@ Search for academic papers on ArXiv by keywords, authors, titles, or other field
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `papers` | json | Array of papers matching the search query |
+| `papers` | array | Array of papers matching the search query |
+|   ↳ `authors` | array |  |
+|   ↳ `categories` | array |  |
+|   ↳ `comment` | string |  |
+|   ↳ `journalRef` | string |  |
+|   ↳ `doi` | string |  |
 | `totalResults` | number | Total number of results found for the search query |
+| `query` | string | The search query that was executed |
+
+</ReferenceDetails>
 
 ### ArXiv Get Paper
 
 Get detailed information about a specific ArXiv paper by its ID.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -53,11 +66,20 @@ Get detailed information about a specific ArXiv paper by its ID.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `paper` | json | Detailed information about the requested ArXiv paper |
+| `paper` | object | Detailed information about the requested ArXiv paper |
+|   ↳ `authors` | array |  |
+|   ↳ `categories` | array |  |
+|   ↳ `comment` | string |  |
+|   ↳ `journalRef` | string |  |
+|   ↳ `doi` | string |  |
+
+</ReferenceDetails>
 
 ### ArXiv Get Author Papers
 
 Search for papers by a specific author on ArXiv.
+
+<ReferenceDetails>
 
 #### Input
 
@@ -70,7 +92,15 @@ Search for papers by a specific author on ArXiv.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `authorPapers` | json | Array of papers authored by the specified author |
+| `authorPapers` | array | Array of papers authored by the specified author |
+|   ↳ `authors` | array |  |
+|   ↳ `categories` | array |  |
+|   ↳ `comment` | string |  |
+|   ↳ `journalRef` | string |  |
+|   ↳ `doi` | string |  |
 | `totalResults` | number | Total number of papers found for the author |
+| `authorName` | string | The author name that was searched |
+
+</ReferenceDetails>
 
 

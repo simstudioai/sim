@@ -1,6 +1,10 @@
 import { GoogleMapsIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
+
+/** Operations whose coordinates come from the `aqLatitude`/`aqLongitude` fields. */
+const AQ_COORDINATE_OPERATIONS = ['air_quality', 'pollen', 'solar', 'places_nearby']
 
 export const GoogleMapsBlock: BlockConfig = {
   type: 'google_maps',
@@ -482,16 +486,16 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Latitude',
       type: 'short-input',
       placeholder: '37.4224764',
-      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
-      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
+      condition: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
+      required: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
     },
     {
       id: 'aqLongitude',
       title: 'Longitude',
       type: 'short-input',
       placeholder: '-122.0842499',
-      condition: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
-      required: { field: 'operation', value: ['air_quality', 'pollen', 'solar', 'places_nearby'] },
+      condition: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
+      required: { field: 'operation', value: AQ_COORDINATE_OPERATIONS },
     },
     {
       id: 'languageCode',
@@ -523,9 +527,10 @@ export const GoogleMapsBlock: BlockConfig = {
       title: 'Minimum Imagery Quality',
       type: 'dropdown',
       options: [
-        { label: 'Any', id: '' },
+        { label: 'Default (High only)', id: '' },
         { label: 'High', id: 'HIGH' },
         { label: 'Medium', id: 'MEDIUM' },
+        { label: 'Low', id: 'LOW' },
         { label: 'Base', id: 'BASE' },
       ],
       condition: { field: 'operation', value: 'solar' },
@@ -582,8 +587,9 @@ export const GoogleMapsBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `google_maps_${params.operation}`,
-      params: (params) => {
-        const { operation, locationBias, addressToValidate, ...rest } = params
+      params: (params, context) => {
+        const { locationBias, addressToValidate, ...rest } = params
+        const operation = mapperOperation(params, context)
 
         let location: { lat: number; lng: number } | undefined
         if (locationBias && typeof locationBias === 'string' && locationBias.includes(',')) {
@@ -593,21 +599,11 @@ export const GoogleMapsBlock: BlockConfig = {
           }
         }
 
-        let lat: number | undefined
-        let lng: number | undefined
-        if (params.latitude) {
-          lat = Number.parseFloat(params.latitude)
-        }
-        if (params.longitude) {
-          lng = Number.parseFloat(params.longitude)
-        }
-
-        if (params.aqLatitude) {
-          lat = Number.parseFloat(params.aqLatitude)
-        }
-        if (params.aqLongitude) {
-          lng = Number.parseFloat(params.aqLongitude)
-        }
+        const usesAqCoordinates = AQ_COORDINATE_OPERATIONS.includes(operation)
+        const latInput = usesAqCoordinates ? params.aqLatitude : params.latitude
+        const lngInput = usesAqCoordinates ? params.aqLongitude : params.longitude
+        const lat = latInput ? Number.parseFloat(latInput) : undefined
+        const lng = lngInput ? Number.parseFloat(lngInput) : undefined
 
         let timestamp: number | undefined
         if (params.timestamp) {
@@ -617,6 +613,8 @@ export const GoogleMapsBlock: BlockConfig = {
         let destinations: string[] | undefined
         if (params.destinations && typeof params.destinations === 'string') {
           destinations = params.destinations.split('|').map((d: string) => d.trim())
+        } else if (Array.isArray(params.destinations)) {
+          destinations = toolCallArg(context, params.destinations)
         }
 
         let waypoints: string[] | undefined
@@ -625,6 +623,8 @@ export const GoogleMapsBlock: BlockConfig = {
             .split('|')
             .map((w: string) => w.trim())
             .filter(Boolean)
+        } else if (Array.isArray(params.waypoints)) {
+          waypoints = toolCallArg(context, params.waypoints)
         }
 
         let radius: number | undefined
@@ -639,6 +639,8 @@ export const GoogleMapsBlock: BlockConfig = {
             .split('|')
             .map((p: string) => p.trim())
             .filter(Boolean)
+        } else if (Array.isArray(params.placeIds)) {
+          placeIds = toolCallArg(context, params.placeIds)
         }
 
         let wifiAccessPoints: unknown[] | undefined
@@ -648,6 +650,8 @@ export const GoogleMapsBlock: BlockConfig = {
           } catch {
             // Ignore parse errors
           }
+        } else if (Array.isArray(params.wifiAccessPoints)) {
+          wifiAccessPoints = toolCallArg(context, params.wifiAccessPoints)
         }
 
         let cellTowers: unknown[] | undefined
@@ -657,9 +661,14 @@ export const GoogleMapsBlock: BlockConfig = {
           } catch {
             // Ignore parse errors
           }
+        } else if (Array.isArray(params.cellTowers)) {
+          cellTowers = toolCallArg(context, params.cellTowers)
         }
 
-        const address = operation === 'validate_address' ? addressToValidate : params.address
+        const address =
+          operation === 'validate_address'
+            ? (addressToValidate ?? toolCallArg(context, params.address))
+            : params.address
 
         // Parse boolean switches (can come as string or boolean from form)
         let interpolate: boolean | undefined
@@ -710,9 +719,9 @@ export const GoogleMapsBlock: BlockConfig = {
         return {
           ...rest,
           address,
-          location,
-          lat,
-          lng,
+          location: location ?? toolCallArg(context, params.location),
+          lat: lat ?? toolCallArg(context, params.lat),
+          lng: lng ?? toolCallArg(context, params.lng),
           timestamp,
           destinations,
           waypoints,
@@ -729,11 +738,16 @@ export const GoogleMapsBlock: BlockConfig = {
           homeMobileCountryCode,
           homeMobileNetworkCode,
           requiredQuality: params.requiredQuality || undefined,
-          type: params.placeType || undefined,
-          includedTypes: params.placeType ? [params.placeType] : undefined,
+          type: params.placeType || toolCallArg(context, params.type) || undefined,
+          includedTypes: params.placeType
+            ? [params.placeType]
+            : toolCallArg(context, params.includedTypes),
           avoid: params.avoid || undefined,
           radioType: params.radioType || undefined,
-          units: operation === 'speed_limits' ? params.speedUnits || undefined : params.units,
+          units:
+            operation === 'speed_limits'
+              ? params.speedUnits || toolCallArg(context, params.units) || undefined
+              : params.units,
         }
       },
     },

@@ -1,6 +1,7 @@
 import { SendblueIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const SEND_STYLE_OPTIONS = [
@@ -245,13 +246,13 @@ export const SendblueBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'sendblue_send_message',
-      params: (params) => {
+      params: (params, context) => {
         const base: Record<string, any> = {
           apiKeyId: params.apiKeyId,
           apiSecretKey: params.apiSecretKey,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'sendblue_send_message':
             return {
               ...base,
@@ -293,7 +294,7 @@ export const SendblueBlock: BlockConfig = {
               ...base,
               number: params.number,
               from_number: params.from_number || undefined,
-              state: params.typing_state || undefined,
+              state: params.typing_state || toolCallArg(context, params.state) || undefined,
               max_duration_ms:
                 params.max_duration_ms !== undefined &&
                 params.max_duration_ms !== '' &&

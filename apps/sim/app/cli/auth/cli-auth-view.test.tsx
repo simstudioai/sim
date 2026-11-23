@@ -22,6 +22,8 @@ vi.mock('nuqs', () => ({
       pairing: 'ABCD-2345',
       scope: 'platform',
       workspace: null,
+      access: null,
+      expires: null,
     },
   ],
 }))

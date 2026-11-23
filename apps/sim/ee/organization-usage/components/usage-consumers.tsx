@@ -35,6 +35,7 @@ import {
   OpenAIIcon,
   OpenRouterIcon,
   SakanaIcon,
+  SimAutoIcon,
   TogetherIcon,
   TypeSafeIcon,
   VertexIcon,
@@ -43,6 +44,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
@@ -90,6 +92,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   openai: OpenAIIcon,
   openrouter: OpenRouterIcon,
   sakana: SakanaIcon,
+  thinkingmachines: ThinkingMachinesIcon,
   together: TogetherIcon,
   typesafe: TypeSafeIcon,
   vertex: VertexIcon,
@@ -99,6 +102,8 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   'azure-anthropic': AzureIcon,
   /** Not a registry provider — a BYOK credential kind the breakdown can also emit. */
   'azure-openai': AzureIcon,
+  /** Not a provider: the hosted Auto model, which the breakdown keeps as its own row. */
+  'sim-auto': SimAutoIcon,
 }
 
 interface UsageConsumerRowProps {

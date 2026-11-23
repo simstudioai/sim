@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
 import { requiredString } from '@/tools/github/response-parsers'
 import type { ReplyReviewThreadParams, ReplyReviewThreadResponse } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const CONTEXT = 'GitHub review thread reply response'
@@ -28,6 +29,7 @@ export const replyReviewThreadTool: ToolConfig<ReplyReviewThreadParams, ReplyRev
     name: 'GitHub Reply To Review Thread',
     description: 'Post a reply comment on a pull request review thread.',
     version: '1.0.0',
+    oauth: GITHUB_CREDENTIAL_OAUTH,
 
     params: {
       threadId: {

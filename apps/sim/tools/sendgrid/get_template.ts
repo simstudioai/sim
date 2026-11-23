@@ -1,13 +1,18 @@
 import type { GetTemplateParams, SendGridTemplate, TemplateResult } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResult> = {
   id: 'sendgrid_get_template',
   name: 'SendGrid Get Template',
   description: 'Get a specific template by ID from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -23,7 +28,8 @@ export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResu
   },
 
   request: {
-    url: (params) => `https://api.sendgrid.com/v3/templates/${params.templateId}`,
+    url: (params) =>
+      `${SENDGRID_REGIONS.apiBase(params.region)}/templates/${safeUrlPathSegment(params.templateId, 'templateId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

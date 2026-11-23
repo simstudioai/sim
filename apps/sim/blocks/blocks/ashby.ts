@@ -1,7 +1,12 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import {
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 function parseStringListInput(value: unknown): string[] {
@@ -137,6 +142,8 @@ function parseJsonObjectInput(value: unknown, label: string): Record<string, unk
 
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ashby_v2' },
   name: 'Ashby',
   description: 'Manage candidates, jobs, and applications in Ashby',
   longDescription:
@@ -1418,7 +1425,8 @@ Output only the JSON array.`,
     ],
     config: {
       tool: (params) => `ashby_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const result: Record<string, unknown> = {}
         if (params.perPage) result.perPage = Number(params.perPage)
         if (params.searchName) result.name = params.searchName
@@ -1464,7 +1472,7 @@ Output only the JSON array.`,
           params.includeUnpublishedJobPostingIds === 'true' ||
           params.includeUnpublishedJobPostingIds === true
         ) {
-          if (params.operation === 'list_jobs') result.includeUnpublishedJobPostingsIds = true
+          if (operation === 'list_jobs') result.includeUnpublishedJobPostingsIds = true
           else result.includeUnpublishedJobPostingIds = true
         }
         if (params.excludeFormDefinition === 'true' || params.excludeFormDefinition === true) {
@@ -1484,7 +1492,7 @@ Output only the JSON array.`,
           if (applicationHistory.length > 0) result.applicationHistory = applicationHistory
         }
         if (
-          (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
+          (operation === 'create_candidate' || operation === 'update_candidate') &&
           params.candidateLocation !== undefined &&
           params.candidateLocation !== ''
         ) {
@@ -1505,28 +1513,30 @@ Output only the JSON array.`,
         ) {
           result.startAutomaticActivities = true
         }
-        if (params.operation === 'search_jobs' || params.operation === 'search_candidates') {
-          result.limit = params.perPage ? Number(params.perPage) : undefined
+        if (operation === 'search_jobs' || operation === 'search_candidates') {
+          result.limit = params.perPage
+            ? Number(params.perPage)
+            : toolCallArg(context, params.limit)
         }
-        if (params.operation === 'upload_resume' || params.operation === 'upload_candidate_file') {
+        if (operation === 'upload_resume' || operation === 'upload_candidate_file') {
           const file = normalizeFileInput(params.file, { single: true })
           if (!file) throw new Error('A candidate file is required.')
           result.file = file
         }
-        if (params.operation === 'create_application' && params.appCandidateId) {
+        if (operation === 'create_application' && params.appCandidateId) {
           result.candidateId = params.appCandidateId
         }
-        if (params.operation === 'create_application' && params.appCreatedAt) {
+        if (operation === 'create_application' && params.appCreatedAt) {
           result.createdAt = params.appCreatedAt
         }
         if (
-          (params.operation === 'create_candidate' || params.operation === 'update_candidate') &&
+          (operation === 'create_candidate' || operation === 'update_candidate') &&
           params.candidateCreatedAt !== undefined &&
           params.candidateCreatedAt !== ''
         ) {
           result.createdAt = params.candidateCreatedAt
         }
-        if (params.operation === 'create_note' && params.noteCreatedAt) {
+        if (operation === 'create_note' && params.noteCreatedAt) {
           result.createdAt = params.noteCreatedAt
         }
         if (params.updateName !== undefined && params.updateName !== '') {
@@ -1542,7 +1552,7 @@ Output only the JSON array.`,
         ) {
           result.includeLocationHierarchy = true
         }
-        if (params.operation === 'list_offers' && params.offerApplicationId) {
+        if (operation === 'list_offers' && params.offerApplicationId) {
           result.applicationId = params.offerApplicationId
         }
         if (params.alternateEmailAddresses) {
@@ -1557,13 +1567,15 @@ Output only the JSON array.`,
             result.socialLinks = parseSocialLinksInput(socialLinksValue)
           }
         }
-        if (params.operation === 'set_custom_field_value') {
+        if (operation === 'set_custom_field_value') {
           result.fieldValue = parseCustomFieldValueInput(params.fieldValue)
         }
-        if (params.operation === 'set_custom_field_values') {
-          result.values = parseCustomFieldValuesInput(params.fieldValues)
+        if (operation === 'set_custom_field_values') {
+          result.values = parseCustomFieldValuesInput(
+            params.fieldValues || toolCallArg(context, params.values)
+          )
         }
-        if (params.operation === 'change_application_source') {
+        if (operation === 'change_application_source') {
           // sourceId is always assigned, never conditionally, because the executor
           // merges `{ ...inputs, ...transformedParams }` and a key this mapping
           // leaves unset simply inherits whatever was in inputs. The create-path
@@ -1574,8 +1586,9 @@ Output only the JSON array.`,
           // Inheriting it would attribute a source nobody asked for, or collide
           // with a clear request and fail with no visible cause.
           const unsetSource = params.unsetSource === 'true' || params.unsetSource === true
+          const requestedSourceId = params.changeSourceId || toolCallArg(context, params.sourceId)
           const changeSourceId =
-            typeof params.changeSourceId === 'string' ? params.changeSourceId.trim() : ''
+            typeof requestedSourceId === 'string' ? requestedSourceId.trim() : ''
           result.sourceId = unsetSource || !changeSourceId ? undefined : changeSourceId
           if (unsetSource) result.unsetSource = true
         }
@@ -1975,3 +1988,17 @@ export const AshbyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AshbyV2Block: BlockConfig = {
+  ...AshbyBlock,
+  type: 'ashby_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(AshbyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'ashby',
+    title: 'Ashby Credential',
+  }),
+}

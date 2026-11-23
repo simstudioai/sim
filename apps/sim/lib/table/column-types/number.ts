@@ -1,4 +1,5 @@
 import { TypeNumber } from '@sim/emcn/icons'
+import { CELL_RULES } from '@sim/table-cells/rules'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 
 export const numberColumnType: ColumnTypeDefinition = {
@@ -17,22 +18,7 @@ export const numberColumnType: ColumnTypeDefinition = {
   typeaheadPattern: /[\d.-]/,
   parseErrorMessage: 'Invalid number',
 
-  coerce(value) {
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? { ok: true, value } : { ok: false }
-    }
-    if (typeof value === 'string' && value.trim() !== '') {
-      const parsed = Number(value)
-      return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false }
-    }
-    return { ok: false }
-  },
-
-  validateCell(value, column) {
-    return typeof value === 'number' && !Number.isNaN(value)
-      ? null
-      : `${column.name} must be number`
-  },
+  ...CELL_RULES.number,
 
   formatForDisplay(value) {
     return String(value)

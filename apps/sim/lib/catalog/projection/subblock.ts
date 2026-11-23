@@ -1,4 +1,4 @@
-import type { SubBlockConfig } from '@/blocks/types'
+import type { ParamType, SubBlockConfig } from '@/blocks/types'
 import { DYNAMIC_MODEL_PROVIDERS, getHostedModels, PROVIDER_DEFINITIONS } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers'
 
@@ -61,7 +61,13 @@ export type CatalogDependsOn = string[] | { all?: string[]; any?: string[] }
 /** A block configuration field, projected to serializable data. */
 export interface CatalogSubBlock {
   id: string
+  /** The editor control the field renders as, e.g. `short-input`. Not a value type. */
   type: string
+  /**
+   * The type of value the field holds, from the block's declared input for the
+   * field. Absent when the block declares none.
+   */
+  valueType?: ParamType
   title?: string
   /**
    * Whether the field must always be supplied. A field whose requirement

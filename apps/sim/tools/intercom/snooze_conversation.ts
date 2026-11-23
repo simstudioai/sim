@@ -1,5 +1,7 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface IntercomSnoozeConversationParams {
   accessToken: string
@@ -48,7 +50,9 @@ const snoozeConversationBase = {
 
   request: {
     url: (params: IntercomSnoozeConversationParams) =>
-      buildIntercomUrl(`/conversations/${params.conversationId}/reply`),
+      buildIntercomUrl(
+        `/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/parts`
+      ),
     method: 'POST',
     headers: (params: IntercomSnoozeConversationParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -72,6 +76,7 @@ export const intercomSnoozeConversationV2Tool: ToolConfig<
   name: 'Snooze Conversation in Intercom',
   description: 'Snooze a conversation to reopen at a future time',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

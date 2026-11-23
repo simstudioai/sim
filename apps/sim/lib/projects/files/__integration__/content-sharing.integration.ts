@@ -574,7 +574,12 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       await (
         await requestPublicFileShareOtp({ token: share.token, email: 'outsider@shared.invalid' })
       ).deliver()
-      expect(await otpStore.getOTP('file', share.id, 'outsider@shared.invalid')).toBeNull()
+      const { getRedisClient } = await import('@/lib/core/config/redis')
+      const storedCode = async (address: string) => {
+        const value = await getRedisClient().get(`otp:file:${address}:${share.id}`)
+        return value?.split(':')[0]
+      }
+      expect(await storedCode('outsider@shared.invalid')).toBeUndefined()
       const failure = { authorized: false, status: 400, error: 'Invalid verification code' }
       expect(
         await verifyPublicFileShareOtp({
@@ -587,9 +592,8 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         failure
       )
       await (await requestPublicFileShareOtp({ token: share.token, email })).deliver()
-      const stored = await otpStore.getOTP('file', share.id, email)
-      if (!stored) throw new Error('Allowed email received no code')
-      const { otp } = otpStore.decodeOTPValue(stored)
+      const otp = await storedCode(email)
+      if (!otp) throw new Error('Allowed email received no code')
       expect(
         await verifyPublicFileShareOtp({ token: share.token, email, otp: '000000' })
       ).toMatchObject({ authorized: false, status: 400 })
@@ -606,9 +610,9 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         status: 400,
       })
       await otpStore.storeOTP('file', share.id, email, '123456')
-      const get = otpStore.getOTP
-      const spy = vi.spyOn(otpStore, 'getOTP').mockImplementation(async (...args) => {
-        const result = await get(...args)
+      const verifyCode = otpStore.verifyOTP
+      const spy = vi.spyOn(otpStore, 'verifyOTP').mockImplementation(async (...args) => {
+        const result = await verifyCode(...args)
         await db
           .update(publicShare)
           .set({ allowedEmails: ['replacement@shared.invalid'] })
@@ -619,7 +623,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         verifyPublicFileShareOtp({ token: share.token, email, otp: '123456' })
       ).rejects.toMatchObject({ code: 'not_found' })
       spy.mockRestore()
-      await otpStore.deleteOTP('file', share.id, email)
+      expect(await storedCode(email)).toBeUndefined()
     }
   )
 
@@ -875,6 +879,90 @@ describe('Public file shares against PostgreSQL and private storage', () => {
           // Each fixture took the path it names: the stream refuses on open, the page as it renders.
           if (read === 'streamed') expect(await delivered).toMatchObject({ kind: 'stream' })
           else await expect(delivered).rejects.toBeDefined()
+          for (const spy of spies) spy.mockRestore()
+        }
+    }
+  )
+
+  check(
+    'public share content saved during an object read is delivered from a fresh snapshot, never mixed',
+    async () => {
+      const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
+      const {
+        authorizePublicFileShare,
+        readPublicFileShareContent,
+        retryOnSharedFileRevisionChange,
+      } = await import('@/lib/public-shares/application')
+      // A Markdown file streams from storage; a page is rendered whole. Both see the save.
+      const saved = 'Saved while read'
+      const shared = {
+        streamed: { input: createInput, source: '' },
+        rendered: {
+          input: (projectId: string) => ({
+            ...createInput(projectId, '---\ntitle: Architecture\n---\n\nShared page'),
+            name: 'Architecture',
+            contentType: 'text/x-sim-page',
+          }),
+          source: '---\ntitle: Architecture\n---\n\n',
+        },
+      }
+      for (const { input, source } of Object.values(shared))
+        for (const saves of ['once', 'every read'] as const) {
+          const f = await fixture()
+          const { file } = await createProjectFile.execute({
+            principal: f.principal,
+            input: input(f.projectId),
+          })
+          const { share } = await updateProjectFileShare.execute({
+            principal: f.principal,
+            input: { projectId: f.projectId, fileId: file.id, isActive: true },
+          })
+          const access = await authorizePublicFileShare({
+            token: share.token,
+            credential: { method: 'GET' },
+          })
+          if (!access.authorized) throw new Error('Public fixture rejected')
+          // A collaborative save commits while the object is being read, buffered or streamed alike.
+          let written = 0
+          let saving = false
+          const save = async () => {
+            if (saving || (saves === 'once' && written > 0)) return
+            saving = true
+            written++
+            try {
+              await updateProjectFileContent.execute({
+                principal: f.principal,
+                input: {
+                  projectId: f.projectId,
+                  fileId: file.id,
+                  content: `${source}${saved} ${written}`,
+                  encoding: 'utf-8',
+                },
+              })
+            } finally {
+              saving = false
+            }
+          }
+          const download = storage.downloadFile
+          const downloadStream = storage.downloadFileStream
+          const spies = [
+            vi.spyOn(storage, 'downloadFile').mockImplementation(async (options) => {
+              const result = await download(options)
+              await save()
+              return result
+            }),
+            vi.spyOn(storage, 'downloadFileStream').mockImplementation(async (options) => {
+              const result = await downloadStream(options)
+              await save()
+              return result
+            }),
+          ]
+          const delivered = retryOnSharedFileRevisionChange(() =>
+            sharedBytes(readPublicFileShareContent({ grant: access.grant }))
+          )
+          if (saves === 'once') expect((await delivered).toString()).toContain(`${saved} 1`)
+          else await expect(delivered).rejects.toMatchObject({ code: 'conflict' })
+          expect(written).toBe(saves === 'once' ? 1 : 3)
           for (const spy of spies) spy.mockRestore()
         }
     }

@@ -5,11 +5,12 @@ import { Chip, ComposerActionButton, cn } from '@sim/emcn'
 import { ArrowUp, Plus, Search, Sparkles, StopFilled } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { HEADER_ACTION_CLUSTER } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
+import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { OrganizationSummaryRequest } from '@/app/o/[organizationId]/components/organization-conversation'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
@@ -166,6 +167,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
   const { recordQuery } = useSearchHistoryActions()
   const router = useRouter()
   const pathname = usePathname()
+  const hasSearchParams = useSearchParams().toString() !== ''
   const routes = organizationRoutes(organization.id)
   const hasConversation = Boolean(chatId) || pathname.startsWith(`${routes.search}/chat/`)
   const queryClient = useQueryClient()
@@ -173,10 +175,9 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
     organizationSearchParsers,
     organizationSearchUrlKeys
   )
-  const activeMode =
-    mothershipAvailable && (mode ?? (hasConversation ? 'assistant' : 'search')) === 'assistant'
-      ? 'assistant'
-      : 'search'
+  const routeMode = mode ?? (hasConversation ? 'assistant' : hasSearchParams ? 'search' : null)
+  const activeMode = mothershipAvailable ? routeMode : 'search'
+  const preferenceKey = `organization-search-mode:${userId}:${organization.id}`
   const [assistantOpened, setAssistantOpened] = useState(activeMode === 'assistant')
   const [conversationInstance, setConversationInstance] = useState(0)
   const [isStartingNew, startNewTransition] = useTransition()
@@ -185,8 +186,20 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
     (id: string) => setSummaries((current) => current.filter((request) => request.id !== id)),
     []
   )
+  useEffect(() => {
+    if (!mothershipAvailable) return
+    if (routeMode) {
+      BrowserStorage.setItem(preferenceKey, routeMode)
+      return
+    }
+    const savedMode = BrowserStorage.getItem<unknown>(preferenceKey, null)
+    // Pin the mode to this history entry so Back survives a later preference change.
+    void setParams({ mode: savedMode === 'assistant' ? 'assistant' : 'search' })
+  }, [mothershipAvailable, preferenceKey, routeMode, setParams])
+
+  if (activeMode === 'assistant' && !assistantOpened) setAssistantOpened(true)
+
   const changeMode = (next: 'search' | 'assistant') => {
-    if (next === 'assistant') setAssistantOpened(true)
     void setParams({ mode: next }, { history: 'push' })
   }
   const startNew = () => {
@@ -201,7 +214,7 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
     }
     startNewTransition(() => {
       setConversationInstance((current) => current + 1)
-      router.push(activeMode === 'assistant' ? `${routes.search}?mode=assistant` : routes.search, {
+      router.push(mothershipAvailable ? `${routes.search}?mode=${activeMode}` : routes.search, {
         scroll: false,
       })
     })
@@ -263,28 +276,28 @@ function OrganizationSearchContent({ userId, chatId }: OrganizationSearchProps) 
   return (
     <div className='h-full min-h-0 min-w-0 bg-[var(--bg)] pt-[var(--workspace-content-title-bar-inset)]'>
       <div className='flex h-full min-h-0 min-w-0 flex-col [--workspace-content-title-bar-inset:0px]'>
-        {(assistantOpened || hasConversation || activeMode === 'assistant') &&
-          mothershipAvailable && (
-            <div
-              inert={activeMode !== 'assistant'}
-              className={cn(
-                'min-h-0 min-w-0 flex-1 flex-col',
-                activeMode === 'assistant' ? 'flex' : 'hidden'
-              )}
-            >
-              <Suspense fallback={<HomeFallback header={header} />}>
-                <OrganizationConversation
-                  key={conversationInstance}
-                  requestMode='assistant'
-                  chatId={chatId}
-                  header={header}
-                  active={activeMode === 'assistant'}
-                  summaryRequest={summaries[0]}
-                  onSummaryConsumed={consumeSummary}
-                />
-              </Suspense>
-            </div>
-          )}
+        {(assistantOpened || hasConversation) && mothershipAvailable && (
+          <div
+            inert={activeMode !== 'assistant'}
+            className={cn(
+              'min-h-0 min-w-0 flex-1 flex-col',
+              activeMode === 'assistant' ? 'flex' : 'hidden'
+            )}
+          >
+            <Suspense fallback={<HomeFallback header={header} />}>
+              <OrganizationConversation
+                key={conversationInstance}
+                requestMode='assistant'
+                chatId={chatId}
+                header={header}
+                active={activeMode === 'assistant'}
+                summaryRequest={summaries[0]}
+                onSummaryConsumed={consumeSummary}
+              />
+            </Suspense>
+          </div>
+        )}
+        {!activeMode && <HomeFallback />}
         {activeMode === 'search' && (
           <>
             <div className={cn(RESOURCE_HEADER_CLASSES.layout, RESOURCE_HEADER_CLASSES.content)}>

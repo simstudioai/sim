@@ -108,7 +108,8 @@ The build also derives the app icon from `SIM_DESKTOP_DEFAULT_ORIGIN`. Every cha
 
 CI (`.github/workflows/desktop-release.yml`, wired into `ci.yml`):
 - Stable builds run only after `release` on a `vX.Y.Z:` commit to main — **never before**: `scripts/create-single-release.ts` skips creation if the tag exists, so a desktop job publishing first would eat the changelog. Stable assets remain on `simstudioai/sim`; dev/staging assets publish to the public `simstudioai/sim-desktop-releases` repository so source-repository followers are not notified for internal shell builds. The job builds `--publish never`; reruns verify the size and SHA-256 digest of existing release assets instead of overwriting them.
-- **Secrets gate**: `desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "desktop-release" → Run workflow with a `vX.Y.Z` version (`publish: false` uploads artifacts to the run instead of the release).
+- **Secrets gate**: `desktop-signing` in `ci.yml` probes the six Apple secrets and skips the desktop job with a warning until they exist — releases never fail on a missing Apple account, and the first release after the secrets land ships desktop artifacts automatically. Manual/one-off builds: Actions → "desktop-release" → Run workflow, select the `vX.Y.Z` tag under "Use workflow from", and enter the same version (`publish: false` uploads artifacts to the run instead of the release). Any other ref is refused, so a run only executes the tag's own code and workflow, and its caches stay scoped to that tag.
+- **Cache trust**: the signed `build` job restores no caches, so nothing it signs can come from a cache another run wrote. Only the unsigned smoke jobs use caches.
 - The product semver is **injected** from the release tag into `apps/desktop/package.json` at build time (repo package versions are placeholders). A mismatch guard fails the build.
 - Fuses are flipped at package time (`electronFuses` in `electron-builder.yml`): runAsNode off, NODE_OPTIONS off, inspect args off, ASAR-only + integrity validation, and cookie encryption on. The packaged smoke test asserts every fuse byte so Electron upgrades fail until new fuses receive an explicit policy.
 - **Cookie-encryption go/no-go**: on every Electron bump, verify a packaged build keeps its session across relaunch (there are historical cookie-persistence bugs with the `EnableCookieEncryption` fuse). If it reproduces, set `enableCookieEncryption: false` and record it here.
@@ -233,16 +234,19 @@ Cadence: Electron ships a major every ~8 weeks and supports the latest 3 — bud
 
 ## Native Mac computer use
 
-Mothership's `computer` tool is available on macOS 14+ when the global runtime flag
-`mothership-computer-use` is enabled and the user opts in under **Settings → Desktop → Computer Use**.
-The flag defaults off; local/self-hosted deployments use `MSHIP_COMPUTER_USE=true`, while hosted
-rollout uses the existing AppConfig feature-flags document. Older desktop builds omit this optional
-bridge and continue to work.
+Mothership's `computer` tool is available on macOS 14+ once the user opts in under
+**Settings → Desktop → Computer Use**. Enterprise organizations can withhold it from a permission
+group with the **Computer Use** restriction. Older desktop builds omit this optional bridge and
+continue to work.
 
-The user grants Accessibility and Screen Recording through macOS, then approves each app for the
-current task or persistently. Persistent app approvals are listed in Settings and can be revoked.
-Sign-out and deployment changes clear computer-use approval and opt-in. The conversation shows the
-active app/action and a Stop button; **⌘⇧Esc** also stops active work when the shortcut is available.
+The user grants Accessibility and Screen Recording through macOS; every app is then available except
+Sim, System Settings, password managers, terminals and scripting apps (shell access has its own
+Terminal control),
+which the helper refuses. With **Ask before using a new
+app** on, each app's first use is approved for the task or persistently, and persistent approvals are
+listed in Settings and can be revoked. Sign-out and deployment changes clear opt-in, the ask choice
+and approvals. Stopping the chat response, or **⌘⇧Esc** when the shortcut is available, stops active
+work; Settings shows the action in progress.
 Stop cancels queued actions, in-flight authorization, approval prompts and the native helper.
 Already completed input cannot be undone.
 

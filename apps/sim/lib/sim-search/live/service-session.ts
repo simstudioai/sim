@@ -81,6 +81,7 @@ export async function createLiveServiceSession(input: {
     connector: source,
     userId: credentialUserId,
     requestId: 'live-source-search',
+    scope: { kind: 'organization', organizationId: source.organizationId },
     sourceConfig: source.config,
     signal,
   })
@@ -101,8 +102,11 @@ export async function createLiveServiceSession(input: {
       })),
     }
   }
+  const origin = LIVE_SEARCH_PROVIDER_CATALOG[provider].origin
+  if (!origin)
+    throw new NativeSearchError('unavailable', 'This provider requires a personal connection.')
   const client = createNativeClient({
-    origin: LIVE_SEARCH_PROVIDER_CATALOG[provider].origin,
+    origin,
     accessToken: token.accessToken,
     signal,
     pool,
@@ -146,6 +150,7 @@ export async function createLiveServiceSession(input: {
         const query =
           search.native?.query ??
           (search.query ? confluenceTextClause(search.query, search.textMatch) : '')
+        if (query === undefined) return null
         return {
           ...search,
           native: { provider, ...search.native, query: scopeAtlassianQuery(query, scope) },

@@ -1,15 +1,15 @@
 import type { Context } from '@opentelemetry/api'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 export const DEFAULT_STEER_TIMEOUT_MS = 3000
 
 /**
- * Queues a mid-turn steering message with the Go side (`/api/streams/steer`).
+ * Queues a mid-turn steering message with the worker (`/api/streams/steer`).
  *
- * Acceptance means "queued", not "applied": Go acknowledges application with a
+ * Acceptance means "queued", not "applied": the worker acknowledges application with a
  * `run`/`steering_applied` stream event carrying the steeringId. A caller that
  * never sees that ack before the stream ends must re-send the content as an
  * ordinary message — that contract is what makes delivery loss-free without
@@ -41,7 +41,7 @@ export async function requestStreamSteering(params: {
 
   try {
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
-    const response = await fetchGo(`${mothershipBaseURL}/api/streams/steer`, {
+    const response = await fetchWorker(`${mothershipBaseURL}/api/streams/steer`, {
       method: 'POST',
       headers,
       signal: controller.signal,
@@ -51,7 +51,7 @@ export async function requestStreamSteering(params: {
         content,
       }),
       otelContext,
-      spanName: 'sim → go /api/streams/steer',
+      spanName: 'sim → worker /api/streams/steer',
       operation: 'steer',
       attributes: {
         [TraceAttr.StreamId]: streamId,

@@ -100,6 +100,7 @@ export const billingUsageLogMockFns = {
   mockDeriveBillingContext: vi.fn(),
   mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetBillingPeriodWorkflowRunCount: vi.fn(),
+  mockGetBillingPeriodWorkflowRunCountWithinBudget: vi.fn(),
   mockGetBillingPeriodUsageCostWithSourceSubset: vi.fn(),
   mockGetBillingPeriodUsageCostByUser: vi.fn(),
   mockGetStampedPeriodRangeUsageCostByUser: vi.fn(),
@@ -138,6 +139,8 @@ export const billingUsageLogMock = {
   deriveBillingContext: billingUsageLogMockFns.mockDeriveBillingContext,
   getBillingPeriodUsageCost: billingUsageLogMockFns.mockGetBillingPeriodUsageCost,
   getBillingPeriodWorkflowRunCount: billingUsageLogMockFns.mockGetBillingPeriodWorkflowRunCount,
+  getBillingPeriodWorkflowRunCountWithinBudget:
+    billingUsageLogMockFns.mockGetBillingPeriodWorkflowRunCountWithinBudget,
   getBillingPeriodUsageCostWithSourceSubset:
     billingUsageLogMockFns.mockGetBillingPeriodUsageCostWithSourceSubset,
   getBillingPeriodUsageCostByUser: billingUsageLogMockFns.mockGetBillingPeriodUsageCostByUser,

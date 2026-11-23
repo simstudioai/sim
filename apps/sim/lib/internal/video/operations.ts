@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
@@ -8,6 +9,8 @@ import {
   type VideoGenerationInput,
 } from '@/lib/internal/video/client'
 import { VideoOperationError } from '@/lib/internal/video/errors'
+import { recordServiceMeteringFailure } from '@/lib/mothership/billing/service-observer'
+import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
@@ -69,7 +72,7 @@ function validateModelInputProvenance(
   input: VideoOperationInput,
   context: VideoOperationContext
 ): void {
-  if (input.provider !== 'runway') return
+  if (input.provider !== 'runway' && !input.visualReference) return
   const provenance = validateOpaqueModelInputProvenance({
     headers: context.headers,
     payload: input,
@@ -142,22 +145,45 @@ export async function executeVideoOperation(
   if (validationError) throw new VideoOperationError(validationError, 400)
   await authorizeVisualReference(input, context)
 
-  const generated = await generateVideo(input, {
-    requestId: context.requestId,
-    signal: context.signal,
-  })
-  context.signal?.throwIfAborted()
-  const stored = await storeVideo(input, generated.buffer, context)
+  let undeliveredFalCost: FalAICostMetadata | undefined
+  try {
+    const generated = await generateVideo(input, {
+      requestId: context.requestId,
+      signal: context.signal,
+      onFalCost: (cost) => {
+        undeliveredFalCost = cost
+      },
+    })
+    context.signal?.throwIfAborted()
+    const stored = await storeVideo(input, generated.buffer, context)
 
-  return {
-    ...stored,
-    duration: generated.duration || input.duration,
-    width: generated.width,
-    height: generated.height,
-    provider: input.provider,
-    model: input.model || 'default',
-    jobId: generated.jobId,
-    __falaiCostDollars: generated.falaiCost?.costDollars,
-    __falaiBilling: generated.falaiCost,
+    return {
+      ...stored,
+      duration: generated.duration || input.duration,
+      width: generated.width,
+      height: generated.height,
+      provider: input.provider,
+      model: input.model || 'default',
+      jobId: generated.jobId,
+      __falaiCostDollars: generated.falaiCost?.costDollars,
+      __falaiBilling: generated.falaiCost,
+    }
+  } catch (error) {
+    if (undeliveredFalCost) {
+      logger.warn('Hosted fal video result delivery interrupted', {
+        requestId: context.requestId,
+        falaiBilling: undeliveredFalCost,
+      })
+      const { requestId, endpointId, costDollars } = undeliveredFalCost
+      await recordServiceMeteringFailure(
+        `Undelivered fal video ${requestId} (${endpointId}): USD ${costDollars} (${undeliveredFalCost.source}); reconciliation required`
+      ).catch((meteringError) => {
+        logger.error('Failed to record undelivered fal video for reconciliation', {
+          requestId: context.requestId,
+          error: getErrorMessage(meteringError),
+        })
+      })
+    }
+    throw error
   }
 }

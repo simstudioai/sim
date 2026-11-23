@@ -74,6 +74,7 @@ export const ArxivBlock: BlockConfig = {
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'arxiv_search' },
+      mode: 'advanced',
     },
     {
       id: 'sortBy',
@@ -86,6 +87,7 @@ export const ArxivBlock: BlockConfig = {
       ],
       value: () => 'relevance',
       condition: { field: 'operation', value: 'arxiv_search' },
+      mode: 'advanced',
     },
     {
       id: 'sortOrder',
@@ -97,6 +99,7 @@ export const ArxivBlock: BlockConfig = {
       ],
       value: () => 'descending',
       condition: { field: 'operation', value: 'arxiv_search' },
+      mode: 'advanced',
     },
     // Get Paper Details operation inputs
     {
@@ -122,6 +125,7 @@ export const ArxivBlock: BlockConfig = {
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'arxiv_get_author_papers' },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -161,12 +165,26 @@ export const ArxivBlock: BlockConfig = {
   },
   outputs: {
     // Search output
-    papers: { type: 'json', description: 'Found papers data' },
+    papers: {
+      type: 'json',
+      description:
+        'Matching papers [{id, title, summary, authors, published, updated, link, pdfLink, categories, primaryCategory, comment, journalRef, doi}]',
+    },
     totalResults: { type: 'number', description: 'Total results count' },
+    query: { type: 'string', description: 'Executed search query (search)' },
     // Get Paper Details output
-    paper: { type: 'json', description: 'Paper details' },
+    paper: {
+      type: 'json',
+      description:
+        'Paper details (id, title, summary, authors, published, updated, link, pdfLink, categories, primaryCategory, comment, journalRef, doi)',
+    },
     // Get Author Papers output
-    authorPapers: { type: 'json', description: 'Author papers list' },
+    authorName: { type: 'string', description: 'Author searched (get author papers)' },
+    authorPapers: {
+      type: 'json',
+      description:
+        'Papers by the author, newest first [{id, title, summary, authors, published, updated, link, pdfLink, categories, primaryCategory, comment, journalRef, doi}]',
+    },
   },
 }
 

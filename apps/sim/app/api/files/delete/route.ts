@@ -5,10 +5,9 @@ import { fileDeleteContract } from '@/lib/api/contracts/storage-transfer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { StorageContext } from '@/lib/uploads/config'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
-import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file'
+import { extractStorageKey, tryInferContextFromKey } from '@/lib/uploads/utils/file'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
 import {
   createFileErrorResponse,
@@ -63,7 +62,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const key = extractStorageKeyFromPath(filePath)
 
       // Derive context from the trusted key prefix, never the client-supplied value; a supplied context must agree with the key.
-      const storageContext: StorageContext = inferContextFromKey(key)
+      const storageContext = tryInferContextFromKey(key)
+      if (!storageContext) throw new FileNotFoundError(`File not found: ${key}`)
       if (context && context !== storageContext) {
         logger.warn('File delete context mismatch', { key, context, inferred: storageContext })
         throw new InvalidRequestError(`Provided context "${context}" does not match the file key`)

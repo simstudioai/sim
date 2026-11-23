@@ -1,7 +1,7 @@
 import { LinqIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CHAT_ID_OPS = [
@@ -65,6 +65,8 @@ const splitHandles = (value: unknown): string[] =>
 
 export const LinqBlock: BlockConfig = {
   type: 'linq',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'linq_v2' },
   name: 'Linq',
   description: 'Send iMessage, SMS, and RCS messages and manage conversations with Linq',
   longDescription:
@@ -779,9 +781,9 @@ export const LinqBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `linq_${params.operation || 'send_message'}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           senderFrom,
           recipients,
           messageText,
@@ -879,7 +881,6 @@ export const LinqBlock: BlockConfig = {
         }
 
         if (operation === 'react_to_message') {
-          if (reactionOperation) rest.operation = reactionOperation
           if (reactionType) rest.type = reactionType
           if (reactionCustomEmoji) rest.customEmoji = reactionCustomEmoji
           if (reactionPartIndex !== undefined && reactionPartIndex !== '') {
@@ -936,6 +937,11 @@ export const LinqBlock: BlockConfig = {
           limit !== ''
         ) {
           rest.limit = toFiniteNumber(limit, 'Limit')
+        }
+
+        // The react tool declares its own `operation` param: add or remove.
+        if (operation === 'react_to_message' && reactionOperation) {
+          return { ...rest, operation: reactionOperation }
         }
 
         return rest
@@ -1112,3 +1118,19 @@ export const LinqBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LinqV2Block: BlockConfig = {
+  ...LinqBlock,
+  type: 'linq_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events.',
+  ...withSavedCredential(LinqBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'linq',
+    title: 'Linq Credential',
+  }),
+}

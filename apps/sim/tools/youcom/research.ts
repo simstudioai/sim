@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecordOrNull } from '@sim/utils/object'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { YouComResearchParams, YouComResearchResponse } from '@/tools/youcom/types'
 import {
@@ -19,6 +20,7 @@ export const youComResearchTool: ToolConfig<YouComResearchParams, YouComResearch
   description:
     'Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     input: {

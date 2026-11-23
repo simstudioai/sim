@@ -1,4 +1,6 @@
 import type { HexListProjectsParams, HexListProjectsResponse } from '@/tools/hex/types'
+import { HEX_HOST_PARAM, hexApiBase } from '@/tools/hex/utils'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjectsResponse> = {
@@ -6,8 +8,10 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
   name: 'Hex List Projects',
   description: 'List all projects in your Hex workspace with optional filtering by status.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
+    host: HEX_HOST_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -18,7 +22,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of projects to return (1-100)',
+      description: 'Maximum number of projects to return (1-100, default: 25)',
     },
     includeArchived: {
       type: 'boolean',
@@ -127,7 +131,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
       if (params.after) searchParams.set('after', params.after)
       if (params.before) searchParams.set('before', params.before)
       const qs = searchParams.toString()
-      return `https://app.hex.tech/api/v1/projects${qs ? `?${qs}` : ''}`
+      return `${hexApiBase(params.host)}/projects${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -218,6 +222,23 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
           },
           createdAt: { type: 'string', description: 'Creation timestamp' },
           archivedAt: { type: 'string', description: 'Archived timestamp', optional: true },
+          trashedAt: { type: 'string', description: 'Trashed timestamp', optional: true },
+          categories: {
+            type: 'array',
+            description: 'Project categories',
+            optional: true,
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Category name' },
+                description: {
+                  type: 'string',
+                  description: 'Category description',
+                  nullable: true,
+                },
+              },
+            },
+          },
         },
       },
     },

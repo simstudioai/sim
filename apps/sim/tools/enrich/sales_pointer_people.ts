@@ -2,6 +2,7 @@ import type {
   EnrichSalesPointerPeopleParams,
   EnrichSalesPointerPeopleResponse,
 } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesPointerPeopleTool: ToolConfig<
@@ -13,6 +14,7 @@ export const salesPointerPeopleTool: ToolConfig<
   description:
     'Advanced people search with complex filters for location, company size, seniority, experience, and more.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,6 @@
 import type { ApolloAccountUpdateParams, ApolloAccountUpdateResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloAccountUpdateTool: ToolConfig<
@@ -9,8 +11,10 @@ export const apolloAccountUpdateTool: ToolConfig<
   name: 'Apollo Update Account',
   description: 'Update an existing account in your Apollo database',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -74,7 +78,7 @@ export const apolloAccountUpdateTool: ToolConfig<
     headers: (params: ApolloAccountUpdateParams) => ({
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
     body: (params: ApolloAccountUpdateParams) => {
       const body: Record<string, unknown> = {}

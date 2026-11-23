@@ -1,0 +1,41 @@
+{
+  "namespace": "manageengineSdp",
+  "methods": {
+    "add_change_note": "addChangeNote",
+    "add_problem_note": "addProblemNote",
+    "add_request_note": "addRequestNote",
+    "create_asset": "createAsset",
+    "create_change": "createChange",
+    "create_problem": "createProblem",
+    "create_request": "createRequest",
+    "create_solution": "createSolution",
+    "delete_asset": "deleteAsset",
+    "delete_change": "deleteChange",
+    "delete_problem": "deleteProblem",
+    "delete_request": "deleteRequest",
+    "delete_solution": "deleteSolution",
+    "get_asset": "getAsset",
+    "get_change": "getChange",
+    "get_problem": "getProblem",
+    "get_request": "getRequest",
+    "get_solution": "getSolution",
+    "list_assets": "listAssets",
+    "list_change_notes": "listChangeNotes",
+    "list_changes": "listChanges",
+    "list_problem_notes": "listProblemNotes",
+    "list_problems": "listProblems",
+    "list_request_notes": "listRequestNotes",
+    "list_requests": "listRequests",
+    "list_solutions": "listSolutions",
+    "update_asset": "updateAsset",
+    "update_change": "updateChange",
+    "update_problem": "updateProblem",
+    "update_request": "updateRequest",
+    "update_solution": "updateSolution"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

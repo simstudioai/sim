@@ -1,0 +1,55 @@
+{
+  "namespace": "legacy.slack",
+  "methods": {
+    "archive_conversation": "archiveConversation",
+    "canvas": "createCanvas",
+    "create_channel_canvas": "createChannelCanvas",
+    "create_conversation": "createConversation",
+    "delete": "deleteMessage",
+    "delete_canvas": "deleteCanvas",
+    "delete_scheduled_message": "deleteScheduledMessage",
+    "download": "downloadFile",
+    "edit_canvas": "editCanvas",
+    "ephemeral": "sendEphemeralMessage",
+    "get_canvas": "getCanvasInfo",
+    "get_channel_history": "getChannelHistory",
+    "get_channel_info": "getChannelInfo",
+    "get_message": "getMessage",
+    "get_permalink": "getMessagePermalink",
+    "get_thread": "getThread",
+    "get_thread_replies": "getThreadReplies",
+    "get_user": "getUserInfo",
+    "get_user_presence": "getUserPresence",
+    "invite_to_conversation": "inviteToConversation",
+    "list_canvases": "listCanvases",
+    "list_channels": "listChannels",
+    "list_members": "listChannelMembers",
+    "list_scheduled_messages": "listScheduledMessages",
+    "list_users": "listUsers",
+    "lookup_canvas_sections": "lookupCanvasSections",
+    "open_view": "openView",
+    "publish_view": "publishView",
+    "push_view": "pushView",
+    "react": "addReaction",
+    "read": "readMessages",
+    "rename_conversation": "renameConversation",
+    "schedule_message": "scheduleMessage",
+    "send": "sendMessage",
+    "set_conversation_purpose": "setConversationPurpose",
+    "set_conversation_topic": "setConversationTopic",
+    "set_status": "setAssistantStatus",
+    "set_suggested_prompts": "setSuggestedPrompts",
+    "set_title": "setAssistantTitle",
+    "unreact": "removeReaction",
+    "update": "updateMessage",
+    "update_view": "updateView"
+  },
+  "triggers": {
+    "slack_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

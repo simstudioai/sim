@@ -189,10 +189,11 @@ function summarizeSchemaIssues(error: unknown): string {
   return summary ? `${summary}${extra}` : ''
 }
 
-export async function requestJson<C extends AnyApiRouteContract>(
+async function sendJsonRequest<C extends AnyApiRouteContract>(
   contract: C,
-  input: ApiClientRequest<C>
-): Promise<ContractJsonResponse<C>> {
+  input: ApiClientRequest<C>,
+  extraHeaders?: Record<string, string>
+): Promise<Response> {
   if (contract.response.mode !== 'json') {
     throw new Error(`Contract ${contract.method} ${contract.path} does not declare a JSON response`)
   }
@@ -203,14 +204,19 @@ export async function requestJson<C extends AnyApiRouteContract>(
   const url = contractUrl(contract, input)
   const hasBody = parsedBody !== undefined && contract.method !== 'GET'
 
-  const response = await fetch(url, {
+  return fetch(url, {
     method: contract.method,
-    headers: buildHeaders(parsedHeaders, hasBody),
+    headers: { ...buildHeaders(parsedHeaders, hasBody), ...extraHeaders },
     body: hasBody ? JSON.stringify(parsedBody) : undefined,
     signal: input.signal,
     ...(input.keepalive === undefined ? {} : { keepalive: input.keepalive }),
   })
+}
 
+async function parseJsonResponse<C extends AnyApiRouteContract>(
+  contract: C,
+  response: Response
+): Promise<ContractJsonResponse<C>> {
   const { parsed, raw } = await readResponseBody(response)
   if (!response.ok) {
     throw new ApiClientError({
@@ -222,8 +228,12 @@ export async function requestJson<C extends AnyApiRouteContract>(
     })
   }
 
+  const responseMode = contract.response
+  if (responseMode.mode !== 'json') {
+    throw new Error(`Contract ${contract.method} ${contract.path} does not declare a JSON response`)
+  }
   try {
-    return contract.response.schema.parse(parsed) as ContractJsonResponse<C>
+    return responseMode.schema.parse(parsed) as ContractJsonResponse<C>
   } catch (error) {
     if (isSchemaValidationError(error)) {
       const details = summarizeSchemaIssues(error)
@@ -237,6 +247,41 @@ export async function requestJson<C extends AnyApiRouteContract>(
       })
     }
     throw error
+  }
+}
+
+export async function requestJson<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>
+): Promise<ContractJsonResponse<C>> {
+  return parseJsonResponse(contract, await sendJsonRequest(contract, input))
+}
+
+/** A conditional read's outcome: the representation the caller holds is current, or a new one. */
+type RevalidatedJson<C extends AnyApiRouteContract> =
+  | { notModified: true; etag: string }
+  | { notModified: false; body: ContractJsonResponse<C>; etag: string | null }
+
+/**
+ * A JSON read for a route that answers with an `ETag`: with `etag` (the tag of the representation
+ * the caller holds) it sends `If-None-Match`, and a `304` comes back as `notModified` with no body
+ * read or parsed, so an unchanged resource transfers nothing.
+ */
+export async function requestJsonRevalidated<C extends AnyApiRouteContract>(
+  contract: C,
+  input: ApiClientRequest<C>,
+  etag?: string | null
+): Promise<RevalidatedJson<C>> {
+  const response = await sendJsonRequest(
+    contract,
+    input,
+    etag ? { 'If-None-Match': etag } : undefined
+  )
+  if (response.status === 304 && etag) return { notModified: true, etag }
+  return {
+    notModified: false,
+    body: await parseJsonResponse(contract, response),
+    etag: response.headers.get('etag'),
   }
 }
 

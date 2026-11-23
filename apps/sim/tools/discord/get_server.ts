@@ -3,13 +3,16 @@ import type {
   DiscordGetServerResponse,
   DiscordGuild,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGetServerResponse> = {
   id: 'discord_get_server',
   name: 'Discord Get Server',
   description: 'Retrieve information about a Discord server (guild)',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -28,7 +31,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
 
   request: {
     url: (params: DiscordGetServerParams) =>
-      `https://discord.com/api/v10/guilds/${params.serverId.trim()}?with_counts=true`,
+      `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}?with_counts=true`,
     method: 'GET',
     headers: (params: DiscordGetServerParams) => {
       const headers: Record<string, string> = {

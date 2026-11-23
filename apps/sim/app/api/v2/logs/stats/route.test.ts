@@ -21,7 +21,12 @@ import { GET } from '@/app/api/v2/logs/stats/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const auth = {
-  principal: { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: WORKSPACE_ID,
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,

@@ -3,46 +3,33 @@
  * Colors are derived from globals.css light mode tokens.
  */
 
-import { getBrandConfig } from '@/ee/whitelabeling'
-
-/** Color tokens from globals.css (light mode), brand-aware for whitelabeled instances */
-function buildColors() {
-  const brand = getBrandConfig()
-  const isWhitelabeled = brand.isWhitelabeled
-  const accentColor =
-    isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a'
-
-  return {
-    /** Canvas behind the card — platform `--surface-1` (the sidebar/panel surface) */
-    bgOuter: '#fbfbfb',
-    /** Card/container background — platform `--surface-2` */
-    bgCard: '#ffffff',
-    /** Headings and emphasis — platform `--text-primary` */
-    textPrimary: '#1a1a1a',
-    /** Body and value text — platform `--text-body` */
-    textBody: '#434343',
-    /** De-emphasized text inside a body block — platform `--text-secondary` */
-    textSecondary: '#525252',
-    /** Muted text (labels, footer) — platform `--text-muted` */
-    textMuted: '#7a7a7a',
-    /** Accent for buttons and links — neutral by default, brand color when whitelabeled */
-    brandTertiary: accentColor,
-    /** Borders and dividers — platform `--border` */
-    border: '#d8d8d8',
-    /** Fill for info/code boxes on the white card — platform `--surface-3` */
-    surfaceSubtle: '#f7f7f7',
-    /** Error surface fill — platform `--terminal-status-error-bg` */
-    errorBg: '#fef2f2',
-    /** Error surface border — platform `--error-muted` */
-    errorBorder: '#fecaca',
-    /** Text on an inverse (dark) fill, e.g. the CTA — platform `--text-inverse` */
-    textInverse: '#ffffff',
-    /** Footer background — matches the canvas */
-    footerBg: '#fbfbfb',
-  }
+/** Color tokens from globals.css (light mode) */
+export const colors = {
+  /** Canvas behind the card — platform `--surface-1` (the sidebar/panel surface) */
+  bgOuter: '#fbfbfb',
+  /** Card/container background — platform `--surface-2` */
+  bgCard: '#ffffff',
+  /** Headings and emphasis — platform `--text-primary` */
+  textPrimary: '#1a1a1a',
+  /** Body and value text — platform `--text-body` */
+  textBody: '#434343',
+  /** De-emphasized text inside a body block — platform `--text-secondary` */
+  textSecondary: '#525252',
+  /** Muted text (labels, footer) — platform `--text-muted` */
+  textMuted: '#7a7a7a',
+  /** Borders and dividers — platform `--border` */
+  border: '#d8d8d8',
+  /** Fill for info/code boxes on the white card — platform `--surface-3` */
+  surfaceSubtle: '#f7f7f7',
+  /** Error surface fill — platform `--terminal-status-error-bg` */
+  errorBg: '#fef2f2',
+  /** Error surface border — platform `--error-muted` */
+  errorBorder: '#fecaca',
+  /** Text on an inverse (dark) fill, e.g. the CTA — platform `--text-inverse` */
+  textInverse: '#ffffff',
+  /** Footer background — matches the canvas */
+  footerBg: '#fbfbfb',
 }
-
-export const colors = buildColors()
 
 /**
  * Typography settings. Enforced against the platform sources by
@@ -177,7 +164,7 @@ export const baseStyles = {
    */
   button: {
     display: 'inline-block',
-    backgroundColor: colors.brandTertiary,
+    backgroundColor: colors.textPrimary,
     color: colors.textInverse,
     fontWeight: fontWeight.normal,
     fontSize: typography.fontSize.sm,
@@ -192,7 +179,7 @@ export const baseStyles = {
 
   /** Link text style - neutral color, so it carries an underline to read as a link */
   link: {
-    color: colors.brandTertiary,
+    color: colors.textPrimary,
     fontWeight: fontWeight.normal,
     textDecoration: 'underline',
   },

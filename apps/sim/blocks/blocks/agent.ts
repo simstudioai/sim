@@ -4,18 +4,19 @@ import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
   getAgentModelOptions,
   getModelCapabilityCondition,
   getProviderCredentialSubBlocks,
-  getSerializedModelProviderId,
   normalizeFileInput,
   RESPONSE_FORMAT_WAND_CONFIG,
+  resolveModelProviderId,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 import {
   getBaseModelProviders,
   getEvaluationModels,
   getMaxTemperature,
-  getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
@@ -24,23 +25,17 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
-  isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
 
 const logger = createLogger('AgentBlock')
 
-/** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
-const AGENT_FALLBACK_MODEL = 'claude-sonnet-5-5'
-
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
 const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
-const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 const EVALUATION_MODELS = getEvaluationModels()
-const MODELS_WITHOUT_CHAT_CONTROLS = [...MODELS_WITH_DEEP_RESEARCH, ...EVALUATION_MODELS]
 
 // Helper function to get the tool ID from a block type
 const getToolIdFromBlock = (blockType: string): string | undefined => {
@@ -132,11 +127,11 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
+      defaultValue: DEFAULT_BLOCK_MODEL,
       options: getAgentModelOptions,
       commandSearchable: true,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     {
       id: 'evaluationState',
       title: 'State',
@@ -271,7 +266,7 @@ Return ONLY the JSON array.`,
       defaultValue: [],
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
     },
@@ -282,7 +277,7 @@ Return ONLY the JSON array.`,
       defaultValue: [],
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
     },
@@ -354,16 +349,9 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: () => ({
         field: 'model',
-        value: (() => {
-          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) =>
-              supportsTemperature(model) &&
-              getMaxTemperature(model) === 1 &&
-              !deepResearch.has(model.toLowerCase())
-          )
-        })(),
+        value: Object.keys(getBaseModelProviders()).filter(
+          (model) => supportsTemperature(model) && getMaxTemperature(model) === 1
+        ),
       }),
     },
     {
@@ -376,16 +364,9 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: () => ({
         field: 'model',
-        value: (() => {
-          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) =>
-              supportsTemperature(model) &&
-              getMaxTemperature(model) === 1.5 &&
-              !deepResearch.has(model.toLowerCase())
-          )
-        })(),
+        value: Object.keys(getBaseModelProviders()).filter(
+          (model) => supportsTemperature(model) && getMaxTemperature(model) === 1.5
+        ),
       }),
     },
     {
@@ -398,16 +379,9 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: () => ({
         field: 'model',
-        value: (() => {
-          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
-          const allModels = Object.keys(getBaseModelProviders())
-          return allModels.filter(
-            (model) =>
-              supportsTemperature(model) &&
-              getMaxTemperature(model) === 2 &&
-              !deepResearch.has(model.toLowerCase())
-          )
-        })(),
+        value: Object.keys(getBaseModelProviders()).filter(
+          (model) => supportsTemperature(model) && getMaxTemperature(model) === 2
+        ),
       }),
     },
     {
@@ -418,7 +392,7 @@ Return ONLY the JSON array.`,
       mode: 'advanced',
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
     },
@@ -430,20 +404,10 @@ Return ONLY the JSON array.`,
       language: 'json',
       condition: {
         field: 'model',
-        value: MODELS_WITHOUT_CHAT_CONTROLS,
+        value: EVALUATION_MODELS,
         not: true,
       },
       wandConfig: RESPONSE_FORMAT_WAND_CONFIG,
-    },
-    {
-      id: 'previousInteractionId',
-      title: 'Previous Interaction ID',
-      type: 'short-input',
-      placeholder: 'e.g., {{agent_1.interactionId}}',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
-      },
     },
     {
       ...getModelFallbackSubBlock(),
@@ -461,10 +425,7 @@ Return ONLY the JSON array.`,
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || AGENT_FALLBACK_MODEL
-        // sim-auto has no provider of its own until the pool resolves it at execution time.
-        const lookupModel = isAutoModel(model) ? AGENT_FALLBACK_MODEL : model
-        return getSerializedModelProviderId(lookupModel, AGENT_FALLBACK_MODEL)
+        return resolveModelProviderId(params.model)
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)
@@ -549,12 +510,17 @@ Return ONLY the JSON array.`,
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
-    vertexCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
+    vertexCredential: {
+      type: 'string',
+      description:
+        'Google Cloud credential for Vertex AI (OAuth account or Google service account)',
+    },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },
     bedrockSecretKey: { type: 'string', description: 'AWS Secret Access Key for Bedrock' },
     bedrockRegion: { type: 'string', description: 'AWS region for Bedrock' },
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     responseFormat: {
       type: 'json',
       description: 'JSON response format schema',
@@ -634,13 +600,5 @@ Return ONLY the JSON array.`,
       description: 'Provider timing information',
     },
     cost: { type: 'json', description: 'Cost of the API call' },
-    interactionId: {
-      type: 'string',
-      description: 'Interaction ID for multi-turn deep research follow-ups',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_DEEP_RESEARCH,
-      },
-    },
   },
 }

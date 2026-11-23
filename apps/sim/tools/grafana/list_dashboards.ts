@@ -2,6 +2,7 @@ import type {
   GrafanaListDashboardsParams,
   GrafanaListDashboardsResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDashboardsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listDashboardsTool: ToolConfig<
   name: 'Grafana List Dashboards',
   description: 'Search and list all dashboards',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

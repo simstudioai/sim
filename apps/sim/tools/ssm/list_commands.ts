@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmListCommandsParams, SsmListCommandsResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -7,6 +8,7 @@ export const listCommandsTool: InternalToolConfig<SsmListCommandsParams, SsmList
     name: 'SSM List Commands',
     description: 'List Run Command executions in an AWS account',
     version: '1.0.0',
+    oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {
       region: {

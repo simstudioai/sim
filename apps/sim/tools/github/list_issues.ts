@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { IssuesListResponse, ListIssuesParams } from '@/tools/github/types'
 import {
   ISSUE_OUTPUT_PROPERTIES,
@@ -5,6 +6,7 @@ import {
   MILESTONE_OUTPUT,
   USER_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = {
@@ -13,6 +15,7 @@ export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = 
   description:
     'List issues in a GitHub repository. Note: This includes pull requests as PRs are considered issues in GitHub',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -90,7 +93,9 @@ export const listIssuesTool: ToolConfig<ListIssuesParams, IssuesListResponse> = 
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/issues`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/issues`
+      )
       if (params.state) url.searchParams.append('state', params.state)
       if (params.assignee) url.searchParams.append('assignee', params.assignee)
       if (params.creator) url.searchParams.append('creator', params.creator)
@@ -179,6 +184,7 @@ export const listIssuesV2Tool: ToolConfig<ListIssuesParams, any> = {
   name: listIssuesTool.name,
   description: listIssuesTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listIssuesTool.params,
   request: listIssuesTool.request,
 

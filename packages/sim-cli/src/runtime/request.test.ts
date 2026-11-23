@@ -1,4 +1,4 @@
-import { rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -7,6 +7,24 @@ import { buildRequest, coerce, type FieldSpec } from './request'
 const WORKSPACE = 'ws_local'
 
 describe('buildRequest', () => {
+  it('reads a permission CSV part from a file without changing its bytes', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-permission-part-'))
+    const path = join(directory, 'part.csv')
+    const content = 'user_id,email\r\n1,engineer@example.test\r\n'
+    try {
+      writeFileSync(path, content)
+      const built = await buildRequest(
+        'putSourcePermissionImportPart',
+        ['source-1', 'import-1', '0'],
+        { organization: 'org-1', field: 'userMapping', content: `@${path}` },
+        WORKSPACE
+      )
+      expect(built.body).toEqual({ field: 'userMapping', content })
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   /**
    * `recursive` is the one string-backed toggle the API turns on by itself —
    * it defaults to true as soon as a search is set. Its `--no-` twin has to
@@ -186,6 +204,22 @@ describe('JSON flags that name a file', () => {
       state: { blocks: {} },
     })
     rmSync(path)
+  })
+
+  it.each([
+    ['UTF-16LE, as a Windows PowerShell 5.1 redirect writes it', 'utf16le'],
+    ['UTF-8 with a byte-order mark', 'utf8'],
+  ] as const)('reads @path saved as %s', async (_, encoding) => {
+    const path = join(tmpdir(), `sim-cli-arg-${encoding}.json`)
+    writeFileSync(path, Buffer.from('﻿{"name":"Café","state":{"blocks":{}}}\r\n', encoding))
+    try {
+      expect(await coerce(`@${path}`, field, {}, 'workflow')).toEqual({
+        name: 'Café',
+        state: { blocks: {} },
+      })
+    } finally {
+      rmSync(path)
+    }
   })
 })
 

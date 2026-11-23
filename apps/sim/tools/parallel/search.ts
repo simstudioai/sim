@@ -26,6 +26,7 @@ const MODE_BASE_COST_USD: Record<string, number> = {
 }
 
 const DEFAULT_MODE = 'advanced'
+const DEFAULT_MAX_RESULTS = 10
 const INCLUDED_RESULTS = 10
 const ADDITIONAL_RESULT_COST_USD = 0.001
 
@@ -109,7 +110,8 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum characters of excerpts per result',
+      description:
+        'Maximum characters of excerpts per result. Sent as a total excerpt budget (this value times max_results, default 10 results)',
     },
     include_domains: {
       type: 'string',
@@ -150,10 +152,14 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
 
       const advancedSettings: Record<string, unknown> = {}
       if (params.max_results) advancedSettings.max_results = Number(params.max_results)
+
+      /**
+       * Parallel ignores `advanced_settings.excerpt_settings` on search and only honors the
+       * top-level `max_chars_total`, so the per-result cap becomes a total across the result count.
+       */
       if (params.max_chars_per_result) {
-        advancedSettings.excerpt_settings = {
-          max_chars_per_result: Number(params.max_chars_per_result),
-        }
+        const resultCount = Number(params.max_results) || DEFAULT_MAX_RESULTS
+        body.max_chars_total = Number(params.max_chars_per_result) * resultCount
       }
 
       const sourcePolicy: Record<string, string[]> = {}

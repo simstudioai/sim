@@ -1,0 +1,21 @@
+// @sim-sdk 1
+import { agent, t, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const self = agent('Self', {
+    messages: [{ role: 'system', content: 'Me: <self.content>' }],
+    model: 'm',
+  })
+  const alpha = agent('Alpha', {
+    messages: [{ role: 'system', content: 'See <beta.content>' }],
+    model: 'm',
+  })
+  const beta = agent('Beta', {
+    messages: [{ role: 'system', content: t`See ${alpha.content}` }],
+    model: 'm',
+  })
+
+  start.to(alpha)
+  alpha.to(beta)
+})

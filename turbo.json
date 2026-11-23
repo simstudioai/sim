@@ -1,6 +1,13 @@
 {
-  "$schema": "https://v2-9-12.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-10.turborepo.dev/schema.json",
   "envMode": "loose",
+  // CI planning (`.github/scripts/ci-plan.gql`) needs `affectedTasks` to match changed files
+  // against each task's `inputs`; without a task-level flag Turborepo reports every task of an
+  // affected package. `filterUsingTasks` opts into that, and CI's `--filter` calls only name
+  // packages, so it selects the same tasks. `affectedUsingTaskInputs` would also do it, but it
+  // makes `turbo prune` keep packages reached only through `pkg#task` dependencies, which pulls
+  // desktop, docs, and realtime into the app image.
+  "futureFlags": { "filterUsingTasks": true },
   // Local cache eviction is opt-in until Turborepo 3.0, so without these the
   // filesystem cache grows forever. In CI each cache dir is a Blacksmith sticky
   // disk that is mounted many times a day, so it never goes idle long enough for
@@ -18,6 +25,10 @@
   // invalidate the cache.
   "cacheMaxAge": "7d",
   "cacheMaxSize": "40GB",
+  // Bun applies `patches/*` to installed dependencies, but `bun.lock` records only each patch's
+  // path, so editing a patch leaves every task hash unchanged and replays a build of the
+  // unpatched dependency. Hash the patch contents into every task.
+  "globalDependencies": ["patches/**"],
   "tasks": {
     "ci:runtime": {
       "dependsOn": ["^ci:runtime"],

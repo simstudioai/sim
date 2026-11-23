@@ -206,14 +206,6 @@ describe('usage-reservation', () => {
       expect(evalMock).not.toHaveBeenCalled()
     })
 
-    it('fails closed when hosted Redis is unavailable', async () => {
-      redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-      await expect(reserveExecutionSlot(baseParams)).rejects.toBeInstanceOf(
-        UsageReservationUnavailableError
-      )
-      expect(evalMock).not.toHaveBeenCalled()
-    })
-
     it('fails closed when the atomic reservation result is unknown', async () => {
       evalMock.mockRejectedValueOnce(new Error('connection lost'))
       await expect(reserveExecutionSlot(baseParams)).rejects.toMatchObject({

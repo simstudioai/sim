@@ -1,11 +1,14 @@
 import type { RipplingUpdateCustomAppParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingUpdateCustomAppTool: ToolConfig<RipplingUpdateCustomAppParams> = {
   id: 'rippling_update_custom_app',
   name: 'Rippling Update CustomApp',
   description: 'Update a custom app',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -30,7 +33,7 @@ export const ripplingUpdateCustomAppTool: ToolConfig<RipplingUpdateCustomAppPara
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-apps/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/custom-apps/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

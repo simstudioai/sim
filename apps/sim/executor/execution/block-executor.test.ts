@@ -14,6 +14,8 @@ import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { FunctionBlock } from '@/blocks/blocks/function'
+import { getBlock } from '@/blocks/registry'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
@@ -21,7 +23,7 @@ import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { attachTrustedExecutionCost } from '@/executor/utils/errors'
+import { attachErrorOutputs, attachTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -38,6 +40,13 @@ const blockExecutorBaseLogger =
 if (!blockExecutorBaseLogger) throw new Error('BlockExecutor logger mock was not initialized')
 
 vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+
+/** The Function block's real config, whose declared error outputs every failure writes. */
+const registryGetBlock = vi.mocked(getBlock)
+const stubGetBlock = registryGetBlock.getMockImplementation()
+registryGetBlock.mockImplementation((type: string) =>
+  type === 'function' ? FunctionBlock : stubGetBlock?.(type)
+)
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
@@ -490,7 +499,7 @@ describe('BlockExecutor', () => {
     expect(thrown.message).toBe(`Function: ${message}`)
     expect(thrown.cause.cause).toBe(databaseError)
     expect(handler.execute).not.toHaveBeenCalled()
-    expect(state.getBlockOutput(block.id)).toEqual({ error: message })
+    expect(state.getBlockOutput(block.id)).toEqual({ error: message, errorMessage: message })
     expect(ctx.blockLogs[0]?.error).toBe(message)
     const surfaced = JSON.stringify([state.getBlockOutput(block.id), ctx.blockLogs])
     expect(surfaced).not.toContain('Failed query')
@@ -529,13 +538,14 @@ describe('BlockExecutor', () => {
     const wrapped = new Error(`Failed to upload file: ${databaseError.message}`, {
       cause: databaseError,
     })
+    attachErrorOutputs(wrapped, { errorMessage: wrapped.message })
     vi.mocked(validateBlockType).mockRejectedValueOnce(wrapped)
     const message = 'An internal error occurred while executing the block. Please try again.'
 
     const thrown = await executor.execute(ctx, createNode(block), block).catch((error) => error)
 
     expect(thrown.message).toBe(`Function: ${message}`)
-    expect(state.getBlockOutput(block.id)).toEqual({ error: message })
+    expect(state.getBlockOutput(block.id)).toEqual({ error: message, errorMessage: message })
     const surfaced = JSON.stringify([thrown.message, state.getBlockOutput(block.id), ctx.blockLogs])
     expect(surfaced).not.toContain('Failed query')
     expect(surfaced).not.toContain('owner-secret-id')
@@ -1529,6 +1539,7 @@ describe('BlockExecutor retry', () => {
     expect(execute).toHaveBeenCalledTimes(3)
     expect(ctx.blockLogs[0]?.output).toEqual({
       error: 'provider unavailable',
+      errorMessage: 'provider unavailable',
       cost: { input: 0, output: 0, total: 0.375 },
     })
 

@@ -1,4 +1,5 @@
 import type { MSSQLQueryParams, MSSQLQueryResponse } from '@/tools/mssql/types'
+import { MSSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const queryTool: InternalToolConfig<MSSQLQueryParams, MSSQLQueryResponse> = {
@@ -6,6 +7,7 @@ export const queryTool: InternalToolConfig<MSSQLQueryParams, MSSQLQueryResponse>
   name: 'Microsoft SQL Server Query',
   description: 'Execute a SELECT query on a Microsoft SQL Server database',
   version: '1.0',
+  oauth: MSSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

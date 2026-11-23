@@ -1,4 +1,5 @@
 import type { MySQLIntrospectParams, MySQLIntrospectResponse } from '@/tools/mysql/types'
+import { MYSQL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const introspectTool: InternalToolConfig<MySQLIntrospectParams, MySQLIntrospectResponse> = {
@@ -7,6 +8,7 @@ export const introspectTool: InternalToolConfig<MySQLIntrospectParams, MySQLIntr
   description:
     'Introspect MySQL database schema to retrieve table structures, columns, and relationships',
   version: '1.0',
+  oauth: MYSQL_CREDENTIAL_OAUTH,
 
   params: {
     host: {

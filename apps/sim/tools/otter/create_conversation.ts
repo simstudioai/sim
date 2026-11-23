@@ -5,6 +5,7 @@ import type {
   OtterCreateConversationResponse,
 } from '@/tools/otter/types'
 import { OTTER_API_BASE, otterHeaders } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const otterCreateConversationTool: ToolConfig<
@@ -16,6 +17,7 @@ export const otterCreateConversationTool: ToolConfig<
   description:
     'Import an audio or video recording into Otter as a new conversation from a publicly reachable file URL.',
   version: '1.0.0',
+  oauth: OTTER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/tailscale/outputs'
 import type {
   TailscaleListUsersParams,
@@ -16,6 +17,7 @@ export const tailscaleListUsersTool: ToolConfig<
   name: 'Tailscale List Users',
   description: 'List users in the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

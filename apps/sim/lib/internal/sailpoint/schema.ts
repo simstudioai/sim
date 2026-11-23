@@ -24,10 +24,28 @@ const requiredString = (label: string, max = MAX_ID_LENGTH) =>
 
 const optionalString = (max = MAX_FILTER_LENGTH) => z.string().max(max).optional()
 
+/**
+ * Inline API client credentials, or the token a saved SailPoint credential
+ * minted for `tenant` in their place; {@link operationSchema} requires one or
+ * the other.
+ */
 const baseFields = {
-  clientId: requiredString('Client ID'),
-  clientSecret: requiredString('Client Secret', 8192),
+  clientId: requiredString('Client ID').optional(),
+  clientSecret: requiredString('Client Secret', 8192).optional(),
+  accessToken: requiredString('Access token', 16_384).optional(),
   tenant: requiredString('Tenant', 253),
+}
+
+function requireAuth(
+  value: { accessToken?: unknown; clientId?: unknown; clientSecret?: unknown },
+  ctx: z.RefinementCtx
+): void {
+  if (value.accessToken) return
+  if (!value.clientId)
+    ctx.addIssue({ code: 'custom', path: ['clientId'], message: 'Client ID is required' })
+  if (!value.clientSecret) {
+    ctx.addIssue({ code: 'custom', path: ['clientSecret'], message: 'Client Secret is required' })
+  }
 }
 
 const offsetField = z.coerce.number().int().min(0).optional()
@@ -203,7 +221,9 @@ const reviewDecisionSchema = z
   })
 
 function operationSchema<T extends string, S extends z.ZodRawShape>(operation: T, fields: S) {
-  return z.object({ ...baseFields, operation: z.literal(operation), ...fields })
+  return z
+    .object({ ...baseFields, operation: z.literal(operation), ...fields })
+    .superRefine(requireAuth)
 }
 
 const schemas = {

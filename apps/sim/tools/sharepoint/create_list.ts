@@ -5,7 +5,7 @@ import type {
   SharepointList,
   SharepointToolParams,
 } from '@/tools/sharepoint/types'
-import { optionalTrim } from '@/tools/sharepoint/utils'
+import { graphPathSegment, optionalTrim } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SharePointCreateList')
@@ -71,7 +71,7 @@ export const createListTool: ToolConfig<SharepointToolParams, SharepointCreateLi
   request: {
     url: (params) => {
       const siteId = optionalTrim(params.siteId) || optionalTrim(params.siteSelector) || 'root'
-      return `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists`
+      return `https://graph.microsoft.com/v1.0/sites/${graphPathSegment(siteId, 'siteId')}/lists`
     },
     method: 'POST',
     headers: (params) => ({

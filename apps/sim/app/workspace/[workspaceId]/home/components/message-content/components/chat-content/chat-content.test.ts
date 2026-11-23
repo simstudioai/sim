@@ -1,6 +1,25 @@
+import { expectLinearGrowth } from '@sim/testing/helpers/scaling'
 import { describe, expect, it } from 'vitest'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
-import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
+
+/** How many repetitions the smaller input of a scaling check holds. */
+const SCALING_REPEATS = 1_000
+
+/**
+ * The scaling step for `sanitizeChatDisplayContent` over `build(times)`, built untimed. The
+ * default input repeats a tag name that never closes: the shape both the parser and the display
+ * sanitizer used to be quadratic on, because a scan allowed to cross an opener restarts from
+ * every opener.
+ */
+function sanitizeStep(
+  build: (times: number) => string = (times) =>
+    'The <workspace_resource> tag is used here. '.repeat(times)
+): (times: number) => () => void {
+  return (times) => {
+    const content = build(times)
+    return () => sanitizeChatDisplayContent(content)
+  }
+}
 
 describe('sanitizeChatDisplayContent', () => {
   it('does not let an unmatched backtick run suppress later citations', () => {
@@ -61,20 +80,14 @@ describe('sanitizeChatDisplayContent', () => {
     // A lazy scan allowed to cross an opener restarts from every opener, which
     // is quadratic — 154ms for this input before the bound, on the main thread,
     // for every streamed chunk.
-    //
-    // Asserted as a scaling ratio, not a wall-clock ceiling — see
-    // {@link scalingRatioOver4x} for why.
-    expect(scalingRatioOver4x((content) => sanitizeChatDisplayContent(content))).toBeLessThan(8)
+    expectLinearGrowth(sanitizeStep(), SCALING_REPEATS)
   })
 
   it('stays linear on repeated unclosed JSON chip bodies', () => {
-    expect(
-      scalingRatioOver4x((content) =>
-        sanitizeChatDisplayContent(
-          content.replaceAll('The <workspace_resource> tag is used here. ', '<source>{"snippet":"')
-        )
-      )
-    ).toBeLessThan(8)
+    expectLinearGrowth(
+      sanitizeStep((times) => '<source>{"snippet":"'.repeat(times)),
+      SCALING_REPEATS
+    )
   })
 
   it('still unwraps a real tag that carries a stray backtick on one side only', () => {
@@ -96,20 +109,20 @@ describe('sanitizeChatDisplayContent', () => {
   it.each(['source', 'workspace_resource'])(
     'stays linear on repeated %s tags with unterminated JSON strings',
     (name) => {
-      expect(
-        scalingRatioOver4x(sanitizeChatDisplayContent, (times) =>
-          `<${name}>{${String.fromCharCode(92, 34)}`.repeat(times)
-        )
-      ).toBeLessThan(8)
+      expectLinearGrowth(
+        sanitizeStep((times) => `<${name}>{${String.fromCharCode(92, 34)}`.repeat(times)),
+        SCALING_REPEATS
+      )
     }
   )
 
   it.each(['<source>"', '<source>{"key":"'])(
     'stays linear on repeated quoted payload prefix %s',
     (prefix) => {
-      expect(
-        scalingRatioOver4x(sanitizeChatDisplayContent, (times) => prefix.repeat(times))
-      ).toBeLessThan(8)
+      expectLinearGrowth(
+        sanitizeStep((times) => prefix.repeat(times)),
+        SCALING_REPEATS
+      )
     }
   )
 })

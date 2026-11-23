@@ -24,11 +24,6 @@
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
 import { truncate } from '@sim/utils/string'
-import { requestJson } from '@/lib/api/client/request'
-import {
-  type ComputerUseOwner,
-  computerUseAvailabilityContract,
-} from '@/lib/api/contracts/computer-use'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -165,6 +160,7 @@ export interface DesktopChatCapabilities {
     browser?: true
     terminal?: true
     computerUse?: true
+    computerUseAppCommands?: true
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
     /** The desktop's background executor, offered to run this turn's desktop tools. */
@@ -179,8 +175,7 @@ export interface DesktopChatCapabilities {
  * in a plain web browser the model never sees the features.
  */
 export async function getDesktopChatCapabilities(
-  scopeId: string,
-  computerUseOwner: ComputerUseOwner | null
+  scopeId: string
 ): Promise<DesktopChatCapabilities> {
   const bridge = getDesktopBridge()
   // Never advertise a surface the user switched off, even on the first
@@ -190,19 +185,13 @@ export async function getDesktopChatCapabilities(
   const localFilesystem = hasLocalFilesystem()
   const browser = isBrowserAgentEnabled()
   const terminal = isTerminalEnabled()
-  const computerUse =
-    computerUseOwner && bridge?.computerUse
-      ? await requestJson(computerUseAvailabilityContract, {
-          query: computerUseOwner,
-          signal: AbortSignal.timeout(5000),
-        })
-          .then(async (rollout) => {
-            if (!rollout.enabled) return false
-            const status = await bridge.computerUse?.getStatus()
-            return status?.supported === true && status.enabled
-          })
-          .catch(() => false)
-      : false
+  // Device state only; the server decides whether the chat's permission group allows it.
+  const computerUse = bridge?.computerUse
+    ? await bridge.computerUse
+        .getStatus()
+        .then((status) => status.supported && status.enabled)
+        .catch(() => false)
+    : false
   // Sent every request so the agent knows what is already running without
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.
@@ -250,6 +239,9 @@ export async function getDesktopChatCapabilities(
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),
             ...(computerUse ? { computerUse: true as const } : {}),
+            ...(computerUse && bridge?.computerUse?.appCommands === true
+              ? { computerUseAppCommands: true as const }
+              : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
             ...(executorDevice

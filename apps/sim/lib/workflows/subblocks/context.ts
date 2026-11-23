@@ -1,4 +1,8 @@
 import {
+  buildCanonicalIndex,
+  type CanonicalModeOverrides,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
   buildSelectorRawContext,
   getSelectorContextSubBlocks as getSharedSelectorContextSubBlocks,
   SELECTOR_CONTEXT_FIELDS,
@@ -6,9 +10,7 @@ import {
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  type CanonicalModeOverrides,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'

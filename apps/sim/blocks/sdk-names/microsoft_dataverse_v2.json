@@ -1,0 +1,23 @@
+{
+  "namespace": "microsoftDataverse",
+  "methods": {
+    "associate": "associateRecords",
+    "create_multiple": "createMultiple",
+    "create_record": "createRecord",
+    "delete_record": "deleteRecord",
+    "disassociate": "disassociateRecords",
+    "download_file": "downloadFile",
+    "execute_action": "executeAction",
+    "execute_function": "executeFunction",
+    "fetchxml_query": "fetchXmlQuery",
+    "get_entity_metadata": "getTableMetadata",
+    "get_record": "getRecord",
+    "list_records": "listRecords",
+    "search": "search",
+    "update_multiple": "updateMultiple",
+    "update_record": "updateRecord",
+    "upload_file": "uploadFile",
+    "upsert_record": "upsertRecord",
+    "whoami": "whoAmI"
+  }
+}

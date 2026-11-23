@@ -65,6 +65,22 @@ One variable drives all three schema-coupled images, so they cannot drift apart.
   </Tab>
 </Tabs>
 
+## Configuration changes by release [#configuration-changes]
+
+Check the changes for every release between your current version and the target before upgrading. Each entry names the setting and what to do about it.
+
+### Helm chart 1.15
+
+| Change | What to do |
+|---|---|
+| **Redis is required.** Sim refuses to start without `REDIS_URL`; there is no PostgreSQL or in-memory fallback. | Keep the bundled Redis, or point `REDIS_URL` at a managed instance before upgrading. App and realtime must reach the same Redis. See [Redis](/platform/self-hosting/redis). |
+| **`REGISTRATION_MODE` replaces `DISABLE_REGISTRATION`, `DISABLE_EMAIL_SIGNUP`, and `EMAIL_PASSWORD_SIGNUP_ENABLED`** (and its `NEXT_PUBLIC_` twin). The old variables are still honored as deprecated aliases, and the most restrictive setting wins. `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED=false` now also disables email/password sign-in on the server. | Move to `REGISTRATION_MODE`. See [Control registration and sign-in](/platform/self-hosting/authentication#controlling-who-can-sign-up). |
+| **Enterprise `NEXT_PUBLIC_*` flags and `NEXT_PUBLIC_SANDBOXES_ENABLED` are no longer read.** The browser reads the server's resolved settings. | Set the server variable for each feature. See the [feature flag reference](/platform/enterprise/self-hosted#feature-flag-reference). |
+| **`ALLOW_PRIVATE_DATABASE_HOSTS` was removed.** The app logs an error at startup if it is still set. | Name your database, cache, and mail hosts in the egress allowlists. See [Upgrading from an earlier release](/platform/self-hosting/security#upgrading-from-an-earlier-release). |
+| **White-labeling was removed.** `NEXT_PUBLIC_BRAND_*`, `NEXT_PUBLIC_CUSTOM_CSS_URL`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_DOCUMENTATION_URL`, `NEXT_PUBLIC_TERMS_URL`, `NEXT_PUBLIC_PRIVACY_URL`, `WHITELABELING_ENABLED`, and `NEXT_PUBLIC_WHITELABELING_ENABLED` are ignored. | Remove them at your convenience; leaving them set is harmless. |
+| **`docker-compose.ollama.yml` is now an overlay on `docker-compose.prod.yml`.** | A stack started from the previous standalone file needs its project name carried over, or it starts on an empty database. See [Migrating from the previous Ollama stack](/platform/self-hosting/docker#migrating-from-the-previous-ollama-stack). |
+| **Helm chart 1.12 to 1.15 removed values.** `branding` (1.12), `monitoring.serviceMonitor` and `sharedStorage` (1.13), and the enterprise `NEXT_PUBLIC_*` keys (1.14) are gone; `sharedStorage.enabled: true` with volumes fails the render. | Read the chart's [upgrade notes](https://github.com/simstudioai/sim/blob/main/helm/sim/README.md#upgrading-to-1150) for each version you cross. |
+
 ## Upgrade procedure
 
 Before applying an upgrade, configure a direct, non-pooled `MIGRATION_DATABASE_URL` on the migrator if the app uses a pooler. Session advisory locks do not survive transaction pooling. Pass the URL through the migrator's database Secret on Helm or its explicit environment on Compose; `app.env` or `.env` alone does not reach it. See [Migration environment](#migration-environment) for the exact setup.
@@ -138,8 +154,8 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
 
 ```bash
 bunx sim-setup update
-# The file that started your install. The Ollama stack is not managed by
-# the CLI at all — see below.
+# The file that started your install. A stack running the Ollama overlay is a
+# docker-compose.prod.yml install — see below.
 COMPOSE_FILE=docker-compose.prod.yml
 # COMPOSE_FILE=docker-compose.local.yml
 docker compose -f "$COMPOSE_FILE" logs migrations
@@ -160,18 +176,17 @@ Inspect the result with `bunx sim-setup logs`, which targets whichever Compose f
 
 Before updating a pinned production install, replace `SIM_VERSION` in `.env` with the chosen release tag. The update command pulls that configured tag; it does not automatically advance a pin.
 
-The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it: `update`, `logs`, and `status` report no install, or — in a source checkout that also carries per-application env files — report that checkout's dev install instead. Upgrade that stack directly:
+The CLI detects only those two files. A stack started with the `docker-compose.ollama.yml` overlay is detected as a `docker-compose.prod.yml` install, and `update` upgrades its Sim services through that file alone, keeping `OLLAMA_URL` from `.env`. It does not touch the Ollama container. To refresh the Ollama image as well, run the update with both files:
 
 ```bash
-# That file builds the app, realtime server, and migrator from source, so the
-# upgrade is a checkout plus a rebuild — pulling only refreshes Ollama and
-# Postgres. The Ollama service is profile-scoped, so pass the profile you
-# installed with or Compose silently skips it.
+# The Ollama service is profile-scoped, so pass the profile you installed
+# with or Compose silently skips it.
 PROFILE=gpu  # or cpu
-git pull
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" build --pull
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" pull
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" up -d
 ```
+
+Upgrading from the previous, standalone `docker-compose.ollama.yml`? Follow [Migrating from the previous Ollama stack](/platform/self-hosting/docker#migrating-from-the-previous-ollama-stack) first, or Sim starts on an empty database.
 
 <Callout type="warn">
   `sim-setup update` refuses two install kinds outright rather than doing something surprising:
@@ -214,17 +229,18 @@ helm rollback sim -n simstudio
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The local and Ollama stacks build the app from source and ignore `SIM_VERSION`, so roll those back by checking out the previous tag and rebuilding with the file — and, for the Ollama stack, the profile — that started the install:
+A stack running the Ollama overlay rolls back the same way: it reads `SIM_VERSION` from `.env` like any production install. Pass both files and your profile so Compose manages the Ollama service in the same run:
+
+```bash
+PROFILE=gpu  # or cpu
+docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile "$PROFILE" up -d
+```
+
+The local stack builds the app from source and ignores `SIM_VERSION`, so roll it back by checking out the previous tag and rebuilding:
 
 ```bash
 git checkout "<previous-release-tag>"
-
-# Local stack
 docker compose -f docker-compose.local.yml up -d --build
-
-# Ollama stack — the profile you installed with
-PROFILE=gpu  # or cpu
-docker compose -f docker-compose.ollama.yml --profile "$PROFILE" up -d --build
 ```
 
 Never roll back below v0.9.33 once account tokens are sealed: those releases cannot read them, and every connected account would have to be reconnected. See [Account token sealing](/platform/self-hosting/security#account-token-sealing).
@@ -269,6 +285,10 @@ Migrations are Drizzle SQL files plus registered script (data) migrations, appli
 
 - **Kubernetes** — an **init container on the app Deployment**. Every app pod waits for migrations to complete before it starts, so a failed migration blocks the rollout instead of starting an app against a mismatched schema.
 - **Docker Compose** — a one-shot `migrations` service with `restart: no` that runs before the app.
+
+<Callout type="warn">
+  On Kubernetes only the app waits for migrations: realtime pods have no migrations init container. A realtime pod of the new release that starts before its migrations finish fails the editor writes that read a new table or column, such as deleting a block or a variable, until they do. Run the migration image yourself before `helm upgrade` (see [Migration environment](#migration-environment)). On Docker Compose, `realtime` also waits for the `migrations` service to exit successfully.
+</Callout>
 
 Migrations are **forward-only**. Take the backup described in the upgrade procedure before applying them; there are no down-migrations.
 

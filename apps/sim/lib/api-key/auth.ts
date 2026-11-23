@@ -1,3 +1,4 @@
+import type { ApiKeyAccess } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -140,6 +141,8 @@ export async function createWorkspaceApiKey(params: {
   workspaceId: string
   userId: string
   name: string
+  access: ApiKeyAccess
+  expiresAt: Date | null
 }) {
   const existingKey = await db
     .select({ id: apiKey.id })
@@ -175,10 +178,18 @@ export async function createWorkspaceApiKey(params: {
       key: encryptedKey,
       keyHash: hashApiKey(plainKey),
       type: 'workspace',
+      access: params.access,
+      expiresAt: params.expiresAt,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
-    .returning({ id: apiKey.id, name: apiKey.name, createdAt: apiKey.createdAt })
+    .returning({
+      id: apiKey.id,
+      name: apiKey.name,
+      access: apiKey.access,
+      createdAt: apiKey.createdAt,
+      expiresAt: apiKey.expiresAt,
+    })
 
-  return { id: newKey.id, name: newKey.name, key: plainKey, createdAt: newKey.createdAt }
+  return { ...newKey, key: plainKey }
 }

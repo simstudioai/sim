@@ -3,6 +3,7 @@ import type {
   LambdaPutFunctionEventInvokeConfigParams,
   LambdaPutFunctionEventInvokeConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putFunctionEventInvokeConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const putFunctionEventInvokeConfigTool: InternalToolConfig<
   name: 'Lambda Set Async Invoke Config',
   description: 'Configure retry limits and destinations for asynchronous invocations of a function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

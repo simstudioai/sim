@@ -117,6 +117,58 @@ describe('Logger', () => {
     })
   })
 
+  describe('request id ownership', () => {
+    const jsonLogger = () =>
+      new Logger('Test', { enabled: true, colorize: false, logLevel: LogLevel.INFO })
+    const lines = (): Array<Record<string, unknown>> =>
+      consoleLogSpy.mock.calls.map((call: unknown[]) => JSON.parse(call[0] as string))
+
+    test('keeps the request context id over a per-line or bound requestId', () => {
+      const logger = jsonLogger()
+      runWithRequestContext({ requestId: 'req-context' }, () => {
+        logger.info('Per-line id', { requestId: 'replay-key' })
+        logger.withMetadata({ requestId: 'bound-id' }).info('Bound id')
+      })
+      expect(lines().map((line) => line.requestId)).toEqual(['req-context', 'req-context'])
+    })
+
+    test('uses a per-line requestId outside a request context', () => {
+      jsonLogger().info('Background step', { requestId: 'task-run' })
+      expect(lines()[0]).toMatchObject({ requestId: 'task-run' })
+    })
+
+    test('exports scalar fields passed with a line as OpenTelemetry attributes', () => {
+      const emit = vi.fn()
+      const getLoggerSpy = vi
+        .spyOn(logs, 'getLogger')
+        .mockReturnValue({ emit, enabled: () => true })
+      try {
+        const logger = jsonLogger()
+        logger.info('Outside a request', { requestId: 'task-run', documentId: 'doc-1' })
+        runWithRequestContext({ requestId: 'req-context' }, () => {
+          logger.info('Inside a request', { requestId: 'replay-key', attempt: 2, nested: { a: 1 } })
+        })
+        const attributes = emit.mock.calls.map(
+          ([record]) => (record as { attributes: Record<string, string> }).attributes
+        )
+        expect(attributes[0]).toMatchObject({ requestId: 'task-run', documentId: 'doc-1' })
+        expect(attributes[1]).toMatchObject({ requestId: 'req-context', attempt: '2' })
+        expect(attributes[1]).not.toHaveProperty('nested')
+        expect(attributes[1]['log.args']).toContain('"nested"')
+      } finally {
+        getLoggerSpy.mockRestore()
+      }
+    })
+
+    test('never lets an absent optional field erase one the line carries', () => {
+      const logger = jsonLogger().withMetadata({ workflowId: 'workflow-1' })
+      runWithRequestContext({ requestId: 'req-context' }, () => {
+        logger.info('Optional fields', { requestId: undefined, workflowId: undefined })
+      })
+      expect(lines()[0]).toMatchObject({ requestId: 'req-context', workflowId: 'workflow-1' })
+    })
+  })
+
   describe('structured serialization safety', () => {
     const createEnabledLogger = () =>
       new Logger('Test', { enabled: true, colorize: false, logLevel: LogLevel.DEBUG })

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveListTagsParams, ThriveListTagsResponse } from '@/tools/thrive/types'
 import {
   THRIVE_PAGINATION_OUTPUT_PROPERTIES,
@@ -16,6 +17,7 @@ export const listTagsTool: ToolConfig<ThriveListTagsParams, ThriveListTagsRespon
   name: 'Thrive List Tags',
   description: 'List tags in Thrive and return tag information with pagination.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

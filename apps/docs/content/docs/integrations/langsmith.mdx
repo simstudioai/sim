@@ -2,7 +2,7 @@
 title: LangSmith
 description: Forward workflow runs to LangSmith for observability
 integration:
-  type: "langsmith"
+  type: "langsmith_v2"
   color: "#181C1E"
 ---
 
@@ -29,7 +29,6 @@ Forward a single run to LangSmith for ingestion.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `id` | string | No | Unique run identifier |
 | `name` | string | Yes | Run name |
 | `run_type` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
@@ -62,11 +61,12 @@ Forward a single run to LangSmith for ingestion.
 
 Forward multiple runs to LangSmith in a single batch.
 
+<ReferenceDetails>
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `post` | json | No | Array of new runs to ingest |
 | `patch` | json | No | Array of runs to update/patch |
 
@@ -79,15 +79,18 @@ Forward multiple runs to LangSmith in a single batch.
 | `message` | string | Response message from LangSmith |
 | `messages` | array | Per-run response messages, when provided |
 
+</ReferenceDetails>
+
 ### LangSmith Update Run
 
 Patch an existing LangSmith run with outputs, status, or timing once it completes.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to update |
 | `name` | string | No | Corrected run name |
 | `end_time` | string | No | Run end time in ISO-8601 format |
@@ -102,15 +105,18 @@ Patch an existing LangSmith run with outputs, status, or timing once it complete
 
 No output fields are documented for this action.
 
+</ReferenceDetails>
+
 ### LangSmith Get Run
 
 Retrieve a single LangSmith run by ID.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to retrieve |
 
 #### Output
@@ -134,15 +140,18 @@ Retrieve a single LangSmith run by ID.
 | `totalTokens` | number | Total tokens consumed by the run |
 | `totalCost` | string | Total cost of the run |
 
+</ReferenceDetails>
+
 ### LangSmith Create Feedback
 
 Attach a score, correction, or comment to a LangSmith run.
+
+<ReferenceDetails>
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to attach feedback to |
 | `key` | string | Yes | Feedback metric name \(e.g. "correctness", "user_score"\) |
 | `score` | number | No | Numeric score for the feedback metric |
@@ -162,5 +171,7 @@ Attach a score, correction, or comment to a LangSmith run.
 | `value` | string | Categorical value recorded for the feedback |
 | `comment` | string | Comment recorded for the feedback |
 | `createdAt` | string | When the feedback was created \(ISO\) |
+
+</ReferenceDetails>
 
 

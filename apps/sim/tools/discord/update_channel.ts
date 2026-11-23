@@ -2,7 +2,9 @@ import type {
   DiscordUpdateChannelParams,
   DiscordUpdateChannelResponse,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUpdateChannelTool: ToolConfig<
   DiscordUpdateChannelParams,
@@ -12,6 +14,7 @@ export const discordUpdateChannelTool: ToolConfig<
   name: 'Discord Update Channel',
   description: 'Update a Discord channel',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -40,7 +43,7 @@ export const discordUpdateChannelTool: ToolConfig<
     },
     serverId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'The Discord server ID (guild ID), e.g., 123456789012345678',
     },
@@ -48,7 +51,7 @@ export const discordUpdateChannelTool: ToolConfig<
 
   request: {
     url: (params: DiscordUpdateChannelParams) => {
-      return `https://discord.com/api/v10/channels/${params.channelId.trim()}`
+      return `https://discord.com/api/v10/channels/${safeUrlPathSegment(params.channelId, 'channelId')}`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -56,7 +59,7 @@ export const discordUpdateChannelTool: ToolConfig<
       Authorization: `Bot ${params.botToken.trim()}`,
     }),
     body: (params: DiscordUpdateChannelParams) => {
-      const body: any = {}
+      const body: Record<string, unknown> = {}
       if (params.name !== undefined && params.name !== null && params.name !== '')
         body.name = params.name
       if (params.topic !== undefined && params.topic !== null && params.topic !== '')

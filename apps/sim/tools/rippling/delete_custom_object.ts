@@ -1,11 +1,14 @@
 import type { RipplingDeleteCustomObjectParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteCustomObjectTool: ToolConfig<RipplingDeleteCustomObjectParams> = {
   id: 'rippling_delete_custom_object',
   name: 'Rippling Delete Custom Object',
   description: 'Delete a custom object',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -22,7 +25,7 @@ export const ripplingDeleteCustomObjectTool: ToolConfig<RipplingDeleteCustomObje
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/`,
+      `https://rest.ripplingapis.com/custom-objects/${safeUrlPathSegment(params.customObjectApiName, 'customObjectApiName')}/`,
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

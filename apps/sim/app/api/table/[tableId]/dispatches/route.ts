@@ -63,7 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       },
     })
   } catch (error) {
-    logger.error(`[${requestId}] list-dispatches failed:`, error)
+    logger.error('list-dispatches failed:', error)
     return NextResponse.json({ error: 'Failed to list active dispatches' }, { status: 500 })
   }
 })

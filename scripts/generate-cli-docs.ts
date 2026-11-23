@@ -183,6 +183,12 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Manage reusable dependency sets for Function blocks.',
     related: [['Function sandboxes', '/workflows/blocks/function#sandboxes']],
   },
+  schedules: {
+    description: 'List the schedules deployed workflows run across a workspace.',
+    notes: [
+      'A schedule’s timing comes from its schedule block. Edit the block with `sim workflows operations apply`, then deploy; pause or resume one with `sim workflows triggers update`.',
+    ],
+  },
   secrets: {
     description: 'Set and manage workspace or personal secrets.',
     notes: [
@@ -230,6 +236,7 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     description: 'Build, deploy, run, and inspect workflows from the terminal.',
     related: [
       ['Workflow builder', '/workflows'],
+      ['Build and run workflows with the API', '/api-reference/build-and-run-workflows'],
       ['Import and workspace sync', '/cli/workflow-sync'],
       ['Scripting and exit codes', '/cli/scripting#exit-codes'],
     ],
@@ -308,6 +315,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   organizations: [
     { title: 'Organizations and workspaces', prefixes: ['list', 'get', 'workspaces'] },
     { title: 'Members and credit limits', prefixes: ['members'] },
+    { title: 'Search source permissions', prefixes: ['search sources permissions'] },
     { title: 'Invitations', prefixes: ['invitations'] },
     { title: 'Usage', prefixes: ['usage summary', 'usage breakdown', 'usage events'] },
     {
@@ -388,23 +396,41 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
       title: 'Workflows',
       prefixes: ['list', 'get', 'create', 'update', 'duplicate', 'move', 'mv', 'delete', 'restore'],
     },
-    { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
+    { title: 'Draft state and edits', prefixes: ['state', 'outline', 'operations', 'variables'] },
     {
       title: 'Deployments and versions',
-      prefixes: ['deploy', 'deployment', 'versions', 'activate', 'revert', 'rollback', 'undeploy'],
+      prefixes: [
+        'deploy',
+        'deployment',
+        'triggers',
+        'versions',
+        'activate',
+        'revert',
+        'rollback',
+        'undeploy',
+      ],
     },
     {
       title: 'Run and inspect',
-      prefixes: ['run', 'runs list', 'runs get', 'runs wait', 'runs resume', 'runs cancel'],
+      prefixes: [
+        'run',
+        'runs list',
+        'runs paused',
+        'runs get',
+        'runs wait',
+        'runs resume',
+        'runs cancel',
+      ],
     },
     { title: 'Chat deployments', prefixes: ['chat status', 'chat publish', 'chat unpublish'] },
     { title: 'Export and import', prefixes: ['export', 'import-preview', 'import'] },
     { title: 'Folders', prefixes: ['ls', 'folders', 'mkdir'] },
+    { title: 'Workflows as code', prefixes: ['source'] },
   ],
   workspaces: [
     {
       title: 'Workspace access',
-      prefixes: ['list', 'get', 'members', 'invitations', 'permission-config'],
+      prefixes: ['list', 'get', 'update', 'members', 'invitations', 'permission-config'],
     },
     {
       title: 'Access requests',
@@ -430,6 +456,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Push and pull', prefixes: ['push-preview', 'push', 'pull-preview', 'pull'] },
     { title: 'Operation status', prefixes: ['operations'] },
     { title: 'Exclusions and recovery', prefixes: ['sync-exclusions', 'fork-rollback', 'unlink'] },
+    { title: 'Workspace as code', prefixes: ['source'] },
   ],
 }
 
@@ -463,6 +490,15 @@ const LEGACY_COMMAND_ANCHORS: Record<string, string> = {
   'workflows chat publish': 'publish-or-replace-a-workflows-chat-deployment',
   'workspaces operations wait':
     'wait-for-copy-and-deployment-readiness-exit-3-for-configuration-1-for-failure-or-4-for-timeout',
+}
+
+/**
+ * Reference-page anchors a renamed command keeps, so links to the spelling it
+ * shipped under still land on it. `workspaces members` became a group whose
+ * default subcommand is `list`.
+ */
+const LEGACY_REFERENCE_ANCHORS: Record<string, string> = {
+  'workspaces members list': 'sim-workspaces-members',
 }
 
 const VERB_ORDER = [
@@ -852,6 +888,16 @@ function orderedCommands(entries: DocumentedCommand[]): DocumentedCommand[] {
   )
 }
 
+/**
+ * One paragraph of help text as Markdown: prose reflows into one line, and a paragraph laid out
+ * in columns (an indented line with a gap of two or more spaces inside it, as a table of handles
+ * is) keeps its layout in a fence.
+ */
+function helpParagraph(paragraph: string): string[] {
+  if (/^ {2,}\S.*\S {2,}\S/m.test(paragraph)) return ['```text', paragraph.trimEnd(), '```', '']
+  return [escapeProse(paragraph.replace(/\s*\n\s*/g, ' ').trim()), '']
+}
+
 /** Reads command-specific help additions without emitting the root’s help epilogue. */
 function additionalHelp(command: Command): string[] {
   const chunks: string[] = []
@@ -861,9 +907,7 @@ function additionalHelp(command: Command): string[] {
   const text = chunks.join('').trim()
   if (!text) return []
   const [prose = '', examples] = text.split(/\nExamples:\s*\n/, 2)
-  const lines = prose
-    .split(/\n\s*\n/)
-    .flatMap((paragraph) => [escapeProse(paragraph.replace(/\s*\n\s*/g, ' ').trim()), ''])
+  const lines = prose.split(/\n\s*\n/).flatMap(helpParagraph)
   if (examples) {
     lines.push(
       '**Examples**',
@@ -912,7 +956,9 @@ function renderCommand(entry: DocumentedCommand, options: RenderOptions = {}): s
   const description = entry.command.description()
   const operation = operationOf(entry.command)
   const spec = operation ? CLI_CONTRACT[operation] : undefined
-  const anchor = commandHeadings ? undefined : LEGACY_COMMAND_ANCHORS[entry.path.join(' ')]
+  const anchor = (commandHeadings ? LEGACY_REFERENCE_ANCHORS : LEGACY_COMMAND_ANCHORS)[
+    entry.path.join(' ')
+  ]
   const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}${anchor ? ` [#${anchor}]` : ''}`, '']
   if (commandHeadings && description) lines.push(escapeProse(sentenceCase(description)), '')
   if (!commandHeadings) {
@@ -1042,6 +1088,11 @@ function renderReferencePage(
     '',
     'API schema links describe HTTP payloads. See [CLI output formats](/cli/output)',
     'for resource unwrapping, pagination envelopes, and display formats.',
+    '',
+    'Every command exits 13 when it needs a login it does not have (`AUTH_REQUIRED`) and 9',
+    'when the API still answers `429` after the CLI resends it (every `GET` and the source',
+    'writes, up to 6 times, at most a minute apart); see',
+    '[Exit codes](/cli/scripting#exit-codes) for these and the command-specific codes.',
     ''
   )
 

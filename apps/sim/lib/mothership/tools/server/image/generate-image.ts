@@ -26,7 +26,7 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 
 const logger = createLogger('GenerateImageTool')
 
-const NANO_BANANA_MODEL = 'gemini-3.1-flash-image-preview'
+const NANO_BANANA_MODEL = 'gemini-3.1-flash-image'
 const NANO_BANANA_IMAGE_COST_USD = 0.101
 
 const ASPECT_RATIO_TO_SIZE: Record<string, string> = {
@@ -57,7 +57,6 @@ interface GenerateImageResult {
   fileName?: string
   vfsPath?: string
   downloadUrl?: string
-  _serviceCost?: { service: string; cost: number }
 }
 
 /**
@@ -251,7 +250,6 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         fileName: written.name,
         vfsPath: written.vfsPath,
         downloadUrl: written.downloadUrl,
-        _serviceCost: { service: 'nano_banana_2', cost: NANO_BANANA_IMAGE_COST_USD },
       }
     } catch (error) {
       const msg = getErrorMessage(error, 'Unknown error')

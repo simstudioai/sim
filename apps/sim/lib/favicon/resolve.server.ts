@@ -44,9 +44,8 @@ const cacheKey = (host: string) => `favicon:v3:${host}`
 
 /** A host's key holds the result of the walk that starts at that host. */
 async function readCache(host: string): Promise<FaviconResolution | null> {
-  const redis = getRedisClient()
-  if (!redis) return null
   try {
+    const redis = getRedisClient()
     const cached = await redis.getBuffer(cacheKey(host))
     if (cached === null) return null
     if (cached.toString() === UNAVAILABLE_MARKER) return { kind: 'unavailable' }
@@ -66,8 +65,6 @@ async function readCache(host: string): Promise<FaviconResolution | null> {
 }
 
 async function writeCache(host: string, resolution: FaviconResolution): Promise<void> {
-  const redis = getRedisClient()
-  if (!redis) return
   const [value, ttl] =
     resolution.kind === 'hit'
       ? resolution.provisional
@@ -83,7 +80,7 @@ async function writeCache(host: string, resolution: FaviconResolution): Promise<
         ? ([MISS_MARKER, MISS_TTL_SECONDS] as const)
         : ([UNAVAILABLE_MARKER, UNAVAILABLE_TTL_SECONDS] as const)
   try {
-    await redis.set(cacheKey(host), value, 'EX', ttl)
+    await getRedisClient().set(cacheKey(host), value, 'EX', ttl)
   } catch (error) {
     logger.warn('Favicon cache write failed', { error })
   }

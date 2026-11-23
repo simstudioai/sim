@@ -3,6 +3,7 @@ import {
   type GoogleMeetEndConferenceResponse,
   MEET_API_BASE,
 } from '@/tools/google_meet/types'
+import { buildMeetResourceName } from '@/tools/google_meet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const endConferenceTool: ToolConfig<
@@ -36,8 +37,7 @@ export const endConferenceTool: ToolConfig<
 
   request: {
     url: (params: GoogleMeetEndConferenceParams) => {
-      const trimmed = params.spaceName.trim()
-      const name = trimmed.startsWith('spaces/') ? trimmed : `spaces/${trimmed}`
+      const name = buildMeetResourceName(params.spaceName, 'spaces', 'spaceName')
       return `${MEET_API_BASE}/${name}:endActiveConference`
     },
     method: 'POST',

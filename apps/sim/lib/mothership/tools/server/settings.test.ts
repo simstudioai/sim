@@ -1,4 +1,5 @@
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
@@ -11,6 +12,7 @@ vi.mock('@/lib/settings/application/organization-section-access', () => ({
   authorizeOrganizationSettingsSection: sectionAccess,
 }))
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/mothership/application/settings-context', () => ({
   resolveSettingsContext: resolve,
 }))
@@ -96,6 +98,27 @@ describe('settings tool dispatch', () => {
       userId: 'actor',
       section: 'security',
     })
+  })
+
+  it('offers Sim links only to an organization that has them enabled', async () => {
+    const simLinks = expect.objectContaining({ id: 'sim-links' })
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
+    expect(
+      await settingsServerTool.execute({ scope: 'organization', action: 'list' })
+    ).not.toMatchObject({ sections: expect.arrayContaining([simLinks]) })
+    for (const action of ['open', 'get'] as const) {
+      await expect(
+        settingsServerTool.execute({ scope: 'organization', action, section: 'sim-links' })
+      ).rejects.toThrow('unavailable')
+    }
+
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+      async (flag, context) =>
+        flag === 'sim-links' && (context as { orgId?: string })?.orgId === 'org'
+    )
+    expect(
+      await settingsServerTool.execute({ scope: 'organization', action: 'list' })
+    ).toMatchObject({ sections: expect.arrayContaining([simLinks]) })
   })
 
   it('discovers names without eagerly reading every setting or dumping every schema', async () => {

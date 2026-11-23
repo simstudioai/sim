@@ -3,6 +3,7 @@ import type {
   CalcomUpdateEventTypeResponse,
 } from '@/tools/calcom/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateEventTypeTool: ToolConfig<
   CalcomUpdateEventTypeParams,
@@ -34,68 +35,68 @@ export const updateEventTypeTool: ToolConfig<
     title: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Title of the event type',
     },
     slug: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Unique slug for the event type URL',
     },
     lengthInMinutes: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Duration of the event in minutes',
     },
     description: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Description of the event type',
     },
     slotInterval: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Interval between available booking slots in minutes',
     },
     minimumBookingNotice: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Minimum notice required before booking in minutes',
     },
     beforeEventBuffer: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Buffer time before the event in minutes',
     },
     afterEventBuffer: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Buffer time after the event in minutes',
     },
     scheduleId: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'ID of the schedule to use for availability',
     },
     disableGuests: {
       type: 'boolean',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Whether to disable guests from being added to bookings',
     },
   },
 
   request: {
     url: (params: CalcomUpdateEventTypeParams) =>
-      `https://api.cal.com/v2/event-types/${params.eventTypeId}`,
+      `https://api.cal.com/v2/event-types/${safeUrlPathSegment(params.eventTypeId, 'eventTypeId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -217,6 +218,12 @@ export const updateEventTypeTool: ToolConfig<
         disableGuests: { type: 'boolean', description: 'Whether guests are disabled' },
         createdAt: { type: 'string', description: 'ISO timestamp of creation' },
         updatedAt: { type: 'string', description: 'ISO timestamp of last update' },
+        bookingUrl: { type: 'string', description: 'Public booking page URL for the event type' },
+        hidden: {
+          type: 'boolean',
+          description: 'Whether the event type is hidden from the profile',
+        },
+        ownerId: { type: 'number', description: 'ID of the user who owns the event type' },
       },
     },
   },

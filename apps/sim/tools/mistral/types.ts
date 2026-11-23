@@ -3,6 +3,12 @@ import type { UserFile } from '@/executor/types'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
+ * Most images one Mistral Parser run extracts. Bounds the block's Max Images field, the
+ * server's `image_limit` clamp, and the extraction loop.
+ */
+export const MAX_OCR_EXTRACTED_IMAGES = 100
+
+/**
  * Shared output property definitions for Mistral OCR API responses.
  * Based on Mistral API documentation: https://docs.mistral.ai/api/endpoint/ocr
  */
@@ -16,10 +22,10 @@ export const MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES = {
   top_left_y: { type: 'number', description: 'Top-left Y coordinate in pixels' },
   bottom_right_x: { type: 'number', description: 'Bottom-right X coordinate in pixels' },
   bottom_right_y: { type: 'number', description: 'Bottom-right Y coordinate in pixels' },
-  image_base64: {
+  file_name: {
     type: 'string',
     description:
-      'Base64-encoded image data; returned only when the hidden includeImageBase64 input is enabled',
+      'Name of this image in the images output; present only when image extraction is on',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -60,7 +66,7 @@ export const MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES = {
   tables: {
     type: 'array',
     description:
-      'Separate table objects, referenced from the markdown via placeholders like [tbl-0.html]. Mistral populates these only when table_format is "markdown" or "html"; Sim never sets it, so tables stay inline in the markdown and this list is empty',
+      'Separate table objects ({ id, content, format }), referenced from the markdown via placeholders like [tbl-0.html]. Populated only when tableFormat is markdown or html; otherwise tables stay inline in the markdown and this list is empty',
   },
   hyperlinks: {
     type: 'array',
@@ -135,6 +141,7 @@ export interface MistralParserV2Input {
   pages?: number[]
   imageLimit?: number
   imageMinSize?: number
+  tableFormat?: 'markdown' | 'html'
 }
 
 interface MistralOcrUsageInfo {
@@ -170,7 +177,7 @@ interface MistralOcrImage {
   top_left_y: number
   bottom_right_x: number
   bottom_right_y: number
-  image_base64?: string
+  file_name?: string
 }
 
 interface MistralOcrDimensions {
@@ -202,4 +209,8 @@ export interface MistralParserV2Output extends ToolResponse {
     usage_info: MistralOcrUsageInfoRaw
     document_annotation: string | null
   }
+}
+
+export interface MistralParserV3Output extends ToolResponse {
+  output: MistralParserV2Output['output'] & { images?: UserFile[] }
 }

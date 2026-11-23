@@ -86,15 +86,15 @@ const v2LogDetailCostSchema = z
  *
  * That pass-through is also why this field disagrees with the run resources for the
  * same run, and the disagreement is documented rather than reconciled. The run list
- * projects `paused` over the persisted value whenever the run holds a `paused` or
- * `partially_resumed` row in `paused_executions` (`executionStatus` in
- * `lib/workflows/executor/execution-queries.ts`), so an ordinary human-in-the-loop
+ * projects `paused` over the persisted value while the run holds a `paused` or
+ * `partially_resumed` row in `paused_executions` with a point still to resume
+ * (`executionStatus` in `lib/workflows/executor/execution-queries.ts`), so an ordinary human-in-the-loop
  * pause reads `paused` there and `pending` here. Adopting the overlay would need this
  * read to join `paused_executions`, and would silently move live runs between the
  * `pending` and `paused` buckets of a shipped field that internal log consumers read
  * from the same query — a breaking change, not a correction. Callers that need the
- * pause distinction read the run resources, which also carry the `paused` object that
- * separates "waiting on a human" from "a resume attempt failed".
+ * pause distinction read the run resources, which also carry the `paused` object with the
+ * pause kind, resume time, and any automatic-resume waiting reason.
  */
 export const v2LogStatusSchema = z
   .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
@@ -248,6 +248,32 @@ export const v2LogDetailSchema = z
       .number()
       .nullable()
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
+    /**
+     * Listed before `workflowState` and `traceSpans` on purpose: a reader scanning a long
+     * record for why the run failed finds it here instead of past the state dump.
+     */
+    failure: z
+      .object({
+        blockId: z.string().describe('Identifier of the block the run failed in.'),
+        blockName: z.string().describe('Name of the block the run failed in.'),
+        blockType: z.string().describe('Type of the block the run failed in.'),
+        error: z
+          .string()
+          .nullable()
+          .describe(
+            "The error the block recorded, or null when its span carries none (a withheld or compacted trace). A Function block's leads with the line and code that threw."
+          ),
+        errorMessage: z
+          .string()
+          .nullable()
+          .describe(
+            "A Function block's thrown message alone, which is the text to reply with; null for any other block."
+          ),
+      })
+      .nullable()
+      .describe(
+        'Where the run failed, read from the trace: the innermost block whose error nothing handled. Null when the run did not fail, or the trace does not name one (not recorded, compacted, or withheld by a permission group).'
+      ),
     files: v2LogFilesSchema,
     /**
      * The identity the run acted as, captured by the run itself rather than read

@@ -91,12 +91,11 @@ type PruneCursor = z.infer<typeof pruneCursorSchema>
 const pruneCursorKey = (eventType: string) => `outbox-prune-cursor:v1:${eventType}`
 
 /**
- * Each type's cursor from the pass in progress, or null when Redis is unavailable. A missing,
+ * Each type's cursor from the pass in progress, or null when they cannot be read. A missing,
  * unreadable or expired cursor starts that type's pass from the oldest row.
  */
 async function readPruneCursors(now: Date): Promise<Map<string, PruneCursor> | null> {
   const redis = getRedisClient()
-  if (!redis) return null
   try {
     const stored = await redis.mget(...PRUNABLE_OUTBOX_EVENT_TYPES.map(pruneCursorKey))
     const cursors = new Map<string, PruneCursor>()
@@ -127,8 +126,8 @@ function parsePruneCursor(stored: string | null): PruneCursor | null {
 
 /** Stores each type's next cursor, or clears it when that type's pass is over. */
 async function savePruneCursors(next: ReadonlyMap<string, PruneCursor | null>): Promise<void> {
+  if (next.size === 0) return
   const redis = getRedisClient()
-  if (!redis || next.size === 0) return
   try {
     const pipeline = redis.pipeline()
     for (const [eventType, cursor] of next) {
@@ -200,8 +199,8 @@ async function pruneCompletedBatch(
  * Each batch resumes after the last row the previous run's batch deleted, kept in Redis. Starting
  * again from the oldest row would walk every index entry the earlier batches deleted that vacuum
  * has not yet removed, which grows with the backlog being drained. A pass starts over from the
- * oldest row once a batch comes up short of the cutoff or the pass is older than an hour; without
- * Redis every batch starts from the oldest row.
+ * oldest row once a batch comes up short of the cutoff or the pass is older than an hour; when
+ * the cursors cannot be read, the batch starts from the oldest row.
  */
 export async function pruneCompletedOutboxEvents(now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - COMPLETED_OUTBOX_RETENTION_MS)

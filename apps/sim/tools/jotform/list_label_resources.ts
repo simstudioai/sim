@@ -10,6 +10,7 @@ import {
   requireValue,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLabelResourcesTool: ToolConfig<
@@ -21,6 +22,7 @@ export const listLabelResourcesTool: ToolConfig<
   description:
     'List the assets assigned to a label — forms, workflows, sheets, and apps — with their status and titles.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

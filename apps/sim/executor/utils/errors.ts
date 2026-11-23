@@ -1,5 +1,6 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { HttpError } from '@/lib/core/utils/http-error'
+import type { FailedTraceBlock } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -103,6 +104,30 @@ export function readTrustedExecutionCost(subject: unknown): TrustedExecutionCost
   return isRecordedThrown(subject) ? trustedExecutionCosts.get(subject) : undefined
 }
 
+/**
+ * The values of a block's declared error outputs (`BlockConfig.errorOutputs`, a Function's
+ * `errorMessage`), keyed by the error its handler throws. A side table like
+ * {@link trustedExecutionCosts}, so only the executor's deliberate copy of a declared key puts a
+ * value into block output.
+ */
+const attachedErrorOutputs = new WeakMap<object, Readonly<Record<string, string>>>()
+
+/** Attaches the values a handler reports for its block's declared error outputs to its error. */
+export function attachErrorOutputs(error: unknown, outputs: Record<string, unknown>): void {
+  if (!isRecordedThrown(error)) return
+  const values = Object.fromEntries(
+    Object.entries(outputs).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string'
+    )
+  )
+  if (Object.keys(values).length > 0) attachedErrorOutputs.set(error, values)
+}
+
+/** Reads the error-output values a handler attached, if it attached any. */
+export function readErrorOutputs(error: unknown): Readonly<Record<string, string>> | undefined {
+  return isRecordedThrown(error) ? attachedErrorOutputs.get(error) : undefined
+}
+
 function normalizeTrustedExecutionCost(cost: unknown): TrustedExecutionCost | undefined {
   if (!cost || typeof cost !== 'object' || Array.isArray(cost)) return undefined
 
@@ -141,6 +166,16 @@ function isRecordedThrown(value: unknown): value is object {
   return (typeof value === 'object' || typeof value === 'function') && value !== null
 }
 
+/** How a block failure's message names its block: `Block name: message`. */
+function blockErrorPrefix(blockName: string): string {
+  return `${blockName}: `
+}
+
+/** Whether an error message is the one a failure in `blockName` records. */
+export function errorNamesBlock(message: string, blockName: string): boolean {
+  return message === blockName || message.startsWith(blockErrorPrefix(blockName))
+}
+
 export interface BlockExecutionErrorDetails {
   block: SerializedBlock
   error: Error | string
@@ -159,7 +194,7 @@ export function buildBlockExecutionError(details: BlockExecutionErrorDetails): E
   const blockName = details.block.metadata?.name || details.block.id
   const blockType = details.block.metadata?.id || 'unknown'
 
-  const error = new Error(`${blockName}: ${errorMessage}`, {
+  const error = new Error(`${blockErrorPrefix(blockName)}${errorMessage}`, {
     cause: details.error instanceof Error ? details.error : undefined,
   })
 
@@ -338,8 +373,8 @@ export function classifyExecutionError(
     executionResult?.error ??
     fromLog.error ??
     'Execution failed'
-  if (blockName && message.startsWith(`${blockName}: `)) {
-    message = message.slice(blockName.length + 2)
+  if (blockName && message.startsWith(blockErrorPrefix(blockName))) {
+    message = message.slice(blockErrorPrefix(blockName).length)
   }
 
   const statusCode = error instanceof Error ? getExecutionErrorStatus(error) : undefined
@@ -361,4 +396,24 @@ export function classifyExecutionError(
   }
 
   return { message, code, blockId, blockName, blockType }
+}
+
+/**
+ * Classifies a run's persisted error message, attributing it to the failing
+ * block its recorded trace names as the owner of that message (see
+ * `findFailedTraceBlock`). A message headed by that block's name is the block's
+ * own failure and is classified with the block attached, whatever the name says.
+ * A message that does not name it stays unattributed when its text classifies as
+ * run-level (a timeout, cancellation, usage limit, or invalid input), and without
+ * a block this reports what the message alone supports.
+ */
+export function classifyRecordedExecutionError(
+  message: string,
+  failedBlock: FailedTraceBlock | null
+): StructuredExecutionError {
+  const unattributed = classifyExecutionError(new Error(message))
+  if (!failedBlock) return unattributed
+  return errorNamesBlock(message, failedBlock.blockName) || unattributed.code === 'EXECUTION_FAILED'
+    ? classifyExecutionError(Object.assign(new Error(message), failedBlock))
+    : unattributed
 }

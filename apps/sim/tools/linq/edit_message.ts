@@ -1,6 +1,8 @@
 import type { LinqEditMessageParams, LinqMessageResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageResult> = {
   id: 'linq_edit_message',
@@ -8,6 +10,7 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
   description:
     'Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iMessage only)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -37,7 +40,8 @@ export const linqEditMessageTool: ToolConfig<LinqEditMessageParams, LinqMessageR
   },
 
   request: {
-    url: (params) => `${LINQ_API_BASE}/messages/${encodeURIComponent(params.messageId.trim())}`,
+    url: (params) =>
+      `${LINQ_API_BASE}/messages/${safeUrlPathSegment(params.messageId, 'messageId')}`,
     method: 'PATCH',
     headers: (params) => linqHeaders(params.apiKey),
     body: (params) => {

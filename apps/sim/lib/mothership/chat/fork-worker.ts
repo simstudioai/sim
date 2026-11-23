@@ -3,8 +3,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { type ForkChatRequest, ForkChatResponse } from '@/lib/mothership/generated/protocol'
-import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { fetchWorker } from '@/lib/mothership/request/worker/fetch'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 const logger = createLogger('ForkWorker')
@@ -56,7 +56,7 @@ export async function copyWorkerConversation(request: ForkChatRequest): Promise<
     const canRetry = attempt === 0
     let outcome: Attempt
     try {
-      const response = await fetchGo(`${baseURL}/api/chats/fork`, {
+      const response = await fetchWorker(`${baseURL}/api/chats/fork`, {
         method: 'POST',
         headers: mothershipRequestHeaders(),
         body,
@@ -100,7 +100,7 @@ export async function discardWorkerConversation(
 ): Promise<void> {
   try {
     const baseURL = await getMothershipBaseURL({ userId: request.userId })
-    const response = await fetchGo(`${baseURL}/api/tasks/cleanup`, {
+    const response = await fetchWorker(`${baseURL}/api/tasks/cleanup`, {
       method: 'POST',
       headers: mothershipRequestHeaders(),
       body: JSON.stringify({ chatIds: [request.newChatId] }),

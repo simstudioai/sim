@@ -7,20 +7,26 @@ import {
 } from '@sim/deployment-config/integration-docs'
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SIM_SITE_URL } from '@sim/utils/site'
+import { load } from 'cheerio'
 import matter from 'gray-matter'
 import {
+  difyProfile,
   dustProfile,
   gumloopProfile,
   langflowProfile,
+  microsoftCopilotProfile,
   n8nProfile,
   openaiAgentkitProfile,
   openClawProfile,
+  type Prose,
   pipedreamProfile,
+  relevanceAiProfile,
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -31,6 +37,7 @@ import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
  * deployed origin to compare.
  *
  * Requires LANDING_SEO_E2E_BASE_URL and LANDING_SEO_E2E_REPORT_PATH.
+ * Pass --live to check only the sitemap and priority pages after production cutover.
  */
 const logger = createLogger('LandingSeoE2E')
 
@@ -40,6 +47,7 @@ function requiredEnvironment(name: string): string {
   return value
 }
 
+const live = process.argv.includes('--live')
 const baseUrl = new URL(requiredEnvironment('LANDING_SEO_E2E_BASE_URL'))
 const reportPath = resolve(requiredEnvironment('LANDING_SEO_E2E_REPORT_PATH'))
 assert.equal(baseUrl.pathname, '/', 'The base URL must be an origin without a path')
@@ -162,6 +170,40 @@ async function run() {
   await check('sitemap.xml is served', async () => {
     sitemap = await readSitemap()
   })
+  if (live) {
+    const priorityPaths = [
+      '/workflows',
+      '/comparisons/n8n',
+      '/library/best-ai-agent-marketplaces-template-libraries',
+      '/library/open-source-ai-agent-platforms',
+      '/library/best-self-hosted-ai-workflow-automation-platforms-2026',
+    ]
+
+    for (const path of priorityPaths) {
+      await check(`priority page ${path} is indexable and present in the sitemap`, async () => {
+        const { status, body, headers } = await get(path, 'text/html')
+        assert.equal(status, 200)
+        assert.match(headers.get('content-type') ?? '', /^text\/html/)
+        assert(sitemap.has(path), 'sitemap does not list the page')
+        assert(pageTitle(body).trim(), 'HTML has no title')
+        const canonicals = [...body.matchAll(/<link rel="canonical" href="([^"]+)"/g)]
+        assert.deepEqual(
+          canonicals.map((match) => match[1]),
+          [new URL(path, SIM_SITE_URL).href]
+        )
+        for (const directive of [...robotsDirectives(body), headers.get('x-robots-tag') ?? '']) {
+          assert.doesNotMatch(directive, /\b(?:noindex|none)\b/i)
+        }
+        const $ = load(body)
+        $('template').remove()
+        const headings = $('h1')
+        assert.equal(headings.length, 1, 'HTML does not have exactly one H1')
+        assert(headings.prop('innerText')?.trim(), 'H1 has no text')
+      })
+    }
+    return
+  }
+
   const sitemapPaths = [...sitemap.keys()]
   const firstPath = (pattern: RegExp) => {
     const path = sitemapPaths.find((candidate) => pattern.test(candidate))
@@ -327,6 +369,34 @@ async function run() {
     assert.deepEqual(failures, [])
   })
 
+  await check(
+    'legacy Sim aliases preserve queries without redirecting the Sim Links entry',
+    async () => {
+      const entry = await get('/sim')
+      assert.equal(entry.status, 307)
+      assert(entry.location, 'The Sim Links entry must offer sign-in')
+      const login = new URL(entry.location, baseUrl)
+      assert.equal(login.pathname, '/login')
+      assert.equal(login.searchParams.get('callbackUrl'), '/sim')
+      for (const path of ['/Sim', '/SIM', '/sIm']) {
+        const { status, location } = await get(`${path}?home&utm_source=legacy`)
+        assert.equal(status, 308, path)
+        assert(location, `${path}: expected the legacy homepage redirect`)
+        const target = new URL(location, baseUrl)
+        assert.equal(target.origin, baseUrl.origin, path)
+        assert.equal(target.pathname, '/', path)
+        assert.deepEqual(
+          [...target.searchParams],
+          [
+            ['home', ''],
+            ['utm_source', 'legacy'],
+          ],
+          path
+        )
+      }
+    }
+  )
+
   await check('integration sitemap dates are per integration, not one catalog date', async () => {
     const mismatches: string[] = []
     for (const integration of integrations) {
@@ -392,6 +462,29 @@ async function run() {
     assert(String(product['@id']).endsWith('#software'), `Offers sit on ${product['@id']}`)
   })
 
+  await check('pricing says self-hosting the open-source core is free', async () => {
+    const { body } = await get('/pricing')
+    const visibleText = decodeHtml(
+      body
+        .replace(/<script\b[\s\S]*?<\/script>/g, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<[^>]+>/g, '')
+    )
+    assert(visibleText.includes('open source under the Apache 2.0 license'), 'license note missing')
+    assert(visibleText.includes('self-host it for free'), 'self-hosting note missing')
+    assert(visibleText.includes('Self-Hosted Enterprise Features'), 'Enterprise row label missing')
+    assert(visibleText.includes('one credit is worth $0.005'), 'credit value note missing')
+  })
+
+  await check('Copilot Studio comparison aliases reach the comparison page', async () => {
+    for (const alias of ['microsoft-copilot-studio', 'copilot-studio']) {
+      const { status, location } = await get(`/comparisons/${alias}`)
+      assert.equal(status, 308, alias)
+      assert(location, `${alias}: expected a redirect`)
+      assert.equal(new URL(location, baseUrl).pathname, '/comparisons/microsoft-copilot', alias)
+    }
+  })
+
   await check('comparison pages lead with their answer and their tracked-prompt FAQs', async () => {
     const failures: string[] = []
     for (const profile of [
@@ -403,6 +496,8 @@ async function run() {
       pipedreamProfile,
       openClawProfile,
       openaiAgentkitProfile,
+      difyProfile,
+      relevanceAiProfile,
     ]) {
       const { status, body } = await get(`/comparisons/${profile.id}`)
       if (status !== 200) {
@@ -410,9 +505,15 @@ async function run() {
         continue
       }
       const text = decodeHtml(body)
-      const lead = profile.leadAnswer?.map((part) => (typeof part === 'string' ? part : part.text))
-      const firstSection = text.indexOf('<h2')
-      const leadAt = lead ? text.indexOf(lead.join('')) : -1
+      const lead = profile.leadAnswer
+        ?.map((part) => (typeof part === 'string' ? part : part.text))
+        .join('')
+      const $ = load(body)
+      const blocks = $('p, h2').toArray()
+      const leadAt = lead
+        ? blocks.findIndex((el) => el.tagName === 'p' && $(el).text().includes(lead))
+        : -1
+      const firstSection = blocks.findIndex((el) => el.tagName === 'h2')
       if (leadAt < 0 || leadAt > firstSection) {
         failures.push(`${profile.id}: lead answer missing or below the first section`)
       }
@@ -438,6 +539,78 @@ async function run() {
     }
     assert.deepEqual(failures, [])
   })
+
+  await check(
+    'a comparison page answering its buyer questions in place keeps their order',
+    async () => {
+      const profile = microsoftCopilotProfile
+      const { status, body } = await get(`/comparisons/${profile.id}`)
+      assert.equal(status, 200)
+      const text = decodeHtml(body)
+      const { intro = [], glance = [], closing = [] } = profile.questions ?? {}
+      assert(
+        profile.leadQuestion && intro.length && glance.length && closing.length,
+        'profile no longer exercises every question position'
+      )
+      const questions = [
+        profile.leadQuestion,
+        ...[...intro, ...glance, ...closing].map((q) => q.question),
+      ]
+      assert.deepEqual(faqQuestions(body), questions, 'FAQPage lists the page questions in order')
+
+      const headings = [
+        profile.leadQuestion,
+        ...intro.map((q) => q.question),
+        `Sim vs ${profile.name}: at a glance`,
+        ...glance.map((q) => q.question),
+        'feature-by-feature comparison',
+        ...closing.map((q) => q.question),
+        'Bottom line',
+      ]
+      const positions = headings.map((heading) => text.indexOf(`${heading}</h2>`))
+      assert(
+        positions.every((at) => at >= 0),
+        `missing heading: ${headings[positions.indexOf(-1)]}`
+      )
+      assert.deepEqual(
+        [...positions].sort((a, b) => a - b),
+        positions,
+        'question sections are out of reading order'
+      )
+      assert(!text.includes('Frequently asked questions</h2>'), 'generated FAQ block still renders')
+      for (const row of profile.glance ?? []) {
+        assert(text.includes(`${row.label}</th>`), `at-a-glance row missing: ${row.label}`)
+      }
+
+      const visibleText = decodeHtml(
+        body
+          .replace(/<script\b[\s\S]*?<\/script>/g, '')
+          .replace(/<!--[\s\S]*?-->/g, '')
+          .replace(/<[^>]+>/g, '')
+      )
+      const proseText = (prose: Prose) =>
+        prose.map((part) => (typeof part === 'string' ? part : part.text)).join('')
+      const expectedProse = [
+        ...(profile.leadAnswer ? [profile.leadAnswer] : []),
+        ...[...intro, ...glance, ...closing].map((q) => q.answer),
+        ...(profile.glance ?? []).flatMap((row) => [row.sim, row.competitor]),
+      ]
+      for (const prose of expectedProse) {
+        const expected = proseText(prose)
+        assert(visibleText.includes(expected), `page text missing: ${expected.slice(0, 80)}`)
+      }
+
+      const relatedStart = text.indexOf('Related reading</h2>')
+      const relatedEnd = text.indexOf('More comparisons</h2>')
+      assert(relatedStart >= 0 && relatedEnd > relatedStart, 'related reading section missing')
+      const relatedSlugs = new Set(
+        [...text.slice(relatedStart, relatedEnd).matchAll(/href="\/library\/([^"/?#]+)"/g)].map(
+          (match) => match[1]
+        )
+      )
+      assert.deepEqual([...relatedSlugs], profile.relatedReading)
+    }
+  )
 
   await check('rebuilt integration pages render their comparison and FAQs', async () => {
     const failures: string[] = []

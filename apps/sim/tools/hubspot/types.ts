@@ -367,9 +367,9 @@ export const APPOINTMENT_PROPERTIES_OUTPUT = {
  */
 export const OWNER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Owner ID' },
-  email: { type: 'string', description: 'Owner email address' },
-  firstName: { type: 'string', description: 'Owner first name' },
-  lastName: { type: 'string', description: 'Owner last name' },
+  email: { type: 'string', description: 'Owner email address', optional: true },
+  firstName: { type: 'string', description: 'Owner first name', optional: true },
+  lastName: { type: 'string', description: 'Owner last name', optional: true },
   userId: { type: 'number', description: 'Associated user ID', optional: true },
   teams: {
     type: 'array',

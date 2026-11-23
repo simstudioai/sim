@@ -15,7 +15,11 @@ import {
   getWorkflowRunFiles,
   type WorkflowRunFileDescriptor,
 } from '@/lib/workflows/executor/execution-run-files'
-import { getProjectedWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+import {
+  getProjectedWorkflowExecutionStatus,
+  projectPausedRunPoints,
+  readPausedRunPoints,
+} from '@/lib/workflows/executor/execution-status'
 
 /**
  * Selectors this resource can never answer, so the caller hears about them.
@@ -82,7 +86,13 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         viewerUserId: logProjectionSubjectUserId(principal),
       })
       if (!projected) throw new OrchestrationError('not_found', 'Run not found')
-      const { status, projection } = projected
+      const {
+        status,
+        projection,
+        stateExecutionId,
+        pausePoints: loadedPausePoints,
+        failedBlock,
+      } = projected
 
       /**
        * A run whose `blockOutputs` the viewer's group withholds joins the same
@@ -148,7 +158,24 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
           : []
       }
 
-      return { ...status, files }
+      /**
+       * Every pause point of a paused run, so a caller can resume any of them by
+       * `contextId`, not only the earliest one `paused` summarizes. Read from the
+       * execution whose state answered the status, so a resume attempt reporting its
+       * parent's pause lists the parent's points.
+       */
+      const pausePoints = status.paused
+        ? projectPausedRunPoints(
+            (await readPausedRunPoints({
+              workflowId: context.workflowId,
+              executionId: stateExecutionId,
+              pausePoints: loadedPausePoints ?? undefined,
+            })) ?? [],
+            { projection, includeOutput: input.includeOutput }
+          )
+        : null
+
+      return { ...status, files, pausePoints, failedBlock }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {
         throw new OrchestrationError('conflict', FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE)

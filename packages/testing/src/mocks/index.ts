@@ -316,6 +316,12 @@ export {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from './execution-preprocessing.mock'
+// Execution signal hub mocks (for @/lib/execution/signal)
+export {
+  deliverExecutionSignal,
+  executionSignalMock,
+  executionSignalMockFns,
+} from './execution-signal.mock'
 export {
   executorPrincipalMock,
   executorPrincipalMockFns,
@@ -324,6 +330,12 @@ export {
   featureFlagsMock,
   featureFlagsMockFns,
 } from './feature-flags.mock'
+// Isolated VM mocks (for @/lib/execution/isolated-vm)
+export {
+  isolatedVmMock,
+  isolatedVmMockFns,
+  resetIsolatedVmMock,
+} from './isolated-vm.mock'
 // Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
 
 export {
@@ -388,6 +400,10 @@ export {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
 } from './integrations-availability.mock'
+export {
+  internalAwsCredentialsMock,
+  internalAwsCredentialsMockFns,
+} from './internal-aws-credentials.mock'
 export {
   invitationsCoreMock,
   invitationsCoreMockFns,
@@ -482,6 +498,11 @@ export {
   libDesktopMockFns,
 } from './lib-desktop.mock'
 export {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+  MockBedrockCredentialError,
+} from './llm-bedrock-credential.mock'
+export {
   createMockLogger,
   getAllMockLoggers,
   getMockLogger,
@@ -547,10 +568,6 @@ export {
   mothershipEnvironmentContextMockFns,
 } from './mothership-environment-context.mock'
 export {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from './mothership-go-fetch.mock'
-export {
   mothershipOrganizationChatsMock,
   mothershipOrganizationChatsMockFns,
 } from './mothership-organization-chats.mock'
@@ -560,6 +577,10 @@ export {
   mothershipOtelMock,
   mothershipOtelMockFns,
 } from './mothership-otel.mock'
+export {
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from './mothership-worker-fetch.mock'
 export {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,

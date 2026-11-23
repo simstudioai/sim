@@ -5,6 +5,8 @@ import type { ToolResponse } from '@/tools/types'
  */
 interface SentryBaseParams {
   apiKey: string
+  /** Data storage region of a saved credential (`us` or `de`); absent means sentry.io. */
+  region?: string
   organizationSlug: string
 }
 
@@ -73,6 +75,8 @@ export interface SentryListIssuesResponse extends ToolResponse {
       nextCursor?: string
       hasMore: boolean
     }
+    nextCursor?: string
+    hasMore: boolean
   }
 }
 
@@ -89,6 +93,7 @@ export interface SentryGetIssueResponse extends ToolResponse {
 export interface SentryUpdateIssueParams extends SentryBaseParams {
   issueId: string
   status?: string
+  priority?: string
   assignedTo?: string
   isBookmarked?: boolean
   isSubscribed?: boolean
@@ -155,6 +160,8 @@ export interface SentryListProjectsResponse extends ToolResponse {
       nextCursor?: string
       hasMore: boolean
     }
+    nextCursor?: string
+    hasMore: boolean
   }
 }
 
@@ -232,6 +239,8 @@ export interface SentryListTeamsResponse extends ToolResponse {
       nextCursor?: string
       hasMore: boolean
     }
+    nextCursor?: string
+    hasMore: boolean
   }
 }
 
@@ -303,6 +312,8 @@ export interface SentryListEventsResponse extends ToolResponse {
       nextCursor?: string
       hasMore: boolean
     }
+    nextCursor?: string
+    hasMore: boolean
   }
 }
 
@@ -385,6 +396,8 @@ export interface SentryListReleasesResponse extends ToolResponse {
       nextCursor?: string
       hasMore: boolean
     }
+    nextCursor?: string
+    hasMore: boolean
   }
 }
 
@@ -392,9 +405,11 @@ export interface SentryCreateReleaseParams extends SentryBaseParams {
   version: string
   ref?: string
   url?: string
-  projects: string
+  /** Comma-separated project slugs, or an array of slugs from a block reference or model. */
+  projects: string | string[]
   dateReleased?: string
-  commits?: string
+  /** JSON array string of commit objects, or the array itself. */
+  commits?: string | unknown[]
 }
 
 export interface SentryCreateReleaseResponse extends ToolResponse {

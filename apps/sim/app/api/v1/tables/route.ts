@@ -29,8 +29,6 @@ export const revalidate = 0
 
 /** GET /api/v1/tables — List all tables in a workspace. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-
   try {
     const rateLimit = await checkRateLimit(request, 'tables')
     if (!rateLimit.allowed) {
@@ -83,7 +81,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const validationResponse = v1ValidationErrorResponseFromError(error)
     if (validationResponse) return validationResponse
 
-    logger.error(`[${requestId}] Error listing tables:`, error)
+    logger.error('Error listing tables:', error)
     return NextResponse.json({ error: 'Failed to list tables' }, { status: 500 })
   }
 })
@@ -186,7 +184,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const classified = orchestrationErrorResponse(error)
     if (classified) return classified
 
-    logger.error(`[${requestId}] Error creating table:`, error)
+    logger.error('Error creating table:', error)
     return NextResponse.json({ error: 'Failed to create table' }, { status: 500 })
   }
 })

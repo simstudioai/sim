@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteGroupRuleParams, OktaDeleteGroupRuleResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OktaDeleteGroupRule')
 
@@ -15,6 +17,7 @@ export const oktaDeleteGroupRuleTool: ToolConfig<
   description:
     'Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -47,7 +50,7 @@ export const oktaDeleteGroupRuleTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const base = `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}`
+      const base = `https://${domain}/api/v1/groups/rules/${safeUrlPathSegment(params.groupRuleId, 'groupRuleId')}`
       return params.removeUsers === undefined
         ? base
         : `${base}?removeUsers=${isOktaFlagEnabled(params.removeUsers)}`

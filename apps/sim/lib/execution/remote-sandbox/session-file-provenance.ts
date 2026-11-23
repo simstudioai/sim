@@ -76,18 +76,13 @@ function key(sessionKey: string, machine: SessionFileIdentity) {
     .digest('hex')
   return `mothership:workbench-provenance:v2:${digest}`
 }
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('Workbench provenance storage is unavailable')
-  return client
-}
 
 /** Only a newly created physical machine starts with no prior input exposure. */
 export async function initializeSessionFileProvenance(
   sessionKey: string,
   machine: SessionFileIdentity
 ) {
-  await redis().set(key(sessionKey, machine), EMPTY, 'EX', TTL_SECONDS, 'NX')
+  await getRedisClient().set(key(sessionKey, machine), EMPTY, 'EX', TTL_SECONDS, 'NX')
 }
 
 /**
@@ -115,7 +110,7 @@ export async function recordSessionFileInput(
       normalized.map((entry) => omit(entry, ['sourceValueHash']))
     )
   const encoded = entries ? JSON.stringify({ status: 'exact', entries }) : UNKNOWN
-  await redis().eval(
+  await getRedisClient().eval(
     RECORD_INPUT,
     1,
     key(sessionKey, machine),
@@ -133,7 +128,7 @@ export async function readSessionSecretProvenance(
   sessionKey: string,
   machine: SessionFileIdentity
 ): Promise<DurableSecretProvenance> {
-  const value = await redis().get(key(sessionKey, machine))
+  const value = await getRedisClient().get(key(sessionKey, machine))
   if (!value || Buffer.byteLength(value, 'utf8') > PROVENANCE_MAX_SERIALIZED_BYTES)
     return { status: 'unknown' }
   try {

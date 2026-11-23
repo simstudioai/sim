@@ -1,3 +1,4 @@
+import { githubPathSegment, githubRepoPath } from '@/tools/github/request-path'
 import type { GetWorkflowRunParams, WorkflowRunResponse } from '@/tools/github/types'
 import {
   HEAD_COMMIT_OUTPUT,
@@ -6,6 +7,7 @@ import {
   USER_OUTPUT,
   WORKFLOW_RUN_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunResponse> = {
@@ -14,6 +16,7 @@ export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunRes
   description:
     'Get detailed information about a specific workflow run by ID. Returns status, conclusion, timing, and links to the run.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -44,7 +47,7 @@ export const getWorkflowRunTool: ToolConfig<GetWorkflowRunParams, WorkflowRunRes
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs/${params.run_id}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/actions/runs/${githubPathSegment(params.run_id, 'run_id')}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -106,6 +109,7 @@ export const getWorkflowRunV2Tool: ToolConfig<GetWorkflowRunParams, any> = {
   name: getWorkflowRunTool.name,
   description: getWorkflowRunTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: getWorkflowRunTool.params,
   request: getWorkflowRunTool.request,
 

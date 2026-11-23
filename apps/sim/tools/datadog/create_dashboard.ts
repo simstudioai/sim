@@ -6,6 +6,7 @@ import {
   parseJsonParam,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDashboardTool: ToolConfig<CreateDashboardParams, CreateDashboardResponse> = {
@@ -13,6 +14,7 @@ export const createDashboardTool: ToolConfig<CreateDashboardParams, CreateDashbo
   name: 'Datadog Create Dashboard',
   description: 'Create a dashboard from a title, layout type, and widget definitions.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     title: {

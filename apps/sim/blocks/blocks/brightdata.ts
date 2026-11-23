@@ -1,9 +1,12 @@
 import { BrightDataIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const BrightDataBlock: BlockConfig = {
   type: 'brightdata',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'brightdata_v2' },
   name: 'Bright Data',
   description: 'Scrape websites, search engines, and extract structured data',
   authMode: AuthMode.ApiKey,
@@ -338,10 +341,10 @@ export const BrightDataBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `brightdata_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = { apiKey: params.apiKey }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'scrape_url':
             result.zone = params.zone
             result.url = params.url
@@ -360,7 +363,7 @@ export const BrightDataBlock: BlockConfig = {
             break
 
           case 'discover':
-            result.query = params.discoverQuery
+            result.query = params.discoverQuery ?? toolCallArg(context, params.query)
             if (params.numResults) result.numResults = Number(params.numResults)
             if (params.mode) result.mode = params.mode
             if (params.intent) result.intent = params.intent
@@ -371,8 +374,8 @@ export const BrightDataBlock: BlockConfig = {
             break
 
           case 'sync_scrape':
-            result.datasetId = params.syncDatasetId
-            result.urls = params.syncUrls
+            result.datasetId = params.syncDatasetId ?? toolCallArg(context, params.datasetId)
+            result.urls = params.syncUrls ?? toolCallArg(context, params.urls)
             if (params.syncFormat) result.format = params.syncFormat
             if (params.syncIncludeErrors != null) result.includeErrors = params.syncIncludeErrors
             break
@@ -564,3 +567,17 @@ export const BrightDataBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const BrightDataV2Block: BlockConfig = {
+  ...BrightDataBlock,
+  type: 'brightdata_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(BrightDataBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'brightdata',
+    title: 'Bright Data Credential',
+  }),
+}

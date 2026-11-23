@@ -22,6 +22,10 @@ import {
   blockVisibilityMockFns,
 } from '@sim/testing/mocks/block-visibility.mock'
 import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import {
   customBlockOperationsMock,
   customBlockOperationsMockFns,
 } from '@sim/testing/mocks/custom-block-operations.mock'
@@ -49,6 +53,8 @@ vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@sim/audit', () => auditMock)
+
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
   allowedIntegrationTypes: hoisted.allowedIntegrationTypes,
@@ -160,6 +166,21 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
       ticketId: { type: 'string', required: true, visibility: 'user-or-llm' },
     },
   },
+  saved_key_call: {
+    id: 'saved_key_call',
+    name: 'Saved Key Call',
+    oauth: {
+      required: false,
+      provider: 'aws',
+      credentialKind: 'service-account',
+      credentialSuppliedParams: ['accessKeyId', 'secretAccessKey'],
+    },
+    params: {
+      accessKeyId: { type: 'string', required: true, visibility: 'user-only' },
+      secretAccessKey: { type: 'string', required: true, visibility: 'user-only' },
+      bucket: { type: 'string', required: true, visibility: 'user-or-llm' },
+    },
+  },
   preview_call: { id: 'preview_call', name: 'Preview Call', params: {} },
   confluence_read_v2: { id: 'confluence_read_v2', name: 'Confluence Read', params: {} },
 }
@@ -224,6 +245,7 @@ const previewBlock = block({
 })
 const zendeskBlock = block({ type: 'zendesk', tools: { access: ['zendesk_get_ticket'] } })
 const thinkingBlock = block({ type: 'thinking', tools: { access: ['thinking_tool'] } })
+const savedKeyBlock = block({ type: 'saved_key', tools: { access: ['saved_key_call'] } })
 const snowflakeBlock = block({ type: 'snowflake', tools: { access: ['snowflake_execute_sql'] } })
 const confluenceBlock = block({
   type: 'confluence_v2',
@@ -240,6 +262,15 @@ function run(input: Partial<Parameters<typeof executeToolForCaller.execute>[0]['
       ...input,
     },
   })
+}
+
+function usableCredentialIn(workspaceId: string) {
+  return {
+    credential: { id: 'credential-1', workspaceId, type: 'service_account' },
+    member: { role: 'member' },
+    hasWorkspaceAccess: true,
+    isAdmin: false,
+  }
 }
 
 describe('executeToolForCaller', () => {
@@ -264,11 +295,15 @@ describe('executeToolForCaller', () => {
       zendeskBlock,
       thinkingBlock,
       snowflakeBlock,
+      savedKeyBlock,
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: false })
     environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({})
+    credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue(
+      usableCredentialIn(WORKSPACE_ID)
+    )
   })
 
   it.each<PersonalApiKeyPrincipal | SessionPrincipal>([principal, createSessionPrincipal()])(
@@ -379,6 +414,37 @@ describe('executeToolForCaller', () => {
     await expect(run({ input: { url: 'https://example.com' } })).resolves.toMatchObject({
       status: 'succeeded',
     })
+  })
+
+  /**
+   * AWS tools take inline keys or a saved credential. With a `credentialId` the
+   * executor resolves the keys server-side, so the caller must not be asked
+   * for them; without one, they are still required.
+   */
+  it('does not require inline keys a saved credential supplies', async () => {
+    const input = { bucket: 'reports' }
+
+    await expect(
+      run({ toolId: 'saved_key_call', credentialId: 'aws-credential', input })
+    ).resolves.toMatchObject({ status: 'succeeded' })
+    await expect(run({ toolId: 'saved_key_call', input })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('input.accessKeyId'),
+    })
+  })
+
+  it('refuses a credential from another workspace the caller can use', async () => {
+    credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue(
+      usableCredentialIn('workspace-a')
+    )
+
+    await expect(
+      run({ toolId: 'slack_message', credentialId: 'credential-1', input: { text: 'hi' } })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: expect.stringContaining('credential you can use in this workspace'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
 
   it('requires a credential for an OAuth tool before it dispatches', async () => {

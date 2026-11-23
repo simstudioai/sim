@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TinybirdAppendDatasourceParams,
   TinybirdAppendDatasourceResponse,
@@ -23,6 +24,7 @@ export const appendDatasourceTool: ToolConfig<
   description:
     'Append data to a Tinybird Data Source from a remote file URL (CSV, NDJSON, Parquet).',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

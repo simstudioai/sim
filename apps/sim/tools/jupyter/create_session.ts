@@ -3,6 +3,7 @@ import type {
   JupyterCreateSessionParams,
   JupyterCreateSessionResponse,
 } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterCreateSessionTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const jupyterCreateSessionTool: InternalToolConfig<
   name: 'Jupyter Create Session',
   description: 'Create a session that binds a notebook path to a (new or existing) kernel',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

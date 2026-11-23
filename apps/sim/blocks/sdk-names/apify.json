@@ -1,0 +1,10 @@
+{
+  "namespace": "legacy.apify",
+  "methods": {
+    "apify_get_dataset_items": "getDatasetItems",
+    "apify_get_run": "getRun",
+    "apify_run_actor_async": "runActorAsync",
+    "apify_run_actor_sync": "runActor",
+    "apify_run_task": "runTask"
+  }
+}

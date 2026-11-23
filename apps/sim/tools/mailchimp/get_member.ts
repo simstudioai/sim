@@ -2,8 +2,11 @@ import {
   buildMailchimpUrl,
   handleMailchimpError,
   type MailchimpMember,
+  mailchimpMemberSegment,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpGetMemberParams {
   apiKey: string
@@ -27,6 +30,7 @@ export const mailchimpGetMemberTool: ToolConfig<
   name: 'Get Member from Mailchimp Audience',
   description: 'Retrieve details of a specific member from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -51,7 +55,10 @@ export const mailchimpGetMemberTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/lists/${params.listId}/members/${params.subscriberEmail}`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/lists/${safeUrlPathSegment(params.listId, 'listId')}/members/${mailchimpMemberSegment(params.subscriberEmail)}`
+      ),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

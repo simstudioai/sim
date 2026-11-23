@@ -19,6 +19,7 @@ const hoisted = vi.hoisted(() => ({
   refreshOAuthToken: vi.fn(),
   decryptQuickBooksOAuthClientConfig: vi.fn(),
   withLeaderLock: vi.fn(),
+  mintServiceNowToken: vi.fn(),
 }))
 
 vi.mock('@/lib/concurrency/singleflight', () => ({
@@ -30,6 +31,21 @@ vi.mock('@/lib/concurrency/leader-lock', () => ({
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/credentials/coordinated-client-token', () => ({
+  resolveCoordinatedClientToken: async (input: {
+    exchange: () => Promise<{ accessToken: string; expiresAt: Date }>
+  }) => {
+    const exchanged = await input.exchange()
+    return { accessToken: exchanged.accessToken, expiresInSeconds: 86_000 }
+  },
+}))
+vi.mock('@/lib/credentials/token-service-accounts/grants/servicenow', () => ({
+  mintServiceNowClientCredentialsToken: hoisted.mintServiceNowToken,
+}))
+vi.mock('@/lib/credentials/workload-identity/issuer', () => ({
+  isWorkloadIdentityConfigured: async () => true,
+  mintWorkloadIdentityToken: async ({ subject }: { subject: string }) => `sim-oidc|${subject}`,
+}))
 
 vi.mock('@/lib/oauth/instagram', () => ({
   isInstagramProvider: vi.fn(() => false),
@@ -44,8 +60,11 @@ vi.mock('@/lib/oauth/microsoft', () => ({
 
 vi.mock('@/lib/oauth/oauth', () => ({
   OAUTH_PROVIDERS: {},
-  refreshOAuthToken: hoisted.refreshOAuthToken,
   TOKEN_REFRESH_TIMEOUT_MS: 15_000,
+}))
+
+vi.mock('@/lib/oauth/refresh.server', () => ({
+  refreshOAuthToken: hoisted.refreshOAuthToken,
 }))
 
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
@@ -72,6 +91,7 @@ vi.mock('@/lib/oauth/refresh-error-codes', () => ({
   isTerminalRefreshError: vi.fn(() => false),
 }))
 
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import {
   getCredentialTerminalRefreshError,
@@ -887,6 +907,19 @@ describe('OAuth access-token refresh headroom', () => {
     )
   })
 
+  it.each(readers)(
+    '$name rethrows an unavailable egress route instead of a missing, revoked or failed token',
+    async ({ read }) => {
+      mocks.refreshOAuthToken.mockRejectedValue(new OutboundRoutingError('GATEWAY_UNAVAILABLE'))
+      const row = createOAuthAccount(WAITED_GOOGLE_REMAINING_MS)
+      queueTableRows(account, [row])
+      await expect(read(row)).rejects.toBeInstanceOf(OutboundRoutingError)
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ refreshRevokedCode: expect.anything() })
+      )
+    }
+  )
+
   it('answers a Microsoft caller from its valid token while refresh-token aging refreshes', async () => {
     vi.mocked(isMicrosoftProvider).mockReturnValue(true)
     const provider = createDeferred<unknown>()
@@ -1210,6 +1243,90 @@ describe('Google service-account token minting', () => {
     })
     expect(JSON.stringify(loggedCalls('error'))).not.toContain('xxxx')
   })
+
+  it('signs the same JSON-key request whether or not the caller names its service', async () => {
+    queueTableRows(credential, [row])
+    await getServiceAccountToken('credential-1', [driveScope], 'member@example.com')
+    queueTableRows(credential, [row])
+    await getServiceAccountToken('credential-1', [driveScope], 'member@example.com', {
+      service: 'google-drive',
+    })
+
+    const [withoutService, withService] = fetchMock.mock.calls.map(([url, init]) => [
+      String(url),
+      String(init?.body),
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(withService).toEqual(withoutService)
+  })
+
+  describe('a keyless credential', () => {
+    const keylessSecret = {
+      decrypted: JSON.stringify({
+        type: 'google_workload_identity_v1',
+        config: {
+          projectNumber: '123456789012',
+          poolId: 'sim-pool',
+          providerId: 'sim-oidc',
+          serviceAccountEmail: 'bq-runner@analytics-prod.iam.gserviceaccount.com',
+          subject: 'sim:workspace:ws-1:credential:abcdef0123456789',
+        },
+      }),
+    }
+
+    it('refuses an impersonated Workspace user instead of signing a delegation JWT', async () => {
+      queueTableRows(credential, [row])
+      mocks.decryptSecret.mockResolvedValue(keylessSecret)
+
+      await expect(
+        getServiceAccountToken('credential-1', [driveScope], 'member@example.com', {
+          service: 'google-bigquery',
+        })
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('mints through federation, not a JWT, for the BigQuery tool the resolver dispatches', async () => {
+      queueTableRows(credential, [row])
+      mocks.decryptSecret.mockResolvedValue(keylessSecret)
+      fetchMock.mockImplementation(async (input) =>
+        String(input).startsWith('https://sts.googleapis.com/')
+          ? Response.json({ access_token: 'federated-token' })
+          : Response.json({ accessToken: 'bigquery-token', expireTime: '2026-09-09T19:00:00Z' })
+      )
+      const bigQueryScope = 'https://www.googleapis.com/auth/bigquery'
+
+      await expect(
+        resolveServiceAccountToken(
+          'credential-keyless',
+          GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+          [bigQueryScope],
+          undefined,
+          { service: 'google-bigquery' }
+        )
+      ).resolves.toEqual({ accessToken: 'bigquery-token' })
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+        'https://sts.googleapis.com/v1/token',
+        'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/bq-runner%40analytics-prod.iam.gserviceaccount.com:generateAccessToken',
+      ])
+    })
+
+    it('refuses a Workspace tool the resolver dispatches to it', async () => {
+      queueTableRows(credential, [row])
+      mocks.decryptSecret.mockResolvedValue(keylessSecret)
+
+      await expect(
+        resolveServiceAccountToken(
+          'credential-1',
+          GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+          [driveScope],
+          undefined,
+          { service: 'google-drive' }
+        )
+      ).rejects.toMatchObject({ code: 'unsupported_use' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('getCredentialTerminalRefreshError', () => {
@@ -1263,5 +1380,314 @@ describe('OCI service-account resolver', () => {
         undefined
       )
     ).resolves.toEqual({ accessToken: 'credential-authoritative' })
+  })
+})
+
+describe('token provider credentials saved in client-credentials mode', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+  const shopifyBlob = {
+    type: 'token_service_account',
+    providerId: 'shopify-service-account',
+    authMethod: 'client_credentials',
+    clientId: 'client-1',
+    clientSecret: 'secret-1',
+    domain: 'acme.myshopify.com',
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.clearAllMocks()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+  })
+
+  function storeBlob(credentialId: string, blob: Record<string, unknown>, reads = 1) {
+    for (let read = 0; read < reads; read++) {
+      queueTableRows(credential, [{ encryptedServiceAccountKey: `enc-${credentialId}` }])
+    }
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  it('mints a Shopify token with the stored client credentials and returns the store domain', async () => {
+    storeBlob('shopify-cc-1', shopifyBlob)
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'minted', expires_in: 86399 }))
+
+    await expect(
+      resolveServiceAccountToken('shopify-cc-1', 'shopify-service-account')
+    ).resolves.toEqual({ accessToken: 'minted', domain: 'acme.myshopify.com' })
+    const request = new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1])
+    expect(request.url).toBe('https://acme.myshopify.com/admin/oauth/access_token')
+    expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a coordinated Shopify token to the coordinator instead of caching it per instance', async () => {
+    storeBlob('shopify-cc-2', shopifyBlob, 2)
+    fetchMock.mockImplementation(async () =>
+      Response.json({ access_token: `minted-${fetchMock.mock.calls.length}`, expires_in: 86399 })
+    )
+
+    await resolveServiceAccountToken('shopify-cc-2', 'shopify-service-account')
+    await expect(
+      resolveServiceAccountToken('shopify-cc-2', 'shopify-service-account')
+    ).resolves.toMatchObject({ accessToken: 'minted-2' })
+  })
+
+  it('leaves a Linear app token to the coordinator instead of caching it per instance', async () => {
+    const linearBlob = {
+      type: 'token_service_account',
+      providerId: 'linear-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'linear-client',
+      clientSecret: 'linear-secret',
+    }
+    fetchMock.mockImplementation(async () =>
+      Response.json({
+        access_token: `lin_oauth_${fetchMock.mock.calls.length}`,
+        expires_in: 2_591_999,
+      })
+    )
+    storeBlob('linear-cc', linearBlob, 2)
+
+    await expect(
+      resolveServiceAccountToken('linear-cc', 'linear-service-account')
+    ).resolves.toEqual({ accessToken: 'lin_oauth_1', domain: undefined })
+    await expect(
+      resolveServiceAccountToken('linear-cc', 'linear-service-account')
+    ).resolves.toMatchObject({ accessToken: 'lin_oauth_2' })
+  })
+
+  it('marks a minted ServiceNow token as a bearer token, and a saved login as before', async () => {
+    hoisted.mintServiceNowToken.mockResolvedValue({
+      accessToken: 'sn-minted',
+      expiresInSeconds: 1799,
+    })
+    storeBlob('servicenow-cc', {
+      type: 'token_service_account',
+      providerId: 'servicenow-service-account',
+      authMethod: 'client_credentials',
+      clientId: 'sn-client',
+      clientSecret: 'sn-secret',
+      domain: 'https://acme.service-now.com',
+    })
+
+    await expect(
+      resolveServiceAccountToken('servicenow-cc', 'servicenow-service-account')
+    ).resolves.toEqual({
+      accessToken: 'sn-minted',
+      domain: 'https://acme.service-now.com',
+      authStyle: 'bearer',
+    })
+
+    storeBlob('servicenow-login', {
+      type: 'token_service_account',
+      providerId: 'servicenow-service-account',
+      apiToken: 'saved-password',
+      providerWorkspaceId: 'integration.user',
+      domain: 'https://acme.service-now.com',
+    })
+    await expect(
+      resolveServiceAccountToken('servicenow-login', 'servicenow-service-account')
+    ).resolves.toEqual({
+      accessToken: 'saved-password',
+      domain: 'https://acme.service-now.com',
+      providerWorkspaceId: 'integration.user',
+    })
+  })
+
+  it('marks a saved Splunk username and password as basic, and a saved token as before', async () => {
+    storeBlob('splunk-login', {
+      type: 'token_service_account',
+      providerId: 'splunk-service-account',
+      apiToken: 'saved-password',
+      providerWorkspaceId: 'svc-sim',
+      domain: 'https://splunk.example.com:8089',
+    })
+    await expect(
+      resolveServiceAccountToken('splunk-login', 'splunk-service-account')
+    ).resolves.toEqual({
+      accessToken: 'saved-password',
+      domain: 'https://splunk.example.com:8089',
+      providerWorkspaceId: 'svc-sim',
+      authStyle: 'basic',
+    })
+
+    storeBlob('splunk-token', {
+      type: 'token_service_account',
+      providerId: 'splunk-service-account',
+      apiToken: 'splunk-token',
+      domain: 'https://splunk.example.com:8089',
+    })
+    await expect(
+      resolveServiceAccountToken('splunk-token', 'splunk-service-account')
+    ).resolves.toEqual({
+      accessToken: 'splunk-token',
+      domain: 'https://splunk.example.com:8089',
+      providerWorkspaceId: undefined,
+    })
+  })
+
+  it('still returns a pasted Shopify token as is', async () => {
+    storeBlob(
+      'shopify-pasted',
+      {
+        type: 'token_service_account',
+        providerId: 'shopify-service-account',
+        apiToken: 'shpat_pasted',
+        domain: 'acme.myshopify.com',
+      },
+      1
+    )
+
+    await expect(
+      resolveServiceAccountToken('shopify-pasted', 'shopify-service-account')
+    ).resolves.toEqual({
+      accessToken: 'shpat_pasted',
+      domain: 'acme.myshopify.com',
+      providerWorkspaceId: undefined,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a client-credentials blob stored under another provider', async () => {
+    storeBlob('shopify-wrong', { ...shopifyBlob, providerId: 'hubspot-service-account' }, 1)
+
+    await expect(
+      resolveServiceAccountToken('shopify-wrong', 'shopify-service-account')
+    ).rejects.toThrow('malformed')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('token credentials saved before their provider had a region or host to choose', () => {
+  function storeBlob(blob: Record<string, unknown>) {
+    queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-legacy' }])
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it.each([
+    ['launchdarkly-service-account', 'us'],
+    ['langsmith-service-account', 'us'],
+    ['square-service-account', 'production'],
+    ['sendgrid-service-account', 'global'],
+    ['hex-service-account', 'app.hex.tech'],
+    ['sentry-service-account', 'us'],
+  ])(
+    'resolves a %s token stored without one to the host it always used (%s)',
+    async (providerId, domain) => {
+      storeBlob({ type: 'token_service_account', providerId, apiToken: 'legacy-token' })
+
+      await expect(resolveServiceAccountToken('legacy-1', providerId)).resolves.toMatchObject({
+        accessToken: 'legacy-token',
+        domain,
+      })
+    }
+  )
+
+  it('keeps the region a newer credential was saved with', async () => {
+    storeBlob({
+      type: 'token_service_account',
+      providerId: 'launchdarkly-service-account',
+      apiToken: 'eu-token',
+      domain: 'eu',
+    })
+
+    await expect(
+      resolveServiceAccountToken('eu-1', 'launchdarkly-service-account')
+    ).resolves.toMatchObject({ accessToken: 'eu-token', domain: 'eu' })
+  })
+})
+
+describe('Atlassian service-account resolution', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    resetDbChainMock()
+    vi.clearAllMocks()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+    mocks.coalesceLocally.mockImplementation(
+      async (_key: string, producer: () => Promise<unknown>) => producer()
+    )
+  })
+
+  function storeBlob(blob: Record<string, unknown>, reads: number) {
+    for (let read = 0; read < reads; read++) {
+      queueTableRows(credential, [{ encryptedServiceAccountKey: 'enc-atlassian' }])
+    }
+    mocks.decryptSecret.mockResolvedValue({ decrypted: JSON.stringify(blob) })
+  }
+
+  it('mints a token for an OAuth 2.0 credential and keeps its site binding', async () => {
+    storeBlob(
+      {
+        type: 'atlassian_service_account',
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        clientSecret: 'atl-secret',
+        domain: 'acme.atlassian.net',
+        cloudId: 'cloud-1',
+        atlassianProduct: 'jira',
+      },
+      1
+    )
+    fetchMock.mockResolvedValue(Response.json({ access_token: 'atl-minted', expires_in: 3600 }))
+
+    await expect(
+      resolveServiceAccountToken('atl-cc', 'atlassian-service-account')
+    ).resolves.toEqual({
+      accessToken: 'atl-minted',
+      cloudId: 'cloud-1',
+      domain: 'acme.atlassian.net',
+    })
+    expect(new Request(fetchMock.mock.calls[0][0], fetchMock.mock.calls[0][1]).url).toBe(
+      'https://auth.atlassian.com/oauth/token'
+    )
+    expect(mocks.decryptSecret).toHaveBeenCalledTimes(1)
+  })
+
+  it('still returns a scoped API token as is', async () => {
+    storeBlob(
+      {
+        type: 'atlassian_service_account',
+        apiToken: 'scoped-token',
+        domain: 'acme.atlassian.net',
+        cloudId: 'cloud-1',
+      },
+      1
+    )
+
+    await expect(
+      resolveServiceAccountToken('atl-token', 'atlassian-service-account')
+    ).resolves.toEqual({
+      accessToken: 'scoped-token',
+      cloudId: 'cloud-1',
+      domain: 'acme.atlassian.net',
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a blob with neither a token nor a complete OAuth 2.0 credential', async () => {
+    storeBlob(
+      {
+        type: 'atlassian_service_account',
+        authMethod: 'client_credentials',
+        clientId: 'atl-client',
+        domain: 'acme.atlassian.net',
+        cloudId: 'cloud-1',
+      },
+      1
+    )
+
+    await expect(
+      resolveServiceAccountToken('atl-broken', 'atlassian-service-account')
+    ).rejects.toThrow('malformed')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

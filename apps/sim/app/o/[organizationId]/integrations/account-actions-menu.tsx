@@ -110,7 +110,7 @@ export function AccountActionsMenu({
           if (!open && !disconnect.isPending) setSelectedId(null)
         }}
         title={`Disconnect ${integrationName}`}
-        text={`Disconnect ${selected?.displayName ?? integrationName} from all ${integrationName} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
+        text={`Disconnect ${selected?.displayName ?? integrationName} from this organization. Workflows using this account will also lose access. You can reconnect later.`}
         confirm={{
           label: 'Disconnect',
           pendingLabel: 'Disconnecting',

@@ -121,4 +121,61 @@ describe('SailPoint internal tool handler', () => {
     expect(mockProcessFilesToUserFiles).not.toHaveBeenCalled()
     expect(mockFetch).not.toHaveBeenCalled()
   })
+
+  it("sends a saved credential's token to its tenant without an exchange, and never re-mints on a 401", async () => {
+    mockFetch
+      .mockResolvedValueOnce(Response.json({ id: 'identity' }))
+      .mockResolvedValueOnce(Response.json({ error: 'expired token' }, { status: 401 }))
+    const tokenInput = { accessToken: 'minted-token', tenant: 'acme.api.identitynow.com' }
+    const call = () =>
+      executeSailPointTool({
+        toolId: 'sailpoint_get_identity',
+        input: { ...tokenInput, operation: 'sailpoint_get_identity', id: 'identity' },
+        headers: new Headers(),
+        context: { workflowId: 'workflow' },
+        requestId: 'request-id',
+      })
+
+    expect((await call()).status).toBe(200)
+    expect((await call()).status).toBe(401)
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    for (const [url, init] of mockFetch.mock.calls) {
+      expect(new URL(String(url)).host).toBe('acme.api.identitynow.com')
+      expect(new URL(String(url)).pathname).not.toBe('/oauth/token')
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer minted-token')
+    }
+  })
+
+  it('opts into the experimental access-request-config v2 API on every config read', async () => {
+    mockFetch.mockImplementation(async (url) =>
+      new URL(String(url)).pathname === '/oauth/token'
+        ? tokenResponse()
+        : Response.json({ approvalsMustBeExternal: false })
+    )
+
+    const response = await request('sailpoint_get_access_request_config', {})
+
+    expect(response.status).toBe(200)
+    const configCall = mockFetch.mock.calls.find(
+      ([url]) => new URL(String(url)).pathname === '/access-request-config/v2'
+    )
+    expect(new Headers(configCall?.[1]?.headers).get('X-SailPoint-Experimental')).toBe('true')
+  })
+
+  it('refuses input carrying neither inline credentials nor a token before any call', async () => {
+    const response = await executeSailPointTool({
+      toolId: 'sailpoint_get_identity',
+      input: { tenant: 'acme', operation: 'sailpoint_get_identity', id: 'identity' },
+      headers: new Headers(),
+      context: { workflowId: 'workflow' },
+      requestId: 'request-id',
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining('Client ID is required'),
+    })
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
 })

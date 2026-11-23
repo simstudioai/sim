@@ -57,6 +57,8 @@ describe('cli-auth approval store', () => {
         scope: 'copilot',
         workspaceId: null,
         workspaceBound: false,
+        access: 'write',
+        expiresInDays: null,
       })
       // NX lock on the mint key; TTL matches the approval so they expire together
       // and a failed cleanup can't leave a re-mintable window. Record not deleted here.
@@ -84,14 +86,6 @@ describe('cli-auth approval store', () => {
       mockGet.mockResolvedValue(storedApproval())
       mockSet.mockResolvedValue(null) // NX lost — someone else is minting
       await expect(pollApproval(REQUEST, SECRET)).resolves.toEqual({ status: 'pending' })
-    })
-  })
-
-  describe('without Redis', () => {
-    beforeEach(() => mockGetRedisClient.mockReturnValue(null))
-
-    it('fails fast on write', async () => {
-      await expect(createApproval('user-1', REQUEST, CHALLENGE)).rejects.toThrow('REDIS_URL')
     })
   })
 })

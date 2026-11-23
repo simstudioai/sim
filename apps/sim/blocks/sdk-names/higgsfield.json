@@ -1,0 +1,19 @@
+{
+  "namespace": "higgsfield",
+  "methods": {
+    "higgsfield_cancel_request": "cancelRequest",
+    "higgsfield_create_character": "createCharacter",
+    "higgsfield_delete_character": "deleteCharacter",
+    "higgsfield_delete_request": "deleteRequest",
+    "higgsfield_generate": "generateAnyModel",
+    "higgsfield_generate_soul_image": "generateSoulImage",
+    "higgsfield_get_character": "getCharacter",
+    "higgsfield_get_request_status": "getRequestStatus",
+    "higgsfield_list_characters": "listCharacters"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

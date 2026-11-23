@@ -1,13 +1,18 @@
 import type { ContactResult, GetContactParams, SendGridContact } from '@/tools/sendgrid/types'
+import { SENDGRID_REGIONS } from '@/tools/sendgrid/utils'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult> = {
   id: 'sendgrid_get_contact',
   name: 'SendGrid Get Contact',
   description: 'Get a specific contact by ID from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENDGRID_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -23,7 +28,8 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
   },
 
   request: {
-    url: (params) => `https://api.sendgrid.com/v3/marketing/contacts/${params.contactId}`,
+    url: (params) =>
+      `${SENDGRID_REGIONS.apiBase(params.region)}/marketing/contacts/${safeUrlPathSegment(params.contactId, 'contactId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -1,12 +1,15 @@
 import { MintlifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation } from '@/blocks/utils'
 
 /**
- * SubBlock IDs each operation may forward to its tool. Anything outside the
- * selected operation's list is explicitly cleared, because the executor merges
- * `tools.config.params` on top of the raw inputs and a retained advanced-mode
- * value would otherwise leak across operations.
+ * SubBlock IDs each operation may forward to its tool. On the canvas anything
+ * outside the selected operation's list is explicitly cleared, because the
+ * executor merges `tools.config.params` on top of the raw inputs and a retained
+ * advanced-mode value would otherwise leak across operations. A tool call's
+ * params are the stored row plus the model's arguments, keyed by the tool's own
+ * param names (`path`, `source`, `status`), so nothing is cleared there.
  */
 const OPERATION_PARAMS: Record<string, readonly string[]> = {
   trigger_update: ['projectId'],
@@ -566,20 +569,16 @@ Return ONLY the JSON array.`,
     ],
     config: {
       tool: (params: Record<string, unknown>) => `mintlify_${params.operation}`,
-      params: (params: Record<string, unknown>) => {
-        const { operation } = params
-        // On the agent-tool path `operation` is a sibling of the tool call rather
-        // than a member of params, so clearing anything here would erase the
-        // model's own arguments.
-        if (typeof operation !== 'string') return {}
-
-        const allowed = OPERATION_PARAMS[operation]
+      params: (params: Record<string, unknown>, context) => {
+        const allowed = OPERATION_PARAMS[mapperOperation(params, context)]
         if (!allowed) return {}
 
         const result: Record<string, unknown> = {}
-        for (const key of Object.keys(params)) {
-          if (key === 'operation' || key === 'apiKey') continue
-          result[key] = undefined
+        if (!isToolCall(context)) {
+          for (const key of Object.keys(params)) {
+            if (key === 'operation' || key === 'apiKey') continue
+            result[key] = undefined
+          }
         }
 
         for (const key of allowed) {
@@ -588,8 +587,7 @@ Return ONLY the JSON array.`,
 
           if (NUMERIC_PARAMS.has(key)) {
             const numeric = Number(value)
-            if (!Number.isFinite(numeric)) continue
-            result[key] = numeric
+            result[key] = Number.isFinite(numeric) ? numeric : undefined
             continue
           }
 

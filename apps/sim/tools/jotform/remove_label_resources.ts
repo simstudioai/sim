@@ -9,6 +9,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const removeLabelResourcesTool: ToolConfig<
@@ -19,6 +20,7 @@ export const removeLabelResourcesTool: ToolConfig<
   name: 'Jotform Remove Label Resources',
   description: 'Unassign forms, workflows, sheets, or apps from a Jotform label.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

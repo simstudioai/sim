@@ -12,7 +12,7 @@ export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
  * small shared `web` pool — one abusive key can starve every tenant. `SET LOCAL`
  * scopes both to the surrounding transaction, so they die when it commits.
  */
-const READ_STATEMENT_TIMEOUT_MS = 15_000
+export const READ_STATEMENT_TIMEOUT_MS = 15_000
 const READ_LOCK_TIMEOUT_MS = 3_000
 
 /**

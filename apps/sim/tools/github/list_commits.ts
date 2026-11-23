@@ -1,9 +1,11 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import {
   COMMIT_DATA_OUTPUT,
   COMMIT_PARENT_OUTPUT_PROPERTIES,
   COMMIT_SUMMARY_OUTPUT_PROPERTIES,
   USER_FULL_OUTPUT,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ListCommitsParams {
@@ -43,6 +45,7 @@ export const listCommitsTool: ToolConfig<ListCommitsParams, ListCommitsResponse>
   description:
     'List commits in a repository with optional filtering by SHA, path, author, committer, or date range',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -117,7 +120,9 @@ export const listCommitsTool: ToolConfig<ListCommitsParams, ListCommitsResponse>
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.github.com/repos/${params.owner}/${params.repo}/commits`)
+      const url = new URL(
+        `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/commits`
+      )
       if (params.sha) url.searchParams.append('sha', params.sha)
       if (params.path) url.searchParams.append('path', params.path)
       if (params.author) url.searchParams.append('author', params.author)
@@ -210,6 +215,7 @@ export const listCommitsV2Tool: ToolConfig<ListCommitsParams, any> = {
   name: listCommitsTool.name,
   description: listCommitsTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: listCommitsTool.params,
   request: listCommitsTool.request,
 

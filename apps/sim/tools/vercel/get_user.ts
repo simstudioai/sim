@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelGetUserParams, VercelGetUserResponse } from '@/tools/vercel/types'
 
@@ -6,6 +7,7 @@ export const vercelGetUserTool: ToolConfig<VercelGetUserParams, VercelGetUserRes
   name: 'Vercel Get User',
   description: 'Get information about the authenticated Vercel user',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

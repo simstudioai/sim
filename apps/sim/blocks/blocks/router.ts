@@ -2,11 +2,13 @@ import { ConnectIcon } from '@/components/icons'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import { AuthMode, type BlockConfig } from '@/blocks/types'
 import {
-  getModelOptions,
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
+  getModelOptionsWithAuto,
   getProviderCredentialSubBlocks,
-  getSerializedModelProviderId,
   PROVIDER_CREDENTIAL_INPUTS,
+  resolveModelProviderId,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 
 interface TargetBlock {
   id: string
@@ -160,10 +162,10 @@ export const RouterBlock: BlockConfig = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
-      options: getModelOptions,
+      defaultValue: DEFAULT_BLOCK_MODEL,
+      options: getModelOptionsWithAuto,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
     {
       id: 'temperature',
@@ -193,13 +195,14 @@ export const RouterBlock: BlockConfig = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
+      tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
     },
   },
   inputs: {
     prompt: { type: 'string', description: 'Routing prompt content' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number',
@@ -251,10 +254,10 @@ export const RouterV2Block: BlockConfig = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
-      options: getModelOptions,
+      defaultValue: DEFAULT_BLOCK_MODEL,
+      options: getModelOptionsWithAuto,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
   ],
   tools: {
@@ -267,7 +270,7 @@ export const RouterV2Block: BlockConfig = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
+      tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
     },
   },
   inputs: {
@@ -275,6 +278,7 @@ export const RouterV2Block: BlockConfig = {
     routes: { type: 'json', description: 'Route definitions with descriptions' },
     model: { type: 'string', description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     ...MODEL_FALLBACK_INPUTS,
   },
   outputs: {

@@ -107,7 +107,7 @@ describe('access request targets', () => {
       config,
       catalog
     )
-    expect(delta.config.allowedIntegrations).toEqual(['github_v2', 'slack_v2'])
+    expect(delta.config.allowedIntegrations).toEqual(['github_v3', 'slack_v2'])
     expect(delta.config.deniedTools).toEqual(['other_tool'])
     expect(delta.changes.map((change) => change.configKey)).toEqual([
       'allowedIntegrations',

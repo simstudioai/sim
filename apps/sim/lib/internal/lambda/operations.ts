@@ -1,5 +1,6 @@
 import {
   AddPermissionCommand,
+  type ApplicationLogLevel,
   type Cors,
   CreateAliasCommand,
   CreateEventSourceMappingCommand,
@@ -42,6 +43,8 @@ import {
   ListProvisionedConcurrencyConfigsCommand,
   ListTagsCommand,
   ListVersionsByFunctionCommand,
+  type LogFormat,
+  type LoggingConfig,
   type LogType,
   PublishVersionCommand,
   PutFunctionConcurrencyCommand,
@@ -55,6 +58,7 @@ import {
   type SnapStartApplyOn,
   type SourceAccessConfiguration,
   type SourceAccessType,
+  type SystemLogLevel,
   TagResourceCommand,
   type TracingMode,
   UntagResourceCommand,
@@ -182,11 +186,18 @@ function toVpcConfig(subnetIds?: string[], securityGroupIds?: string[]) {
 }
 
 /** Builds the SDK `LoggingConfig` wrapper, omitted entirely when no field was supplied. */
-function toLoggingConfig(logFormat?: string, logGroup?: string) {
-  if (!logFormat && !logGroup) return undefined
+function toLoggingConfig(
+  logFormat?: string,
+  logGroup?: string,
+  applicationLogLevel?: ApplicationLogLevel,
+  systemLogLevel?: SystemLogLevel
+): LoggingConfig | undefined {
+  if (!logFormat && !logGroup && !applicationLogLevel && !systemLogLevel) return undefined
   return {
-    ...(logFormat ? { LogFormat: logFormat as 'JSON' | 'Text' } : {}),
+    ...(logFormat ? { LogFormat: logFormat as LogFormat } : {}),
     ...(logGroup ? { LogGroup: logGroup } : {}),
+    ...(applicationLogLevel ? { ApplicationLogLevel: applicationLogLevel } : {}),
+    ...(systemLogLevel ? { SystemLogLevel: systemLogLevel } : {}),
   }
 }
 
@@ -244,6 +255,7 @@ export async function executeLambdaInvoke(input: AwsLambdaInvokeBody, signal?: A
         LogType: input.logType as LogType | undefined,
         ClientContext: input.clientContext,
         Qualifier: input.qualifier,
+        TenantId: input.tenantId,
         Payload: encodeInvocationPayload(input.payload),
       }),
       { abortSignal: signal }
@@ -313,6 +325,12 @@ export async function executeLambdaGetFunction(
               imageUri: response.Code.ImageUri ?? null,
               resolvedImageUri: response.Code.ResolvedImageUri ?? null,
               sourceKmsKeyArn: response.Code.SourceKMSKeyArn ?? null,
+              error: response.Code.Error
+                ? {
+                    errorCode: response.Code.Error.ErrorCode ?? null,
+                    message: response.Code.Error.Message ?? null,
+                  }
+                : null,
             }
           : null,
         tags: response.Tags ?? {},
@@ -457,7 +475,12 @@ export async function executeLambdaUpdateFunctionConfiguration(
         SnapStart: input.snapStartApplyOn
           ? { ApplyOn: input.snapStartApplyOn as SnapStartApplyOn }
           : undefined,
-        LoggingConfig: toLoggingConfig(input.logFormat, input.logGroup),
+        LoggingConfig: toLoggingConfig(
+          input.logFormat,
+          input.logGroup,
+          input.applicationLogLevel,
+          input.systemLogLevel
+        ),
         RevisionId: input.revisionId,
       }),
       { abortSignal: signal }

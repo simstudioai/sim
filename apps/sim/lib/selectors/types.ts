@@ -5,6 +5,7 @@ export const selectorContextKeys = [
   'serviceTokenId',
   'serviceToken',
   'organization',
+  'category',
   'branch',
   'mcpServerId',
   'domain',

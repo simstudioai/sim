@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { STSGetAccessKeyInfoParams, STSGetAccessKeyInfoResponse } from '@/tools/sts/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getAccessKeyInfoTool: InternalToolConfig<
   name: 'STS Get Access Key Info',
   description: 'Get the AWS account ID associated with an access key',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

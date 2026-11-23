@@ -222,18 +222,25 @@ describe('Azure DevOps response transforms', () => {
       listPipelinesTool.transformResponse!(responseJson({ count: 0, value: [] }))
     ).resolves.toEqual({
       success: true,
-      output: { content: 'No pipelines found.', metadata: { count: 0, pipelines: [] } },
+      output: {
+        content: 'No pipelines found.',
+        metadata: { count: 0, pipelines: [], continuationToken: null },
+      },
     })
 
     const result = await listPipelinesTool.transformResponse!(
-      responseJson({
-        value: [{ id: 1, name: 'CI', revision: 2, url: 'https://example/p/1' }],
-      })
+      new Response(
+        JSON.stringify({
+          value: [{ id: 1, name: 'CI', revision: 2, url: 'https://example/p/1' }],
+        }),
+        { headers: { 'x-ms-continuationtoken': 'next-page' } }
+      )
     )
 
     expect(result.output.metadata).toEqual({
       count: 1,
       pipelines: [{ id: 1, name: 'CI', folder: '\\', revision: 2, url: 'https://example/p/1' }],
+      continuationToken: 'next-page',
     })
   })
 
@@ -331,7 +338,7 @@ describe('Azure DevOps response transforms', () => {
     ])
 
     const getWorkItem = await getWorkItemTool.transformResponse!(responseJson(rawWorkItem))
-    expect(getWorkItem.output.metadata.workItem).toEqual({
+    expect(getWorkItem.output.metadata.workItem).toMatchObject({
       id: 101,
       title: 'SimIntegrationTest Issue',
       state: 'Doing',
@@ -415,6 +422,39 @@ describe('Azure DevOps response transforms', () => {
         wiqlQuery: 'SELECT [System.Id] FROM workitems',
       } satisfies QueryWorkItemsParams)
     ).rejects.toThrow(/Failed to hydrate work item details/)
+  })
+
+  it('hydrates the work items of a WIQL link query', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(responseJson({ value: [rawWorkItem] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const transform = queryWorkItemsTool.transformResponse as NonNullable<
+      typeof queryWorkItemsTool.transformResponse
+    >
+    const result = await transform(
+      responseJson({
+        queryResultType: 'workItemLink',
+        workItemRelations: [
+          { rel: null, source: null, target: { id: 101 } },
+          { rel: 'System.LinkTypes.Hierarchy-Forward', source: { id: 101 }, target: { id: 102 } },
+        ],
+      }),
+      {
+        ...baseParams,
+        wiqlQuery: 'SELECT [System.Id] FROM WorkItemLinks',
+      } satisfies QueryWorkItemsParams
+    )
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const chunk = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(chunk.searchParams.get('ids')).toBe('101,102')
+    expect(result.output.metadata.totalMatched).toBe(2)
+    expect(result.output.metadata.workItemRelations).toEqual([
+      { rel: null, sourceId: null, targetId: 101 },
+      { rel: 'System.LinkTypes.Hierarchy-Forward', sourceId: 101, targetId: 102 },
+    ])
   })
 
   it('does not hydrate WIQL empty results', async () => {
@@ -553,4 +593,27 @@ describe('Azure DevOps trigger event matching', () => {
     ).toBe('azure_devops:sub-1:42')
     expect(azureDevOpsHandler.extractIdempotencyId!(null)).toBeNull()
   })
+})
+
+describe('Azure DevOps project-scoped URLs', () => {
+  const base = { accessToken: 'pat', organization: 'contoso', workItemId: 7 }
+
+  it('keeps a project name with spaces in its own path segment, as before', () => {
+    const url = new URL(buildUrl(getWorkItemTool, { ...base, project: 'My Project' } as never))
+
+    expect(url.pathname).toBe('/contoso/My%20Project/_apis/wit/workitems/7')
+  })
+
+  it('sends a project name pasted already encoded from the address bar unchanged', () => {
+    const url = new URL(buildUrl(getWorkItemTool, { ...base, project: 'My%20Project' } as never))
+
+    expect(url.pathname).toBe('/contoso/My%20Project/_apis/wit/workitems/7')
+  })
+
+  it.each(['../../other-org/proj', '..', 'proj/../../other-org', '%2e%2e'])(
+    'refuses a project that would climb into another organization (%s)',
+    (project) => {
+      expect(() => buildUrl(getWorkItemTool, { ...base, project } as never)).toThrow(/project/)
+    }
+  )
 })

@@ -4,6 +4,7 @@ import type {
 } from '@/tools/grafana/types'
 import { ALERT_RULE_OUTPUT_FIELDS } from '@/tools/grafana/types'
 import { mapAlertRule } from '@/tools/grafana/utils'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createAlertRuleTool: ToolConfig<
@@ -14,6 +15,7 @@ export const createAlertRuleTool: ToolConfig<
   name: 'Grafana Create Alert Rule',
   description: 'Create a new alert rule',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

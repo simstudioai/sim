@@ -21,7 +21,6 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListAuditLogsContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
@@ -50,8 +49,6 @@ export const revalidate = 0
  * is nothing here for a group to withhold.
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   try {
     const rateLimit = await checkRateLimit(request, 'audit-logs')
     if (!rateLimit.allowed) {
@@ -117,7 +114,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(response.body, { headers: response.headers })
   } catch (error: unknown) {
     const message = getErrorMessage(error, 'Unknown error')
-    logger.error(`[${requestId}] Audit logs fetch error`, { error: message })
+    logger.error('Audit logs fetch error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

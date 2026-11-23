@@ -1,7 +1,12 @@
 import { KalshiIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /*
  * Mutually exclusive alternates, not canonical pairs — an order carries either
@@ -22,7 +27,7 @@ export const KalshiBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'kalshi_v2' },
+  sunset: { status: 'legacy', replacedBy: 'kalshi_v3' },
   bgColor: '#09C285',
   iconColor: '#09C285',
   icon: KalshiIcon,
@@ -133,7 +138,7 @@ export const KalshiBlock: BlockConfig = {
         { label: 'Get Series List', id: 'get_series_list' },
         { label: 'Get Exchange Status', id: 'get_exchange_status' },
         { label: 'Get Exchange Schedule', id: 'get_exchange_schedule' },
-        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements' },
+        { label: 'Get Exchange Announcements', id: 'get_exchange_announcements', hidden: true },
         { label: 'Create Order', id: 'create_order' },
         { label: 'Cancel Order', id: 'cancel_order' },
         { label: 'Amend Order', id: 'amend_order' },
@@ -427,6 +432,13 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       condition: { field: 'operation', value: ['get_order', 'cancel_order', 'amend_order'] },
     },
     {
+      id: 'cancelTicker',
+      title: 'Market Ticker',
+      type: 'short-input',
+      placeholder: "Order's market ticker (optional; looked up from the order when empty)",
+      condition: { field: 'operation', value: ['cancel_order'] },
+    },
+    {
       id: 'tickerOrder',
       title: 'Market Ticker',
       type: 'short-input',
@@ -474,7 +486,7 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       id: 'countAmend',
       title: 'Contracts',
       type: 'short-input',
-      placeholder: 'Updated number of contracts (optional)',
+      placeholder: 'New total contracts, filled plus resting (empty keeps the current total)',
       condition: { field: 'operation', value: ['amend_order'] },
     },
     {
@@ -483,7 +495,8 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       type: 'dropdown',
       options: [
         { label: 'Limit', id: 'limit' },
-        { label: 'Market', id: 'market' },
+        // Kalshi removed market orders (2026-02-11); kept hidden so saved blocks stay valid.
+        { label: 'Market', id: 'market', hidden: true },
       ],
       condition: { field: 'operation', value: ['create_order'] },
     },
@@ -533,6 +546,18 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         { label: 'Good Till Canceled', id: 'good_till_canceled' },
         { label: 'Fill or Kill', id: 'fill_or_kill' },
         { label: 'Immediate or Cancel', id: 'immediate_or_cancel' },
+      ],
+      condition: { field: 'operation', value: ['create_order'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'orderSelfTradePrevention',
+      title: 'Self-Trade Prevention',
+      type: 'dropdown',
+      options: [
+        { label: 'Taker at cross (default)', id: '' },
+        { label: 'Maker', id: 'maker' },
+        { label: 'Taker at cross', id: 'taker_at_cross', hidden: true },
       ],
       condition: { field: 'operation', value: ['create_order'] },
       mode: 'advanced',
@@ -695,9 +720,9 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
             return 'kalshi_get_markets'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
         const {
-          operation,
           orderStatus,
           tickerFilter,
           tickerFills,
@@ -707,73 +732,95 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           orderIdParam,
           tickerOrder,
           orderType,
+          orderSelfTradePrevention,
+          cancelTicker,
           countAmend,
           clientOrderIdAmend,
           ...rest
         } = params
         const cleanParams: Record<string, any> = {}
-
-        if (operation === 'get_orders' && orderStatus) {
-          cleanParams.status = orderStatus
-        }
-
-        if (
-          (operation === 'get_orders' ||
-            operation === 'get_positions' ||
-            operation === 'get_settlements') &&
-          tickerFilter
-        ) {
-          cleanParams.ticker = tickerFilter
-        }
-
-        if (operation === 'get_fills' && tickerFills) {
-          cleanParams.ticker = tickerFills
-        }
-
-        if (operation === 'get_candlesticks') {
-          if (seriesTickerCandlesticks) cleanParams.seriesTicker = seriesTickerCandlesticks
-          if (tickerCandlesticks) cleanParams.ticker = tickerCandlesticks
-        }
-
-        // Map series ticker for get_event_candlesticks (event ticker flows through eventTicker)
-        if (operation === 'get_event_candlesticks' && seriesTickerCandlesticks) {
-          cleanParams.seriesTicker = seriesTickerCandlesticks
-        }
-
-        if (operation === 'get_series_by_ticker' && seriesTickerGet) {
-          cleanParams.seriesTicker = seriesTickerGet
-        }
-
-        if (
-          (operation === 'get_order' ||
-            operation === 'cancel_order' ||
-            operation === 'amend_order') &&
-          orderIdParam
-        ) {
-          cleanParams.orderId = orderIdParam
-        }
-
-        if ((operation === 'create_order' || operation === 'amend_order') && tickerOrder) {
-          cleanParams.ticker = tickerOrder
-        }
-
-        if (operation === 'create_order' && orderType) {
-          cleanParams.type = orderType
-        }
-
-        if (operation === 'amend_order' && countAmend) {
-          cleanParams.count = countAmend
-        }
-
-        if (operation === 'amend_order' && clientOrderIdAmend) {
-          cleanParams.clientOrderId = clientOrderIdAmend
-        }
-
         Object.entries(rest).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
             cleanParams[key] = value
           }
         })
+
+        /**
+         * The operation's own field wins over a value under the tool's param name: on the canvas
+         * that value is stale from another operation, and on a tool call the row's field is pinned.
+         * The model's value fills the param only on a tool call with the field empty.
+         */
+        const mapField = (key: string, field: unknown) => {
+          cleanParams[key] = field || toolCallArg(context, cleanParams[key])
+        }
+
+        /** Fields shown only for one operation: any other operation takes them from the model alone. */
+        const keepOnlyFor = (key: string, owner: string) => {
+          if (operation !== owner) cleanParams[key] = toolCallArg(context, cleanParams[key])
+        }
+        keepOnlyFor('minTs', 'get_fills')
+        keepOnlyFor('maxTs', 'get_fills')
+        keepOnlyFor('countFp', 'create_order')
+        if (operation === 'get_trades') {
+          cleanParams.ticker = toolCallArg(context, cleanParams.ticker)
+        }
+
+        if (operation === 'get_orders') {
+          mapField('status', orderStatus)
+        }
+
+        if (
+          operation === 'get_orders' ||
+          operation === 'get_positions' ||
+          operation === 'get_settlements'
+        ) {
+          mapField('ticker', tickerFilter)
+        }
+
+        if (operation === 'get_fills') {
+          mapField('ticker', tickerFills)
+        }
+
+        if (operation === 'get_candlesticks') {
+          mapField('seriesTicker', seriesTickerCandlesticks)
+          mapField('ticker', tickerCandlesticks)
+        }
+
+        // Event candlesticks take the event ticker through eventTicker
+        if (operation === 'get_event_candlesticks') {
+          mapField('seriesTicker', seriesTickerCandlesticks)
+        }
+
+        if (operation === 'get_series_by_ticker') {
+          mapField('seriesTicker', seriesTickerGet)
+        }
+
+        if (
+          operation === 'get_order' ||
+          operation === 'cancel_order' ||
+          operation === 'amend_order'
+        ) {
+          mapField('orderId', orderIdParam)
+        }
+
+        if (operation === 'create_order' || operation === 'amend_order') {
+          mapField('ticker', tickerOrder)
+        }
+
+        // Routes the cancel to the order's exchange shard; the tool looks it up when empty.
+        if (operation === 'cancel_order') {
+          mapField('ticker', cancelTicker)
+        }
+
+        if (operation === 'create_order') {
+          mapField('type', orderType)
+          mapField('selfTradePreventionType', orderSelfTradePrevention)
+        }
+
+        if (operation === 'amend_order') {
+          mapField('count', countAmend)
+          mapField('clientOrderId', clientOrderIdAmend)
+        }
 
         return cleanParams
       },
@@ -824,14 +871,14 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
 
 export const KalshiV2Block: BlockConfig = {
   ...KalshiBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'kalshi_v3' },
   type: 'kalshi_v2',
   name: 'Kalshi',
   description: 'Access prediction markets and trade on Kalshi',
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
   integrationType: IntegrationType.Analytics,
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   tools: {
     ...KalshiBlock.tools,
     access: [
@@ -994,6 +1041,24 @@ export const KalshiV2Block: BlockConfig = {
     // Pagination (flat cursor instead of nested paging object)
     cursor: { type: 'string', description: 'Pagination cursor for fetching more results' },
   },
+}
+
+/**
+ * Signs account and trading requests with a saved Kalshi API key; the market-data operations
+ * stay public and need no credential.
+ */
+export const KalshiV3Block: BlockConfig = {
+  ...KalshiV2Block,
+  type: 'kalshi_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(KalshiV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'kalshi',
+    title: 'Kalshi Credential',
+  }),
 }
 
 export const KalshiBlockMeta = {

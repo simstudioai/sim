@@ -5,6 +5,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneDeleteProjectTool: ToolConfig<
@@ -16,6 +17,7 @@ export const rocketlaneDeleteProjectTool: ToolConfig<
   description:
     'Permanently delete a Rocketlane project by ID (irreversible; only Admins, Super Users, and Project Owners can delete)',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -6,6 +6,15 @@ export interface SearchResult {
   breadcrumbs: string[]
 }
 
+export interface SearchPage {
+  id: string
+  url: string
+  title: string
+  contentHash: string
+  headings: string[]
+  breadcrumbs: string[]
+}
+
 export interface SearchChunk {
   id: string
   pageId: string

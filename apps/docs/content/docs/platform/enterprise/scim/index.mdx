@@ -16,7 +16,7 @@ Configure [SSO](/platform/enterprise/sso) separately for authentication. SCIM ca
 
 - On Sim Cloud, use an Enterprise organization and an organization owner or admin account.
 - [Verify every email domain](/platform/enterprise/verified-domains) you will provision. Sim refuses account creation or an email change to an unverified domain.
-- On self-hosted deployments, enable SSO to reach **Single sign-on → Provisioning**, and enable SCIM. The enterprise master pair enables both; individual setup uses `SSO_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `SCIM_ENABLED`, and `NEXT_PUBLIC_SCIM_ENABLED`. See [Self-hosted SSO setup](/platform/enterprise/sso#self-hosted-setup) and [Deployment and upgrades](#deployment-and-upgrades).
+- On self-hosted deployments, enable SSO to reach **Single sign-on → Provisioning**, and enable SCIM. `ENTERPRISE_ENABLED` enables both; individual setup uses `SSO_ENABLED` and `SCIM_ENABLED`. See [Self-hosted SSO setup](/platform/enterprise/sso#self-hosted-setup) and [Deployment and upgrades](#deployment-and-upgrades).
 
 ## Plan membership and access
 
@@ -205,7 +205,7 @@ While the connection is disabled, **Lock managed membership** and **Disable just
 Apply database migrations before the new application code. The SCIM tables and suspension fields are additive, allowing older code to run against the expanded schema during rollout.
 
 <Callout type="warn">
-  Keep `SCIM_ENABLED=false` and `NEXT_PUBLIC_SCIM_ENABLED=false` until all older application instances and workers are drained. Older code does not enforce SCIM suspension or explicit permission-group membership. These explicit flags also override the hosted default.
+  Keep `SCIM_ENABLED=false` until all older application instances and workers are drained. Older code does not enforce SCIM suspension or explicit permission-group membership. This explicit flag also overrides the hosted default.
 </Callout>
 
 After SCIM has suspended accounts or established managed access, rolling back to code that predates SCIM is unsafe: it cannot enforce those restrictions. Disabling synchronization does not undo suspension or restore earlier membership semantics.

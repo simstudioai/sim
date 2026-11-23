@@ -1,0 +1,29 @@
+{
+  "namespace": "ses",
+  "methods": {
+    "create_configuration_set": "createConfigurationSet",
+    "create_email_identity": "createEmailIdentity",
+    "create_template": "createTemplate",
+    "delete_email_identity": "deleteEmailIdentity",
+    "delete_suppressed_destination": "deleteSuppressedDestination",
+    "delete_template": "deleteTemplate",
+    "get_account": "getAccount",
+    "get_email_identity": "getEmailIdentity",
+    "get_suppressed_destination": "getSuppressedDestination",
+    "get_template": "getTemplate",
+    "list_identities": "listIdentities",
+    "list_suppressed_destinations": "listSuppressedDestinations",
+    "list_templates": "listTemplates",
+    "put_suppressed_destination": "putSuppressedDestination",
+    "send_bulk_email": "sendBulkEmail",
+    "send_custom_verification_email": "sendCustomVerificationEmail",
+    "send_email": "sendEmail",
+    "send_templated_email": "sendTemplatedEmail",
+    "update_template": "updateTemplate"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

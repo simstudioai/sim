@@ -1,4 +1,5 @@
 import type { UserFile } from '@/executor/types'
+import type { TeamsMessageDetails } from '@/tools/microsoft_teams/utils'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
 export interface MicrosoftTeamsAttachment {
@@ -23,25 +24,44 @@ interface MicrosoftTeamsMetadata {
   createdTime?: string
   url?: string
   messageCount?: number
-  messages?: Array<{
-    id: string
-    content: string
-    sender: string
-    timestamp: string
-    messageType: string
-    attachments?: MicrosoftTeamsAttachment[]
-    uploadedFiles?: Array<ToolFileData | UserFile>
-  }>
+  messages?: MicrosoftTeamsMessageSummary[]
   // Global attachments summary
   totalAttachments?: number
   attachmentTypes?: string[]
+  hasMore?: boolean
+  nextPageToken?: string | null
+}
+
+export interface MicrosoftTeamsMessageSummary extends Partial<TeamsMessageDetails> {
+  id: string
+  content: string
+  sender: string
+  timestamp: string
+  messageType: string
+  attachments?: MicrosoftTeamsAttachment[]
+  uploadedFiles?: Array<ToolFileData | UserFile>
+  replies?: MicrosoftTeamsMessageSummary[]
+  hasMoreReplies?: boolean
 }
 
 export interface MicrosoftTeamsReadResponse extends ToolResponse {
-  output: {
+  output: Partial<TeamsMessageDetails> & {
     content: string
     metadata: MicrosoftTeamsMetadata
     attachments?: Array<ToolFileData | UserFile>
+    messageCount?: number
+    teamId?: string
+    channelId?: string
+    chatId?: string
+    attachmentCount?: number
+    attachmentTypes?: string[]
+    hasMore?: boolean
+    nextPageToken?: string | null
+    messageId?: string
+    sender?: string
+    messageType?: string
+    createdTime?: string
+    url?: string
   }
 }
 
@@ -50,6 +70,10 @@ export interface MicrosoftTeamsWriteResponse extends ToolResponse {
     updatedContent: boolean
     metadata: MicrosoftTeamsMetadata
     files?: ToolFileData[]
+    messageId?: string
+    createdTime?: string
+    url?: string
+    replyToId?: string | null
   }
 }
 
@@ -63,6 +87,10 @@ export interface MicrosoftTeamsToolParams {
   includeAttachments?: boolean
   files?: UserFile[]
   reactionType?: string // For reaction operations
+  contentType?: string
+  top?: number | string
+  pageToken?: string
+  includeReplies?: boolean
 }
 
 // Update message params
@@ -146,6 +174,7 @@ export interface MicrosoftTeamsListChatsResponse extends ToolResponse {
     chats: MicrosoftTeamsChatSummary[]
     chatCount: number
     hasMore: boolean
+    nextPageToken?: string | null
   }
 }
 

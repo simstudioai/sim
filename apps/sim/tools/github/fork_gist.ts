@@ -1,3 +1,5 @@
+import { githubPathSegment } from '@/tools/github/request-path'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface ForkGistParams {
@@ -27,6 +29,7 @@ export const forkGistTool: ToolConfig<ForkGistParams, ForkGistResponse> = {
   name: 'GitHub Fork Gist',
   description: 'Fork a gist to create your own copy',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     gist_id: {
@@ -44,7 +47,8 @@ export const forkGistTool: ToolConfig<ForkGistParams, ForkGistResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/gists/${params.gist_id?.trim()}/forks`,
+    url: (params) =>
+      `https://api.github.com/gists/${githubPathSegment(params.gist_id, 'gist_id')}/forks`,
     method: 'POST',
     headers: (params) => ({
       Accept: 'application/vnd.github.v3+json',
@@ -104,6 +108,7 @@ export const forkGistV2Tool: ToolConfig<ForkGistParams, any> = {
   name: forkGistTool.name,
   description: forkGistTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: forkGistTool.params,
   request: forkGistTool.request,
 

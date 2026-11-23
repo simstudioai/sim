@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { mapSettledWithConcurrency } from '@sim/utils/concurrency'
 import type { z } from 'zod'
 import {
   type mothershipResourceAttachmentSchema,
@@ -6,7 +7,6 @@ import {
 } from '@/lib/api/contracts/mothership-resources'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { CONTEXT_RESOLUTION_CONCURRENCY } from '@/lib/mothership/chat/context-limits'
 import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
@@ -209,15 +209,17 @@ export async function resolveResourceAttachmentContexts(params: {
       const resourceType = resourceAttachments[index]?.type
       const code = asOrchestrationError(result.reason)?.code
       if (code === 'not_found') {
-        logger.info(`[${requestId}] Skipped resource attachment that no longer exists`, {
+        logger.info('Skipped resource attachment that no longer exists', {
+          requestId,
           resourceType,
         })
       } else if (code === 'forbidden') {
-        logger.warn(`[${requestId}] Skipped resource attachment the user can no longer access`, {
+        logger.warn('Skipped resource attachment the user can no longer access', {
+          requestId,
           resourceType,
         })
       } else {
-        logger.error(`[${requestId}] Failed to resolve resource attachment`, result.reason)
+        logger.error('Failed to resolve resource attachment', result.reason, { requestId })
       }
     })
   }

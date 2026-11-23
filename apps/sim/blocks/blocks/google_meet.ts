@@ -196,13 +196,26 @@ export const GoogleMeetBlock: BlockConfig = {
     accessType: { type: 'string', description: 'Access type' },
     entryPointAccess: { type: 'string', description: 'Entry point access' },
     activeConference: { type: 'string', description: 'Active conference record' },
+    moderation: { type: 'string', description: 'Host moderation (ON or OFF)' },
+    attendanceReportGenerationType: {
+      type: 'string',
+      description: 'Attendance report setting (GENERATE_REPORT or DO_NOT_GENERATE)',
+    },
+    artifactConfig: {
+      type: 'json',
+      description: 'Auto recording, transcription, and smart notes settings (ON or OFF each)',
+    },
     ended: { type: 'boolean', description: 'Whether conference was ended' },
     conferenceRecords: { type: 'json', description: 'List of conference records' },
     startTime: { type: 'string', description: 'Conference start time' },
     endTime: { type: 'string', description: 'Conference end time' },
     expireTime: { type: 'string', description: 'Record expiration time' },
     space: { type: 'string', description: 'Associated space name' },
-    participants: { type: 'json', description: 'List of participants' },
+    participants: {
+      type: 'json',
+      description:
+        'List of participants [{ name, earliestStartTime, latestEndTime, displayName, userType, user }]',
+    },
     nextPageToken: { type: 'string', description: 'Next page token' },
     totalSize: { type: 'number', description: 'Total participant count' },
   },

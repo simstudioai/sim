@@ -1,5 +1,6 @@
 import type { ListDomainsParams, ListDomainsResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsResult> = {
@@ -7,6 +8,7 @@ export const mailgunListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRe
   name: 'Mailgun List Domains',
   description: 'List all domains for your Mailgun account',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

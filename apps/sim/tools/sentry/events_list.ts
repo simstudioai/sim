@@ -1,5 +1,8 @@
 import type { SentryListEventsParams, SentryListEventsResponse } from '@/tools/sentry/types'
+import { SENTRY_REGIONS } from '@/tools/sentry/utils'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEventsResponse> = {
   id: 'sentry_events_list',
@@ -7,8 +10,10 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
   description:
     'List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
+    region: SENTRY_REGIONS.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -50,7 +55,8 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of events to return per page (max: 100)',
+      description:
+        'Number of events to return per page (max: 10, because full event bodies are requested)',
     },
     statsPeriod: {
       type: 'string',
@@ -66,9 +72,9 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
       let baseUrl: string
 
       if (params.issueId && params.issueId !== null && params.issueId !== '') {
-        baseUrl = `https://sentry.io/api/0/organizations/${params.organizationSlug}/issues/${params.issueId}/events/`
+        baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/organizations/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/issues/${safeUrlPathSegment(params.issueId, 'issueId')}/events/`
       } else {
-        baseUrl = `https://sentry.io/api/0/projects/${params.organizationSlug}/${params.projectSlug}/events/`
+        baseUrl = `${SENTRY_REGIONS.apiBase(params.region)}/projects/${safeUrlPathSegment(params.organizationSlug, 'organizationSlug')}/${safeUrlPathSegment(params.projectSlug, 'projectSlug')}/events/`
       }
 
       const isIssueScoped = Boolean(
@@ -175,6 +181,8 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
           nextCursor,
           hasMore,
         },
+        nextCursor,
+        hasMore,
       },
     }
   },
@@ -278,6 +286,16 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
           description: 'Whether there are more results available',
         },
       },
+    },
+    nextCursor: {
+      type: 'string',
+      description:
+        'Cursor for the next page of results; pass it as the Pagination Cursor to fetch that page',
+      optional: true,
+    },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether there are more results available',
     },
   },
 }

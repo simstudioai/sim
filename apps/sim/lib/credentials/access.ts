@@ -6,6 +6,7 @@ import {
   resourceScopeFromOwner,
   sameResourceScope,
 } from '@/lib/core/resource-scope'
+import { isPersonalOrganizationServiceAccount } from '@/lib/credentials/service-account-provider-ids'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   getUserEntityPermissions,
@@ -84,6 +85,7 @@ export async function resolveCredentialTokenIdentity(
       createdBy: credential.createdBy,
       type: credential.type,
       accountId: credential.accountId,
+      providerId: credential.providerId,
     })
     .from(credential)
     .where(eq(credential.id, credentialId))
@@ -93,6 +95,7 @@ export async function resolveCredentialTokenIdentity(
     if (!sameResourceScope(resourceScopeFromOwner(platformCredential), scope)) return null
     if (platformCredential.type === 'service_account') {
       if (scope.kind === 'organization') {
+        if (isPersonalOrganizationServiceAccount(platformCredential.providerId)) return null
         if (!platformCredential.createdBy) return null
         const [membership] = await db
           .select({ id: member.id })

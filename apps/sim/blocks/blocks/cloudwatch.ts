@@ -1,6 +1,7 @@
 import { CloudWatchIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 /*
  * Canonical basic/advanced pairs, shared by the card sentences below. Listing
@@ -14,6 +15,8 @@ const LOG_STREAM_FIELD = ['logStreamNameSelector', 'logStreamNameInput'] as cons
 
 export const CloudWatchBlock: BlockConfig = {
   type: 'cloudwatch',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'cloudwatch_v2' },
   name: 'CloudWatch',
   description: 'Query and monitor AWS CloudWatch logs, metrics, and alarms',
   longDescription:
@@ -495,6 +498,22 @@ Return ONLY the filter pattern - no explanations, no extra text.`,
       condition: { field: 'operation', value: 'get_metric_statistics' },
     },
     {
+      id: 'metricExtendedStatistics',
+      title: 'Percentile Statistics',
+      type: 'short-input',
+      placeholder: 'p99, p95 (requested instead of Statistics when set)',
+      condition: { field: 'operation', value: 'get_metric_statistics' },
+      mode: 'advanced',
+    },
+    {
+      id: 'metricStatisticsUnit',
+      title: 'Unit Filter',
+      type: 'short-input',
+      placeholder: 'e.g., Percent, Milliseconds (omit for all units)',
+      condition: { field: 'operation', value: 'get_metric_statistics' },
+      mode: 'advanced',
+    },
+    {
       id: 'alarmNamePrefix',
       title: 'Alarm Name Prefix',
       type: 'short-input',
@@ -649,6 +668,30 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       description: 'Unix epoch seconds. Defaults to now (mute starts immediately).',
     },
     {
+      id: 'filterNextToken',
+      title: 'Next Token',
+      type: 'short-input',
+      placeholder: 'nextToken from a previous Filter Log Events call',
+      condition: { field: 'operation', value: 'filter_log_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'logEventsNextToken',
+      title: 'Next Token',
+      type: 'short-input',
+      placeholder: 'nextForwardToken or nextBackwardToken from a previous call',
+      condition: { field: 'operation', value: 'get_log_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alarmsNextToken',
+      title: 'Next Token',
+      type: 'short-input',
+      placeholder: 'nextToken from a previous Describe Alarms call',
+      condition: { field: 'operation', value: 'describe_alarms' },
+      mode: 'advanced',
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
@@ -718,8 +761,9 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             throw new Error(`Invalid CloudWatch operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { operation, startTime, endTime, limit, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { startTime, endTime, limit, ...rest } = params
 
         const awsRegion = rest.awsRegion
         const awsAccessKeyId = rest.awsAccessKeyId
@@ -785,6 +829,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...(startTime && { startTime: Number(startTime) }),
               ...(endTime && { endTime: Number(endTime) }),
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
+              ...(rest.logEventsNextToken && { nextToken: rest.logEventsNextToken }),
             }
           }
 
@@ -823,6 +868,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
                 startFromHead: rest.startFromHead === 'true' || rest.startFromHead === true,
               }),
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
+              ...(rest.filterNextToken && { nextToken: rest.filterNextToken }),
             }
           }
 
@@ -858,7 +904,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             }
 
           case 'get_metric_statistics': {
-            if (!rest.metricNamespace) {
+            const namespace = rest.metricNamespace || toolCallArg(context, rest.namespace)
+            if (!namespace) {
               throw new Error('Namespace is required')
             }
             if (!rest.metricName) {
@@ -870,12 +917,15 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             if (!endTime) {
               throw new Error('End time is required')
             }
-            if (!rest.metricPeriod) {
+            const period = rest.metricPeriod || toolCallArg(context, rest.period)
+            if (!period) {
               throw new Error('Period is required')
             }
 
-            const stat = rest.metricStatistics
-            if (!stat) {
+            const stat = rest.metricStatistics || toolCallArg(context, rest.statistics)
+            const extendedStat =
+              rest.metricExtendedStatistics || toolCallArg(context, rest.extendedStatistics)
+            if (!stat && !extendedStat) {
               throw new Error('Statistics is required')
             }
 
@@ -883,12 +933,21 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              namespace: rest.metricNamespace,
+              namespace,
               metricName: rest.metricName,
               startTime: Number(startTime),
               endTime: Number(endTime),
-              period: Number(rest.metricPeriod),
-              statistics: Array.isArray(stat) ? stat : [stat],
+              period: Number(period),
+              ...(stat && { statistics: Array.isArray(stat) ? stat : [stat] }),
+              ...(extendedStat && {
+                extendedStatistics: Array.isArray(extendedStat)
+                  ? extendedStat
+                  : String(extendedStat)
+                      .split(',')
+                      .map((s: string) => s.trim())
+                      .filter(Boolean),
+              }),
+              ...(rest.metricStatisticsUnit && { unit: rest.metricStatisticsUnit }),
               ...(rest.metricDimensions && {
                 dimensions: (() => {
                   const dims = rest.metricDimensions
@@ -909,16 +968,21 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           }
 
           case 'put_metric_data': {
-            if (!rest.metricNamespace) {
+            const namespace = rest.metricNamespace || toolCallArg(context, rest.namespace)
+            if (!namespace) {
               throw new Error('Namespace is required')
             }
             if (!rest.metricName) {
               throw new Error('Metric name is required')
             }
-            if (rest.metricValue === undefined || rest.metricValue === '') {
+            const metricValue =
+              rest.metricValue === undefined || rest.metricValue === ''
+                ? toolCallArg(context, rest.value)
+                : rest.metricValue
+            if (metricValue === undefined || metricValue === '') {
               throw new Error('Metric value is required')
             }
-            const numericValue = Number(rest.metricValue)
+            const numericValue = Number(metricValue)
             if (!Number.isFinite(numericValue)) {
               throw new Error('Metric value must be a finite number')
             }
@@ -927,7 +991,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               awsRegion,
               awsAccessKeyId,
               awsSecretAccessKey,
-              namespace: rest.metricNamespace,
+              namespace,
               metricName: rest.metricName,
               value: numericValue,
               ...(rest.metricUnit && rest.metricUnit !== 'None' && { unit: rest.metricUnit }),
@@ -959,6 +1023,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...(rest.stateValue && { stateValue: rest.stateValue }),
               ...(rest.alarmType && { alarmType: rest.alarmType }),
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
+              ...(rest.alarmsNextToken && { nextToken: rest.alarmsNextToken }),
             }
 
           case 'describe_alarm_history':
@@ -1096,6 +1161,20 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     metricPeriod: { type: 'number', description: 'Granularity in seconds' },
     metricStatistics: { type: 'string', description: 'Statistic type (Average, Sum, etc.)' },
     metricDimensions: { type: 'json', description: 'Metric dimensions (Name/Value pairs)' },
+    metricExtendedStatistics: {
+      type: 'string',
+      description: 'Comma-separated percentile statistics (e.g., p99, p95)',
+    },
+    metricStatisticsUnit: {
+      type: 'string',
+      description: 'Only return metric data reported with this unit',
+    },
+    filterNextToken: { type: 'string', description: 'Pagination token for Filter Log Events' },
+    logEventsNextToken: {
+      type: 'string',
+      description: 'Forward or backward pagination token for Get Log Events',
+    },
+    alarmsNextToken: { type: 'string', description: 'Pagination token for Describe Alarms' },
     metricValue: { type: 'number', description: 'Metric value to publish' },
     metricUnit: { type: 'string', description: 'Metric unit (Count, Seconds, Bytes, etc.)' },
     publishDimensions: {
@@ -1135,13 +1214,30 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       type: 'string',
       description: 'Query completion status',
     },
+    queryId: {
+      type: 'string',
+      description: 'ID of the Logs Insights query',
+    },
+    nextToken: {
+      type: 'string',
+      description: 'Pagination token for the next page (Filter Log Events, Describe Alarms)',
+    },
+    nextForwardToken: {
+      type: 'string',
+      description: 'Token for the next, newer page of Get Log Events results',
+    },
+    nextBackwardToken: {
+      type: 'string',
+      description: 'Token for the previous, older page of Get Log Events results',
+    },
     logGroups: {
       type: 'array',
       description: 'List of CloudWatch log groups',
     },
     events: {
       type: 'array',
-      description: 'Log events with timestamp and message',
+      description:
+        'Log events [{timestamp, message, ingestionTime, logStreamName, eventId}] (logStreamName and eventId from Filter Log Events)',
     },
     logStreams: {
       type: 'array',
@@ -1157,15 +1253,18 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     },
     datapoints: {
       type: 'array',
-      description: 'Metric datapoints with timestamps and values',
+      description:
+        'Metric datapoints [{timestamp, average, sum, minimum, maximum, sampleCount, unit, extendedStatistics}]',
     },
     alarms: {
       type: 'array',
-      description: 'CloudWatch alarms with state and configuration',
+      description:
+        'CloudWatch alarms [{alarmName, alarmArn, alarmType, stateValue, stateReason, stateReasonData, alarmDescription, actionsEnabled, alarmActions, okActions, insufficientDataActions, metricName, namespace, statistic, extendedStatistic, dimensions, period, unit, threshold, comparisonOperator, evaluationPeriods, datapointsToAlarm, treatMissingData, metrics, alarmRule, stateUpdatedTimestamp, stateTransitionedTimestamp}]',
     },
     alarmHistoryItems: {
       type: 'array',
-      description: 'Alarm history items (state changes, configuration updates, actions)',
+      description:
+        'Alarm history items [{alarmName, alarmType, timestamp, historyItemType, historySummary, historyData, alarmContributorId}]',
     },
     alarmNames: {
       type: 'array',
@@ -1316,3 +1415,23 @@ export const CloudWatchBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CloudWatchV2Block: BlockConfig = {
+  ...CloudWatchBlock,
+  type: 'cloudwatch_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms.',
+  ...withSavedCredential(
+    CloudWatchBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'aws', title: 'AWS Credential' },
+    {
+      selectorKeys: {
+        'cloudwatch.logGroups': 'cloudwatch.savedLogGroups',
+        'cloudwatch.logStreams': 'cloudwatch.savedLogStreams',
+      },
+    }
+  ),
+}

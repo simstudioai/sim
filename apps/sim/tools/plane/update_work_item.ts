@@ -14,6 +14,7 @@ import {
   planeRedirectPolicy,
   planeVersionedValues,
 } from '@/tools/plane/utils'
+import { PLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -51,6 +52,7 @@ export const planeUpdateWorkItemTool: ToolConfig<
   name: 'Plane Update a work item',
   description: 'Update a work item in Plane. Supports API v1 compatibility.',
   version: '1.0.0',
+  oauth: PLANE_CREDENTIAL_OAUTH,
   params: {
     ...PLANE_CREDENTIAL_PARAMS,
     apiVersion: PLANE_VERSION_PARAM,

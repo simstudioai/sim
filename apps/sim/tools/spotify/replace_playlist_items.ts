@@ -43,7 +43,7 @@ export const spotifyReplacePlaylistItemsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/tracks`,
+    url: (params) => `https://api.spotify.com/v1/playlists/${params.playlistId}/items`,
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -1,4 +1,5 @@
 import type { AhrefsPaidPagesParams, AhrefsPaidPagesResponse } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'url,sum_traffic,keywords,top_keyword,value,ads_count'
@@ -9,6 +10,7 @@ export const paidPagesTool: ToolConfig<AhrefsPaidPagesParams, AhrefsPaidPagesRes
   description:
     "Get a target domain's pages that receive paid search traffic, sorted by estimated paid traffic. Returns page URLs with their paid traffic, keyword counts, and estimated spend.",
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

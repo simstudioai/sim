@@ -1,10 +1,10 @@
 import { isIP } from 'node:net'
+import { getRedisConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
 import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
-import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 const logger = createLogger('Redis')
@@ -17,8 +17,7 @@ const logger = createLogger('Redis')
  *
  * For DNS hosts: no override needed, default verification works.
  */
-function resolveRedisTlsOptions(url: string | undefined): { servername: string } | undefined {
-  if (!url) return undefined
+function resolveRedisTlsOptions(url: string): { servername: string } | undefined {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -55,7 +54,7 @@ export const CONNECT_TIMEOUT_MS = 10_000
 /** ioredis's own default, stated so readiness budgets can be derived from it. */
 export const DISCONNECT_TIMEOUT_MS = 2_000
 
-export function getRedisConnectionDefaults(url: string | undefined): RedisConnectionDefaults {
+export function getRedisConnectionDefaults(url: string): RedisConnectionDefaults {
   const tls = resolveRedisTlsOptions(url)
   return {
     keepAlive: 1000,
@@ -244,14 +243,17 @@ const REDIS_WARMUP_TIMEOUT_MS = coldConnectionBudgetMs({
   reconnectDelayMs: sharedReconnectDelayMs(1, 1),
 })
 
-export function getConfiguredRedisUrl(): string | null {
-  if (getConfiguredCacheProvider() === 'database') return null
-
-  const redisUrl = env.REDIS_URL
-  if (!redisUrl) {
-    throw new Error('Cache capability selected Redis but REDIS_URL is missing')
+/**
+ * The configured Redis URL. Redis is required, so an unset or invalid REDIS_URL
+ * throws — on call, never at import: `next build` evaluates modules that build
+ * Redis channels at module scope without any runtime environment.
+ */
+export function getConfiguredRedisUrl(): string {
+  const configurationError = getRedisConfigurationError(env)
+  if (configurationError) {
+    throw new Error(configurationError)
   }
-  return redisUrl
+  return env.REDIS_URL
 }
 
 /**
@@ -310,84 +312,83 @@ function startPingHealthCheck(redis: Redis): void {
 }
 
 /**
- * Get a Redis client instance.
- * Uses connection pooling to reuse connections across requests.
+ * Get the shared Redis client, creating it on first use.
+ *
+ * Redis is required: this throws when REDIS_URL is unset or the TLS options are
+ * invalid, and when called in a browser. It throws lazily, on call, so modules
+ * that reference it at import time still load during `next build`.
  *
  * ioredis handles command queuing internally via `enableOfflineQueue` (default: true),
  * so commands are queued and executed once connected. No manual connection checks needed.
  */
-export function getRedisClient(): Redis | null {
-  if (typeof window !== 'undefined') return null
-  const redisUrl = getConfiguredRedisUrl()
-  if (!redisUrl) return null
+export function getRedisClient(): Redis {
+  if (typeof window !== 'undefined') {
+    throw new Error('The Redis client is server-only')
+  }
   if (state.client) return state.client
+  const redisUrl = getConfiguredRedisUrl()
 
-  // Outside the try/catch so config errors aren't silently swallowed.
   const defaults = getRedisConnectionDefaults(redisUrl)
 
-  try {
-    logger.info('Initializing Redis client')
+  logger.info('Initializing Redis client')
 
-    state.client = new Redis(redisUrl, {
-      ...defaults,
-      commandTimeout: SHARED_COMMAND_TIMEOUT_MS,
-      maxRetriesPerRequest: 5,
+  const client = new Redis(redisUrl, {
+    ...defaults,
+    commandTimeout: SHARED_COMMAND_TIMEOUT_MS,
+    maxRetriesPerRequest: 5,
 
-      retryStrategy: (times) => {
-        if (times > 10) {
-          logger.error(`Redis reconnection attempt ${times}`, { nextRetryMs: 30000 })
-          return 30000
-        }
-        const delay = sharedReconnectDelayMs(times, randomFloat())
-        state.reconnects++
-        logger.warn('Redis reconnecting', { attempt: times, nextRetryMs: delay })
-        return delay
-      },
+    retryStrategy: (times) => {
+      if (times > 10) {
+        logger.error(`Redis reconnection attempt ${times}`, { nextRetryMs: 30000 })
+        return 30000
+      }
+      const delay = sharedReconnectDelayMs(times, randomFloat())
+      state.reconnects++
+      logger.warn('Redis reconnecting', { attempt: times, nextRetryMs: delay })
+      return delay
+    },
 
-      reconnectOnError: (err) => {
-        const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED']
-        return targetErrors.some((e) => err.message.includes(e))
-      },
+    reconnectOnError: (err) => {
+      const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED']
+      return targetErrors.some((e) => err.message.includes(e))
+    },
+  })
+
+  state.clientCreatedAt = Date.now()
+  state.lastReadyAt = null
+  state.lastPingOkAt = null
+
+  client.on('connect', () => {
+    state.connects++
+    // Elapsed since construction, because the wait before a connection becomes
+    // usable is the number this path has never been able to produce: it is
+    // spent inside a command's deadline, where it surfaces as a command
+    // timeout rather than as connection latency.
+    // `connectCount`, not `attempt` — the retryStrategy above already logs an
+    // `attempt`, meaning the retry number. This is how many times this client
+    // has successfully connected, which is what separates a first connect from
+    // a reconnect.
+    logger.info('Redis connected', {
+      elapsedMs: elapsedSince(state.clientCreatedAt),
+      connectCount: state.connects,
     })
+  })
+  client.on('ready', () => {
+    state.lastReadyAt = Date.now()
+    logger.info('Redis ready', { elapsedMs: elapsedSince(state.clientCreatedAt) })
+  })
+  client.on('error', (err: Error) => {
+    state.errors++
+    state.lastErrorMessage = err.message
+    logger.error('Redis error', { error: err.message, code: (err as NodeJS.ErrnoException).code })
+  })
+  client.on('close', () => logger.warn('Redis connection closed'))
+  client.on('end', () => logger.error('Redis connection ended'))
 
-    state.clientCreatedAt = Date.now()
-    state.lastReadyAt = null
-    state.lastPingOkAt = null
+  state.client = client
+  startPingHealthCheck(client)
 
-    state.client.on('connect', () => {
-      state.connects++
-      // Elapsed since construction, because the wait before a connection becomes
-      // usable is the number this path has never been able to produce: it is
-      // spent inside a command's deadline, where it surfaces as a command
-      // timeout rather than as connection latency.
-      // `connectCount`, not `attempt` — the retryStrategy above already logs an
-      // `attempt`, meaning the retry number. This is how many times this client
-      // has successfully connected, which is what separates a first connect from
-      // a reconnect.
-      logger.info('Redis connected', {
-        elapsedMs: elapsedSince(state.clientCreatedAt),
-        connectCount: state.connects,
-      })
-    })
-    state.client.on('ready', () => {
-      state.lastReadyAt = Date.now()
-      logger.info('Redis ready', { elapsedMs: elapsedSince(state.clientCreatedAt) })
-    })
-    state.client.on('error', (err: Error) => {
-      state.errors++
-      state.lastErrorMessage = err.message
-      logger.error('Redis error', { error: err.message, code: (err as any).code })
-    })
-    state.client.on('close', () => logger.warn('Redis connection closed'))
-    state.client.on('end', () => logger.error('Redis connection ended'))
-
-    startPingHealthCheck(state.client)
-
-    return state.client
-  } catch (error) {
-    logger.error('Failed to initialize Redis client', { error })
-    return null
-  }
+  return client
 }
 
 /**
@@ -398,23 +399,22 @@ export function getRedisClient(): Redis | null {
  * still shaking hands spends that budget waiting to connect and fails as a
  * command timeout from a server that never received it.
  *
- * Resolves `true` once the shared connection is usable, `false` when Redis is
- * not configured or the wait ran out. It never throws and never rejects:
+ * Resolves `true` once the shared connection is usable, `false` when the client
+ * could not be created (REDIS_URL unset or invalid) or the wait ran out. It never throws and never rejects:
  * callers run at process start — a Trigger.dev `init` hook fails the whole run
  * attempt if it throws — and a warm-up is an optimization, so failing to warm
  * must cost nothing beyond the connection staying cold.
  */
 export function warmRedisConnection(timeoutMs = REDIS_WARMUP_TIMEOUT_MS): Promise<boolean> {
-  let client: Redis | null = null
+  let client: Redis
   try {
     client = getRedisClient()
   } catch {
-    // A misconfigured URL belongs to the first real caller, which can report it
-    // against the operation that needed Redis. Warming must not turn it into a
-    // start-up failure.
+    // A missing or misconfigured URL belongs to the boot assertion and the first
+    // real caller, which can report it against the operation that needed Redis.
+    // Warming must not turn it into a start-up failure.
     return Promise.resolve(false)
   }
-  if (!client) return Promise.resolve(false)
   if (client.status === 'ready') return Promise.resolve(true)
   if (state.warmup?.client === client) return state.warmup.promise
 
@@ -473,14 +473,6 @@ else
 end
 `
 
-/**
- * Acquire a distributed lock using Redis SET NX.
- * Returns true if lock acquired, false if already held.
- *
- * When Redis is not available, returns true (lock "acquired") to allow
- * single-replica deployments to function without Redis. In multi-replica
- * deployments without Redis, the idempotency layer prevents duplicate processing.
- */
 export interface AcquireLockOptions {
   /**
    * Release the lock this call may have taken when the SET itself rejects.
@@ -502,6 +494,10 @@ export interface AcquireLockOptions {
   reclaimOnFailure?: boolean
 }
 
+/**
+ * Acquire a distributed lock using Redis SET NX.
+ * Returns true if lock acquired, false if already held; throws when the SET fails.
+ */
 export async function acquireLock(
   lockKey: string,
   value: string,
@@ -509,9 +505,6 @@ export async function acquireLock(
   options?: AcquireLockOptions
 ): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    return true // No-op when Redis unavailable; idempotency layer handles duplicates
-  }
 
   try {
     const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
@@ -546,15 +539,9 @@ export async function acquireLock(
  * Release a distributed lock safely.
  * Only releases if the caller owns the lock (value matches).
  * Returns true if lock was released, false if not owned or already expired.
- *
- * When Redis is not available, returns true (no-op) since no lock was held.
  */
 export async function releaseLock(lockKey: string, value: string): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    return true // No-op when Redis unavailable; no lock was actually held
-  }
-
   const result = await redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, value)
   return result === 1
 }
@@ -563,10 +550,6 @@ export async function releaseLock(lockKey: string, value: string): Promise<boole
  * Extend the TTL of a distributed lock if still owned by the caller.
  * Returns true if the caller still owns the lock and the TTL was refreshed,
  * false if the lock has been taken over by another owner or has expired.
- *
- * When Redis is not available, returns true (no-op) to match the behavior
- * of `acquireLock` / `releaseLock`: single-replica deployments without
- * Redis never held a real lock, so heartbeat success is implicit.
  */
 export async function extendLock(
   lockKey: string,
@@ -574,10 +557,6 @@ export async function extendLock(
   expirySeconds: number
 ): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    return true
-  }
-
   const result = await redis.eval(EXTEND_LOCK_SCRIPT, 1, lockKey, value, expirySeconds)
   return result === 1
 }

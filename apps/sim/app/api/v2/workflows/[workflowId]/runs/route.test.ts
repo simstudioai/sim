@@ -30,6 +30,7 @@ const principal = {
   kind: 'workspace_api_key' as const,
   workspaceId: 'workspace-1',
   keyId: 'key-1',
+  access: 'write' as const,
 }
 const auth = {
   principal,

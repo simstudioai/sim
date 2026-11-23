@@ -1,3 +1,4 @@
+import { getRequestContext } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import {
@@ -7,7 +8,7 @@ import {
 } from '@/lib/api/contracts/v2/error-codes'
 import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
-import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
+import { getValidationErrorMessage, type RequestSlice, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import {
   ContentDeliveryUnobservedError,
@@ -21,6 +22,7 @@ import {
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
 import type { HttpError } from '@/lib/core/utils/http-error'
+import { describeResponseError } from '@/lib/core/utils/response-error'
 import type { RateLimitResult } from '@/app/api/v1/middleware'
 
 /**
@@ -192,19 +194,31 @@ interface V2ErrorOptions {
   omitRetryAfter?: boolean
 }
 
-/** `{ error: { code, message, details? } }`. */
+/**
+ * `{ error: { code, message, details?, requestId? } }`.
+ *
+ * `requestId` is the id the route handler stamps on the `x-request-id` response
+ * header (and logs as `requestId`), repeated in the body so a caller that only
+ * logs the body can still quote it to support. Absent outside a route
+ * handler's request context.
+ */
 export function v2Error(
   code: V2ErrorCode,
   message: string,
   options: V2ErrorOptions = {}
 ): NextResponse {
-  const error: { code: V2ErrorCode; message: string; details?: unknown } = { code, message }
+  const error: { code: V2ErrorCode; message: string; details?: unknown; requestId?: string } = {
+    code,
+    message,
+  }
   if (options.details !== undefined) error.details = options.details
+  const requestId = getRequestContext()?.requestId
+  if (requestId) error.requestId = requestId
   const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
     : RETRY_AFTER_SECONDS_BY_STATUS[status]
-  return NextResponse.json(
+  const response = NextResponse.json(
     { error },
     {
       status,
@@ -216,6 +230,15 @@ export function v2Error(
       },
     }
   )
+  const reason = detailCode(options.details)
+  describeResponseError(response, { errorCode: code, ...(reason ? { errorReason: reason } : {}) })
+  return response
+}
+
+/** The cause a refusal names in `details.code`, a closed vocabulary safe to log. */
+function detailCode(details: unknown): string | undefined {
+  if (typeof details !== 'object' || details === null || !('code' in details)) return undefined
+  return typeof details.code === 'string' ? details.code : undefined
 }
 
 /** Renders a trusted typed HTTP error without changing the v2 envelope. */
@@ -237,11 +260,34 @@ export function v2UploadDataPlaneError(): NextResponse {
   return v2Error('INTERNAL_ERROR', 'Internal server error')
 }
 
-/** Render a contract `ZodError` as the v2 error envelope. */
-export function v2ValidationError(error: ZodError): NextResponse {
-  return v2Error('BAD_REQUEST', getValidationErrorMessage(error, 'Invalid request'), {
+/**
+ * Render a contract `ZodError` as the v2 error envelope. The message is the
+ * first issue's, prefixed with where it failed (`body.limit: ...`) so a caller
+ * reading only the message knows which field to fix; `details` keeps every
+ * issue with its slice-relative path. A message that already leads with its
+ * field label (`enabled: expected one of ...`) drops it, so the field is named
+ * once. The CLI parses this prefix to restate it as a flag (`retypeApiError`).
+ */
+export function v2ValidationError(error: ZodError, slice?: RequestSlice): NextResponse {
+  const path = (error.issues[0]?.path ?? []).map(String)
+  const fieldLabel = path.length > 0 ? `${path.at(-1)}: ` : null
+  const issueMessage = getValidationErrorMessage(error, 'Invalid request')
+  const message =
+    fieldLabel && issueMessage.startsWith(fieldLabel)
+      ? issueMessage.slice(fieldLabel.length)
+      : issueMessage
+  const location = [slice, ...path].filter((part) => part !== undefined && part !== '').join('.')
+  const response = v2Error('BAD_REQUEST', location ? `${location}: ${message}` : message, {
     details: serializeZodIssues(error),
   })
+  // Deeper segments can be record keys the caller wrote (an import's CSV headers); no slice is itself a record.
+  const field = [slice, path[0]].filter((part) => part !== undefined && part !== '').join('.')
+  describeResponseError(response, {
+    errorCode: 'BAD_REQUEST',
+    ...(field ? { errorField: field } : {}),
+    ...(error.issues[0] ? { errorReason: error.issues[0].code } : {}),
+  })
+  return response
 }
 
 /**
@@ -499,6 +545,7 @@ const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode
   conflict: 'CONFLICT',
   locked: 'LOCKED',
   payload_too_large: 'PAYLOAD_TOO_LARGE',
+  unavailable: 'SERVICE_UNAVAILABLE',
   internal: 'INTERNAL_ERROR',
 }
 

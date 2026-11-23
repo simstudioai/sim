@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_DOWNLOAD_OUTPUT_PROPERTIES,
   type SupabaseStorageDownloadParams,
@@ -17,6 +18,7 @@ export const storageDownloadTool: ToolConfig<
   name: 'Supabase Storage Download',
   description: 'Download a file from a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

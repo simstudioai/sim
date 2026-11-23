@@ -1,6 +1,13 @@
 import { omit, toRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import type { ApiSchema } from '@/lib/api/contracts/types'
+import {
+  contractJsonSchema,
+  isJsonSchemaRequired,
+  jsonSchemaToTypeScript,
+  pascal,
+  schemaToTypeScript,
+} from '@/lib/api/contracts/typescript'
 import { V2_MCP_OPERATIONS, type V2McpOperationName } from '@/lib/api/mcp/generated/v2-operations'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
 import { v2RouteOperation } from '@/lib/api/server/routes/v2-json-route'
@@ -19,7 +26,41 @@ const MANAGED_HEADERS: ReadonlySet<string> = new Set([
 export const TOOL_NAMES = { read: 'call_read_operation', write: 'call_write_operation' } as const
 type ToolKind = keyof typeof TOOL_NAMES
 
+/** The code-mode tools, split the same way: the read tool's programs may run only read operations. */
+export const CODE_TOOL_NAMES = { read: 'execute_read_code', write: 'execute_write_code' } as const
+
 const REQUEST_SLOTS = ['params', 'query', 'body', 'headers'] as const
+
+/** The request parts of one operation call, as the call tools and `sim.api` both take them. */
+export const operationRequestInput = z
+  .object({
+    params: z
+      .record(z.string(), z.union([z.string(), z.number()]))
+      .optional()
+      .describe(
+        'Values for the bracketed segments of the operation’s path, by name, e.g. { "tableId": "..." }. IDs come from list operations such as listTables.'
+      ),
+    query: z
+      .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .optional()
+      .describe(
+        'Query-string values by name, as the query schema from describe_operation lists them, e.g. { "limit": 50 } or the cursor from the previous page. A null value is left out, so the last page’s null cursor ends paging.'
+      ),
+    headers: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe(
+        'Headers the operation’s describe_operation schema lists, such as upload-token. Sim sets authentication and content headers itself.'
+      ),
+    body: z
+      .record(z.string(), z.unknown())
+      .meta({ additionalProperties: true })
+      .optional()
+      .describe(
+        'JSON request body matching the body schema from describe_operation. Omit it when the operation takes no body.'
+      ),
+  })
+  .strict()
 
 const operationSummarySchema = z.object({
   operation: z
@@ -54,6 +95,12 @@ export const searchOperationsOutput = z.object({
 /** What describe_operation returns: everything needed to call one operation. */
 export const describeOperationOutput = operationSummarySchema.extend({
   description: z.string().optional().describe('Longer documentation, when the operation has it.'),
+  signature: z
+    .string()
+    .optional()
+    .describe(
+      `TypeScript declaration of the operation as a code-mode program calls it: sim.api.<operation>(input) with this input and response. Absent when the operation does not answer with JSON, so code cannot call it.`
+    ),
   input: z
     .object({
       params: jsonSchema.optional(),
@@ -194,7 +241,7 @@ export async function searchOperations(options: {
 }
 
 function toJsonSchema(schema: ApiSchema): JsonSchema {
-  const { $schema: _, ...json } = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })
+  const { $schema: _, ...json } = contractJsonSchema(schema, 'input')
   return json
 }
 
@@ -244,15 +291,63 @@ export function callerHeaderNames(name: V2McpOperationName): string[] {
   return Object.keys(toRecord(describeInput(name).headers?.properties))
 }
 
+/** Memo over a fixed catalog: at most one entry per operation, never evicted. */
+const signatures = new Map<V2McpOperationName, string | null>()
+
+/**
+ * The TypeScript declaration a code-mode program codes against, rendered from
+ * the same contract the route validates with, or `null` when the operation
+ * answers with something other than JSON.
+ */
+function renderSignature(name: V2McpOperationName): string | null {
+  const { contract, summary } = getMcpOperation(name)
+  if (contract.response.mode !== 'json' || !contract.response.schema) return null
+  const Name = pascal(name)
+  const declarations: string[] = []
+  const fields: string[] = []
+  let anyRequired = false
+  for (const [slot, schema] of Object.entries(describeInput(name))) {
+    if (!schema) continue
+    const generated = jsonSchemaToTypeScript(schema, `${Name}${pascal(slot)}`)
+    declarations.push(...generated.declarations)
+    const required = isJsonSchemaRequired(schema)
+    anyRequired ||= required
+    fields.push(`  ${slot}${required ? '' : '?'}: ${generated.type.replace(/\n/g, '\n  ')}`)
+  }
+  const response = schemaToTypeScript(contract.response.schema, 'output', `${Name}Response`)
+  declarations.push(...response.declarations)
+  const input = fields.length > 0 ? `{\n${fields.join('\n')}\n}` : 'Record<string, never>'
+  return [
+    ...declarations,
+    `/** ${summary ?? `${contract.method} ${contract.path}`} */`,
+    `function ${name}(input${anyRequired ? '' : '?'}: ${input}): Promise<${response.type}>`,
+  ].join('\n')
+}
+
+function operationSignature(name: V2McpOperationName): string | null {
+  const cached = signatures.get(name)
+  if (cached !== undefined) return cached
+  const signature = renderSignature(name)
+  signatures.set(name, signature)
+  return signature
+}
+
 export async function describeOperation(
   name: V2McpOperationName
 ): Promise<McpOperationDescription> {
   const { description } = getMcpOperation(name)
+  const signature = operationSignature(name)
   return {
     ...(await withTool(summarize(name))),
     ...(description ? { description } : {}),
     input: describeInput(name),
+    ...(signature ? { signature } : {}),
   }
+}
+
+/** Whether an operation needs nothing beyond read access, the same split the read and write tools apply. */
+export async function isReadOperation(name: V2McpOperationName): Promise<boolean> {
+  return (await operationToolKind(name)) === 'read'
 }
 
 /** Catalog names close to an unknown one, found by searching its camelCase words. */

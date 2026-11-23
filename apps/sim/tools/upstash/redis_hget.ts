@@ -1,11 +1,14 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisHGetParams, UpstashRedisHGetResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisHGetTool: ToolConfig<UpstashRedisHGetParams, UpstashRedisHGetResponse> = {
   id: 'upstash_redis_hget',
   name: 'Upstash Redis HGET',
   description: 'Get the value of a field in a hash stored at a key in Upstash Redis.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {
@@ -36,7 +39,7 @@ export const upstashRedisHGetTool: ToolConfig<UpstashRedisHGetParams, UpstashRed
 
   request: {
     url: (params) =>
-      `${params.restUrl}/hget/${encodeURIComponent(params.key)}/${encodeURIComponent(params.field)}`,
+      `${params.restUrl}/hget/${upstashPathSegment(params.key, 'key')}/${upstashPathSegment(params.field, 'field')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.restToken}`,

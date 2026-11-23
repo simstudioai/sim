@@ -261,7 +261,8 @@ export async function executeProviderRequest(
         request.model,
         request.workspaceId,
         request.apiKey,
-        request.abortSignal
+        request.abortSignal,
+        runtimeContext?.executionContext?.metadata.billingAttribution
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK

@@ -1,11 +1,14 @@
 import type { RipplingGetTeamParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
   id: 'rippling_get_team',
   name: 'Rippling Get Team',
   description: 'Get a specific team by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -23,7 +26,7 @@ export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/teams/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/teams/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },

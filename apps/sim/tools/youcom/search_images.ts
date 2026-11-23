@@ -1,5 +1,6 @@
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecordOrNull } from '@sim/utils/object'
+import { YOUCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { YouComSearchImagesParams, YouComSearchImagesResponse } from '@/tools/youcom/types'
 import {
@@ -18,6 +19,7 @@ export const youComSearchImagesTool: ToolConfig<
   description:
     'Find image URLs for a query with You.com. Beta, and limited to You.com early-access API keys.',
   version: '1.0.0',
+  oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {
     query: {

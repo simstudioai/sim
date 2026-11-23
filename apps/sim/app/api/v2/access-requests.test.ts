@@ -69,7 +69,12 @@ import {
   GET as listWorkspace,
 } from '@/app/api/v2/workspaces/[workspaceId]/access-requests/route'
 
-const principal = { kind: 'personal_api_key', userId: 'caller', keyId: 'key' } as const
+const principal = {
+  kind: 'personal_api_key',
+  userId: 'caller',
+  keyId: 'key',
+  access: 'write',
+} as const
 const organizationId = 'organization-123'
 const workspaceId = 'workspace-123'
 const requestId = 'request-123'

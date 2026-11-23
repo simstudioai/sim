@@ -1,5 +1,6 @@
 import { AmplitudeIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { mapperOperation, withSavedCredential } from '@/blocks/utils'
 
 /*
  * Amplitude identifies a person by user id or device id — either one alone is
@@ -12,6 +13,8 @@ const PROFILE_IDENTITY_FIELD = ['profileUserId', 'profileDeviceId'] as const
 
 export const AmplitudeBlock: BlockConfig = {
   type: 'amplitude',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'amplitude_v2' },
   name: 'Amplitude',
   description: 'Track events and query analytics from Amplitude',
   longDescription:
@@ -571,7 +574,7 @@ export const AmplitudeBlock: BlockConfig = {
       id: 'segmentationLimit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Max group-by values (max 1000)',
+      placeholder: 'Max group-by values (default 1000, max 20000)',
       condition: { field: 'operation', value: 'event_segmentation' },
       mode: 'advanced',
     },
@@ -605,6 +608,14 @@ export const AmplitudeBlock: BlockConfig = {
         value: 'event_segmentation',
         and: { field: 'segmentationMetric', value: 'formula' },
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'segmentationSecondEventType',
+      title: 'Second Event Type',
+      type: 'short-input',
+      placeholder: 'Event B for a formula, e.g. UNIQUES(A)/UNIQUES(B)',
+      condition: { field: 'operation', value: 'event_segmentation' },
       mode: 'advanced',
     },
     {
@@ -929,6 +940,7 @@ export const AmplitudeBlock: BlockConfig = {
         { label: 'N-Day', id: 'n-day' },
         { label: 'Rolling', id: 'rolling' },
         { label: 'Bracket', id: 'bracket' },
+        { label: 'N-Day or Before', id: 'nday_or_before' },
       ],
       value: () => 'n-day',
       condition: { field: 'operation', value: 'retention' },
@@ -938,7 +950,7 @@ export const AmplitudeBlock: BlockConfig = {
       id: 'retentionBrackets',
       title: 'Retention Brackets',
       type: 'short-input',
-      placeholder: '[[0,4]] — required when Retention Mode is Bracket',
+      placeholder: '[[0,5]] (end day exclusive) — required when Retention Mode is Bracket',
       condition: {
         field: 'operation',
         value: 'retention',
@@ -1000,10 +1012,10 @@ export const AmplitudeBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `amplitude_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'send_event':
             if (params.sendEventUserProperties)
               result.userProperties = params.sendEventUserProperties
@@ -1030,6 +1042,8 @@ export const AmplitudeBlock: BlockConfig = {
 
           case 'event_segmentation':
             if (params.segmentationEventType) result.eventType = params.segmentationEventType
+            if (params.segmentationSecondEventType)
+              result.secondEventType = params.segmentationSecondEventType
             if (params.segmentationStart) result.start = params.segmentationStart
             if (params.segmentationEnd) result.end = params.segmentationEnd
             if (params.segmentationMetric) result.metric = params.segmentationMetric
@@ -1119,6 +1133,10 @@ export const AmplitudeBlock: BlockConfig = {
     dataResidency: { type: 'string', description: 'Data residency region: "us" or "eu"' },
     segmentationFilters: { type: 'string', description: 'Event segmentation filters JSON' },
     segmentationFormula: { type: 'string', description: 'Event segmentation formula expression' },
+    segmentationSecondEventType: {
+      type: 'string',
+      description: 'Event segmentation second event type (e2)',
+    },
     segmentationGroupBy2: {
       type: 'string',
       description: 'Event segmentation second group-by property',
@@ -1229,6 +1247,29 @@ export const AmplitudeBlock: BlockConfig = {
         'Funnel results per segment (stepByStep, cumulative, medianTransTimes, dayFunnels, etc.) (funnels)',
     },
   },
+}
+
+/**
+ * Every operation authenticates with the project credential: the ingestion operations send its
+ * API key, and the analytics and User Profile operations send both keys, so the picker shows for
+ * all of them.
+ */
+export const AmplitudeV2Block: BlockConfig = {
+  ...AmplitudeBlock,
+  type: 'amplitude_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    AmplitudeBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'amplitude',
+      title: 'Amplitude Credential',
+    },
+    { condition: null, required: true }
+  ),
 }
 
 export const AmplitudeBlockMeta = {

@@ -168,7 +168,12 @@ describe('invitation batch application boundary', () => {
     it('rejects workspace API keys before any user or scope lookup', async () => {
       await expect(
         useCase.execute({
-          principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+          principal: {
+            kind: 'workspace_api_key',
+            workspaceId: 'workspace',
+            keyId: 'key',
+            access: 'write',
+          },
           input: orgInput,
         })
       ).rejects.toMatchObject({ detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })

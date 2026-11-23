@@ -246,16 +246,34 @@ export function readSftpFileCapped(
   return readNodeStreamToBufferWithLimit(stream, { maxBytes, label, signal })
 }
 
+/**
+ * Percent-decodes each run of escapes on its own, so a literal `%` (as in `100% done.csv`) stays as
+ * typed without stopping the other escapes in the path from decoding.
+ */
+function decodeRemotePath(path: string): string {
+  return path.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+    try {
+      return decodeURIComponent(run)
+    } catch {
+      return run
+    }
+  })
+}
+
 export function sanitizePath(path: string): string {
-  return decodeURIComponent(path.replace(/\0/g, '')).replace(/\\/g, '/').replace(/\/+/g, '/').trim()
+  return decodeRemotePath(path.replace(/\0/g, '')).replace(/\\/g, '/').replace(/\/+/g, '/').trim()
+}
+
+/**
+ * Joins a sanitized directory and a sanitized file name without decoding again, so an encoded
+ * separator left in the name cannot turn into a path separator.
+ */
+export function joinRemotePath(directory: string, fileName: string): string {
+  return directory.endsWith('/') ? `${directory}${fileName}` : `${directory}/${fileName}`
 }
 
 export function sanitizeFileName(fileName: string): string {
-  let sanitized = fileName.replace(/\0/g, '')
-  try {
-    sanitized = decodeURIComponent(sanitized)
-  } catch {}
-  sanitized = sanitized
+  const sanitized = decodeRemotePath(fileName.replace(/\0/g, ''))
     .replace(/[/\\]+/g, '_')
     .replace(/^\.+/, '')
     .replace(/[\x00-\x1f\x7f]/g, '')
@@ -263,16 +281,12 @@ export function sanitizeFileName(fileName: string): string {
   return sanitized || 'unnamed_file'
 }
 
+/** Rejects a `..` segment anywhere in the path, including a trailing one, raw or percent-decoded. */
 export function isPathSafe(path: string): boolean {
-  const normalizedPath = path.replace(/\\/g, '/')
-  if (normalizedPath.includes('../') || normalizedPath.includes('..\\')) return false
-  try {
-    const decoded = decodeURIComponent(normalizedPath)
-    if (decoded.includes('../') || decoded.includes('..\\')) return false
-  } catch {
-    return false
-  }
-  return !normalizedPath.includes('\0')
+  const hasParentSegment = (value: string) =>
+    value.split(/[/\\]/).some((segment) => segment === '..')
+  if (hasParentSegment(path) || hasParentSegment(decodeRemotePath(path))) return false
+  return !path.includes('\0')
 }
 
 export function parsePermissions(mode: number): string {

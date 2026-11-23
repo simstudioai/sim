@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadCampaignIdParams, SmartleadSequencesResponse } from '@/tools/smartlead/types'
 import {
   mapSequence,
@@ -21,6 +22,7 @@ export const getCampaignSequencesTool: ToolConfig<
   description:
     'Retrieves the email sequence steps for a Smartlead campaign, including subjects, bodies, and per-step delays.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

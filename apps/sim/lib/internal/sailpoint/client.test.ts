@@ -58,9 +58,10 @@ describe('SailPoint client', () => {
     const credentials = credentialsFor('single-flight')
     const first = getSailPointAccessToken(credentials)
     const second = getSailPointAccessToken(credentials)
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1))
     release?.(tokenResponse('shared'))
     await expect(Promise.all([first, second])).resolves.toEqual(['shared', 'shared'])
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('lets one token waiter abort without cancelling the shared exchange', async () => {
@@ -98,7 +99,7 @@ describe('SailPoint client', () => {
     await expect(getSailPointAccessToken(credentialsFor('in-flight-overflow'))).rejects.toThrow(
       'Too many concurrent SailPoint token exchanges'
     )
-    expect(mockFetch).toHaveBeenCalledTimes(100)
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(100))
 
     for (const release of releases) release(tokenResponse('token'))
     await Promise.all(pending)

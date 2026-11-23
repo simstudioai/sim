@@ -33,11 +33,7 @@ import {
 } from '@/lib/mcp/oauth'
 import type { McpOauthCredentials } from '@/lib/mcp/oauth/coordinated-fetch'
 import { findMissingMcpConfigEnvVars, resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
-import {
-  createMcpCacheAdapter,
-  getMcpCacheType,
-  type McpCacheStorageAdapter,
-} from '@/lib/mcp/storage'
+import { createMcpCacheAdapter, type McpCacheStorageAdapter } from '@/lib/mcp/storage'
 import {
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
@@ -296,7 +292,6 @@ class McpService {
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
-    logger.info(`MCP Service initialized with ${getMcpCacheType()} cache`)
 
     if (mcpConnectionManager) {
       this.unsubscribeConnectionManager = mcpConnectionManager.subscribe((event) => {
@@ -545,6 +540,23 @@ class McpService {
     )
   }
 
+  /** Calls one tool with a grant that has no stored connection yet, such as during OAuth completion. */
+  async callManagedMcpToolWithGrant(
+    serverId: string,
+    scope: string | ResourceScope,
+    auth: OAuthClientProvider,
+    toolCall: McpToolCall,
+    signal?: AbortSignal
+  ): Promise<McpToolResult> {
+    const config = await this.getServerConfig(serverId, scope)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.withServerClient(
+      { key: '', serverId, allowPool: false },
+      () => this.createManagedOauthClient(config, auth, signal),
+      (client) => client.callTool(toolCall, { signal })
+    )
+  }
+
   async executeManagedMcpTool(params: {
     connectionId: string
     serverId: string
@@ -746,7 +758,8 @@ class McpService {
       options.signal?.throwIfAborted()
       try {
         logger.info(
-          `[${requestId}] Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
+          `Executing MCP tool ${toolCall.name} on server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`,
+          { requestId }
         )
 
         const config = await this.getServerConfig(serverId, workspaceId)
@@ -779,7 +792,7 @@ class McpService {
             return client.callTool(toolCall, options)
           }
         )
-        logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
+        logger.info(`Successfully executed tool ${toolCall.name}`, { requestId })
         return result
       } catch (error) {
         options.signal?.throwIfAborted()
@@ -788,8 +801,9 @@ class McpService {
         // the request. Timeouts/resets are NOT retried — the tool may have executed.
         if ((this.isSessionError(error) || isAuthError(error)) && attempt < maxRetries - 1) {
           logger.warn(
-            `[${requestId}] Retryable connection error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
-            error
+            `Retryable connection error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
+            error,
+            { requestId }
           )
           await interruptibleSleep(100, options.signal)
           options.signal?.throwIfAborted()
@@ -985,12 +999,12 @@ class McpService {
     const discoveryStartedAt = new Date()
 
     try {
-      logger.info(`[${requestId}] Discovering MCP tools for workspace ${workspaceId}`)
+      logger.info(`Discovering MCP tools for workspace ${workspaceId}`, { requestId })
 
       const servers = await this.getWorkspaceServers(workspaceId)
 
       if (servers.length === 0) {
-        logger.info(`[${requestId}] No servers found for workspace ${workspaceId}`)
+        logger.info(`No servers found for workspace ${workspaceId}`, { requestId })
         return []
       }
 
@@ -1004,24 +1018,25 @@ class McpService {
               if (cached) return { kind: 'cached', tools: cached.tools }
             } catch (error) {
               logger.warn(
-                `[${requestId}] Cache read failed for ${config.name}, proceeding with discovery:`,
-                error
+                `Cache read failed for ${config.name}, proceeding with discovery:`,
+                error,
+                { requestId }
               )
             }
           }
 
           if (refresh !== 'force' && (await this.isServerUnhealthy(workspaceId, config.id))) {
-            logger.info(
-              `[${requestId}] Skipping recently-failed server ${config.name} (negative-cache hit)`
-            )
+            logger.info(`Skipping recently-failed server ${config.name} (negative-cache hit)`, {
+              requestId,
+            })
             return { kind: 'unhealthy' }
           }
 
           try {
             const tools = await this.fetchServerTools(config, userId, workspaceId)
-            logger.debug(
-              `[${requestId}] Discovered ${tools.length} tools from server ${config.name}`
-            )
+            logger.debug(`Discovered ${tools.length} tools from server ${config.name}`, {
+              requestId,
+            })
             return { kind: 'fetched', tools }
           } catch (error) {
             if (isOauthAuthorizationError(error, config.authType)) {
@@ -1065,7 +1080,7 @@ class McpService {
             this.cacheAdapter
               .set(serverCacheKey(workspaceId, server.id), outcome.tools, this.cacheTimeout)
               .catch((err) =>
-                logger.warn(`[${requestId}] Cache write failed for ${server.name}:`, err)
+                logger.warn(`Cache write failed for ${server.name}:`, err, { requestId })
               )
           )
           deferredSideEffects.push(this.clearServerFailure(workspaceId, server.id))
@@ -1076,7 +1091,7 @@ class McpService {
           // Mark disconnected so the UI surfaces the re-auth button, and drop the positive
           // tool cache so a follow-up force-refresh can't serve tools for a server that now
           // needs re-auth (mirrors the single-server discovery path).
-          logger.info(`[${requestId}] Skipping server ${server.name}: OAuth authorization pending`)
+          logger.info(`Skipping server ${server.name}: OAuth authorization pending`, { requestId })
           deferredSideEffects.push(
             this.markServerOauthPending(server.id, workspaceId, discoveryStartedAt).then(
               async (statusApplied) => {
@@ -1084,7 +1099,7 @@ class McpService {
                 await this.cacheAdapter
                   .delete(serverCacheKey(workspaceId, server.id))
                   .catch((err) =>
-                    logger.warn(`[${requestId}] Cache delete failed for ${server.name}:`, err)
+                    logger.warn(`Cache delete failed for ${server.name}:`, err, { requestId })
                   )
               }
             )
@@ -1097,9 +1112,9 @@ class McpService {
           return
         }
         failedCount++
-        logger.warn(
-          `[${requestId}] Failed to discover tools from server ${server.name}: ${outcome.message}`
-        )
+        logger.warn(`Failed to discover tools from server ${server.name}: ${outcome.message}`, {
+          requestId,
+        })
         deferredSideEffects.push(
           this.updateServerStatus(server.id, workspaceId, {
             outcome: 'failed',
@@ -1117,7 +1132,7 @@ class McpService {
               this.cacheAdapter
                 .delete(serverCacheKey(workspaceId, server.id))
                 .catch((err) =>
-                  logger.warn(`[${requestId}] Cache delete failed for ${server.name}:`, err)
+                  logger.warn(`Cache delete failed for ${server.name}:`, err, { requestId })
                 ),
             ])
           })
@@ -1146,18 +1161,19 @@ class McpService {
               )
               await manager.connect(resolvedConfig, userId, workspaceId)
             } catch (err) {
-              logger.warn(`[${requestId}] Persistent connection failed for ${config.name}:`, err)
+              logger.warn(`Persistent connection failed for ${config.name}:`, err, { requestId })
             }
           })()
         }
       }
 
       logger.info(
-        `[${requestId}] Discovered ${allTools.length} tools from ${servers.length} servers (cached=${cachedCount} fetched=${fetchedCount} failed=${failedCount})`
+        `Discovered ${allTools.length} tools from ${servers.length} servers (cached=${cachedCount} fetched=${fetchedCount} failed=${failedCount})`,
+        { requestId }
       )
       return allTools
     } catch (error) {
-      logger.error(`[${requestId}] Failed to discover MCP tools for user ${userId}:`, error)
+      logger.error(`Failed to discover MCP tools for user ${userId}:`, error, { requestId })
       throw error
     }
   }
@@ -1231,16 +1247,16 @@ class McpService {
       try {
         const cached = await this.cacheAdapter.get(serverCacheKey(workspaceId, serverId))
         if (cached) {
-          logger.debug(`[${requestId}] Cache hit for server ${serverId}`)
+          logger.debug(`Cache hit for server ${serverId}`, { requestId })
           return cached.tools
         }
       } catch (error) {
-        logger.warn(`[${requestId}] Cache read failed for server ${serverId}:`, error)
+        logger.warn(`Cache read failed for server ${serverId}:`, error, { requestId })
       }
     }
 
     if (refresh !== 'force' && (await this.isServerUnhealthy(workspaceId, serverId))) {
-      logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
+      logger.info(`Skipping recently-failed server ${serverId} (negative-cache)`, { requestId })
       throw new McpServerCooldownError(serverId)
     }
 
@@ -1249,7 +1265,8 @@ class McpService {
       let authType: McpServerConfig['authType']
       try {
         logger.info(
-          `[${requestId}] Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`
+          `Discovering tools from server ${serverId} for user ${userId}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`,
+          { requestId }
         )
 
         const config = requesterConfig ?? (await this.getServerConfig(serverId, workspaceId))
@@ -1267,10 +1284,10 @@ class McpService {
           requireComplete,
           bestEffort
         )
-        logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
+        logger.info(`Discovered ${tools.length} tools from server ${config.name}`, { requestId })
         const cacheWrite = this.cacheAdapter
           .set(serverCacheKey(workspaceId, serverId), tools, this.cacheTimeout)
-          .catch((err) => logger.warn(`[${requestId}] Cache write failed for ${config.name}:`, err))
+          .catch((err) => logger.warn(`Cache write failed for ${config.name}:`, err, { requestId }))
         await Promise.allSettled(
           bestEffort
             ? [cacheWrite]
@@ -1289,8 +1306,9 @@ class McpService {
         signal?.throwIfAborted()
         if (isRetryableDiscoveryError(error) && attempt < maxRetries - 1) {
           logger.warn(
-            `[${requestId}] Transient error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
-            error
+            `Transient error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
+            error,
+            { requestId }
           )
           await interruptibleSleep(
             backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 2000 }),
@@ -1313,7 +1331,7 @@ class McpService {
             this.cacheAdapter
               .delete(serverCacheKey(workspaceId, serverId))
               .catch((err) =>
-                logger.warn(`[${requestId}] Cache delete failed for ${serverId}:`, err)
+                logger.warn(`Cache delete failed for ${serverId}:`, err, { requestId })
               ),
             this.markServerUnhealthy(workspaceId, serverId, error, authType),
           ])
@@ -1351,7 +1369,7 @@ class McpService {
     const requestId = generateRequestId()
 
     try {
-      logger.info(`[${requestId}] Getting server summaries for workspace ${workspaceId}`)
+      logger.info(`Getting server summaries for workspace ${workspaceId}`, { requestId })
 
       const servers = await this.getWorkspaceServers(workspaceId)
       const summaries: McpServerSummary[] = []
@@ -1399,7 +1417,7 @@ class McpService {
 
       return summaries
     } catch (error) {
-      logger.error(`[${requestId}] Failed to get server summaries for user ${userId}:`, error)
+      logger.error(`Failed to get server summaries for user ${userId}:`, error, { requestId })
       throw error
     }
   }

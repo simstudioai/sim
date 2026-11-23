@@ -10,7 +10,7 @@ import type {
   AgentCliRequest,
 } from '@/lib/mothership/generated/agent-cli'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 

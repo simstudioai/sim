@@ -264,6 +264,7 @@ describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
         kind: 'workspace_api_key',
         workspaceId: ids.workspaceId,
         keyId: 'fixture',
+        access: 'write',
       })
       expect(await keySearch).not.toContain(documentId)
       const chunks = await listKnowledgeChunks.execute({

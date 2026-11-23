@@ -69,7 +69,7 @@ export function useReactivateWebhook() {
     mutationFn: ({ webhookId }: ReactivateWebhookVariables) =>
       requestJson(updateWebhookContract, {
         params: { id: webhookId },
-        body: { isActive: true, failedCount: 0 },
+        body: { isActive: true },
       }),
     onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({

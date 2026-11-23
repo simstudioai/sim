@@ -122,14 +122,22 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
-      TEST_REDIS_URL: redis://127.0.0.1:6379
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: oauth-postgres-ci-secret-at-least-32-characters
       NEXT_PUBLIC_APP_URL: https://test.sim.ai
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      - name: Checkout code
+      # The writable mirror is shared per repository, so only trusted PR jobs use it.
+      # Forks and deployment-gating pushes use a plain checkout, matching cache isolation.
+      - &checkout-mirror
+        name: Checkout code (mirror)
+        if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        uses: useblacksmith/checkout@75c49b6ed30ce59336e9252425796cfcfac155f8 # v1.8.3
+      - &checkout-plain
+        name: Checkout code
+        if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Setup workspace
@@ -141,6 +149,10 @@ jobs:
         working-directory: packages/db
         run: |
           bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const extension of ["vector", "btree_gin", "pg_trgm"]) await sql`CREATE EXTENSION IF NOT EXISTS ${sql(extension)}`; await sql.end()'
+          # A test that hangs on a lock leaves only its timeout behind; these name the waiter, the
+          # lock, and the blocking statement in the Postgres log. Service containers take no -c flags,
+          # and ALTER SYSTEM runs outside a transaction, so each setting is its own statement.
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); for (const setting of ["log_lock_waits = on", "deadlock_timeout = 1000", "log_min_duration_statement = 20000"]) await sql.unsafe(`ALTER SYSTEM SET ${setting}`); await sql`SELECT pg_reload_conf()`; await sql.end()'
           bun run db:${{ matrix.provision }}
 
       - name: Verify migration replay is a no-op
@@ -194,12 +206,19 @@ jobs:
   # the production (migrate) path. Each group's app environment lives in http-e2e.sh.
   #
   # All groups reuse the production build; compiling routes is not part of HTTP acceptance.
+  # Starts beside build (e2e) rather than after it: checkout, install, services and migrations
+  # (about a minute on a hosted runner) overlap the build, and the job then waits for the build's
+  # artifact. The wait and the suite each carry their own bound, so a slow build never shortens
+  # the suite's: the job's bound is their sum plus setup.
   e2e:
     name: e2e (${{ matrix.group }})
-    needs: [changes, e2e-build]
+    needs: changes
     if: needs.changes.outputs.http == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 48
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.http_matrix) }}
@@ -217,9 +236,9 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # Desktop inbox, browser extension, and Project Files use Redis.
+      # Redis is required: every app server the suites start connects to it.
       redis:
-        image: ${{ (matrix.group == 'desktop-inbox' || matrix.group == 'assistant-actions' || matrix.group == 'organization-search' || startsWith(matrix.group, 'browser-extension-') || matrix.group == 'project-files') && 'redis:8.2-alpine' || '' }}
+        image: redis:8.2-alpine
         ports:
           - 6379:6379
         options: >-
@@ -246,11 +265,39 @@ jobs:
         with:
           provider: github
 
+      # No suite survives a database crash; see the script for what this does and does not change.
+      - name: Turn off Postgres crash durability
+        working-directory: packages/db
+        run: bun scripts/tune-ci-postgres.ts
+
+      # Browser system libraries, as downloaded .deb files, per runner image and group (each group
+      # installs its own browsers); install-playwright.sh reads and fills it.
+      - name: Read the runner image
+        id: runner-image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      # Restores the newest saved set by prefix. A cache key is never overwritten, so a run that had
+      # to add packages saves a new one below.
+      - name: Restore browser system packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-
+
       # Migrations create their own extensions, as on a fresh self-hosted install.
       - name: Provision the database through migrations
         if: matrix.group != 'project-files'
         working-directory: packages/db
         run: bun run db:migrate
+
+      # A failed or cancelled build fails this job here instead of leaving it waiting.
+      # build (e2e)'s own bound.
+      - name: Wait for the production build
+        timeout-minutes: 25
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-e2e-build.sh
 
       - &download-e2e-build
         name: Download the production build
@@ -285,11 +332,29 @@ jobs:
         if: matrix.group == 'scim'
         run: printf '127.0.0.1 scim-e2e.sim.ai\n' | sudo tee -a /etc/hosts
 
-      # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
-      # short of writing its report.
+      # The former 20-minute job bound less its setup; its slowest passing run took 18.3 minutes.
+      # Cut short, it fails the step, so the report and server-log uploads below still run.
       - name: Run end-to-end suites
+        timeout-minutes: 19
         working-directory: apps/sim
-        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+        run: PLAYWRIGHT_APT_CACHE="$HOME/.cache/playwright-apt" bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+
+      # Packages installed fine even when the suite then fails, so both steps run unless cancelled.
+      - name: Check for new browser system packages
+        id: apt-cache
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$HOME/.cache/playwright-apt/.updated" ]; then
+            rm "$HOME/.cache/playwright-apt/.updated"
+            echo 'updated=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save browser system packages
+        if: ${{ !cancelled() && steps.apt-cache.outputs.updated == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ steps.runner-image.outputs.version }}-${{ hashFiles('bun.lock') }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload acceptance timing and coverage reports
         if: always()
@@ -300,6 +365,7 @@ jobs:
             ${{ runner.temp }}/e2e/**/*.json
             ${{ runner.temp }}/e2e/browser-extension*/**/*.png
             ${{ runner.temp }}/e2e/*-ui-report.json.artifacts/*.png
+            ${{ runner.temp }}/e2e/markdown-viewer-ui-report.json.artifacts/fixture.md
           if-no-files-found: ignore
           retention-days: 7
 
@@ -342,31 +408,35 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Redis is required: the app server refuses to start without it.
+      redis:
+        image: redis:8.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_test
       BETTER_AUTH_SECRET: http-e2e-ci-secret-at-least-32-characters
       ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
 
     steps:
-      # A same-repository pull request checks out through a git mirror on a sticky disk, so a slow
-      # clone from GitHub (1 in 10 took a minute or more, up to 4) no longer sets the run's pace.
-      # The mirror is one disk per repository that job steps can write to, so fork pull requests
-      # and pushes, whose checks gate a deploy, keep the plain checkout: same trust split as the
-      # setup action's caches.
-      - &checkout-mirror
-        name: Checkout code (mirror)
-        if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
-      - &checkout-plain
-        name: Checkout code
-        if: (vars.CI_PROVIDER != '' && vars.CI_PROVIDER != 'blacksmith') || github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - *checkout-mirror
+      - *checkout-plain
 
 
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
+
+      # No suite survives a database crash; see the script for what this does and does not change.
+      - name: Turn off Postgres crash durability
+        working-directory: packages/db
+        run: bun scripts/tune-ci-postgres.ts
 
       - name: Provision the database through migrations
         working-directory: packages/db
@@ -376,11 +446,43 @@ jobs:
       - *extract-e2e-build
 
       - name: Run end-to-end suites
+        id: acceptance
         working-directory: apps/sim
         env:
           MOBILE_E2E_BROWSER: ${{ matrix.browser }}
           MOBILE_E2E_SHARD: ${{ matrix.shard }}
-        run: bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+        run: |
+          unset PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+          if [ "${{ matrix.browser == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') }}" = true ]; then
+            webkit_state="$RUNNER_TEMP/playwright-webkit-server"
+            trap '
+              status=$?
+              trap - EXIT INT TERM
+              if ! bash ../../.github/scripts/playwright-server.sh stop "$webkit_state"; then
+                echo "::error::Owned WebKit server cleanup failed." >&2
+                if [ "$status" -eq 0 ]; then status=1; fi
+              fi
+              exit "$status"
+            ' EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+            PLAYWRIGHT_WEBKIT_WS_ENDPOINT=$(bash ../../.github/scripts/playwright-server.sh start "$webkit_state")
+            export PLAYWRIGHT_WEBKIT_WS_ENDPOINT
+          fi
+          bash ../../.github/scripts/http-e2e.sh "${{ matrix.group }}"
+
+      - name: Stop the owned WebKit server
+        if: always() && matrix.browser == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && steps.acceptance.outcome != 'skipped'
+        run: bash .github/scripts/playwright-server.sh stop "$RUNNER_TEMP/playwright-webkit-server"
+
+      - name: Upload WebKit server failure logs
+        if: failure() && matrix.browser == 'webkit' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webkit-server-${{ matrix.artifact }}
+          path: ${{ runner.temp }}/playwright-webkit-server/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload end-to-end reports and server logs
         if: failure()
@@ -454,6 +556,11 @@ jobs:
         uses: ./.github/actions/setup
         with:
           provider: ${{ vars.CI_PROVIDER }}
+
+      # No suite survives a database crash; see the script for what this does and does not change.
+      - name: Turn off Postgres crash durability
+        working-directory: packages/db
+        run: bun scripts/tune-ci-postgres.ts
 
       - name: Provision the database through migrations
         working-directory: packages/db
@@ -578,7 +685,7 @@ jobs:
       # Same provider/trust split as the build jobs' checkout.
       - name: Checkout code (mirror)
         if: (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        uses: useblacksmith/checkout@75c49b6ed30ce59336e9252425796cfcfac155f8 # v1.8.3
         with:
           fetch-depth: 2
       - name: Checkout code
@@ -699,6 +806,13 @@ jobs:
       - name: Migration safety (zero-downtime) audit
         run: bun run check:migrations "${{ steps.audit_base.outputs.ref }}"
 
+      # A builder name is public API once a workflow file uses it, so blocks/sdk-names is add-only.
+      - name: Frozen SDK names audit
+        run: bun run check:sdk-names-frozen "${{ steps.audit_base.outputs.ref }}"
+
+      - name: Type-check ESM maintenance scripts
+        run: bun run type-check:scripts:esm
+
       # Every affected workspace, following the same real task graph as tests. Root/unknown
       # changes select all. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
@@ -787,7 +901,7 @@ jobs:
     steps:
       - name: Checkout code (mirror)
         if: needs.changes.outputs.test_app == 'true' && (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
-        uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1.8.1
+        uses: useblacksmith/checkout@75c49b6ed30ce59336e9252425796cfcfac155f8 # v1.8.3
         with:
           fetch-depth: 2
       - name: Checkout code
@@ -900,7 +1014,7 @@ jobs:
           TOTAL_GB=$(awk '/MemTotal/ {printf "%d", $2/1048576}' /proc/meminfo)
           echo "Runner memory: ${TOTAL_GB} GB"
           if [ "$TOTAL_GB" -lt 40 ]; then
-            echo "::warning::Runner has ${TOTAL_GB} GB. A cold-cache build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal'). Warm/partial builds should still fit."
+            echo "::warning::Runner has ${TOTAL_GB} GB. A build peaks ~51 GB, so this run may be OOM-killed (reported only as 'the runner has received a shutdown signal')."
           fi
 
       - name: Build application
@@ -929,7 +1043,6 @@ jobs:
     if: needs.changes.outputs.e2e_build == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
     timeout-minutes: 25
-
     steps:
       - *checkout-mirror
       - *checkout-plain
@@ -963,6 +1076,7 @@ jobs:
           # lint's type-check and the `build` job's own `next build` (generated route types too)
           # already enforce.
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
+          NEXT_BUILD_SKIP_SOURCE_MAPS: 'true'
         run: bunx turbo run build --filter=@sim/app
 
       # Everything `next start` reads, including the spreadsheet parse worker it spawns (named, so a

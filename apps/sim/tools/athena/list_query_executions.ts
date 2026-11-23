@@ -2,6 +2,7 @@ import type {
   AthenaListQueryExecutionsParams,
   AthenaListQueryExecutionsResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listQueryExecutionsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listQueryExecutionsTool: InternalToolConfig<
   name: 'Athena List Query Executions',
   description: 'List recent Athena query execution IDs',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

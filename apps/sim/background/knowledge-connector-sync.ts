@@ -38,7 +38,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
     dispatchToken,
   } = assertConnectorSyncPayload(payload)
 
-  logger.info(`[${requestId}] Starting connector sync: ${connectorId}`)
+  logger.info(`Starting connector sync: ${connectorId}`, { requestId })
 
   try {
     const result = await executeSync(connectorId, {
@@ -50,7 +50,8 @@ export async function executeConnectorSyncJob(payload: unknown) {
     })
 
     const outcome = classifyConnectorSyncResult(result)
-    logger.info(`[${requestId}] Connector sync completed`, {
+    logger.info('Connector sync completed', {
+      requestId,
       connectorId,
       outcome,
       deferred: result.deferred,
@@ -78,7 +79,8 @@ export async function executeConnectorSyncJob(payload: unknown) {
     }
     if (outcome === 'partial' && (result.docsFailed > 0 || result.processingDispatch.failed > 0)) {
       logger.warn(
-        `[${requestId}] Connector sync partially failed for ${connectorId}: ${result.docsFailed} source failures, ${result.processingDispatch.failed} dispatch failures`
+        `Connector sync partially failed for ${connectorId}: ${result.docsFailed} source failures, ${result.processingDispatch.failed} dispatch failures`,
+        { requestId }
       )
     }
 
@@ -89,7 +91,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
       ...result,
     }
   } catch (error) {
-    logger.error(`[${requestId}] Connector sync failed: ${connectorId}`, error)
+    logger.error(`Connector sync failed: ${connectorId}`, error, { requestId })
     throw error
   }
 }

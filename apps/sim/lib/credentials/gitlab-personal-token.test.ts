@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
+import { EgressRefusedError } from '@/lib/core/network/transport.server'
 import {
   decryptPersonalToken,
   encryptPersonalToken,
@@ -91,10 +92,43 @@ describe('GitLab personal token verification', () => {
       .mockResolvedValueOnce(respond(details))
     await expect(verifyGitLabPersonalToken('secret')).rejects.toThrow('api scope')
   })
+  it.each([
+    ['midnight UTC on its expiry date', '2027-03-01', new Date('2027-03-01T00:00:00.000Z')],
+    ['no expiry for a date that does not exist', '2027-02-30', null],
+    ['no expiry for a date already past', '2020-01-01', null],
+  ])('records %s', async (_, expiresAt, expected) => {
+    mocks.fetch
+      .mockReset()
+      .mockResolvedValueOnce(respond(user))
+      .mockResolvedValueOnce(respond({ ...token, expires_at: expiresAt }))
+    expect((await verifyGitLabPersonalToken('secret')).expiresAt).toEqual(expected)
+  })
   it('does not reflect provider error bodies or retry failed verification', async () => {
     mocks.fetch.mockReset().mockResolvedValue(respond({ secret: 'sensitive' }, 401))
     await expect(verifyGitLabPersonalToken('secret')).rejects.toThrow('GitLab rejected this token')
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
+  })
+  it('reports a host the egress policy refuses as the user input', async () => {
+    mocks.fetch
+      .mockReset()
+      .mockRejectedValue(new EgressRefusedError('url resolves to a private address'))
+    await expect(verifyGitLabPersonalToken('secret', 'gitlab.internal')).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining("can't connect to that address"),
+    })
+  })
+  it('reports a GitLab host that does not resolve as the user input', async () => {
+    mocks.fetch.mockReset().mockRejectedValue(
+      Object.assign(new Error('getaddrinfo ENOTFOUND gitlab.example.invalid'), {
+        code: 'ENOTFOUND',
+      })
+    )
+    await expect(
+      verifyGitLabPersonalToken('secret', 'gitlab.example.invalid')
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining("couldn't find that GitLab host"),
+    })
   })
   it('binds organization tokens independently of the execution workspace', async () => {
     mocks.encrypt.mockResolvedValue({ encrypted: 'ciphertext' })

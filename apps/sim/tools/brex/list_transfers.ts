@@ -6,6 +6,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListTransfersTool: ToolConfig<BrexPaginationParams, BrexListTransfersResponse> = {
@@ -13,6 +14,7 @@ export const brexListTransfersTool: ToolConfig<BrexPaginationParams, BrexListTra
   name: 'Brex List Transfers',
   description: 'List money transfers in the Brex account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

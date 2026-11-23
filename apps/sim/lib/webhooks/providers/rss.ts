@@ -35,7 +35,7 @@ export const rssHandler: WebhookProviderHandler = {
     requestId,
     persistProviderConfig,
   }: PollingConfigContext) {
-    logger.info(`[${requestId}] Setting up RSS polling for webhook ${webhookData.id}`)
+    logger.info(`Setting up RSS polling for webhook ${webhookData.id}`, { requestId })
 
     try {
       const providerConfig = toRecord(webhookData.providerConfig)
@@ -56,13 +56,14 @@ export const rssHandler: WebhookProviderHandler = {
           .where(eq(webhook.id, webhookData.id as string))
       }
 
-      logger.info(
-        `[${requestId}] Successfully configured RSS polling for webhook ${webhookData.id}`
-      )
+      logger.info(`Successfully configured RSS polling for webhook ${webhookData.id}`, {
+        requestId,
+      })
       return true
     } catch (error: unknown) {
       const err = error as Error
-      logger.error(`[${requestId}] Failed to configure RSS polling`, {
+      logger.error('Failed to configure RSS polling', {
+        requestId,
         webhookId: webhookData.id,
         error: err.message,
       })

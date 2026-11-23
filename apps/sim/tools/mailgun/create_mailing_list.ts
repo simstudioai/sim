@@ -1,5 +1,6 @@
 import type { CreateMailingListParams, CreateMailingListResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunCreateMailingListTool: ToolConfig<
@@ -10,6 +11,7 @@ export const mailgunCreateMailingListTool: ToolConfig<
   name: 'Mailgun Create Mailing List',
   description: 'Create a new mailing list',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

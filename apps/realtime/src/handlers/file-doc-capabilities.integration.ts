@@ -32,14 +32,14 @@ import {
   flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
-import { getFileDocStore } from '@/handlers/file-doc-store'
+import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import {
   beginRoomPermissionRead,
   commitRoomPermission,
   ROLE_REVALIDATION_TTL_MS,
 } from '@/middleware/permissions'
-import { MemoryRoomManager } from '@/rooms'
+import { RedisRoomManager } from '@/rooms'
 
 const workspaceId = generateId()
 const projectId = generateId()
@@ -54,7 +54,7 @@ const checks: { name: string; status: string; durationMs: number; error?: string
 let app: HttpServer
 let http: HttpServer
 let io: Server
-let manager: MemoryRoomManager
+let manager: RedisRoomManager
 let socketUrl: string
 let failAccessStatus: number | null = null
 /** Users whose permission group withholds the Files module, as the app's access route decides. */
@@ -100,7 +100,7 @@ beforeAll(async () => {
       permissionType: 'write',
     },
   ])
-  await getFileDocStore().init()
+  await initFileDocStore(env.REDIS_URL)
   app = createServer(async (request, response) => {
     response.setHeader('Content-Type', 'application/json')
     if (request.headers['x-api-key'] !== env.INTERNAL_API_SECRET) {
@@ -166,7 +166,8 @@ beforeAll(async () => {
   env.NEXT_PUBLIC_APP_URL = await listen(app)
   http = createServer()
   io = new Server(http)
-  manager = new MemoryRoomManager(io)
+  manager = new RedisRoomManager(io, env.REDIS_URL)
+  await manager.initialize()
   io.on('connection', (socket) => {
     const authed = socket as AuthenticatedSocket
     authed.userId = socket.handshake.auth.actor
@@ -475,6 +476,7 @@ afterAll(async () => {
   if (io) await new Promise<void>((done) => io.close(() => done()))
   await flushAllFileDocRooms()
   await getFileDocStore().shutdown()
+  await manager?.shutdown()
   if (app) await new Promise<void>((done) => app.close(() => done()))
   await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   for (const id of [readerId, writerId]) await db.delete(user).where(eq(user.id, id))

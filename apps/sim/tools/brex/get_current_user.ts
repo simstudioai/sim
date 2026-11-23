@@ -1,5 +1,6 @@
 import type { BrexApiKeyParams, BrexGetUserResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexGetCurrentUserTool: ToolConfig<BrexApiKeyParams, BrexGetUserResponse> = {
@@ -7,6 +8,7 @@ export const brexGetCurrentUserTool: ToolConfig<BrexApiKeyParams, BrexGetUserRes
   name: 'Brex Get Current User',
   description: 'Get the Brex user associated with the API token',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -49,7 +51,7 @@ export const brexGetCurrentUserTool: ToolConfig<BrexApiKeyParams, BrexGetUserRes
     status: {
       type: 'string',
       description:
-        'User status (INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED)',
+        'User status (INVITED, ACTIVE, DISABLED, PENDING_ACTIVATION, INACTIVE, ARCHIVED)',
       optional: true,
     },
     managerId: { type: 'string', description: 'ID of the manager', optional: true },

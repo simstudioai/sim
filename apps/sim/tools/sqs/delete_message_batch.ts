@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsBatchResultResponse, SqsDeleteMessageBatchParams } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const deleteMessageBatchTool: InternalToolConfig<
   name: 'SQS Delete Message Batch',
   description: 'Delete up to 10 received messages from an Amazon SQS queue in a single request',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

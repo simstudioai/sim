@@ -163,15 +163,13 @@ export function isMcpServerUnavailableError(error: unknown): boolean {
 }
 
 /**
- * Enhanced error categorization for more specific HTTP status codes.
- * Returns safe, generic messages to prevent leaking internal details.
+ * Status and safe message for a failure raised by one of Sim's own MCP server error
+ * classes, or `null` for anything else. Unlike {@link categorizeError} it never guesses
+ * from message text, so a caller can apply it where an unrelated error must stay a 500.
  */
-export function categorizeError(error: unknown): { message: string; status: number } {
-  if (!(error instanceof Error)) {
-    return { message: 'Unknown error occurred', status: 500 }
-  }
-
-  // Typed dispatch first — our own classes carry definitive intent.
+export function categorizeMcpServerError(
+  error: unknown
+): { message: string; status: number } | null {
   if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
     return { message: 'Authentication required', status: 401 }
   }
@@ -187,6 +185,20 @@ export function categorizeError(error: unknown): { message: string; status: numb
   if (error instanceof McpSsrfError || error instanceof McpDomainNotAllowedError) {
     return { message: 'Server URL is not allowed by egress policy', status: 403 }
   }
+  return null
+}
+
+/**
+ * HTTP status and safe, generic message for any error: Sim's own MCP error classes
+ * first, then message matching for SDK and third-party errors.
+ */
+export function categorizeError(error: unknown): { message: string; status: number } {
+  if (!(error instanceof Error)) {
+    return { message: 'Unknown error occurred', status: 500 }
+  }
+
+  const typed = categorizeMcpServerError(error)
+  if (typed) return typed
 
   // Fall back to substring matching for SDK / third-party errors we don't
   // own a typed class for.

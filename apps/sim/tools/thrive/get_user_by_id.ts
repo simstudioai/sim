@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveGetUserByIdParams, ThriveUserResponse } from '@/tools/thrive/types'
 import { THRIVE_USER_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getUserByIdTool: ToolConfig<ThriveGetUserByIdParams, ThriveUserResponse> = {
   id: 'thrive_get_user_by_id',
   name: 'Thrive Get User by ID',
   description: 'Get a single user in Thrive by their ID and return basic user information.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -37,7 +40,8 @@ export const getUserByIdTool: ToolConfig<ThriveGetUserByIdParams, ThriveUserResp
   },
 
   request: {
-    url: (params) => `${getThriveBaseUrl(params.host, 'v1')}/user/${encodeURIComponent(params.id)}`,
+    url: (params) =>
+      `${getThriveBaseUrl(params.host, 'v1')}/users/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

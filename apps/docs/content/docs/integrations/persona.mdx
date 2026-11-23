@@ -2,7 +2,7 @@
 title: Persona
 description: Verify identities with Persona
 integration:
-  type: "persona"
+  type: "persona_v2"
   color: "#FFFFFF"
 ---
 
@@ -12,7 +12,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Persona](https://withpersona.com/) to create inquiries from verification templates, generate one-time links, inspect verification results, and update inquiry decisions or lifecycle state. The actions also retrieve summary PDFs and documents, manage accounts and CSV imports, run screening reports, and inspect cases.
 
-Provide your Persona API key and the template or resource identifiers required by the action. Keep a human review step where your process requires one before approving or declining an inquiry.
+Save your Persona API key as a Persona credential, select it in the block, and provide the template or resource identifiers the action requires. Keep a human review step where your process requires one before approving or declining an inquiry.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
@@ -31,7 +31,6 @@ Create a new identity verification inquiry from an inquiry template. Returns the
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryTemplateId` | string | Yes | Inquiry template ID \(starts with itmpl_\), inquiry template version ID \(starts with itmplv_\), or legacy template ID \(starts with tmpl_\) |
 | `accountId` | string | No | Account ID \(starts with act_\) to associate with this inquiry |
 | `referenceId` | string | No | Reference ID that refers to an entity in your user model. An account is auto-created for it if one does not exist. |
@@ -57,7 +56,6 @@ Retrieve a single identity verification inquiry by ID, including its status, col
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to retrieve \(starts with inq_\) |
 
 #### Output
@@ -78,7 +76,6 @@ List identity verification inquiries, optionally filtered by status, account ID,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `status` | string | No | Filter by inquiry status \(created, pending, completed, failed, expired, needs_review, approved, declined\) |
 | `accountId` | string | No | Filter by account ID \(starts with act_\); comma-separate multiple IDs |
 | `referenceId` | string | No | Filter by reference ID |
@@ -106,7 +103,6 @@ Update an inquiry’s note, fields, tags, or redirect URI. Only the provided val
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to update \(starts with inq_\) |
 | `note` | string | No | Free-form note to set on the inquiry |
 | `fields` | json | No | JSON object of field name to field value pairs to set, as defined by the inquiry template \(e.g. \{"name-first": "Jane"\}\) |
@@ -131,7 +127,6 @@ Approve an identity verification inquiry. Approving prevents further progress on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to approve \(starts with inq_\) |
 
 #### Output
@@ -152,7 +147,6 @@ Decline an identity verification inquiry. Declining prevents further progress on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to decline \(starts with inq_\) |
 
 #### Output
@@ -173,7 +167,6 @@ Mark an identity verification inquiry for manual review, moving it to the needs_
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to mark for review \(starts with inq_\) |
 
 #### Output
@@ -194,7 +187,6 @@ Resume a pending or expired inquiry, creating a new session so the individual ca
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to resume \(starts with inq_\) |
 
 #### Output
@@ -216,7 +208,6 @@ Expire an in-progress inquiry, invalidating its sessions and one-time links so t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to expire \(starts with inq_\) |
 
 #### Output
@@ -237,7 +228,6 @@ Generate a one-time link for an inquiry that the individual can open to complete
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to generate a one-time link for \(starts with inq_\) |
 | `expiresInSeconds` | number | No | Number of seconds from now until the link expires \(must be greater than 0; defaults to the inquiry template setting, typically 24 hours\) |
 
@@ -261,7 +251,6 @@ Download a PDF summary of an inquiry, including its collected information and ve
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to print \(starts with inq_\) |
 
 #### Output
@@ -282,7 +271,6 @@ Permanently delete all personally identifiable information collected by an inqui
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `inquiryId` | string | Yes | Inquiry ID to redact \(starts with inq_\) |
 
 #### Output
@@ -303,7 +291,6 @@ Create an account that represents an individual in Persona. Accounts consolidate
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `accountTypeId` | string | No | Account type ID to create the account for \(starts with acttp_\); defaults to your organization default |
 | `referenceId` | string | No | Reference ID that refers to an entity in your user model |
 | `countryCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g. US\) |
@@ -328,7 +315,6 @@ Retrieve a single account by ID, including its reference ID, fields, tags, and s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `accountId` | string | Yes | Account ID to retrieve \(starts with act_\) |
 
 #### Output
@@ -349,7 +335,6 @@ List accounts in your Persona organization, optionally filtered by reference ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `referenceId` | string | No | Filter by reference ID |
 | `pageSize` | number | No | Number of accounts to return per page \(1-100, default 10\) |
 | `pageAfter` | string | No | Pagination cursor: return accounts after this account ID |
@@ -373,7 +358,6 @@ Update an account’s reference ID, country code, fields, or tags. Only the prov
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `accountId` | string | Yes | Account ID to update \(starts with act_\) |
 | `referenceId` | string | No | Reference ID that refers to an entity in your user model |
 | `countryCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g. US\) |
@@ -398,7 +382,6 @@ Bulk-import accounts into Persona from a CSV file. Returns an importer whose sta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `file` | file | Yes | CSV file of accounts to import |
 
 #### Output
@@ -419,7 +402,6 @@ Permanently delete all personally identifiable information stored on an account,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `accountId` | string | Yes | Account ID to redact \(starts with act_\) |
 
 #### Output
@@ -440,7 +422,6 @@ List manual review cases, optionally filtered by status, account ID, or referenc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `status` | string | No | Filter by case status \(e.g. Open, Resolved\) |
 | `accountId` | string | No | Filter by account ID \(starts with act_\) |
 | `referenceId` | string | No | Filter by reference ID |
@@ -466,7 +447,6 @@ Retrieve a single manual review case by ID, including its status, resolution, an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `caseId` | string | Yes | Case ID to retrieve \(starts with case_\) |
 
 #### Output
@@ -487,7 +467,6 @@ Run a screening report (watchlist, adverse media, or politically exposed person)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `reportType` | string | Yes | Type of report to run: watchlist, adverse-media, or politically-exposed-person |
 | `reportTemplateId` | string | Yes | Report template ID to run \(starts with rptp_\) |
 | `term` | string | No | Full-name search term \(e.g. "Jane Q Doe"\). Provide this or the separate name parts. |
@@ -516,7 +495,6 @@ Retrieve a single screening report by ID, including its status, match results, a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `reportId` | string | Yes | Report ID to retrieve \(starts with rep_\) |
 
 #### Output
@@ -537,7 +515,6 @@ List screening reports, optionally filtered by account ID or reference ID. Resul
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `accountId` | string | No | Filter by account ID \(starts with act_\) |
 | `referenceId` | string | No | Filter by reference ID |
 | `pageSize` | number | No | Number of reports to return per page \(1-100, default 10\) |
@@ -562,7 +539,6 @@ Retrieve a single verification by ID (government ID, selfie, document, database,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `verificationId` | string | Yes | Verification ID to retrieve \(starts with ver_\) |
 
 #### Output
@@ -583,7 +559,6 @@ Retrieve a single document by ID (government ID, generic document, and more), in
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `documentId` | string | Yes | Document ID to retrieve \(starts with doc_\) |
 
 #### Output
@@ -604,7 +579,6 @@ List the inquiry templates in your Persona organization, to discover template ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Persona API key |
 | `pageSize` | number | No | Number of templates to return per page \(1-100, default 10\) |
 | `pageAfter` | string | No | Pagination cursor: return templates after this template ID |
 

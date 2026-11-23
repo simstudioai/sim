@@ -1,11 +1,16 @@
 import type { RipplingGetBusinessPartnerParams } from '@/tools/rippling/types'
+import { BUSINESS_PARTNER_EXPANDED_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { pickOutputFields } from '@/tools/rippling/utils'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartnerParams> = {
   id: 'rippling_get_business_partner',
   name: 'Rippling Get Business Partner',
   description: 'Get a specific business partner by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -23,7 +28,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/business-partners/${encodeURIComponent(params.id.trim())}/`
+      const base = `https://rest.ripplingapis.com/business-partners/${safeUrlPathSegment(params.id, 'id')}/`
       if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },
@@ -46,6 +51,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
         worker_id: (data.worker_id as string) ?? null,
         client_group_id: (data.client_group_id as string) ?? null,
         client_group_member_count: (data.client_group_member_count as number) ?? null,
+        ...pickOutputFields(data, BUSINESS_PARTNER_EXPANDED_OUTPUT_PROPERTIES),
         __meta: data.__meta ?? null,
       },
     }
@@ -62,6 +68,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
       description: 'Client group member count',
       optional: true,
     },
+    ...BUSINESS_PARTNER_EXPANDED_OUTPUT_PROPERTIES,
     __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

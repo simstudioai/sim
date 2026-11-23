@@ -6,7 +6,7 @@ import {
   member,
   user,
 } from '@sim/db/schema'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { LIVE_ENROLLMENT_STATUSES } from '@/lib/credential-groups/credentials'
 
 export class SlackSearchIdentityError extends Error {
@@ -23,6 +23,9 @@ export class SlackSearchIdentityError extends Error {
     this.name = 'SlackSearchIdentityError'
   }
 }
+
+/** Beyond one person's accounts, every further row is another person's claim: already a conflict. */
+const LINKED_IDENTITY_SCAN_LIMIT = 50
 
 /** Email matching never creates membership and refuses global email collisions or conflicting linked identities. */
 export async function resolveSlackSearchMember(
@@ -46,8 +49,8 @@ export async function resolveSlackSearchMember(
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
     .limit(1)
   if (!membership) throw new SlackSearchIdentityError('membership_required')
-  const conflicts = await db
-    .select({ id: credential.id })
+  const linked = await db
+    .select({ subjectId: credential.providerSubjectId, userId: credentialGroupEnrollment.userId })
     .from(credential)
     .innerJoin(
       credentialGroupEnrollment,
@@ -69,10 +72,18 @@ export async function resolveSlackSearchMember(
             AND option->>'status' = 'active'
         )`,
         eq(credential.providerTenantId, teamId),
-        sql`((${credential.providerSubjectId} = ${slackUserId} AND ${credentialGroupEnrollment.userId} IS DISTINCT FROM ${userId}) OR (${credentialGroupEnrollment.userId} = ${userId} AND ${credential.providerSubjectId} IS DISTINCT FROM ${slackUserId}))`
+        or(
+          eq(credential.providerSubjectId, slackUserId),
+          eq(credentialGroupEnrollment.userId, userId)
+        )
       )
     )
-    .limit(1)
-  if (conflicts.length) throw new SlackSearchIdentityError('identity_conflict')
+    .limit(LINKED_IDENTITY_SCAN_LIMIT)
+  const own = linked.filter((row) => row.userId === userId)
+  if (
+    linked.some((row) => row.subjectId === slackUserId && row.userId !== userId) ||
+    (own.length > 0 && !own.some((row) => row.subjectId === slackUserId))
+  )
+    throw new SlackSearchIdentityError('identity_conflict')
   return userId
 }

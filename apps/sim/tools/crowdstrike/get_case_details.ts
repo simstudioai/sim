@@ -2,6 +2,10 @@ import type {
   CrowdStrikeGetCaseDetailsParams,
   CrowdStrikeGetCaseDetailsResponse,
 } from '@/tools/crowdstrike/types'
+import {
+  CROWDSTRIKE_CREDENTIAL_OAUTH,
+  savedCredentialTokenParam,
+} from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const crowdstrikeGetCaseDetailsTool: InternalToolConfig<
@@ -13,6 +17,7 @@ export const crowdstrikeGetCaseDetailsTool: InternalToolConfig<
   description:
     'Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the "Cases: Read" API scope.',
   version: '1.0.0',
+  oauth: CROWDSTRIKE_CREDENTIAL_OAUTH,
 
   params: {
     clientId: {
@@ -33,6 +38,7 @@ export const crowdstrikeGetCaseDetailsTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
+    accessToken: savedCredentialTokenParam('CrowdStrike'),
     caseIds: {
       type: 'json',
       required: true,
@@ -47,6 +53,7 @@ export const crowdstrikeGetCaseDetailsTool: InternalToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
+      accessToken: params.accessToken,
       operation: 'crowdstrike_get_case_details',
     }),
   },

@@ -1,5 +1,5 @@
+import { WORKFLOW_RESOURCE_KINDS } from '@sim/workflow-types/resources'
 import { z } from 'zod'
-import { WORKFLOW_RESOURCE_KINDS } from '@/lib/workflows/references/types'
 
 export const portableResourceKindSchema = z.enum([...WORKFLOW_RESOURCE_KINDS, 'workflow'])
 export const referenceOccurrenceSchema = z

@@ -56,6 +56,8 @@ export interface CloudFormationCreateStackParams extends CloudFormationConnectio
   tags?: CloudFormationTagInput[]
   onFailure?: 'ROLLBACK' | 'DELETE' | 'DO_NOTHING'
   timeoutInMinutes?: number
+  roleArn?: string
+  enableTerminationProtection?: boolean
 }
 
 export interface CloudFormationUpdateStackParams extends CloudFormationConnectionConfig {
@@ -65,6 +67,7 @@ export interface CloudFormationUpdateStackParams extends CloudFormationConnectio
   parameters?: CloudFormationParameterInput[]
   capabilities?: string
   tags?: CloudFormationTagInput[]
+  roleArn?: string
 }
 
 export interface CloudFormationDeleteStackParams extends CloudFormationConnectionConfig {
@@ -85,11 +88,14 @@ export interface CloudFormationCreateChangeSetParams extends CloudFormationConne
   capabilities?: string
   changeSetType?: 'CREATE' | 'UPDATE' | 'IMPORT'
   description?: string
+  roleArn?: string
+  tags?: CloudFormationTagInput[]
 }
 
 export interface CloudFormationDescribeChangeSetParams extends CloudFormationConnectionConfig {
   changeSetName: string
   stackName?: string
+  nextToken?: string
 }
 
 export interface CloudFormationExecuteChangeSetParams extends CloudFormationConnectionConfig {
@@ -100,6 +106,13 @@ export interface CloudFormationExecuteChangeSetParams extends CloudFormationConn
 export interface CloudFormationGetTemplateSummaryParams extends CloudFormationConnectionConfig {
   templateBody?: string
   stackName?: string
+}
+
+interface CloudFormationParameterOutput {
+  parameterKey: string
+  parameterValue: string | undefined
+  usePreviousValue: boolean | undefined
+  resolvedValue: string | undefined
 }
 
 export interface CloudFormationDescribeStacksResponse extends ToolResponse {
@@ -117,8 +130,26 @@ export interface CloudFormationDescribeStacksResponse extends ToolResponse {
         stackDriftStatus: string | undefined
         lastCheckTimestamp: number | undefined
       } | null
-      outputs: { outputKey: string; outputValue: string; description: string | undefined }[]
+      outputs: {
+        outputKey: string
+        outputValue: string
+        description: string | undefined
+        exportName?: string
+      }[]
       tags: { key: string; value: string }[]
+      parameters?: CloudFormationParameterOutput[]
+      capabilities?: string[]
+      changeSetId?: string
+      deletionTime?: number
+      disableRollback?: boolean
+      notificationArns?: string[]
+      timeoutInMinutes?: number
+      roleArn?: string
+      parentId?: string
+      rootId?: string
+      detailedStatus?: string
+      deletionMode?: string
+      retainExceptOnCreate?: boolean
     }[]
   }
 }
@@ -170,6 +201,15 @@ export interface CloudFormationDescribeStackEventsResponse extends ToolResponse 
       resourceStatus: string | undefined
       resourceStatusReason: string | undefined
       timestamp: number | undefined
+      operationId?: string
+      resourceProperties?: string
+      clientRequestToken?: string
+      detailedStatus?: string
+      hookType?: string
+      hookStatus?: string
+      hookStatusReason?: string
+      hookInvocationPoint?: string
+      hookFailureMode?: string
     }[]
   }
 }
@@ -245,7 +285,28 @@ export interface CloudFormationDescribeChangeSetResponse extends ToolResponse {
       physicalResourceId: string | undefined
       resourceType: string | undefined
       replacement: string | undefined
+      type?: string
+      policyAction?: string
+      scope?: string[]
+      changeSetId?: string
+      details?: {
+        attribute: string | undefined
+        name: string | undefined
+        requiresRecreation: string | undefined
+        evaluation: string | undefined
+        changeSource: string | undefined
+        causingEntity: string | undefined
+      }[]
     }[]
+    parameters?: CloudFormationParameterOutput[]
+    tags?: { key: string; value: string }[]
+    notificationArns?: string[]
+    includeNestedStacks?: boolean
+    parentChangeSetId?: string
+    rootChangeSetId?: string
+    onStackFailure?: string
+    importExistingResources?: boolean
+    nextToken?: string | null
   }
 }
 
@@ -264,6 +325,7 @@ export interface CloudFormationGetTemplateSummaryResponse extends ToolResponse {
       parameterType: string | undefined
       noEcho: boolean | undefined
       description: string | undefined
+      allowedValues?: string[]
     }[]
     capabilities: string[]
     capabilitiesReason: string | undefined

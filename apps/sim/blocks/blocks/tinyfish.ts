@@ -1,6 +1,7 @@
 import { TinyFishIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation } from '@/blocks/utils'
 
 /** Operations that build and submit an automation run. */
 const AUTOMATION_OPERATIONS = ['tinyfish_run', 'tinyfish_run_async']
@@ -497,7 +498,7 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
             return 'tinyfish_run'
         }
       },
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
 
         /**
@@ -528,10 +529,10 @@ Return ONLY the comma-separated URL list - no explanations, no extra text.`,
         /**
          * The list filter has its own sub-block id so it does not collide with
          * the automation goal, and is renamed here to the `goal` query the tool
-         * sends.
+         * sends. A tool call's model arg arrives as `goal` already.
          */
-        if (params.operation === 'tinyfish_list_runs') {
-          result.goal = params.goalFilter
+        if (mapperOperation(params, context) === 'tinyfish_list_runs') {
+          result.goal = isToolCall(context) ? params.goalFilter || params.goal : params.goalFilter
         }
 
         return result

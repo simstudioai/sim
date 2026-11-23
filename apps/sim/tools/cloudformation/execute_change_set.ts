@@ -2,6 +2,7 @@ import type {
   CloudFormationExecuteChangeSetParams,
   CloudFormationExecuteChangeSetResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const executeChangeSetTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const executeChangeSetTool: InternalToolConfig<
   name: 'CloudFormation Execute Change Set',
   description: 'Apply a previously created and reviewed change set to its stack',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

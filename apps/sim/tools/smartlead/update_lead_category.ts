@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadActionResponse, SmartleadCampaignLeadParams } from '@/tools/smartlead/types'
 import {
   actionOutputs,
@@ -26,6 +27,7 @@ export const updateLeadCategoryTool: ToolConfig<UpdateLeadCategoryParams, Smartl
     description:
       'Sets the category of a lead in a Smartlead campaign, such as Interested or Not Interested. Use List Lead Categories to resolve a category ID.',
     version: '1.0.0',
+    oauth: SMARTLEAD_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
     params: {
       ...smartleadBaseParamFields,

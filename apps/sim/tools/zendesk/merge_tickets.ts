@@ -1,5 +1,13 @@
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
-import { buildZendeskUrl, handleZendeskError, JOB_STATUS_OUTPUT } from '@/tools/zendesk/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
+import {
+  buildZendeskUrl,
+  handleZendeskError,
+  JOB_STATUS_OUTPUT,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
+} from '@/tools/zendesk/types'
 
 export interface ZendeskMergeTicketsParams {
   email: string
@@ -29,7 +37,10 @@ export const zendeskMergeTicketsTool: ToolConfig<
   description: 'Merge multiple tickets into a target ticket',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -65,29 +76,27 @@ export const zendeskMergeTicketsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comment text to add to target ticket after merge',
+      description: 'Comment text to add to the target ticket after merge, posted as a public reply',
     },
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.targetTicketId}/merge`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/tickets/${safeUrlPathSegment(params.targetTicketId, 'targetTicketId')}/merge`
+      ),
     method: 'POST',
-    headers: (params) => {
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
     body: (params) => {
       const ids = params.sourceTicketIds.split(',').map((id) => id.trim())
       const body: any = { ids }
       if (params.targetComment) {
-        body.target_comment = {
-          body: params.targetComment,
-          public: true,
-        }
+        body.target_comment = params.targetComment
+        body.target_comment_is_public = true
       }
       return body
     },

@@ -1,7 +1,9 @@
 import {
+  type ComparisonQuestion,
   type CompetitorProfile,
   claudeCoworkProfile,
   crewaiProfile,
+  difyProfile,
   dustProfile,
   flowiseProfile,
   gumloopProfile,
@@ -12,8 +14,10 @@ import {
   n8nProfile,
   openaiAgentkitProfile,
   openClawProfile,
+  type Prose,
   pipedreamProfile,
   powerAutomateProfile,
+  relevanceAiProfile,
   retoolProfile,
   simProfile,
   stackaiProfile,
@@ -40,11 +44,13 @@ export const ALL_COMPETITORS: CompetitorProfile[] = [
   openaiAgentkitProfile,
   tinesProfile,
   stackaiProfile,
+  relevanceAiProfile,
   powerAutomateProfile,
   vellumProfile,
   claudeCoworkProfile,
   langflowProfile,
   flowiseProfile,
+  difyProfile,
   microsoftCopilotProfile,
   openClawProfile,
   dustProfile,
@@ -118,9 +124,16 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
  * question/answer pair is independently quotable per the landing GEO rules,
  * and every answer names "Sim" and the competitor explicitly. Every answer
  * draws on a real, sourced {@link Fact} field rather than a generic claim,
- * and no two questions repeat the same answer.
+ * and no two questions repeat the same answer. A profile that {@link answersQuestionsInPlace}
+ * gets those questions instead, so its FAQ data matches what the page shows.
  */
 export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFaq[] {
+  if (answersQuestionsInPlace(competitor)) {
+    const { lead, opening, glance, closing } = getQuestionSectionGroups(competitor)
+    return [...(lead ? [lead] : []), ...opening, ...glance, ...closing].map(
+      ({ question, answer }) => ({ question, answer: proseToText(answer) })
+    )
+  }
   const name = competitor.name
   const facts = competitor.facts
   const faqs: ComparisonFaq[] = [
@@ -155,7 +168,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Can I migrate from ${name} to Sim?`,
-      answer: `There is no automated one-click migration tool between ${name} and Sim. Workflows and automations need to be rebuilt in Sim's visual builder, natural-language Chat surface, or API. Most teams start by recreating their highest-value automation first to validate the switch before migrating the rest.`,
+      answer: `There is no automated one-click migration tool between ${name} and Sim. Workflows and automations need to be rebuilt in Sim's visual builder, natural-language Chat surface, or API. Most teams start by recreating their highest-value automation first to validate the switch before migrating the rest.${competitor.migrationSteps ? ` ${competitor.migrationSteps}` : ''}`,
     },
   ]
 
@@ -167,6 +180,44 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   }
 
   return faqs
+}
+
+/**
+ * Whether the page answers its buyer questions as sections (see
+ * {@link CompetitorProfile.questions}). Such a page omits the FAQ block, and its FAQ structured
+ * data lists those questions instead.
+ */
+export function answersQuestionsInPlace(competitor: CompetitorProfile): boolean {
+  return competitor.questions !== undefined
+}
+
+/**
+ * The buyer questions the page answers in their own sections, by position: `lead` in the hero,
+ * `opening` (the "better than" and intro questions) ahead of the product definitions, `glance`
+ * after the at-a-glance table, and `closing` after the documented limitations.
+ */
+export function getQuestionSectionGroups(competitor: CompetitorProfile): {
+  lead: ComparisonQuestion | undefined
+  opening: ComparisonQuestion[]
+  glance: ComparisonQuestion[]
+  closing: ComparisonQuestion[]
+} {
+  const { leadQuestion, leadAnswer, betterThanAnswer, questions } = competitor
+  return {
+    lead: leadQuestion && leadAnswer ? { question: leadQuestion, answer: leadAnswer } : undefined,
+    opening: [
+      ...(betterThanAnswer
+        ? [{ question: `Is Sim better than ${competitor.name}?`, answer: betterThanAnswer }]
+        : []),
+      ...(questions?.intro ?? []),
+    ],
+    glance: questions?.glance ?? [],
+    closing: questions?.closing ?? [],
+  }
+}
+
+function proseToText(prose: Prose): string {
+  return prose.map((segment) => (typeof segment === 'string' ? segment : segment.text)).join('')
 }
 
 function buildKeyDifferenceAnswer(competitor: CompetitorProfile): string {

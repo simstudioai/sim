@@ -36,6 +36,7 @@ export const v2McpOperations = {
    * The scope a tool call needs when it runs a raw v2 route, which declares no
    * operation of its own (chat, workflow execution, resume); each changes
    * something. Declared-operation routes are checked against their own scope.
+   * The write code tool needs it too: its programs may run any operation.
    */
   // permission-group-exempt: a scope gate only; the dispatched v2 route enforces its own capability
   rawRoute: defineOperation({

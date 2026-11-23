@@ -10,6 +10,7 @@ import type {
   TrelloUpdateChecklistItemResponse,
 } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloUpdateChecklistItemTool: ToolConfig<
   TrelloUpdateChecklistItemParams,
@@ -76,7 +77,7 @@ export const trelloUpdateChecklistItemTool: ToolConfig<
       }
 
       const url = new URL(
-        `${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}/checkItem/${params.checkItemId.trim()}`
+        `${TRELLO_API_BASE_URL}/cards/${safeUrlPathSegment(params.cardId, 'cardId')}/checkItem/${safeUrlPathSegment(params.checkItemId, 'checkItemId')}`
       )
       url.searchParams.set('key', apiKey)
       url.searchParams.set('token', params.accessToken)

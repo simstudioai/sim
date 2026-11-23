@@ -1,0 +1,567 @@
+---
+title: Flow Engineering
+description: Manage engineering requirements and traceability
+integration:
+  type: "flow"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Flow Engineering](https://www.flowengineering.com/) connects requirements, systems, tests, and their relationships. Use the Flow block to search current project data, read values and history, manage discussions, and propose changes on a working branch.
+
+## Connect an account
+
+In Flow, open **Settings → API & MCP**, generate a personal API key, and copy it. Create a connection from the block's **Flow Account** field with:
+
+- **API key:** The complete key, including its `brd_` prefix.
+- **API URL:** The URL from Flow's API settings. The default is `https://backend.branch.flowengineering.com`. The `/customer-api` suffix opens the API documentation and is removed from requests.
+- **Workspace identifier:** The final segment of the MCP URL. For `https://backend.branch.flowengineering.com/mcp/your-workspace`, enter `your-workspace`.
+
+The key uses its owner's current Flow permissions. It does not grant additional project access or bypass read-only roles. Revoke or replace it in Flow when needed. This integration uses the current customer API, not the older refresh-token API under `api.flowengineering.com/rest/v1`.
+
+## Work with project data
+
+Select a project, then use **Get Data Model** to discover its categories and field keys. Requirements and tests are entities in those categories; names and custom fields can vary by project. Use the returned IDs rather than display names.
+
+**Search Entities** returns up to 100 compact matches by name, field value, or exact Flow/Human ID. Use **Get Entities** to read their full values and relationships. Search reflects the selected branch and may have incomplete text results while Flow's index warms.
+
+**List Entities** reads one page. Pass `nextPageStart` as **Cursor** and continue while `moreAvailable` is true, including after an empty page. **Filter Entities** and **Get Entity History** instead return `nextCursor`; continue until it is null. No operation automatically downloads every page.
+
+## Make changes
+
+Omitting **Branch** reads or writes Base (`master`). Use **Create Branch** and select its returned ID to prepare changes separately. Flow's project permissions and branch protections still apply; the integration does not request the admin bypass option.
+
+**Create Entities** and **Set Values** accept up to 100 entries per request. Each batch is atomic, but separate requests are separate transactions. Creates and other mutations are not automatically retried. After a timeout, read back the affected data before repeating a write.
+
+To reply to a discussion, pass the original comment ID as **Entity ID**, even when replying to a later reply. Use the same branch for the original thread and its replies. Resolve a thread by updating the original comment.
+
+See [Flow's API conventions](https://docs.flowengineering.com/api/conventions) for branch and pagination behavior, and [its API reference](https://docs.flowengineering.com/api/reference) for supported field values and filters.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Read and update Flow Engineering projects, requirements, tests, and other entities through its customer API. Search current project data, inspect categories and relationships, manage comments, and make controlled changes on a working branch using your connected account permissions.
+
+## Actions
+
+### Flow List Projects
+
+List projects accessible to the connected Flow user. The API returns up to the requested limit without a continuation cursor.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum results in this page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List Projects result |
+
+</ReferenceDetails>
+
+### Flow Get Project
+
+Read a Flow project by its UUID.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | json | Get Project result |
+
+</ReferenceDetails>
+
+### Flow Get Data Model
+
+Read the project categories and field definitions before interpreting values or writing custom fields.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | array | Get Data Model result |
+
+</ReferenceDetails>
+
+### Flow List Branches
+
+List the Flow project branches and their review and protection state.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `branches` | array | List Branches result |
+
+</ReferenceDetails>
+
+### Flow Create Branch
+
+Create a working branch before modifying requirements, tests, or other project entities.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchName` | string | No | Name of the new branch |
+| `parentId` | string | No | Parent branch ID; omit for Base |
+| `description` | string | No | Description of the new branch |
+| `isVariant` | boolean | No | Create a variant branch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Created branch ID |
+| `number` | number | Assigned branch number |
+
+</ReferenceDetails>
+
+### Flow Search Entities
+
+Search live Flow entities by name, supported field values, or exact Flow/Human ID. Returns at most 100 compact matches; fetch entities for full values. Text results may be unavailable while the provider index warms.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `entityType` | string | No | Restrict to this category ID from Get Data Model |
+| `query` | string | Yes | Search names and supported field values, or an exact Flow/Human ID; at most 1024 characters |
+| `limit` | number | No | Maximum results in this page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `matches` | array | Search Entities result |
+
+</ReferenceDetails>
+
+### Flow List Entities
+
+Read one page of live Flow entities. Continue with nextPageStart while moreAvailable is true, including after an empty page.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `entityType` | string | No | Restrict to this category ID from Get Data Model |
+| `cursor` | string | No | Opaque continuation cursor from the previous page |
+| `limit` | number | No | Maximum results in this page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | Entity states on this page |
+| `nextPageStart` | string | Opaque cursor for the next page |
+| `moreAvailable` | boolean | Continue even after empty pages while true |
+
+</ReferenceDetails>
+
+### Flow Get Entities
+
+Read the full values, relationships, and timestamps of up to 100 Flow entities in one project and branch.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `entityIds` | string | Yes | Comma-separated entity IDs; up to 100 per read |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | Get Entities result |
+
+</ReferenceDetails>
+
+### Flow Create Entity
+
+Create an entity in a category on the selected branch. Branch protection and the connected user permissions remain enforced.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `entityType` | string | Yes | Category ID returned by Get Data Model |
+| `name` | string | Yes | Entity name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entity` | json | Create Entity result |
+
+</ReferenceDetails>
+
+### Flow Create Entities
+
+Create 1–100 entities atomically on a single branch. A timed-out request may already have committed; inspect the branch before retrying.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `entities` | json | Yes | Array of 1–100 entities: \[\{entityType, name, id?\}\]. IDs may be omitted for server generation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | Create Entities result |
+
+</ReferenceDetails>
+
+### Flow Set Value
+
+Set one field on a Flow entity using a key from the data model and a JSON value of the documented field type.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID returned by Search Entities or List Entities |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `fieldKey` | string | Yes | Stored field key returned by Get Data Model |
+| `value` | string | Yes | JSON-encoded field value matching the data model. Use "text" for a string, 123 for a number, true or false for a boolean, an array or object, or null to clear the field. Use "" for an empty string. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entity` | json | Set Value result |
+
+</ReferenceDetails>
+
+### Flow Set Values
+
+Set 1–100 field values atomically on one branch. Returns each affected entity once in first-touched order.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `updates` | json | Yes | Array of 1–100 field updates: \[\{entityId, key, value\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | Set Values result |
+
+</ReferenceDetails>
+
+### Flow Delete Entity
+
+Delete an entity on the selected branch. Branch protection is enforced.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID returned by Search Entities or List Entities |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Flow Restore Entity
+
+Restore a deleted entity with its prior fields and links. Restoring a child does not restore its deleted parent.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID returned by Search Entities or List Entities |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Flow Add Link
+
+Add a downstream relationship between Flow entities on the selected branch.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID returned by Search Entities or List Entities |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `destinationId` | string | Yes | ID of the downstream entity to link or unlink |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entity` | json | Add Link result |
+
+</ReferenceDetails>
+
+### Flow Remove Link
+
+Remove a downstream relationship between Flow entities on the selected branch.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID returned by Search Entities or List Entities |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `destinationId` | string | Yes | ID of the downstream entity to link or unlink |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entity` | json | Remove Link result |
+
+</ReferenceDetails>
+
+### Flow List Comments
+
+Read direct comment threads for an entity or direct replies to the original comment ID. Keep the same branch when following replies.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID, or the original comment ID when reading or posting thread replies |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `includeResolved` | boolean | No | Include resolved comments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | List Comments result |
+
+</ReferenceDetails>
+
+### Flow Get Comment
+
+Read a comment using its ID and its returned entity_id as the parent path.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID, or the original comment ID when reading or posting thread replies |
+| `commentId` | string | Yes | Comment ID; entityId must be the comment's returned entity_id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | json | Get Comment result |
+
+</ReferenceDetails>
+
+### Flow Create Comment
+
+Start a thread on an entity or reply using the original comment ID as entityId. Set the branch explicitly; replies do not inherit it.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID, or the original comment ID when reading or posting thread replies |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `text` | string | Yes | Plain-text comment body |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | json | Create Comment result |
+
+</ReferenceDetails>
+
+### Flow Update Comment
+
+Edit comment text or resolve/reopen its thread. Use the original comment to change the thread status.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID, or the original comment ID when reading or posting thread replies |
+| `commentId` | string | Yes | Comment ID; entityId must be the comment's returned entity_id |
+| `text` | string | No | Replacement plain-text comment body |
+| `resolved` | boolean | No | Resolve the thread with true or reopen it with false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | json | Update Comment result |
+
+</ReferenceDetails>
+
+### Flow Delete Comment
+
+Delete a comment authored by the connected user.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `entityId` | string | Yes | Entity ID, or the original comment ID when reading or posting thread replies |
+| `commentId` | string | Yes | Comment ID; entityId must be the comment's returned entity_id |
+
+#### Output
+
+No output fields.
+
+</ReferenceDetails>
+
+### Flow Filter Entities
+
+Read one page of IDs matching typed field conditions and AND/OR groups. Continue until nextCursor is null, including after empty pages; results reflect current state.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `filter` | json | Yes | Filter object: \{kind:"type",operation:"overlaps",values:\[categoryId\]\}, \{kind:"field",category_id,field_key,operation:"contains",value\}, or \{kind:"group",operator:"and"\|"or",conditions:\[...\]\}. Use data-model IDs and field-compatible operators; at most 50 nodes and 5 group levels |
+| `cursor` | string | No | Opaque continuation cursor from the previous page |
+| `limit` | number | No | Maximum results in this page |
+| `timezone` | string | No | IANA timezone for date filters; defaults to UTC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entityIds` | array | Matching entity IDs; fetch entities to read values |
+| `nextCursor` | string | Continue until null, even after an empty page |
+
+</ReferenceDetails>
+
+### Flow Get Entity History
+
+Read a page of change history for up to 500 entities. Keep project, branch, and entity IDs fixed while paging; restart if a rebase expires the cursor.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Project UUID returned by List Projects |
+| `branchId` | string | No | Branch ID; omit or use master for Base |
+| `entityIds` | string | Yes | Comma-separated entity IDs; up to 500 per history page |
+| `cursor` | string | No | Opaque continuation cursor from the previous page |
+| `limit` | number | No | Maximum results in this page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | Entity change history page |
+| `nextCursor` | string | Continue until null |
+
+</ReferenceDetails>
+
+

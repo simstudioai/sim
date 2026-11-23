@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  identityCenterAccountIdSchema,
   identityCenterConnectionShape,
   identityCenterInstanceArnSchema,
   identityCenterMaxResultsSchema,
@@ -21,6 +22,7 @@ const Schema = z.object({
   principalType: identityCenterPrincipalTypeSchema,
   maxResults: identityCenterMaxResultsSchema.optional(),
   nextToken: identityCenterNextTokenSchema.optional(),
+  accountId: identityCenterAccountIdSchema.optional(),
 })
 
 const ResponseSchema = z.object({

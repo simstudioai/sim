@@ -1,0 +1,8 @@
+{
+  "namespace": "parallelAi",
+  "methods": {
+    "deep_research": "deepResearch",
+    "extract": "extractFromUrls",
+    "search": "search"
+  }
+}

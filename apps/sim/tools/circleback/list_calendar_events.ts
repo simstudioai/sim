@@ -9,6 +9,7 @@ import {
   parseNextCursor,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCalendarEventsTool: ToolConfig<
@@ -20,6 +21,7 @@ export const listCalendarEventsTool: ToolConfig<
   description:
     'Lists upcoming calendar events from the authenticated user connected calendars, with pagination and a configurable time window.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

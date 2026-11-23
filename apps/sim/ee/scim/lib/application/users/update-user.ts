@@ -13,6 +13,7 @@ import {
   invalidateAfterSessionRevocation,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
+import { markScimPeopleChanged } from '@/lib/people/sync/scim-changes'
 import type { ScimAuditEntry } from '@/ee/scim/lib/application/audit'
 import {
   defineAuthorizedScimUseCase,
@@ -117,6 +118,8 @@ async function applyUserUpdate(
     attributes: next,
     active: next.active,
   })
+
+  await markScimPeopleChanged(tx, context.organizationId)
 
   const projection = await reconcileUserProjection(tx, {
     connectionId: context.connection.id,

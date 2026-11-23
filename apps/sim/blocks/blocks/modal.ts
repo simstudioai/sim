@@ -1,6 +1,7 @@
 import { ModalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 import { MODAL_SHARED_INFERENCE_URL } from '@/tools/modal/utils'
 
 /** Operations that talk to a Modal Endpoint's OpenAI-compatible `/v1` API. */
@@ -199,14 +200,14 @@ export const ModalBlock: BlockConfig = {
     access: ['modal_call_function', 'modal_chat_completion', 'modal_list_models'],
     config: {
       tool: (params) => `modal_${params.operation}`,
-      params: (params) => {
-        const { operation, tokenId, tokenSecret, ...rest } = params
+      params: (params, context) => {
+        const { tokenId, tokenSecret, ...rest } = params
 
         const baseParams: Record<string, unknown> = { tokenId, tokenSecret }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'call_function':
-            baseParams.url = rest.functionUrl
+            baseParams.url = rest.functionUrl ?? toolCallArg(context, rest.url)
             if (rest.method) baseParams.method = rest.method
             if (rest.requestBody !== undefined && rest.requestBody !== '') {
               baseParams.body = rest.requestBody

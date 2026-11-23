@@ -2,7 +2,7 @@
 title: Linq
 description: Send iMessage, SMS, and RCS messages and manage conversations with Linq
 integration:
-  type: "linq"
+  type: "linq_v2"
   color: "#000000"
 ---
 
@@ -19,7 +19,7 @@ Check iMessage or RCS capability before selecting a preferred service. Upload at
 
 ## Use the block [#usage-instructions]
 
-Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events — all through a single Linq API key.
+Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events.
 
 ## Actions
 
@@ -33,7 +33,6 @@ Add a participant to a group chat (3+ existing participants)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the group chat |
 | `handle` | string | Yes | Phone number \(E.164 format\) or email address of the participant to add |
 
@@ -57,7 +56,6 @@ Check whether an address (phone number or email) supports iMessage
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `address` | string | Yes | Phone number \(E.164 format\) or email address to check |
 | `from` | string | No | Sender phone number to check from \(defaults to an available number\) |
 
@@ -80,7 +78,6 @@ Check whether an address (phone number or email) supports RCS
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `address` | string | Yes | Phone number \(E.164 format\) to check |
 | `from` | string | No | Sender phone number to check from \(defaults to an available number\) |
 
@@ -103,7 +100,6 @@ Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `file` | file | No | File to upload \(a UserFile from a file-upload field or a previous block\) |
 | `filename` | string | No | Override the file name \(defaults to the uploaded file name\) |
 | `contentType` | string | No | Override the MIME type \(defaults to the uploaded file type\) |
@@ -131,7 +127,6 @@ Start a new iMessage, SMS, or RCS chat and send the first message
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `from` | string | Yes | Sender phone number in E.164 format \(e.g. +14155551234\) |
 | `to` | array | Yes | Recipient handles \(phone numbers in E.164 format or email addresses\) |
 | `text` | string | No | Text content of the first message. Optional, but at least one of text, media, attachment, or link is required |
@@ -168,7 +163,6 @@ Set up a contact card (Name and Photo Sharing) for a phone number
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `phoneNumber` | string | Yes | Phone number in E.164 format the card applies to |
 | `firstName` | string | Yes | First name to display |
 | `lastName` | string | No | Last name to display |
@@ -196,7 +190,6 @@ Subscribe an HTTPS endpoint to Linq webhook events
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `targetUrl` | string | Yes | HTTPS endpoint that will receive webhook events |
 | `subscribedEvents` | array | Yes | Event types to subscribe to \(e.g. message.sent, message.delivered\) |
 | `phoneNumbers` | array | No | E.164 phone numbers to filter events by \(omit for all numbers\) |
@@ -226,7 +219,6 @@ Permanently delete an attachment owned by your account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `attachmentId` | string | Yes | The unique identifier of the attachment to delete |
 
 #### Output
@@ -247,7 +239,6 @@ Delete a message from the Linq API only (does not unsend it; recipients still se
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `messageId` | string | Yes | The unique identifier of the message to delete |
 
 #### Output
@@ -268,7 +259,6 @@ Delete a webhook subscription from your account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `subscriptionId` | string | Yes | The unique identifier of the webhook subscription to delete |
 
 #### Output
@@ -289,7 +279,6 @@ Edit the text of a sent message (up to 5 times, within 15 minutes of sending; iM
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `messageId` | string | Yes | The unique identifier of the message to edit |
 | `text` | string | Yes | New text content for the message part |
 | `partIndex` | number | No | Index of the message part to edit \(defaults to 0\) |
@@ -323,7 +312,6 @@ Retrieve metadata for an attachment, including its download URL and status
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `attachmentId` | string | Yes | The unique identifier of the attachment |
 
 #### Output
@@ -350,7 +338,6 @@ Retrieve a chat by ID, including participants and line health
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 
 #### Output
@@ -379,7 +366,6 @@ Retrieve contact cards, optionally filtered by phone number
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `phoneNumber` | string | No | E.164 phone number to filter by \(omit to return all cards\) |
 
 #### Output
@@ -405,7 +391,6 @@ Retrieve a single message by ID, including parts, reactions, and delivery status
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `messageId` | string | Yes | The unique identifier of the message |
 
 #### Output
@@ -437,7 +422,6 @@ Retrieve a webhook subscription by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `subscriptionId` | string | Yes | The unique identifier of the webhook subscription |
 
 #### Output
@@ -464,7 +448,6 @@ Leave an iMessage group chat (4+ active participants; not supported for direct c
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the group chat |
 
 #### Output
@@ -487,7 +470,6 @@ List chats, optionally filtered by sender or participant handle
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `from` | string | No | Filter by sender phone number in E.164 format |
 | `to` | string | No | Filter by participant handle \(phone number or email\) |
 | `limit` | number | No | Results per page \(default 20, max 100\) |
@@ -512,7 +494,6 @@ List messages in a chat with pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 | `limit` | number | No | Maximum number of messages to return |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -536,7 +517,6 @@ List all phone numbers assigned to your partner account, with line health
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 
 #### Output
 
@@ -560,7 +540,6 @@ List all messages in the thread that contains a given message
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `messageId` | string | Yes | The ID of any message in the thread |
 | `order` | string | No | Sort order: asc \(oldest first\) or desc \(newest first\) |
 | `limit` | number | No | Maximum number of messages to return |
@@ -585,7 +564,6 @@ List all webhook event types available to subscribe to
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 
 #### Output
 
@@ -606,7 +584,6 @@ List all webhook subscriptions on your account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 
 #### Output
 
@@ -633,7 +610,6 @@ Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 
 #### Output
@@ -654,7 +630,6 @@ Add or remove a tapback reaction on a message
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `messageId` | string | Yes | The unique identifier of the message to react to |
 | `operation` | string | Yes | Whether to add or remove the reaction: add or remove |
 | `type` | string | Yes | Reaction type: love, like, dislike, laugh, emphasize, question, custom, or sticker |
@@ -681,7 +656,6 @@ Remove a participant from a group chat (minimum 3 participants must remain)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the group chat |
 | `handle` | string | Yes | Phone number \(E.164 format\) or email address of the participant to remove |
 
@@ -705,7 +679,6 @@ Send a message to an existing chat, with optional media, link, effect, or reply
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 | `text` | string | No | Text content of the message. Optional, but at least one of text, media, attachment, or link is required |
 | `mediaUrl` | string | No | Optional publicly accessible HTTPS URL of an image, video, or file to attach |
@@ -741,7 +714,6 @@ Send a voice memo to a chat from a URL or a pre-uploaded attachment
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 | `voiceMemoUrl` | string | No | Publicly accessible HTTPS URL of the audio file \(MP3, M4A, AAC, CAF, WAV, AIFF, AMR\) |
 | `attachmentId` | string | No | ID of a pre-uploaded audio attachment \(use instead of voiceMemoUrl\) |
@@ -769,7 +741,6 @@ Share your configured contact card (Name and Photo Sharing) with a chat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 
 #### Output
@@ -790,7 +761,6 @@ Show a typing indicator in a one-on-one chat (iMessage only, not group chats)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 
 #### Output
@@ -811,7 +781,6 @@ Stop the typing indicator in a one-on-one chat (iMessage only, not group chats)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 
 #### Output
@@ -832,7 +801,6 @@ Update chat properties such as group display name and icon
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `chatId` | string | Yes | The unique identifier of the chat |
 | `displayName` | string | No | New display name for the group chat |
 | `groupChatIcon` | string | No | New group chat icon \(publicly accessible image URL\) |
@@ -856,7 +824,6 @@ Partially update an existing active contact card for a phone number
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `phoneNumber` | string | Yes | Phone number in E.164 format identifying the card to update |
 | `firstName` | string | No | New first name |
 | `lastName` | string | No | New last name |
@@ -884,7 +851,6 @@ Update a webhook subscription (target URL, events, phone filter, or active state
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Linq API key |
 | `subscriptionId` | string | Yes | The unique identifier of the webhook subscription |
 | `targetUrl` | string | No | New HTTPS endpoint that will receive events |
 | `subscribedEvents` | array | No | New set of event types to subscribe to |
@@ -915,6 +881,8 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 Trigger workflow when a message is delivered
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -932,13 +900,14 @@ Trigger workflow when a message is delivered
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Message Failed
 
 Trigger workflow when a message fails to deliver
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -956,13 +925,14 @@ Trigger workflow when a message fails to deliver
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Message Read
 
 Trigger workflow when a message is read
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -980,13 +950,14 @@ Trigger workflow when a message is read
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Message Received
 
 Trigger workflow when an inbound message is received
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1004,13 +975,14 @@ Trigger workflow when an inbound message is received
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Reaction Added
 
 Trigger workflow when a reaction is added to a message
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1028,13 +1000,14 @@ Trigger workflow when a reaction is added to a message
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
 
-
----
+</ReferenceDetails>
 
 ### Linq Webhook (All Events)
 
 Trigger on any Linq webhook event (messages, reactions, chats, and more)
 
+<ReferenceDetails label="Configuration and outputs">
+
 #### Configuration
 
 | Parameter | Type | Required | Description |
@@ -1051,4 +1024,6 @@ Trigger on any Linq webhook event (messages, reactions, chats, and more)
 | `createdAt` | string | ISO 8601 timestamp of when the event occurred |
 | `webhookVersion` | string | Payload schema version of the delivered event |
 | `data` | json | Full event payload \(shape varies by event type — message, reaction, chat, etc.\) |
+
+</ReferenceDetails>
 

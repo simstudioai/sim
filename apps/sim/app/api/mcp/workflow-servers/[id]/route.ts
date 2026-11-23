@@ -43,7 +43,7 @@ export const GET = withRouteHandler(
     try {
       const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
-      logger.info(`[${requestId}] Getting workflow MCP server: ${serverId}`)
+      logger.info(`Getting workflow MCP server: ${serverId}`, { requestId })
 
       const [server] = await db
         .select({
@@ -75,13 +75,13 @@ export const GET = withRouteHandler(
         .from(workflowMcpTool)
         .where(and(eq(workflowMcpTool.serverId, serverId), isNull(workflowMcpTool.archivedAt)))
 
-      logger.info(
-        `[${requestId}] Found workflow MCP server: ${server.name} with ${tools.length} tools`
-      )
+      logger.info(`Found workflow MCP server: ${server.name} with ${tools.length} tools`, {
+        requestId,
+      })
 
       return createMcpSuccessResponse({ server, tools })
     } catch (error) {
-      logger.error(`[${requestId}] Error getting workflow MCP server:`, error)
+      logger.error('Error getting workflow MCP server:', error, { requestId })
       return createMcpErrorResponse(toError(error), 'Failed to get workflow MCP server', 500)
     }
   })
@@ -111,7 +111,7 @@ export const PATCH = withRouteHandler(
 
         const body = parsedBody.data
 
-        logger.info(`[${requestId}] Updating workflow MCP server: ${serverId}`)
+        logger.info(`Updating workflow MCP server: ${serverId}`, { requestId })
 
         const result = await performUpdateWorkflowMcpServer({
           serverId,
@@ -135,13 +135,13 @@ export const PATCH = withRouteHandler(
 
         const updatedServer = result.server
 
-        logger.info(`[${requestId}] Successfully updated workflow MCP server: ${serverId}`)
+        logger.info(`Successfully updated workflow MCP server: ${serverId}`, { requestId })
 
         return createMcpSuccessResponse({ server: updatedServer })
       } catch (error) {
         const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
         if (bodyErrorResponse) return bodyErrorResponse
-        logger.error(`[${requestId}] Error updating workflow MCP server:`, error)
+        logger.error('Error updating workflow MCP server:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to update workflow MCP server', 500)
       }
     }
@@ -164,7 +164,7 @@ export const DELETE = withRouteHandler(
       try {
         const { id: serverId } = workflowMcpServerParamsSchema.parse(await params)
 
-        logger.info(`[${requestId}] Deleting workflow MCP server: ${serverId}`)
+        logger.info(`Deleting workflow MCP server: ${serverId}`, { requestId })
 
         const result = await performDeleteWorkflowMcpServer({
           serverId,
@@ -180,11 +180,11 @@ export const DELETE = withRouteHandler(
             mcpOrchestrationStatus(result.errorCode)
           )
         }
-        logger.info(`[${requestId}] Successfully deleted workflow MCP server: ${serverId}`)
+        logger.info(`Successfully deleted workflow MCP server: ${serverId}`, { requestId })
 
         return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
       } catch (error) {
-        logger.error(`[${requestId}] Error deleting workflow MCP server:`, error)
+        logger.error('Error deleting workflow MCP server:', error, { requestId })
         return createMcpErrorResponse(toError(error), 'Failed to delete workflow MCP server', 500)
       }
     }

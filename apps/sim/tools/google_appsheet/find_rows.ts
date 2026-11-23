@@ -2,7 +2,11 @@ import type {
   GoogleAppsheetFindParams,
   GoogleAppsheetFindResponse,
 } from '@/tools/google_appsheet/types'
-import { buildAppsheetActionUrl, readAppsheetResponseBody } from '@/tools/google_appsheet/utils'
+import {
+  appsheetResponseRows,
+  buildAppsheetActionUrl,
+  readAppsheetResponseBody,
+} from '@/tools/google_appsheet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const googleAppsheetFindRowsTool: ToolConfig<
@@ -70,7 +74,7 @@ export const googleAppsheetFindRowsTool: ToolConfig<
       throw new Error(data.error?.message || data.message || 'Failed to find AppSheet rows')
     }
 
-    const rows = data.Rows ?? data.rows ?? []
+    const rows = appsheetResponseRows(data)
 
     return {
       success: true,

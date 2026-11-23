@@ -3,6 +3,7 @@ import type {
   CalendlyCreateWebhookResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri, toStringArray } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWebhookTool: ToolConfig<
@@ -13,6 +14,7 @@ export const createWebhookTool: ToolConfig<
   name: 'Calendly Create Webhook',
   description: 'Create a new webhook subscription to receive real-time event notifications',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -70,7 +72,7 @@ export const createWebhookTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params: CalendlyCreateWebhookParams) => {
-      const body: any = {
+      const body: Record<string, unknown> = {
         url: params.url,
         events: toStringArray(params.events, 'events'),
         organization: toResourceUri(params.organization, 'organizations'),

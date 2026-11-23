@@ -7,13 +7,16 @@ import {
   leadOutputs,
   mapLead,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResponse> = {
   id: 'emailbison_get_lead',
   name: 'Email Bison Get Lead',
   description: 'Retrieves a lead by Email Bison lead ID or email address.',
   version: '1.0.0',
+  oauth: EMAILBISON_CREDENTIAL_OAUTH,
   params: {
     ...emailBisonBaseParamFields,
     leadId: {
@@ -26,7 +29,7 @@ export const getLeadTool: ToolConfig<EmailBisonGetLeadParams, EmailBisonLeadResp
   request: {
     url: (params) =>
       emailBisonUrl(
-        `/api/leads/${encodeURIComponent(params.leadId.trim())}`,
+        `/api/leads/${safeUrlPathSegment(params.leadId, 'leadId', { allowSeparators: true })}`,
         {},
         params.apiBaseUrl
       ),

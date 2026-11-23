@@ -2,7 +2,6 @@ import { z } from 'zod'
 import {
   updateOrganizationDataRetentionBodySchema,
   updateOrganizationSessionPolicyBodySchema,
-  updateOrganizationWhitelabelBodySchema,
 } from '@/lib/api/contracts/organization'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
@@ -401,17 +400,6 @@ export const adminV1DeleteOrganizationContract = defineRouteContract({
   },
 })
 
-export const adminV1UpdateOrganizationWhitelabelContract = defineRouteContract({
-  method: 'PATCH',
-  path: '/api/v1/admin/organizations/[id]/whitelabel',
-  params: adminV1IdParamsSchema,
-  body: updateOrganizationWhitelabelBodySchema,
-  response: {
-    mode: 'json',
-    schema: adminV1SingleResponseSchema(adminV1OrganizationSettingsResultSchema),
-  },
-})
-
 export const adminV1UpdateOrganizationDataRetentionContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v1/admin/organizations/[id]/data-retention',
@@ -439,9 +427,6 @@ export type AdminV1TransferOwnershipResponse = ContractJsonResponse<
 >
 export type AdminV1DeleteOrganizationResponse = ContractJsonResponse<
   typeof adminV1DeleteOrganizationContract
->
-export type AdminV1UpdateOrganizationWhitelabelResponse = ContractJsonResponse<
-  typeof adminV1UpdateOrganizationWhitelabelContract
 >
 export type AdminV1UpdateOrganizationDataRetentionResponse = ContractJsonResponse<
   typeof adminV1UpdateOrganizationDataRetentionContract

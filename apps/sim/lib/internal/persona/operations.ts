@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { PersonaOperationError } from '@/lib/internal/persona/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -46,7 +47,7 @@ export async function importPersonaAccounts(
   })
   const buffer = resolved.buffer
   context.signal?.throwIfAborted()
-  const response = await fetch(`${PERSONA_API_BASE}/importer/accounts`, {
+  const response = await outboundFetch(`${PERSONA_API_BASE}/importer/accounts`, {
     method: 'POST',
     headers: buildPersonaHeaders(input.apiKey),
     body: JSON.stringify({

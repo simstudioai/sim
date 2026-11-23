@@ -1,0 +1,21 @@
+{
+  "namespace": "typeform",
+  "methods": {
+    "typeform_create_form": "createForm",
+    "typeform_delete_form": "deleteForm",
+    "typeform_files": "downloadFile",
+    "typeform_get_form": "getFormDetails",
+    "typeform_insights": "formInsights",
+    "typeform_list_forms": "listForms",
+    "typeform_responses": "retrieveResponses",
+    "typeform_update_form": "updateForm"
+  },
+  "triggers": {
+    "typeform_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

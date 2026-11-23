@@ -9,9 +9,9 @@ import {
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
-import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
 import { clampParallelBatchSize } from './subflow-helpers'
-import type { DbOrTx, NormalizedWorkflowData } from './types'
+import type { DbOrTx, GraphTable, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
 
@@ -108,16 +108,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
 ): Promise<RawNormalizedWorkflow | null> {
   try {
     const tx = externalTx ?? db
-    const [blocks, edges, subflows, [workflowRow]] = await Promise.all([
-      tx
-        .select({
-          ...getTableColumns(workflowBlocks),
-          updatedAtText: sql<string | null>`${workflowBlocks.updatedAt}::text`,
-        })
-        .from(workflowBlocks)
-        .where(eq(workflowBlocks.workflowId, workflowId)),
-      tx.select().from(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-      tx.select().from(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+    const [rows, [workflowRow]] = await Promise.all([
+      selectGraphRows(tx, [workflowId]),
       tx
         .select({ workspaceId: workflow.workspaceId })
         .from(workflow)
@@ -129,137 +121,242 @@ export async function loadWorkflowFromNormalizedTablesRaw(
     if (!workflowRow.workspaceId) {
       throw new Error(`Workflow ${workflowId} has no workspace`)
     }
-
-    const blocksMap: Record<string, BlockState> = {}
-    const blockUpdatedAtById: Record<string, string | null> = {}
-    blocks.forEach((block) => {
-      const blockData = (block.data ?? {}) as BlockState['data']
-
-      const assembled: BlockState = {
-        id: block.id,
-        type: block.type,
-        name: block.name,
-        position: {
-          x: Number(block.positionX),
-          y: Number(block.positionY),
-        },
-        enabled: block.enabled,
-        horizontalHandles: block.horizontalHandles,
-        advancedMode: block.advancedMode,
-        errorEnabled: block.errorEnabled,
-        retry: normalizeStoredBlockRetry(block.retry),
-        triggerMode: block.triggerMode,
-        height: Number(block.height),
-        subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
-        outputs: (block.outputs as BlockState['outputs']) || {},
-        data: blockData,
-        locked: block.locked,
-      }
-
-      blocksMap[block.id] = assembled
-      blockUpdatedAtById[block.id] = block.updatedAtText ?? null
-    })
-
-    const edgesArray: Edge[] = edges.map((edge) => ({
-      id: edge.id,
-      source: edge.sourceBlockId,
-      target: edge.targetBlockId,
-      sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined,
-      targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? undefined,
-      type: 'default',
-      data: {},
-    }))
-
-    const loops: Record<string, Loop> = {}
-    const parallels: Record<string, Parallel> = {}
-
-    subflows.forEach((subflow) => {
-      const config = (subflow.config ?? {}) as Partial<Loop & Parallel>
-
-      if (subflow.type === SUBFLOW_TYPES.LOOP) {
-        const loopType =
-          (config as Loop).loopType === 'for' ||
-          (config as Loop).loopType === 'forEach' ||
-          (config as Loop).loopType === 'while' ||
-          (config as Loop).loopType === 'doWhile'
-            ? (config as Loop).loopType
-            : 'for'
-
-        const loop: Loop = {
-          id: subflow.id,
-          nodes: storedConfigNodes((config as Loop).nodes),
-          iterations:
-            typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
-          loopType,
-          forEachItems: (config as Loop).forEachItems ?? '',
-          whileCondition: storedConfigString((config as Loop).whileCondition),
-          doWhileCondition: storedConfigString((config as Loop).doWhileCondition),
-          enabled: blocksMap[subflow.id]?.enabled ?? true,
-        }
-        loops[subflow.id] = loop
-
-        if (blocksMap[subflow.id]) {
-          const block = blocksMap[subflow.id]
-          blocksMap[subflow.id] = {
-            ...block,
-            data: {
-              ...block.data,
-              /** Repair legacy values without changing valid counts used by serialization. */
-              ...(block.data?.count !== undefined && typeof block.data.count !== 'number'
-                ? { count: loop.iterations }
-                : {}),
-              collection: loop.forEachItems ?? block.data?.collection ?? '',
-              whileCondition: loop.whileCondition ?? block.data?.whileCondition ?? '',
-              doWhileCondition: loop.doWhileCondition ?? block.data?.doWhileCondition ?? '',
-            },
-          }
-        }
-      } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
-        const parallel: Parallel = {
-          id: subflow.id,
-          nodes: storedConfigNodes((config as Parallel).nodes),
-          count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 5,
-          distribution: (config as Parallel).distribution ?? '',
-          parallelType:
-            (config as Parallel).parallelType === 'count' ||
-            (config as Parallel).parallelType === 'collection'
-              ? (config as Parallel).parallelType
-              : 'count',
-          batchSize: clampParallelBatchSize((config as Parallel).batchSize),
-          enabled: blocksMap[subflow.id]?.enabled ?? true,
-        }
-        parallels[subflow.id] = parallel
-
-        if (blocksMap[subflow.id]) {
-          const block = blocksMap[subflow.id]
-          blocksMap[subflow.id] = {
-            ...block,
-            data: {
-              ...block.data,
-              count: parallel.count,
-              collection: parallel.distribution ?? block.data?.collection ?? '',
-              parallelType: parallel.parallelType,
-              batchSize: parallel.batchSize,
-            },
-          }
-        }
-      } else {
-        logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
-      }
-    })
-
-    return {
-      blocks: blocksMap,
-      edges: edgesArray,
-      loops,
-      parallels,
-      isFromNormalizedTables: true,
-      workspaceId: workflowRow.workspaceId,
-      blockUpdatedAtById,
-    }
+    return assembleRawNormalized(workflowRow.workspaceId, rows.blocks, rows.edges, rows.subflows)
   } catch (error) {
     logger.error(`Error loading workflow ${workflowId} from normalized tables:`, error)
     return null
+  }
+}
+
+/**
+ * {@link loadWorkflowFromNormalizedTablesRaw} for many live workflows of one workspace in one query
+ * per table, by workflow id. A workflow that is archived or not in `workspaceId` is left out, and
+ * its graph rows are never read: each graph query filters by the live in-workspace ids itself.
+ */
+export async function loadWorkflowsFromNormalizedTablesRaw(
+  workflowIds: readonly string[],
+  workspaceId: string,
+  externalTx?: DbOrTx
+): Promise<Map<string, RawNormalizedWorkflow>> {
+  const loaded = new Map<string, RawNormalizedWorkflow>()
+  if (workflowIds.length === 0) return loaded
+  const tx = externalTx ?? db
+  const liveIds = () =>
+    tx
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(
+        and(
+          inArray(workflow.id, [...workflowIds]),
+          eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt)
+        )
+      )
+  const [graph, workflows] = await Promise.all([selectGraphRows(tx, liveIds), liveIds()])
+  const byWorkflow = <T extends { workflowId: string }>(items: T[]) => {
+    const grouped = new Map<string, T[]>()
+    for (const item of items) {
+      const group = grouped.get(item.workflowId)
+      if (group) group.push(item)
+      else grouped.set(item.workflowId, [item])
+    }
+    return grouped
+  }
+  const blocksOf = byWorkflow(graph.blocks)
+  const edgesOf = byWorkflow(graph.edges)
+  const subflowsOf = byWorkflow(graph.subflows)
+  for (const { id } of workflows) {
+    loaded.set(
+      id,
+      assembleRawNormalized(
+        workspaceId,
+        blocksOf.get(id) ?? [],
+        edgesOf.get(id) ?? [],
+        subflowsOf.get(id) ?? []
+      )
+    )
+  }
+  return loaded
+}
+
+/**
+ * The order a workflow's block, edge or subflow rows load in: creation order. A save stamps the
+ * rows it inserts together a microsecond apart, in the order the state listed them, so those rows
+ * keep that order however often they are rewritten later. Rows that share one timestamp (older
+ * saves, a duplicate, a paste, realtime batch adds) load in physical (`ctid`) order, as they
+ * always did: insertion order until a row is rewritten, which moves it to the end of its tie
+ * group. The executor reads the order for a condition or router edge with no handle, and the
+ * editor for its node order.
+ */
+export function creationOrder(table: GraphTable) {
+  return [asc(table.createdAt), sql`ctid`] as const
+}
+
+/**
+ * The block, edge and subflow rows of `workflowIds`: a list, or a query of ids that each graph
+ * query embeds as a subquery, each in {@link creationOrder}, so the assembled graph's order is a
+ * fact of the stored rows, not of the query plan.
+ */
+async function selectGraphRows(tx: DbOrTx, workflowIds: string[] | (() => SQLWrapper)) {
+  const ids = () => (typeof workflowIds === 'function' ? workflowIds() : workflowIds)
+  const [blocks, edges, subflows] = await Promise.all([
+    tx
+      .select({
+        ...getTableColumns(workflowBlocks),
+        updatedAtText: sql<string | null>`${workflowBlocks.updatedAt}::text`,
+      })
+      .from(workflowBlocks)
+      .where(inArray(workflowBlocks.workflowId, ids()))
+      .orderBy(...creationOrder(workflowBlocks)),
+    tx
+      .select()
+      .from(workflowEdges)
+      .where(inArray(workflowEdges.workflowId, ids()))
+      .orderBy(...creationOrder(workflowEdges)),
+    tx
+      .select()
+      .from(workflowSubflows)
+      .where(inArray(workflowSubflows.workflowId, ids()))
+      .orderBy(...creationOrder(workflowSubflows)),
+  ])
+  return { blocks, edges, subflows }
+}
+
+type StoredBlockRow = typeof workflowBlocks.$inferSelect & { updatedAtText: string | null }
+
+/** A workflow's normalized rows assembled into its raw graph. */
+function assembleRawNormalized(
+  workspaceId: string,
+  blocks: readonly StoredBlockRow[],
+  edges: readonly (typeof workflowEdges.$inferSelect)[],
+  subflows: readonly (typeof workflowSubflows.$inferSelect)[]
+): RawNormalizedWorkflow {
+  const blocksMap: Record<string, BlockState> = {}
+  const blockUpdatedAtById: Record<string, string | null> = {}
+  blocks.forEach((block) => {
+    const blockData = (block.data ?? {}) as BlockState['data']
+
+    const assembled: BlockState = {
+      id: block.id,
+      type: block.type,
+      name: block.name,
+      position: {
+        x: Number(block.positionX),
+        y: Number(block.positionY),
+      },
+      enabled: block.enabled,
+      horizontalHandles: block.horizontalHandles,
+      advancedMode: block.advancedMode,
+      errorEnabled: block.errorEnabled,
+      retry: normalizeStoredBlockRetry(block.retry),
+      triggerMode: block.triggerMode,
+      height: Number(block.height),
+      subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
+      outputs: (block.outputs as BlockState['outputs']) || {},
+      data: blockData,
+      locked: block.locked,
+    }
+
+    blocksMap[block.id] = assembled
+    blockUpdatedAtById[block.id] = block.updatedAtText ?? null
+  })
+
+  const edgesArray: Edge[] = edges.map((edge) => ({
+    id: edge.id,
+    source: edge.sourceBlockId,
+    target: edge.targetBlockId,
+    sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined,
+    targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? undefined,
+    type: 'default',
+    data: {},
+  }))
+
+  const loops: Record<string, Loop> = {}
+  const parallels: Record<string, Parallel> = {}
+
+  subflows.forEach((subflow) => {
+    const config = (subflow.config ?? {}) as Partial<Loop & Parallel>
+
+    if (subflow.type === SUBFLOW_TYPES.LOOP) {
+      const loopType =
+        (config as Loop).loopType === 'for' ||
+        (config as Loop).loopType === 'forEach' ||
+        (config as Loop).loopType === 'while' ||
+        (config as Loop).loopType === 'doWhile'
+          ? (config as Loop).loopType
+          : 'for'
+
+      const loop: Loop = {
+        id: subflow.id,
+        nodes: storedConfigNodes((config as Loop).nodes),
+        iterations:
+          typeof (config as Loop).iterations === 'number' ? (config as Loop).iterations : 1,
+        loopType,
+        forEachItems: (config as Loop).forEachItems ?? '',
+        whileCondition: storedConfigString((config as Loop).whileCondition),
+        doWhileCondition: storedConfigString((config as Loop).doWhileCondition),
+        enabled: blocksMap[subflow.id]?.enabled ?? true,
+      }
+      loops[subflow.id] = loop
+
+      if (blocksMap[subflow.id]) {
+        const block = blocksMap[subflow.id]
+        blocksMap[subflow.id] = {
+          ...block,
+          data: {
+            ...block.data,
+            /** Repair legacy values without changing valid counts used by serialization. */
+            ...(block.data?.count !== undefined && typeof block.data.count !== 'number'
+              ? { count: loop.iterations }
+              : {}),
+            collection: loop.forEachItems ?? block.data?.collection ?? '',
+            whileCondition: loop.whileCondition ?? block.data?.whileCondition ?? '',
+            doWhileCondition: loop.doWhileCondition ?? block.data?.doWhileCondition ?? '',
+          },
+        }
+      }
+    } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
+      const parallel: Parallel = {
+        id: subflow.id,
+        nodes: storedConfigNodes((config as Parallel).nodes),
+        count: typeof (config as Parallel).count === 'number' ? (config as Parallel).count : 5,
+        distribution: (config as Parallel).distribution ?? '',
+        parallelType:
+          (config as Parallel).parallelType === 'count' ||
+          (config as Parallel).parallelType === 'collection'
+            ? (config as Parallel).parallelType
+            : 'count',
+        batchSize: clampParallelBatchSize((config as Parallel).batchSize),
+        enabled: blocksMap[subflow.id]?.enabled ?? true,
+      }
+      parallels[subflow.id] = parallel
+
+      if (blocksMap[subflow.id]) {
+        const block = blocksMap[subflow.id]
+        blocksMap[subflow.id] = {
+          ...block,
+          data: {
+            ...block.data,
+            count: parallel.count,
+            collection: parallel.distribution ?? block.data?.collection ?? '',
+            parallelType: parallel.parallelType,
+            batchSize: parallel.batchSize,
+          },
+        }
+      }
+    } else {
+      logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
+    }
+  })
+
+  return {
+    blocks: blocksMap,
+    edges: edgesArray,
+    loops,
+    parallels,
+    isFromNormalizedTables: true,
+    workspaceId,
+    blockUpdatedAtById,
   }
 }
 

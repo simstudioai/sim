@@ -5,6 +5,7 @@ import {
   bufferStringList,
   POST_OUTPUT_PROPERTIES,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const bufferCreatePostTool: InternalToolConfig<BufferCreatePostParams, BufferPostResponse> =
@@ -14,6 +15,7 @@ export const bufferCreatePostTool: InternalToolConfig<BufferCreatePostParams, Bu
     description:
       'Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment',
     version: '1.0.0',
+    oauth: BUFFER_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

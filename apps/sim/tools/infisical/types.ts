@@ -84,6 +84,17 @@ interface InfisicalActor {
   groupId: string | null
 }
 
+export interface InfisicalSecretApproval {
+  id: string | null
+  policyId: string | null
+  slug: string | null
+  status: string | null
+  hasMerged: boolean | null
+  folderId: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
 interface InfisicalSecret {
   id: string
   workspace: string | null
@@ -123,17 +134,20 @@ export interface InfisicalGetSecretResponse extends ToolResponse {
 export interface InfisicalCreateSecretResponse extends ToolResponse {
   output: {
     secret: InfisicalSecret
+    approval?: InfisicalSecretApproval | null
   }
 }
 
 export interface InfisicalUpdateSecretResponse extends ToolResponse {
   output: {
     secret: InfisicalSecret
+    approval?: InfisicalSecretApproval | null
   }
 }
 
 export interface InfisicalDeleteSecretResponse extends ToolResponse {
   output: {
     secret: InfisicalSecret
+    approval?: InfisicalSecretApproval | null
   }
 }

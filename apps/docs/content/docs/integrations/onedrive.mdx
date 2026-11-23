@@ -52,13 +52,14 @@ Upload a file to OneDrive
 | `content` | string | No | The text content to upload \(if no file is provided\) |
 | `mimeType` | string | No | The MIME type of the file to create \(e.g., text/plain for .txt, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet for .xlsx\) |
 | `folderId` | string | No | Folder ID to upload the file to \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
+| `conflictBehavior` | string | No | What to do when a file with the same name exists: "replace", "rename", or "fail". When unset, Graph applies its default behavior |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the file was uploaded successfully |
-| `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps |
+| `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, timestamps, parentReference, eTag, createdBy, and lastModifiedBy |
 
 </ReferenceDetails>
 
@@ -80,7 +81,7 @@ Create a new folder in OneDrive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the folder was created successfully |
-| `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
+| `file` | object | The created folder object with metadata including id, name, webViewLink, timestamps, parentReference, childCount, eTag, createdBy, and lastModifiedBy |
 
 </ReferenceDetails>
 
@@ -117,7 +118,8 @@ List files and folders in OneDrive
 | --------- | ---- | -------- | ----------- |
 | `folderId` | string | No | Folder ID to list files from \(e.g., "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36M"\) |
 | `query` | string | No | Filter files by name prefix \(e.g., "report", "invoice_2024"\) |
-| `pageSize` | number | No | Maximum number of files to return \(e.g., 10, 50, 100\) |
+| `orderBy` | string | No | OData $orderby expression to sort results \(e.g., "name", "lastModifiedDateTime desc", "size desc"\) |
+| `pageSize` | number | No | Maximum number of items per page \(e.g., 10, 50, 100\). Graph returns 200 per page by default |
 | `pageToken` | string | No | Continuation URL from a previous response's nextPageToken, used to fetch the next page |
 
 #### Output
@@ -141,7 +143,8 @@ Search for files and folders across OneDrive by name, metadata, or content (recu
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | No | Search text matched against file name, metadata, and content. Not required when paginating with pageToken |
-| `pageSize` | number | No | Maximum number of results to return \(e.g., 10, 50, 100\) |
+| `orderBy` | string | No | OData $orderby expression to sort results \(e.g., "name", "lastModifiedDateTime desc"\) |
+| `pageSize` | number | No | Maximum number of results per page \(e.g., 10, 50, 100\) |
 | `pageToken` | string | No | Continuation URL from a previous response's nextPageToken, used to fetch the next page |
 
 #### Output
@@ -260,6 +263,7 @@ Create a view or edit sharing link for a OneDrive file or folder
 | `fileId` | string | Yes | The ID of the file or folder to share |
 | `linkType` | string | No | Type of link to create: "view" \(read-only\), "edit" \(read-write\), or "embed" |
 | `linkScope` | string | No | Who can use the link: "anonymous" \(anyone\), "organization" \(tenant members\), or "users" \(specific people\) |
+| `expirationDateTime` | string | No | When the link expires, in yyyy-MM-ddTHH:mm:ssZ format \(e.g., "2026-12-31T23:59:59Z"\). Omit for no expiration unless the organization enforces one |
 
 #### Output
 
@@ -267,6 +271,14 @@ Create a view or edit sharing link for a OneDrive file or folder
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the sharing link was created successfully |
 | `link` | object | The created sharing link, including its type, scope, and URL |
+|   ↳ `type` | string | Link type \(view, edit, or embed\) |
+|   ↳ `scope` | string | Link scope |
+|   ↳ `webUrl` | string | The sharing URL |
+|   ↳ `webHtml` | string | Embeddable iframe HTML \(embed links only\) |
+|   ↳ `permissionId` | string | ID of the permission that backs the link |
+|   ↳ `roles` | array | Roles the link grants \(e.g., read, write\) |
+|   ↳ `hasPassword` | boolean | Whether the link is password protected |
+|   ↳ `expirationDateTime` | string | When the link expires, if it does |
 
 </ReferenceDetails>
 

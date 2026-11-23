@@ -38,16 +38,18 @@ export const dynamic = 'force-dynamic'
  */
 function discoveryFailureResponse(requestId: string, error: unknown) {
   if (isMcpServerUnavailableError(error)) {
-    logger.warn(`[${requestId}] MCP server unavailable for tool discovery`, {
+    logger.warn('MCP server unavailable for tool discovery', {
+      requestId,
       error: getErrorMessage(error),
     })
     return createMcpErrorResponse(error, 'Failed to discover MCP tools', 422)
   }
   const { message, status } = categorizeError(error)
   if (status >= 500) {
-    logger.error(`[${requestId}] Error discovering MCP tools:`, error)
+    logger.error('Error discovering MCP tools:', error, { requestId })
   } else {
-    logger.warn(`[${requestId}] Failed to discover MCP tools`, {
+    logger.warn('Failed to discover MCP tools', {
+      requestId,
       error: getErrorMessage(error),
       status,
     })
@@ -101,7 +103,7 @@ export const GET = withRouteHandler(
       const serverId = query.serverId
       const forceRefresh = query.refresh === 'true'
 
-      logger.info(`[${requestId}] Discovering MCP tools`, { serverId, workspaceId, forceRefresh })
+      logger.info('Discovering MCP tools', { requestId, serverId, workspaceId, forceRefresh })
 
       const tools = serverId
         ? await mcpService.discoverServerTools(
@@ -127,9 +129,9 @@ export const GET = withRouteHandler(
         byServer,
       }
 
-      logger.info(
-        `[${requestId}] Discovered ${tools.length} tools from ${Object.keys(byServer).length} servers`
-      )
+      logger.info(`Discovered ${tools.length} tools from ${Object.keys(byServer).length} servers`, {
+        requestId,
+      })
       return createMcpSuccessResponse(responseData)
     } catch (error) {
       if (
@@ -159,7 +161,7 @@ export const POST = withRouteHandler(
 
       const { serverIds } = parsedBody.data
 
-      logger.info(`[${requestId}] Refreshing tools for ${serverIds.length} servers`)
+      logger.info(`Refreshing tools for ${serverIds.length} servers`, { requestId })
 
       const results = await settleWithConcurrency(
         serverIds,
@@ -185,7 +187,7 @@ export const POST = withRouteHandler(
         }
       })
 
-      logger.info(`[${requestId}] Refresh completed: ${successes.length}/${serverIds.length}`)
+      logger.info(`Refresh completed: ${successes.length}/${serverIds.length}`, { requestId })
       return createMcpSuccessResponse({
         refreshed: successes,
         failed: failures,
@@ -204,7 +206,7 @@ export const POST = withRouteHandler(
       ) {
         return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
       }
-      logger.error(`[${requestId}] Error refreshing tool discovery:`, error)
+      logger.error('Error refreshing tool discovery:', error, { requestId })
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to refresh tool discovery', status)
     }

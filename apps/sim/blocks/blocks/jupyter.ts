@@ -1,7 +1,13 @@
 import { JupyterIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  mapperOperation,
+  normalizeFileInput,
+  toolCallArg,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 const PATH_OPERATIONS = [
   'jupyter_list_contents',
@@ -35,7 +41,7 @@ export const JupyterBlock = {
   type: 'jupyter',
   name: 'Jupyter (Legacy)',
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'jupyter_v2' },
+  sunset: { status: 'legacy', replacedBy: 'jupyter_v3' },
   description: 'Manage files, notebooks, kernels, and sessions on a Jupyter server',
   longDescription:
     'Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.',
@@ -288,61 +294,59 @@ export const JupyterBlock = {
     ],
     config: {
       tool: (params) => params.operation as string,
-      params: (params) => {
+      params: (params, context) => {
         const normalizedFile = normalizeFileInput(params.file, { single: true })
         if (normalizedFile) {
           params.file = normalizedFile
         }
 
-        const { operation, ...rest } = params
-
         const baseParams: Record<string, unknown> = {
-          serverUrl: rest.serverUrl,
-          token: rest.token,
+          serverUrl: params.serverUrl,
+          token: params.token,
         }
 
-        switch (operation) {
+        switch (mapperOperation(params, context)) {
           case 'jupyter_list_contents':
-            if (rest.path) baseParams.path = rest.path
+            if (params.path) baseParams.path = params.path
             break
           case 'jupyter_get_content':
           case 'jupyter_delete_content':
-            baseParams.path = rest.path
+            baseParams.path = params.path
             break
           case 'jupyter_create_file':
-            baseParams.path = rest.path
-            baseParams.type = rest.type
-            if (rest.content) baseParams.content = rest.content
+            baseParams.path = params.path
+            baseParams.type = params.type
+            if (params.content) baseParams.content = params.content
             break
           case 'jupyter_upload_file':
-            if (rest.directory) baseParams.directory = rest.directory
-            baseParams.file = rest.file
-            if (rest.uploadFileName) baseParams.fileName = rest.uploadFileName
+            if (params.directory) baseParams.directory = params.directory
+            baseParams.file = params.file
+            if (params.uploadFileName) baseParams.fileName = params.uploadFileName
             break
           case 'jupyter_rename_content':
-            baseParams.path = rest.path
-            baseParams.newPath = rest.newPath
+            baseParams.path = params.path
+            baseParams.newPath = params.newPath
             break
           case 'jupyter_copy_content':
-            baseParams.path = rest.path
-            baseParams.copyFromPath = rest.copyFromPath
+            baseParams.path = params.path
+            baseParams.copyFromPath = params.copyFromPath
             break
           case 'jupyter_start_kernel':
-            if (rest.kernelName) baseParams.kernelName = rest.kernelName
+            if (params.kernelName) baseParams.kernelName = params.kernelName
             break
           case 'jupyter_stop_kernel':
           case 'jupyter_restart_kernel':
           case 'jupyter_interrupt_kernel':
-            baseParams.kernelId = rest.kernelId
+            baseParams.kernelId = params.kernelId
             break
           case 'jupyter_create_session':
-            baseParams.path = rest.path
-            if (rest.kernelName) baseParams.kernelName = rest.kernelName
-            if (rest.sessionName) baseParams.name = rest.sessionName
-            if (rest.sessionType) baseParams.type = rest.sessionType
+            baseParams.path = params.path
+            if (params.kernelName) baseParams.kernelName = params.kernelName
+            if (params.sessionName) baseParams.name = params.sessionName
+            baseParams.type = params.sessionType || toolCallArg(context, params.type)
             break
           case 'jupyter_delete_session':
-            baseParams.sessionId = rest.sessionId
+            baseParams.sessionId = params.sessionId
             break
         }
 
@@ -406,8 +410,8 @@ export const JupyterV2Block: BlockConfig = {
   ...JupyterBlock,
   type: 'jupyter_v2',
   name: 'Jupyter',
-  hideFromToolbar: false,
-  sunset: undefined,
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'jupyter_v3' },
   tools: {
     ...JupyterBlock.tools,
     access: JupyterBlock.tools.access.map((toolId) =>
@@ -492,3 +496,17 @@ export const JupyterBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const JupyterV3Block: BlockConfig = {
+  ...JupyterV2Block,
+  type: 'jupyter_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(JupyterV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'jupyter',
+    title: 'Jupyter Credential',
+  }),
+}

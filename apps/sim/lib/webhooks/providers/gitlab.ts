@@ -5,6 +5,7 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -64,18 +65,18 @@ export const gitlabHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      logger.warn(`[${requestId}] GitLab webhook secret not configured`)
+      logger.warn('GitLab webhook secret not configured', { requestId })
       return new NextResponse('Unauthorized - Missing GitLab webhook secret', { status: 401 })
     }
 
     const token = request.headers.get('X-Gitlab-Token')
     if (!token) {
-      logger.warn(`[${requestId}] GitLab webhook missing X-Gitlab-Token header`)
+      logger.warn('GitLab webhook missing X-Gitlab-Token header', { requestId })
       return new NextResponse('Unauthorized - Missing GitLab token', { status: 401 })
     }
 
     if (!safeCompare(token, secret)) {
-      logger.warn(`[${requestId}] GitLab token verification failed`)
+      logger.warn('GitLab token verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid GitLab token', { status: 401 })
     }
 
@@ -90,9 +91,9 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     const { isGitLabEventMatch } = await import('@/triggers/gitlab/utils')
     if (!isGitLabEventMatch(triggerId, objectKind || '')) {
-      logger.debug(
-        `[${requestId}] GitLab event '${objectKind}' does not match trigger ${triggerId}, skipping`
-      )
+      logger.debug(`GitLab event '${objectKind}' does not match trigger ${triggerId}, skipping`, {
+        requestId,
+      })
       return false
     }
     return true
@@ -182,15 +183,22 @@ export const gitlabHandler: WebhookProviderHandler = {
     const triggerId = config.triggerId as string | undefined
     const host = config.host as string | undefined
 
-    if (!accessToken)
-      throw new Error('GitLab Personal Access Token is required to create the webhook.')
-    if (!projectId) throw new Error('GitLab Project ID is required to create the webhook.')
+    if (!accessToken) {
+      throw new WebhookDeploymentConfigurationError(
+        'GitLab Personal Access Token is required to create the webhook.'
+      )
+    }
+    if (!projectId) {
+      throw new WebhookDeploymentConfigurationError(
+        'GitLab Project ID is required to create the webhook.'
+      )
+    }
 
     try {
       getGitLabApiBase(host)
     } catch (error) {
       if (error instanceof UnsafeGitLabHostError) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'GitLab host is invalid. Provide a domain like gitlab.example.com (no protocol, path, or credentials).'
         )
       }
@@ -213,7 +221,10 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '')
-      logger.error(`[${ctx.requestId}] Failed to create GitLab webhook (${res.status})`, { detail })
+      logger.error(`Failed to create GitLab webhook (${res.status})`, {
+        requestId: ctx.requestId,
+        detail,
+      })
       if (res.status === 401)
         throw new Error(
           'GitLab authentication failed. Verify your Personal Access Token has the api scope.'
@@ -232,7 +243,9 @@ export const gitlabHandler: WebhookProviderHandler = {
       throw new Error('GitLab webhook created but no hook ID was returned.')
     }
 
-    logger.info(`[${ctx.requestId}] Created GitLab webhook ${created.id} for project ${projectId}`)
+    logger.info(`Created GitLab webhook ${created.id} for project ${projectId}`, {
+      requestId: ctx.requestId,
+    })
     return { providerConfigUpdates: { externalId: String(created.id), webhookSecret: secretToken } }
   },
 
@@ -249,9 +262,9 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     if (!accessToken || !projectId || !externalId) {
       if (ctx.strict) throw new Error('Missing GitLab credentials or hook ID for webhook deletion.')
-      logger.warn(
-        `[${ctx.requestId}] Skipping GitLab webhook cleanup — missing token, project, or hook ID`
-      )
+      logger.warn('Skipping GitLab webhook cleanup — missing token, project, or hook ID', {
+        requestId: ctx.requestId,
+      })
       return
     }
 
@@ -262,9 +275,9 @@ export const gitlabHandler: WebhookProviderHandler = {
         if (ctx.strict) {
           throw new Error('Cannot delete GitLab webhook: the configured host is invalid.')
         }
-        logger.warn(
-          `[${ctx.requestId}] Skipping GitLab webhook cleanup — configured host is invalid`
-        )
+        logger.warn('Skipping GitLab webhook cleanup — configured host is invalid', {
+          requestId: ctx.requestId,
+        })
         return
       }
       throw error
@@ -277,11 +290,11 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     if (!res.ok && res.status !== 404) {
       if (ctx.strict) throw new Error(`Failed to delete GitLab webhook: ${res.status}`)
-      logger.warn(
-        `[${ctx.requestId}] Failed to delete GitLab webhook ${externalId} (non-fatal): ${res.status}`
-      )
+      logger.warn(`Failed to delete GitLab webhook ${externalId} (non-fatal): ${res.status}`, {
+        requestId: ctx.requestId,
+      })
       return
     }
-    logger.info(`[${ctx.requestId}] Deleted GitLab webhook ${externalId}`)
+    logger.info(`Deleted GitLab webhook ${externalId}`, { requestId: ctx.requestId })
   },
 }

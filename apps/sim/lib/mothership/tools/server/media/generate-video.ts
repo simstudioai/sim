@@ -17,6 +17,10 @@ import {
   validateCopilotWorkspaceFileWriteTarget,
   writeCopilotWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
+import {
+  MOTHERSHIP_FAL_AT_COST_MULTIPLIER,
+  scheduleFalAICostSettlement,
+} from '@/lib/tools/falai-settlement'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -45,7 +49,6 @@ interface GenerateVideoResult {
   fileName?: string
   vfsPath?: string
   downloadUrl?: string
-  _serviceCost?: { service: string; cost: number }
 }
 
 export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, GenerateVideoResult> = {
@@ -119,7 +122,16 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
         signal: context.abortSignal,
-        onCost: (cost) => recordServiceCost('falai_video', cost.costDollars),
+        onCost: async (cost, { envVarName }) => {
+          await recordServiceCost('falai_video', cost.costDollars)
+          await scheduleFalAICostSettlement({
+            cost,
+            envVarName,
+            markupMultiplier: MOTHERSHIP_FAL_AT_COST_MULTIPLIER,
+            source: 'copilot',
+            billingAttribution: context.billingAttribution,
+          })
+        },
       })
 
       assertServerToolNotAborted(context)
@@ -154,7 +166,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         fileName: written.name,
         vfsPath: written.vfsPath,
         downloadUrl: written.downloadUrl,
-        _serviceCost: { service: 'falai_video', cost: result.cost.costDollars },
       }
     } catch (error) {
       const msg = getErrorMessage(error, 'Unknown error')

@@ -4,7 +4,7 @@ import type {
   SalesforceDescribeObjectResponse,
 } from '@/tools/salesforce/types'
 import { DESCRIBE_OBJECT_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, idPathSegment } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceQuery')
@@ -47,7 +47,7 @@ export const salesforceDescribeObjectTool: ToolConfig<
         )
       }
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      const objectName = params.objectName.trim()
+      const objectName = idPathSegment(params.objectName, 'Object Name')
       return `${instanceUrl}/services/data/v59.0/sobjects/${objectName}/describe`
     },
     method: 'GET',

@@ -1,3 +1,8 @@
+import {
+  buildCanonicalIndex,
+  type CanonicalIndex,
+  isCanonicalPair,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { getSeededSubBlockValues } from '@/lib/workflows/blocks/canvas-card-fields'
 import { getOperationSubBlockId } from '@/lib/workflows/blocks/canvas-sentence'
 import { toImperativeLead } from '@/lib/workflows/blocks/canvas-sentence-imperative'
@@ -5,9 +10,6 @@ import { resolveFieldNoun, startsWithVowelSound } from '@/lib/workflows/blocks/c
 import { renderSentenceReadings } from '@/lib/workflows/blocks/canvas-sentence-render'
 import { resolveTriggerSentence } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import {
-  buildCanonicalIndex,
-  type CanonicalIndex,
-  isCanonicalPair,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
   isTriggerModeSubBlock,
@@ -323,7 +325,12 @@ function resolveVisibility(
 
   /* Whether these show turns on the deployment, not on the block, so nothing
      here can prove a card will have them. */
-  if (subBlock.showWhenEnvSet || subBlock.hideWhenHosted || subBlock.hideWhenEnvSet) {
+  if (
+    subBlock.showWhenEnvSet ||
+    subBlock.showWhenFeature ||
+    subBlock.hideWhenHosted ||
+    subBlock.hideWhenEnvSet
+  ) {
     return { kind: 'unknown' }
   }
 

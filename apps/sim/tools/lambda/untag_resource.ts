@@ -1,4 +1,5 @@
 import type { LambdaUntagResourceParams, LambdaUntagResourceResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const untagResourceTool: InternalToolConfig<
@@ -9,6 +10,7 @@ export const untagResourceTool: InternalToolConfig<
   name: 'Lambda Untag Resource',
   description: 'Remove tags from a Lambda function',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

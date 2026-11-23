@@ -1,7 +1,9 @@
 import { truncate } from '@sim/utils/string'
 import type { GitLabGetJobLogParams, GitLabGetJobLogResponse } from '@/tools/gitlab/types'
-import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { encodeGitLabResourceId, getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Job traces can reach ~100 MB on gitlab.com (more on self-managed); cap what
@@ -16,6 +18,7 @@ export const gitlabGetJobLogTool: ToolConfig<GitLabGetJobLogParams, GitLabGetJob
   name: 'GitLab Get Job Log',
   description: 'Get the log (trace) of a GitLab job',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {
@@ -46,8 +49,8 @@ export const gitlabGetJobLogTool: ToolConfig<GitLabGetJobLogParams, GitLabGetJob
 
   request: {
     url: (params) => {
-      const encodedId = encodeURIComponent(String(params.projectId).trim())
-      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/jobs/${params.jobId}/trace`
+      const encodedId = encodeGitLabResourceId(params.projectId)
+      return `${getGitLabApiBase(params.host)}/projects/${encodedId}/jobs/${safeUrlPathSegment(params.jobId, 'jobId')}/trace`
     },
     method: 'GET',
     headers: (params) => ({

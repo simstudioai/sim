@@ -2,6 +2,7 @@ import type {
   CloudFormationDetectStackDriftParams,
   CloudFormationDetectStackDriftResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const detectStackDriftTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const detectStackDriftTool: InternalToolConfig<
   name: 'CloudFormation Detect Stack Drift',
   description: 'Initiate drift detection on a CloudFormation stack',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

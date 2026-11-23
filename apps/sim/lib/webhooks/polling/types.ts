@@ -18,7 +18,12 @@ export interface PollSummary {
 export interface PollWebhookContext {
   webhookData: WebhookRecord
   workflowData: WorkflowRecord
+  /**
+   * This poll's id, passed downstream as the request id of the executions it starts.
+   * `logger` already carries it as `pollId`; log lines never name it `requestId`.
+   */
   requestId: string
+  /** Bound with `webhookId` and `pollId`. */
   logger: Logger
 }
 

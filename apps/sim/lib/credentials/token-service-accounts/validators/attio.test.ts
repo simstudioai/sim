@@ -42,6 +42,7 @@ describe('validateAttioServiceAccount', () => {
         Authorization: 'Bearer attio-token',
         Accept: 'application/json',
       },
+      redirect: 'error',
       signal: expect.any(AbortSignal),
     })
   })

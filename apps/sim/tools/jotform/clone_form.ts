@@ -6,6 +6,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const cloneFormTool: ToolConfig<JotformCloneFormParams, JotformFormResponse> = {
@@ -13,6 +14,7 @@ export const cloneFormTool: ToolConfig<JotformCloneFormParams, JotformFormRespon
   name: 'Jotform Clone Form',
   description: 'Clone an existing Jotform form and return the copy.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

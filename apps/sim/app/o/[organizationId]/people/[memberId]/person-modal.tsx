@@ -14,9 +14,8 @@ import {
 } from '@sim/emcn'
 import type { Person, PersonBody } from '@/lib/api/contracts/people'
 import { memberProfileFieldsSchema, PROFILE_TEXT_MAX_LENGTH } from '@/lib/people/validation'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { usePeople, useUpdatePerson } from '@/hooks/queries/people'
-import { useDebounce } from '@/hooks/use-debounce'
+import { usePeoplePicker } from '@/app/o/[organizationId]/people/use-people-picker'
+import { useUpdatePerson } from '@/hooks/queries/people'
 
 type TextField = 'title' | 'department' | 'location'
 
@@ -46,27 +45,12 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
     managerMemberId: person.managerMemberId,
   })
   const [errors, setErrors] = useState<Partial<Record<keyof PersonBody, string>>>({})
-  const [managerSearch, setManagerSearch] = useState('')
   /**
    * The chosen manager's name, kept with the choice: the search results may no longer include them.
    * Only a stored manager who is suspended has an id and no name.
    */
   const [managerName, setManagerName] = useState(person.manager?.name ?? null)
-  const candidates = usePeople(
-    organizationId,
-    useDebounce(managerSearch.trim(), SEARCH_DEBOUNCE_MS),
-    ''
-  )
-  const found = (candidates.data?.pages ?? []).flatMap((page) =>
-    page.people.filter((candidate) => candidate.memberId !== person.memberId)
-  )
-  const managerOptions = [
-    { value: NO_MANAGER, label: 'No manager' },
-    ...found.map((candidate) => ({
-      value: candidate.memberId,
-      label: `${candidate.name} (${candidate.email})`,
-    })),
-  ]
+  const { people, pickerProps } = usePeoplePicker(organizationId, 'members', person.memberId)
   const managerLabel = draft.managerMemberId ? (managerName ?? 'Suspended member') : 'No manager'
 
   const change = <K extends keyof PersonBody>(field: K, value: PersonBody[K]) => {
@@ -132,21 +116,17 @@ export function PersonModal({ organizationId, person, onClose }: PersonModalProp
         <ChipModalField type='custom' title='Manager' error={errors.managerMemberId}>
           {() => (
             <ChipCombobox
-              options={managerOptions}
+              {...pickerProps}
+              aria-label='Manager'
+              options={[{ value: NO_MANAGER, label: 'No manager' }, ...pickerProps.options]}
               value={draft.managerMemberId ?? NO_MANAGER}
               onChange={(value) => {
-                const manager = found.find((candidate) => candidate.memberId === value)
+                const manager = people.find((candidate) => candidate.memberId === value)
                 setManagerName(manager?.name ?? null)
                 change('managerMemberId', manager?.memberId ?? null)
               }}
               overlayContent={managerLabel}
-              searchable
-              onSearchChange={setManagerSearch}
               searchPlaceholder='Search people...'
-              isLoading={candidates.isFetching && !candidates.isFetchingNextPage}
-              hasMore={candidates.hasNextPage}
-              isLoadingMore={candidates.isFetchingNextPage}
-              onLoadMore={() => void candidates.fetchNextPage()}
               emptyMessage='No one matches'
               disabled={update.isPending}
               className='w-full'

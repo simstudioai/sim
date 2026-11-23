@@ -1,9 +1,35 @@
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import type { LangsmithRunPayload } from '@/tools/langsmith/types'
+import { defineCredentialRegions } from '@/tools/shared/credential-regions'
 
-/** Versioned LangSmith API base. Only `/api/v1/*` paths are declared in the published OpenAPI spec. */
-export const LANGSMITH_API_BASE = 'https://api.smith.langchain.com/api/v1'
+/**
+ * LangSmith regions and the API host each one answers on. An API key only authenticates in the
+ * region its organization lives in; GCP US is the default. Only `/api/v1/*` paths are declared in
+ * the published OpenAPI spec. See https://docs.langchain.com/langsmith/trace-with-langgraph
+ */
+export const LANGSMITH_REGIONS = defineCredentialRegions({
+  service: 'LangSmith',
+  noun: 'region',
+  regions: {
+    us: { origin: 'https://api.smith.langchain.com', label: 'GCP US (smith.langchain.com)' },
+    eu: { origin: 'https://eu.api.smith.langchain.com', label: 'GCP EU (eu.smith.langchain.com)' },
+    apac: {
+      origin: 'https://apac.api.smith.langchain.com',
+      label: 'GCP APAC (apac.smith.langchain.com)',
+    },
+    'aws-us': {
+      origin: 'https://aws.api.smith.langchain.com',
+      label: 'AWS US (aws.smith.langchain.com)',
+    },
+    'azure-us': {
+      origin: 'https://azure.api.smith.langchain.com',
+      label: 'Azure US (azure.smith.langchain.com)',
+    },
+  },
+  defaultRegion: 'us',
+  basePath: '/api/v1',
+})
 
 /** Ellipsis appended to an upstream error body that had to be cut short. */
 const ERROR_TEXT_SUFFIX = '...'

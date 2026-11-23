@@ -4,15 +4,16 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { select } = vi.hoisted(() => ({ select: vi.fn() }))
+const { select, transaction } = vi.hoisted(() => ({ select: vi.fn(), transaction: vi.fn() }))
 const databaseUrl = readTestDatabaseUrl()
-vi.mock('@sim/db', () => ({ db: { select } }))
+vi.mock('@sim/db', () => ({ db: { select, transaction } }))
 
 import {
-  type DashboardLedgerWindow,
-  readDashboardHistoricalActorUsage,
-  readDashboardLedgerUsage,
-  readDashboardLedgerUsageByUser,
+  organizationWindow,
+  readDashboardHistoricalActorSpend,
+  readDashboardLedgerSpend,
+  readDashboardLedgerSpendByUser,
+  readDashboardOrganizationWorkflowRuns,
 } from '@/lib/admin/dashboard-usage'
 import type { ResolvedUsagePeriod } from '@/lib/billing/core/reporting-period'
 
@@ -30,11 +31,6 @@ const reportingPeriod: ResolvedUsagePeriod = {
   anchorDate: '2026-01-15',
   interval: 'month',
 }
-const organizationWindow = (id: string, period: ResolvedUsagePeriod): DashboardLedgerWindow => ({
-  entity: { type: 'organization', id },
-  period,
-})
-
 const P = `'2026-08-01', '2026-09-01'`
 const PREVIOUS = `'2026-07-01', '2026-08-01'`
 
@@ -90,6 +86,9 @@ beforeAll(async () => {
       ('u3', 'model', 'copilot', 0.1, 'organization', 'org-a', ${P}, NULL, '2026-08-07'),
       ('u4', 'model', 'copilot', 0.2, 'organization', 'org-a', ${P}, NULL, '2026-08-07'),
       ('u5', 'model', 'workflow', 0.3, 'organization', 'org-a', ${P}, 'e11', '2026-08-07'),
+      -- one run shared by two former actors
+      ('u3', 'model', 'workflow', 0.1, 'organization', 'org-a', ${P}, 'e12', '2026-08-08'),
+      ('u5', 'model', 'workflow', 0.1, 'organization', 'org-a', ${P}, 'e12', '2026-08-08'),
 
       -- org-b, reporting period: matched on created_at, start inclusive and end exclusive,
       -- whatever the rows are stamped with.
@@ -106,6 +105,7 @@ beforeAll(async () => {
   `)
   const database = drizzle(connection)
   select.mockImplementation((fields) => database.select(fields))
+  transaction.mockImplementation((run, config) => database.transaction(run, config))
 })
 
 afterAll(async () => {
@@ -114,63 +114,98 @@ afterAll(async () => {
 })
 
 describe('dashboard ledger usage', () => {
-  it('sums spend and counts distinct workflow runs per entity over each period', async () => {
-    const usage = await readDashboardLedgerUsage([
+  it('sums spend per entity over each period', async () => {
+    const spend = await readDashboardLedgerSpend([
       organizationWindow('org-a', stampedPeriod),
       organizationWindow('org-b', reportingPeriod),
       organizationWindow('org-c', stampedPeriod),
       { entity: { type: 'user', id: 'p1' }, period: stampedPeriod },
     ])
 
-    expect(Object.fromEntries(usage)).toEqual({
-      'org-a': { cost: 3.38, workflowRuns: 5 },
-      'org-b': { cost: 1.75, workflowRuns: 3 },
-      p1: { cost: 0.6, workflowRuns: 1 },
-    })
+    expect(Object.fromEntries(spend)).toEqual({ 'org-a': 3.58, 'org-b': 1.75, p1: 0.6 })
   })
 
   it('reads an entity once however many times it is asked for', async () => {
-    const usage = await readDashboardLedgerUsage([
+    const spend = await readDashboardLedgerSpend([
       organizationWindow('org-a', stampedPeriod),
       organizationWindow('org-a', stampedPeriod),
     ])
-    expect(usage.get('org-a')).toEqual({ cost: 3.38, workflowRuns: 5 })
+    expect(spend.get('org-a')).toBe(3.58)
   })
 
-  it('splits spend and runs by acting user, counting a shared run for each actor', async () => {
-    const usage = await readDashboardLedgerUsageByUser([
+  it('splits spend by acting user', async () => {
+    const spend = await readDashboardLedgerSpendByUser([
       organizationWindow('org-a', stampedPeriod),
       organizationWindow('org-b', reportingPeriod),
     ])
 
-    expect(Object.fromEntries(usage.get('org-a') ?? [])).toEqual({
-      u1: { cost: 1.51, workflowRuns: 2 },
-      u2: { cost: 0.37, workflowRuns: 2 },
-      u3: { cost: 1, workflowRuns: 1 },
-      u4: { cost: 0.2, workflowRuns: 0 },
-      u5: { cost: 0.3, workflowRuns: 1 },
+    expect(Object.fromEntries(spend.get('org-a') ?? [])).toEqual({
+      u1: 1.51,
+      u2: 0.37,
+      u3: 1.1,
+      u4: 0.2,
+      u5: 0.4,
     })
-    expect(Object.fromEntries(usage.get('org-b') ?? [])).toEqual({
-      u6: { cost: 1.75, workflowRuns: 3 },
-    })
+    expect(Object.fromEntries(spend.get('org-b') ?? [])).toEqual({ u6: 1.75 })
   })
 
   it('narrows the per-user split to the requested users', async () => {
     const window = organizationWindow('org-a', stampedPeriod)
 
-    const usage = await readDashboardLedgerUsageByUser([window], ['u2', 'u4'])
-    expect(Object.fromEntries(usage.get('org-a') ?? [])).toEqual({
-      u2: { cost: 0.37, workflowRuns: 2 },
-      u4: { cost: 0.2, workflowRuns: 0 },
-    })
-    expect((await readDashboardLedgerUsageByUser([window], [])).size).toBe(0)
+    const spend = await readDashboardLedgerSpendByUser([window], ['u2', 'u4'])
+    expect(Object.fromEntries(spend.get('org-a') ?? [])).toEqual({ u2: 0.37, u4: 0.2 })
+    expect((await readDashboardLedgerSpendByUser([window], [])).size).toBe(0)
   })
 
-  it('counts only actors who are neither members nor collaborators of the organization', async () => {
-    expect(await readDashboardHistoricalActorUsage('org-a', stampedPeriod)).toEqual({
-      usedDollars: 1.5,
-      workflowRuns: 2,
-      actorCount: 3,
+  it('counts distinct workflow runs in total, for each actor of a shared run, and once across former actors', async () => {
+    const orgA = await readDashboardOrganizationWorkflowRuns('org-a', stampedPeriod)
+    expect(orgA?.total).toBe(6)
+    expect(Object.fromEntries(orgA?.byUser ?? [])).toEqual({ u1: 2, u2: 2, u3: 2, u5: 2 })
+    expect(orgA?.formerActors).toBe(3)
+
+    const orgB = await readDashboardOrganizationWorkflowRuns('org-b', reportingPeriod)
+    expect(orgB?.total).toBe(3)
+    expect(Object.fromEntries(orgB?.byUser ?? [])).toEqual({ u6: 3 })
+    expect(orgB?.formerActors).toBe(3)
+
+    const empty = await readDashboardOrganizationWorkflowRuns('org-c', stampedPeriod)
+    expect(empty?.total).toBe(0)
+    expect(empty?.byUser.size).toBe(0)
+    expect(empty?.formerActors).toBe(0)
+  })
+
+  it('reports runs as unknown when the count outlasts its budget', async () => {
+    const locker = postgres(databaseUrl, {
+      max: 1,
+      prepare: false,
+      connection: { search_path: schemaName },
+      onnotice: () => undefined,
     })
+    let release: () => void = () => undefined
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let markLocked: () => void = () => undefined
+    const locked = new Promise<void>((resolve) => {
+      markLocked = resolve
+    })
+    const holder = locker.begin(async (tx) => {
+      await tx.unsafe('LOCK TABLE usage_log IN ACCESS EXCLUSIVE MODE')
+      markLocked()
+      await released
+    })
+    try {
+      await locked
+      expect(await readDashboardOrganizationWorkflowRuns('org-a', stampedPeriod)).toBeNull()
+    } finally {
+      release()
+      await holder
+      await locker.end()
+    }
+  }, 20_000)
+
+  it('spends only for actors who are neither members nor collaborators of the organization', async () => {
+    const spend = await readDashboardHistoricalActorSpend('org-a', stampedPeriod)
+    expect(Object.fromEntries(spend)).toEqual({ u3: 1.1, u4: 0.2, u5: 0.4 })
   })
 })

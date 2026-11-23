@@ -54,6 +54,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: null,
         userBanned: false,
       },
@@ -85,6 +86,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: new Date('2027-01-01T00:00:00.000Z'),
         userBanned: false,
       },
@@ -102,6 +104,7 @@ describe('v2 API key authentication', () => {
         userId: 'creator-1',
         workspaceId: 'workspace-1',
         type: 'workspace',
+        access: 'write',
         expiresAt: null,
         userBanned: false,
       },
@@ -134,6 +137,7 @@ describe('v2 API key authentication', () => {
         userId: 'creator-1',
         workspaceId: 'workspace-1',
         type: 'workspace',
+        access: 'write',
         expiresAt: null,
         userBanned: true,
       },
@@ -170,6 +174,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: null,
         userBanned: true,
       },
@@ -184,6 +189,7 @@ describe('v2 API key authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: new Date(Date.now() - 1),
         userBanned: false,
       },
@@ -191,6 +197,49 @@ describe('v2 API key authentication', () => {
     await expect(authenticateV2ApiKey({ apiKey: 'expired', bearer: null })).rejects.toBeInstanceOf(
       V2ApiKeyUnauthenticatedError
     )
+  })
+
+  it('accepts a personal key whose owner has never had a ban state recorded', async () => {
+    queueTableRows(schemaMock.apiKey, [
+      {
+        id: 'key-1',
+        userId: 'user-1',
+        workspaceId: null,
+        type: 'personal',
+        access: 'write',
+        expiresAt: null,
+        ownerUserId: 'user-1',
+        userBanned: null,
+        userSuspendedAt: null,
+      },
+    ])
+
+    const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
+
+    expect(result.principal).toEqual(createPersonalApiKeyPrincipal())
+  })
+
+  it('refuses a personal key whose owner row is gone as invalid, expired or not', async () => {
+    for (const expiresAt of [null, new Date(Date.now() - 1)]) {
+      queueTableRows(schemaMock.apiKey, [
+        {
+          id: 'key-orphan',
+          userId: 'user-gone',
+          workspaceId: null,
+          type: 'personal',
+          access: 'write',
+          expiresAt,
+          ownerUserId: null,
+          userBanned: null,
+          userSuspendedAt: null,
+        },
+      ])
+      const refusal = await authenticateV2ApiKey({ apiKey: 'orphan', bearer: null }).catch(
+        (error: unknown) => error
+      )
+      expect(refusal).toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+      expect((refusal as V2ApiKeyUnauthenticatedError).message).toBe('Invalid API key')
+    }
   })
 
   it('propagates auth-store failures instead of converting them to invalid credentials', async () => {
@@ -289,6 +338,7 @@ describe('v2 bearer token authentication', () => {
         userId: 'user-1',
         workspaceId: null,
         type: 'personal',
+        access: 'write',
         expiresAt: null,
         userBanned: false,
       },
@@ -344,7 +394,7 @@ describe('v2 bearer token authentication', () => {
     await expect(
       authenticateV2ApiKey({ apiKey: null, bearer: 'sim_oat_unused' })
     ).resolves.toMatchObject({
-      principal: { kind: 'personal_api_key', keyId: 'auth-disabled' },
+      principal: { kind: 'personal_api_key', keyId: 'auth-disabled', access: 'write' },
       keyType: 'personal',
     })
     expect(dbChainMockFns.limit).not.toHaveBeenCalled()

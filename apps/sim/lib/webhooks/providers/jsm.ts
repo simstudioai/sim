@@ -68,8 +68,9 @@ export const jsmHandler: WebhookProviderHandler = {
       const { isJsmEventMatch } = await import('@/triggers/jsm/utils')
       if (!isJsmEventMatch(triggerId, webhookEvent || '', issueEventTypeName, changelog)) {
         logger.debug(
-          `[${requestId}] JSM event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
+          `JSM event mismatch for trigger ${triggerId}. Event: ${webhookEvent}. Skipping execution.`,
           {
+            requestId,
             webhookId: webhook.id,
             workflowId: workflow.id,
             triggerId,

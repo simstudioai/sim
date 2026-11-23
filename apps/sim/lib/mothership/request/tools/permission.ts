@@ -12,8 +12,8 @@ import {
   MothershipStreamV1ToolPhase,
   MothershipStreamV1ToolStatus,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   decisionAllowsExecution,
   decisionSuppressesFuturePrompts,
@@ -87,7 +87,7 @@ export function toolCallNeedsApproval(
   options: OrchestratorOptions,
   /**
    * True when the incoming call frame already carries `awaiting_approval`.
-   * Go stamps this for resolved integration operations, whose definitions are
+   * The worker stamps this for resolved integration operations, whose definitions are
    * request-local and so never appear in the generated catalog.
    */
   frameRequestsApproval = false,
@@ -109,11 +109,14 @@ export function toolCallNeedsApproval(
     // A go-routed tool executes inside mothership and never reaches Sim's
     // dispatch, so there is nothing here to hold. Stamping the frame anyway
     // would draw a card for work that already happened, with no waiter behind
-    // it. Go asks for those gates explicitly via the frame instead.
+    // it. The worker asks for those gates explicitly via the frame instead.
     if (getToolEntry(toolName)?.route === 'go') {
-      logger.error('Tool declares requiresApproval but runs in Go, where Sim cannot gate it', {
-        toolName,
-      })
+      logger.error(
+        'Tool declares requiresApproval but runs in the worker, where Sim cannot gate it',
+        {
+          toolName,
+        }
+      )
       return false
     }
   }
@@ -148,7 +151,7 @@ function noPromptOutput(toolName: string) {
 /**
  * Tell the client how a gated call ended without executing.
  *
- * Go's own tool_result for this call is suppressed (`markToolResultSeen`), so
+ * The worker's own tool_result for this call is suppressed (`markToolResultSeen`), so
  * this synthetic frame is the only thing that moves the row out of its
  * awaiting-approval state in the UI.
  */
@@ -189,7 +192,7 @@ async function emitGateResult(
  * Re-emit the call frame as `executing` once the user allows the tool.
  *
  * Without this the card would keep offering Allow/Skip until the tool finished,
- * because no further call frame arrives from Go after a decision.
+ * because no further call frame arrives from the worker after a decision.
  */
 async function emitApprovedCall(
   toolCallId: string,
@@ -227,7 +230,7 @@ async function emitApprovedCall(
  * and it deliberately stays unsettled across both the wait AND the subsequent
  * execution. That is what keeps the mothership resume blocked: the checkpoint
  * loop waits on the pending promises before it POSTs `/api/tools/resume`, so
- * as long as this has not settled, no tool result reaches Go.
+ * as long as this has not settled, no tool result reaches the worker.
  */
 export function runGatedToolExecution(
   toolCall: ToolCallState,
@@ -360,7 +363,7 @@ export function runGatedToolExecution(
           options
         )
         // Reported as success so a declined tool is a decision the model reads
-        // and adapts to, not a failure that counts toward Go's tool-failure
+        // and adapts to, not a failure that counts toward the worker's tool-failure
         // breaker.
         return { status: MothershipStreamV1ToolOutcome.success, message: output.message }
       }

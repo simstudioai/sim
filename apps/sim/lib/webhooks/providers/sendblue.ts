@@ -41,14 +41,14 @@ export const sendblueHandler: WebhookProviderHandler = {
     if (!triggerId || !(triggerId in SENDBLUE_TRIGGER_IS_OUTBOUND)) return true
 
     if (!isRecordLike(body)) {
-      logger.warn(`[${requestId}] Sendblue webhook payload was not an object`)
+      logger.warn('Sendblue webhook payload was not an object', { requestId })
       return false
     }
 
     const expected = SENDBLUE_TRIGGER_IS_OUTBOUND[triggerId]
     const isOutbound = body.is_outbound === true
     if (isOutbound !== expected) {
-      logger.info(`[${requestId}] Sendblue event did not match trigger`, { triggerId, isOutbound })
+      logger.info('Sendblue event did not match trigger', { requestId, triggerId, isOutbound })
       return false
     }
 

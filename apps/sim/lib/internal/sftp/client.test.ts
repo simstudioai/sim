@@ -62,8 +62,11 @@ vi.mock('ssh2', () => ({
 
 import {
   createSftpConnection,
+  isPathSafe,
+  joinRemotePath,
   readSftpFileCapped,
   sanitizeFileName,
+  sanitizePath,
 } from '@/lib/internal/sftp/client'
 
 const { mockValidateDatabaseHost } = inputValidationMockFns
@@ -143,5 +146,31 @@ describe('SFTP client boundary', () => {
 
     expect(sanitized).toBe(expected)
     expect(sanitized).not.toMatch(/[/\\]/)
+  })
+
+  it('accepts a remote path with a literal percent sign as typed', () => {
+    expect(isPathSafe('/reports/100% done.csv')).toBe(true)
+    expect(sanitizePath('/reports/100% done.csv')).toBe('/reports/100% done.csv')
+    expect(sanitizePath('/reports/q1%20summary.csv')).toBe('/reports/q1 summary.csv')
+    expect(isPathSafe('/reports/%2e%2e%2f100%')).toBe(false)
+    expect(isPathSafe('/reports/%2e%2e%2fsecret')).toBe(false)
+    expect(sanitizePath('/q1%20reports/100% done.csv')).toBe('/q1 reports/100% done.csv')
+    expect(isPathSafe('/reports/100%/%2e%2e%2fsecret')).toBe(false)
+  })
+
+  it.each(['/data/..', '..', '/data/%2e%2e', 'data\\..\\etc'])(
+    'rejects the parent segment in %j',
+    (path) => {
+      expect(isPathSafe(path)).toBe(false)
+    }
+  )
+
+  it.each(['/data/..hidden', '/data/v1..v2/report.csv', '/data/.'])('accepts %j', (path) => {
+    expect(isPathSafe(path)).toBe(true)
+  })
+
+  it('keeps a double-encoded upload name inside the target directory', () => {
+    const destination = joinRemotePath('/uploads', sanitizeFileName('%252e%252e%252fsecret.txt'))
+    expect(destination).toBe('/uploads/%2e%2e%2fsecret.txt')
   })
 })

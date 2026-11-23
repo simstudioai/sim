@@ -14,6 +14,7 @@ import {
   checkrUrl,
   mapListMeta,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListUsersTool: ToolConfig<CheckrListUsersParams, CheckrListUsersResponse> = {
@@ -21,6 +22,7 @@ export const checkrListUsersTool: ToolConfig<CheckrListUsersParams, CheckrListUs
   name: 'Checkr List Users',
   description: 'List the users on the Checkr account and their roles.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

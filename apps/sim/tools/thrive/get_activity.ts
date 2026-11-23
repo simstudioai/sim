@@ -1,13 +1,16 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveActivityResponse, ThriveGetActivityParams } from '@/tools/thrive/types'
 import { THRIVE_ACTIVITY_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getActivityTool: ToolConfig<ThriveGetActivityParams, ThriveActivityResponse> = {
   id: 'thrive_get_activity',
   name: 'Thrive Get Activity',
   description: 'Get a single activity record in Thrive by its ID.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {
@@ -38,7 +41,7 @@ export const getActivityTool: ToolConfig<ThriveGetActivityParams, ThriveActivity
 
   request: {
     url: (params) =>
-      `${getThriveBaseUrl(params.host, 'v1')}/activity/${encodeURIComponent(params.id)}`,
+      `${getThriveBaseUrl(params.host, 'v1')}/activities/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => getThriveHeaders(params.tenantId, params.apiKey),
   },

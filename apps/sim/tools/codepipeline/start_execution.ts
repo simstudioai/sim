@@ -2,6 +2,7 @@ import type {
   CodePipelineStartExecutionParams,
   CodePipelineStartExecutionResponse,
 } from '@/tools/codepipeline/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const startExecutionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const startExecutionTool: InternalToolConfig<
   name: 'CodePipeline Start Execution',
   description: 'Start a CodePipeline pipeline execution, optionally overriding pipeline variables',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

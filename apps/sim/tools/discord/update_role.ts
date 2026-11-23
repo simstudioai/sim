@@ -1,5 +1,7 @@
 import type { DiscordUpdateRoleParams, DiscordUpdateRoleResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordUpdateRoleResponse> =
   {
@@ -7,6 +9,7 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
     name: 'Discord Update Role',
     description: 'Update a role in a Discord server',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {
@@ -55,7 +58,7 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
 
     request: {
       url: (params: DiscordUpdateRoleParams) => {
-        return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/roles/${params.roleId.trim()}`
+        return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/roles/${safeUrlPathSegment(params.roleId, 'roleId')}`
       },
       method: 'PATCH',
       headers: (params) => ({
@@ -63,11 +66,11 @@ export const discordUpdateRoleTool: ToolConfig<DiscordUpdateRoleParams, DiscordU
         Authorization: `Bot ${params.botToken.trim()}`,
       }),
       body: (params: DiscordUpdateRoleParams) => {
-        const body: any = {}
+        const body: Record<string, unknown> = {}
         if (params.name) body.name = params.name
         if (params.color !== undefined) body.color = Number(params.color)
-        if (params.hoist !== undefined) body.hoist = params.hoist
-        if (params.mentionable !== undefined) body.mentionable = params.mentionable
+        if (typeof params.hoist === 'boolean') body.hoist = params.hoist
+        if (typeof params.mentionable === 'boolean') body.mentionable = params.mentionable
         return body
       },
     },

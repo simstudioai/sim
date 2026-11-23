@@ -1,5 +1,6 @@
 import { dbReplica } from '@sim/db'
 import { usageLog, user, workflow, workspace } from '@sim/db/schema'
+import { assertValidTimezone } from '@sim/utils/timezone'
 import { and, eq, inArray, isNotNull, type SQL, sql } from 'drizzle-orm'
 import {
   buildUsageAnalyticsScope,
@@ -14,7 +15,6 @@ import {
 } from '@/lib/billing/core/usage-analytics'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { readThroughSegments } from '@/lib/billing/core/usage-segment-cache'
-import { assertValidTimezone } from '@/lib/core/utils/timezone'
 import type { DbClient } from '@/lib/db/types'
 
 /**

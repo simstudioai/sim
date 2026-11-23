@@ -68,6 +68,8 @@ export async function executeServiceNowUploadAttachment(
       recordSysId: input.recordSysId,
       tableName: input.tableName,
       username: input.username,
+      accessToken: input.accessToken,
+      authStyle: input.authStyle,
     },
     buffer,
     context.signal

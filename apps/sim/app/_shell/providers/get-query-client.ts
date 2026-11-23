@@ -1,7 +1,7 @@
 import { isServer, QueryClient } from '@tanstack/react-query'
 import { isDesktopApp } from '@/lib/desktop'
 
-export function makeQueryClient() {
+function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {

@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveQueryContentParams, ThriveQueryContentResponse } from '@/tools/thrive/types'
 import {
   THRIVE_CONTENT_OUTPUT_PROPERTIES,
@@ -16,6 +17,7 @@ export const queryContentTool: ToolConfig<ThriveQueryContentParams, ThriveQueryC
   name: 'Thrive Query Content',
   description: 'Query content records in Thrive with pagination and filtering options.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

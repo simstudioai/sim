@@ -63,12 +63,6 @@ const attemptSchema = z.discriminatedUnion('phase', [
 export type GitHubSetupAttempt = z.infer<typeof attemptSchema>
 export type GitHubSetupPhase = GitHubSetupAttempt['phase']
 
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('GitHub setup requires Redis')
-  return client
-}
-
 function attemptKey(scope: GitHubSetupScope) {
   return `github-search:setup:${sha256Hex(JSON.stringify([scope.organizationId, scope.userId, scope.setupId]))}`
 }
@@ -117,8 +111,8 @@ export async function saveGitHubSetupAttempt(
   const ttl = remainingTtl(attempt.createdAt)
   const saved =
     expected === 'new'
-      ? (await redis().set(key, value, 'PX', ttl, 'NX')) === 'OK'
-      : (await redis().eval(TRANSITION, 1, key, value, expected, ttl)) === 1
+      ? (await getRedisClient().set(key, value, 'PX', ttl, 'NX')) === 'OK'
+      : (await getRedisClient().eval(TRANSITION, 1, key, value, expected, ttl)) === 1
   if (!saved)
     throw new OrchestrationError(
       'conflict',
@@ -129,7 +123,7 @@ export async function saveGitHubSetupAttempt(
 export async function readGitHubSetupAttempt(
   scope: GitHubSetupScope
 ): Promise<GitHubSetupAttempt | null> {
-  const raw = await redis().get(attemptKey(scope))
+  const raw = await getRedisClient().get(attemptKey(scope))
   if (!raw) return null
   const attempt = attemptSchema.parse(JSON.parse(raw))
   if (
@@ -147,7 +141,7 @@ export async function readGitHubSetupAttempt(
 /** Only a random, server-issued nonce is sent to GitHub; the owner remains in Redis. */
 export async function issueGitHubSetupCallback(attempt: GitHubSetupAttempt) {
   const state = generateId()
-  const stored = await redis().set(
+  const stored = await getRedisClient().set(
     callbackKey(state),
     JSON.stringify(githubSetupScope(attempt)),
     'PX',
@@ -160,7 +154,7 @@ export async function issueGitHubSetupCallback(attempt: GitHubSetupAttempt) {
 
 /** A different browser session cannot consume or discover an attempt through its callback. */
 export async function resolveGitHubSetupCallback(state: string, principal: SessionPrincipal) {
-  const raw = await redis().get(callbackKey(state))
+  const raw = await getRedisClient().get(callbackKey(state))
   if (!raw) throw expiredGitHubSetupError()
   const scope = scopeSchema.parse(JSON.parse(raw))
   if (scope.userId !== principal.userId || scope.sessionId !== principal.sessionId)

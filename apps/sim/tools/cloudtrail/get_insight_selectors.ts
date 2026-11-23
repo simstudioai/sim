@@ -2,6 +2,7 @@ import type {
   CloudTrailGetInsightSelectorsParams,
   CloudTrailGetInsightSelectorsResponse,
 } from '@/tools/cloudtrail/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getInsightSelectorsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getInsightSelectorsTool: InternalToolConfig<
   name: 'CloudTrail Get Insight Selectors',
   description: 'Read which CloudTrail Insights types are enabled on a trail or event data store',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

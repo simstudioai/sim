@@ -1,4 +1,5 @@
 import type { GammaListFoldersParams, GammaListFoldersResponse } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFoldersTool: ToolConfig<GammaListFoldersParams, GammaListFoldersResponse> = {
@@ -7,6 +8,7 @@ export const listFoldersTool: ToolConfig<GammaListFoldersParams, GammaListFolder
   description:
     'List available folders in your Gamma workspace. Returns folder IDs and names for organizing generated content.',
   version: '1.0.0',
+  oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

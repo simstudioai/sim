@@ -6,6 +6,7 @@ import {
   checkrId,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetReportEtaTool: ToolConfig<CheckrReportIdParams, CheckrGetReportEtaResponse> =
@@ -14,6 +15,7 @@ export const checkrGetReportEtaTool: ToolConfig<CheckrReportIdParams, CheckrGetR
     name: 'Checkr Get Report ETA',
     description: 'Retrieve the estimated completion date for a report.',
     version: '1.0.0',
+    oauth: CHECKR_CREDENTIAL_OAUTH,
     errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
     params: {

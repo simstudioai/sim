@@ -3,7 +3,9 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -67,34 +69,34 @@ export const rootlyHandler: WebhookProviderHandler = {
   }: AuthContext): Promise<NextResponse | null> {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      logger.warn(`[${requestId}] Rootly webhook missing signing secret in provider configuration`)
+      logger.warn('Rootly webhook missing signing secret in provider configuration', { requestId })
       return new NextResponse('Unauthorized - Rootly signing secret is required', { status: 401 })
     }
 
     const header = request.headers.get('X-Rootly-Signature')
     if (!header) {
-      logger.warn(`[${requestId}] Rootly webhook missing signature header`)
+      logger.warn('Rootly webhook missing signature header', { requestId })
       return new NextResponse('Unauthorized - Missing Rootly signature', { status: 401 })
     }
 
     const parsed = parseRootlySignatureHeader(header)
     if (!parsed) {
-      logger.warn(`[${requestId}] Rootly signature header malformed`)
+      logger.warn('Rootly signature header malformed', { requestId })
       return new NextResponse('Unauthorized - Malformed Rootly signature', { status: 401 })
     }
 
     if (!validateRootlySignature(secret, parsed.timestamp, parsed.signature, rawBody)) {
-      logger.warn(`[${requestId}] Rootly signature verification failed`)
+      logger.warn('Rootly signature verification failed', { requestId })
       return new NextResponse('Unauthorized - Invalid Rootly signature', { status: 401 })
     }
 
     const tsSeconds = Number(parsed.timestamp)
     if (!Number.isFinite(tsSeconds)) {
-      logger.warn(`[${requestId}] Rootly signature timestamp invalid`)
+      logger.warn('Rootly signature timestamp invalid', { requestId })
       return new NextResponse('Unauthorized - Invalid Rootly timestamp', { status: 401 })
     }
     if (Math.abs(Date.now() - tsSeconds * 1000) > ROOTLY_WEBHOOK_TIMESTAMP_SKEW_MS) {
-      logger.warn(`[${requestId}] Rootly signature timestamp outside allowed skew`)
+      logger.warn('Rootly signature timestamp outside allowed skew', { requestId })
       return new NextResponse('Unauthorized - Rootly timestamp skew too large', { status: 401 })
     }
 
@@ -109,7 +111,8 @@ export const rootlyHandler: WebhookProviderHandler = {
       const eventType = typeof event?.type === 'string' ? event.type : ''
       if (!isRootlyEventMatch(triggerId, eventType)) {
         logger.debug(
-          `[${requestId}] Rootly event mismatch for trigger ${triggerId}. Type: ${eventType}. Skipping.`
+          `Rootly event mismatch for trigger ${triggerId}. Type: ${eventType}. Skipping.`,
+          { requestId }
         )
         return false
       }
@@ -144,7 +147,7 @@ export const rootlyHandler: WebhookProviderHandler = {
       }
 
       if (!apiKey) {
-        throw new Error(
+        throw new WebhookDeploymentConfigurationError(
           'Rootly API key is required. Please provide your Rootly API key in the trigger configuration.'
         )
       }
@@ -155,7 +158,8 @@ export const rootlyHandler: WebhookProviderHandler = {
 
       const signingSecret = generateId()
 
-      logger.info(`[${ctx.requestId}] Creating Rootly webhook endpoint`, {
+      logger.info('Creating Rootly webhook endpoint', {
+        requestId: ctx.requestId,
         triggerId,
         eventTypes,
         webhookId: ctx.webhook.id,
@@ -174,7 +178,7 @@ export const rootlyHandler: WebhookProviderHandler = {
         },
       }
 
-      const response = await fetch('https://api.rootly.com/v1/webhooks/endpoints', {
+      const response = await outboundFetch('https://api.rootly.com/v1/webhooks/endpoints', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -204,8 +208,8 @@ export const rootlyHandler: WebhookProviderHandler = {
         }
 
         logger.error(
-          `[${ctx.requestId}] Failed to create Rootly webhook endpoint for webhook ${ctx.webhook.id}. Status: ${response.status}`,
-          { response: responseBody }
+          `Failed to create Rootly webhook endpoint for webhook ${ctx.webhook.id}. Status: ${response.status}`,
+          { requestId: ctx.requestId, response: responseBody }
         )
         throw new Error(userFriendlyMessage)
       }
@@ -217,18 +221,18 @@ export const rootlyHandler: WebhookProviderHandler = {
       }
 
       logger.info(
-        `[${ctx.requestId}] Successfully created Rootly webhook endpoint ${externalId} for webhook ${ctx.webhook.id}`
+        `Successfully created Rootly webhook endpoint ${externalId} for webhook ${ctx.webhook.id}`,
+        { requestId: ctx.requestId }
       )
       return { providerConfigUpdates: { externalId, webhookSecret: signingSecret } }
     } catch (error: unknown) {
+      if (error instanceof WebhookDeploymentConfigurationError) throw error
       const err = error as Error
-      logger.error(
-        `[${ctx.requestId}] Exception during Rootly webhook creation for webhook ${ctx.webhook.id}.`,
-        {
-          message: err.message,
-          stack: err.stack,
-        }
-      )
+      logger.error(`Exception during Rootly webhook creation for webhook ${ctx.webhook.id}.`, {
+        requestId: ctx.requestId,
+        message: err.message,
+        stack: err.stack,
+      })
       throw error
     }
   },
@@ -241,7 +245,8 @@ export const rootlyHandler: WebhookProviderHandler = {
 
       if (!apiKey) {
         logger.warn(
-          `[${ctx.requestId}] Missing apiKey for Rootly webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing apiKey for Rootly webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Rootly apiKey for webhook deletion')
         return
@@ -249,37 +254,41 @@ export const rootlyHandler: WebhookProviderHandler = {
 
       if (!externalId) {
         logger.warn(
-          `[${ctx.requestId}] Missing externalId for Rootly webhook deletion ${ctx.webhook.id}, skipping cleanup`
+          `Missing externalId for Rootly webhook deletion ${ctx.webhook.id}, skipping cleanup`,
+          { requestId: ctx.requestId }
         )
         if (ctx.strict) throw new Error('Missing Rootly externalId for webhook deletion')
         return
       }
 
-      const response = await fetch(`https://api.rootly.com/v1/webhooks/endpoints/${externalId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: 'application/vnd.api+json',
-        },
-      })
+      const response = await outboundFetch(
+        `https://api.rootly.com/v1/webhooks/endpoints/${externalId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: 'application/vnd.api+json',
+          },
+        }
+      )
 
       if (response.ok || response.status === 404) {
         await response.body?.cancel()
-        logger.info(
-          `[${ctx.requestId}] Deleted Rootly webhook endpoint ${externalId} (status ${response.status})`
-        )
+        logger.info(`Deleted Rootly webhook endpoint ${externalId} (status ${response.status})`, {
+          requestId: ctx.requestId,
+        })
       } else {
         const responseBody = await response.json().catch(() => ({}))
-        logger.warn(
-          `[${ctx.requestId}] Failed to delete Rootly webhook endpoint (non-fatal): ${response.status}`,
-          { response: responseBody }
-        )
+        logger.warn(`Failed to delete Rootly webhook endpoint (non-fatal): ${response.status}`, {
+          requestId: ctx.requestId,
+          response: responseBody,
+        })
         if (ctx.strict) {
           throw new Error(`Failed to delete Rootly webhook endpoint: ${response.status}`)
         }
       }
     } catch (error) {
-      logger.warn(`[${ctx.requestId}] Error deleting Rootly webhook (non-fatal)`, error)
+      logger.warn('Error deleting Rootly webhook (non-fatal)', error, { requestId: ctx.requestId })
       if (ctx.strict) throw error
     }
   },

@@ -1,5 +1,6 @@
 import type { BrexGetVendorParams, BrexGetVendorResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexGetVendorTool: ToolConfig<BrexGetVendorParams, BrexGetVendorResponse> = {
@@ -7,6 +8,7 @@ export const brexGetVendorTool: ToolConfig<BrexGetVendorParams, BrexGetVendorRes
   name: 'Brex Get Vendor',
   description: 'Get a Brex vendor by its ID',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

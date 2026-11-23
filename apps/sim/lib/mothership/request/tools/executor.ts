@@ -12,9 +12,10 @@ import { asOrchestrationError, type OrchestrationError } from '@/lib/core/orches
 import { executeCopilotAssistantAction } from '@/lib/mothership/application/assistant-actions'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
-import type {
-  AsyncCompletionEnvelope,
-  AsyncCompletionSignal,
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionEnvelope,
+  type AsyncCompletionSignal,
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
   type CompleteAsyncToolCallInput,
@@ -33,7 +34,6 @@ import {
   TOOL_WATCHDOG_LONG_RUNNING_MS,
 } from '@/lib/mothership/constants'
 import {
-  MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
@@ -57,8 +57,8 @@ import {
   RunWorkflow,
   RunWorkflowUntilBlock,
 } from '@/lib/mothership/generated/tool-catalog-v1'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   publishToolConfirmation,
   waitForToolConfirmation,
@@ -127,81 +127,6 @@ const logger = createLogger('CopilotSseToolExecution')
 
 function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
   return result !== undefined && Object.hasOwn(result, 'output')
-}
-
-interface ToolResultSpanSummary {
-  resultSuccess: boolean
-  outputBytes: number
-  outputKind: string
-  errorMessage?: string
-  imageCount?: number
-  imageBytes?: number
-  attachmentMediaType?: string
-}
-
-function summarizeToolResultForSpan(result: {
-  success: boolean
-  output?: unknown
-  error?: string
-}): ToolResultSpanSummary {
-  const summary: ToolResultSpanSummary = {
-    resultSuccess: Boolean(result.success),
-    outputBytes: 0,
-    outputKind: 'none',
-  }
-  if (!result.success && result.error) {
-    summary.errorMessage = String(result.error).slice(0, 500)
-  }
-  if (!hasOutputValue(result)) {
-    return summary
-  }
-  const output = result.output
-  if (typeof output === 'string') {
-    summary.outputKind = 'string'
-    summary.outputBytes = Buffer.byteLength(output)
-  } else if (output && typeof output === 'object') {
-    summary.outputKind = Array.isArray(output) ? 'array' : 'object'
-    try {
-      summary.outputBytes = Buffer.byteLength(JSON.stringify(output))
-    } catch {
-      summary.outputBytes = 0
-    }
-    const attachment = extractAttachmentShape(output)
-    if (attachment) {
-      summary.imageCount = attachment.imageCount
-      summary.imageBytes = attachment.imageBytes
-      if (attachment.mediaType) {
-        summary.attachmentMediaType = attachment.mediaType
-      }
-    }
-  } else if (output !== undefined && output !== null) {
-    summary.outputKind = typeof output
-    summary.outputBytes = Buffer.byteLength(String(output))
-  }
-  return summary
-}
-
-function extractAttachmentShape(
-  output: unknown
-): { imageCount: number; imageBytes: number; mediaType?: string } | null {
-  if (!isRecordLike(output)) return null
-  const candidate = (output as Record<string, unknown>).attachment
-  if (!isRecordLike(candidate)) return null
-  const source = (candidate as Record<string, unknown>).source
-  if (!isRecordLike(source)) return null
-  const type =
-    typeof (candidate as Record<string, unknown>).type === 'string'
-      ? ((candidate as Record<string, unknown>).type as string)
-      : ''
-  if (type !== 'image') return null
-  const mediaType =
-    typeof source.media_type === 'string' ? (source.media_type as string) : undefined
-  const data = typeof source.data === 'string' ? (source.data as string) : ''
-  return {
-    imageCount: 1,
-    imageBytes: data.length,
-    mediaType,
-  }
 }
 
 function buildCompletionSignal(input: {
@@ -713,8 +638,7 @@ export async function executeToolAndReport(
             String(completion.message).slice(0, 500)
           )
         }
-        // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
-        // pairs with the Go executor-boundary metric (U15) as one series set.
+        // Durable Grafana signal for "which Sim tool is slowest" (executor=sim).
         recordSimToolMetric(
           toolCall.name,
           toolCall.agentId ?? 'main',
@@ -844,8 +768,6 @@ async function observeExistingExecution(
   return terminalCompletionFromToolCall(toolCall)
 }
 
-type CancelledSpanDetail = { cancelReason: string; error?: string | undefined }
-
 async function executeToolAndReportInner(
   toolCall: ToolCallState,
   context: StreamingContext,
@@ -855,7 +777,7 @@ async function executeToolAndReportInner(
 ): Promise<AsyncCompletionSignal> {
   if (toolCall.status === 'executing') {
     return buildCompletionSignal({
-      status: MothershipStreamV1AsyncToolRecordStatus.running,
+      status: ASYNC_TOOL_STATUS.running,
       message: 'Tool already executing',
     })
   }
@@ -1007,27 +929,8 @@ async function executeToolAndReportInner(
     return terminalCompletionFromToolCall(toolCall)
   }
 
-  const argsPreview = toolCall.params ? JSON.stringify(toolCall.params).slice(0, 200) : undefined
-  const toolSpan = context.trace.startSpan(toolCall.name, 'tool.execute', {
-    toolCallId: toolCall.id,
-    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
-    toolName: toolCall.name,
-    argsPreview,
-    abortSignalAborted: execContext.abortSignal?.aborted ?? false,
-  })
-
-  /**
-   * The one cancel-settlement path: mark, ack the async record, publish the terminal
-   * confirmation, optionally close the span. This block was copy-pasted six times with
-   * only the message/cancelReason varying — and a seventh copy would inevitably drift.
-   */
-  // Hoisted declaration: the pre-execution abort check calls this before endToolSpan's
-  // const is assigned — safe because that path passes no span, so the reference is
-  // never evaluated (and the span does not exist yet there anyway).
-  async function settleCancelled(
-    message: string,
-    span?: CancelledSpanDetail
-  ): Promise<AsyncCompletionSignal> {
+  /** The one cancel-settlement path: mark, ack the async record, publish the terminal confirmation. */
+  async function settleCancelled(message: string): Promise<AsyncCompletionSignal> {
     markToolCallCancelled(message)
     const cancellationResult = toolCall.result
     markToolResultSeen(context, toolCall.id)
@@ -1035,7 +938,7 @@ async function executeToolAndReportInner(
     if (toolCall.result !== cancellationResult) {
       return terminalCompletionFromToolCall(toolCall)
     }
-    return publishCancellation(message, span)
+    return publishCancellation(message)
   }
 
   /** Cancels the call only while nothing has started it; otherwise reports nothing settled. */
@@ -1052,13 +955,13 @@ async function executeToolAndReportInner(
     return {
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
-      status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
+      status: ASYNC_TOOL_STATUS.cancelled,
       result: { cancelled: true },
       error: message,
     }
   }
 
-  function publishCancellation(message: string, span?: CancelledSpanDetail): AsyncCompletionSignal {
+  function publishCancellation(message: string): AsyncCompletionSignal {
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
@@ -1066,40 +969,7 @@ async function executeToolAndReportInner(
       message,
       data: { cancelled: true },
     })
-    if (span) endToolSpan('cancelled', span)
     return cancelledCompletion(message)
-  }
-
-  const endToolSpan = (
-    status: string,
-    detail?: { error?: string; cancelReason?: string; resultSuccess?: boolean }
-  ) => {
-    const abortDetail: Record<string, unknown> = {}
-    if (execContext.abortSignal?.aborted) {
-      abortDetail.abortSignalAborted = true
-      abortDetail.abortReason = String(execContext.abortSignal.reason ?? 'unknown')
-    }
-    if (options?.abortSignal?.aborted) {
-      abortDetail.optionsAbortReason = String(options.abortSignal.reason ?? 'unknown')
-    }
-    if (context.wasAborted) {
-      abortDetail.wasAborted = true
-    }
-    toolSpan.attributes = { ...toolSpan.attributes, ...abortDetail, ...detail }
-    context.trace.endSpan(toolSpan, status)
-  }
-  const endToolSpanFromTerminalState = () => {
-    const terminalStatus =
-      toolCall.status === MothershipStreamV1ToolOutcome.cancelled
-        ? 'cancelled'
-        : toolCall.status === MothershipStreamV1ToolOutcome.success ||
-            toolCall.status === MothershipStreamV1ToolOutcome.skipped
-          ? 'ok'
-          : 'error'
-    endToolSpan(terminalStatus, {
-      resultSuccess: toolCall.status === MothershipStreamV1ToolOutcome.success,
-      ...(toolCall.error ? { error: toolCall.error } : {}),
-    })
   }
 
   logger.info('Tool execution started', {
@@ -1151,24 +1021,13 @@ async function executeToolAndReportInner(
       admittedAssistantAction
     )
     if (toolCallWasCancelled()) {
-      return settleCancelled(toolCall.error || 'Stopped by user', {
-        cancelReason: 'abort_during_execution',
-      })
+      return settleCancelled(toolCall.error || 'Stopped by user')
     }
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      const copilotResult = inspectToolResultForCopilot(
-        result,
-        toolExecutionContext.resolvedSecretTraceRegistry,
-        toolCall.name
-      ).result
-      return settleCancelled('Request aborted during tool execution', {
-        cancelReason: 'abort_during_execution',
-        error: copilotResult.success === false ? copilotResult.error : undefined,
-      })
+      return settleCancelled('Request aborted during tool execution')
     }
     result = await maybeWriteOutputToFile(
       executionCall.name,
@@ -1177,13 +1036,10 @@ async function executeToolAndReportInner(
       toolExecutionContext
     )
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      return settleCancelled('Request aborted during tool post-processing', {
-        cancelReason: 'abort_during_post_processing_file',
-      })
+      return settleCancelled('Request aborted during tool post-processing')
     }
     result = await maybeWriteOutputToTable(
       executionCall.name,
@@ -1192,13 +1048,10 @@ async function executeToolAndReportInner(
       toolExecutionContext
     )
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      return settleCancelled('Request aborted during tool post-processing', {
-        cancelReason: 'abort_during_post_processing_table',
-      })
+      return settleCancelled('Request aborted during tool post-processing')
     }
     result = await maybeWriteReadCsvToTable(
       executionCall.name,
@@ -1207,13 +1060,10 @@ async function executeToolAndReportInner(
       toolExecutionContext
     )
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      return settleCancelled('Request aborted during tool post-processing', {
-        cancelReason: 'abort_during_post_processing_csv',
-      })
+      return settleCancelled('Request aborted during tool post-processing')
     }
     const projection = inspectToolResultForCopilot(
       result,
@@ -1224,16 +1074,8 @@ async function executeToolAndReportInner(
     mergeToolRegistry(projection.safe)
     const modelSucceeded = copilotResult.success
 
-    toolSpan.attributes = {
-      ...toolSpan.attributes,
-      ...summarizeToolResultForSpan(copilotResult),
-      ...(projection.safe
-        ? {}
-        : { resultWithheld: true, ...describeWithholdingCause(projection.cause) }),
-    }
     if (!projection.safe) {
-      // A withheld SUCCESS otherwise leaves no trace anywhere: the span reads
-      // ok and the model just sees a bare `{success: true}` with no output.
+      // A withheld SUCCESS otherwise leaves no trace anywhere: the model just sees a bare `{success: true}` with no output.
       // The cause is what says whether a guard latched, no catalog was built,
       // or the payload itself was unprojectable — three different fixes.
       logger.warn('Tool result withheld by egress projection', {
@@ -1297,14 +1139,11 @@ async function executeToolAndReportInner(
     await commitToolResult({
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
-      status: modelSucceeded
-        ? MothershipStreamV1AsyncToolRecordStatus.completed
-        : MothershipStreamV1AsyncToolRecordStatus.failed,
+      status: modelSucceeded ? ASYNC_TOOL_STATUS.completed : ASYNC_TOOL_STATUS.failed,
       ...(terminalData !== undefined ? { result: terminalData } : {}),
       error: modelSucceeded ? null : terminalMessage,
     })
     if (toolCall.result !== terminalResult) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     committedCompletion = buildCompletionSignal({
@@ -1372,7 +1211,6 @@ async function executeToolAndReportInner(
     }
   } catch (error) {
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     const thrownMessage = enrichOpaqueToolError(
@@ -1389,10 +1227,7 @@ async function executeToolAndReportInner(
     mergeToolRegistry(projection.safe)
     const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
-      return settleCancelled('Request aborted during tool execution', {
-        cancelReason: 'abort_during_execution_catch',
-        error: safeThrownMessage,
-      })
+      return settleCancelled('Request aborted during tool execution')
     }
     setTerminalToolCallState(toolCall, {
       status: MothershipStreamV1ToolOutcome.error,
@@ -1412,12 +1247,11 @@ async function executeToolAndReportInner(
     await commitToolResult({
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
-      status: MothershipStreamV1AsyncToolRecordStatus.failed,
+      status: ASYNC_TOOL_STATUS.failed,
       result: { error: toolCall.error },
       error: toolCall.error,
     })
     if (toolCall.result !== terminalErrorResult) {
-      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     committedCompletion = buildCompletionSignal({
@@ -1463,9 +1297,5 @@ async function executeToolAndReportInner(
       error: toError(error).message,
     })
   }
-  endToolSpan(committedCompletion.status === 'success' ? 'ok' : 'error', {
-    resultSuccess: committedCompletion.status === 'success',
-    ...(committedCompletion.status === 'error' ? { error: committedCompletion.message } : {}),
-  })
   return committedCompletion
 }

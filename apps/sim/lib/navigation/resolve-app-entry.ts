@@ -7,16 +7,26 @@ interface EntrySession {
   user: { id: string }
 }
 
-/** Returns a destination only after checking the viewer's membership and organization rollout. */
-export async function resolveOrganizationEntryPath(session: EntrySession): Promise<string | null> {
+/**
+ * The viewer's organization, once membership and the organization's rollout both check
+ * out. The organization surface sends a viewer to the workspace picker only when that
+ * rollout is off, so forwarding the picker's viewers on this answer cannot loop.
+ */
+export async function resolveRolledOutOrganizationId(
+  session: EntrySession
+): Promise<string | null> {
   const organizationId = await resolveOrganizationLanding(
     session.user.id,
     getActiveOrganizationId(session)
   )
   if (!organizationId) return null
-  return (await isKnowledgeMemberAccessAvailable({ organizationId }))
-    ? organizationRoutes(organizationId).home
-    : null
+  return (await isKnowledgeMemberAccessAvailable({ organizationId })) ? organizationId : null
+}
+
+/** Returns a destination only after checking the viewer's membership and organization rollout. */
+export async function resolveOrganizationEntryPath(session: EntrySession): Promise<string | null> {
+  const organizationId = await resolveRolledOutOrganizationId(session)
+  return organizationId ? organizationRoutes(organizationId).home : null
 }
 
 /**

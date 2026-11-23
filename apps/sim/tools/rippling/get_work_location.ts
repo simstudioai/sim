@@ -1,11 +1,14 @@
 import type { RipplingGetWorkLocationParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingGetWorkLocationTool: ToolConfig<RipplingGetWorkLocationParams> = {
   id: 'rippling_get_work_location',
   name: 'Rippling Get Work Location',
   description: 'Get a specific work location by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',
@@ -17,7 +20,7 @@ export const ripplingGetWorkLocationTool: ToolConfig<RipplingGetWorkLocationPara
   },
   request: {
     url: (params) =>
-      `https://rest.ripplingapis.com/work-locations/${encodeURIComponent(params.id.trim())}/`,
+      `https://rest.ripplingapis.com/work-locations/${safeUrlPathSegment(params.id, 'id')}/`,
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },

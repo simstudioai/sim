@@ -116,6 +116,15 @@ describe('personal GitLab tokens in Connected accounts', () => {
     )
     expectLiveBinding()
   })
+  it('verifies and stores a pasted token without its surrounding whitespace', async () => {
+    binding()
+    dbChainMockFns.returning.mockResolvedValueOnce([current])
+    await createPersonalTokenCredential({ ...input, apiToken: ` ${input.apiToken}\n` })
+    expect(mocks.verify).toHaveBeenCalledWith(input.apiToken, input.domain)
+    expect(mocks.encrypt).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: input.apiToken })
+    )
+  })
   it('reconnects the same identity slot without creating a second personal credential', async () => {
     binding()
     dbChainMockFns.returning.mockResolvedValueOnce([]).mockResolvedValueOnce([current])

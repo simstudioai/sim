@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 
-const redisUrl = process.env.REDIS_URL
+const redisUrl = process.env.REDIS_URL ?? ''
 if (!redisUrl) throw new Error('Integration setup must provide disposable Redis')
 const internalSecret = process.env.INTERNAL_API_SECRET
 
@@ -60,7 +60,7 @@ async function startReplica(): Promise<Replica> {
   vi.resetModules()
   const fileDoc = await import('@/handlers/file-doc')
   const fileDocStore = await import('@/handlers/file-doc-store')
-  const { MemoryRoomManager } = await import('@/rooms')
+  const { RedisRoomManager } = await import('@/rooms')
   await fileDocStore.initFileDocStore(redisUrl)
   const pub: RedisClientType = createClient({ url: redisUrl })
   const sub: RedisClientType = createClient({ url: redisUrl })
@@ -69,7 +69,8 @@ async function startReplica(): Promise<Replica> {
   const io = new Server(http)
   io.adapter(createAdapter(pub, sub))
   fileDoc.registerFileDocPresenceRelay(io)
-  const manager = new MemoryRoomManager(io)
+  const manager = new RedisRoomManager(io, redisUrl)
+  await manager.initialize()
   io.on('connection', (socket) => {
     const authed = socket as AuthenticatedSocket
     authed.userId = socket.handshake.auth.actor
@@ -83,7 +84,10 @@ async function startReplica(): Promise<Replica> {
     url: await listen(http),
     pub,
     sub,
-    shutdownStore: () => fileDocStore.getFileDocStore().shutdown(),
+    shutdownStore: async () => {
+      await fileDocStore.getFileDocStore().shutdown()
+      await manager.shutdown()
+    },
   }
   replicas.push(replica)
   return replica

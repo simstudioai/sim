@@ -1,9 +1,12 @@
 import { GrafanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 
 export const GrafanaBlock: BlockConfig = {
   type: 'grafana',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'grafana_v2' },
   name: 'Grafana',
   description: 'Interact with Grafana dashboards, alerts, and annotations',
   authMode: AuthMode.ApiKey,
@@ -723,6 +726,14 @@ Return ONLY the annotation text - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'grafana_list_annotations' },
     },
     {
+      id: 'alertUid',
+      title: 'Alert Rule UID',
+      type: 'short-input',
+      placeholder: 'Filter by alert rule UID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_annotations' },
+    },
+    {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
@@ -1107,9 +1118,9 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     ],
     config: {
       tool: (params) => params.operation,
-      params: (params) => {
+      params: (params, context) => {
         const result: Record<string, unknown> = {}
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'grafana_list_dashboards':
             if (params.page) result.page = Number(params.page)
             if (params.limit) result.limit = Number(params.limit)
@@ -1141,17 +1152,17 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.contactPointSettings) result.settings = params.contactPointSettings
             break
           case 'grafana_query_data_source':
-            result.queries = params.dataSourceQueries
+            result.queries = params.dataSourceQueries ?? toolCallArg(context, params.queries)
             if (params.queryFrom) result.from = params.queryFrom
             if (params.queryTo) result.to = params.queryTo
             break
           case 'grafana_move_folder':
-            result.folderUid = params.manageFolderUid
-            result.parentUid = params.newParentUid ?? ''
+            result.folderUid = params.manageFolderUid ?? toolCallArg(context, params.folderUid)
+            result.parentUid = params.newParentUid ?? toolCallArg(context, params.parentUid) ?? ''
             break
           case 'grafana_get_alert_rule_group':
-            result.folderUid = params.manageFolderUid
-            result.ruleGroup = params.ruleGroupName
+            result.folderUid = params.manageFolderUid ?? toolCallArg(context, params.folderUid)
+            result.ruleGroup = params.ruleGroupName ?? toolCallArg(context, params.ruleGroup)
             break
           case 'grafana_create_annotation':
             if (params.annotationTags) result.tags = params.annotationTags
@@ -1175,6 +1186,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.annotationType) result.type = params.annotationType
             if (params.panelId) result.panelId = Number(params.panelId)
             if (params.alertId) result.alertId = Number(params.alertId)
+            if (params.alertUid) result.alertUid = params.alertUid
             if (params.userId) result.userId = Number(params.userId)
             if (params.from) result.from = Number(params.from)
             if (params.to) result.to = Number(params.to)
@@ -1287,6 +1299,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     from: { type: 'number', description: 'Filter from time' },
     to: { type: 'number', description: 'Filter to time' },
     alertId: { type: 'number', description: 'Filter annotations by alert ID' },
+    alertUid: { type: 'string', description: 'Filter annotations by alert rule UID' },
     userId: { type: 'number', description: 'Filter annotations by creator user ID' },
     annotationType: {
       type: 'string',
@@ -1596,3 +1609,17 @@ export const GrafanaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GrafanaV2Block: BlockConfig = {
+  ...GrafanaBlock,
+  type: 'grafana_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GrafanaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'grafana',
+    title: 'Grafana Credential',
+  }),
+}

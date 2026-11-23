@@ -519,6 +519,7 @@ describe('capabilityGovernedPrincipalUserId', () => {
         kind: 'personal_api_key',
         userId: 'user-2',
         keyId: 'key-1',
+        access: 'write',
       })
     ).toBe('user-2')
   })

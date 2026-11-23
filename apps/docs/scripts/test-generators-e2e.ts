@@ -57,7 +57,14 @@ async function runGenerator(command: string, logName: string) {
 
 async function contentArtifacts() {
   const artifacts: Record<string, string> = {}
-  for (const file of ['catalog.json', 'search.json', 'routes.json', 'registry.ts', 'cache.json'])
+  for (const file of [
+    'catalog.json',
+    'search.json',
+    'search-catalog.json',
+    'routes.json',
+    'registry.ts',
+    'cache.json',
+  ])
     artifacts[file] = hash(await readFile(resolve(root, 'apps/docs/.content', file), 'utf8'))
   artifacts.fullMarkdown = hash(
     await readFile(resolve(root, 'apps/docs/public/llms-full.txt'), 'utf8')

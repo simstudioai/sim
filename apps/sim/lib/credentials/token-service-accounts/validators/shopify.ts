@@ -16,7 +16,7 @@ import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
  * host — exactly one label before `myshopify.com`, so lookalike hosts such as
  * `sub.myshopify.com.evil.com` are rejected before any outbound fetch.
  */
-const SHOPIFY_HOST_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/
+export const SHOPIFY_HOST_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/
 
 /**
  * Every selected field must stay scope-free. `hasShopifyAuthError` treats an
@@ -57,7 +57,7 @@ function hasShopifyAuthError(errors: unknown): boolean {
 }
 
 /** Strips the protocol and trailing slashes and lowercases the store domain. */
-function normalizeShopifyDomain(rawDomain: string): string {
+export function normalizeShopifyDomain(rawDomain: string): string {
   return rawDomain
     .trim()
     .replace(/^https?:\/\//i, '')

@@ -1,6 +1,7 @@
 import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from '@/tools/confluence/types'
 import {
   BODY_FORMAT_PROPERTIES,
+  CONTENT_LABELS_OUTPUT,
   TIMESTAMP_OUTPUT,
   VERSION_OUTPUT_PROPERTIES,
 } from '@/tools/confluence/types'
@@ -78,6 +79,22 @@ export const confluenceRetrieveTool: InternalToolConfig<
     spaceId: { type: 'string', description: 'ID of the space containing the page', optional: true },
     parentId: { type: 'string', description: 'ID of the parent page', optional: true },
     authorId: { type: 'string', description: 'Account ID of the page author', optional: true },
+    ownerId: {
+      type: 'string',
+      description: 'Account ID of the current page owner',
+      optional: true,
+    },
+    lastOwnerId: {
+      type: 'string',
+      description: 'Account ID of the previous page owner',
+      optional: true,
+    },
+    parentType: {
+      type: 'string',
+      description: 'Type of the parent content (e.g., page, whiteboard, database, embed, folder)',
+      optional: true,
+    },
+    labels: CONTENT_LABELS_OUTPUT,
     createdAt: {
       type: 'string',
       description: 'ISO 8601 timestamp when the page was created',

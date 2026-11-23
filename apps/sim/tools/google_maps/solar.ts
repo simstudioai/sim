@@ -30,7 +30,7 @@ export const googleMapsSolarTool: ToolConfig<GoogleMapsSolarParams, GoogleMapsSo
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Minimum imagery quality to accept (HIGH, MEDIUM, or BASE)',
+      description: 'Minimum imagery quality to accept (HIGH, MEDIUM, LOW, or BASE)',
     },
   },
 

@@ -1,5 +1,7 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListPaymentIntentsParams, PaymentIntentListResponse } from '@/tools/stripe/types'
 import { LIST_METADATA_OUTPUT_PROPERTIES, PAYMENT_INTENT_OUTPUT } from '@/tools/stripe/types'
+import { appendListCursors, listCursorParams } from '@/tools/stripe/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const stripeListPaymentIntentsTool: ToolConfig<
@@ -10,6 +12,7 @@ export const stripeListPaymentIntentsTool: ToolConfig<
   name: 'Stripe List Payment Intents',
   description: 'List all Payment Intents',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -36,12 +39,14 @@ export const stripeListPaymentIntentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Filter by creation date (e.g., {"gt": 1633024800})',
     },
+    ...listCursorParams('Payment Intent'),
   },
 
   request: {
     url: (params) => {
       const url = new URL('https://api.stripe.com/v1/payment_intents')
       if (params.limit) url.searchParams.append('limit', params.limit.toString())
+      appendListCursors(url, params)
       if (params.customer) url.searchParams.append('customer', params.customer)
       if (params.created) {
         Object.entries(params.created).forEach(([key, value]) => {

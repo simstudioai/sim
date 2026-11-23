@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { sesEmailTagsSchema } from '@/lib/api/contracts/tools/aws/ses-shared'
 import type {
   ContractBody,
   ContractBodyInput,
@@ -21,6 +22,9 @@ const SendBulkEmailSchema = z.object({
   destinations: z.string().min(1, 'Destinations JSON array is required'),
   defaultTemplateData: z.string().nullish(),
   configurationSetName: z.string().nullish(),
+  replyToAddresses: z.string().nullish(),
+  fromName: z.string().nullish(),
+  emailTags: sesEmailTagsSchema,
 })
 
 const SendBulkEmailResponseSchema = z.object({

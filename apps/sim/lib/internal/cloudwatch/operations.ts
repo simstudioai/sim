@@ -63,6 +63,8 @@ export async function executeCloudwatchDescribeAlarmHistory(
       timestamp: number | undefined
       historyItemType: string | undefined
       historySummary: string | undefined
+      historyData: string | undefined
+      alarmContributorId: string | undefined
     }[] = []
     let nextToken: string | undefined
 
@@ -92,6 +94,8 @@ export async function executeCloudwatchDescribeAlarmHistory(
           timestamp: item.Timestamp?.getTime(),
           historyItemType: item.HistoryItemType,
           historySummary: item.HistorySummary,
+          historyData: item.HistoryData,
+          alarmContributorId: item.AlarmContributorId,
         })
       }
       nextToken = response.NextToken
@@ -128,6 +132,7 @@ export async function executeCloudwatchDescribeAlarms(
           ? [input.alarmType as AlarmType]
           : (['MetricAlarm', 'CompositeAlarm'] as AlarmType[]),
         ...(input.limit !== undefined && { MaxRecords: input.limit }),
+        ...(input.nextToken && { NextToken: input.nextToken }),
       }),
       { abortSignal: signal }
     )
@@ -142,6 +147,48 @@ export async function executeCloudwatchDescribeAlarms(
       threshold: alarm.Threshold,
       evaluationPeriods: alarm.EvaluationPeriods,
       stateUpdatedTimestamp: alarm.StateUpdatedTimestamp?.getTime(),
+      alarmType: 'MetricAlarm',
+      alarmDescription: alarm.AlarmDescription,
+      actionsEnabled: alarm.ActionsEnabled,
+      alarmActions: alarm.AlarmActions ?? [],
+      okActions: alarm.OKActions ?? [],
+      insufficientDataActions: alarm.InsufficientDataActions ?? [],
+      stateReasonData: alarm.StateReasonData,
+      stateTransitionedTimestamp: alarm.StateTransitionedTimestamp?.getTime(),
+      alarmConfigurationUpdatedTimestamp: alarm.AlarmConfigurationUpdatedTimestamp?.getTime(),
+      statistic: alarm.Statistic,
+      extendedStatistic: alarm.ExtendedStatistic,
+      dimensions: (alarm.Dimensions ?? []).map((dimension) => ({
+        name: dimension.Name ?? '',
+        value: dimension.Value ?? '',
+      })),
+      period: alarm.Period,
+      unit: alarm.Unit,
+      datapointsToAlarm: alarm.DatapointsToAlarm,
+      treatMissingData: alarm.TreatMissingData,
+      thresholdMetricId: alarm.ThresholdMetricId,
+      metrics: alarm.Metrics?.map((query) => ({
+        id: query.Id ?? '',
+        expression: query.Expression,
+        label: query.Label,
+        returnData: query.ReturnData,
+        period: query.Period,
+        accountId: query.AccountId,
+        metricStat: query.MetricStat
+          ? {
+              namespace: query.MetricStat.Metric?.Namespace,
+              metricName: query.MetricStat.Metric?.MetricName,
+              dimensions: (query.MetricStat.Metric?.Dimensions ?? []).map((dimension) => ({
+                name: dimension.Name ?? '',
+                value: dimension.Value ?? '',
+              })),
+              period: query.MetricStat.Period,
+              stat: query.MetricStat.Stat,
+              unit: query.MetricStat.Unit,
+            }
+          : undefined,
+      })),
+      alarmRule: undefined,
     }))
     const compositeAlarms = (response.CompositeAlarms ?? []).map((alarm) => ({
       alarmName: alarm.AlarmName ?? '',
@@ -154,8 +201,24 @@ export async function executeCloudwatchDescribeAlarms(
       threshold: undefined,
       evaluationPeriods: undefined,
       stateUpdatedTimestamp: alarm.StateUpdatedTimestamp?.getTime(),
+      alarmType: 'CompositeAlarm',
+      alarmDescription: alarm.AlarmDescription,
+      actionsEnabled: alarm.ActionsEnabled,
+      alarmActions: alarm.AlarmActions ?? [],
+      okActions: alarm.OKActions ?? [],
+      insufficientDataActions: alarm.InsufficientDataActions ?? [],
+      stateReasonData: alarm.StateReasonData,
+      stateTransitionedTimestamp: alarm.StateTransitionedTimestamp?.getTime(),
+      alarmConfigurationUpdatedTimestamp: alarm.AlarmConfigurationUpdatedTimestamp?.getTime(),
+      alarmRule: alarm.AlarmRule,
     }))
-    return { success: true, output: { alarms: [...metricAlarms, ...compositeAlarms] } }
+    return {
+      success: true,
+      output: {
+        alarms: [...metricAlarms, ...compositeAlarms],
+        nextToken: response.NextToken ?? null,
+      },
+    }
   } finally {
     client.destroy()
   }
@@ -204,10 +267,14 @@ export async function executeCloudwatchFilterLogEvents(
         endTime: input.endTime !== undefined ? input.endTime * 1000 : undefined,
         startFromHead: input.startFromHead,
         limit: input.limit,
+        nextToken: input.nextToken,
       },
       signal
     )
-    return { success: true, output: { events: result.events } }
+    return {
+      success: true,
+      output: { events: result.events, nextToken: result.nextToken ?? null },
+    }
   } finally {
     client.destroy()
   }
@@ -223,10 +290,22 @@ export async function executeCloudwatchGetLogEvents(
       client,
       input.logGroupName,
       input.logStreamName,
-      { startTime: input.startTime, endTime: input.endTime, limit: input.limit },
+      {
+        startTime: input.startTime,
+        endTime: input.endTime,
+        limit: input.limit,
+        nextToken: input.nextToken,
+      },
       signal
     )
-    return { success: true, output: { events: result.events } }
+    return {
+      success: true,
+      output: {
+        events: result.events,
+        nextForwardToken: result.nextForwardToken ?? null,
+        nextBackwardToken: result.nextBackwardToken ?? null,
+      },
+    }
   } finally {
     client.destroy()
   }
@@ -265,7 +344,10 @@ export async function executeCloudwatchGetMetricStatistics(
         StartTime: new Date(input.startTime * 1000),
         EndTime: new Date(input.endTime * 1000),
         Period: input.period,
-        Statistics: input.statistics,
+        ...(input.extendedStatistics && input.extendedStatistics.length > 0
+          ? { ExtendedStatistics: input.extendedStatistics }
+          : { Statistics: input.statistics }),
+        ...(input.unit && { Unit: input.unit as StandardUnit }),
         ...(dimensions && { Dimensions: dimensions }),
       }),
       { abortSignal: signal }
@@ -280,6 +362,7 @@ export async function executeCloudwatchGetMetricStatistics(
         maximum: datapoint.Maximum,
         sampleCount: datapoint.SampleCount,
         unit: datapoint.Unit,
+        extendedStatistics: datapoint.ExtendedStatistics,
       }))
     return {
       success: true,
@@ -488,6 +571,7 @@ export async function executeCloudwatchQueryLogs(
         results: result.results,
         statistics: result.statistics,
         status: result.status,
+        queryId: response.queryId,
       },
     }
   } finally {

@@ -4,12 +4,12 @@ import { isRich, theme } from './theme'
 
 const SPINNER_FRAMES = ['◐', '◓', '◑', '◒']
 
-function guardCancel<T>(value: T | symbol): T {
+function guardCancel<T>(value: T | typeof clack.CANCEL_SYMBOL): T {
   if (clack.isCancel(value)) {
     clack.cancel('Setup cancelled.')
     exitWith(130)
   }
-  return value as T
+  return value
 }
 
 export interface SelectOption<T extends string> {

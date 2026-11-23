@@ -267,7 +267,7 @@ export async function processExecutionFiles(
         uploadedFiles.push(userFile)
       }
     } catch (error) {
-      logger.error(`[${requestId}] Failed to process workflow file`, error)
+      logger.error('Failed to process workflow file', error, { requestId })
       throw new Error(`Failed to process workflow file: ${getErrorMessage(error, 'Invalid file')}`)
     }
   }
@@ -384,7 +384,8 @@ export async function processInputFileFields(
       else processedInput[fileField.name] = uploadedFiles
       if (uploadedFiles.length > 0) {
         logger.info(
-          `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
+          `Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`,
+          { requestId }
         )
       }
     }

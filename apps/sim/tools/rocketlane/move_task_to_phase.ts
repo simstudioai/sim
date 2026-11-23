@@ -7,6 +7,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneMoveTaskToPhaseTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneMoveTaskToPhaseTool: ToolConfig<
   name: 'Rocketlane Move Task To Phase',
   description: 'Move a Rocketlane task to a given phase, associating the task with that phase',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

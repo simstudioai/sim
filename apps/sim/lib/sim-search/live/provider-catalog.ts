@@ -1,7 +1,8 @@
 interface LiveSearchProviderDefinition {
-  origin: string
+  origin: string | null
   credentialProviderIds: readonly string[]
   modes: readonly ('member' | 'service_account')[]
+  savedMemberCredential?: boolean
 }
 
 /** Browser-safe capabilities; branding and setup fields live in source-catalog. */
@@ -51,6 +52,18 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     credentialProviderIds: ['github-repositories'],
     modes: ['member', 'service_account'],
   },
+  jama: {
+    origin: null,
+    credentialProviderIds: ['jama-service-account'],
+    modes: ['member'],
+    savedMemberCredential: true,
+  },
+  flow: {
+    origin: 'https://backend.branch.flowengineering.com',
+    credentialProviderIds: ['flow-service-account'],
+    modes: ['member'],
+    savedMemberCredential: true,
+  },
   gitlab: {
     origin: 'https://gitlab.com',
     credentialProviderIds: ['gitlab'],
@@ -64,6 +77,11 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
   lucid: {
     origin: 'https://mcp.lucid.app',
     credentialProviderIds: ['mcp:lucid'],
+    modes: ['member'],
+  },
+  hex: {
+    origin: 'https://app.hex.tech',
+    credentialProviderIds: ['mcp:hex'],
     modes: ['member'],
   },
   hubspot: {
@@ -89,6 +107,7 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
   coda: {
     origin: 'https://coda.io',
     credentialProviderIds: ['coda-service-account'],
+    savedMemberCredential: true,
     modes: ['member', 'service_account'],
   },
 } as const satisfies Record<string, LiveSearchProviderDefinition>
@@ -115,3 +134,11 @@ export function supportsLiveSearchMode(
 ): boolean {
   return (LIVE_SEARCH_PROVIDER_CATALOG[provider].modes as readonly string[]).includes(mode)
 }
+
+/** Saved credentials whose owner must prove the current provider identity before every Search use. */
+export const SAVED_MEMBER_SEARCH_PROVIDER_IDS = LIVE_SEARCH_PROVIDER_IDS.flatMap((provider) => {
+  const definition = LIVE_SEARCH_PROVIDER_CATALOG[provider]
+  return 'savedMemberCredential' in definition && definition.savedMemberCredential
+    ? [...definition.credentialProviderIds]
+    : []
+})

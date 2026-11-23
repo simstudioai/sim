@@ -1,0 +1,29 @@
+{
+  "namespace": "legacy.iam",
+  "methods": {
+    "add_user_to_group": "addUserToGroup",
+    "attach_role_policy": "attachRolePolicy",
+    "attach_user_policy": "attachUserPolicy",
+    "create_access_key": "createAccessKey",
+    "create_role": "createRole",
+    "create_user": "createUser",
+    "delete_access_key": "deleteAccessKey",
+    "delete_role": "deleteRole",
+    "delete_user": "deleteUser",
+    "detach_role_policy": "detachRolePolicy",
+    "detach_user_policy": "detachUserPolicy",
+    "get_policy": "getPolicy",
+    "get_role": "getRole",
+    "get_user": "getUser",
+    "list_access_keys": "listAccessKeys",
+    "list_attached_role_policies": "listAttachedRolePolicies",
+    "list_attached_user_policies": "listAttachedUserPolicies",
+    "list_groups": "listGroups",
+    "list_policies": "listPolicies",
+    "list_roles": "listRoles",
+    "list_users": "listUsers",
+    "remove_user_from_group": "removeUserFromGroup",
+    "simulate_principal_policy": "simulatePrincipalPolicy",
+    "update_access_key": "updateAccessKey"
+  }
+}

@@ -2,6 +2,7 @@ import { WealthboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { isToolCall, mapperOperation, toolCallArg } from '@/blocks/utils'
 
 const CONTACT_FIELD = ['contactId', 'manualContactId'] as const
 
@@ -21,7 +22,7 @@ export const WealthboxBlock: BlockConfig = {
     defaultTitle: 'Wealthbox',
     sentences: {
       byOperation: {
-        read_note: [{ text: 'Read note', field: 'noteId', core: true }],
+        read_note: ['Read notes', { text: ', or note', field: 'noteId' }],
         write_note: [
           { text: 'Write note', field: 'content', core: true },
           { text: 'on contact', field: CONTACT_FIELD },
@@ -207,8 +208,9 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
             throw new Error(`Unknown operation: ${params.operation}`)
         }
       },
-      params: (params) => {
-        const { oauthCredential, operation, contactId, taskId, ...rest } = params
+      params: (params, context) => {
+        const operation = mapperOperation(params, context)
+        const { oauthCredential, contactId, taskId, ...rest } = params
 
         // contactId is the canonical param for both basic (file-selector) and advanced (manualContactId) modes
         const effectiveContactId = contactId ? String(contactId).trim() : ''
@@ -226,7 +228,7 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
           }
         }
         if (operation === 'read_contact') {
-          if (!effectiveContactId) {
+          if (!effectiveContactId && !isToolCall(context)) {
             throw new Error('Contact ID is required for contact operations')
           }
           return {
@@ -236,6 +238,7 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
         }
         if (operation === 'read_task') {
           if (!taskId?.trim()) {
+            if (isToolCall(context)) return baseParams
             throw new Error('Task ID is required for task operations')
           }
           return {
@@ -243,12 +246,20 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
             taskId: taskId.trim(),
           }
         }
-        if (operation === 'write_task' || operation === 'write_note') {
+        if (operation === 'write_task') {
+          const content = typeof params.content === 'string' ? params.content.trim() : ''
+          const description = toolCallArg(context, params.description) || content || undefined
+          const taskParams = {
+            ...baseParams,
+            ...(description ? { description } : {}),
+            taskId: undefined,
+          }
           if (!contactId?.trim()) {
+            if (isToolCall(context)) return taskParams
             throw new Error('Contact ID is required for this operation')
           }
           return {
-            ...baseParams,
+            ...taskParams,
             contactId: contactId.trim(),
           }
         }

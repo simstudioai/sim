@@ -1,5 +1,7 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpUnpublishLandingPageParams {
   apiKey: string
@@ -21,6 +23,7 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
   name: 'Unpublish Landing Page in Mailchimp',
   description: 'Unpublish a landing page in Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -39,7 +42,10 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildMailchimpUrl(params.apiKey, `/landing-pages/${params.pageId}/actions/unpublish`),
+      buildMailchimpUrl(
+        params.apiKey,
+        `/landing-pages/${safeUrlPathSegment(params.pageId, 'pageId')}/actions/unpublish`
+      ),
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

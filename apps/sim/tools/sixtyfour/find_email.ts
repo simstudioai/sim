@@ -1,3 +1,4 @@
+import { SIXTYFOUR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SixtyfourFindEmailParams, SixtyfourFindEmailResponse } from '@/tools/sixtyfour/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,6 +24,7 @@ export const sixtyfourFindEmailTool: ToolConfig<
   name: 'Sixtyfour Find Email',
   description: 'Find email addresses for a lead using Sixtyfour AI.',
   version: '1.0.0',
+  oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

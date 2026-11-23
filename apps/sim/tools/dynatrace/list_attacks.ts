@@ -15,6 +15,7 @@ import {
   readJsonBody,
 } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAttacksTool: ToolConfig<DynatraceListAttacksParams, DynatraceListAttacksResponse> =
@@ -24,6 +25,7 @@ export const listAttacksTool: ToolConfig<DynatraceListAttacksParams, DynatraceLi
     description:
       'List runtime attacks Dynatrace Application Protection detected — injection attempts, their source, and whether they were blocked.',
     version: '1.0.0',
+    oauth: DYNATRACE_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
     params: {

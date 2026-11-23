@@ -1,11 +1,14 @@
 import type { DiscordGetMemberParams, DiscordGetMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGetMemberResponse> = {
   id: 'discord_get_member',
   name: 'Discord Get Member',
   description: 'Get information about a member in a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {
@@ -30,7 +33,7 @@ export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGet
 
   request: {
     url: (params: DiscordGetMemberParams) => {
-      return `https://discord.com/api/v10/guilds/${params.serverId.trim()}/members/${params.userId.trim()}`
+      return `https://discord.com/api/v10/guilds/${safeUrlPathSegment(params.serverId, 'serverId')}/members/${safeUrlPathSegment(params.userId, 'userId')}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -61,10 +64,10 @@ export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGet
           properties: {
             id: { type: 'string', description: 'User ID' },
             username: { type: 'string', description: 'Username' },
-            avatar: { type: 'string', description: 'Avatar hash' },
+            avatar: { type: 'string', description: 'Avatar hash', optional: true, nullable: true },
           },
         },
-        nick: { type: 'string', description: 'Server nickname' },
+        nick: { type: 'string', description: 'Server nickname', optional: true, nullable: true },
         roles: { type: 'array', description: 'Array of role IDs' },
         joined_at: { type: 'string', description: 'When the member joined' },
       },

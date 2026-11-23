@@ -1,20 +1,21 @@
 'use client'
 
 import { type MouseEvent, useCallback, useMemo, useState } from 'react'
-import { Avatar, ChipConfirmModal, ChipModalError, writeTextToClipboard } from '@sim/emcn'
+import { Avatar, ChipConfirmModal, ChipModalError, toast, writeTextToClipboard } from '@sim/emcn'
 import { Link } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useQueryStates } from 'nuqs'
 import type { SimLink } from '@/lib/api/contracts/sim-links'
-import { simLinkPath } from '@/lib/navigation/paths'
-import { toSimLinkName } from '@/lib/sim-links/validation'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { simLinkPath, simLinkUrl } from '@/lib/navigation/paths'
+import { SIM_LINK_SEARCH_MAX_LENGTH, toSimLinkName } from '@/lib/sim-links/validation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
+  INSTALL_EXTENSION_ACTION,
   NEW_SIM_LINK_ACTION,
   SIM_LINK_COLUMNS,
   SIM_LINKS_SEARCH_PLACEHOLDER,
 } from '@/app/o/[organizationId]/links/columns'
-import SimLinksLoading from '@/app/o/[organizationId]/links/loading'
 import {
   simLinksParsers,
   simLinksSortParams,
@@ -45,6 +46,9 @@ import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('SimLinks')
 
+const SIM_FOR_CHROME_URL =
+  'https://chromewebstore.google.com/detail/sim/oanlcahddodnjpdoopcpjlcageejjpmg'
+
 const SORT_OPTIONS = [
   { id: 'name', label: 'Name' },
   { id: 'popular', label: 'Opens' },
@@ -62,9 +66,11 @@ function openLink(name: string) {
 
 async function copyLink(name: string) {
   try {
-    await writeTextToClipboard(new URL(simLinkPath(name), window.location.origin).href)
+    await writeTextToClipboard(simLinkUrl(window.location.origin, name))
+    toast.success('Link copied')
   } catch (error) {
     logger.error('Failed to copy Sim link', { error })
+    toast.error('Unable to copy link')
   }
 }
 
@@ -74,6 +80,7 @@ interface SimLinksProps {
 
 /** Every Sim link the viewer may browse, in the shared resource table. */
 export function SimLinks({ organizationId }: SimLinksProps) {
+  const { hosted } = useDeploymentShape()
   const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
   const setSearch = useDebouncedSearchSetter((value, options) =>
     setView({ search: value }, options)
@@ -100,7 +107,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
       loaded.map((link) => ({
         id: link.id,
         cells: {
-          name: { icon: <SimLinkIcon url={link.url} />, label: `sim/${link.name}` },
+          name: { icon: <SimLinkIcon url={link.url} />, label: link.name },
           destination: { label: link.url },
           description: { label: link.description },
           owner: link.createdBy
@@ -125,6 +132,7 @@ export function SimLinks({ organizationId }: SimLinksProps) {
 
   const searchConfig: SearchConfig = {
     value: search,
+    maxLength: SIM_LINK_SEARCH_MAX_LENGTH,
     onChange: setSearch,
     onClearAll: () => setSearch(''),
     placeholder: SIM_LINKS_SEARCH_PLACEHOLDER,
@@ -151,14 +159,24 @@ export function SimLinks({ organizationId }: SimLinksProps) {
   )
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
 
-  if (!links.data && !links.isLoadingError) return <SimLinksLoading />
+  const showEmptyState = Boolean(links.data || links.isLoadingError)
 
   return (
     <Resource>
       <Resource.Header
         icon={Link}
-        title='Sim Links'
-        actions={[{ ...NEW_SIM_LINK_ACTION, id: 'create', onSelect: startCreate }]}
+        title='Links'
+        actions={[
+          ...(hosted
+            ? [
+                {
+                  ...INSTALL_EXTENSION_ACTION,
+                  onSelect: () => window.open(SIM_FOR_CHROME_URL, '_blank', 'noopener,noreferrer'),
+                },
+              ]
+            : []),
+          { ...NEW_SIM_LINK_ACTION, id: 'create', onSelect: startCreate },
+        ]}
       />
       <Resource.Options search={searchConfig} sort={sortConfig} />
       <Resource.Table
@@ -173,18 +191,19 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         isFetching={links.isFetching}
         loadMoreFailed={links.isFetchNextPageError}
         emptyState={
-          links.isLoadingError ? (
+          showEmptyState &&
+          (links.isLoadingError ? (
             <ResourceLoadError message={links.error.message} onRetry={() => void links.refetch()} />
           ) : query ? (
             <ResourceNoResults
               search={query}
               filterCount={0}
-              searchScope='Searched every Sim link you can see.'
+              searchScope='Searched every link you can see.'
               onClear={() => setSearch('')}
             />
           ) : (
             <SimLinksEmptyState onCreate={startCreate} />
-          )
+          ))
         }
       />
       {menuLink && (
@@ -226,8 +245,8 @@ export function SimLinks({ organizationId }: SimLinksProps) {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleting(null)
         }}
-        title='Delete Sim link'
-        text={`sim/${deleting?.name ?? ''} will stop working for everyone in your organization.`}
+        title='Delete link'
+        text={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
         confirm={{
           label: 'Delete',
           pendingLabel: 'Deleting',

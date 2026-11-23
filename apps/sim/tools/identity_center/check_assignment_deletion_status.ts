@@ -2,6 +2,7 @@ import type {
   IdentityCenterAssignmentStatusResponse,
   IdentityCenterCheckAssignmentStatusParams,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const checkAssignmentDeletionStatusTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const checkAssignmentDeletionStatusTool: InternalToolConfig<
   name: 'Identity Center Check Assignment Deletion Status',
   description: 'Check the deprovisioning status of an account assignment deletion request',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

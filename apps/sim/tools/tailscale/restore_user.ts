@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TailscaleRestoreUserResponse, TailscaleUserParams } from '@/tools/tailscale/types'
 import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const tailscaleRestoreUserTool: ToolConfig<
   name: 'Tailscale Restore User',
   description: 'Restore a suspended user’s access to the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

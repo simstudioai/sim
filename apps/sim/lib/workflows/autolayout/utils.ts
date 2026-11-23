@@ -1,4 +1,8 @@
 import {
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
   BLOCK_DIMENSIONS,
   CONTAINER_DIMENSIONS,
   clampNoteBlockTotalHeight,
@@ -30,13 +34,12 @@ import { getDisplayValue, hasDisplayableRowValue } from '@/lib/workflows/subbloc
 import {
   buildCanonicalIndexForSurface,
   buildSubBlockValues,
-  type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
   isTriggerModeSubBlock,
+  withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -188,15 +191,14 @@ function getVisiblePreviewSubBlocks(block: BlockState): {
     }
   }
 
-  const rawValues = buildSubBlockValues(block.subBlocks || {})
   const canonicalModeOverrides =
     typeof block.data?.canonicalModes === 'object' && block.data.canonicalModes !== null
       ? (block.data.canonicalModes as CanonicalModeOverrides)
       : undefined
-
-  if (canonicalModeOverrides) {
-    rawValues.__canonicalModes = canonicalModeOverrides
-  }
+  const rawValues = withCanonicalModes(
+    buildSubBlockValues(block.subBlocks || {}),
+    canonicalModeOverrides
+  )
 
   const effectiveAdvanced = Boolean(block.advancedMode)
   const effectiveTrigger = Boolean(block.triggerMode)

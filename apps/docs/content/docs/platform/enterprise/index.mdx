@@ -3,7 +3,7 @@ title: Enterprise
 description: Configure organization access, provisioning, security, and operations
 ---
 
-Sim Enterprise adds controls for organization access, member provisioning, security, operations, and branding. On Sim Cloud, these features require an Enterprise subscription. Organization owners and admins manage organization controls in **Settings → Organization**.
+Sim Enterprise adds controls for organization access, member provisioning, security, and operations. On Sim Cloud, these features require an Enterprise subscription. Organization owners and admins manage organization controls in **Settings → Organization**.
 
 | Feature | Use it to |
 | --- | --- |
@@ -19,7 +19,6 @@ Sim Enterprise adds controls for organization access, member provisioning, secur
 | [Data drains](/platform/enterprise/data-drains) | Export logs and Chat records to your own destination |
 | [Custom blocks](/platform/enterprise/custom-blocks) | Share a workflow as a block across the organization |
 | [Workspace forks](/platform/enterprise/forks) | Copy a workspace and sync deployed workflow changes |
-| [White-labeling](/platform/enterprise/whitelabeling) | Configure organization branding |
 
 ## Self-hosted setup
 
@@ -27,7 +26,6 @@ On a self-hosted deployment with billing disabled, enable enterprise features th
 
 ```bash
 ENTERPRISE_ENABLED=true
-NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
 Individual feature flags override the master switch. Most enterprise settings also need an organization that owns the workspace. Choose one instance-wide organization or provision separate organizations through the Admin API.

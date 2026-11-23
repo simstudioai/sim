@@ -33,8 +33,33 @@ permissions:
 jobs:
   checks:
     name: checks
-    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
+    # `actions: read` lets each e2e job watch this run's build (e2e) job.
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/checks.yml
+
+  push-checks:
+    name: push-checks
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-24.04
+    # Validation can chain a 25-minute build and a 30-minute acceptance job.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - name: Checkout admission gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Require this commit's independent push validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-push-checks.sh
 
   # Detect if this is a version release commit (e.g., "v0.5.24: ...")
   # Smallest runner on purpose: a few seconds of pure shell over the commit
@@ -116,14 +141,14 @@ jobs:
       contents: read
       id-token: write
     name: migrate
-    needs: [checks]
+    needs: [push-checks]
     # Explicit need results instead of the implicit success(): a skipped job
     # anywhere in the transitive needs chain silently fails implicit success()
     # and cascade-skips the deploy chain (migrate -> promote ->
     # CodeDeploy) — this bit us on 2026-07-23. State requirements explicitly.
     if: >-
       !cancelled() &&
-      needs.checks.result == 'success' &&
+      needs.push-checks.result == 'success' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     uses: ./.github/workflows/migrate.yml
@@ -188,8 +213,11 @@ jobs:
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404
+          # Dev runs `db:push`, which needs drizzle-kit; every other environment
+          # gets the final stage, which carries runtime dependencies only.
           - id: db
             dockerfile: ./docker/db.Dockerfile
+            target: dev
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
             bs_runner: blacksmith-2vcpu-ubuntu-2404
@@ -218,7 +246,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Login to Docker Hub
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -238,6 +266,7 @@ jobs:
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.sha }}-dev
           build-args: |
             MSHIP_PLAN_MODE_DEFAULT=true
+          target: ${{ matrix.target }}
           max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Staging/production coordinate task releases with app traffic cutover.
@@ -249,6 +278,9 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: &runner-4vcpu ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       version: ${{ steps.deploy.outputs.deploymentVersion }}
       environment: ${{ steps.target.outputs.environment }}
@@ -274,6 +306,15 @@ jobs:
           echo "environment=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
           echo "preview_branch=$TRIGGER_BRANCH" >> "$GITHUB_OUTPUT"
 
+      # The deploy syncs an environment listed in `vars.TRIGGER_ENV_SYNC_TARGETS` from the app's
+      # env-vars secret (see `@sim/runtime-secrets/trigger-env`), which needs read access to that secret.
+      - name: Configure AWS credentials for the env sync
+        if: contains(format(',{0},', vars.TRIGGER_ENV_SYNC_TARGETS), format(',{0},', steps.target.outputs.environment))
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+
       - name: Upload Trigger.dev version without promotion
         id: deploy
         working-directory: ./apps/sim
@@ -282,6 +323,7 @@ jobs:
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
           TRIGGER_ENV: ${{ steps.target.outputs.environment }}
           TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
+          TRIGGER_ENV_SYNC_TARGETS: ${{ vars.TRIGGER_ENV_SYNC_TARGETS }}
         run: |
           set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
@@ -370,14 +412,14 @@ jobs:
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Login to Docker Hub
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GHCR
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -645,6 +687,44 @@ jobs:
           fi
           bunx trigger.dev@4.8.3 promote "$VERSION" "${TARGET_ARGS[@]}"
 
+  landing-seo-live:
+    name: landing-seo-live
+    needs: [promote, trigger-promote]
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.promote.outputs.promoted == 'true' &&
+      needs.trigger-promote.outputs.cutover == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup
+        with:
+          provider: github
+          node-version: ''
+
+      - name: Check priority landing pages after cutover
+        env:
+          LANDING_SEO_E2E_BASE_URL: https://www.sim.ai
+          LANDING_SEO_E2E_REPORT_PATH: ${{ runner.temp }}/landing-seo-live.json
+        run: bun run --cwd apps/sim test:landing-seo:e2e --live
+
+      - name: Upload live landing SEO results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: landing-seo-live
+          path: ${{ runner.temp }}/landing-seo-live.json
+
   # Production only, once the new app serves traffic: submit the library and comparison URLs this
   # push changed to IndexNow. Best effort: nothing depends on it, and a failure never fails the run.
   indexnow:
@@ -759,7 +839,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -813,7 +893,7 @@ jobs:
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -897,7 +977,7 @@ jobs:
       count: ${{ steps.resolve.outputs.count }}
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -1078,7 +1158,7 @@ jobs:
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -1127,7 +1207,7 @@ jobs:
           push-to-registry: true
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
       # The attestations above prove how the image was built; this is the plain
       # signature that admission controllers (Kyverno, the Sigstore policy

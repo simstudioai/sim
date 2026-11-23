@@ -47,7 +47,7 @@ Doctor is not a Helm runtime diagnostic. For Kubernetes, use the infrastructure 
 | 6 | Upload and download a small file in Files. | Storage works end to end. | Check signed-URL/CORS settings for cloud storage, or app/proxy logs for local storage. |
 | 7 | Upload a file larger than 50 MiB and confirm completion. | Multipart upload works on cloud or local storage. | Read part-upload and completion errors in app logs. |
 
-Two windows verify collaboration between clients. To establish cross-replica operation, also confirm their socket connections reach different realtime pods. A load balancer can send both windows to one process. Multi-replica operation requires `REDIS_URL` on the app and realtime services.
+Two windows verify collaboration between clients. To establish cross-replica operation, also confirm their socket connections reach different realtime pods. A load balancer can send both windows to one process. Every replica of the app and realtime services must reach the same Redis through `REDIS_URL`.
 
 Cloud uploads use multipart above 50 MiB; local uploads use it above 8 MiB. Local parts pass through Sim, while cloud parts use signed provider URLs. See [Object storage](/platform/self-hosting/object-storage).
 

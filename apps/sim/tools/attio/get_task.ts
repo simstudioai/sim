@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { AttioGetTaskParams, AttioGetTaskResponse } from './types'
 import { TASK_OUTPUT_PROPERTIES } from './types'
 
@@ -32,7 +33,8 @@ export const attioGetTaskTool: ToolConfig<AttioGetTaskParams, AttioGetTaskRespon
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/tasks/${params.taskId.trim()}`,
+    url: (params) =>
+      `https://api.attio.com/v2/tasks/${safeUrlPathSegment(params.taskId, 'taskId')}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

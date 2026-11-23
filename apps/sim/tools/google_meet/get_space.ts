@@ -4,6 +4,11 @@ import {
   type GoogleMeetGetSpaceResponse,
   MEET_API_BASE,
 } from '@/tools/google_meet/types'
+import {
+  buildMeetResourceName,
+  buildSpaceConfigDetails,
+  SPACE_CONFIG_DETAIL_OUTPUTS,
+} from '@/tools/google_meet/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpaceResponse> = {
@@ -34,8 +39,7 @@ export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpa
 
   request: {
     url: (params: GoogleMeetGetSpaceParams) => {
-      const trimmed = params.spaceName.trim()
-      const name = trimmed.startsWith('spaces/') ? trimmed : `spaces/${trimmed}`
+      const name = buildMeetResourceName(params.spaceName, 'spaces', 'spaceName')
       return `${MEET_API_BASE}/${name}`
     },
     method: 'GET',
@@ -54,6 +58,7 @@ export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpa
     return {
       success: true,
       output: {
+        ...buildSpaceConfigDetails(data),
         name: data.name,
         meetingUri: data.meetingUri,
         meetingCode: data.meetingCode,
@@ -65,6 +70,7 @@ export const getSpaceTool: ToolConfig<GoogleMeetGetSpaceParams, GoogleMeetGetSpa
   },
 
   outputs: {
+    ...SPACE_CONFIG_DETAIL_OUTPUTS,
     name: { type: 'string', description: 'Resource name of the space' },
     meetingUri: { type: 'string', description: 'Meeting URL' },
     meetingCode: { type: 'string', description: 'Meeting code' },

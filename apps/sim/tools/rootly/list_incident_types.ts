@@ -2,6 +2,8 @@ import type {
   RootlyListIncidentTypesParams,
   RootlyListIncidentTypesResponse,
 } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListIncidentTypesTool: ToolConfig<
@@ -12,6 +14,7 @@ export const rootlyListIncidentTypesTool: ToolConfig<
   name: 'Rootly List Incident Types',
   description: 'List incident types configured in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -62,7 +65,7 @@ export const rootlyListIncidentTypesTool: ToolConfig<
       return {
         success: false,
         output: { incidentTypes: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

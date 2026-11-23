@@ -5,7 +5,6 @@ import {
   SCHEDULE_DISABLE_REASON_COPY,
   type ScheduleDisableReason,
 } from '@/lib/workflows/schedules/disable-reasons'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface ScheduleDisabledEmailProps {
   recipientName?: string
@@ -29,21 +28,20 @@ export function ScheduleDisabledEmail({
   failedCount,
   manageLink,
 }: ScheduleDisabledEmailProps) {
-  const brand = getBrandConfig()
   const resourceLabel = resourceName ?? 'a scheduled workflow'
   const reasonCopy =
     reason === 'consecutive_failures' && failedCount
       ? `It failed ${failedCount.toLocaleString()} times in a row.`
       : SCHEDULE_DISABLE_REASON_COPY[reason]
-  const previewText = `${brand.name} turned off the schedule for ${resourceLabel}`
+  const previewText = `Sim turned off the schedule for ${resourceLabel}`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
       <Text style={baseStyles.greeting}>{recipientName ? `Hi ${recipientName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
-        {brand.name} turned off the schedule for {resourceLabel}. It will not run again until you
-        fix the problem and turn it back on.
+        Sim turned off the schedule for {resourceLabel}. It will not run again until you fix the
+        problem and turn it back on.
       </Text>
 
       <Section style={baseStyles.infoBox}>

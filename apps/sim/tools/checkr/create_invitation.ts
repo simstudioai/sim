@@ -14,6 +14,7 @@ import {
   parseCheckrStringList,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCreateInvitationTool: ToolConfig<
@@ -25,6 +26,7 @@ export const checkrCreateInvitationTool: ToolConfig<
   description:
     'Invite a candidate to complete a background check through the Checkr-hosted apply flow. Checkr emails the candidate a link to provide their information and consent.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

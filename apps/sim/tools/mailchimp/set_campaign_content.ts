@@ -3,7 +3,9 @@ import {
   handleMailchimpError,
   type MailchimpCampaignContent,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export interface MailchimpSetCampaignContentParams {
   apiKey: string
@@ -29,6 +31,7 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
   name: 'Set Campaign Content in Mailchimp',
   description: 'Set the content for a Mailchimp campaign',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -64,7 +67,11 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildMailchimpUrl(params.apiKey, `/campaigns/${params.campaignId}/content`),
+    url: (params) =>
+      buildMailchimpUrl(
+        params.apiKey,
+        `/campaigns/${safeUrlPathSegment(params.campaignId, 'campaignId')}/content`
+      ),
     method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -75,7 +82,13 @@ export const mailchimpSetCampaignContentTool: ToolConfig<
 
       if (params.html) body.html = params.html
       if (params.plainText) body.plain_text = params.plainText
-      if (params.templateId) body.template = { id: params.templateId }
+      if (params.templateId) {
+        const templateId = Number(String(params.templateId).trim())
+        if (!Number.isSafeInteger(templateId) || templateId <= 0) {
+          throw new Error('templateId must be a positive integer')
+        }
+        body.template = { id: templateId }
+      }
 
       return body
     },

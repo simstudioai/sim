@@ -1,0 +1,61 @@
+{
+  "name": "@sim/table-cells",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "bun": ">=1.4.4",
+    "node": ">=20.0.0"
+  },
+  "exports": {
+    "./currency": {
+      "types": "./src/currency.ts",
+      "default": "./src/currency.ts"
+    },
+    "./dates": {
+      "types": "./src/dates.ts",
+      "default": "./src/dates.ts"
+    },
+    "./rows": {
+      "types": "./src/rows.ts",
+      "default": "./src/rows.ts"
+    },
+    "./rules": {
+      "types": "./src/rules.ts",
+      "default": "./src/rules.ts"
+    },
+    "./select": {
+      "types": "./src/select.ts",
+      "default": "./src/select.ts"
+    },
+    "./ttl": {
+      "types": "./src/ttl.ts",
+      "default": "./src/ttl.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "default": "./src/types.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sim/utils": "workspace:*",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@sim/testing": "workspace:*",
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

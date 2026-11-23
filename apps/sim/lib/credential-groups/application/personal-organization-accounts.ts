@@ -169,6 +169,7 @@ export const reconnectPersonalOrganizationAccount = defineAuthorizedCredentialUs
           return startViewerCredentialGroupMcpOAuth({
             ...connection,
             mcpServerId: account.mcpServerId,
+            connectionIntent: { kind: 'reconnect', credentialId: account.credentialId },
           })
         }
         throw new OrchestrationError('not_found', 'This account provider is no longer available')

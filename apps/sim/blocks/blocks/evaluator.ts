@@ -3,11 +3,13 @@ import { ChartBarIcon } from '@/components/icons'
 import { getModelFallbackSubBlock, MODEL_FALLBACK_INPUTS } from '@/blocks/model-fallbacks'
 import type { BlockConfig, ParamType } from '@/blocks/types'
 import {
-  getModelOptions,
+  BEDROCK_SAVED_CREDENTIAL_INPUTS,
+  getModelOptionsWithAuto,
   getProviderCredentialSubBlocks,
-  getSerializedModelProviderId,
   PROVIDER_CREDENTIAL_INPUTS,
+  resolveModelProviderId,
 } from '@/blocks/utils'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 
 const logger = createLogger('EvaluatorBlock')
 
@@ -167,10 +169,10 @@ export const EvaluatorBlock: BlockConfig = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-5-5',
-      options: getModelOptions,
+      defaultValue: DEFAULT_BLOCK_MODEL,
+      options: getModelOptionsWithAuto,
     },
-    ...getProviderCredentialSubBlocks(),
+    ...getProviderCredentialSubBlocks({ bedrockSavedCredential: true }),
     getModelFallbackSubBlock(),
     {
       id: 'temperature',
@@ -235,7 +237,7 @@ export const EvaluatorBlock: BlockConfig = {
       'deepseek_reasoner',
     ],
     config: {
-      tool: (params: Record<string, any>) => getSerializedModelProviderId(params.model),
+      tool: (params: Record<string, any>) => resolveModelProviderId(params.model),
     },
   },
   inputs: {
@@ -277,6 +279,7 @@ export const EvaluatorBlock: BlockConfig = {
     },
     model: { type: 'string' as ParamType, description: 'AI model to use' },
     ...PROVIDER_CREDENTIAL_INPUTS,
+    ...BEDROCK_SAVED_CREDENTIAL_INPUTS,
     ...MODEL_FALLBACK_INPUTS,
     temperature: {
       type: 'number' as ParamType,

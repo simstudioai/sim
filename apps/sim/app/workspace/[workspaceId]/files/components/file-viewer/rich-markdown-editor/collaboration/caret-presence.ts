@@ -58,15 +58,36 @@ export function caretColorSlot(color: unknown): number {
  */
 const CARET_ACTIVE_CLASS = 'collaboration-carets__caret--active'
 
-/** The class that flips the label to the caret's left near the editor's right edge. */
+/** The class that flips the label to the caret's left near the viewport's right edge. */
 const CARET_FLIP_CLASS = 'collaboration-carets__caret--flip'
 
 /** Per-caret fade timers, keyed by the (reused) caret DOM node. */
 const caretFadeTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>()
 
+function positionCaretLabel(caret: HTMLElement, editorBounds?: DOMRect) {
+  const label = caret.querySelector<HTMLElement>('.collaboration-carets__label')
+  const bounds =
+    caret.closest('.tableWrapper')?.getBoundingClientRect() ??
+    editorBounds ??
+    caret.closest('.ProseMirror')?.getBoundingClientRect()
+  if (!label || !bounds) return
+  const anchor = caret.getBoundingClientRect().left
+  const outside = anchor < bounds.left || anchor > bounds.right
+  caret.toggleAttribute('data-caret-outside', outside)
+  if (outside) return
+  const available = Math.max(0, bounds.width - 2)
+  caret.style.setProperty('--caret-label-max-width', `${available}px`)
+  const width = label.getBoundingClientRect().width
+  const flip = anchor - 1 + width > bounds.right - 1
+  caret.classList.toggle(CARET_FLIP_CLASS, flip)
+  const left = flip ? anchor + 1 - width : anchor - 1
+  const bounded = Math.min(Math.max(left, bounds.left + 1), bounds.right - 1 - width)
+  caret.style.setProperty('--caret-label-offset', `${bounded - left}px`)
+}
+
 /**
  * Show a peer's name label, (re)start its fade timer, and flip it to the caret's
- * left when it would run off the editor's right edge.
+ * left when it would run off its visible viewport.
  *
  * yCursorPlugin renders each caret as a keyed widget decoration, so ProseMirror
  * REUSES the same DOM node as the caret moves (verified: the render function is
@@ -75,7 +96,7 @@ const caretFadeTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>(
  * (unlike `update`) fires only on a real state change, not the 15s heartbeat, so
  * an idle peer's label correctly stays hidden.
  */
-export function activateCaretLabel(caret: HTMLElement, editorRight?: number) {
+export function activateCaretLabel(caret: HTMLElement, editorBounds?: DOMRect) {
   caret.classList.add(CARET_ACTIVE_CLASS)
   const existing = caretFadeTimers.get(caret)
   if (existing) clearTimeout(existing)
@@ -87,14 +108,7 @@ export function activateCaretLabel(caret: HTMLElement, editorRight?: number) {
     }, CARET_LABEL_HOLD_MS)
   )
 
-  if (editorRight === undefined) return
-  const label = caret.querySelector<HTMLElement>('.collaboration-carets__label')
-  if (!label) return
-  // Measure the default (rightward) position, then flip left only if it overflows.
-  caret.classList.remove(CARET_FLIP_CLASS)
-  if (label.getBoundingClientRect().right > editorRight) {
-    caret.classList.add(CARET_FLIP_CLASS)
-  }
+  positionCaretLabel(caret, editorBounds)
 }
 
 /**
@@ -144,23 +158,32 @@ export function createCaretActivityExtension(awareness: Awareness): Extension {
         new Plugin({
           key: new PluginKey('collaborationCaretActivity'),
           view: (editorView) => {
-            // Coalesce bursts of awareness changes into a single rAF per frame, however many
-            // peers moved: accumulate the changed client ids, then re-activate each matching
-            // (reused) caret node once. The shared editorRight is read once up front; each moving
-            // caret then does one getBoundingClientRect for its edge-flip measure (bounded by the
-            // small number of concurrently-moving peers, not the awareness event rate).
+            // Layout changes reposition idle names without restarting their activity timers.
             let raf = 0
+            let repositionAll = false
             const pending = new Set<number>()
             const flush = () => {
               raf = 0
-              const editorRight = editorView.dom.getBoundingClientRect().right
-              for (const id of pending) {
-                const caret = editorView.dom.querySelector<HTMLElement>(
-                  `.collaboration-carets__caret[data-caret-client-id="${id}"]`
-                )
-                if (caret) activateCaretLabel(caret, editorRight)
+              const bounds = editorView.dom.getBoundingClientRect()
+              const carets = repositionAll
+                ? editorView.dom.querySelectorAll<HTMLElement>('.collaboration-carets__caret')
+                : [...pending].flatMap((id) => {
+                    const caret = editorView.dom.querySelector<HTMLElement>(
+                      `.collaboration-carets__caret[data-caret-client-id="${id}"]`
+                    )
+                    return caret ? [caret] : []
+                  })
+              for (const caret of carets) {
+                const id = caret.dataset.caretClientId
+                if (id !== undefined && pending.has(Number(id))) activateCaretLabel(caret, bounds)
+                else positionCaretLabel(caret, bounds)
               }
+              repositionAll = false
               pending.clear()
+            }
+            const onViewportChange = () => {
+              repositionAll = true
+              if (!raf) raf = requestAnimationFrame(flush)
             }
             const onChange = ({ added, updated }: { added: number[]; updated: number[] }) => {
               for (const id of added) pending.add(id)
@@ -168,9 +191,17 @@ export function createCaretActivityExtension(awareness: Awareness): Extension {
               if (pending.size > 0 && !raf) raf = requestAnimationFrame(flush)
             }
             awareness.on('change', onChange)
+            editorView.dom.addEventListener('scroll', onViewportChange, true)
+            window.addEventListener('resize', onViewportChange)
+            const observer =
+              typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onViewportChange)
+            observer?.observe(editorView.dom)
             return {
               destroy: () => {
                 awareness.off('change', onChange)
+                editorView.dom.removeEventListener('scroll', onViewportChange, true)
+                window.removeEventListener('resize', onViewportChange)
+                observer?.disconnect()
                 if (raf) cancelAnimationFrame(raf)
                 // Clear any pending fade timers for this editor's carets so they don't fire on
                 // detached nodes after unmount (harmless no-op, but a genuine leaked timer).

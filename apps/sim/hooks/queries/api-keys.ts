@@ -50,15 +50,22 @@ export function useCreateApiKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, name, keyType, source }: CreateApiKeyParams) => {
+    mutationFn: async ({
+      workspaceId,
+      name,
+      keyType,
+      source,
+      access,
+      expiresAt,
+    }: CreateApiKeyParams) => {
       if (keyType === 'workspace') {
         return requestJson(createWorkspaceApiKeyContract, {
           params: { id: workspaceId },
-          body: { name, source },
+          body: { name, source, access, expiresAt },
         })
       }
 
-      return requestJson(createPersonalApiKeyContract, { body: { name } })
+      return requestJson(createPersonalApiKeyContract, { body: { name, access, expiresAt } })
     },
     onSettled: (_data, _error, variables) => {
       if (variables.keyType === 'personal') {

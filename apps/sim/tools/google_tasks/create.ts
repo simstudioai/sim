@@ -1,5 +1,10 @@
 import type { GoogleTasksCreateParams, GoogleTasksResponse } from '@/tools/google_tasks/types'
-import { TASKS_API_BASE } from '@/tools/google_tasks/types'
+import {
+  mapTaskOutput,
+  TASK_EXTRA_OUTPUTS,
+  TASKS_API_BASE,
+  taskListPath,
+} from '@/tools/google_tasks/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse> = {
@@ -42,7 +47,8 @@ export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Due date in RFC 3339 format (e.g., 2025-06-03T00:00:00.000Z)',
+      description:
+        'Due date in RFC 3339 format (e.g., 2025-06-03T00:00:00.000Z). Google Tasks stores only the date; the time is discarded',
     },
     status: {
       type: 'string',
@@ -67,12 +73,11 @@ export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse
 
   request: {
     url: (params) => {
-      const taskListId = params.taskListId || '@default'
       const queryParams = new URLSearchParams()
       if (params.parent) queryParams.set('parent', params.parent)
       if (params.previous) queryParams.set('previous', params.previous)
       const qs = queryParams.toString()
-      return `${TASKS_API_BASE}/lists/${encodeURIComponent(taskListId)}/tasks${qs ? `?${qs}` : ''}`
+      return `${TASKS_API_BASE}/${taskListPath(params.taskListId)}/tasks${qs ? `?${qs}` : ''}`
     },
     method: 'POST',
     headers: (params) => ({
@@ -99,20 +104,7 @@ export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse
 
     return {
       success: true,
-      output: {
-        id: data.id ?? null,
-        title: data.title ?? null,
-        notes: data.notes ?? null,
-        status: data.status ?? null,
-        due: data.due ?? null,
-        updated: data.updated ?? null,
-        selfLink: data.selfLink ?? null,
-        webViewLink: data.webViewLink ?? null,
-        parent: data.parent ?? null,
-        position: data.position ?? null,
-        completed: data.completed ?? null,
-        deleted: data.deleted ?? null,
-      },
+      output: mapTaskOutput(data),
     }
   },
 
@@ -129,5 +121,6 @@ export const createTool: ToolConfig<GoogleTasksCreateParams, GoogleTasksResponse
     position: { type: 'string', description: 'Position among sibling tasks' },
     completed: { type: 'string', description: 'Completion date', optional: true },
     deleted: { type: 'boolean', description: 'Whether the task is deleted', optional: true },
+    ...TASK_EXTRA_OUTPUTS,
   },
 }

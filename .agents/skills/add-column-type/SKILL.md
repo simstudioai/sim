@@ -141,6 +141,15 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 
 Copy `currency`'s service function and orchestration branch.
 
+## Workspace source and the workflow SDK
+
+The workspace source table codec reads the registry, but the SDK restates each type: add the
+`column.<type>()` helper to `packages/workflow-sdk/src/workspace/table.d.ts` (the drift test in
+`apps/sim/lib/workspace-source/application/kinds/table/codec.test.ts` fails until you do), map the
+type's row value in `valueType()` (`packages/workflow-sdk/src/codegen/workspace.ts`, which defaults to
+`string`), and regenerate the embedded text (`bun packages/workflow-sdk/scripts/generate-embedded-text.ts`).
+See `.claude/rules/sim-workflow-code.md`.
+
 ## Checklist Before Finishing
 
 - [ ] Id appended to `COLUMN_TYPES` in `column-types/types.ts`

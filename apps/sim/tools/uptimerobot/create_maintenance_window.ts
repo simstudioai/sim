@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   buildMaintenanceWindowBody,
@@ -18,6 +19,7 @@ export const uptimeRobotCreateMaintenanceWindowTool: ToolConfig<
   name: 'UptimeRobot Create Maintenance Window',
   description: 'Create a new maintenance window to suppress alerts during planned downtime',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

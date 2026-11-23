@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SmartleadCampaignIdParams,
   SmartleadListWebhooksResponse,
@@ -23,6 +24,7 @@ export const listCampaignWebhooksTool: ToolConfig<
   name: 'Smartlead List Campaign Webhooks',
   description: 'Retrieves the webhooks registered on a Smartlead campaign.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

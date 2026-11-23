@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
-import { and, desc, eq, getTableColumns, or } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, notInArray, or } from 'drizzle-orm'
 import type {
   CreateOrganizationCredentialBody,
   CreateOrganizationCredentialDraftBody,
@@ -33,6 +33,10 @@ import { createCredentialRecord } from '@/lib/credentials/orchestration/credenti
 import { getOrganizationCredential } from '@/lib/credentials/organization'
 import { getOwnOrganizationManagedOAuthCredentials } from '@/lib/credentials/organization-managed'
 import type { CredentialRow } from '@/lib/credentials/queries'
+import {
+  isPersonalOrganizationServiceAccount,
+  PERSONAL_ORGANIZATION_SERVICE_ACCOUNT_PROVIDER_IDS,
+} from '@/lib/credentials/service-account-provider-ids'
 import {
   resolveCredentialTokenBundle,
   type ServiceAccountTokenResult,
@@ -109,7 +113,15 @@ export const listOrganizationCredentials: OperationUseCase<
             organizationId: input.organizationId,
           }),
           or(
-            eq(credential.type, 'service_account'),
+            and(
+              eq(credential.type, 'service_account'),
+              or(
+                eq(credential.createdBy, context.userId),
+                notInArray(credential.providerId, [
+                  ...PERSONAL_ORGANIZATION_SERVICE_ACCOUNT_PROVIDER_IDS,
+                ])
+              )
+            ),
             and(eq(credential.type, 'oauth'), eq(credential.createdBy, context.userId))
           ),
           ...(input.type ? [eq(credential.type, input.type)] : []),
@@ -205,6 +217,15 @@ export const createOrganizationCredential: OperationUseCase<
       organizationCredentialOperations.create,
       input
     )
+    if (
+      input.type === 'service_account' &&
+      isPersonalOrganizationServiceAccount(input.providerId)
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        'Connect this account from your personal Search integrations'
+      )
+    }
     const catalog = await listCredentialProviderCatalog(principal, input)
     if (input.type === 'service_account')
       requireAvailableServiceAccountCredentialProvider(catalog, input.providerId ?? '')
@@ -332,7 +353,9 @@ export async function authorizeOrganizationCredentialUse(input: {
       row.type !== 'service_account' &&
       !(row.type === 'managed_oauth' && input.purpose === 'browsing')) ||
     !row.providerId ||
-    (row.type === 'oauth' && row.createdBy !== context.userId)
+    ((row.type === 'oauth' ||
+      (row.type === 'service_account' && isPersonalOrganizationServiceAccount(row.providerId))) &&
+      row.createdBy !== context.userId)
   ) {
     throw new OrchestrationError('not_found', 'Credential not found')
   }
@@ -369,7 +392,10 @@ export async function authorizeOrganizationCredentialUse(input: {
 }
 
 export async function resolveOrganizationCredentialTokenBundle(
-  input: Parameters<typeof authorizeOrganizationCredentialUse>[0]
+  input: Parameters<typeof authorizeOrganizationCredentialUse>[0] & {
+    /** The service the token is for, from the caller's server-side definition. */
+    service?: string
+  }
 ): Promise<ServiceAccountTokenResult | null> {
   const { credential: row, userId } = await authorizeOrganizationCredentialUse(input)
   if (row.type === 'managed_oauth') {
@@ -386,7 +412,7 @@ export async function resolveOrganizationCredentialTokenBundle(
     input.requestId,
     input.requiredScopes,
     input.impersonateEmail,
-    { privacyMode: 'selector' }
+    { privacyMode: 'selector', service: input.service }
   )
 }
 
@@ -406,11 +432,19 @@ export const updateOrganizationCredential: OperationUseCase<
     if (
       !row ||
       (row.type !== 'oauth' && row.type !== 'service_account') ||
-      (row.type === 'oauth' && row.createdBy !== context.userId)
+      ((row.type === 'oauth' ||
+        (row.type === 'service_account' && isPersonalOrganizationServiceAccount(row.providerId))) &&
+        row.createdBy !== context.userId)
     )
       throw new OrchestrationError('not_found', 'Credential not found')
+    if (row.type === 'service_account' && isPersonalOrganizationServiceAccount(row.providerId)) {
+      throw new OrchestrationError(
+        'validation',
+        'Update this account from your personal Search integrations'
+      )
+    }
     const result = await withResourceOutboundScope(row, () =>
-      updateCredentialRecord({ ...input, credential: row })
+      updateCredentialRecord({ ...input, credential: row, actorUserId: context.userId })
     )
     if (!result.success) throwCredentialMutationFailure(result)
     const updated = await getOrganizationCredential(input.organizationId, input.credentialId)

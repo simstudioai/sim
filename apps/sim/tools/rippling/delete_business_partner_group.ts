@@ -1,5 +1,7 @@
 import type { RipplingDeleteBusinessPartnerGroupParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const ripplingDeleteBusinessPartnerGroupTool: ToolConfig<RipplingDeleteBusinessPartnerGroupParams> =
   {
@@ -7,6 +9,7 @@ export const ripplingDeleteBusinessPartnerGroupTool: ToolConfig<RipplingDeleteBu
     name: 'Rippling Delete Business Partner Group',
     description: 'Delete a business partner group',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',
@@ -23,7 +26,7 @@ export const ripplingDeleteBusinessPartnerGroupTool: ToolConfig<RipplingDeleteBu
     },
     request: {
       url: (params) =>
-        `https://rest.ripplingapis.com/business-partner-groups/${encodeURIComponent(params.id.trim())}/`,
+        `https://rest.ripplingapis.com/business-partner-groups/${safeUrlPathSegment(params.id, 'id')}/`,
       method: 'DELETE',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

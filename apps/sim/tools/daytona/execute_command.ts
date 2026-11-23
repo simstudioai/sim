@@ -3,6 +3,7 @@ import type {
   DaytonaExecuteCommandResponse,
 } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError, toOptionalNumber } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 
@@ -14,6 +15,7 @@ export const daytonaExecuteCommandTool: ToolConfig<
   name: 'Daytona Execute Command',
   description: 'Execute a shell command inside a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

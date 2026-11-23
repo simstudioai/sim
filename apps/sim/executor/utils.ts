@@ -50,6 +50,7 @@ export class StreamingResponseFormatProcessor {
   ): ReadableStream {
     let buffer = ''
     let hasProcessedComplete = false
+    let endsWithBracket = false
 
     const self = this
 
@@ -73,7 +74,12 @@ export class StreamingResponseFormatProcessor {
             const chunk = decoder.decode(value, { stream: true })
             buffer += chunk
 
-            if (!hasProcessedComplete) {
+            // Only text ending in `}` or `]` can parse to an object, so skip re-parsing
+            // the whole buffer on every other token: that made each stream quadratic.
+            const trimmedChunk = chunk.trimEnd()
+            if (trimmedChunk) endsWithBracket = /[}\]]$/.test(trimmedChunk)
+
+            if (!hasProcessedComplete && endsWithBracket) {
               const processedChunk = self.processStreamingChunk(buffer, selectedFields)
 
               if (processedChunk) {
@@ -113,32 +119,6 @@ export class StreamingResponseFormatProcessor {
         return null
       }
     } catch {}
-
-    const openBraces = (buffer.match(/\{/g) || []).length
-    const closeBraces = (buffer.match(/\}/g) || []).length
-
-    if (openBraces > 0 && openBraces === closeBraces) {
-      try {
-        const parsed = JSON.parse(buffer.trim())
-        if (typeof parsed === 'object' && parsed !== null) {
-          const results: string[] = []
-          for (const field of selectedFields) {
-            if (field in parsed) {
-              const value = parsed[field]
-              const formattedValue = typeof value === 'string' ? value : JSON.stringify(value)
-              results.push(formattedValue)
-            }
-          }
-
-          if (results.length > 0) {
-            const result = results.join('\n')
-            return result
-          }
-
-          return null
-        }
-      } catch {}
-    }
 
     return null
   }

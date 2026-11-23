@@ -1,3 +1,4 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { UpdateSloParams } from '@/tools/datadog/types'
 import {
@@ -14,7 +15,7 @@ export const executeUpdateSloOperation: InternalToolOperationImplementation<
   const url = datadogApiUrl(params.site, `/api/v1/slo/${datadogPathSegment(params.sloId)}`)
   const headers = datadogHeaders(params)
 
-  const existingResponse = await fetch(url, { method: 'GET', headers, signal })
+  const existingResponse = await outboundFetch(url, { method: 'GET', headers, signal })
   if (!existingResponse.ok) {
     return {
       success: false,
@@ -33,7 +34,7 @@ export const executeUpdateSloOperation: InternalToolOperationImplementation<
     }
   }
 
-  const response = await fetch(url, {
+  const response = await outboundFetch(url, {
     method: 'PUT',
     headers,
     body: JSON.stringify(mergeSloUpdatePayload(stored, params)),

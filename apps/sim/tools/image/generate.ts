@@ -8,7 +8,8 @@ type ImageGenerationToolConfig = InternalToolConfig<ImageGenerationParams, Image
 export const imageGenerateTool: ImageGenerationToolConfig = {
   id: 'image_generate',
   name: 'Image Generator',
-  description: 'Generate images with OpenAI GPT Image, Google Nano Banana, or Fal.ai image models',
+  description:
+    'Generate images with OpenAI GPT Image, Google Nano Banana, Higgsfield SOUL and Z-Image, or Fal.ai image models',
   version: '1.0.0',
 
   params: {
@@ -16,7 +17,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'string',
       required: true,
       visibility: 'user-only',
-      description: 'Image generation provider: openai, gemini, or falai',
+      description: 'Image generation provider: openai, gemini, higgsfield, or falai',
     },
     apiKey: {
       type: 'string',
@@ -29,13 +30,14 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Provider model ID, such as gpt-image-1.5, gemini-3.1-flash-image-preview, or nano-banana-2',
+        'Provider model ID, such as gpt-image-2.5-sunburst, gemini-3-pro-image, higgsfield-ai/soul/standard, z-image/turbo, nano-banana-pro, or a fal endpoint ID. An unlisted model ID or endpoint path is sent with the prompt only.',
     },
     prompt: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Text prompt describing the image to generate',
+      description:
+        'Text prompt describing the image to generate, up to 4,000 characters. Some models have a lower limit.',
     },
     size: {
       type: 'string',
@@ -89,7 +91,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of images to generate, subject to provider limits',
+      description: 'Must be 1; each execution returns one image',
     },
     seed: {
       type: 'number',
@@ -113,7 +115,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Fal.ai thinking level when supported: minimal or high',
+      description: 'Thinking level supported by the selected Fal.ai model',
     },
   },
 
@@ -126,6 +128,7 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
     envKeyPrefix: 'FALAI_API_KEY',
     apiKeyParam: 'apiKey',
     byokProviderId: 'falai',
+    exactCostSettlement: 'falai',
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {

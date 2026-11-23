@@ -3,6 +3,7 @@ import type {
   AmplitudeRealtimeActiveUsersResponse,
 } from '@/tools/amplitude/types'
 import { getDashboardHost } from '@/tools/amplitude/utils'
+import { AMPLITUDE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const realtimeActiveUsersTool: ToolConfig<
@@ -13,6 +14,7 @@ export const realtimeActiveUsersTool: ToolConfig<
   name: 'Amplitude Real-time Active Users',
   description: 'Get real-time active user counts at 5-minute granularity for the last 2 days.',
   version: '1.0.0',
+  oauth: AMPLITUDE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import {
   buildFallbackDeliveryFingerprint,
@@ -40,8 +41,16 @@ async function planeWebhookRequest(
 ) {
   const slug = config.triggerWorkspaceSlug
   const apiKey = config.triggerApiKey
-  if (typeof slug !== 'string' || !slug.trim() || typeof apiKey !== 'string') {
-    throw new Error('Plane workspace slug and API token are required for automatic registration')
+  if (
+    typeof slug !== 'string' ||
+    !slug.trim() ||
+    typeof apiKey !== 'string' ||
+    !apiKey.trim() ||
+    /[\r\n]/.test(apiKey.trim())
+  ) {
+    throw new WebhookDeploymentConfigurationError(
+      'Plane workspace slug and API token are required for automatic registration'
+    )
   }
   const baseUrl = typeof config.triggerBaseUrl === 'string' ? config.triggerBaseUrl : undefined
   return secureFetchWithValidation(

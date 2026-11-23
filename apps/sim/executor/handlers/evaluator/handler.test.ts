@@ -2,6 +2,11 @@ import {
   credentialsAccessMock,
   credentialsAccessMockFns,
 } from '@sim/testing/mocks/credentials-access.mock'
+import {
+  llmBedrockCredentialMock,
+  llmBedrockCredentialMockFns,
+  MockBedrockCredentialError,
+} from '@sim/testing/mocks/llm-bedrock-credential.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import '@sim/testing/mocks/executor'
 
@@ -11,6 +16,8 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 const { mockResolveAutoModel } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
 }))
+
+vi.mock('@/lib/internal/llm/bedrock-credential', () => llmBedrockCredentialMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
@@ -52,6 +59,8 @@ credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue({
 })
 
 const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockResolveBedrockCredentialSession =
+  llmBedrockCredentialMockFns.mockResolveBedrockCredentialSession
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockExecuteProviderRequest = executeProviderRequest as Mock
@@ -174,6 +183,136 @@ describe('EvaluatorBlockHandler', () => {
     expect(fallback.responseFormat).toEqual(first.responseFormat)
     expect(fallback.systemPrompt).not.toContain('Sim auto system preamble')
     expect(fallback.apiKey).toBeUndefined()
+  })
+
+  it("signs a Bedrock evaluation with the selected AWS credential's session", async () => {
+    const session = {
+      credentialId: 'aws-cred',
+      accessKeyId: 'ASIASESSIONKEY000001',
+      secretAccessKey: 'session-secret',
+      sessionToken: 'session-token',
+    }
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+    mockResolveBedrockCredentialSession.mockResolvedValueOnce(session)
+
+    await handler.execute(mockContext, mockBlock, {
+      ...admissionInputs,
+      model: 'bedrock/claude',
+      bedrockAuthMode: 'credential',
+      bedrockCredential: 'aws-cred',
+    })
+
+    expect(mockResolveBedrockCredentialSession).toHaveBeenCalledWith(
+      expect.objectContaining({ credentialId: 'aws-cred', actingUserId: 'test-user' })
+    )
+    expect(mockExecuteProviderRequest.mock.calls[0][1].bedrockSession).toEqual(session)
+  })
+
+  it('fails a Bedrock evaluation set to a saved AWS credential when none resolves', async () => {
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        ...admissionInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+      })
+    ).rejects.toThrow('Select an AWS credential for Bedrock')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps the AWS credential session off a fallback on another provider', async () => {
+    mockGetProviderFromModel.mockImplementation((model: string) =>
+      model.startsWith('claude') ? 'anthropic' : 'bedrock'
+    )
+    mockResolveBedrockCredentialSession.mockResolvedValueOnce({
+      credentialId: 'aws-cred',
+      accessKeyId: 'AKIASAVEDKEY00000001',
+      secretAccessKey: 'saved-secret',
+    })
+    mockExecuteProviderRequest
+      .mockRejectedValueOnce(new Error('overloaded'))
+      .mockResolvedValueOnce({
+        content: '{"score1":7}',
+        model: 'claude-sonnet-5',
+        tokens: { input: 12, output: 3, total: 15 },
+        cost: 0,
+      })
+
+    await handler.execute(mockContext, mockBlock, {
+      ...admissionInputs,
+      model: 'bedrock/claude',
+      bedrockAuthMode: 'credential',
+      bedrockCredential: 'aws-cred',
+      fallbackModels: [{ model: 'claude-sonnet-5' }],
+    })
+
+    const [fallbackProvider, fallbackRequest] = mockExecuteProviderRequest.mock.calls[1]
+    expect(fallbackProvider).toBe('anthropic')
+    expect(fallbackRequest.bedrockSession).toBeUndefined()
+    expect(JSON.stringify(fallbackRequest)).not.toContain('saved-secret')
+  })
+
+  it('scores with a fallback model when the saved AWS credential is unavailable on the final try', async () => {
+    mockGetProviderFromModel.mockImplementation((model: string) =>
+      model.startsWith('claude') ? 'anthropic' : 'bedrock'
+    )
+    mockResolveBedrockCredentialSession.mockRejectedValueOnce(
+      new MockBedrockCredentialError('AWS STS is unavailable', { reason: 'unavailable' })
+    )
+    mockExecuteProviderRequest.mockResolvedValueOnce({
+      content: '{"score1":7}',
+      model: 'claude-sonnet-5',
+      tokens: { input: 12, output: 3, total: 15 },
+      cost: 0,
+    })
+    mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+    mockContext.blockLogs = [
+      {
+        blockId: mockBlock.id,
+        startedAt: '',
+        endedAt: '',
+        durationMs: 0,
+        success: false,
+        executionOrder: 1,
+      },
+    ]
+
+    const output = await handler.execute(
+      mockContext,
+      mockBlock,
+      {
+        ...admissionInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+        fallbackModels: [{ model: 'claude-sonnet-5' }],
+      },
+      { nodeId: mockBlock.id, retry: { attempt: 2, maxTries: 2, isFinalTry: true } }
+    )
+
+    expect(output).toMatchObject({ model: 'claude-sonnet-5', score1: 7 })
+    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
+    expect(mockExecuteProviderRequest.mock.calls[0][0]).toBe('anthropic')
+    expect(mockContext.blockLogs[0].modelFallbacks).toEqual(['bedrock/claude'])
+  })
+
+  it('fails a Bedrock evaluation whose AWS credential cannot be used instead of sending it', async () => {
+    mockGetProviderFromModel.mockReturnValue('bedrock')
+    mockResolveBedrockCredentialSession.mockRejectedValueOnce(
+      new Error('Not authorized to use this AWS credential')
+    )
+    mockExecuteProviderRequest.mockClear()
+
+    await expect(
+      handler.execute(mockContext, mockBlock, {
+        ...admissionInputs,
+        model: 'bedrock/claude',
+        bedrockAuthMode: 'credential',
+        bedrockCredential: 'aws-cred',
+      })
+    ).rejects.toThrow('Not authorized to use this AWS credential')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   it('refuses to reach the provider without an execution subject', async () => {

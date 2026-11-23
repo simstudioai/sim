@@ -9,6 +9,7 @@ import {
   parsePersonaResponse,
   parseStringArrayParam,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaUpdateInquiryTool: ToolConfig<
@@ -20,6 +21,7 @@ export const personaUpdateInquiryTool: ToolConfig<
   description:
     'Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

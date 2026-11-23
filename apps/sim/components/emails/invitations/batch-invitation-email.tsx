@@ -2,7 +2,6 @@ import { Fragment } from 'react'
 import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -51,7 +50,6 @@ export function BatchInvitationEmail({
   workspaceInvitations = EMPTY_INVITATIONS,
   acceptUrl,
 }: BatchInvitationEmailProps) {
-  const brand = getBrandConfig()
   const hasWorkspaces = workspaceInvitations.length > 0
 
   return (
@@ -62,7 +60,7 @@ export function BatchInvitationEmail({
       <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         <EmailStrong>{inviterName}</EmailStrong> has invited you to join{' '}
-        <EmailStrong>{organizationName}</EmailStrong> on {brand.name}.
+        <EmailStrong>{organizationName}</EmailStrong> on Sim.
       </Text>
 
       <Section style={baseStyles.infoBox}>

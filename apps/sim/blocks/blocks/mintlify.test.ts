@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { MintlifyBlock } from '@/blocks/blocks/mintlify'
 
+const mapper = MintlifyBlock.tools.config?.params
+if (!mapper) throw new Error('MintlifyBlock has no params mapper')
+const blockParams = mapper
+
 /**
  * The executor merges `tools.config.params` on top of the raw inputs, so every
  * assertion runs against the merged result rather than the transform's return
  * value alone.
  */
 function resolveParams(inputs: Record<string, unknown>) {
-  return { ...inputs, ...MintlifyBlock.tools.config.params!(inputs) }
+  return { ...inputs, ...blockParams(inputs) }
 }
 
 describe('MintlifyBlock', () => {
@@ -48,6 +52,23 @@ describe('MintlifyBlock', () => {
       })
 
       expect(result.limit).toBeUndefined()
+    })
+  })
+
+  describe('agent tool calls', () => {
+    it('coerces numbers and keeps tool-named args when the operation arrives only in context', () => {
+      const args = { projectId: 'proj_1', source: 'contextual', status: 'pending', limit: '50' }
+      const result = {
+        ...args,
+        ...blockParams(args, { operation: 'get_feedback' }),
+      }
+
+      expect(result).toEqual({
+        projectId: 'proj_1',
+        source: 'contextual',
+        status: 'pending',
+        limit: 50,
+      })
     })
   })
 })

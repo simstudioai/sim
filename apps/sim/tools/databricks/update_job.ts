@@ -6,6 +6,7 @@ import {
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateJobTool: ToolConfig<DatabricksUpdateJobParams, DatabricksSuccessResponse> = {
@@ -14,6 +15,7 @@ export const updateJobTool: ToolConfig<DatabricksUpdateJobParams, DatabricksSucc
   description:
     'Merge selected settings into a Databricks job and optionally remove settings or tasks.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     jobId: {

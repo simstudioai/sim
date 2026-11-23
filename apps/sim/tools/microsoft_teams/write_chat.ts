@@ -52,6 +52,13 @@ export const writeChatTool: InternalToolConfig<
       visibility: 'user-only',
       description: 'Files to attach to the message',
     },
+    contentType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Body format: "text" (default) or "html". Mentions and attachments always send HTML',
+    },
   },
 
   outputs: {
@@ -61,6 +68,12 @@ export const writeChatTool: InternalToolConfig<
     createdTime: { type: 'string', description: 'Timestamp when message was created' },
     url: { type: 'string', description: 'Web URL to the message' },
     updatedContent: { type: 'boolean', description: 'Whether content was successfully updated' },
+    content: { type: 'string', description: 'Content of the sent message', optional: true },
+    attachmentCount: {
+      type: 'number',
+      description: 'Number of attachments sent with the message',
+      optional: true,
+    },
     files: { type: 'file[]', description: 'Files attached to the message' },
   },
 
@@ -70,6 +83,7 @@ export const writeChatTool: InternalToolConfig<
       chatId: params.chatId,
       content: params.content,
       files: params.files ?? null,
+      contentType: params.contentType === 'html' ? 'html' : undefined,
     }),
   },
   transformResponse: async (response) => {

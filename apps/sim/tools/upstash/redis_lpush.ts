@@ -1,5 +1,7 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisLPushParams, UpstashRedisLPushResponse } from '@/tools/upstash/types'
+import { upstashPathSegment } from '@/tools/upstash/utils'
 
 export const upstashRedisLPushTool: ToolConfig<UpstashRedisLPushParams, UpstashRedisLPushResponse> =
   {
@@ -8,6 +10,7 @@ export const upstashRedisLPushTool: ToolConfig<UpstashRedisLPushParams, UpstashR
     description:
       'Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist.',
     version: '1.0.0',
+    oauth: UPSTASH_CREDENTIAL_OAUTH,
 
     params: {
       restUrl: {
@@ -37,7 +40,7 @@ export const upstashRedisLPushTool: ToolConfig<UpstashRedisLPushParams, UpstashR
     },
 
     request: {
-      url: (params) => `${params.restUrl}/lpush/${encodeURIComponent(params.key)}`,
+      url: (params) => `${params.restUrl}/lpush/${upstashPathSegment(params.key, 'key')}`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.restToken}`,

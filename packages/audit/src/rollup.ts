@@ -1,6 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
-import { type AuditLogParams, ambientSurface, insertDeferredAuditEntry } from './log'
+import {
+  type AuditLogParams,
+  ambientAuditCorrelation,
+  ambientSurface,
+  insertDeferredAuditEntry,
+} from './log'
 
 const logger = createLogger('AuditRollup')
 
@@ -82,12 +87,27 @@ let nextScopeId = 0
  * it was recorded in ends. The window timer is not unref'd, so a process that
  * ends naturally still writes it.
  */
-export function recordAuditRollup(entry: AuditRollupEntry): void {
+export function recordAuditRollup(recorded: AuditRollupEntry): void {
   const surface = ambientSurface()
   const scope = scopeStorage.getStore()
+  // The row is written after the correlated work ends, so it takes the id with it now, and only
+  // occurrences of one correlation share a row.
+  const correlationId = ambientAuditCorrelation()
+  const entry: AuditRollupEntry =
+    correlationId === undefined
+      ? recorded
+      : {
+          ...recorded,
+          params: {
+            ...recorded.params,
+            metadata: { ...recorded.params.metadata, correlationId },
+          },
+          rollupMetadata: { ...recorded.rollupMetadata, correlationId },
+        }
   const { params } = entry
   const key = JSON.stringify([
     scope?.id ?? null,
+    correlationId ?? null,
     surface ?? null,
     params.workspaceId ?? null,
     params.actorId,

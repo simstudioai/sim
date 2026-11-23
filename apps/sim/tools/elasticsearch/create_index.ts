@@ -4,6 +4,7 @@ import type {
 } from '@/tools/elasticsearch/types'
 import { buildAuthHeaders, buildBaseUrl } from '@/tools/elasticsearch/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createIndexTool: ToolConfig<
   ElasticsearchCreateIndexParams,
@@ -76,7 +77,7 @@ export const createIndexTool: ToolConfig<
   request: {
     url: (params) => {
       const baseUrl = buildBaseUrl(params)
-      return `${baseUrl}/${encodeURIComponent(params.index)}`
+      return `${baseUrl}/${safeUrlPathSegment(params.index, 'index', { allowSeparators: true })}`
     },
     method: 'PUT',
     headers: (params) => buildAuthHeaders(params),

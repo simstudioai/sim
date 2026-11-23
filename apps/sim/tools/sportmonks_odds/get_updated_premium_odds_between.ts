@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -37,6 +38,7 @@ export const sportmonksOddsGetUpdatedPremiumOddsBetweenTool: ToolConfig<
   description:
     'Retrieve premium odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

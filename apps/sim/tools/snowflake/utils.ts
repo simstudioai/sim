@@ -39,6 +39,8 @@ const SNOWFLAKE_SUCCESS_SQL_STATES = ['', '00000']
 /** SQLSTATE/code the Cancel Statement endpoint returns for an actual cancellation. */
 const SNOWFLAKE_CANCELED_SQL_STATE = '57014'
 const SNOWFLAKE_CANCELED_CODE = '000604'
+/** Snowflake SQL API code for a result set too large to return in full. */
+const SNOWFLAKE_RESULT_TOO_LARGE_CODE = '391908'
 
 interface SnowflakeApiColumn {
   name?: string
@@ -134,11 +136,52 @@ export function normalizeSnowflakeHost(host: string): string {
   return `https://${hostname}`
 }
 
-/** Snowflake tools authenticate with a saved Snowflake programmatic access token credential. */
+/**
+ * The account identifier a key-pair JWT names, uppercased, from an account host:
+ * its first label, without region, cloud, or subdomain, cut at the first hyphen
+ * for a `.global` (replication) host. An organization name holds only letters
+ * and numbers and an account name never holds a hyphen, so in `org-account`
+ * every hyphen after the first is an underscore Snowflake's alternate hostname
+ * replaced, and is restored so both hostnames name the same account.
+ *
+ * @see https://docs.snowflake.com/en/user-guide/admin-account-identifier
+ * @see https://docs.snowflake.com/en/developer-guide/sql-api/authenticating
+ */
+export function snowflakeAccountIdentifier(host: string): string {
+  const hostname = new URL(normalizeSnowflakeHost(host)).hostname
+  const suffix = SNOWFLAKE_HOST_SUFFIXES.find((candidate) => hostname.endsWith(candidate)) ?? ''
+  const accountPart = hostname.slice(0, hostname.length - suffix.length)
+  const firstLabel = accountPart.split('.')[0]
+  if (accountPart.includes('.global')) return firstLabel.split('-')[0].toUpperCase()
+  const [organization, ...accountWords] = firstLabel.split('-')
+  const account = accountWords.length > 0 ? `${organization}-${accountWords.join('_')}` : firstLabel
+  return account.toUpperCase()
+}
+
+/**
+ * `authStyle` a keyless Snowflake credential resolves with: its token is a
+ * Sim-signed OIDC token presented through workload identity federation rather
+ * than a programmatic access token.
+ */
+export const SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE = 'snowflake-workload-identity' as const
+
+/**
+ * `authStyle` a key-pair Snowflake credential resolves with: its token is a JWT
+ * Sim signs with the user's private key for each run.
+ */
+export const SNOWFLAKE_KEY_PAIR_AUTH_STYLE = 'snowflake-key-pair' as const
+
+/**
+ * Snowflake tools authenticate with a saved Snowflake credential (a
+ * programmatic access token, a key pair, or keyless workload identity). The token type and
+ * the account host come only from that credential: both are authoritative, so a
+ * caller- or model-supplied value is discarded before the credential fills them.
+ */
 export const SNOWFLAKE_OAUTH = {
   required: true,
   provider: 'snowflake',
   credentialKind: 'service-account',
+  authoritativeParams: ['authStyle', 'domain'],
 } as const satisfies OAuthConfig
 
 /**
@@ -152,13 +195,20 @@ export const snowflakeAuthParamFields = {
     type: 'string',
     required: true,
     visibility: 'user-only',
-    description: 'Snowflake credential (account host and programmatic access token)',
+    description:
+      'Snowflake credential (account host and programmatic access token, key pair, or keyless sign-in)',
   },
   accessToken: {
     type: 'string',
     required: false,
     visibility: 'hidden',
-    description: 'Programmatic access token injected by the executor from the selected credential',
+    description: 'Access token injected by the executor from the selected credential',
+  },
+  authStyle: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Token type injected by the executor from the selected credential',
   },
   domain: {
     type: 'string',
@@ -168,22 +218,39 @@ export const snowflakeAuthParamFields = {
   },
 } satisfies ToolConfig['params']
 
+/** The SQL API token type each credential mode's token is sent as. */
+function snowflakeTokenType(authStyle: string | undefined): string {
+  if (authStyle === SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE) return 'WORKLOAD_IDENTITY_FEDERATION'
+  if (authStyle === SNOWFLAKE_KEY_PAIR_AUTH_STYLE) return 'KEYPAIR_JWT'
+  return 'PROGRAMMATIC_ACCESS_TOKEN'
+}
+
 /**
  * Header set every Snowflake SQL API request carries. Shared with the
  * credential validator in
  * `@/lib/credentials/token-service-accounts/validators/snowflake` so a token
  * that verifies at connect time is proven against the exact header shape the
  * tools use at run time.
+ *
+ * A keyless credential's OIDC token is sent as `WIF.OIDC.<token>` with the
+ * `WORKLOAD_IDENTITY_FEDERATION` token type, and a key-pair credential's JWT
+ * with the `KEYPAIR_JWT` token type
+ * (https://docs.snowflake.com/en/developer-guide/sql-api/authenticating);
+ * anything else is a programmatic access token.
  */
-export function buildSnowflakeAuthHeaders(accessToken: string): Record<string, string> {
+export function buildSnowflakeAuthHeaders(
+  accessToken: string,
+  authStyle?: string
+): Record<string, string> {
   const token = accessToken.trim()
-  if (!token) throw new Error('Snowflake programmatic access token is required')
+  if (!token) throw new Error('Snowflake access token is required')
+  const keyless = authStyle === SNOWFLAKE_WORKLOAD_IDENTITY_AUTH_STYLE
   return {
-    Authorization: `Bearer ${token}`,
+    Authorization: keyless ? `Bearer WIF.OIDC.${token}` : `Bearer ${token}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
     'User-Agent': 'Sim/1.0 (+https://sim.ai)',
-    'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
+    'X-Snowflake-Authorization-Token-Type': snowflakeTokenType(authStyle),
   }
 }
 
@@ -191,7 +258,7 @@ export function getSnowflakeHeaders(params: SnowflakeBaseParams): Record<string,
   if (!params.accessToken) {
     throw new Error('No Snowflake credential is selected, or it could not be resolved')
   }
-  return buildSnowflakeAuthHeaders(params.accessToken)
+  return buildSnowflakeAuthHeaders(params.accessToken, params.authStyle)
 }
 
 /**
@@ -258,7 +325,8 @@ function normalizeContextName(value: string, field: string): string {
  * `parameters.rows_per_resultset` caps the result set server-side. Snowflake
  * emits no response field indicating the cap was applied, so a capped `SELECT`
  * is indistinguishable from one that genuinely matched that many rows — the
- * result's `truncated` flag reports remaining partitions only and never this cap.
+ * result's `truncated` flag reports remaining partitions or Snowflake's `391908`
+ * incomplete-result code, never this cap.
  */
 export function buildSnowflakeStatementBody(
   params: SnowflakeStatementParams,
@@ -407,10 +475,12 @@ function statementStatus(pending: boolean, canceled: boolean): SnowflakeStatemen
 }
 
 /**
- * `/api/v2/statements` pages exclusively through the `partition` query parameter
- * and `resultSetMetaData.partitionInfo`. The `Link` response header and the
- * `391908` truncated-result code belong to the retired `/api/statements` API and
- * are never emitted here, so neither is consulted.
+ * Pages are walked exclusively through the `partition` query parameter and
+ * `resultSetMetaData.partitionInfo`. The `Link` response header that
+ * `/api/v2/statements` also sends is not consulted. A response whose `code` is
+ * `391908` is reported as truncated regardless of `partitionInfo`, because
+ * Snowflake documents that code as "the result set is too large" and the
+ * response does not include the entire result set.
  *
  * Snowflake documents that partition responses after the first "do not contain
  * any metadata" and that "metadata for all partitions is provided in the first
@@ -439,7 +509,12 @@ function buildResultOutput(
     currentPartition,
     partitionCount,
     nextPartition,
-    truncated: completenessKnown ? nextPartition !== null : null,
+    truncated:
+      data.code === SNOWFLAKE_RESULT_TOO_LARGE_CODE
+        ? true
+        : completenessKnown
+          ? nextPartition !== null
+          : null,
   }
 }
 

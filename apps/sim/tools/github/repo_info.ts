@@ -1,3 +1,4 @@
+import { githubRepoPath } from '@/tools/github/request-path'
 import type { BaseGitHubParams, RepoInfoResponse } from '@/tools/github/types'
 import {
   LICENSE_OUTPUT,
@@ -5,6 +6,7 @@ import {
   USER_FULL_OUTPUT,
   USER_FULL_OUTPUT_PROPERTIES,
 } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
@@ -13,6 +15,7 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   description:
     'Read GitHub repository metadata, including stars, forks, issues, and primary language. Requires a GitHub token with access to the repository.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -36,7 +39,7 @@ export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   },
 
   request: {
-    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}`,
+    url: (params) => `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}`,
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -95,6 +98,7 @@ export const repoInfoV2Tool: ToolConfig<BaseGitHubParams, any> = {
   name: repoInfoTool.name,
   description: repoInfoTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: repoInfoTool.params,
   request: repoInfoTool.request,
 

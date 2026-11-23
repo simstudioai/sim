@@ -1,5 +1,7 @@
+import { githubRefPath, githubRepoPath } from '@/tools/github/request-path'
 import type { DeleteBranchParams, DeleteBranchResponse } from '@/tools/github/types'
 import { DELETE_BRANCH_OUTPUT_PROPERTIES } from '@/tools/github/types'
+import { GITHUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchResponse> = {
@@ -8,6 +10,7 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
   description:
     'Delete a branch from a GitHub repository by removing its git reference. Protected branches cannot be deleted.',
   version: '1.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
 
   params: {
     owner: {
@@ -38,7 +41,7 @@ export const deleteBranchTool: ToolConfig<DeleteBranchParams, DeleteBranchRespon
 
   request: {
     url: (params) =>
-      `https://api.github.com/repos/${params.owner}/${params.repo}/git/refs/heads/${params.branch}`,
+      `https://api.github.com/repos/${githubRepoPath(params.owner, params.repo)}/git/refs/heads/${githubRefPath(params.branch, 'branch')}`,
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/vnd.github+json',
@@ -94,6 +97,7 @@ export const deleteBranchV2Tool: ToolConfig<DeleteBranchParams, any> = {
   name: deleteBranchTool.name,
   description: deleteBranchTool.description,
   version: '2.0.0',
+  oauth: GITHUB_CREDENTIAL_OAUTH,
   params: deleteBranchTool.params,
   request: deleteBranchTool.request,
 

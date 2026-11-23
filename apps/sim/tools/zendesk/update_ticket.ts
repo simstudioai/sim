@@ -1,9 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { ZENDESK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import {
   buildZendeskUrl,
   handleZendeskError,
   TICKET_OUTPUT_PROPERTIES,
+  ZENDESK_CREDENTIAL_PARAMS,
+  zendeskAuthorization,
 } from '@/tools/zendesk/types'
 
 const logger = createLogger('ZendeskUpdateTicket')
@@ -15,6 +19,7 @@ export interface ZendeskUpdateTicketParams {
   ticketId: string
   subject?: string
   comment?: string
+  commentPublic?: boolean
   priority?: string
   status?: string
   type?: string
@@ -42,7 +47,10 @@ export const zendeskUpdateTicketTool: ToolConfig<
   description: 'Update an existing ticket in Zendesk with support for custom fields',
   version: '1.0.0',
 
+  oauth: ZENDESK_CREDENTIAL_OAUTH,
+
   params: {
+    ...ZENDESK_CREDENTIAL_PARAMS,
     email: {
       type: 'string',
       required: true,
@@ -78,6 +86,13 @@ export const zendeskUpdateTicketTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Comment text to add to the ticket',
+    },
+    commentPublic: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the comment is a public reply (true) or an internal note (false). Omit to keep the ticket default',
     },
     priority: {
       type: 'string',
@@ -124,17 +139,16 @@ export const zendeskUpdateTicketTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildZendeskUrl(params.subdomain, `/tickets/${params.ticketId}`),
+    url: (params) =>
+      buildZendeskUrl(
+        params.subdomain,
+        `/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}`
+      ),
     method: 'PUT',
-    headers: (params) => {
-      // Use Basic Authentication with email/token format for Zendesk API tokens
-      const credentials = `${params.email}/token:${params.apiToken}`
-      const base64Credentials = Buffer.from(credentials).toString('base64')
-      return {
-        Authorization: `Basic ${base64Credentials}`,
-        'Content-Type': 'application/json',
-      }
-    },
+    headers: (params) => ({
+      Authorization: zendeskAuthorization(params),
+      'Content-Type': 'application/json',
+    }),
     body: (params) => {
       const ticket: any = {}
 
@@ -145,7 +159,10 @@ export const zendeskUpdateTicketTool: ToolConfig<
       if (params.assigneeId) ticket.assignee_id = params.assigneeId
       if (params.groupId) ticket.group_id = params.groupId
       if (params.tags) ticket.tags = params.tags.split(',').map((t) => t.trim())
-      if (params.comment) ticket.comment = { body: params.comment }
+      if (params.comment) {
+        ticket.comment = { body: params.comment }
+        if (typeof params.commentPublic === 'boolean') ticket.comment.public = params.commentPublic
+      }
 
       if (params.customFields) {
         try {

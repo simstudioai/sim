@@ -1,7 +1,9 @@
+import { outboundFetch } from '@/lib/core/network/outbound-fetch.server'
 import type { JiraUpdateCommentParams, JiraUpdateCommentResponse } from '@/tools/jira/types'
 import { SUCCESS_OUTPUT, TIMESTAMP_OUTPUT, USER_OUTPUT_PROPERTIES } from '@/tools/jira/types'
 import { extractAdfText, getJiraCloudId, toAdf, transformUser } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Transforms an update comment API response into typed output.
@@ -81,7 +83,7 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
     request: {
       url: (params: JiraUpdateCommentParams) => {
         if (params.cloudId) {
-          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey?.trim() ?? ''}/comment/${params.commentId?.trim() ?? ''}`
+          return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${safeUrlPathSegment(params.issueKey ?? '', 'issueKey')}/comment/${safeUrlPathSegment(params.commentId ?? '', 'commentId')}`
         }
         return 'https://api.atlassian.com/oauth/token/accessible-resources'
       },
@@ -106,8 +108,8 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
       if (params?.visibility) payload.visibility = params.visibility
 
       const makeRequest = async (cloudId: string) => {
-        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params!.issueKey?.trim() ?? ''}/comment/${params!.commentId?.trim() ?? ''}`
-        const commentResponse = await fetch(commentUrl, {
+        const commentUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${safeUrlPathSegment(params!.issueKey ?? '', 'issueKey')}/comment/${safeUrlPathSegment(params!.commentId ?? '', 'commentId')}`
+        const commentResponse = await outboundFetch(commentUrl, {
           method: 'PUT',
           headers: {
             Accept: 'application/json',

@@ -1,4 +1,6 @@
 import type { RootlyListUsersParams, RootlyListUsersResponse } from '@/tools/rootly/types'
+import { rootlyErrorMessage } from '@/tools/rootly/utils'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListUsersTool: ToolConfig<RootlyListUsersParams, RootlyListUsersResponse> = {
@@ -6,6 +8,7 @@ export const rootlyListUsersTool: ToolConfig<RootlyListUsersParams, RootlyListUs
   name: 'Rootly List Users',
   description: 'List users from Rootly with optional search and email filtering.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -63,7 +66,7 @@ export const rootlyListUsersTool: ToolConfig<RootlyListUsersParams, RootlyListUs
       return {
         success: false,
         output: { users: [], totalCount: 0 },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: rootlyErrorMessage(errorData, response),
       }
     }
 

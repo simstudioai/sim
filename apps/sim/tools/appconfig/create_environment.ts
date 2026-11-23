@@ -2,6 +2,7 @@ import type {
   AppConfigCreateEnvironmentParams,
   AppConfigCreateEnvironmentResponse,
 } from '@/tools/appconfig/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createEnvironmentTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const createEnvironmentTool: InternalToolConfig<
   name: 'AppConfig Create Environment',
   description: 'Create an environment for an AWS AppConfig application',
   version: '1.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

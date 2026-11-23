@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppSendResponse, WhatsAppSendTemplateParams } from '@/tools/whatsapp/types'
 import {
@@ -22,6 +23,7 @@ export const sendTemplateTool: ToolConfig<WhatsAppSendTemplateParams, WhatsAppSe
   description:
     'Send a pre-approved WhatsApp template message. Required to start a conversation or to message a user outside the 24-hour customer service window.',
   version: '1.0.0',
+  oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {
     phoneNumber: {

@@ -5,6 +5,7 @@ import type {
 } from '@/tools/hubspot/types'
 import { ASSOCIATIONS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('HubSpotListAssociations')
 
@@ -64,7 +65,7 @@ export const hubspotListAssociationsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v4/objects/${encodeURIComponent(params.objectType.trim())}/${encodeURIComponent(params.objectId.trim())}/associations/${encodeURIComponent(params.toObjectType.trim())}`
+      const baseUrl = `https://api.hubapi.com/crm/v4/objects/${safeUrlPathSegment(params.objectType, 'objectType')}/${safeUrlPathSegment(params.objectId, 'objectId')}/associations/${safeUrlPathSegment(params.toObjectType, 'toObjectType')}`
       const queryParams = new URLSearchParams()
 
       if (params.limit) {

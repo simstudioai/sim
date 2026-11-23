@@ -1,0 +1,28 @@
+{
+  "namespace": "microsoftPlanner",
+  "methods": {
+    "create_bucket": "createBucket",
+    "create_plan": "createPlan",
+    "create_task": "createTask",
+    "delete_bucket": "deleteBucket",
+    "delete_plan": "deletePlan",
+    "delete_task": "deleteTask",
+    "get_plan_details": "getPlanDetails",
+    "get_task_details": "getTaskDetails",
+    "list_buckets": "listBuckets",
+    "list_plans": "listPlans",
+    "read_bucket": "readBucket",
+    "read_plan": "readPlan",
+    "read_task": "readTask",
+    "update_bucket": "updateBucket",
+    "update_plan": "updatePlan",
+    "update_plan_details": "updatePlanDetails",
+    "update_task": "updateTask",
+    "update_task_details": "updateTaskDetails"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TextractAnalyzeExpenseOutput,
   TextractAnalyzeExpenseV2Input,
@@ -67,6 +68,7 @@ export const textractAnalyzeExpenseTool: InternalToolConfig<
   name: 'AWS Textract Analyze Expense',
   description: 'Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     accessKeyId: {
@@ -156,6 +158,13 @@ export const textractAnalyzeExpenseTool: InternalToolConfig<
           expenseDocuments: data.expenseDocuments ?? [],
           documentMetadata: { pages: data.documentMetadata?.pages ?? 0 },
           modelVersion: data.modelVersion ?? undefined,
+          ...(data.jobStatus !== undefined
+            ? {
+                jobStatus: data.jobStatus ?? null,
+                statusMessage: data.statusMessage ?? null,
+                warnings: data.warnings ?? [],
+              }
+            : {}),
         },
       }
     } catch (error) {
@@ -215,6 +224,28 @@ export const textractAnalyzeExpenseTool: InternalToolConfig<
       type: 'string',
       description: 'Version of the AnalyzeExpense model used (multi-page/async only)',
       optional: true,
+    },
+    jobStatus: {
+      type: 'string',
+      description: 'Async job status: SUCCEEDED or PARTIAL_SUCCESS (multi-page mode only)',
+      optional: true,
+    },
+    statusMessage: {
+      type: 'string',
+      description: 'Why an async job only partially succeeded (multi-page mode only)',
+      optional: true,
+    },
+    warnings: {
+      type: 'array',
+      description: 'Async job warnings for pages Textract could not fully process',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          errorCode: { type: 'string', description: 'Warning error code' },
+          pages: { type: 'array', description: 'Page numbers the warning applies to' },
+        },
+      },
     },
   },
 }

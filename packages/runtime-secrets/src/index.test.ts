@@ -50,4 +50,17 @@ describe('loadRuntimeSecrets', () => {
     await expect(loadRuntimeSecrets()).rejects.toThrow(/binary secrets/)
     expect(mockSend).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps the secret text out of a malformed-JSON error, which deploy logs print', async () => {
+    process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
+    mockSend.mockResolvedValue({ SecretString: '{"FOO": postgres://user:hunter2@db/sim}' })
+
+    const error = await loadRuntimeSecrets().then(
+      () => undefined,
+      (caught: unknown) => caught
+    )
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toMatch(/not valid JSON/)
+    expect((error as Error).message).not.toMatch(/postgres|hunter2|FOO/)
+  })
 })

@@ -10,6 +10,7 @@ import { toRecordOrNull } from '@sim/utils/object'
 import { LRUCache } from 'lru-cache'
 import { getAwsCredentials } from '@/lib/core/config/aws'
 import { env } from '@/lib/core/config/env'
+import { awsRequestHandler } from '@/lib/core/network/proxy-agent.server'
 
 const logger = createLogger('AppConfig')
 
@@ -122,6 +123,7 @@ function getClient(): AppConfigDataClient {
     client = new AppConfigDataClient({
       region: env.AWS_REGION,
       credentials: getAwsCredentials(),
+      requestHandler: awsRequestHandler(),
     })
   }
   return client
@@ -220,7 +222,6 @@ async function adoptSharedSnapshot(
     if (!isInsideTriggerRun()) return false
     const { getRedisClient } = await import('@/lib/core/config/redis')
     const redis = getRedisClient()
-    if (!redis) return false
     const stored = await redis.get(sharedSnapshotKey(context.ids))
     if (!stored) return false
     const snapshot = toRecordOrNull(JSON.parse(stored))
@@ -254,7 +255,6 @@ function publishSharedSnapshot(ids: AppConfigProfileIdentifiers, entry: CacheEnt
     if (isInsideTriggerRun()) return
     const { getRedisClient } = await import('@/lib/core/config/redis')
     const redis = getRedisClient()
-    if (!redis) return
     await redis.eval(
       PUBLISH_SNAPSHOT_SCRIPT,
       1,

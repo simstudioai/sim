@@ -85,9 +85,13 @@ export const searchWorkspaceServerTool: BaseServerTool = {
                   ...liveInput,
                   workspaceId: scope.workspaceId,
                 })
+          /** Every searched account reports a status, so none means no account could serve it. */
+          const nothingSearched = data.live?.accounts.length === 0
           return {
             success: true,
-            message: `${data.retrieval.status === 'partial' ? 'Search coverage is incomplete. Continue with a more specific query or source filter; these results cannot establish absence or completeness. ' : ''}Found ${data.results.length} live results. Read a documentId when its passage does not answer the question or more context is needed. ${CITATION_INSTRUCTION}`,
+            message: nothingSearched
+              ? 'Nothing was searched: no connected account can serve this search, so it says nothing about what exists. Follow the first line of live.guidance instead of retrying the same search.'
+              : `${data.retrieval.status === 'partial' ? 'Search coverage is incomplete. Continue with a more specific query or source filter; these results cannot establish absence or completeness. ' : ''}Found ${data.results.length} live results. Read a documentId when its passage does not answer the question or more context is needed. ${CITATION_INSTRUCTION}`,
             data: {
               ...data,
               results: data.results.map((item) => ({

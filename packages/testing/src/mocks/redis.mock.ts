@@ -1,4 +1,37 @@
+import { toError } from '@sim/utils/errors'
 import { vi } from 'vitest'
+
+type MockRedisCommand = (...args: unknown[]) => unknown
+
+/**
+ * A pipeline over a mock client: each queued command runs the client's own mock of the same name
+ * on `exec`, in order, so tests that stub (or make stateful) a client command see pipelined calls
+ * too. `exec` resolves the ioredis `[error, result]` tuple per command.
+ */
+function createMockPipeline(client: Record<string, unknown>) {
+  const queued: Array<() => unknown> = []
+  const pipeline: Record<string, unknown> = {
+    exec: vi.fn(async () => {
+      const results: Array<[Error | null, unknown]> = []
+      for (const run of queued.splice(0)) {
+        try {
+          results.push([null, await run()])
+        } catch (error) {
+          results.push([toError(error), null])
+        }
+      }
+      return results
+    }),
+  }
+  for (const [name, command] of Object.entries(client)) {
+    if (typeof command !== 'function' || name in pipeline || name === 'pipeline') continue
+    pipeline[name] = (...args: unknown[]) => {
+      queued.push(() => (command as MockRedisCommand)(...args))
+      return pipeline
+    }
+  }
+  return pipeline
+}
 
 /**
  * Creates a mock Redis client with common operations.
@@ -19,7 +52,7 @@ export function createMockRedis() {
    *  the handlers the client registered. */
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
 
-  return {
+  const client = {
     // Hash operations
     hset: vi.fn().mockResolvedValue(1),
     hget: vi.fn().mockResolvedValue(null),
@@ -94,4 +127,9 @@ export function createMockRedis() {
     // Status
     status: 'ready',
   }
+
+  return Object.assign(client, {
+    /** Queues commands against this client's own mocks; see {@link createMockPipeline}. */
+    pipeline: vi.fn(() => createMockPipeline(client)),
+  })
 }

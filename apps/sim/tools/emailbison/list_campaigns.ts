@@ -10,6 +10,7 @@ import {
   listCampaignsOutputs,
   mapCampaign,
 } from '@/tools/emailbison/utils'
+import { EMAILBISON_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCampaignsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListCampaignsResponse> =
@@ -18,6 +19,7 @@ export const listCampaignsTool: ToolConfig<EmailBisonBaseParams, EmailBisonListC
     name: 'Email Bison List Campaigns',
     description: 'Retrieves Email Bison campaigns.',
     version: '1.0.0',
+    oauth: EMAILBISON_CREDENTIAL_OAUTH,
     params: {
       ...emailBisonBaseParamFields,
     },

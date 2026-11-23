@@ -2,6 +2,7 @@ import type {
   IdentityCenterDescribeAccountParams,
   IdentityCenterDescribeAccountResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeAccountTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const describeAccountTool: InternalToolConfig<
   name: 'Identity Center Describe Account',
   description: 'Retrieve details about a specific AWS account by its ID',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

@@ -3,12 +3,16 @@ import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-se
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { tableSuccess } from '@/tools/table/response'
-import type { TableBulkOperationResponse, TableUpdateByFilterParams } from '@/tools/table/types'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableBulkUpdateResponse,
+  type TableUpdateByFilterParams,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const tableUpdateRowsByFilterTool: InternalToolConfig<
   TableUpdateByFilterParams,
-  TableBulkOperationResponse
+  TableBulkUpdateResponse
 > = {
   id: 'table_update_rows_by_filter',
   name: 'Update Rows by Filter',
@@ -65,7 +69,7 @@ export const tableUpdateRowsByFilterTool: InternalToolConfig<
     },
   },
 
-  transformResponse: async (response): Promise<TableBulkOperationResponse> => {
+  transformResponse: async (response): Promise<TableBulkUpdateResponse> => {
     const result = await response.json()
     const data = result.data || result
 
@@ -73,6 +77,7 @@ export const tableUpdateRowsByFilterTool: InternalToolConfig<
       updatedCount: data.updatedCount || 0,
       updatedRowIds: data.updatedRowIds || [],
       message: data.message || 'Rows updated successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
@@ -80,6 +85,7 @@ export const tableUpdateRowsByFilterTool: InternalToolConfig<
     success: { type: 'boolean', description: 'Whether rows were updated' },
     updatedCount: { type: 'number', description: 'Number of rows updated' },
     updatedRowIds: { type: 'array', description: 'IDs of updated rows' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

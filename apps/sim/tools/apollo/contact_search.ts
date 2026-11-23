@@ -1,4 +1,6 @@
 import type { ApolloContactSearchParams, ApolloContactSearchResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_TYPE_PARAM, getApolloAuthHeaders } from '@/tools/apollo/utils'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloContactSearchTool: ToolConfig<
@@ -9,8 +11,10 @@ export const apolloContactSearchTool: ToolConfig<
   name: 'Apollo Search Contacts',
   description: "Search your team's contacts in Apollo",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
+    ...APOLLO_CREDENTIAL_TYPE_PARAM,
     apiKey: {
       type: 'string',
       required: true,
@@ -68,7 +72,7 @@ export const apolloContactSearchTool: ToolConfig<
     headers: (params: ApolloContactSearchParams) => ({
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
-      'X-Api-Key': params.apiKey,
+      ...getApolloAuthHeaders(params),
     }),
     body: (params: ApolloContactSearchParams) => {
       const body: Record<string, unknown> = {

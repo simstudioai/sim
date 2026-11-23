@@ -1,0 +1,29 @@
+{
+  "namespace": "legacy.uptimerobot",
+  "methods": {
+    "create_alert_contact": "createAlertContact",
+    "create_maintenance_window": "createMaintenanceWindow",
+    "create_monitor": "createMonitor",
+    "create_psp": "createStatusPage",
+    "delete_alert_contact": "deleteAlertContact",
+    "delete_maintenance_window": "deleteMaintenanceWindow",
+    "delete_monitor": "deleteMonitor",
+    "delete_psp": "deleteStatusPage",
+    "get_account": "getAccount",
+    "get_alert_contact": "getAlertContact",
+    "get_incident": "getIncident",
+    "get_maintenance_window": "getMaintenanceWindow",
+    "get_monitor": "getMonitor",
+    "get_psp": "getStatusPage",
+    "list_alert_contacts": "listAlertContacts",
+    "list_incidents": "listIncidents",
+    "list_maintenance_windows": "listMaintenanceWindows",
+    "list_monitors": "listMonitors",
+    "list_psps": "listStatusPages",
+    "pause_monitor": "pauseMonitor",
+    "start_monitor": "startMonitor",
+    "update_maintenance_window": "updateMaintenanceWindow",
+    "update_monitor": "updateMonitor",
+    "update_psp": "updateStatusPage"
+  }
+}

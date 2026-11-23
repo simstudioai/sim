@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { GetBroadcastParams, GetBroadcastResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendGetBroadcastTool')
@@ -9,6 +10,7 @@ export const resendGetBroadcastTool: ToolConfig<GetBroadcastParams, GetBroadcast
   name: 'Get Broadcast',
   description: 'Retrieve details of a broadcast by ID',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     broadcastId: {
@@ -82,19 +84,46 @@ export const resendGetBroadcastTool: ToolConfig<GetBroadcastParams, GetBroadcast
   outputs: {
     id: { type: 'string', description: 'Broadcast ID' },
     name: { type: 'string', description: 'Broadcast name' },
-    audienceId: { type: 'string', description: 'Audience ID (legacy)', optional: true },
+    audienceId: {
+      type: 'string',
+      description: 'Audience ID (legacy)',
+      optional: true,
+      nullable: true,
+    },
     segmentId: {
       type: 'string',
       description: 'Segment ID (the current recipient field)',
       optional: true,
+      nullable: true,
     },
     from: { type: 'string', description: 'Sender email address' },
     subject: { type: 'string', description: 'Broadcast subject' },
-    replyTo: { type: 'string', description: 'Reply-to email address', optional: true },
-    previewText: { type: 'string', description: 'Inbox preview text', optional: true },
+    replyTo: {
+      type: 'array',
+      description: 'Reply-to email addresses',
+      items: { type: 'string', description: 'Reply-to email address' },
+      optional: true,
+      nullable: true,
+    },
+    previewText: {
+      type: 'string',
+      description: 'Inbox preview text',
+      optional: true,
+      nullable: true,
+    },
     status: { type: 'string', description: 'Broadcast status (e.g., draft, sent)' },
     createdAt: { type: 'string', description: 'Broadcast creation timestamp' },
-    scheduledAt: { type: 'string', description: 'Scheduled send timestamp', optional: true },
-    sentAt: { type: 'string', description: 'Timestamp the broadcast was sent', optional: true },
+    scheduledAt: {
+      type: 'string',
+      description: 'Scheduled send timestamp',
+      optional: true,
+      nullable: true,
+    },
+    sentAt: {
+      type: 'string',
+      description: 'Timestamp the broadcast was sent',
+      optional: true,
+      nullable: true,
+    },
   },
 }

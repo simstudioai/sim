@@ -46,6 +46,7 @@ describe('checkHybridAuth credential precedence', () => {
       userId: 'api-user',
       keyId: 'key-1',
       keyType: 'personal',
+      access: 'write',
     })
 
     const result = await checkHybridAuth(
@@ -58,7 +59,7 @@ describe('checkHybridAuth credential precedence', () => {
       workspaceId: undefined,
       authType: AuthType.API_KEY,
       apiKeyType: 'personal',
-      principal: { kind: 'personal_api_key', userId: 'api-user', keyId: 'key-1' },
+      principal: { kind: 'personal_api_key', userId: 'api-user', keyId: 'key-1', access: 'write' },
     })
     expect(mockUpdateApiKeyLastUsed).toHaveBeenCalledWith('key-1')
     expect(mockGetSession).not.toHaveBeenCalled()
@@ -100,6 +101,7 @@ describe('checkHybridAuth credential precedence', () => {
       userId: 'api-user',
       keyId: 'key-1',
       keyType: 'personal',
+      access: 'write',
     })
 
     const result = await checkHybridAuth(

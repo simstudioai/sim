@@ -11,10 +11,10 @@ import { captureClientEvent } from '@/lib/posthog/client'
 const logger = createLogger('DemoRequestMutation')
 
 /**
- * Submit an inbound demo request. The route notifies the sales inbox
- * (`enterprise@`, replying to the visitor) — no email is sent to the visitor.
- * Used as a best-effort notification from the demo-booking flow: failures are
- * logged and never block the visitor from scheduling.
+ * Submit an inbound demo request. The route records how far the form vouched
+ * for the visitor's email, which decides their booking, then notifies the sales
+ * inbox (`enterprise@`, replying to the visitor); no email goes to the visitor.
+ * The demo form opens the calendar only once this succeeds.
  */
 export function useSubmitDemoRequest() {
   return useMutation({

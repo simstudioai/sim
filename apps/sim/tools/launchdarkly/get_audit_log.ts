@@ -3,6 +3,8 @@ import type {
   LaunchDarklyGetAuditLogResponse,
 } from '@/tools/launchdarkly/types'
 import { AUDIT_LOG_ENTRY_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_INSTANCES } from '@/tools/launchdarkly/utils'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyGetAuditLogTool: ToolConfig<
@@ -13,8 +15,10 @@ export const launchDarklyGetAuditLogTool: ToolConfig<
   name: 'LaunchDarkly Get Audit Log',
   description: 'List audit log entries from your LaunchDarkly account.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
+    instance: LAUNCHDARKLY_INSTANCES.param,
     apiKey: {
       type: 'string',
       required: true,
@@ -42,7 +46,7 @@ export const launchDarklyGetAuditLogTool: ToolConfig<
       if (params.limit) queryParams.set('limit', String(params.limit))
       if (params.spec) queryParams.set('spec', params.spec)
       const qs = queryParams.toString()
-      return `https://app.launchdarkly.com/api/v2/auditlog${qs ? `?${qs}` : ''}`
+      return `${LAUNCHDARKLY_INSTANCES.apiBase(params.instance)}/auditlog${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

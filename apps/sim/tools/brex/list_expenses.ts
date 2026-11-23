@@ -8,6 +8,7 @@ import {
   parseBrexJson,
   toBrexDateTime,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const EXPAND_FIELDS = [
@@ -25,6 +26,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
   description:
     'List expenses in the Brex account with optional filters for user, status, payment status, and purchase date range',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -51,7 +53,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED',
+        'Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED, HELD',
     },
     purchasedAtStart: {
       type: 'string',

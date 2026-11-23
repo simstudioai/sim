@@ -46,7 +46,12 @@ COPY --chown=pii:pii --chmod=755 docker/pii-entrypoint.sh ./
 # and /tmp (mode 1777), Python's tempfile scratch, stays writable because ECS
 # copies the image's /tmp into a bind volume mounted at a VOLUME path. The
 # VOLUME line stays below the model download, which stages wheels in /tmp.
-ENV PYTHONDONTWRITEBYTECODE=1
+# tldextract (pulled in by Presidio) caches the Public Suffix List under
+# $HOME/.cache by default, which the read-only root cannot write; point it at
+# the writable /tmp volume. That volume is per task, so each task fetches the
+# list once.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    TLDEXTRACT_CACHE=/tmp/tldextract
 RUN chmod 1777 /tmp
 VOLUME ["/tmp"]
 
@@ -55,6 +60,11 @@ USER pii
 # Listen on 5001. Runs as its own ECS service (separate task), reached via PII_URL;
 # 5001 avoids colliding with the app's 3000 in local/compose runs on one host.
 EXPOSE 5001
+
+# glibc gives each threadpool thread its own malloc arena and rarely returns their
+# memory, so a worker's footprint ratchets up to one NER pass's peak per thread
+# that ran one. Two arenas keep it near a single pass.
+ENV MALLOC_ARENA_MAX=2
 
 # Per-pattern regex match timeout (Presidio's `regex`-module `finditer(timeout=...)`),
 # an interactive backstop against a catastrophic user-supplied custom regex. Presidio

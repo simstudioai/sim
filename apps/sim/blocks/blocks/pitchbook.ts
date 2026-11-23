@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { PitchBookIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg } from '@/blocks/utils'
 
 /**
  * Search subblock ids are prefixed per entity family because subblock ids must
@@ -1906,9 +1907,9 @@ export const PitchBookBlock: BlockConfig = {
         }
         return `pitchbook_${operation}`
       },
-      params: (params) => {
+      params: (params, context) => {
         const { additionalFilters, articleIds, page, perPage, trailingRange, ...rest } = params
-        const operation = String(params.operation ?? '')
+        const operation = mapperOperation(params, context)
         const mapped: Record<string, unknown> = { ...rest }
 
         // Collapse only the ID subblock this operation owns onto `pbId`, clearing
@@ -1916,7 +1917,10 @@ export const PitchBookBlock: BlockConfig = {
         for (const id of ID_SUBBLOCK_IDS) mapped[id] = undefined
         const idSubBlock = ID_SUBBLOCK_FOR_OPERATION[operation]
         const idValue = idSubBlock ? params[idSubBlock] : undefined
-        mapped.pbId = typeof idValue === 'string' && idValue !== '' ? idValue : undefined
+        mapped.pbId =
+          typeof idValue === 'string' && idValue !== ''
+            ? idValue
+            : toolCallArg(context, params.pbId)
 
         // Rename the prefixed filter subblocks onto their PitchBook param names,
         // dropping any that belong to a different operation (see the table's TSDoc).
@@ -1926,7 +1930,8 @@ export const PitchBookBlock: BlockConfig = {
           const value = mapped[subBlockId]
           mapped[subBlockId] = undefined
           if (owner !== operation) continue
-          mapped[param] = value === undefined || value === '' ? undefined : value
+          mapped[param] =
+            value === undefined || value === '' ? toolCallArg(context, params[param]) : value
         }
 
         const parseJson = (raw: unknown, label: string): unknown => {

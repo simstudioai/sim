@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import type { BrowserWindow } from 'electron'
 import { app } from 'electron'
+import { APP_ENTRY_ROUTE } from '@/main/app-routes'
 import { showShellDialog } from '@/main/dialogs'
 import type { EventRecorder } from '@/main/observability'
 
@@ -451,7 +452,7 @@ export interface AuthFlow {
 
 /**
  * Orchestrates the login handoff: opening the system browser, consuming the
- * loopback callback, redeeming the token, and navigating to the workspace. A
+ * loopback callback, redeeming the token, and navigating to the app entry. A
  * failed or expired callback never leaves a partial session — the window lands
  * back on /login.
  */
@@ -521,7 +522,7 @@ export function createAuthFlow(deps: AuthFlowDeps): AuthFlow {
       }
       deps.events.record('handoff_redeem_ok')
       try {
-        await win.loadURL(`${origin}/workspace`)
+        await win.loadURL(`${origin}${APP_ENTRY_ROUTE}`)
       } catch {}
       win.show()
       win.focus()

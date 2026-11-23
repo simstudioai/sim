@@ -12,6 +12,7 @@ import {
   mapLeadList,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLeadListsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const listLeadListsTool: ToolConfig<
   name: 'Instantly List Lead Lists',
   description: 'Retrieves Instantly V2 lead lists with search and pagination filters.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     limit: {

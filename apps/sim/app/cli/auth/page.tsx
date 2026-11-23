@@ -3,13 +3,16 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import type { SearchParams } from 'nuqs/server'
 import { getSession } from '@/lib/auth'
-import { isRegistrationDisabled } from '@/lib/core/config/env-flags'
+import { isSelfServeRegistrationClosed } from '@/lib/core/config/env-flags'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { AuthShell } from '@/app/(auth)/components'
 import { resolveCliAuthRequest } from '@/app/cli/auth/cli-auth-request'
 import { CliAuthView } from '@/app/cli/auth/cli-auth-view'
 import { CliAuthLoading } from '@/app/cli/auth/loading'
-import { cliAuthSearchParamsCache } from '@/app/cli/auth/search-params'
+import {
+  cliAuthSearchParamsCache,
+  serializeCliAuthSearchParams,
+} from '@/app/cli/auth/search-params'
 
 export const metadata: Metadata = {
   title: 'Connect your terminal',
@@ -33,8 +36,8 @@ export const dynamic = 'force-dynamic'
  * cross-link carrying the same `callbackUrl`, so a returning user is one click
  * from login with their destination intact.
  *
- * That reasoning inverts under DISABLE_REGISTRATION: nobody can create an
- * account, so the pairing visitor is necessarily an existing user and signup is
+ * That reasoning inverts when `REGISTRATION_MODE` closes self-serve registration: nobody can
+ * create an account, so the pairing visitor is necessarily an existing user and signup is
  * guaranteed to be the wrong hop. Go straight to login there.
  */
 export default async function CliAuthPage({
@@ -50,14 +53,9 @@ export default async function CliAuthPage({
   const resolution = resolveCliAuthRequest(params)
 
   if (resolution.valid && !session?.user) {
-    const query = new URLSearchParams({
-      request: resolution.request.request,
-      challenge: resolution.request.challenge,
-      pairing: resolution.request.pairing,
-    })
     redirect(
-      buildAuthCrossLink(isRegistrationDisabled ? '/login' : '/signup', {
-        callbackUrl: `/cli/auth?${query}`,
+      buildAuthCrossLink(isSelfServeRegistrationClosed ? '/login' : '/signup', {
+        callbackUrl: serializeCliAuthSearchParams('/cli/auth', params),
         isInviteFlow: false,
       })
     )

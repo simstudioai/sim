@@ -1,5 +1,6 @@
 import type { GongLookupEmailParams, GongLookupEmailResponse } from '@/tools/gong/types'
-import { getGongErrorMessage } from '@/tools/gong/utils'
+import { getGongErrorMessage, gongAuthorization } from '@/tools/gong/utils'
+import { GONG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailResponse> = {
@@ -8,6 +9,7 @@ export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailR
   description:
     'Find all references to an email address in Gong (calls, email messages, meetings, CRM data, engagement).',
   version: '1.0.0',
+  oauth: GONG_CREDENTIAL_OAUTH,
 
   params: {
     accessKey: {
@@ -39,7 +41,7 @@ export const lookupEmailTool: ToolConfig<GongLookupEmailParams, GongLookupEmailR
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Basic ${btoa(`${params.accessKey}:${params.accessKeySecret}`)}`,
+      Authorization: gongAuthorization(params.accessKey, params.accessKeySecret),
     }),
   },
 

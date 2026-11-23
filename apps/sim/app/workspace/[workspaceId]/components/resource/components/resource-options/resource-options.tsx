@@ -64,6 +64,7 @@ export interface SearchTag {
 
 export interface SearchConfig {
   value: string
+  maxLength?: number
   onChange: (value: string) => void
   placeholder?: string
   inputRef?: React.RefObject<HTMLInputElement | null>
@@ -280,6 +281,7 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
           ref={search.inputRef}
           type='text'
           value={search.value}
+          maxLength={search.maxLength}
           onChange={(e) => search.onChange(e.target.value)}
           onKeyDown={search.onKeyDown}
           onFocus={search.onFocus}

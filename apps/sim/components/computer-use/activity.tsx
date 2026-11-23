@@ -17,9 +17,11 @@ const ACTION_LABELS: Record<string, string> = {
   drag: 'Dragging',
   set_value: 'Editing',
   perform_action: 'Interacting',
+  batch: 'Running steps',
+  app_command: 'Working with app data',
 }
 
-/** Remains visible while a native action is active, even if rollout or device access is revoked. */
+/** Remains visible while a native action is active, even if the permission group or device access revokes it. */
 export function ComputerUseActivity() {
   const { activeAction: activity } = useComputerUseStatus()
   if (!activity) return null

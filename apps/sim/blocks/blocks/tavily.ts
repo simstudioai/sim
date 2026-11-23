@@ -1,9 +1,12 @@
 import { TavilyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const TavilyBlock: BlockConfig = {
   type: 'tavily',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'tavily_v2' },
   name: 'Tavily',
   description: 'Search and extract information',
   authMode: AuthMode.ApiKey,
@@ -88,6 +91,8 @@ export const TavilyBlock: BlockConfig = {
       options: [
         { label: 'Basic', id: 'basic' },
         { label: 'Advanced', id: 'advanced' },
+        { label: 'Fast', id: 'fast' },
+        { label: 'Ultra Fast', id: 'ultra-fast' },
       ],
       value: () => 'basic',
       mode: 'advanced',
@@ -522,3 +527,18 @@ export const TavilyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TavilyV2Block: BlockConfig = {
+  ...TavilyBlock,
+  type: 'tavily_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription: 'Search the web, extract content from URLs, crawl sites, and map their URLs.',
+  ...withSavedCredential(TavilyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'tavily',
+    title: 'Tavily Credential',
+  }),
+}

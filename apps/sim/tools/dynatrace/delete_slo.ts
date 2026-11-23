@@ -1,6 +1,7 @@
 import type { DynatraceDeleteSloParams, DynatraceDeleteSloResponse } from '@/tools/dynatrace/types'
 import { buildDynatraceUrl, dynatraceHeaders, encodeDynatraceId } from '@/tools/dynatrace/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { DYNATRACE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteSloTool: ToolConfig<DynatraceDeleteSloParams, DynatraceDeleteSloResponse> = {
@@ -8,6 +9,7 @@ export const deleteSloTool: ToolConfig<DynatraceDeleteSloParams, DynatraceDelete
   name: 'Dynatrace Delete SLO',
   description: 'Delete a service-level objective.',
   version: '1.0.0',
+  oauth: DYNATRACE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.DYNATRACE_ERRORS,
 
   params: {

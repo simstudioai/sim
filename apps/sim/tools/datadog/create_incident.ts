@@ -6,6 +6,7 @@ import {
   parseJsonParam,
   splitCommaList,
 } from '@/tools/datadog/utils'
+import { DATADOG_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createIncidentTool: ToolConfig<CreateIncidentParams, CreateIncidentResponse> = {
@@ -14,6 +15,7 @@ export const createIncidentTool: ToolConfig<CreateIncidentParams, CreateIncident
   description:
     'Declare a new incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta.',
   version: '1.0.0',
+  oauth: DATADOG_CREDENTIAL_OAUTH,
 
   params: {
     title: {

@@ -22,7 +22,7 @@ Pass `<start.input>` as Context, describe Sales, Support, and Billing routes, an
 | --- | --- |
 | **Context** | Text to analyze, often `<start.input>` or `<agent.content>`. |
 | **Routes** | Each route has a title and a description of when to choose it. It adds a separate output port. |
-| **Model** | Defaults to `claude-sonnet-5-5`. Select a supported model, including a compatible local Ollama or vLLM model. |
+| **Model** | Defaults to `claude-sonnet-5-5`. Select a supported model, including a compatible local Ollama, vLLM, or LiteLLM model. |
 
 Make descriptions specific and distinguishable. For example, “Payments, invoices, and refunds” separates Billing from general product support. Test the routes on representative requests rather than assuming a larger model always routes more accurately.
 

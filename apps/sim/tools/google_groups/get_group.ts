@@ -1,5 +1,6 @@
 import type { GoogleGroupsGetParams, GoogleGroupsResponse } from '@/tools/google_groups/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsResponse> = {
   id: 'google_groups_get_group',
@@ -30,7 +31,9 @@ export const getGroupTool: ToolConfig<GoogleGroupsGetParams, GoogleGroupsRespons
 
   request: {
     url: (params) => {
-      const encodedGroupKey = encodeURIComponent(params.groupKey)
+      const encodedGroupKey = safeUrlPathSegment(params.groupKey, 'groupKey', {
+        allowSeparators: true,
+      })
       return `https://admin.googleapis.com/admin/directory/v1/groups/${encodedGroupKey}`
     },
     method: 'GET',

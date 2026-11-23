@@ -2,6 +2,7 @@ import { omit } from '@sim/utils/object'
 import { GrainIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { mapperOperation, toolCallArg, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 import { GRAIN_HOOK_TYPE_OPTIONS, grainTriggerOptions } from '@/triggers/grain/utils'
 
@@ -25,10 +26,10 @@ export const GrainBlock: BlockConfig = {
   description: 'Access meeting recordings, transcripts, and AI summaries',
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
-  // Superseded by grain_v2 (Grain API v1 sunsets 2026-09-07); existing blocks
-  // keep rendering, new blocks come from the v2 entry.
+  // Superseded (Grain API v1 sunsets 2026-09-07); existing blocks keep rendering,
+  // new blocks come from the current version.
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'grain_v2' },
+  sunset: { status: 'legacy', replacedBy: 'grain_v3' },
   longDescription:
     'Access meeting recordings, transcripts, highlights, and AI-generated summaries. Trigger workflows based on Grain webhook events.',
   category: 'tools',
@@ -367,12 +368,12 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       tool: (params) => {
         return params.operation || 'grain_list_recordings'
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           apiKey: params.apiKey,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'grain_list_recordings':
             return {
               ...baseParams,
@@ -544,9 +545,9 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
  */
 export const GrainV2Block: BlockConfig = {
   ...GrainBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'grain_v3' },
   type: 'grain_v2',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   canvasPresentation: {
     defaultTitle: 'Grain',
     sentences: {
@@ -704,12 +705,12 @@ export const GrainV2Block: BlockConfig = {
       tool: (params) => {
         return params.operation || 'grain_list_recordings'
       },
-      params: (params) => {
+      params: (params, context) => {
         const baseParams: Record<string, unknown> = {
           apiKey: params.apiKey,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context)) {
           case 'grain_create_hook_v2': {
             if (!params.hookUrl?.trim()) {
               throw new Error('Webhook URL is required.')
@@ -718,12 +719,10 @@ export const GrainV2Block: BlockConfig = {
               throw new Error('Event type is required.')
             }
             let include: unknown
-            if (params.hookInclude) {
+            const rawInclude = params.hookInclude || toolCallArg(context, params.include)
+            if (rawInclude) {
               try {
-                include =
-                  typeof params.hookInclude === 'string'
-                    ? JSON.parse(params.hookInclude)
-                    : params.hookInclude
+                include = typeof rawInclude === 'string' ? JSON.parse(rawInclude) : rawInclude
               } catch {
                 throw new Error('Invalid JSON for include options')
               }
@@ -739,8 +738,8 @@ export const GrainV2Block: BlockConfig = {
           case 'grain_list_hooks_v2':
             return {
               ...baseParams,
-              hookType: params.hookTypeFilter || undefined,
-              state: params.hookState || undefined,
+              hookType: params.hookTypeFilter || toolCallArg(context, params.hookType) || undefined,
+              state: params.hookState || toolCallArg(context, params.state) || undefined,
             }
 
           case 'grain_delete_hook_v2':
@@ -753,7 +752,7 @@ export const GrainV2Block: BlockConfig = {
             }
 
           default:
-            return GrainBlock.tools!.config!.params!(params)
+            return GrainBlock.tools!.config!.params!(params, context)
         }
       },
     },
@@ -926,3 +925,17 @@ export const GrainBlockMeta = {
 } as const satisfies BlockMeta
 
 export const GrainV2BlockMeta = GrainBlockMeta
+
+export const GrainV3Block: BlockConfig = {
+  ...GrainV2Block,
+  type: 'grain_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GrainV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'grain',
+    title: 'Grain Credential',
+  }),
+}

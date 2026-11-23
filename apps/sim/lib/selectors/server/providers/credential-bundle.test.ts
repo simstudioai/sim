@@ -1,5 +1,6 @@
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { describe, expect, it, vi } from 'vitest'
+import { OutboundRoutingError } from '@/lib/core/network/routing'
 
 const mockResolveOrganizationToken = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/credentials/application/organization-credentials', () => ({
@@ -34,6 +35,21 @@ describe('selector credential bundles', () => {
 
     expect(protectedValues.contains('cloud-1')).toBe(true)
     expect(protectedValues.contains('prefix-cloud-1-suffix')).toBe(false)
+  })
+
+  it('surfaces an egress outage instead of reporting the connection unavailable', async () => {
+    const outage = new OutboundRoutingError('GATEWAY_UNAVAILABLE')
+    mockResolveCredentialAccessToken.mockRejectedValueOnce(outage)
+
+    await expect(
+      resolveSelectorCredentialBundle({
+        credential: {
+          suppliedId: 'credential-1',
+          access: { ok: true, credentialOwnerUserId: 'owner-1' },
+        },
+        protectedValues: createSelectorProtectedValues(),
+      })
+    ).rejects.toBe(outage)
   })
 
   it('preserves a selector abort without canceling the shared resolution', async () => {

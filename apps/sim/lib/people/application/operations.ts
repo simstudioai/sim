@@ -22,6 +22,13 @@ export const peopleOperations = {
     ...session,
   }),
   // permission-group-exempt: the application enforces organization.member_directory for ordinary members.
+  chart: defineOrganizationOperation({
+    id: 'organization.people.chart',
+    minimumRole: 'member',
+    capability: 'none',
+    ...session,
+  }),
+  // permission-group-exempt: the application enforces organization.member_directory for ordinary members.
   get: defineOrganizationOperation({
     id: 'organization.people.get',
     minimumRole: 'member',

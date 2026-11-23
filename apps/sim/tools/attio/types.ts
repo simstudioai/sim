@@ -330,8 +330,10 @@ interface AttioRecord {
 export interface AttioListRecordsParams {
   accessToken: string
   objectType: string
-  filter?: string
-  sorts?: string
+  /** JSON text, or the object the block's `json` input already parsed. */
+  filter?: string | Record<string, unknown>
+  /** JSON text, or the array the block's `json` input already parsed. */
+  sorts?: string | unknown[]
   limit?: number
   offset?: number
 }

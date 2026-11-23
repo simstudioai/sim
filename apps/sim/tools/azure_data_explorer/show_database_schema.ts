@@ -7,6 +7,7 @@ import {
   renderEntityName,
   transformAzureDataExplorerResponse,
 } from '@/tools/azure_data_explorer/utils'
+import { AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const azureDataExplorerShowDatabaseSchemaTool: InternalToolConfig<
@@ -18,6 +19,7 @@ export const azureDataExplorerShowDatabaseSchemaTool: InternalToolConfig<
   description:
     'Read the full schema of an Azure Data Explorer database as a flat list of every table and column, so an agent can discover the data model in one call.',
   version: '1.0.0',
+  oauth: AZURE_DATA_EXPLORER_CREDENTIAL_OAUTH,
   params: {
     clusterUri: {
       type: 'string',

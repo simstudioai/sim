@@ -2,7 +2,9 @@ import type {
   IncidentioIncidentRolesShowParams,
   IncidentioIncidentRolesShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const incidentRolesShowTool: ToolConfig<
   IncidentioIncidentRolesShowParams,
@@ -12,6 +14,7 @@ export const incidentRolesShowTool: ToolConfig<
   name: 'Show Incident Role',
   description: 'Get details of a specific incident role in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -29,7 +32,8 @@ export const incidentRolesShowTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/incident_roles/${params.id.trim()}`,
+    url: (params) =>
+      `https://api.incident.io/v2/incident_roles/${safeUrlPathSegment(params.id, 'id')}`,
     method: 'GET',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -69,7 +73,11 @@ export const incidentRolesShowTool: ToolConfig<
           description: 'Short form abbreviation of the role',
         },
         role_type: { type: 'string', description: 'The type of role' },
-        required: { type: 'boolean', description: 'Whether the role is required' },
+        required: {
+          type: 'boolean',
+          description: 'Not returned by the incident.io API; always empty',
+          optional: true,
+        },
         created_at: { type: 'string', description: 'When the role was created' },
         updated_at: { type: 'string', description: 'When the role was last updated' },
       },

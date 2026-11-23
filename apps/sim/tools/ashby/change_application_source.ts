@@ -6,6 +6,7 @@ import {
   ashbyErrorMessage,
   mapApplication,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyChangeApplicationSourceParams {
@@ -29,6 +30,7 @@ export const changeApplicationSourceTool: ToolConfig<
   description:
     'Changes the source attributed to an existing application, so programmatically created applications report correctly on the recruiting side. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { spotifyLibraryUrl } from '@/tools/spotify/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface SpotifyCheckPlaylistFollowersParams {
@@ -16,7 +17,7 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
 > = {
   id: 'spotify_check_playlist_followers',
   name: 'Spotify Check Playlist Followers',
-  description: 'Check if users follow a playlist.',
+  description: 'Check if the current user follows a playlist.',
   version: '1.0.0',
 
   oauth: {
@@ -34,21 +35,15 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
     },
     userIds: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated user IDs to check (max 5)',
+      description:
+        'Not used: Spotify only checks whether the current user follows the playlist, whatever IDs are given',
     },
   },
 
   request: {
-    url: (params) => {
-      const ids = params.userIds
-        .split(',')
-        .map((id) => id.trim())
-        .slice(0, 5)
-        .join(',')
-      return `https://api.spotify.com/v1/playlists/${params.playlistId}/followers/contains?ids=${ids}`
-    },
+    url: (params) => spotifyLibraryUrl(params.playlistId, 'playlist', { contains: true }),
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -61,6 +56,9 @@ export const spotifyCheckPlaylistFollowersTool: ToolConfig<
   },
 
   outputs: {
-    results: { type: 'json', description: 'Array of booleans for each user' },
+    results: {
+      type: 'json',
+      description: 'Array with one boolean: whether the current user follows the playlist',
+    },
   },
 }

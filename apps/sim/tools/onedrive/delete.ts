@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { OneDriveDeleteResponse, OneDriveToolParams } from '@/tools/onedrive/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 const logger = createLogger('OneDriveDeleteTool')
 
@@ -33,7 +34,7 @@ export const deleteTool: ToolConfig<OneDriveToolParams, OneDriveDeleteResponse> 
 
   request: {
     url: (params) => {
-      return `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(params.fileId || '')}`
+      return `https://graph.microsoft.com/v1.0/me/drive/items/${safeUrlPathSegment(params.fileId ?? '', 'fileId')}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -7,6 +7,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListNotesTool: ToolConfig<
@@ -17,6 +18,7 @@ export const affinityListNotesTool: ToolConfig<
   name: 'Affinity List Notes',
   description: 'Page through every note the caller can see. Replies are excluded.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

@@ -2,10 +2,36 @@ import { WordpressIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { mapperOperation, normalizeFileInput, toolCallArg } from '@/blocks/utils'
 
 /** The media file to upload, whichever mode the user is in. */
 const MEDIA_FILE_FIELD = ['fileUpload', 'file'] as const
+
+const CREATE_STATUS_OPERATIONS = new Set<unknown>([
+  'wordpress_create_post',
+  'wordpress_create_page',
+])
+const UPDATE_STATUS_OPERATIONS = new Set<unknown>([
+  'wordpress_update_post',
+  'wordpress_update_page',
+])
+
+/** `orderby` values the comments endpoint accepts; the shared Order By field also offers post-only ones. */
+const COMMENT_ORDER_BY_FIELDS = new Set<unknown>([
+  'date',
+  'date_gmt',
+  'id',
+  'include',
+  'post',
+  'parent',
+  'type',
+])
+
+/** A numeric field from a block input or model arg, `undefined` when blank. */
+function optionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  return typeof value === 'number' ? value : Number(value)
+}
 
 export const WordPressBlock: BlockConfig = {
   type: 'wordpress',
@@ -264,13 +290,30 @@ export const WordPressBlock: BlockConfig = {
       id: 'status',
       title: 'Status',
       type: 'dropdown',
-      options: [
+      dependsOn: ['operation'],
+      /**
+       * Canvas and builder create contexts default to Publish. Every other context leads with
+       * "No change" so the existing or model-supplied status is kept, including Agent tool rows,
+       * whose options see the host Agent block's values (no `operation`), so create rows there
+       * keep the model's status or WordPress's own `draft` default.
+       * Without block values (Copilot validation, catalogs) every option is listed, "No change" last.
+       */
+      options: (params) => [
+        ...(params && !CREATE_STATUS_OPERATIONS.has(params.values.operation)
+          ? [{ label: 'No change', id: '' }]
+          : []),
         { label: 'Publish', id: 'publish' },
         { label: 'Draft', id: 'draft' },
         { label: 'Pending', id: 'pending' },
         { label: 'Private', id: 'private' },
+        ...(params ? [] : [{ label: 'No change', id: '' }]),
       ],
-      value: () => 'publish',
+      value: (params) =>
+        CREATE_STATUS_OPERATIONS.has(params?.operation)
+          ? 'publish'
+          : UPDATE_STATUS_OPERATIONS.has(params?.operation)
+            ? ''
+            : undefined,
       condition: {
         field: 'operation',
         value: [
@@ -313,6 +356,29 @@ export const WordPressBlock: BlockConfig = {
           'wordpress_create_page',
           'wordpress_update_page',
         ],
+      },
+    },
+
+    {
+      id: 'date',
+      title: 'Publish Date',
+      type: 'short-input',
+      placeholder: 'e.g., 2026-12-01T09:00:00 (site timezone)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'wordpress_create_post',
+          'wordpress_update_post',
+          'wordpress_create_page',
+          'wordpress_update_page',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 date-time without a timezone offset (e.g., 2026-12-01T09:00:00), interpreted in the site timezone. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
       },
     },
 
@@ -569,12 +635,13 @@ export const WordPressBlock: BlockConfig = {
       title: 'Comment Status',
       type: 'dropdown',
       options: [
+        { label: 'No change', id: '' },
         { label: 'Approved', id: 'approved' },
         { label: 'Hold', id: 'hold' },
         { label: 'Spam', id: 'spam' },
         { label: 'Trash', id: 'trash' },
       ],
-      value: () => 'approved',
+      value: () => '',
       mode: 'advanced',
       condition: { field: 'operation', value: 'wordpress_update_comment' },
     },
@@ -898,13 +965,13 @@ export const WordPressBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'wordpress_create_post',
-      params: (params) => {
-        const baseParams: Record<string, any> = {
+      params: (params, context) => {
+        const baseParams: Record<string, unknown> = {
           credential: params.oauthCredential,
           siteId: params.siteId,
         }
 
-        switch (params.operation) {
+        switch (mapperOperation(params, context) || 'wordpress_create_post') {
           case 'wordpress_create_post':
             return {
               ...baseParams,
@@ -913,55 +980,50 @@ export const WordPressBlock: BlockConfig = {
               status: params.status,
               excerpt: params.excerpt,
               slug: params.slug,
+              date: params.date,
               categories: params.categories,
               tags: params.tags,
-              featuredMedia:
-                params.featuredMedia !== undefined && params.featuredMedia !== ''
-                  ? Number(params.featuredMedia)
-                  : undefined,
+              featuredMedia: optionalNumber(params.featuredMedia),
             }
           case 'wordpress_update_post':
             return {
               ...baseParams,
-              postId: Number(params.postId),
+              postId: optionalNumber(params.postId),
               title: params.title,
               content: params.content,
               status: params.status,
               excerpt: params.excerpt,
               slug: params.slug,
+              date: params.date,
               categories: params.categories,
               tags: params.tags,
-              featuredMedia:
-                params.featuredMedia !== undefined && params.featuredMedia !== ''
-                  ? Number(params.featuredMedia)
-                  : undefined,
+              featuredMedia: optionalNumber(params.featuredMedia),
             }
           case 'wordpress_delete_post':
             return {
               ...baseParams,
-              postId: Number(params.postId),
+              postId: optionalNumber(params.postId),
               force: params.force,
             }
           case 'wordpress_get_post':
             return {
               ...baseParams,
-              postId: Number(params.postId),
+              postId: optionalNumber(params.postId),
             }
           case 'wordpress_list_posts':
             return {
               ...baseParams,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
-              status: params.listStatus || undefined,
+              status: params.listStatus || toolCallArg(context, params.status),
               search: params.search,
               orderBy: params.orderBy,
               order: params.order,
               categories: params.categories,
               tags: params.tags,
               author:
-                params.listAuthor !== undefined && params.listAuthor !== ''
-                  ? Number(params.listAuthor)
-                  : undefined,
+                optionalNumber(params.listAuthor) ??
+                toolCallArg(context, optionalNumber(params.author)),
             }
           case 'wordpress_create_page':
             return {
@@ -971,81 +1033,61 @@ export const WordPressBlock: BlockConfig = {
               status: params.status,
               excerpt: params.excerpt,
               slug: params.slug,
-              parent:
-                params.parent !== undefined && params.parent !== ''
-                  ? Number(params.parent)
-                  : undefined,
-              menuOrder:
-                params.menuOrder !== undefined && params.menuOrder !== ''
-                  ? Number(params.menuOrder)
-                  : undefined,
-              featuredMedia:
-                params.featuredMedia !== undefined && params.featuredMedia !== ''
-                  ? Number(params.featuredMedia)
-                  : undefined,
+              date: params.date,
+              parent: optionalNumber(params.parent),
+              menuOrder: optionalNumber(params.menuOrder),
+              featuredMedia: optionalNumber(params.featuredMedia),
             }
           case 'wordpress_update_page':
             return {
               ...baseParams,
-              pageId: Number(params.pageId),
+              pageId: optionalNumber(params.pageId),
               title: params.title,
               content: params.content,
               status: params.status,
               excerpt: params.excerpt,
               slug: params.slug,
-              parent:
-                params.parent !== undefined && params.parent !== ''
-                  ? Number(params.parent)
-                  : undefined,
-              menuOrder:
-                params.menuOrder !== undefined && params.menuOrder !== ''
-                  ? Number(params.menuOrder)
-                  : undefined,
-              featuredMedia:
-                params.featuredMedia !== undefined && params.featuredMedia !== ''
-                  ? Number(params.featuredMedia)
-                  : undefined,
+              date: params.date,
+              parent: optionalNumber(params.parent),
+              menuOrder: optionalNumber(params.menuOrder),
+              featuredMedia: optionalNumber(params.featuredMedia),
             }
           case 'wordpress_delete_page':
             return {
               ...baseParams,
-              pageId: Number(params.pageId),
+              pageId: optionalNumber(params.pageId),
               force: params.force,
             }
           case 'wordpress_get_page':
             return {
               ...baseParams,
-              pageId: Number(params.pageId),
+              pageId: optionalNumber(params.pageId),
             }
           case 'wordpress_list_pages':
             return {
               ...baseParams,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
-              status: params.listStatus || undefined,
+              status: params.listStatus || toolCallArg(context, params.status),
               search: params.search,
               orderBy: params.orderBy,
               order: params.order,
-              parent:
-                params.parent !== undefined && params.parent !== ''
-                  ? Number(params.parent)
-                  : undefined,
+              parent: optionalNumber(params.parent),
             }
           case 'wordpress_upload_media':
-            // file is the canonical param for both basic (fileUpload) and advanced modes
             return {
               ...baseParams,
               file: normalizeFileInput(params.file, { single: true }),
               filename: params.filename,
-              title: params.mediaTitle,
+              title: params.mediaTitle ?? toolCallArg(context, params.title),
               caption: params.caption,
               altText: params.altText,
-              description: params.mediaDescription || undefined,
+              description: params.mediaDescription || toolCallArg(context, params.description),
             }
           case 'wordpress_get_media':
             return {
               ...baseParams,
-              mediaId: Number(params.mediaId),
+              mediaId: optionalNumber(params.mediaId),
             }
           case 'wordpress_list_media':
             return {
@@ -1060,54 +1102,56 @@ export const WordPressBlock: BlockConfig = {
           case 'wordpress_delete_media':
             return {
               ...baseParams,
-              mediaId: Number(params.mediaId),
+              mediaId: optionalNumber(params.mediaId),
             }
           case 'wordpress_create_comment':
             return {
               ...baseParams,
-              postId: Number(params.commentPostId),
-              content: params.commentContent,
+              postId:
+                optionalNumber(params.commentPostId) ??
+                toolCallArg(context, optionalNumber(params.postId)),
+              content: params.commentContent ?? toolCallArg(context, params.content),
               parent:
-                params.commentParent !== undefined && params.commentParent !== ''
-                  ? Number(params.commentParent)
-                  : undefined,
-              authorName: params.commentAuthorName || undefined,
-              authorEmail: params.commentAuthorEmail || undefined,
-              authorUrl: params.commentAuthorUrl || undefined,
+                optionalNumber(params.commentParent) ??
+                toolCallArg(context, optionalNumber(params.parent)),
+              authorName: params.commentAuthorName || toolCallArg(context, params.authorName),
+              authorEmail: params.commentAuthorEmail || toolCallArg(context, params.authorEmail),
+              authorUrl: params.commentAuthorUrl || toolCallArg(context, params.authorUrl),
             }
           case 'wordpress_list_comments':
             return {
               ...baseParams,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
-              postId: params.commentPostId ? Number(params.commentPostId) : undefined,
+              postId:
+                optionalNumber(params.commentPostId) ??
+                toolCallArg(context, optionalNumber(params.postId)),
               search: params.search,
-              orderBy: params.orderBy,
+              orderBy: COMMENT_ORDER_BY_FIELDS.has(params.orderBy) ? params.orderBy : undefined,
               order: params.order,
             }
           case 'wordpress_update_comment':
             return {
               ...baseParams,
-              commentId: Number(params.commentId),
-              content: params.commentContent,
-              status: params.commentStatus,
+              commentId: optionalNumber(params.commentId),
+              content: params.commentContent ?? toolCallArg(context, params.content),
+              status: params.commentStatus || toolCallArg(context, params.status),
             }
           case 'wordpress_delete_comment':
             return {
               ...baseParams,
-              commentId: Number(params.commentId),
+              commentId: optionalNumber(params.commentId),
               force: params.force,
             }
           case 'wordpress_create_category':
             return {
               ...baseParams,
-              name: params.categoryName,
-              description: params.categoryDescription,
+              name: params.categoryName ?? toolCallArg(context, params.name),
+              description: params.categoryDescription ?? toolCallArg(context, params.description),
               parent:
-                params.categoryParent !== undefined && params.categoryParent !== ''
-                  ? Number(params.categoryParent)
-                  : undefined,
-              slug: params.categorySlug,
+                optionalNumber(params.categoryParent) ??
+                toolCallArg(context, optionalNumber(params.parent)),
+              slug: params.categorySlug ?? toolCallArg(context, params.slug),
             }
           case 'wordpress_list_categories':
             return {
@@ -1120,31 +1164,30 @@ export const WordPressBlock: BlockConfig = {
           case 'wordpress_get_category':
             return {
               ...baseParams,
-              categoryId: Number(params.categoryId),
+              categoryId: optionalNumber(params.categoryId),
             }
           case 'wordpress_update_category':
             return {
               ...baseParams,
-              categoryId: Number(params.categoryId),
-              name: params.categoryName,
-              description: params.categoryDescription,
+              categoryId: optionalNumber(params.categoryId),
+              name: params.categoryName ?? toolCallArg(context, params.name),
+              description: params.categoryDescription ?? toolCallArg(context, params.description),
               parent:
-                params.categoryParent !== undefined && params.categoryParent !== ''
-                  ? Number(params.categoryParent)
-                  : undefined,
-              slug: params.categorySlug,
+                optionalNumber(params.categoryParent) ??
+                toolCallArg(context, optionalNumber(params.parent)),
+              slug: params.categorySlug ?? toolCallArg(context, params.slug),
             }
           case 'wordpress_delete_category':
             return {
               ...baseParams,
-              categoryId: Number(params.categoryId),
+              categoryId: optionalNumber(params.categoryId),
             }
           case 'wordpress_create_tag':
             return {
               ...baseParams,
-              name: params.tagName,
-              description: params.tagDescription,
-              slug: params.tagSlug,
+              name: params.tagName ?? toolCallArg(context, params.name),
+              description: params.tagDescription ?? toolCallArg(context, params.description),
+              slug: params.tagSlug ?? toolCallArg(context, params.slug),
             }
           case 'wordpress_list_tags':
             return {
@@ -1157,20 +1200,20 @@ export const WordPressBlock: BlockConfig = {
           case 'wordpress_get_tag':
             return {
               ...baseParams,
-              tagId: Number(params.tagId),
+              tagId: optionalNumber(params.tagId),
             }
           case 'wordpress_update_tag':
             return {
               ...baseParams,
-              tagId: Number(params.tagId),
-              name: params.tagName,
-              description: params.tagDescription,
-              slug: params.tagSlug,
+              tagId: optionalNumber(params.tagId),
+              name: params.tagName ?? toolCallArg(context, params.name),
+              description: params.tagDescription ?? toolCallArg(context, params.description),
+              slug: params.tagSlug ?? toolCallArg(context, params.slug),
             }
           case 'wordpress_delete_tag':
             return {
               ...baseParams,
-              tagId: Number(params.tagId),
+              tagId: optionalNumber(params.tagId),
             }
           case 'wordpress_get_current_user':
             return baseParams
@@ -1186,7 +1229,7 @@ export const WordPressBlock: BlockConfig = {
           case 'wordpress_get_user':
             return {
               ...baseParams,
-              userId: Number(params.userId),
+              userId: optionalNumber(params.userId),
             }
           case 'wordpress_search_content':
             return {
@@ -1194,7 +1237,7 @@ export const WordPressBlock: BlockConfig = {
               query: params.query,
               perPage: params.perPage ? Number(params.perPage) : undefined,
               page: params.page ? Number(params.page) : undefined,
-              subtype: params.searchType || undefined,
+              subtype: params.searchType || toolCallArg(context, params.subtype),
             }
           default:
             return baseParams
@@ -1211,6 +1254,7 @@ export const WordPressBlock: BlockConfig = {
     content: { type: 'string', description: 'Post or page content' },
     status: { type: 'string', description: 'Post or page status' },
     excerpt: { type: 'string', description: 'Post or page excerpt' },
+    date: { type: 'string', description: 'Publish date in the site timezone (ISO 8601)' },
     slug: { type: 'string', description: 'URL slug' },
     categories: { type: 'string', description: 'Category IDs (comma-separated)' },
     tags: { type: 'string', description: 'Tag IDs (comma-separated)' },

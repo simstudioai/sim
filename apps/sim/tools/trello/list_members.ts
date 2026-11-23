@@ -7,6 +7,7 @@ import {
 } from '@/tools/trello/shared'
 import type { TrelloListMembersParams, TrelloListMembersResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const trelloListMembersTool: ToolConfig<TrelloListMembersParams, TrelloListMembersResponse> =
   {
@@ -46,7 +47,9 @@ export const trelloListMembersTool: ToolConfig<TrelloListMembersParams, TrelloLi
           throw new Error('TRELLO_API_KEY environment variable is not set')
         }
 
-        const url = new URL(`${TRELLO_API_BASE_URL}/boards/${params.boardId.trim()}/members`)
+        const url = new URL(
+          `${TRELLO_API_BASE_URL}/boards/${safeUrlPathSegment(params.boardId, 'boardId')}/members`
+        )
         url.searchParams.set('key', apiKey)
         url.searchParams.set('token', params.accessToken)
 
