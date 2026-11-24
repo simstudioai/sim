@@ -375,7 +375,7 @@ export function resolveBillingInterval(
 
 /** The billing fields that decide a plan's included usage per period. */
 export interface PlanPricingInput {
-  plan: string | null | undefined
+  plan?: string | null
   billingInterval?: string | null
   metadata?: unknown
 }

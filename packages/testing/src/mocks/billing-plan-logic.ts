@@ -64,7 +64,7 @@ export function resolveBillingInterval(
 
 /** Faithful port of the real `getPlanPricing` with env overrides unset. */
 export function getPlanPricing(subscription: {
-  plan: string | null | undefined
+  plan?: string | null
   billingInterval?: string | null
   metadata?: unknown
 }): { basePrice: number } {
