@@ -1,17 +1,19 @@
-import { once } from 'node:events'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { type ElectronApplication, _electron as electron, type Page } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
 import type { BrowserTabsState, BrowserToolName, BrowserToolResponse } from '@sim/browser-protocol'
 import { refFor } from './executor-sim'
 import {
   attachBrowserPanel,
   test as base,
-  DESKTOP_DIR,
+  type DesktopApp,
   type DesktopBridge,
   expect,
   focusFirstWindow,
+  launchDesktop,
+  QUIT_DEADLINE_MS,
+  quitDesktop,
   serve,
   stopAndRemoveProfile,
   ToolAuthorizer,
@@ -24,8 +26,6 @@ import {
  */
 
 const SCOPE = 'browser-tools-e2e'
-/** Above the 5s an account teardown may legitimately hold `before-quit`. */
-const QUIT_DEADLINE_MS = 15_000
 
 const FORM = `<!doctype html><html><head><title>Form fixture</title></head><body>
   <label>Name <input id="name" autocomplete="off"></label>
@@ -184,25 +184,6 @@ async function openShell(app: ElectronApplication): Promise<Page> {
   await focusFirstWindow(app)
   await expect(shell.getByRole('heading')).toHaveText('Browser tools fixture')
   return shell
-}
-
-/** The `desktop` fixture's bounded quit, for the worker-scoped app that fixture cannot own. */
-async function quitSharedApp(app: ElectronApplication, userData: string): Promise<void> {
-  const child = app.process()
-  const exited =
-    child.exitCode !== null || child.signalCode !== null ? Promise.resolve() : once(child, 'exit')
-  // The exit event is the outcome; close() itself rejects once the process is gone.
-  void app.close().catch(() => {})
-  let timer: NodeJS.Timeout | undefined
-  const quit = await Promise.race([
-    exited.then(() => true),
-    new Promise<false>((resolve) => {
-      timer = setTimeout(() => resolve(false), QUIT_DEADLINE_MS)
-    }),
-  ])
-  clearTimeout(timer)
-  await stopAndRemoveProfile(child, userData)
-  if (!quit) throw new Error(`Electron did not quit within ${QUIT_DEADLINE_MS / 1_000}s`)
 }
 
 function browserTools(
@@ -421,25 +402,25 @@ const test = base.extend<
 
   sharedShell: [
     async ({ toolsSite }, use) => {
+      // The `desktop` fixture is per test, so this worker-scoped app is launched and quit directly,
+      // under the same deadline. A worker cannot attach files, so a stall's diagnostics go in the error.
       const userData = mkdtempSync(join(tmpdir(), 'sim-browser-tools-e2e-'))
-      let app: ElectronApplication | undefined
+      let desktop: DesktopApp | undefined
+      let stall = ''
       try {
-        app = await electron.launch({
-          args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
-          cwd: DESKTOP_DIR,
-          env: {
-            ...process.env,
-            SIM_DESKTOP_ORIGIN: toolsSite.origin,
-            SIM_DESKTOP_USER_DATA: userData,
-          },
+        desktop = await launchDesktop({
+          origin: toolsSite.origin,
+          userData,
+          leaveDialogsToDesktop: true,
         })
-        // The desktop's own CDP dialog handling decides page dialogs, as in production.
-        const leaveDialogsToDesktop = (page: Page) => page.on('dialog', () => {})
-        app.context().pages().forEach(leaveDialogsToDesktop)
-        app.context().on('page', leaveDialogsToDesktop)
-        await use({ app, shell: await openShell(app) })
+        await use({ app: desktop.app, shell: await openShell(desktop.app) })
+        await quitDesktop(desktop, (diagnostics) => {
+          stall = diagnostics
+        }).catch((error: unknown) => {
+          throw new Error(`${String(error)}\n${stall}`)
+        })
       } finally {
-        if (app) await quitSharedApp(app, userData)
+        if (desktop) await stopAndRemoveProfile(desktop.app.process(), userData)
         else rmSync(userData, { recursive: true, force: true })
       }
     },
@@ -476,7 +457,6 @@ const test = base.extend<
   isolatedTools: async ({ toolsSite, desktop }, use) => {
     const { app } = await desktop.launch({
       origin: toolsSite.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
       leaveDialogsToDesktop: true,
     })
     const shell = await openShell(app)

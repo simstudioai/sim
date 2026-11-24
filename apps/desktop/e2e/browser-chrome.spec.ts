@@ -1,11 +1,15 @@
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
-import { build } from 'esbuild'
-import postcss from 'postcss'
-import loadPostcssConfig from 'postcss-load-config'
-import { type DesktopBridge, expect, focusFirstWindow, SIM_DIR, serve, test } from './harness'
+import {
+  bundleSimFixture,
+  type DesktopBridge,
+  expect,
+  focusFirstWindow,
+  SIM_DIR,
+  serve,
+  test,
+} from './harness'
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/browser-chrome.tsx', import.meta.url))
 const SCOPE = 'browser-chrome-fixture'
@@ -13,45 +17,23 @@ const SCOPE = 'browser-chrome-fixture'
 test('crowded tabs and renderer overlays work with a real native browser page', async ({
   desktop,
 }, testInfo) => {
-  // Not `bundleSimFixture`: the fixture's own Tailwind classes need an `@source` for it, and the
-  // bundle's CSS output (emcn's imported styles) is served alongside Sim's stylesheet.
-  const config = await loadPostcssConfig({}, SIM_DIR)
-  const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
-  const css = await postcss(config.plugins).process(
-    `${readFileSync(stylesheet, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
-    { from: stylesheet }
-  )
   const hook = join(
     SIM_DIR,
     'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.ts'
   )
-  const bundle = await build({
-    stdin: {
-      contents: `import { mountBrowserChromeFixture } from ${JSON.stringify(FIXTURE)};
+  const bundle = await bundleSimFixture(
+    {
+      source: `import { mountBrowserChromeFixture } from ${JSON.stringify(FIXTURE)};
 import { useBrowserPanelOcclusion } from ${JSON.stringify(hook)};
 mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
-      resolveDir: SIM_DIR,
-      loader: 'tsx',
     },
-    bundle: true,
-    write: false,
-    outfile: testInfo.outputPath('fixture.js'),
-    external: ['node:async_hooks'],
-    banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
-    format: 'iife',
-    platform: 'browser',
-    tsconfig: join(SIM_DIR, 'tsconfig.json'),
-    define: { 'process.env.NODE_ENV': '"development"' },
-  })
+    { sources: [FIXTURE] }
+  )
   const server = await serve((_request, response, url) => {
     const path = url.pathname
     if (path === '/fixture.js' || path === '/fixture.css') {
       response.setHeader('Content-Type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
-      response.end(
-        path.endsWith('.js')
-          ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
-          : `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
-      )
+      response.end(path.endsWith('.js') ? bundle.js : bundle.css)
       return
     }
     if (path.startsWith('/api/')) {
@@ -77,7 +59,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
   try {
     const { app } = await desktop.launch({
       origin: server.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
     })
     const page = await app.firstWindow()
     shellPage = page

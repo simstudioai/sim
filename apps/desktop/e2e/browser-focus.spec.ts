@@ -43,7 +43,6 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
     const { site } = server
     const { app } = await desktop.launch({
       origin: server.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
     })
     const shell = await app.firstWindow()
     await focusFirstWindow(app)

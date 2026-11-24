@@ -110,7 +110,6 @@ test.describe('browser page parity with Chrome', () => {
     downloads = desktop.tempDir('sim-browser-parity-downloads-')
     const launched = await desktop.launch({
       origin: server.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
       // The desktop's own handling decides a page's leave-site question, as in production.
       leaveDialogsToDesktop: true,
     })

@@ -36,7 +36,7 @@ export const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 export const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
 
 /** Above the 5s an account teardown may legitimately hold `before-quit`. */
-const QUIT_DEADLINE_MS = 15_000
+export const QUIT_DEADLINE_MS = 15_000
 const OUTPUT_TAIL_BYTES = 64 * 1024
 
 export type DesktopBridge = typeof globalThis & { simDesktop: SimDesktopApi }
@@ -392,7 +392,10 @@ export interface SimFixtureBundle {
  */
 export async function bundleSimFixture(
   entry: { file: string } | { source: string },
-  options: Pick<BuildOptions, 'inject' | 'external'> = {}
+  options: Pick<BuildOptions, 'inject' | 'external'> & {
+    /** More files whose utility classes the stylesheet must include; a `file` entry is added. */
+    sources?: string[]
+  } = {}
 ): Promise<SimFixtureBundle> {
   const bundle = await build({
     ...('file' in entry
@@ -419,8 +422,10 @@ export async function bundleSimFixture(
     .join('\n')
   const config = await loadPostcssConfig({}, SIM_DIR)
   const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
-  // A fixture file's own utility classes are generated too, not only the ones Sim's sources use.
-  const scanFixture = 'file' in entry ? `\n@source ${JSON.stringify(entry.file)};` : ''
+  // A fixture's own utility classes are generated too, not only the ones Sim's sources use.
+  const scanFixture = [...('file' in entry ? [entry.file] : []), ...(options.sources ?? [])]
+    .map((source) => `\n@source ${JSON.stringify(source)};`)
+    .join('')
   const css = await postcss(config.plugins).process(
     `${readFileSync(stylesheet, 'utf8')}${scanFixture}`,
     { from: stylesheet }
