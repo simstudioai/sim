@@ -15,6 +15,7 @@ import {
   bundleSimFixture,
   type DesktopBridge,
   expect,
+  hideBrowserPanel,
   SIM_DIR,
   ToolAuthorizer,
   test,
@@ -384,11 +385,7 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
 
     await test.step('a dialog while the browser is off screen stays automatic', async () => {
       await act({ action: 'switch-tab', tabId: await agentTabId() })
-      await shell.evaluate(
-        (scope) =>
-          (globalThis as DesktopBridge).simDesktop.browserAgent.setPanelBounds(null, null, scope),
-        SCOPE
-      )
+      await hideBrowserPanel(shell, SCOPE)
       await inPage(app, `${site}/agent`, "document.title = 'agent'")
       await confirmFromPage(`${site}/agent`)
       await expect.poll(() => titleAt(app, `${site}/agent`)).toBe('confirm:false')

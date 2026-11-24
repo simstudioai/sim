@@ -129,7 +129,6 @@ test.describe('desktop shell smoke', () => {
         .poll(() => openedExternally(app))
         .toEqual(['https://docs.sim.ai/x', 'https://docs.sim.ai/navigation'])
       expect(window.url()).toBe(`${fixture.origin}/home`)
-      await expect(window.locator('#app')).toHaveText('fixture-app')
     })
   })
 

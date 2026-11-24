@@ -435,7 +435,7 @@ test.describe('background executor', () => {
       args: { command: `echo started >> '${marker}'; sleep 40`, waitSeconds: 60 },
     })
     await expect.poll(() => readFileSafe(marker), { timeout: 30_000 }).toContain('started')
-    first.app.process().kill('SIGKILL')
+    first.child.kill('SIGKILL')
     sim.streams.get(deviceId)?.clear()
 
     await launchAgainst(desktop, sim, { userData: first.userData })

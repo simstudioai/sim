@@ -1,28 +1,20 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { BrowserTabsState, BrowserToolName, BrowserToolResponse } from '@sim/browser-protocol'
 import { refFor } from './executor-sim'
 import {
   attachBrowserPanel,
   test as base,
-  type DesktopApp,
   type DesktopBridge,
   expect,
   focusFirstWindow,
-  launchDesktop,
-  QUIT_DEADLINE_MS,
-  quitDesktop,
   serve,
-  stopAndRemoveProfile,
   ToolAuthorizer,
 } from './harness'
 
 /**
- * Browser tools against the real desktop. Most tests only read and act on pages, so they share one
- * app and each gets its own provisional browser scope, disposed after the test along with its pages.
- * Tests that sign out or change the window (hide, minimize, blur, resize) launch their own app.
+ * Browser tools against the real desktop, one app per test. Sharing an app would need a scope per
+ * test that can be disposed afterwards, and only provisional scopes can be, while tool calls are
+ * authorized only for real chat ids.
  */
 
 const SCOPE = 'browser-tools-e2e'
@@ -177,8 +169,6 @@ interface BrowserTools extends Shell {
   pollPage<T = unknown>(url: string, code: string): Promise<T | undefined>
 }
 
-let scopeCount = 0
-
 async function openShell(app: ElectronApplication): Promise<Page> {
   const shell = await app.firstWindow()
   await focusFirstWindow(app)
@@ -243,10 +233,7 @@ function browserTools(
   }
 }
 
-const test = base.extend<
-  { tools: BrowserTools; isolatedTools: BrowserTools },
-  { toolsSite: ToolsSite; sharedShell: Shell }
->({
+const test = base.extend<{ tools: BrowserTools }, { toolsSite: ToolsSite }>({
   toolsSite: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this destructuring, and this one has none.
     async ({}, use) => {
@@ -400,61 +387,7 @@ const test = base.extend<
     { scope: 'worker' },
   ],
 
-  sharedShell: [
-    async ({ toolsSite }, use) => {
-      // The `desktop` fixture is per test, so this worker-scoped app is launched and quit directly,
-      // under the same deadline. A worker cannot attach files, so a stall's diagnostics go in the error.
-      const userData = mkdtempSync(join(tmpdir(), 'sim-browser-tools-e2e-'))
-      let desktop: DesktopApp | undefined
-      let stall = ''
-      try {
-        desktop = await launchDesktop({
-          origin: toolsSite.origin,
-          userData,
-          leaveDialogsToDesktop: true,
-        })
-        await use({ app: desktop.app, shell: await openShell(desktop.app) })
-        await quitDesktop(desktop, (diagnostics) => {
-          stall = diagnostics
-        }).catch((error: unknown) => {
-          throw new Error(`${String(error)}\n${stall}`)
-        })
-      } finally {
-        if (desktop) await stopAndRemoveProfile(desktop.app.process(), userData)
-        else rmSync(userData, { recursive: true, force: true })
-      }
-    },
-    { scope: 'worker', timeout: 2 * QUIT_DEADLINE_MS + 30_000 },
-  ],
-
-  tools: async ({ toolsSite, sharedShell }, use) => {
-    const { app, shell } = sharedShell
-    const scope = `pending:browser-tools-${++scopeCount}`
-    // Another test's app may have taken focus since the shared app last had it.
-    await focusFirstWindow(app)
-    await attachBrowserPanel(shell, scope)
-    await use(browserTools(sharedShell, scope, toolsSite.authorizer))
-    toolsSite.appEchoes.length = 0
-    toolsSite.beforeUploadResponse = undefined
-    await shell.evaluate(
-      (scope) => (globalThis as DesktopBridge).simDesktop.browserAgent.disposeScope(scope),
-      scope
-    )
-    // The next test finds its pages by URL, so this scope's pages must be gone first.
-    await expect
-      .poll(() =>
-        app.evaluate(({ BrowserWindow, webContents }) => {
-          const shellId = BrowserWindow.getAllWindows()[0]?.webContents.id
-          return webContents
-            .getAllWebContents()
-            .filter((page) => page.id !== shellId && /^https?:/.test(page.getURL()))
-            .map((page) => page.getURL())
-        })
-      )
-      .toEqual([])
-  },
-
-  isolatedTools: async ({ toolsSite, desktop }, use) => {
+  tools: async ({ toolsSite, desktop }, use) => {
     const { app } = await desktop.launch({
       origin: toolsSite.origin,
       leaveDialogsToDesktop: true,
@@ -1048,7 +981,7 @@ test.describe('browser tools', () => {
   })
 
   test('sign-out clears authenticated browser pages with the desktop session', async ({
-    isolatedTools: tools,
+    tools,
     toolsSite,
   }) => {
     const { origin } = toolsSite
@@ -1164,7 +1097,7 @@ test.describe('browser tools', () => {
   }
 
   test('captures fresh pixels after a resize and recovers a permanently pending native capture without losing the page', async ({
-    isolatedTools: tools,
+    tools,
     toolsSite,
   }) => {
     const { origin } = toolsSite
@@ -1255,7 +1188,7 @@ test.describe('browser tools', () => {
 
   for (const mode of ['hidden', 'minimized'] as const) {
     test(`captures a ${mode} window without changing its state, and recovers a stalled capture after restoring it`, async ({
-      isolatedTools: tools,
+      tools,
       toolsSite,
     }) => {
       const { origin } = toolsSite
@@ -1306,10 +1239,7 @@ test.describe('browser tools', () => {
     })
   }
 
-  test('captures a visible window without changing its state', async ({
-    isolatedTools: tools,
-    toolsSite,
-  }) => {
+  test('captures a visible window without changing its state', async ({ tools, toolsSite }) => {
     await openForm(tools, toolsSite.origin)
     await blurWindow(tools)
     await expectCapturesLeaveStateUnchanged(tools, toolsSite.origin)

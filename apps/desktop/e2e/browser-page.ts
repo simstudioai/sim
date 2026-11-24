@@ -83,8 +83,12 @@ export async function panelAction(
 ): Promise<void> {
   await shell.getByRole('heading').click()
   await shell.evaluate(
-    ({ action, scope }) =>
-      (globalThis as DesktopBridge).simDesktop.browserAgent.panelAction(action, scope),
+    async ({ action, scope }) => {
+      const api = (globalThis as DesktopBridge).simDesktop.browserAgent
+      api.panelAction(action, scope)
+      // panelAction is a send; this invoke from the same renderer returns after main handled it.
+      await api.activateScope(scope)
+    },
     { action, scope }
   )
 }

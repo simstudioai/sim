@@ -36,10 +36,15 @@ export const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 export const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
 
 /** Above the 5s an account teardown may legitimately hold `before-quit`. */
-export const QUIT_DEADLINE_MS = 15_000
+const QUIT_DEADLINE_MS = 15_000
 const OUTPUT_TAIL_BYTES = 64 * 1024
 
 export type DesktopBridge = typeof globalThis & { simDesktop: SimDesktopApi }
+
+type PanelHeartbeats = typeof globalThis & { simE2ePanelHeartbeats?: Record<string, number> }
+
+/** Below the main process's 2.5s panel-bounds lease, which hides the panel once it lapses. */
+const PANEL_HEARTBEAT_MS = 500
 
 export interface LaunchOptions {
   origin: string
@@ -60,6 +65,8 @@ export interface LaunchOptions {
 
 export interface DesktopApp {
   app: ElectronApplication
+  /** Captured at launch: `app.process()` throws once the app has quit or crashed. */
+  child: ChildProcess
   userData: string
   /** The tail of the main process's stdout and stderr. */
   output(): string
@@ -89,7 +96,7 @@ function captureOutput(child: ChildProcess): () => string {
 
 /** Everything that says why an app did not quit, gathered before it is killed. */
 async function quitStallDiagnostics(desktop: DesktopApp): Promise<string> {
-  const pid = desktop.app.process().pid
+  const pid = desktop.child.pid
   const sections: string[] = []
   const windows = await Promise.race([
     desktop.app
@@ -180,9 +187,7 @@ export async function stopAndRemoveProfile(child: ChildProcess, userData: string
 }
 
 /** Launches the app against `options.origin` on `userData`, capturing its output. */
-export async function launchDesktop(
-  options: LaunchOptions & { userData: string }
-): Promise<DesktopApp> {
+async function launchDesktop(options: LaunchOptions & { userData: string }): Promise<DesktopApp> {
   if (options.settings !== undefined) {
     writeFileSync(
       join(options.userData, 'settings.json'),
@@ -199,10 +204,12 @@ export async function launchDesktop(
       ...options.env,
     },
   })
+  const child = app.process()
   const desktop: DesktopApp = {
     app,
+    child,
     userData: options.userData,
-    output: captureOutput(app.process()),
+    output: captureOutput(child),
   }
   if (options.leaveDialogsToDesktop) {
     const leave = (page: Page) => page.on('dialog', () => {})
@@ -214,14 +221,13 @@ export async function launchDesktop(
 
 /**
  * Quits an app through Playwright (the same `app.quit()` path as Cmd+Q). If it has not exited by
- * the deadline, hands what it was doing to `report`, kills it, and throws. Exported for an app a
- * worker shares across tests; a test's own apps go through the `desktop` fixture.
+ * the deadline, hands what it was doing to `report`, kills it, and throws.
  */
-export async function quitDesktop(
+async function quitDesktop(
   desktop: DesktopApp,
   report: (diagnostics: string) => Promise<void> | void
 ): Promise<void> {
-  const child = desktop.app.process()
+  const { child } = desktop
   if (hasExited(child)) return
   const exited = once(child, 'exit')
   // The exit event is the outcome; close() itself rejects once the process is gone.
@@ -235,14 +241,17 @@ export async function quitDesktop(
   ])
   clearTimeout(timer)
   if (quit) return
-  await report(await quitStallDiagnostics(desktop))
-  if (!hasExited(child) && child.pid !== undefined) {
-    try {
-      process.kill(-child.pid, 'SIGKILL')
-    } catch {
-      child.kill('SIGKILL')
+  try {
+    await report(await quitStallDiagnostics(desktop))
+  } finally {
+    if (!hasExited(child) && child.pid !== undefined) {
+      try {
+        process.kill(-child.pid, 'SIGKILL')
+      } catch {
+        child.kill('SIGKILL')
+      }
+      await exited
     }
-    await exited
   }
   throw new Error(
     `Electron did not quit within ${QUIT_DEADLINE_MS / 1_000}s; see the electron-quit-stall diagnostics`
@@ -280,17 +289,16 @@ export const test = base.extend<{ desktop: DesktopFixture }>({
       })
       // Every app is closed and every directory removed even if an earlier one fails; the first
       // failure is reported once the rest are cleaned up.
+      // Quit in parallel so several stalled apps still fit the teardown budget.
       const failures: unknown[] = []
-      for (const desktop of launched) {
-        try {
-          await closeDesktop(desktop, testInfo)
-        } catch (error) {
-          failures.push(error)
-        }
+      for (const outcome of await Promise.allSettled(
+        launched.map((desktop) => closeDesktop(desktop, testInfo))
+      )) {
+        if (outcome.status === 'rejected') failures.push(outcome.reason)
       }
       for (const desktop of launched) {
         try {
-          await stopAndRemoveProfile(desktop.app.process(), desktop.userData)
+          await stopAndRemoveProfile(desktop.child, desktop.userData)
         } catch (error) {
           failures.push(error)
         }
@@ -322,10 +330,13 @@ export interface FixtureServer {
 export async function serve(handler: FixtureHandler): Promise<FixtureServer> {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-    Promise.resolve(handler(request, response, url)).catch((error: unknown) => {
-      if (!response.headersSent) response.writeHead(500)
-      response.end(String(error))
-    })
+    // Through then(), so a handler that throws synchronously also answers 500.
+    Promise.resolve()
+      .then(() => handler(request, response, url))
+      .catch((error: unknown) => {
+        if (!response.headersSent) response.writeHead(500)
+        response.end(String(error))
+      })
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -358,12 +369,15 @@ export async function focusFirstWindow(app: ElectronApplication): Promise<void> 
 
 /**
  * Activates a browser scope in the shell page and keeps the native browser panel below a `top`
- * inset, following window resizes. Resolves once the bounds reached the main process.
+ * inset. The main process treats panel bounds as a lease that lapses after 2.5s, so the bounds are
+ * renewed on a heartbeat, the way Sim's panel renews them. Resolves once they reached main.
  */
 export async function attachBrowserPanel(shell: Page, scope: string, top = 80): Promise<void> {
   await shell.evaluate(
-    async ({ scope, top }) => {
+    async ({ scope, top, heartbeatMs }) => {
       const api = (globalThis as DesktopBridge).simDesktop
+      const heartbeats = ((globalThis as PanelHeartbeats).simE2ePanelHeartbeats ??= {})
+      clearInterval(heartbeats[scope])
       await api.browserAgent.activateScope(scope)
       const updateBounds = () =>
         api.browserAgent.setPanelBounds(
@@ -372,12 +386,22 @@ export async function attachBrowserPanel(shell: Page, scope: string, top = 80): 
           scope
         )
       updateBounds()
-      addEventListener('resize', updateBounds)
+      heartbeats[scope] = window.setInterval(updateBounds, heartbeatMs)
       // One renderer's IPC is handled in order, so this round trip lands after the bounds.
       await api.browserAgent.activateScope(scope)
     },
-    { scope, top }
+    { scope, top, heartbeatMs: PANEL_HEARTBEAT_MS }
   )
+}
+
+/** Stops renewing a scope's panel bounds and takes the panel off screen, as Sim does on hide. */
+export async function hideBrowserPanel(shell: Page, scope: string): Promise<void> {
+  await shell.evaluate(async (scope) => {
+    const api = (globalThis as DesktopBridge).simDesktop
+    clearInterval((globalThis as PanelHeartbeats).simE2ePanelHeartbeats?.[scope])
+    api.browserAgent.setPanelBounds(null, null, scope)
+    await api.browserAgent.activateScope(scope)
+  }, scope)
 }
 
 export interface SimFixtureBundle {

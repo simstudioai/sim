@@ -309,7 +309,7 @@ test.describe('terminal cancel', () => {
     tmux = new TmuxServer()
   })
 
-  test.afterEach(async () => {
+  test.afterEach(async ({ desktop }) => {
     const testInfo = test.info()
     if (testInfo.status !== testInfo.expectedStatus) {
       // What each call came back with, and the panes tmux held, explain most failures.
@@ -331,6 +331,15 @@ test.describe('terminal cancel', () => {
       }
       await testInfo.attach('processes', { body: processes() })
     }
+    // Quit while the tmux server and the fixture Sim still answer, so a stall is the app's own.
+    let quitFailure: unknown
+    for (const app of launched) {
+      try {
+        await desktop.close(app)
+      } catch (error) {
+        quitFailure ??= error
+      }
+    }
     launched = []
     tmux.remove()
     for (const pattern of leftovers.splice(0)) {
@@ -341,6 +350,7 @@ test.describe('terminal cancel', () => {
       }
     }
     sim.reset()
+    if (quitFailure) throw quitFailure
   })
 
   test.afterAll(async () => {
@@ -372,7 +382,7 @@ test.describe('terminal cancel', () => {
 
   /** The app dies without a word: its shells go with it, and its tmux runs outlive it. */
   function crash(app: ExecutorApp): void {
-    app.app.process().kill('SIGKILL')
+    app.child.kill('SIGKILL')
   }
 
   test('Stop ends the agent command in a plain shell and leaves the user command running', async ({

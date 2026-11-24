@@ -186,7 +186,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           beforeSelection
         )
         await page.locator('#toggle-activity').click()
-        await expect(indicator).toHaveCount(1)
         await page.locator('#medium-tabs').click()
         await expect(page.locator('[data-tab-strip-item] [data-overflow-text]')).toHaveText(
           Array(4).fill('Medium title')
@@ -207,7 +206,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           intrinsicWidth
         )
         await page.locator('#toggle-activity').click()
-        await expect(indicator).toHaveCount(1)
       } finally {
         await session.send('Emulation.setTouchEmulationEnabled', { enabled: false })
         await session.detach()

@@ -5,6 +5,7 @@ import {
   type DesktopBridge,
   expect,
   focusFirstWindow,
+  hideBrowserPanel,
   serve,
   ToolAuthorizer,
   test,
@@ -58,15 +59,12 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
      * Fire-and-forget browser IPC, followed by an invoke round trip from the same renderer so the
      * main process has handled the sends before the test acts.
      */
-    const send = (
-      message: { panelAction: BrowserPanelAction } | { panelFocused: boolean } | { hidePanel: true }
-    ) =>
+    const send = (message: { panelAction: BrowserPanelAction } | { panelFocused: boolean }) =>
       shell.evaluate(
         async ({ message, scope }) => {
           const api = (globalThis as Bridge).simDesktop.browserAgent
           if ('panelAction' in message) api.panelAction(message.panelAction, scope)
-          else if ('panelFocused' in message) api.setPanelFocused(message.panelFocused, scope)
-          else api.setPanelBounds(null, null, scope)
+          else api.setPanelFocused(message.panelFocused, scope)
           await api.activateScope(scope)
         },
         { message, scope: SCOPE }
@@ -250,7 +248,7 @@ test('browser focus and shortcuts stay with the surface the user is using', asyn
 
     await test.step('browser shortcuts work while renderer chrome hides the page', async () => {
       const before = await tabCount()
-      await send({ hidePanel: true })
+      await hideBrowserPanel(shell, SCOPE)
       await send({ panelFocused: true })
       await clickMenu('New Tab')
       await expect.poll(tabCount).toBe(before + 1)

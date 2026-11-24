@@ -8,6 +8,7 @@ import {
   expect,
   type FixtureServer,
   focusFirstWindow,
+  hideBrowserPanel,
   ToolAuthorizer,
   test,
 } from './harness'
@@ -313,9 +314,7 @@ test.describe('saved password autofill', () => {
     await expect(host.getByRole('button', { name: 'Outside the browser' })).toBeFocused()
     await clickField()
     await picker()
-    await host.evaluate((scope) => {
-      ;(globalThis as DesktopBridge).simDesktop.browserAgent.setPanelBounds(null, null, scope)
-    }, SCOPE)
+    await hideBrowserPanel(host, SCOPE)
     await expect.poll(pickerOpen).toBe(false)
     expect(await pageScript('document.getElementById("pass").value')).toBe('')
   })
