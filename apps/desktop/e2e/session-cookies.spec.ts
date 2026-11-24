@@ -92,7 +92,6 @@ test.describe('built-in browser session cookies', () => {
   }) => {
     const options: LaunchOptions = {
       origin: fixture.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
     }
     const first = await desktop.launch(options)
     const host = await openShell(first.app)

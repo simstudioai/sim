@@ -166,9 +166,6 @@ jobs:
         run: bun run ../../scripts/desktop-e2e.ts ${{ matrix.shard }}/${{ strategy.job-total }}
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/desktop-smoke.json
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-          CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
 
       - name: Upload test results
         if: failure()
@@ -254,10 +251,6 @@ jobs:
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
         run: bunx playwright test
-        env:
-          BACKGROUND_EXECUTOR_REPORT_PATH: test-results/background-executor-report.json
-          TERMINAL_CANCEL_REPORT_PATH: test-results/terminal-cancel-report.json
-          CONTINUE_SIGN_IN_REPORT_PATH: test-results/continue-sign-in-report.json
 
       - name: Upload test results
         if: failure()

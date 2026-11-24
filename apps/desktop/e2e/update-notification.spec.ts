@@ -29,7 +29,6 @@ mountUpdateNotificationFixture(DesktopUpdateNotification);`,
   try {
     const { app } = await desktop.launch({
       origin: fixture.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
     })
     const page = await app.firstWindow()
     const errors: string[] = []

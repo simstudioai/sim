@@ -1,35 +1,13 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import postcss from 'postcss'
-import loadPostcssConfig from 'postcss-load-config'
-import { bundleSimFixture, type DesktopBridge, expect, SIM_DIR, test } from './harness'
+import { bundleSimFixture, type DesktopBridge, expect, test } from './harness'
 import { serveSignedIn } from './session-fixture'
 
 const FIXTURE = fileURLToPath(new URL('../../sim/scripts/fixtures/chat-panel.tsx', import.meta.url))
 
-/**
- * Sim's stylesheet with the fixture's own classes: the fixture sits outside the folders Sim's
- * stylesheet scans, and its layout classes (the chat's minimum width) decide the clamps asserted
- * below.
- */
-async function fixtureStylesheet(): Promise<string> {
-  const config = await loadPostcssConfig({}, SIM_DIR)
-  const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
-  const css = await postcss(config.plugins).process(
-    `${readFileSync(stylesheet, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
-    { from: stylesheet }
-  )
-  return css.css
-}
-
 test('chat panel sizes survive navigation, chat switches, collapse, and layout constraints', async ({
   desktop,
 }) => {
-  const [{ js }, css] = await Promise.all([
-    bundleSimFixture({ file: FIXTURE }),
-    fixtureStylesheet(),
-  ])
+  const { js, css } = await bundleSimFixture({ file: FIXTURE })
   const fixture = await serveSignedIn({
     page: '<!doctype html><html class="dark"><head><link rel="stylesheet" href="/fixture.css"></head><body style="margin:0;background:var(--bg);color:var(--text-primary)"><div id="root"></div><script src="/fixture.js"></script></body></html>',
     handle: (_request, response, url) => {
@@ -50,7 +28,6 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
   try {
     const { app } = await desktop.launch({
       origin: fixture.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
     })
     const page = await app.firstWindow()
     const errors: string[] = []

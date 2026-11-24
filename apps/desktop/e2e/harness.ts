@@ -179,11 +179,48 @@ export async function stopAndRemoveProfile(child: ChildProcess, userData: string
   rmSync(userData, { recursive: true, force: true })
 }
 
+/** Launches the app against `options.origin` on `userData`, capturing its output. */
+export async function launchDesktop(
+  options: LaunchOptions & { userData: string }
+): Promise<DesktopApp> {
+  if (options.settings !== undefined) {
+    writeFileSync(
+      join(options.userData, 'settings.json'),
+      typeof options.settings === 'string' ? options.settings : JSON.stringify(options.settings)
+    )
+  }
+  const app = await electron.launch({
+    args: [options.main ?? '.', ...(options.args ?? [])],
+    cwd: DESKTOP_DIR,
+    env: {
+      ...process.env,
+      SIM_DESKTOP_ORIGIN: options.origin,
+      SIM_DESKTOP_USER_DATA: options.userData,
+      ...options.env,
+    },
+  })
+  const desktop: DesktopApp = {
+    app,
+    userData: options.userData,
+    output: captureOutput(app.process()),
+  }
+  if (options.leaveDialogsToDesktop) {
+    const leave = (page: Page) => page.on('dialog', () => {})
+    app.context().pages().forEach(leave)
+    app.context().on('page', leave)
+  }
+  return desktop
+}
+
 /**
  * Quits an app through Playwright (the same `app.quit()` path as Cmd+Q). If it has not exited by
- * the deadline, attaches what it was doing, kills it, and throws.
+ * the deadline, hands what it was doing to `report`, kills it, and throws. Exported for an app a
+ * worker shares across tests; a test's own apps go through the `desktop` fixture.
  */
-async function closeDesktop(desktop: DesktopApp, testInfo: TestInfo): Promise<void> {
+export async function quitDesktop(
+  desktop: DesktopApp,
+  report: (diagnostics: string) => Promise<void> | void
+): Promise<void> {
   const child = desktop.app.process()
   if (hasExited(child)) return
   const exited = once(child, 'exit')
@@ -198,8 +235,7 @@ async function closeDesktop(desktop: DesktopApp, testInfo: TestInfo): Promise<vo
   ])
   clearTimeout(timer)
   if (quit) return
-  const diagnostics = await quitStallDiagnostics(desktop)
-  await testInfo.attach('electron-quit-stall', { body: diagnostics, contentType: 'text/plain' })
+  await report(await quitStallDiagnostics(desktop))
   if (!hasExited(child) && child.pid !== undefined) {
     try {
       process.kill(-child.pid, 'SIGKILL')
@@ -209,7 +245,13 @@ async function closeDesktop(desktop: DesktopApp, testInfo: TestInfo): Promise<vo
     await exited
   }
   throw new Error(
-    `Electron did not quit within ${QUIT_DEADLINE_MS / 1_000}s; see the electron-quit-stall attachment`
+    `Electron did not quit within ${QUIT_DEADLINE_MS / 1_000}s; see the electron-quit-stall diagnostics`
+  )
+}
+
+function closeDesktop(desktop: DesktopApp, testInfo: TestInfo): Promise<void> {
+  return quitDesktop(desktop, (diagnostics) =>
+    testInfo.attach('electron-quit-stall', { body: diagnostics, contentType: 'text/plain' })
   )
 }
 
@@ -227,32 +269,11 @@ export const test = base.extend<{ desktop: DesktopFixture }>({
       await use({
         tempDir,
         async launch(options) {
-          const userData = options.userData ?? tempDir('sim-desktop-e2e-profile-')
-          if (options.settings !== undefined) {
-            writeFileSync(
-              join(userData, 'settings.json'),
-              typeof options.settings === 'string'
-                ? options.settings
-                : JSON.stringify(options.settings)
-            )
-          }
-          const app = await electron.launch({
-            args: [options.main ?? '.', ...(options.args ?? [])],
-            cwd: DESKTOP_DIR,
-            env: {
-              ...process.env,
-              SIM_DESKTOP_ORIGIN: options.origin,
-              SIM_DESKTOP_USER_DATA: userData,
-              ...options.env,
-            },
+          const desktop = await launchDesktop({
+            ...options,
+            userData: options.userData ?? tempDir('sim-desktop-e2e-profile-'),
           })
-          const desktop: DesktopApp = { app, userData, output: captureOutput(app.process()) }
           launched.push(desktop)
-          if (options.leaveDialogsToDesktop) {
-            const leave = (page: Page) => page.on('dialog', () => {})
-            app.context().pages().forEach(leave)
-            app.context().on('page', leave)
-          }
           return desktop
         },
         close: (desktop) => closeDesktop(desktop, testInfo),
@@ -391,12 +412,20 @@ export async function bundleSimFixture(
   })
   const js = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
   if (js === undefined) throw new Error('The fixture bundle produced no JavaScript')
+  // Stylesheets the fixture imports (e.g. a package's own CSS) come out of esbuild separately.
+  const importedCss = bundle.outputFiles
+    .filter((file) => file.path.endsWith('.css'))
+    .map((file) => file.text)
+    .join('\n')
   const config = await loadPostcssConfig({}, SIM_DIR)
   const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
-  const css = await postcss(config.plugins).process(readFileSync(stylesheet, 'utf8'), {
-    from: stylesheet,
-  })
-  return { js, css: css.css }
+  // A fixture file's own utility classes are generated too, not only the ones Sim's sources use.
+  const scanFixture = 'file' in entry ? `\n@source ${JSON.stringify(entry.file)};` : ''
+  const css = await postcss(config.plugins).process(
+    `${readFileSync(stylesheet, 'utf8')}${scanFixture}`,
+    { from: stylesheet }
+  )
+  return { js, css: `${css.css}\n${importedCss}` }
 }
 
 export interface ToolCallAuthorization {

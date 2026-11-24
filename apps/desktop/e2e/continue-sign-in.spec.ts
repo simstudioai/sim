@@ -52,7 +52,6 @@ test.describe('continue a sign-in in another browser', () => {
   test.beforeEach(async ({ desktop }) => {
     ;({ app } = await desktop.launch({
       origin: fixture.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
       env: { HOME: desktop.tempDir('sim-continue-home-') },
     }))
     page = await app.firstWindow()

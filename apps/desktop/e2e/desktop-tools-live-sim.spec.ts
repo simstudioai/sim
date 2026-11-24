@@ -252,7 +252,6 @@ test.describe('desktop tools against a live Sim', () => {
   ): Promise<Page> {
     launched = await desktop.launch({
       origin: proxy.origin,
-      main: process.env.SIM_DESKTOP_E2E_MAIN,
     })
     const { app } = launched
     const page = await app.firstWindow({ timeout })

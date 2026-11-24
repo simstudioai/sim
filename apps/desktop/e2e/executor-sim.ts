@@ -452,7 +452,6 @@ export async function launchAgainst(
   const launched = await desktop.launch({
     origin: sim.origin,
     userData: options.userData,
-    main: process.env.SIM_DESKTOP_E2E_MAIN,
     leaveDialogsToDesktop: true,
     env: { SHELL: '/bin/zsh', ZDOTDIR: desktop.tempDir('sim-e2e-zdotdir-'), ...options.env },
   })

@@ -200,7 +200,6 @@ const test = base.extend<{ localFiles: LocalFilesFixture }>({
       const launched = await desktop.launch({
         origin: server.origin,
         userData,
-        main: process.env.SIM_DESKTOP_E2E_MAIN,
         args: ['--use-mock-keychain'],
       })
       const { app } = launched
