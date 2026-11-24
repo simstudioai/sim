@@ -1,3 +1,4 @@
+import type { Socket } from 'node:net'
 import { getCACertificates, setDefaultCACertificates } from 'node:tls'
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
 import { resolveHostAddresses } from '@sim/security/dns'
