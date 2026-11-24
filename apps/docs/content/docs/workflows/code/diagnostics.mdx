@@ -196,7 +196,7 @@ Saving the workflow draft.
 
 | Code | Meaning |
 | --- | --- |
-| `E_TYPE` | TypeScript (the release the declarations are built for) reported an error; the message starts with its `TS` code. A type error on a line the compile already reports an error on, or in a file still as the last get or apply wrote it, is left out. |
+| `E_TYPE` | TypeScript (the release the declarations are built for) reported an error; the message starts with its `TS` code. A type error is left out on a line the compile already reports an error on, and in a file still as the last get or apply wrote it when that file had the same error then (against the declarations as that get or apply left them). |
 | `W_TYPES_UNCHECKED` | The type check did not run: TypeScript could not be installed (offline, or no `npm`) or did not start. The other findings stand; pass `--no-types` to skip it. |
 
 ### Workspace source

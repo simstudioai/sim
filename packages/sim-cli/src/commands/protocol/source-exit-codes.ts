@@ -99,9 +99,17 @@ export function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRo
     },
     {
       code: SOURCE_LOCKED_EXIT_CODE,
-      meaning:
-        'A workflow or its folder is locked (`E_APPLY_LOCKED`); a locked block exits 1 instead',
-      next: 'Ask someone to unlock it in the workflow builder',
+      ...(prefix === 'sim workspaces source'
+        ? {
+            meaning:
+              'A resource is locked (`E_APPLY_LOCKED`): a workflow or its folder, or a table; a locked block exits 1 instead',
+            next: "Ask someone to unlock it: a workflow in the workflow builder, a table in its settings (the finding's hint names which)",
+          }
+        : {
+            meaning:
+              'A workflow or its folder is locked (`E_APPLY_LOCKED`); a locked block exits 1 instead',
+            next: 'Ask someone to unlock it in the workflow builder',
+          }),
       help: {
         'workflows source apply':
           'the workflow or its folder is locked (E_APPLY_LOCKED; a locked block exits 1, E_APPLY_LOCKED_BLOCK)',

@@ -72,6 +72,7 @@ import {
   SOURCE_STAGING_PREFIX,
   SOURCE_STORED_EDGES_FILE,
   type StatDigest,
+  unchangedTexts,
   type Written,
 } from './source-dir'
 import { sourceExitCodesTable } from './source-exit-codes'
@@ -248,6 +249,31 @@ export function localDeclarations(files: Readonly<Record<string, string>>): Loca
     else declared[list] = keys
   }
   return declared
+}
+
+/**
+ * What the workspace directory `root` declared as the last get or apply wrote it: the paths that
+ * write recorded (`written`), each folder kind's keys from them, and a root file's names only
+ * while its text is unchanged since; an edited one's earlier text is gone, so it declares none.
+ */
+export async function writtenLocalDeclarations(
+  root: string,
+  written: Written
+): Promise<LocalDeclarations> {
+  const files: Record<string, string> = {}
+  for (const path of Object.keys(written.digests)) {
+    if (kindOfPath(path) !== null) files[path] = ''
+  }
+  const rootFiles = APPLY_ORDER.filter(isFileKind)
+    .map((kind) => KIND_DIRS[kind])
+    .filter((file) => Object.hasOwn(files, file))
+  const unchanged = await unchangedTexts(root, rootFiles, written.digests)
+  for (const file of rootFiles) {
+    const text = unchanged.get(file)
+    if (text === undefined) delete files[file]
+    else files[file] = text
+  }
+  return localDeclarations(files)
 }
 
 /**

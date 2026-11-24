@@ -747,6 +747,25 @@ describe('hints that name the fix', () => {
     expect(unknown?.hint).toBe('Wire call.onError(<handler>) and read call.error in the handler.')
   })
 
+  it('reads <start.error> as an undeclared input, since a Start trigger has no error port', () => {
+    const result = run(
+      [
+        START,
+        "const next = api('Next', { url: 'https://x', body: { why: start.error } })",
+        'start.to(next)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_OUTPUT_PATH_UNDECLARED').map(({ message }) => message)).toEqual([
+      'Start declares no input error: its inputFormat declares none.',
+    ])
+    expect(findings(result, 'W_JSON_REF_UNTYPED').map(({ message }) => message)).toEqual([
+      expect.stringContaining('<start.error>'),
+    ])
+    expect(JSON.stringify(result.workflow?.blocks.next?.params.body)).not.toContain(
+      '\\"<start.error>\\"'
+    )
+  })
+
   it('reads a Function error output where x.error reads, and nowhere else', () => {
     const body = (wiring: string) =>
       [

@@ -261,13 +261,13 @@ export const v2LogDetailSchema = z
           .string()
           .nullable()
           .describe(
-            "The error the block recorded, or null when its span carries none (a withheld or compacted trace). A Function block's leads with the line and code that threw."
+            "The error the block recorded, or null when its span carries none (a withheld or compacted trace). A Function block's error leads with the line and code that threw."
           ),
         errorMessage: z
           .string()
           .nullable()
           .describe(
-            "A Function block's thrown message alone, which is the text to reply with; null for any other block."
+            "The failed block's declared `errorMessage` output (Function blocks today): the thrown message alone, which is the text to reply with. Null for any other block."
           ),
       })
       .nullable()

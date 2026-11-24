@@ -18,9 +18,11 @@ import { orphanedCodeFiles, SOURCE_WRITTEN_FILE } from './layout'
  * which names this machine's files (device, inode, times) and so is never committed. The folder
  * ignores itself (`.sim/cache/.gitignore`), whatever the repository's own `.gitignore` says.
  */
-const SOURCE_CACHE_DIR = '.sim/cache'
+export const SOURCE_CACHE_DIR = '.sim/cache'
 const SOURCE_STATS_FILE = `${SOURCE_CACHE_DIR}/stats.json`
-const SOURCE_CACHE_IGNORE_FILE = `${SOURCE_CACHE_DIR}/.gitignore`
+
+/** The cache folder's own `.gitignore`, written with any file the CLI keeps there. */
+export const SOURCE_CACHE_IGNORE = [`${SOURCE_CACHE_DIR}/.gitignore`, '*\n'] as const
 
 /**
  * What identifies a file's bytes without reading them, taken when its digest was: the file (device
@@ -133,11 +135,7 @@ export function writtenFiles(written: Written): Array<readonly [string, string]>
   )
   if (stats.length === 0) return files
   const cache: StatsRecord = { version: 1, stats: sortedByPath(Object.fromEntries(stats)) }
-  return [
-    ...files,
-    [SOURCE_STATS_FILE, `${JSON.stringify(cache, null, 2)}\n`],
-    [SOURCE_CACHE_IGNORE_FILE, '*\n'],
-  ]
+  return [...files, [SOURCE_STATS_FILE, `${JSON.stringify(cache, null, 2)}\n`], SOURCE_CACHE_IGNORE]
 }
 
 /** What the CLI recorded for its last write, empty when it recorded nothing. */
@@ -201,6 +199,23 @@ export async function editedFiles(
     if (next !== null && current === normalizeSourceText(next)) return []
     return written[path] !== digest(current) ? [path] : []
   })
+}
+
+/** The texts of those of `paths` still as the CLI last wrote them (`written`), by path. */
+export async function unchangedTexts(
+  dir: string,
+  paths: readonly string[],
+  written: Written['digests']
+): Promise<Map<string, string>> {
+  const texts = await mapWithConcurrency(paths, FILE_CONCURRENCY, (path) =>
+    readSourceText(dir, path)
+  )
+  return new Map(
+    paths.flatMap((path, index) => {
+      const text = texts[index]
+      return text !== null && written[path] === digest(text) ? [[path, text] as const] : []
+    })
+  )
 }
 
 /**
