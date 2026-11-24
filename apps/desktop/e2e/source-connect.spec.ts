@@ -1,47 +1,18 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chromium, _electron as electron, expect, test } from '@playwright/test'
-import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
-import { build } from 'esbuild'
-import postcss from 'postcss'
-import loadPostcssConfig from 'postcss-load-config'
+import { bundleSimFixture, expect, serve, test } from './harness'
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
-const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
 const FIXTURE = fileURLToPath(
   new URL('../../sim/scripts/fixtures/desktop-source-connect.tsx', import.meta.url)
 )
+const BROWSER_BUFFER = fileURLToPath(new URL('./fixtures/browser-buffer.ts', import.meta.url))
 
 /** Real renderer, preload, main process, loopback, and a separate browser cookie jar. */
-test('source authorization returns to its desktop screen and refreshes live', async () => {
-  const reportPath =
-    process.env.DESKTOP_SOURCE_CONNECT_REPORT_PATH ?? test.info().outputPath('source-connect.json')
-  const checks: {
-    name: string
-    status: 'passed' | 'failed'
-    durationMs: number
-    error?: string
-  }[] = []
-  const check = async (name: string, action: () => Promise<void>) => {
-    const started = Date.now()
-    try {
-      await test.step(name, action)
-      checks.push({ name, status: 'passed', durationMs: Date.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: Date.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  }
+test('source authorization returns to its desktop screen and refreshes live', async ({
+  desktop,
+  context,
+}) => {
   const tickets = new Map<string, unknown>()
   const attempts = new Map<string, string>()
   const accountAttempts = new Map<string, { session: string; mcp: boolean }>()
@@ -60,14 +31,11 @@ test('source authorization returns to its desktop screen and refreshes live', as
   const personalAttempts = new Map<string, { session: string; completed: boolean }>()
   let personalInventoryFailed = false
   let personalInventoryFailures = 0
-  let javascript = ''
-  let stylesheet = ''
+  /** The desktop state of each `/desktop/connect/complete` handoff the browser made. */
+  const completedStates: string[] = []
+  const bundle = await bundleSimFixture({ file: FIXTURE }, { inject: [BROWSER_BUFFER] })
   let origin = ''
-  let app: Awaited<ReturnType<typeof electron.launch>> | undefined
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
-  const userData = mkdtempSync(join(tmpdir(), 'sim-source-connect-e2e-'))
-  const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? '/', origin || 'http://localhost')
+  const server = await serve(async (request, response, url) => {
     const path = url.pathname
     const session = request.headers.cookie?.includes('browser-fixture')
       ? 'browser-fixture'
@@ -87,7 +55,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
     }
     if (path === '/fixture.js' || path === '/fixture.css') {
       response.setHeader('content-type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
-      response.end(path.endsWith('.js') ? javascript : stylesheet)
+      response.end(path.endsWith('.js') ? bundle.js : bundle.css)
       return
     }
     if (path === '/api/organizations/fixture-organization/connected-accounts') {
@@ -165,6 +133,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
     }
     if (path === '/api/desktop/source-connect') {
       const { requestId, request: sourceRequest } = await body()
+      // Outlives Chromium's ~5s transient user activation: opening the browser must not need it.
       if (startSessions.length === 0) await sleep(5_500)
       tickets.set(requestId, sourceRequest)
       json({ requestId })
@@ -361,6 +330,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       return
     }
     if (path === '/desktop/connect/complete') {
+      completedStates.push(url.searchParams.get('state') ?? '')
       const params = new URLSearchParams({ state: url.searchParams.get('state') ?? '' })
       if (url.searchParams.has('error')) params.set('error', url.searchParams.get('error')!)
       if (url.searchParams.has('credentialId'))
@@ -413,55 +383,22 @@ test('source authorization returns to its desktop screen and refreshes live', as
       '<!doctype html><html><head><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>'
     )
   })
+  origin = server.origin
   try {
-    await check('launch the production source hook and native bridge', async () => {
-      const config = await loadPostcssConfig({}, SIM_DIR)
-      const cssPath = join(SIM_DIR, 'app/_styles/globals.css')
-      const css = await postcss(config.plugins).process(
-        `${readFileSync(cssPath, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
-        { from: cssPath }
-      )
-      const bundle = await build({
-        entryPoints: [FIXTURE],
-        bundle: true,
-        write: false,
-        outfile: test.info().outputPath('fixture.js'),
-        format: 'iife',
-        platform: 'browser',
-        tsconfig: join(SIM_DIR, 'tsconfig.json'),
-        external: ['node:async_hooks'],
-        inject: [fileURLToPath(new URL('./fixtures/browser-buffer.ts', import.meta.url))],
-        banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
-        define: { 'process.env.NODE_ENV': '"development"' },
-      })
-      javascript = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text ?? ''
-      stylesheet = `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
-      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-      const address = server.address()
-      if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-      origin = `http://127.0.0.1:${address.port}`
-      app = await electron.launch({
-        args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
-        cwd: DESKTOP_DIR,
-        env: { ...process.env, SIM_DESKTOP_ORIGIN: origin, SIM_DESKTOP_USER_DATA: userData },
-      })
-      await app.evaluate(({ shell }) => {
-        const global = globalThis as typeof globalThis & { openedUrls: string[] }
-        global.openedUrls = []
-        shell.openExternal = async (url) => {
-          global.openedUrls.push(url)
-        }
-      })
-      browser = await chromium.launch()
+    const { app: shell } = await desktop.launch({ origin })
+    await shell.evaluate(({ shell }) => {
+      const global = globalThis as typeof globalThis & { openedUrls: string[] }
+      global.openedUrls = []
+      shell.openExternal = async (url) => {
+        global.openedUrls.push(url)
+      }
     })
-    if (!app || !browser) throw new Error('Missing apps')
-    const shell = app
-    const page = await app.firstWindow()
+    const page = await shell.firstWindow()
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(error.message))
+    // Reloads so errors from the first render, before the listener existed, are caught too.
     await page.reload()
-    await expect.poll(() => pageErrors).toEqual([])
-    const context = await browser.newContext()
+    await expect(page.getByLabel('Source draft')).toBeVisible()
     await context.addCookies([
       {
         name: 'better-auth.session_token',
@@ -474,103 +411,97 @@ test('source authorization returns to its desktop screen and refreshes live', as
     const external = await context.newPage()
     const opened = () =>
       shell.evaluate(() => (globalThis as typeof globalThis & { openedUrls: string[] }).openedUrls)
-    await check(
-      'separate browser consent completes under its initiating session and refreshes desktop',
-      async () => {
-        await page.getByLabel('Source draft').fill('Preserved while connecting')
-        await page.getByRole('button', { name: 'Connect Slack' }).click()
-        await expect.poll(async () => (await opened()).length, { timeout: 15_000 }).toBe(1)
-        expect(page.url()).toBe(`${origin}/home`)
-        await expect(page.getByLabel('Connection')).toHaveText('pending')
-        await external.goto((await opened())[0])
-        await external.getByRole('link', { name: 'Authorize', exact: true }).click()
-        await expect(page.getByLabel('Connection')).toHaveText('success')
-        await expect(page.getByLabel('Accounts')).toHaveText('1')
-        await expect(page.getByLabel('Source draft')).toHaveValue('Preserved while connecting')
-        expect(startSessions).toEqual(['browser-fixture'])
-        expect(callbackSessions).toEqual(['browser-fixture'])
-        await expect(external).toHaveURL(`${origin}/desktop/done?kind=connect`)
-      }
-    )
-    await check(
-      'denied authorization returns an actionable error without navigating desktop',
-      async () => {
-        await page.getByRole('button', { name: 'Connect Slack' }).click()
-        await expect.poll(async () => (await opened()).length, { timeout: 15_000 }).toBe(2)
-        await external.goto((await opened())[1])
-        await external.getByRole('link', { name: 'Cancel', exact: true }).click()
-        await expect(page.getByLabel('Connection')).toHaveText('error')
-        await expect(page.getByRole('alert')).toContainText('Try connecting again')
-        expect(page.url()).toBe(`${origin}/home`)
-        await expect(page.getByLabel('Accounts')).toHaveText('1')
-      }
-    )
-    await check(
-      'native cancellation rejects a stale callback without disrupting the next request',
-      async () => {
-        await page.getByRole('button', { name: 'Connect Slack' }).click()
-        await expect.poll(async () => (await opened()).length, { timeout: 15_000 }).toBe(3)
-        await external.goto((await opened())[2])
-        await external.getByRole('link', { name: 'Authorize', exact: true }).waitFor()
-        const staleCallback = await external
-          .getByRole('link', { name: 'Authorize', exact: true })
-          .getAttribute('href')
-        await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1)
-        await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-        await expect(page.getByLabel('Connection')).toHaveText('error')
-        const canceled = new URL((await opened())[2])
-        const probe = `http://127.0.0.1:${canceled.searchParams.get('port')}/connect/callback?state=${'x'.repeat(32)}`
-        await expect
-          .poll(() =>
-            fetch(probe).then(
-              () => false,
-              () => true
-            )
+    await test.step('separate browser consent completes under its initiating session and refreshes desktop', async () => {
+      await page.getByLabel('Source draft').fill('Preserved while connecting')
+      await page.getByRole('button', { name: 'Connect Slack' }).click()
+      // The first start outlives the default timeout on purpose (see /api/desktop/source-connect).
+      await expect.poll(async () => (await opened()).length, { timeout: 15_000 }).toBe(1)
+      expect(page.url()).toBe(`${origin}/home`)
+      await expect(page.getByLabel('Connection')).toHaveText('pending')
+      await external.goto((await opened())[0])
+      await external.getByRole('link', { name: 'Authorize', exact: true }).click()
+      await expect(page.getByLabel('Connection')).toHaveText('success')
+      await expect(page.getByLabel('Accounts')).toHaveText('1')
+      await expect(page.getByLabel('Source draft')).toHaveValue('Preserved while connecting')
+      expect(startSessions).toEqual(['browser-fixture'])
+      expect(callbackSessions).toEqual(['browser-fixture'])
+      await expect(external).toHaveURL(`${origin}/desktop/done?kind=connect`)
+    })
+    await test.step('denied authorization returns an actionable error without navigating desktop', async () => {
+      await page.getByRole('button', { name: 'Connect Slack' }).click()
+      await expect.poll(async () => (await opened()).length).toBe(2)
+      await external.goto((await opened())[1])
+      await external.getByRole('link', { name: 'Cancel', exact: true }).click()
+      await expect(page.getByLabel('Connection')).toHaveText('error')
+      await expect(page.getByRole('alert')).toContainText('Try connecting again')
+      expect(page.url()).toBe(`${origin}/home`)
+      await expect(page.getByLabel('Accounts')).toHaveText('1')
+    })
+    await test.step('native cancellation rejects a stale callback without disrupting the next request', async () => {
+      await page.getByRole('button', { name: 'Connect Slack' }).click()
+      await expect.poll(async () => (await opened()).length).toBe(3)
+      await external.goto((await opened())[2])
+      await external.getByRole('link', { name: 'Authorize', exact: true }).waitFor()
+      const staleCallback = await external
+        .getByRole('link', { name: 'Authorize', exact: true })
+        .getAttribute('href')
+      await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(1)
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(page.getByLabel('Connection')).toHaveText('error')
+      const canceled = new URL((await opened())[2])
+      const probe = `http://127.0.0.1:${canceled.searchParams.get('port')}/connect/callback?state=${'x'.repeat(32)}`
+      await expect
+        .poll(() =>
+          fetch(probe).then(
+            () => false,
+            () => true
           )
-          .toBe(true)
-        await page.getByRole('button', { name: 'Connect Slack' }).click()
-        await expect.poll(async () => (await opened()).length, { timeout: 15_000 }).toBe(4)
-        await external.goto(`${origin}${staleCallback}`)
-        await expect(page.getByLabel('Connection')).toHaveText('pending')
-        await external.goto((await opened())[3])
-        await external.getByRole('link', { name: 'Authorize', exact: true }).click()
-        await expect(page.getByLabel('Connection')).toHaveText('success')
-        await expect(page.getByLabel('Source draft')).toHaveValue('Preserved while connecting')
-      }
-    )
-    await check(
-      'GitHub setup stays in the browser session and verifies the returned credential in desktop',
-      async () => {
+        )
+        .toBe(true)
+      await page.getByRole('button', { name: 'Connect Slack' }).click()
+      await expect.poll(async () => (await opened()).length).toBe(4)
+      const handoffs = completedStates.length
+      await external.goto(`${origin}${staleCallback}`)
+      // The browser page hands the stale result back toward the canceled attempt's loopback.
+      await expect
+        .poll(() => completedStates.slice(handoffs))
+        .toEqual([canceled.searchParams.get('state')])
+      await expect(page.getByLabel('Connection')).toHaveText('pending')
+      await external.goto((await opened())[3])
+      await external.getByRole('link', { name: 'Authorize', exact: true }).click()
+      await expect(page.getByLabel('Connection')).toHaveText('success')
+      await expect(page.getByLabel('Source draft')).toHaveValue('Preserved while connecting')
+    })
+    await test.step('GitHub setup stays in the browser session and verifies the returned credential in desktop', async () => {
+      await page.getByRole('button', { name: 'Connect GitHub' }).click()
+      await expect.poll(async () => (await opened()).length).toBe(5)
+      await external.goto((await opened())[4])
+      await external.getByRole('link', { name: 'Authorize GitHub' }).click()
+      await expect(page.getByLabel('GitHub error')).toContainText('not available')
+      await expect(page.getByLabel('GitHub credential')).toHaveText('')
+      nativeCredentialVisible = true
+      let releaseGithubInventory = () => {}
+      githubInventoryHold = new Promise<void>((resolve) => {
+        releaseGithubInventory = resolve
+      })
+      try {
         await page.getByRole('button', { name: 'Connect GitHub' }).click()
-        await expect.poll(async () => (await opened()).length).toBe(5)
-        await external.goto((await opened())[4])
+        await expect.poll(async () => (await opened()).length).toBe(6)
+        await external.goto((await opened())[5])
         await external.getByRole('link', { name: 'Authorize GitHub' }).click()
-        await expect(page.getByLabel('GitHub error')).toContainText('not available')
-        await expect(page.getByLabel('GitHub credential')).toHaveText('')
-        nativeCredentialVisible = true
-        let releaseGithubInventory = () => {}
-        githubInventoryHold = new Promise<void>((resolve) => {
-          releaseGithubInventory = resolve
-        })
-        try {
-          await page.getByRole('button', { name: 'Connect GitHub' }).click()
-          await expect.poll(async () => (await opened()).length).toBe(6)
-          await external.goto((await opened())[5])
-          await external.getByRole('link', { name: 'Authorize GitHub' }).click()
-          await expect.poll(() => githubInventorySessions.length).toBe(2)
-          await expect(page.getByLabel('GitHub pending')).toHaveText('true')
-        } finally {
-          githubInventoryHold = undefined
-          releaseGithubInventory()
-        }
-        await expect(page.getByLabel('GitHub credential')).toHaveText('fixture-github-credential')
-        expect(githubStartSessions).toEqual(['browser-fixture', 'browser-fixture'])
-        expect(githubInventorySessions).toEqual(['desktop-fixture', 'desktop-fixture'])
-        await expect(page.getByLabel('GitHub pending')).toHaveText('false')
-        expect(page.url()).toBe(`${origin}/home`)
+        await expect.poll(() => githubInventorySessions.length).toBe(2)
+        await expect(page.getByLabel('GitHub pending')).toHaveText('true')
+      } finally {
+        githubInventoryHold = undefined
+        releaseGithubInventory()
       }
-    )
-    await check('ordinary knowledge-base enrollment preserves its invitation step', async () => {
+      await expect(page.getByLabel('GitHub credential')).toHaveText('fixture-github-credential')
+      expect(githubStartSessions).toEqual(['browser-fixture', 'browser-fixture'])
+      expect(githubInventorySessions).toEqual(['desktop-fixture', 'desktop-fixture'])
+      await expect(page.getByLabel('GitHub pending')).toHaveText('false')
+      expect(page.url()).toBe(`${origin}/home`)
+    })
+    await test.step('ordinary knowledge-base enrollment preserves its invitation step', async () => {
       await page.getByRole('button', { name: 'Connect invited source' }).click()
       await expect.poll(async () => (await opened()).length).toBe(7)
       await external.goto((await opened())[6])
@@ -579,7 +510,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(page.getByLabel('Enrollment error')).toHaveText('')
       expect(page.url()).toBe(`${origin}/home`)
     })
-    await check('browser sign-in failures retain recovery guidance on desktop', async () => {
+    await test.step('browser sign-in failures retain recovery guidance on desktop', async () => {
       await page.getByRole('button', { name: 'Connect Slack' }).click()
       await expect.poll(async () => (await opened()).length).toBe(8)
       await external.goto((await opened())[7])
@@ -588,7 +519,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(page.getByRole('alert')).toContainText('Sign in to Sim in your browser')
       expect(page.url()).toBe(`${origin}/home`)
     })
-    await check('managed accounts return through the desktop completion handoff', async () => {
+    await test.step('managed accounts return through the desktop completion handoff', async () => {
       await page.getByRole('button', { name: 'Connect MCP account', exact: true }).click()
       await expect.poll(async () => (await opened()).length).toBe(9)
       await external.goto((await opened())[8])
@@ -601,25 +532,22 @@ test('source authorization returns to its desktop screen and refreshes live', as
     const web = await context.newPage()
     web.on('pageerror', (error) => pageErrors.push(error.message))
     await web.goto(`${origin}/o/fixture-organization/integrations?search=fixture`)
-    await check(
-      'web authorization preserves the origin and refreshes after an isolated provider window',
-      async () => {
-        accountConnected = false
-        mcpAccountConnected = false
-        await web.reload()
-        await web.getByLabel('Source draft').fill('Web draft retained')
-        await expect(web.getByLabel('Account count')).toHaveText('0')
-        const popupReady = context.waitForEvent('page')
-        await web.getByRole('button', { name: 'Connect account', exact: true }).click()
-        const popup = await popupReady
-        await popup.getByRole('link', { name: 'Authorize account' }).click()
-        await expect(web.getByLabel('Account count')).toHaveText('1')
-        await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('success')
-        await expect(web.getByLabel('Source draft')).toHaveValue('Web draft retained')
-        expect(web.url()).toBe(`${origin}/o/fixture-organization/integrations?search=fixture`)
-      }
-    )
-    await check('overlapping connect and reconnect preserve the active authorization', async () => {
+    await test.step('web authorization preserves the origin and refreshes after an isolated provider window', async () => {
+      accountConnected = false
+      mcpAccountConnected = false
+      await web.reload()
+      await web.getByLabel('Source draft').fill('Web draft retained')
+      await expect(web.getByLabel('Account count')).toHaveText('0')
+      const popupReady = context.waitForEvent('page')
+      await web.getByRole('button', { name: 'Connect account', exact: true }).click()
+      const popup = await popupReady
+      await popup.getByRole('link', { name: 'Authorize account' }).click()
+      await expect(web.getByLabel('Account count')).toHaveText('1')
+      await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('success')
+      await expect(web.getByLabel('Source draft')).toHaveValue('Web draft retained')
+      expect(web.url()).toBe(`${origin}/o/fixture-organization/integrations?search=fixture`)
+    })
+    await test.step('overlapping connect and reconnect preserve the active authorization', async () => {
       const popupReady = context.waitForEvent('page')
       await web.getByRole('button', { name: 'Connect account', exact: true }).click()
       const popup = await popupReady
@@ -632,7 +560,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await popup.getByRole('link', { name: 'Authorize account' }).click()
       await expect(web.getByLabel('Account authorization', { exact: true })).toHaveText('success')
     })
-    await check('web denial and cancellation leave the initiating page usable', async () => {
+    await test.step('web denial and cancellation leave the initiating page usable', async () => {
       const popupReady = context.waitForEvent('page')
       await web.getByRole('button', { name: 'Connect account', exact: true }).click()
       const popup = await popupReady
@@ -651,7 +579,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(web.getByRole('button', { name: 'Connect account', exact: true })).toBeEnabled()
       await expect(web.getByLabel('Account count')).toHaveText('1')
     })
-    await check('reconnect uses the same completion lifecycle', async () => {
+    await test.step('reconnect uses the same completion lifecycle', async () => {
       const popupReady = context.waitForEvent('page')
       await web.getByRole('button', { name: 'Reconnect account', exact: true }).click()
       const popup = await popupReady
@@ -659,7 +587,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(web.getByLabel('Reconnect status')).toHaveText('success')
       await expect(web.getByLabel('Source draft')).toHaveValue('Web draft retained')
     })
-    await check('blocked popups complete in the same tab and return to Integrations', async () => {
+    await test.step('blocked popups complete in the same tab and return to Integrations', async () => {
       await web.evaluate(() => {
         window.open = () => null
       })
@@ -668,7 +596,7 @@ test('source authorization returns to its desktop screen and refreshes live', as
       await expect(web).toHaveURL(`${origin}/o/fixture-organization/integrations`)
       await expect(web.getByLabel('Account count')).toHaveText('1')
     })
-    await check('canceling Slack setup aborts the pending web HTTP request', async () => {
+    await test.step('canceling Slack setup aborts the pending web HTTP request', async () => {
       holdSlackStart = true
       const starts = startSessions.length
       try {
@@ -681,65 +609,59 @@ test('source authorization returns to its desktop screen and refreshes live', as
         holdSlackStart = false
       }
     })
-    await check(
-      'desktop Search preserves pending receipts after inventory failure and allows cancellation/retry',
-      async () => {
-        const previousOpens = (await opened()).length
-        await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
-        await expect.poll(async () => (await opened()).length).toBe(previousOpens + 1)
-        await external.goto((await opened())[previousOpens])
-        await external.getByRole('link', { name: 'Authorize personal Search' }).waitFor()
-        personalInventoryFailed = true
-        await external.getByRole('link', { name: 'Authorize personal Search' }).click()
-        await expect(external).toHaveURL(`${origin}/desktop/done?kind=connect`)
-        await expect.poll(() => personalInventoryFailures).toBeGreaterThan(0)
-        await expect(
-          page.getByRole('button', { name: 'Connect personal Search', exact: true })
-        ).toBeEnabled()
-        const receipt = () =>
-          page.evaluate(() => {
-            const entry = Object.entries(localStorage).find(([key]) =>
-              key.startsWith('sim.search-connection.')
-            )
-            if (!entry) return null
-            const attempt: { completionId: string; status: string; credentialId?: string } =
-              JSON.parse(entry[1])
-            return attempt
-          })
-        const pendingReceipt = await receipt()
-        expect(pendingReceipt).toMatchObject({ status: 'pending' })
-        await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
-        expect(await receipt()).toEqual(pendingReceipt)
-        await page.getByRole('button', { name: 'Cancel personal Search', exact: true }).click()
-        await expect
-          .poll(receipt)
-          .toMatchObject({ completionId: pendingReceipt?.completionId, status: 'failed' })
-        personalInventoryFailed = false
-        await page.getByRole('button', { name: 'Retry personal inventory', exact: true }).click()
-        await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
-        await expect.poll(async () => (await opened()).length).toBe(previousOpens + 2)
-        const retryReceipt = await receipt()
-        expect(retryReceipt).toMatchObject({ status: 'pending' })
-        expect(retryReceipt?.completionId).not.toBe(pendingReceipt?.completionId)
-        await external.goto((await opened())[previousOpens + 1])
-        await external.getByRole('link', { name: 'Authorize personal Search' }).click()
-        await expect.poll(receipt).toMatchObject({
-          completionId: retryReceipt?.completionId,
-          status: 'connected',
-          credentialId: 'fixture-personal-account',
+    await test.step('desktop Search preserves pending receipts after inventory failure and allows cancellation/retry', async () => {
+      const previousOpens = (await opened()).length
+      await page.getByRole('button', { name: 'Connect personal Search', exact: true }).click()
+      await expect.poll(async () => (await opened()).length).toBe(previousOpens + 1)
+      await external.goto((await opened())[previousOpens])
+      await external.getByRole('link', { name: 'Authorize personal Search' }).waitFor()
+      personalInventoryFailed = true
+      await external.getByRole('link', { name: 'Authorize personal Search' }).click()
+      await expect(external).toHaveURL(`${origin}/desktop/done?kind=connect`)
+      await expect.poll(() => personalInventoryFailures).toBeGreaterThan(0)
+      await expect(
+        page.getByRole('button', { name: 'Connect personal Search', exact: true })
+      ).toBeEnabled()
+      const receipt = () =>
+        page.evaluate(() => {
+          const entry = Object.entries(localStorage).find(([key]) =>
+            key.startsWith('sim.search-connection.')
+          )
+          if (!entry) return null
+          const attempt: { completionId: string; status: string; credentialId?: string } =
+            JSON.parse(entry[1])
+          return attempt
         })
-      }
-    )
-    await page.screenshot({ path: test.info().outputPath('source-connect-desktop.png') })
-  } finally {
-    mkdirSync(dirname(reportPath), { recursive: true })
-    writeFileSync(reportPath, JSON.stringify({ checks }, null, 2))
-    await browser?.close()
-    await app?.close()
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve())
-      server.closeAllConnections()
+      const pendingReceipt = await receipt()
+      expect(pendingReceipt).toMatchObject({ status: 'pending' })
+      const connect = page.getByRole('button', { name: 'Connect personal Search', exact: true })
+      await connect.click()
+      // Cancel lands after the second Connect, so failing the first attempt's receipt shows
+      // that Connect neither replaced it nor started another authorization.
+      await page.getByRole('button', { name: 'Cancel personal Search', exact: true }).click()
+      await expect
+        .poll(receipt)
+        .toMatchObject({ completionId: pendingReceipt?.completionId, status: 'failed' })
+      expect(await opened()).toHaveLength(previousOpens + 1)
+      personalInventoryFailed = false
+      await page.getByRole('button', { name: 'Retry personal inventory', exact: true }).click()
+      // Connect stays disabled until the retried inventory offers the source again.
+      await expect(connect).toBeEnabled()
+      await connect.click()
+      await expect.poll(async () => (await opened()).length).toBe(previousOpens + 2)
+      const retryReceipt = await receipt()
+      expect(retryReceipt).toMatchObject({ status: 'pending' })
+      expect(retryReceipt?.completionId).not.toBe(pendingReceipt?.completionId)
+      await external.goto((await opened())[previousOpens + 1])
+      await external.getByRole('link', { name: 'Authorize personal Search' }).click()
+      await expect.poll(receipt).toMatchObject({
+        completionId: retryReceipt?.completionId,
+        status: 'connected',
+        credentialId: 'fixture-personal-account',
+      })
     })
-    rmSync(userData, { recursive: true, force: true })
+    expect(pageErrors).toEqual([])
+  } finally {
+    await server.close()
   }
 })
