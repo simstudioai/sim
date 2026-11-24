@@ -101,15 +101,18 @@ export async function readStarterWorkspace(dir: string): Promise<string | null> 
 /**
  * The workspace `dir` records it belongs to: the one its `.sim/base.json` was read from, else the
  * workspace directory it is a workflow folder of, else the one its starter's types were written
- * for (`null` when none). A starter yields to a `--workspace` flag (`flagged`), which chooses
- * another; a base or workspace folder does not ({@link directoryWorkspace} refuses that flag).
+ * for (`null` when none). A starter yields to a `--workspace` flag, which chooses another; a base
+ * or workspace folder does not ({@link directoryWorkspace} refuses that flag).
  */
-export async function recordedWorkspace(dir: string, flagged: boolean): Promise<string | null> {
+export async function recordedWorkspace(
+  dir: string,
+  profile: Pick<ResolvedProfile, 'sources'>
+): Promise<string | null> {
   const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
   if (typeof base.workspaceId === 'string') return base.workspaceId
   const folder = await workspaceFolderOf(dir)
   if (folder) return folder.workspaceId
-  return flagged ? null : readStarterWorkspace(dir)
+  return profile.sources.workspaceId === 'flag' ? null : readStarterWorkspace(dir)
 }
 
 /**

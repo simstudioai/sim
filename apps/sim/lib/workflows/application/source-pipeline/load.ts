@@ -85,8 +85,6 @@ export interface LoadedTarget {
   /** The stored draft's fingerprint when loaded; a commit refuses a draft that moved off it. */
   storedFingerprint: SourceFingerprint
   envNames: string[]
-  /** Attribution for resource keys the write allocates. */
-  createdBy: string
   scope: SourceScope
 }
 
@@ -129,7 +127,6 @@ export async function loadSourceTarget(
   options: { loads?: SourceLoads; allocate: boolean }
 ): Promise<LoadedTarget> {
   const scope = sourceScope(principal, target)
-  const createdBy = scope.subjectUserId
   const loads = options.loads ?? {}
   const context =
     target.kind === 'existing'
@@ -142,7 +139,7 @@ export async function loadSourceTarget(
     prefetchStoredResources({
       workflowId: scope.workflowId,
       workspaceId: scope.workspaceId,
-      createdBy,
+      createdBy: scope.subjectUserId,
       allocate: options.allocate,
     }),
     (loads.envNames ??= loadEnvNames(scope.workspaceId, scope.subjectUserId)),
@@ -170,7 +167,6 @@ export async function loadSourceTarget(
         storedCanonical.resources
       ),
       envNames,
-      createdBy,
       scope,
     }
   })

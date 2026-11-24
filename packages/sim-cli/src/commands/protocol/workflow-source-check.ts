@@ -73,7 +73,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
         const workspace = await workspaceFolderOf(options.dir)
         const workspaceId = directoryWorkspace(
           options.dir,
-          await recordedWorkspace(options.dir, profile.sources.workspaceId === 'flag'),
+          await recordedWorkspace(options.dir, profile),
           profile,
           (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )

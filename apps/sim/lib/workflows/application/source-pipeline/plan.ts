@@ -272,7 +272,7 @@ export async function planSource(
       storedSourceMeta: loaded.storedSourceMeta,
       catalog,
       envNames: new Set(loaded.envNames),
-      createdBy: loaded.createdBy,
+      createdBy: loaded.scope.subjectUserId,
       files: submission.files,
       lock: submission.lock,
       ...(submission.pendingResources ? { pendingResources: submission.pendingResources } : {}),

@@ -39,8 +39,7 @@ async function lookupCatalog(
 ): Promise<BlockCatalog> {
   const printedWith = await cachedSourceCatalog(dir)
   if (printedWith) return printedWith
-  const workspaceId =
-    (await recordedWorkspace(dir, profile.sources.workspaceId === 'flag')) ?? profile.workspaceId
+  const workspaceId = (await recordedWorkspace(dir, profile)) ?? profile.workspaceId
   const cached = workspaceId ? cachedCatalog(workspaceId) : null
   if (cached) return cached
   throw new SourceDirError(

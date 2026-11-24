@@ -66,7 +66,7 @@ import {
   unsupported,
 } from './context'
 import { didYouMean, HINTS, hintForNode, nodeLabel } from './hints'
-import type { Range, ReportExtras } from './report'
+import type { Range } from './report'
 
 /** Where a value is compiled: the block it belongs to and the scope its identifiers resolve in. */
 export interface ValueSite {
@@ -301,22 +301,6 @@ function reportNotNormalized(ctx: CompileContext, tag: LiteralTag): void {
 }
 
 /**
- * Reports a reference that reads nothing (`W_UNKNOWN_OUTPUT_PATH`, `W_UNRESOLVED_REF`) and records
- * where it is, so the JSON field check does not also call it untyped, even when the warning cap
- * leaves the finding out of the listing.
- */
-function reportUnknownRef(
-  ctx: CompileContext,
-  code: 'W_UNKNOWN_OUTPUT_PATH' | 'W_UNRESOLVED_REF',
-  message: string,
-  at: Range,
-  extras: ReportExtras
-): void {
-  ctx.unknownRefAt.add(`${at.file}:${at.start}`)
-  ctx.reporter.report(code, message, at, extras)
-}
-
-/**
  * Reports each literal `<name.path>` whose head names no block once the apply's renames are known
  * (`renamed`, stored key → source key). The apply rewrites a renamed block's stored key to its new
  * one, so such a head still resolves and stays `W_REF_NOT_NORMALIZED`; any other names no block,
@@ -332,8 +316,7 @@ export function checkUnresolvedTags(
       reportNotNormalized(ctx, tag)
       continue
     }
-    reportUnknownRef(
-      ctx,
+    ctx.reporter.report(
       'W_UNRESOLVED_REF',
       `${tag.token} names no block, so it does not resolve at run time.`,
       tag.at,
@@ -824,8 +807,7 @@ function checkOutputPath(
       ...(containerKind === 'loop' ? LOOP_PROPERTIES : PARALLEL_PROPERTIES),
     ]
     if (first.kind === 'name' && !known.includes(first.name)) {
-      reportUnknownRef(
-        ctx,
+      ctx.reporter.report(
         'W_UNKNOWN_OUTPUT_PATH',
         `A ${containerKind} has no output ${first.name}.`,
         at,
@@ -854,8 +836,7 @@ function checkOutputPath(
     ctx.errorOutputRefs.push({ at, target, blockKey, output: errorOutput })
     return
   }
-  reportUnknownRef(
-    ctx,
+  ctx.reporter.report(
     'W_UNKNOWN_OUTPUT_PATH',
     `${target.name} has no output ${formatStoredPath(segments)}.`,
     at,
@@ -964,8 +945,7 @@ export function checkDynamicOutputRefs(
       )
       continue
     }
-    reportUnknownRef(
-      ctx,
+    ctx.reporter.report(
       'W_UNKNOWN_OUTPUT_PATH',
       fields.length > 0
         ? `${target.name} has no output ${path}: its responseFormat declares ${fields.join(', ')}.`
@@ -1014,8 +994,7 @@ export function checkCodeFileRefs(
       if (head.name === 'variable') {
         const name = rest[0]?.kind === 'name' ? rest[0].name : null
         if (name !== null && !ctx.variables.has(name)) {
-          reportUnknownRef(
-            ctx,
+          ctx.reporter.report(
             'W_UNRESOLVED_REF',
             `${written}: no workflow variable is keyed ${name}.`,
             at,
@@ -1046,8 +1025,7 @@ export function checkCodeFileRefs(
       const byName = ctx.declsByKey.get(normalizeWorkflowBlockName(head.name))
       const suggested = byIdent ?? byName
       const rewritten = (key: BlockKey) => spell([{ kind: 'name', name: key }, ...rest])
-      reportUnknownRef(
-        ctx,
+      ctx.reporter.report(
         'W_UNRESOLVED_REF',
         `${written} names no block, so it does not resolve at run time.`,
         at,

@@ -32,6 +32,7 @@ export {
 export {
   checkCodeFileBijection,
   createJsContextScanner,
+  ENV_VAR_NAME,
   formatStoredPath,
   fromCodeFile,
   isIdentifierName,

@@ -193,11 +193,6 @@ export interface CompileContext {
    */
   errorOutputRefs: Array<Omit<DynamicOutputRef, 'segments'> & { output: string }>
   /**
-   * Where each reference that reads nothing was reported (`file:start`), listed or not, so the JSON
-   * field check leaves it out of `W_JSON_REF_UNTYPED`.
-   */
-  unknownRefAt: Set<string>
-  /**
    * Branch keys already refused with an error, by block key. Wiring and branch meta that name one
    * stay quiet instead of adding `E_UNKNOWN_BRANCH` for the same mistake.
    */

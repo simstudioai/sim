@@ -23,6 +23,7 @@ import {
   babelErrorShape,
   babelMessage,
   bracketDepthOverflow,
+  ENV_VAR_NAME,
   type Json,
   pointerSegment,
   type SourceSpan,
@@ -65,9 +66,6 @@ export function isDeclarableKey(key: string): boolean {
   return key !== CALL_KEY && key !== ENV_KEY && key !== '__proto__'
 }
 
-/** An environment variable name `env.NAME` may spell: an identifier. */
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-
 interface ReadDeclarationOptions {
   /** The function the file default-exports a call of: `defineTable`. */
   callee: string
@@ -108,7 +106,9 @@ export function isStoredCall(value: unknown): boolean {
 
 /** Whether a decoded value is an `env.NAME` reference the reader produced. */
 export function isDeclarationEnvRef(value: unknown): value is DeclarationEnvRef {
-  return isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_NAME.test(value[ENV_KEY])
+  return (
+    isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_VAR_NAME.test(value[ENV_KEY])
+  )
 }
 
 /**
@@ -439,7 +439,7 @@ export function readDeclaration(
           )
           return undefined
         }
-        return ENV_NAME.test(node.property.name)
+        return ENV_VAR_NAME.test(node.property.name)
           ? { [ENV_KEY]: node.property.name }
           : unsupported(
               node.property,

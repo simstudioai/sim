@@ -23,7 +23,7 @@
  * An OAuth client secret is set in the server's settings, never in source.
  */
 import { compareStrings } from '@sim/utils/string'
-import { holdsSecret, type Json, withoutAuthScheme } from '@sim/workflow-code'
+import { ENV_VAR_NAME, holdsSecret, type Json, withoutAuthScheme } from '@sim/workflow-code'
 import {
   asDeclared,
   booleanField,
@@ -110,13 +110,18 @@ export interface McpServerDecl {
 }
 
 const CALLEE = 'defineMcpServer'
-/** A whole value that is one env reference: `{{NAME}}`. */
-const WHOLE_ENV_REFERENCE = /^\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}$/
 /** An HTTP header name (RFC 9110 token). */
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 /** A credential-bearing header name, by its words. */
 const CREDENTIAL_HEADER =
   /^(authorization|proxy-authorization|cookie)$|key|token|secret|auth|password|session|signature|credential/i
+
+/** The name of a header value that is one whole env reference (`{{NAME}}`), else null. */
+function wholeEnvName(value: string): string | null {
+  if (!value.startsWith('{{') || !value.endsWith('}}')) return null
+  const name = value.slice(2, -2)
+  return ENV_VAR_NAME.test(name) ? name : null
+}
 
 /** `mcp/<key>.ts`. */
 export function mcpDeclarationPath(key: string): string {
@@ -261,8 +266,8 @@ const headersField: DeclField<McpServerDecl['headers']> = {
       : Object.fromEntries(
           Object.entries(headers).map(([name, header]) => {
             if (isStoredHeader(header)) return [name, call(STORED_CALL)]
-            const env = WHOLE_ENV_REFERENCE.exec(header)
-            return [name, env ? envRef(env[1]) : header]
+            const env = wholeEnvName(header)
+            return [name, env === null ? header : envRef(env)]
           })
         ),
   canonical: (headers) =>

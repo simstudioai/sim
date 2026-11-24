@@ -77,9 +77,6 @@ export const SOURCE_REFUSAL_CODES = {
   stagingFull: 'SOURCE_STAGING_FULL',
 } as const
 
-/** One of {@link SOURCE_REFUSAL_CODES}. */
-export type SourceRefusalCode = (typeof SOURCE_REFUSAL_CODES)[keyof typeof SOURCE_REFUSAL_CODES]
-
 /** The error codes an edited block's warning is refused under. */
 export type EditRefusalCode =
   | 'E_APPLY_UNRESOLVED_REF'

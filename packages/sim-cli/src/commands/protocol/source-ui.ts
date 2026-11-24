@@ -9,7 +9,6 @@ import {
   boundFindingText,
   type RefusalClass,
   SOURCE_REFUSAL_CODES,
-  type SourceRefusalCode,
 } from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
@@ -365,7 +364,7 @@ export async function confirm(question: string): Promise<boolean> {
 }
 
 /** The exit status of each `409` the server tells apart by `details.code`; any other exits 1. */
-const CONFLICT_EXIT_CODES: ReadonlyMap<string, number> = new Map<SourceRefusalCode, number>([
+const CONFLICT_EXIT_CODES: ReadonlyMap<string, number> = new Map([
   [SOURCE_REFUSAL_CODES.stale, SOURCE_STALE_EXIT_CODE],
   [SOURCE_REFUSAL_CODES.busy, SOURCE_BUSY_EXIT_CODE],
 ])

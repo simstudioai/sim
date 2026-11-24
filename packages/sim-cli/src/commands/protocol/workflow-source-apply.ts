@@ -581,7 +581,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
           // written for (--workspace still chooses another), a workspace folder to its workspace.
           const recorded = directoryWorkspace(
             options.dir,
-            await recordedWorkspace(options.dir, profile.sources.workspaceId === 'flag'),
+            await recordedWorkspace(options.dir, profile),
             profile,
             (from) => `Run it without --workspace to create it in ${from}.`
           )

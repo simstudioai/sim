@@ -2,6 +2,7 @@ export { checkCodeFileBijection } from './bijection'
 export { type CodeFileRef, fromCodeFile } from './from-file'
 export { createJsContextScanner } from './lexer'
 export {
+  ENV_VAR_NAME,
   formatStoredPath,
   isIdentifierName,
   LOOP_PROPERTIES,

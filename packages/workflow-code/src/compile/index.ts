@@ -594,7 +594,6 @@ function compileEntry(
     dynamicOutputRefs: [],
     unresolvedTags: [],
     errorOutputRefs: [],
-    unknownRefAt: new Set(),
     refusedBranches: new Map(),
     valueConsts: new Set(),
   }
@@ -774,7 +773,8 @@ function compileEntry(
   // one finding: whether text there would break the JSON is moot until the path is fixed. An input
   // the start does not declare is not: a caller may still pass text there.
   const unknownAt = new Set([
-    ...ctx.unknownRefAt,
+    ...reporter.reportedAt('W_UNKNOWN_OUTPUT_PATH'),
+    ...reporter.reportedAt('W_UNRESOLVED_REF'),
     ...ctx.errorOutputRefs
       .filter(({ target }) => !erroring.has(target.key))
       .map(({ at }) => `${at.file}:${at.start}`),

@@ -53,7 +53,7 @@ export interface Range {
   end: number
 }
 
-export interface ReportExtras {
+interface ReportExtras {
   /**
    * A function is called only when the diagnostic is recorded, so a costly did-you-mean is never
    * computed for a warning past {@link MAX_LISTED}; a withheld warning computes it when its
@@ -126,6 +126,8 @@ export class Reporter {
   private readonly warningsByCode = new Map<CompileDiagnosticCode, number>()
   /** What each recorded finding says where, so the same finding is listed once. */
   private readonly seen = new Set<string>()
+  /** Where each code was reported (`file:start`), listed or past a cap. */
+  private readonly sites = new Map<CompileDiagnosticCode, Set<string>>()
 
   addFile(path: string, text: string): void {
     this.indexes.set(path, new LineIndex(text))
@@ -151,6 +153,11 @@ export class Reporter {
     }
   }
 
+  /** Where `code` was reported (`file:start`), including the reports a cap left out of the listing. */
+  reportedAt(code: CompileDiagnosticCode): ReadonlySet<string> {
+    return this.sites.get(code) ?? new Set()
+  }
+
   /**
    * Records a diagnostic, once: a finding with the same code, message and range as one already
    * recorded is dropped. The error after the {@link MAX_ERRORS}th is recorded as
@@ -164,6 +171,10 @@ export class Reporter {
     const key = `${code}\u0000${at.file}\u0000${at.start}\u0000${at.end}\u0000${message}`
     if (this.seen.has(key)) return
     this.seen.add(key)
+    const site = `${at.file}:${at.start}`
+    const sites = this.sites.get(code)
+    if (sites) sites.add(site)
+    else this.sites.set(code, new Set([site]))
     const severity = severityOf(code)
     if (severity === 'error') {
       if (this.errorCount === MAX_ERRORS) {
