@@ -170,13 +170,13 @@ Sim tracks grants made through directory mappings. Removing a member from a grou
 
 Other directory mappings and independent access can still keep the person in a workspace. Removing a permission-group membership changes their governing policy; it does not remove workspace access. Sim then uses another applicable workspace policy, the organization default, or no permission-group restrictions if neither exists. An empty mapped group applies to nobody and never turns into an all-members policy. Verify both workspace access and the fallback policy when testing a removal.
 
-**Lock managed membership** is enabled by default on a new connection. It makes the directory authoritative for provisioned members: Sim refuses manual invitations, workspace grants, workspace role changes, and organization role changes for them. Manual access already held when a mapping begins covering it becomes directory-managed and is withdrawn with that mapping. Administrators can still remove access in an emergency.
+**Lock managed membership** is enabled by default on a new connection. It makes the directory authoritative for provisioned members: Sim refuses manual organization invitations and organization role changes for them, and manual grants and role changes on any workspace one of their groups is mapped to. Other workspace access stays shareable by hand, since the directory does not manage it. To have the directory own a member's access to a workspace, map one of their groups to it. Manual access already held when a mapping begins covering it becomes directory-managed and is withdrawn with that mapping. Administrators can still remove access in an emergency.
 
 The lock does not prevent editing permission-group membership directly in Sim. A manual removal can be restored by reconciliation, and a manual addition to an overlapping policy can block a directory assignment. Manage mapped policy membership through the directory and check **Group mappings** for unassigned members after resolving conflicts.
 
 With locking off, prior manual workspace access is preserved. If a member had manual Read access and a directory mapping raises it to Admin, removing the mapping restores Read. A role manually raised above the directory's level also remains. [Older grants have a baseline limitation](#deployment-and-upgrades).
 
-You can manually invite people the directory does not manage. For managed members with locking on, grant access through directory groups.
+You can manually invite people the directory does not manage. For managed members with locking on, change access to workspaces their groups are mapped to through the directory; share other workspaces with them as usual.
 
 ## Provisioning and SSO together
 

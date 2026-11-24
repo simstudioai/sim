@@ -1580,7 +1580,7 @@ async function run() {
   )
 
   await check(
-    'Managed membership locks block invitations and permission edits while allowing unmanaged members',
+    'Managed membership locks block edits only on workspaces the member’s groups map, and never unmanaged members',
     async () => {
       const manualUserId = generateId()
       const manualEmail = `manual@${primary.domain}`
@@ -1589,42 +1589,61 @@ async function run() {
       await sql`insert into user_stats (id, user_id) values (${generateId()}, ${manualUserId})`
       await sql`insert into member (id, user_id, organization_id, role)
         values (${generateId()}, ${manualUserId}, ${primary.orgId}, 'member')`
+      const editAlice = (permissions: string, expected?: number) =>
+        request(`/api/workspaces/${primary.workspaceId}/permissions`, {
+          fixture: primary,
+          method: 'PATCH',
+          ...(expected ? { expected } : {}),
+          contentType: 'application/json',
+          body: { updates: [{ userId: aliceUserId, permissions }] },
+        })
       await admin(primary, '', {
         method: 'PUT',
         body: { settings: { lockManualMembership: true } },
       })
+      let lockedGroupId = ''
       try {
-        const invitationBody = {
-          workspaceIds: [primary.workspaceId],
-          permission: 'read',
-          membership: 'member',
-        }
-        const managedInvite = (
-          await request('/api/workspaces/invitations/batch', {
-            fixture: primary,
-            method: 'POST',
-            contentType: 'application/json',
-            body: { ...invitationBody, emails: [aliceEmail] },
-          })
-        ).body
-        assert.equal(managedInvite.success, false)
-        assert(Array.isArray(managedInvite.failed))
-        assert.match(string(record(managedInvite.failed[0]).error), /identity provider/)
-        assert(!JSON.stringify(managedInvite).includes('select '))
-        await request(`/api/workspaces/${primary.workspaceId}/permissions`, {
-          fixture: primary,
-          method: 'PATCH',
-          expected: 403,
-          contentType: 'application/json',
-          body: { updates: [{ userId: aliceUserId, permissions: 'write' }] },
-        })
+        await editAlice('write')
+        assert.equal(await permission(aliceUserId, primary.workspaceId), 'write')
+        await editAlice('read')
         assert.equal(await permission(aliceUserId, primary.workspaceId), 'read')
+
+        const created = await scim(token, '/Groups', {
+          method: 'POST',
+          expected: 201,
+          body: {
+            schemas: [GROUP_SCHEMA],
+            displayName: 'SCIM E2E managed workspace',
+            members: [{ value: aliceId }],
+          },
+        })
+        lockedGroupId = string(created.body.id)
+        await admin(primary, '/mappings', {
+          method: 'POST',
+          expected: 201,
+          body: {
+            groupId: lockedGroupId,
+            targetKind: 'workspace',
+            workspaceId: primary.workspaceId,
+            permissionType: 'read',
+          },
+        })
+        const refused = await editAlice('write', 403)
+        assert.match(JSON.stringify(refused.body), /identity provider/)
+        assert(!JSON.stringify(refused.body).includes('select '))
+        assert.equal(await permission(aliceUserId, primary.workspaceId), 'read')
+
         const manualInvite = (
           await request('/api/workspaces/invitations/batch', {
             fixture: primary,
             method: 'POST',
             contentType: 'application/json',
-            body: { ...invitationBody, emails: [manualEmail] },
+            body: {
+              workspaceIds: [primary.workspaceId],
+              permission: 'read',
+              membership: 'member',
+              emails: [manualEmail],
+            },
           })
         ).body
         assert.equal(manualInvite.success, true)
@@ -1637,11 +1656,15 @@ async function run() {
         })
         assert.equal(await permission(manualUserId, primary.workspaceId), 'write')
       } finally {
+        /** Unlocked first, so removing the mapping restores Alice's manual access instead of withdrawing it. */
         await admin(primary, '', {
           method: 'PUT',
           body: { settings: { lockManualMembership: false } },
         })
+        if (lockedGroupId)
+          await scim(token, `/Groups/${lockedGroupId}`, { method: 'DELETE', expected: 204 })
       }
+      assert.equal(await permission(aliceUserId, primary.workspaceId), 'read')
     }
   )
 

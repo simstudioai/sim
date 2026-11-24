@@ -4,8 +4,6 @@ import {
   permissionGroupMember,
   permissions,
   scimConnection,
-  scimGroupMapping,
-  scimGroupMember,
   scimProjectionGrant,
   scimUser,
   workspace,
@@ -38,11 +36,9 @@ import {
   revokeWorkspaceAccessTx,
   stopRunsWithoutWorkspaceAccessTx,
 } from '@/lib/workspaces/access/workspace-access'
+import { currentGrants, loadMappingRows } from '@/ee/scim/lib/projection/directory-grants'
 import {
-  type MappingRow,
   type ProjectionGrant,
-  type ProjectionGrantOrigin,
-  type ProjectionTargetKind,
   planGrantChanges,
   resolveDesiredGrants,
 } from '@/ee/scim/lib/projection/grants'
@@ -85,49 +81,6 @@ function addChanges(total: ProjectionChanges, changes: ProjectionChanges): void 
 
 /** Users per transaction when projecting outside a request's own transaction; the organization lock is held for the batch. */
 export const PROJECTION_BATCH_SIZE = 25
-
-/**
- * The mapping rows this user reaches through their groups.
- *
- * Deliberately independent of whether the user is active. A deactivation blocks
- * sign-in and API keys through suspension; it does not withdraw grants, because
- * withdrawing a workspace grant reassigns the workflows the person owns there,
- * and that cannot be undone by reactivating them. Grants change only when group
- * membership or mappings change, or when the user is deprovisioned outright.
- */
-async function loadMappingRows(tx: DbOrTx, scimUserId: string): Promise<MappingRow[]> {
-  return tx
-    .select({
-      targetKind: scimGroupMapping.targetKind,
-      permissionGroupId: scimGroupMapping.permissionGroupId,
-      workspaceId: scimGroupMapping.workspaceId,
-      permissionType: scimGroupMapping.permissionType,
-      role: scimGroupMapping.role,
-    })
-    .from(scimGroupMember)
-    .innerJoin(scimGroupMapping, eq(scimGroupMapping.groupId, scimGroupMember.groupId))
-    .where(eq(scimGroupMember.scimUserId, scimUserId))
-}
-
-async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<ProjectionGrant[]> {
-  const rows = await tx
-    .select({
-      targetKind: scimProjectionGrant.targetKind,
-      targetId: scimProjectionGrant.targetId,
-      permissionType: scimProjectionGrant.permissionType,
-      origin: scimProjectionGrant.origin,
-      baselinePermission: scimProjectionGrant.baselinePermission,
-    })
-    .from(scimProjectionGrant)
-    .where(eq(scimProjectionGrant.scimUserId, scimUserId))
-  return rows.map((row) => ({
-    targetKind: row.targetKind as ProjectionTargetKind,
-    targetId: row.targetId,
-    origin: row.origin as ProjectionGrantOrigin,
-    baselinePermission: row.baselinePermission ?? null,
-    ...(row.permissionType ? { permissionType: row.permissionType } : {}),
-  }))
-}
 
 /** Reads access independently of provenance so a reconcile can repair real drift. */
 async function actualGrants(
