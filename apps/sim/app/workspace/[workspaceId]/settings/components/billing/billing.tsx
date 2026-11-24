@@ -319,8 +319,15 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     { isTeamAdmin, userRole: userRole || 'member' }
   )
 
-  /** A failed payment pauses the plan's usage until the payment method is fixed. */
+  /** A failed payment or an open dispute pauses the plan's usage. */
   const hasPaymentProblem = subscription.isPaid && !hasUsablePaidAccess
+  const billingBlockedReason = isOrganizationScope
+    ? organizationBilling?.billingBlockedReason
+    : subscriptionData?.data?.billingBlockedReason
+  const paymentProblemLabel =
+    billingBlockedReason === 'dispute'
+      ? 'Usage is paused while a payment dispute is open. Contact support to resolve it'
+      : 'Payment failed. Update your payment method to resume usage'
 
   const isTogglingOnDemand = updateUserLimit.isPending || updateOrgLimit.isPending
 
@@ -662,9 +669,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             ) : (
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
-                  {hasPaymentProblem
-                    ? 'Payment failed. Update your payment method to resume usage'
-                    : 'Payment method'}
+                  {hasPaymentProblem ? paymentProblemLabel : 'Payment method'}
                 </span>
                 <Chip
                   variant={hasPaymentProblem ? 'primary' : undefined}

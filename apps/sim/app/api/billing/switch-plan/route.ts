@@ -77,14 +77,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
-    const billingBlocked = hostContext
-      ? hostContext.ownerBilling.billingBlocked
-      : (await getEffectiveBillingStatus(userId)).billingBlocked
+    const { billingBlocked, billingBlockedReason } = hostContext
+      ? hostContext.ownerBilling
+      : await getEffectiveBillingStatus(userId)
     if (!hasUsableSubscriptionAccess(sub.status, billingBlocked)) {
       return NextResponse.json(
         {
           error:
-            'Your last payment failed. Update your payment method under Settings > Billing, then change your plan.',
+            billingBlockedReason === 'dispute'
+              ? 'Plan changes are paused while a payment dispute is open. Contact support to resolve it.'
+              : 'Your last payment failed. Update your payment method under Settings > Billing, then change your plan.',
         },
         { status: 400 }
       )

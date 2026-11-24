@@ -21,6 +21,7 @@ import {
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
+  getOrgIncludedUsageDollars,
   getPlanPricing,
   getSubscriptionWeeklyRefreshDollars,
   isHardCappedEnterprise,
@@ -33,6 +34,32 @@ import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('BillingCycleClose')
+
+const AVERAGE_MONTH_MS = 30.44 * 24 * 60 * 60 * 1000
+
+/**
+ * The usage a closed period included, from the period itself rather than the subscription's
+ * current terms: an interval switch moves the subscription onto the new interval before the old
+ * period closes, and that period must not be priced at the new allowance. A full year counts its
+ * seat-months (kept for the year until it closes); a shorter period counts its own months.
+ */
+function closedPeriodIncludedUsage(
+  sub: SubscriptionRow,
+  closedRange: { from: Date; to: Date },
+  orgScoped: boolean
+): number {
+  if (isEnterprise(sub.plan)) return getOrgIncludedUsageDollars(sub)
+  const months = Math.max(
+    1,
+    Math.round((closedRange.to.getTime() - closedRange.from.getTime()) / AVERAGE_MONTH_MS)
+  )
+  if (months >= 12) {
+    const year = { ...sub, periodStart: closedRange.from, billingInterval: 'year' }
+    return orgScoped ? getOrgIncludedUsageDollars(year) : getPlanPricing(year).basePrice
+  }
+  const monthly = getPlanPricing({ ...sub, billingInterval: 'month' }).basePrice
+  return monthly * months * (orgScoped ? sub.seats || 1 : 1)
+}
 
 /**
  * Minimum residual overage worth invoicing at cycle close, in dollars.
@@ -456,6 +483,7 @@ export async function closeElapsedBillingPeriod(
         periodEnd: periodStart,
         organizationId: sub.referenceId,
         pooledLedgerUsage: closedLedgerUsage,
+        includedUsage: closedPeriodIncludedUsage(sub, closedRange, true),
       })
       totalOverage = computed
     } else {
@@ -469,8 +497,8 @@ export async function closeElapsedBillingPeriod(
           weeklyRefreshDollars,
         })
       }
-      const { basePrice } = getPlanPricing(sub)
-      totalOverage = Math.max(0, closedLedgerUsage - refreshConsumed - basePrice)
+      const includedUsage = closedPeriodIncludedUsage(sub, closedRange, false)
+      totalOverage = Math.max(0, closedLedgerUsage - refreshConsumed - includedUsage)
     }
   }
 

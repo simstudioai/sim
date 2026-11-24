@@ -32,7 +32,7 @@ interface SwitchedSubscription extends OrgAllowanceInput {
  * it would read as on-demand usage nobody turned on and bill overage past the new allowance. A
  * limit the payer raised keeps its on-demand headroom above the allowance, rescaled to the new
  * interval (a year's headroom becomes a month's twelfth), and an unlimited limit stays unlimited.
- * A trial keeps its fixed allowance.
+ * A personal trial keeps its fixed allowance.
  */
 export async function recordPlanSwitch(params: {
   subscription: SwitchedSubscription
@@ -50,7 +50,7 @@ export async function recordPlanSwitch(params: {
   }
   await writeBillingInterval(subscription.id, targetInterval)
 
-  if (isTrialingSubscription(subscription)) return
+  if (!orgScoped && isTrialingSubscription(subscription)) return
 
   const previousInterval = resolveBillingInterval(subscription)
   const target = { ...subscription, plan: targetPlanName, billingInterval: targetInterval }

@@ -1,7 +1,8 @@
 /**
  * A paid plan's included usage against real PostgreSQL: an annual plan carries twelve months of
  * credits for its yearly billing period (limit floor, overage, the hourly re-sync), and a plan
- * switch moves an untouched usage limit to the new plan's allowance.
+ * switch moves an untouched usage limit to the new plan's allowance while the closed period keeps
+ * its own.
  */
 import { db } from '@sim/db'
 import { organization, subscription, usageLog, user, userStats } from '@sim/db/schema'
@@ -12,6 +13,7 @@ import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getOrgUsageLimit, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { closeElapsedBillingPeriod } from '@/lib/billing/cycle-close'
 import { syncAnnualPlanUsageLimits } from '@/lib/billing/organization'
 
 vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
@@ -194,6 +196,49 @@ describe('annual plan allowance', () => {
 
     expect(await readLimit(annualUser)).toBe(PRO_MONTHLY_DOLLARS * 12)
     expect(await readLimit(monthlyUser)).toBe(PRO_MONTHLY_DOLLARS)
+  })
+})
+
+describe('closing a period after an interval switch', () => {
+  it('bills the closed monthly period against one month, not the new annual allowance', async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const periodStart = new Date(Date.now() - 2 * DAY_MS)
+    const closedStart = new Date(periodStart.getTime() - 30 * DAY_MS)
+    const row = {
+      id: generateId(),
+      plan: 'pro_6000',
+      referenceId: userId,
+      status: 'active',
+      seats: 1,
+      billingInterval: 'year',
+      stripeCustomerId: `cus_${generateId()}`,
+      stripeSubscriptionId: `sub_${generateId()}`,
+      periodStart,
+      periodEnd: new Date(periodStart.getTime() + 365 * DAY_MS),
+      lastClosedPeriodStart: closedStart,
+    }
+    await db.insert(subscription).values(row)
+    await db.insert(usageLog).values({
+      id: generateId(),
+      userId,
+      category: 'model',
+      source: 'workflow',
+      description: 'closed monthly period',
+      cost: '100',
+      billingEntityType: 'user',
+      billingEntityId: userId,
+      billingPeriodStart: closedStart,
+      billingPeriodEnd: periodStart,
+      createdAt: new Date(closedStart.getTime() + DAY_MS),
+    })
+    const [sub] = await db.select().from(subscription).where(eq(subscription.id, row.id))
+
+    const result = await closeElapsedBillingPeriod(sub as NonNullable<typeof sub>, {
+      bypassSettlementGrace: true,
+    })
+
+    // $100 used, less one week's $10 refresh and one month's $30 allowance.
+    expect(result.overageBilled).toBe(60)
   })
 })
 

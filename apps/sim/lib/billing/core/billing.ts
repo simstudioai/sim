@@ -129,6 +129,8 @@ export async function computeOrgOverageAmount(params: {
   periodEnd: Date | null
   organizationId: string
   pooledLedgerUsage: number
+  /** The period's included usage when it differs from the subscription's current one. */
+  includedUsage?: number
 }): Promise<{
   effectiveUsage: number
   baseSubscriptionAmount: number
@@ -151,7 +153,8 @@ export async function computeOrgOverageAmount(params: {
   }
 
   const effectiveUsage = Math.max(0, totalUsage - weeklyRefreshDeduction)
-  const baseSubscriptionAmount = getOrgIncludedUsageDollars(params.subscription)
+  const baseSubscriptionAmount =
+    params.includedUsage ?? getOrgIncludedUsageDollars(params.subscription)
   const totalOverage = Math.max(0, effectiveUsage - baseSubscriptionAmount)
 
   return { effectiveUsage, baseSubscriptionAmount, weeklyRefreshDeduction, totalOverage }

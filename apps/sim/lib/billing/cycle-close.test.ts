@@ -168,13 +168,15 @@ describe('closeElapsedBillingPeriod', () => {
     expect(result.status).toBe('closed')
     expect(result.overageBilled).toBe(70)
 
-    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
-      subscription: expect.objectContaining({ plan: 'team', seats: null, metadata: null }),
-      periodStart: PREV_PERIOD_START,
-      periodEnd: PERIOD_START,
-      organizationId: 'org-1',
-      pooledLedgerUsage: 150,
-    })
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription: expect.objectContaining({ plan: 'team', seats: null, metadata: null }),
+        periodStart: PREV_PERIOD_START,
+        periodEnd: PERIOD_START,
+        organizationId: 'org-1',
+        pooledLedgerUsage: 150,
+      })
+    )
 
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
     const [, eventType, payload] = mockEnqueueOutboxEvent.mock.calls[0]
@@ -278,13 +280,15 @@ describe('closeElapsedBillingPeriod', () => {
 
     await closeElapsedBillingPeriod(subRow())
 
-    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
-      subscription: expect.objectContaining({ plan: 'team', seats: null, metadata: null }),
-      periodStart: PREV_PERIOD_START,
-      periodEnd: PERIOD_START,
-      organizationId: 'org-1',
-      pooledLedgerUsage: 150,
-    })
+    expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription: expect.objectContaining({ plan: 'team', seats: null, metadata: null }),
+        periodStart: PREV_PERIOD_START,
+        periodEnd: PERIOD_START,
+        organizationId: 'org-1',
+        pooledLedgerUsage: 150,
+      })
+    )
   })
 
   it('subtracts the current period tracker from the final overage', async () => {

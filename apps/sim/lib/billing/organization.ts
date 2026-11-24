@@ -16,6 +16,7 @@ import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getOrgIncludedUsageDollars,
+  resolveBillingInterval,
   SETTLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
@@ -619,16 +620,31 @@ export async function syncAnnualPlanUsageLimits(now: Date = new Date()): Promise
     if (page.length === 0) return synced
     cursor = page[page.length - 1].id
 
-    for (const annual of page) {
+    for (const listed of page) {
       try {
+        // Re-read the row: a plan switch since the page was read must not be raised back.
+        const [annual] = await db
+          .select()
+          .from(subscriptionTable)
+          .where(eq(subscriptionTable.id, listed.id))
+          .limit(1)
+        if (!annual || resolveBillingInterval(annual) !== 'year' || !isPaid(annual.plan)) continue
+        if (annual.billingInterval !== 'year') {
+          // Older checkouts kept the interval only in metadata; readers of the column alone (the
+          // billing attribution snapshot) then priced the plan as monthly.
+          await db
+            .update(subscriptionTable)
+            .set({ billingInterval: 'year' })
+            .where(eq(subscriptionTable.id, annual.id))
+        }
         const reconciled = isOrgPlan(annual.plan)
           ? await reconcileAnnualSeatMonths(annual, now)
           : annual
-        await syncSubscriptionUsageLimits(reconciled)
+        await syncSubscriptionUsageLimits({ ...reconciled, billingInterval: 'year' })
         synced++
       } catch (error) {
         logger.error('Failed to sync an annual plan usage limit', {
-          subscriptionId: annual.id,
+          subscriptionId: listed.id,
           error,
         })
       }
@@ -647,6 +663,13 @@ async function reconcileAnnualSeatMonths(
   if (samePeriod && annual.allowanceSeats === seats && annual.allowanceSeatMonths !== null) {
     return annual
   }
+  // The closing year's seat-months price its cycle close; start the new year once it has closed.
+  const previousYearOpen =
+    !samePeriod &&
+    annual.allowancePeriodStart !== null &&
+    (annual.lastClosedPeriodStart === null ||
+      annual.lastClosedPeriodStart.getTime() < annual.periodStart.getTime())
+  if (previousYearOpen) return annual
 
   const allowanceSeatMonths =
     samePeriod && annual.allowanceSeats !== null && annual.allowanceSeatMonths !== null
