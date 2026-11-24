@@ -99,7 +99,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
           false,
           `+${formatCredits(PRO_TIER.weeklyRefreshCredits)}/week`,
           `+${formatCredits(MAX_TIER.weeklyRefreshCredits)}/week`,
-          'Custom',
+          false,
         ],
       },
       {
@@ -113,7 +113,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Workspaces',
-        values: ['1', '3', 'Unlimited', 'Unlimited'],
+        values: ['1', '3 (unlimited on Teams)', '10 (unlimited on Teams)', 'Unlimited'],
       },
       {
         label: 'Invite teammates',
@@ -140,15 +140,15 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Sync executions',
-        values: ['50', '150', '300', 'Custom'],
+        values: ['50', '150', '300', '600'],
       },
       {
         label: 'Async executions',
-        values: ['200', '1,000', '2,500', 'Custom'],
+        values: ['200', '1,000', '2,500', '5,000'],
       },
       {
         label: 'API endpoint',
-        values: ['30', '100', '200', 'Custom'],
+        values: ['30', '100', '200', '500'],
       },
     ],
   },
@@ -157,7 +157,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Sync timeout',
-        values: ['5 min', '50 min', '50 min', 'Custom'],
+        values: ['5 min', '50 min', '50 min', '50 min'],
       },
       {
         label: 'Async timeout',
@@ -173,12 +173,12 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
         values: ['5 GB', '50 GB', '500 GB', 'Custom'],
       },
       {
-        label: 'Max tables',
-        values: ['5', '100', '1,000', 'Custom'],
+        label: 'Tables per workspace',
+        values: ['5', '100', '1,000', '10,000'],
       },
       {
         label: 'Max rows per table',
-        values: ['50,000', '100,000', '500,000', 'Custom'],
+        values: ['50,000', '100,000', '500,000', '1,000,000'],
       },
       {
         label: 'Log retention',
