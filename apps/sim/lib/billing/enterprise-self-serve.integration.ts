@@ -43,7 +43,7 @@ const { stripeStub } = vi.hoisted(() => ({
   stripeStub: {
     setupIntents: { retrieve: vi.fn() },
     customers: { update: vi.fn() },
-    subscriptions: { update: vi.fn() },
+    subscriptions: { retrieve: vi.fn(), update: vi.fn() },
   },
 }))
 
@@ -377,6 +377,7 @@ describe('auto-pay', () => {
     stripeStub.setupIntents.retrieve.mockReset()
     stripeStub.customers.update.mockReset()
     stripeStub.subscriptions.update.mockReset()
+    stripeStub.subscriptions.retrieve.mockReset()
     stripeStub.setupIntents.retrieve.mockResolvedValue({
       status: 'succeeded',
       payment_method: 'pm_saved',
@@ -414,6 +415,7 @@ describe('auto-pay', () => {
       periodStart: monthsAgo(1),
     })
     if (!sub) throw new Error('subscription missing')
+    stripeStub.subscriptions.retrieve.mockResolvedValue({ metadata: sub.metadata })
 
     await handleEnterpriseAutoPaySetup(setupSession(sub))
 
@@ -422,6 +424,23 @@ describe('auto-pay', () => {
       { collection_method: 'charge_automatically', default_payment_method: 'pm_saved' },
       expect.anything()
     )
+  })
+
+  it('does not switch a contract that left self-serve after the session was checked', async () => {
+    const org = await createOrganization(1)
+    const sub = await addEnterpriseSubscription(org.id, {
+      selfServe: true,
+      seats: 2,
+      periodStart: monthsAgo(1),
+    })
+    if (!sub) throw new Error('subscription missing')
+    stripeStub.subscriptions.retrieve.mockResolvedValue({
+      metadata: { ...(sub.metadata as Record<string, string>), selfServe: '' },
+    })
+
+    await handleEnterpriseAutoPaySetup(setupSession(sub))
+
+    expect(stripeStub.subscriptions.update).not.toHaveBeenCalled()
   })
 
   it("ignores another customer's session and a contract outside self-serve", async () => {

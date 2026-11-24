@@ -67,6 +67,7 @@ const METADATA_SUBSCRIPTION_INVOICE_TYPES = new Set<string>([
   'overage_billing',
   'overage_threshold_billing',
   'overage_threshold_billing_org',
+  'enterprise_seat_true_up',
 ])
 
 type InvoiceSubscriptionResolutionSource =

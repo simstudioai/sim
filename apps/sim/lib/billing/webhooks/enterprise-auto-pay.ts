@@ -5,7 +5,12 @@ import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getCustomerId, getPaymentMethodId } from '@/lib/billing/stripe-payment-method'
-import { hasPaidSubscriptionStatus, isEnterpriseSelfServe } from '@/lib/billing/subscriptions/utils'
+import {
+  hasPaidSubscriptionStatus,
+  isEnterpriseSelfServe,
+  isSelfServeEnterpriseMetadata,
+} from '@/lib/billing/subscriptions/utils'
+import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 
 const logger = createLogger('EnterpriseAutoPay')
 
@@ -65,16 +70,35 @@ export async function handleEnterpriseAutoPaySetup(session: Stripe.Checkout.Sess
   }
 
   const customerId = contract.stripeCustomerId
-  await stripe.customers.update(
-    customerId,
-    { invoice_settings: { default_payment_method: paymentMethodId } },
-    { idempotencyKey: `enterprise-auto-pay:${session.id}:customer` }
-  )
-  await stripe.subscriptions.update(
-    stripeSubscriptionId,
-    { collection_method: 'charge_automatically', default_payment_method: paymentMethodId },
-    { idempotencyKey: `enterprise-auto-pay:${session.id}:subscription` }
-  )
+  // Admin changes to the contract hold this lease while they write Stripe, so re-reading Stripe's
+  // terms under it sees a self-serve shutdown that landed after the local check above.
+  const switched = await withEnterpriseReconciliationLease(stripeSubscriptionId, async () => {
+    const current = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+    if (
+      current.metadata?.referenceId !== organizationId ||
+      !isSelfServeEnterpriseMetadata(current.metadata)
+    ) {
+      return false
+    }
+    await stripe.customers.update(
+      customerId,
+      { invoice_settings: { default_payment_method: paymentMethodId } },
+      { idempotencyKey: `enterprise-auto-pay:${session.id}:customer` }
+    )
+    await stripe.subscriptions.update(
+      stripeSubscriptionId,
+      { collection_method: 'charge_automatically', default_payment_method: paymentMethodId },
+      { idempotencyKey: `enterprise-auto-pay:${session.id}:subscription` }
+    )
+    return true
+  })
+  if (!switched) {
+    logger.warn('Enterprise contract left self-serve before auto-pay could switch', {
+      sessionId: session.id,
+      organizationId,
+    })
+    return
+  }
 
   logger.info('Enterprise contract switched to automatic payment', {
     organizationId,
