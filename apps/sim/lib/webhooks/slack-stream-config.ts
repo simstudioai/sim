@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   formatInternalOutputSelector,
   parsePublicOutputSelector,
@@ -7,7 +7,7 @@ import {
 import { normalizeName } from '@/executor/constants'
 import { SLACK_STREAM_RESPONSE_EVENTS } from '@/triggers/slack/shared'
 
-export interface SlackStreamOutputConfig extends SlackStreamBlockRef {
+interface SlackStreamOutputConfig extends SlackStreamBlockRef {
   path: string
 }
 
@@ -84,7 +84,7 @@ function parseSlackToolLabels(value: unknown): Record<string, string> {
   if (!Array.isArray(value)) throw new Error('Slack tool step labels must be a table')
   const labels: Record<string, string> = {}
   for (const row of value) {
-    const cells = isRecordLike(row) && isRecordLike(row.cells) ? row.cells : null
+    const cells = isRecordLike(row) ? toRecordOrNull(row.cells) : null
     const tool = typeof cells?.Tool === 'string' ? cells.Tool.trim() : ''
     const label = typeof cells?.Label === 'string' ? cells.Label.trim() : ''
     if (!tool || !label) continue

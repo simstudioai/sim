@@ -393,7 +393,7 @@ export interface SubBlockConfig {
   min?: number
   max?: number
   columns?: string[]
-  /** Limits a `workflow-output-selector` to one output path of the given block type. */
+  /** Limits a `workflow-output-selector` to blocks of one type, each selecting `path`. */
   outputFilter?: { blockType: string; path: string }
   placeholder?: string
   /**

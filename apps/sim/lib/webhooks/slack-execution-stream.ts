@@ -140,8 +140,8 @@ function mcpToolName(name: string): string | undefined {
 }
 
 function toolTitle(name: string, labels: Record<string, string>): string {
-  const ownName = labels[name] === undefined ? mcpToolName(name) : undefined
-  const label = labels[name] ?? (ownName === undefined ? undefined : labels[ownName])
+  const ownName = Object.hasOwn(labels, name) ? name : mcpToolName(name)
+  const label = ownName !== undefined && Object.hasOwn(labels, ownName) ? labels[ownName] : ''
   return truncate(label || getToolDisplayTitle(name), TASK_TEXT_LIMIT)
 }
 
@@ -209,10 +209,13 @@ async function stopMessage(
 interface SharedMessage {
   message: Promise<SlackMessageStream>
   hasAnswer: boolean
+  /** Only these invocations' outcomes decide how the shared message settles. */
+  writers: Set<SlackInvocationStream>
 }
 
 /** Returns the shared message, or undefined when another answer already writes to it. */
 type AcquireSharedMessage = (
+  writer: SlackInvocationStream,
   forAnswer: boolean,
   start: () => Promise<SlackMessageStream>
 ) => Promise<SlackMessageStream> | undefined
@@ -283,7 +286,7 @@ class SlackInvocationStream {
         this.taskId,
         this.signal
       )
-    const shared = this.acquireSharedMessage(!this.timelineOnly, start)
+    const shared = this.acquireSharedMessage(this, !this.timelineOnly, start)
     const message = shared ? await shared : await start()
     if (!shared) this.ownedMessages.add(message)
     this.messages.push(message)
@@ -627,14 +630,16 @@ export class SlackExecutionStreamController {
     return controller
   }
 
-  private readonly acquireSharedMessage: AcquireSharedMessage = (forAnswer, start) => {
+  private readonly acquireSharedMessage: AcquireSharedMessage = (writer, forAnswer, start) => {
     if (!this.sharedMessage) {
-      this.sharedMessage = { message: start(), hasAnswer: forAnswer }
+      this.sharedMessage = { message: start(), hasAnswer: forAnswer, writers: new Set([writer]) }
       return this.sharedMessage.message
     }
-    if (!forAnswer) return this.sharedMessage.message
-    if (this.sharedMessage.hasAnswer) return undefined
-    this.sharedMessage.hasAnswer = true
+    if (forAnswer) {
+      if (this.sharedMessage.hasAnswer) return undefined
+      this.sharedMessage.hasAnswer = true
+    }
+    this.sharedMessage.writers.add(writer)
     return this.sharedMessage.message
   }
 
@@ -664,8 +669,12 @@ export class SlackExecutionStreamController {
     return `${blockId}:${childWorkflowInstanceId ?? executionOrder}`
   }
 
+  /** Unique per invocation: blocks of one child workflow instance share the shared message. */
   private taskId(executionOrder: number, childWorkflowInstanceId?: string): string {
-    return `sim-${this.options.executionId}-${childWorkflowInstanceId ?? executionOrder}`
+    const invocation = childWorkflowInstanceId
+      ? `${childWorkflowInstanceId}-${executionOrder}`
+      : executionOrder
+    return `sim-${this.options.executionId}-${invocation}`
   }
 
   private recordFailure(error: unknown): Error {
@@ -798,11 +807,19 @@ export class SlackExecutionStreamController {
     const succeeded = () =>
       !this.failure && result.success && result.status !== 'cancelled' && result.status !== 'paused'
     const invocations = [...this.invocations.values()]
-    for (const invocation of invocations) await invocation.settle(succeeded())
-    // The shared message is the reply's first, so it settles before any continuation.
-    await this.stopSharedMessage(invocations, succeeded())
+    // An invocation succeeds only if every one before it did, as when each settled in turn.
+    const successes = new Map<SlackInvocationStream, boolean>()
+    let earlierFailed = false
     for (const invocation of invocations) {
-      await invocation.stop(succeeded())
+      const success = succeeded() && !earlierFailed
+      successes.set(invocation, success)
+      await invocation.settle(success)
+      earlierFailed ||= invocation.failed
+    }
+    // The shared message is the reply's first, so it settles before any continuation.
+    await this.stopSharedMessage(invocations, successes)
+    for (const invocation of invocations) {
+      await invocation.stop(successes.get(invocation) === true)
       try {
         invocation.assertSucceeded()
       } catch (error) {
@@ -833,7 +850,7 @@ export class SlackExecutionStreamController {
 
   private async stopSharedMessage(
     invocations: SlackInvocationStream[],
-    success: boolean
+    successes: ReadonlyMap<SlackInvocationStream, boolean>
   ): Promise<void> {
     if (!this.sharedMessage) return
     try {
@@ -842,7 +859,9 @@ export class SlackExecutionStreamController {
         this.token,
         message,
         this.options.config.taskTitle,
-        !success || invocations.some((invocation) => invocation.failed),
+        [...this.sharedMessage.writers].some(
+          (writer) => writer.failed || successes.get(writer) !== true
+        ),
         invocations.flatMap((invocation) => invocation.unfinishedToolChunks(message))
       )
     } catch (error) {

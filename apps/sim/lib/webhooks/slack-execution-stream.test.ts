@@ -756,6 +756,7 @@ describe('SlackExecutionStreamController', () => {
         childWorkflowInstanceId: 'child-instance-1',
         executionOrder: 2,
         stream: createByteStream('{"secret":"analyst json"}'),
+        execution: { success: true, output: {} },
         clientStreamTransformed: false,
         subscribe: ({ onEvent }) => {
           for (const event of events) void onEvent(event)
@@ -809,7 +810,7 @@ describe('SlackExecutionStreamController', () => {
       await streamTimeline(controller, [
         { type: 'tool_call_start', id: 'tool-1', name: 'mcp-6da535c1-lc_cur' },
       ])
-      await controller.finalize({ success: false, status: 'failed', output: {} })
+      await controller.finalize({ success: false, output: {} })
 
       expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
       expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
@@ -833,8 +834,73 @@ describe('SlackExecutionStreamController', () => {
           blockId: 'other',
           executionOrder: 1,
           stream: createByteStream(),
+          execution: { success: true, output: {} },
         })
       ).rejects.toThrow('unselected block')
+    })
+  })
+
+  describe('per-invocation outcomes', () => {
+    const unfinishedTool: AgentStreamEvent[] = [
+      { type: 'tool_call_start', id: 'tool-1', name: 'read_file' },
+    ]
+
+    function streamEvents(
+      controller: SlackExecutionStreamController,
+      executionOrder: number,
+      events: AgentStreamEvent[]
+    ) {
+      return controller.callbacks.onStream?.({
+        blockId: 'agent',
+        executionOrder,
+        stream: createByteStream(),
+        execution: { success: true, output: {} },
+        clientStreamTransformed: false,
+        subscribe: ({ onEvent }) => {
+          for (const event of events) void onEvent(event)
+          return vi.fn()
+        },
+      })
+    }
+
+    it('does not mark an earlier answer failed when a later one fails', async () => {
+      mockStartSlackAgentStream
+        .mockResolvedValueOnce({ channel: 'C123', ts: 'first' })
+        .mockResolvedValueOnce({ channel: 'C123', ts: 'second' })
+      const { controller } = await createController()
+      await streamEvents(controller, 1, [
+        { type: 'text_delta', text: 'First answer', turn: 'pending' },
+        { type: 'turn_end', turn: 'final' },
+      ])
+      await streamEvents(controller, 2, unfinishedTool)
+      await controller.finalize({ success: true, status: 'completed', output: {} })
+
+      const statusByTs = Object.fromEntries(
+        mockStopSlackAgentStream.mock.calls.map((call) => [call[2], call[3]])
+      )
+      expect(statusByTs).toEqual({ first: 'processing', second: 'suspended' })
+    })
+
+    it('posts no empty reply for a later invocation after an earlier one failed', async () => {
+      const { controller } = await createController()
+      await streamEvents(controller, 1, unfinishedTool)
+      await streamEvents(controller, 2, [])
+      await controller.finalize({ success: true, status: 'completed', output: {} })
+
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('titles a tool whose name is an object property', async () => {
+      const { controller } = await createController({ ...BASE_CONFIG, toolLabels: {} })
+      await streamEvents(controller, 1, [
+        { type: 'tool_call_start', id: 'tool-1', name: 'toString' },
+        { type: 'tool_call_end', id: 'tool-1', name: 'toString', status: 'success' },
+      ])
+      const toolChunk = mockAppendSlackAgentStream.mock.calls
+        .flatMap((call) => call[3] as SlackStreamChunk[])
+        .find((chunk) => chunk.type === 'task_update' && chunk.id.includes('-tool-'))
+      expect(toolChunk).toMatchObject({ title: expect.any(String) })
     })
   })
 
