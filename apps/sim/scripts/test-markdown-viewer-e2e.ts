@@ -187,17 +187,23 @@ async function check(name: string, run: () => Promise<void>, page?: Page) {
   }
 }
 
+const CANCELLED_FETCH = / due to access control checks\.$/
+
 /**
  * WebKit rejects a fetch the page cancels by navigating away, such as a Next.js RSC prefetch, with
- * "... due to access control checks.", and the router leaves that rejection unhandled. For a
+ * "<request> due to access control checks.", and the router leaves that rejection unhandled. For a
  * same-origin RSC request that is a cancellation, never an access failure.
  */
 function isCancelledRscFetch(message: string): boolean {
-  return (
-    message.endsWith(' due to access control checks.') &&
-    message.includes(`${base.host}/`) &&
-    message.includes('_rsc=')
-  )
+  if (!CANCELLED_FETCH.test(message)) return false
+  // WebKit names the request as `/host:port/path?query`, without its scheme.
+  const target = message.replace(CANCELLED_FETCH, '').split(' ').pop() ?? ''
+  try {
+    const url = new URL(target.startsWith('/') ? `${base.protocol}/${target}` : target)
+    return url.origin === base.origin && url.searchParams.has('_rsc')
+  } catch {
+    return false
+  }
 }
 
 async function wideTableProof(page: Page) {
@@ -445,6 +451,7 @@ async function provePastePersistence(page: Page, browserName: string) {
   const pastedShareToken = generateShortId()
   const readPasteSource = async () =>
     (await request(`/api/files/public/${pastedShareToken}/content`)).text()
+  let proved = false
   try {
     await sql`insert into public_share (id, resource_type, resource_id, entity_type, entity_id, workspace_id, created_by, token) values (${pastedShareId}, 'file', ${pastedFileId}, 'workspace', ${workspaceId}, ${workspaceId}, ${userId}, ${pastedShareToken})`
     await page.goto(new URL(`/workspace/${workspaceId}/files/${pastedFileId}`, base).href, {
@@ -589,11 +596,12 @@ async function provePastePersistence(page: Page, browserName: string) {
       afterLocalEdit.includes(`${marker} measure<br>`),
       'External update lost the pasted table'
     )
+    proved = true
   } finally {
     try {
-      // An editor left open on the file refetches it after the delete, and the next check on this
-      // page would record that 404 as its own browser error.
-      await page.goto('about:blank')
+      // Leave the file before deleting it, or the open editor refetches it and the next check on
+      // this page records that 404 as its own. A failed proof keeps the page for its screenshot.
+      if (proved) await page.goto('about:blank')
       await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`, undefined, 'DELETE')
     } finally {
       await sql`delete from public_share where id=${pastedShareId}`
