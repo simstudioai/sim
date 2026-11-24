@@ -54,10 +54,11 @@ export interface HasPaidSubscriptionOptions {
  */
 export async function writeBillingInterval(
   subscriptionId: string,
-  interval: 'month' | 'year'
+  interval: 'month' | 'year',
+  executor: DbOrTx = db
 ): Promise<void> {
   const patch = JSON.stringify({ billingInterval: interval })
-  await db
+  await executor
     .update(subscription)
     .set({
       billingInterval: interval,

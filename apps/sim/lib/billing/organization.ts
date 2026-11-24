@@ -39,7 +39,7 @@ type SubscriptionData = {
   metadata?: unknown
   periodStart?: Date | null
   allowancePeriodStart?: Date | null
-  allowanceSeatMonths?: number | null
+  allowanceSeatMonths?: number | string | null
   /** Correlation copied from Stripe metadata by the generic webhook callback. */
   enterpriseOperationId?: string | null
 }
@@ -698,33 +698,35 @@ async function reconcileAnnualSeatMonths(
     samePeriod && annual.allowanceSeats !== null && annual.allowanceSeatMonths !== null
       ? Math.max(
           0,
-          annual.allowanceSeatMonths +
-            Math.round((seats - annual.allowanceSeats) * monthsRemaining(annual.periodEnd, now))
+          Number(annual.allowanceSeatMonths) +
+            (seats - annual.allowanceSeats) * monthsRemaining(annual.periodEnd, now)
         )
       : seats * 12
   const next = {
     ...annual,
     allowancePeriodStart: annual.periodStart,
     allowanceSeats: seats,
-    allowanceSeatMonths,
+    allowanceSeatMonths: allowanceSeatMonths.toFixed(4),
   }
-  await db
-    .update(subscriptionTable)
-    .set({
-      allowancePeriodStart: next.allowancePeriodStart,
-      allowanceSeats: next.allowanceSeats,
-      allowanceSeatMonths: next.allowanceSeatMonths,
-    })
-    .where(eq(subscriptionTable.id, annual.id))
-
   const previousIncluded = getOrgIncludedUsageDollars(annual)
   const nextIncluded = getOrgIncludedUsageDollars(next)
-  if (previousIncluded !== nextIncluded) {
-    await rebaseUsageLimit({
-      pool: { type: 'organization', id: organizationId },
-      previousIncluded,
-      nextIncluded,
-    })
-  }
+
+  // One transaction: a limit left unrebased after the count advanced would never be retried.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(subscriptionTable)
+      .set({
+        allowancePeriodStart: next.allowancePeriodStart,
+        allowanceSeats: next.allowanceSeats,
+        allowanceSeatMonths: next.allowanceSeatMonths,
+      })
+      .where(eq(subscriptionTable.id, annual.id))
+    if (previousIncluded !== nextIncluded) {
+      await rebaseUsageLimit(
+        { pool: { type: 'organization', id: organizationId }, previousIncluded, nextIncluded },
+        tx
+      )
+    }
+  })
   return next
 }

@@ -87,7 +87,7 @@ beforeAll(async () => {
       period_start timestamp, period_end timestamp, cancel_at_period_end boolean,
       cancel_at timestamp, canceled_at timestamp, ended_at timestamp, seats integer,
       trial_start timestamp, trial_end timestamp, billing_interval text,
-      stripe_schedule_id text, metadata json, last_closed_period_start timestamp, allowance_period_start timestamp, allowance_seats integer, allowance_seat_months integer
+      stripe_schedule_id text, metadata json, last_closed_period_start timestamp, allowance_period_start timestamp, allowance_seats integer, allowance_seat_months numeric
     );
     CREATE TABLE workspace (
       id text PRIMARY KEY, name text NOT NULL, owner_id text REFERENCES "user"(id),

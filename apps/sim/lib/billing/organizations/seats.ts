@@ -82,7 +82,7 @@ export async function reconcileOrganizationSeats({
           metadata: unknown
           periodStart: Date | null
           allowancePeriodStart: Date | null
-          allowanceSeatMonths: number | null
+          allowanceSeatMonths: string | null
         }
       }
 

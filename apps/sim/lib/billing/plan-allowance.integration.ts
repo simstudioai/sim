@@ -182,9 +182,29 @@ describe('annual plan allowance', () => {
     await syncAnnualPlanUsageLimits()
 
     const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
-    expect(row?.allowanceSeatMonths).toBe(3 * 12 + 2 * 2)
+    const recorded = Number(row?.allowanceSeatMonths)
+    expect(recorded).toBeCloseTo(3 * 12 + 2 * (60 / 30.44), 3)
     const { minimum } = await getOrgUsageLimit(organizationId, row as NonNullable<typeof row>)
-    expect(minimum).toBe((3 * 12 + 2 * 2) * PRO_MONTHLY_DOLLARS)
+    expect(minimum).toBeCloseTo(recorded * PRO_MONTHLY_DOLLARS, 2)
+  })
+
+  it('credits a seat added in the last days of the year for the days left', async () => {
+    const organizationId = await createOrganization()
+    const sub = await addSubscription(organizationId, {
+      plan: 'team_6000',
+      billingInterval: 'year',
+      seats: 1,
+    })
+    await syncAnnualPlanUsageLimits()
+    await db
+      .update(subscription)
+      .set({ seats: 2, periodEnd: new Date(Date.now() + 10 * DAY_MS) })
+      .where(eq(subscription.id, sub.id))
+
+    await syncAnnualPlanUsageLimits()
+
+    const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
+    expect(Number(row?.allowanceSeatMonths)).toBeCloseTo(12 + 10 / 30.44, 3)
   })
 
   it('lowers an untouched Team limit when a seat leaves partway through the year', async () => {
@@ -206,7 +226,7 @@ describe('annual plan allowance', () => {
       .select({ orgUsageLimit: organization.orgUsageLimit })
       .from(organization)
       .where(eq(organization.id, organizationId))
-    expect(Number(org?.orgUsageLimit)).toBe((2 * 12 - 6) * PRO_MONTHLY_DOLLARS)
+    expect(Number(org?.orgUsageLimit)).toBeCloseTo((2 * 12 - 182 / 30.44) * PRO_MONTHLY_DOLLARS, 1)
   })
 
   it('raises annual subscriptions still capped at one month and leaves monthly ones alone', async () => {
@@ -280,6 +300,20 @@ describe('recordPlanSwitch', () => {
     expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS)
     const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
     expect(row?.plan).toBe('pro_6000')
+  })
+
+  it('keeps chosen headroom on an upgrade to a pricier tier', async () => {
+    const userId = await createUser(100)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_25000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(MAX_MONTHLY_DOLLARS + (100 - PRO_MONTHLY_DOLLARS))
   })
 
   it('keeps the on-demand headroom a payer raised above the old plan', async () => {

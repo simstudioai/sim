@@ -1843,7 +1843,7 @@ export const subscription = pgTable(
      */
     allowancePeriodStart: timestamp('allowance_period_start'),
     allowanceSeats: integer('allowance_seats'),
-    allowanceSeatMonths: integer('allowance_seat_months'),
+    allowanceSeatMonths: decimal('allowance_seat_months'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(

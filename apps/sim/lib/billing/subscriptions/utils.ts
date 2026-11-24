@@ -130,7 +130,7 @@ export interface OrgAllowanceInput extends PlanPricingInput {
   seats?: number | null
   periodStart?: Date | null
   allowancePeriodStart?: Date | null
-  allowanceSeatMonths?: number | null
+  allowanceSeatMonths?: number | string | null
 }
 
 /**
@@ -144,7 +144,7 @@ function getAnnualSeatMonths(subscription: OrgAllowanceInput): number {
     subscription.periodStart != null &&
     subscription.allowancePeriodStart.getTime() === subscription.periodStart.getTime()
   return recordedForThisPeriod
-    ? (subscription.allowanceSeatMonths ?? 0)
+    ? Number(subscription.allowanceSeatMonths)
     : (subscription.seats || 1) * 12
 }
 

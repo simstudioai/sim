@@ -175,7 +175,7 @@ export async function calculateSubscriptionOverage(sub: {
   periodEnd?: Date | null
   trialEnd?: Date | null
   allowancePeriodStart?: Date | null
-  allowanceSeatMonths?: number | null
+  allowanceSeatMonths?: number | string | null
 }): Promise<number> {
   if (isHardCappedEnterprise(sub)) {
     logger.info('Enterprise plan has no overages', {

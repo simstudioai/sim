@@ -23595,7 +23595,7 @@
         },
         "allowance_seat_months": {
           "name": "allowance_seat_months",
-          "type": "integer",
+          "type": "numeric",
           "primaryKey": false,
           "notNull": false
         }
