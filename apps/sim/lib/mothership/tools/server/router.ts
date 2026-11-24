@@ -18,6 +18,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { buildNotesServerTool } from '@/lib/mothership/tools/server/build-notes'
 import { changelogServerTool } from '@/lib/mothership/tools/server/changelog'
 import { dashboardsServerTool } from '@/lib/mothership/tools/server/dashboards'
 import { searchDocsServerTool } from '@/lib/mothership/tools/server/docs/search-docs'
@@ -70,6 +71,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [dashboardsServerTool.name]: dashboardsServerTool,
   [changelogServerTool.name]: changelogServerTool,
   [testsServerTool.name]: testsServerTool,
+  [buildNotesServerTool.name]: buildNotesServerTool,
   [searchDocsServerTool.name]: searchDocsServerTool,
   [searchWorkspaceServerTool.name]: searchWorkspaceServerTool,
   [listWorkspacesServerTool.name]: listWorkspacesServerTool,

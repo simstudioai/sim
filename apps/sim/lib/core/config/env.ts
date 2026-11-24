@@ -625,6 +625,7 @@ export const env = createEnv({
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     WORKFLOW_CODE:                         z.boolean().optional(),                 // Fallback for the `workflow-code` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
+    BUILD_NOTES:                           z.boolean().optional(),                 // Fallback for the `build-notes` feature flag off AppConfig
     SIM_LINKS:                             z.boolean().optional(),                 // Fallback for the `sim-links` feature flag off AppConfig
     PEOPLE:                                z.boolean().optional(),                 // Fallback for the `people` feature flag off AppConfig
     ORGANIZATION_ACTIVITY_ROLLUP_READS:    z.boolean().optional(),                 // Fallback for the `organization-activity-rollup-reads` feature flag off AppConfig

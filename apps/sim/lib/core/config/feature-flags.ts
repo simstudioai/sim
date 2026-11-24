@@ -61,6 +61,11 @@ const FEATURE_FLAGS = {
       'Enable workflows and workspaces as code: the block catalog and resources for the workflow SDK, workflow and workspace source read and apply, and the read-only Code tab. Supports global, organization, workspace and user rollout; disabled by default.',
     fallback: 'WORKFLOW_CODE',
   },
+  'build-notes': {
+    description:
+      'Enable build notes: the hidden, agent-only build-notes/<workflowId>.md scratchpad and baseline the agent drafts, evaluates and builds from, the Sim build_notes tool, and the apply checks for workflows that have notes. Supports global and organization rollout; disabled by default.',
+    fallback: 'BUILD_NOTES',
+  },
   changelog: {
     description:
       'Enable the workspace Changelog: the Changelog page, changelog/<id>.md release bodies, and the Sim changelog tool. Supports global and organization rollout; disabled by default.',

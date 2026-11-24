@@ -1,4 +1,6 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { readBuildNotesAvailability } from '@/lib/build-notes/application/availability'
+import { isBuildNotesEnabled } from '@/lib/build-notes/feature-flag'
 import { readChangelogAvailability } from '@/lib/changelog/application/availability'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
@@ -76,6 +78,11 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
         orgId: organizationId,
         userId: principal ? resolvePrincipalSubjectUserId(principal) : undefined,
       }),
+  },
+  [ENTITLEMENTS.build_notes]: {
+    workspace: ({ principal, workspaceId }) =>
+      readBuildNotesAvailability.execute({ principal, input: { workspaceId } }),
+    organization: ({ organizationId }) => isBuildNotesEnabled(organizationId),
   },
 }
 

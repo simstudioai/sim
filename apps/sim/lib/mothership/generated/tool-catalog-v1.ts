@@ -6,6 +6,7 @@ export interface ToolCatalogEntry {
   capabilities?: unknown
   clientExecutable?: boolean
   description?:
+    | 'A workflow’s build notes: the hidden scratchpad the agent drafts a build in before changing the graph. Nobody else sees or edits it; a later chat reads it to explain how the workflow was built. create writes build-notes/<workflowId>.md from a template and records the current graph as build-notes/<workflowId>.baseline.json; edit the notes with the file tools, never the baseline. evaluate dry-runs the notes’ operations block and lists what still blocks a build: open placeholders, items marked [gather] or [ask], dry-run skips, input errors and lint. Once evaluate passes, apply builds from exactly that block, atomically; a workflows operations apply of a different batch, notes edited since, or a graph changed outside the agent is refused until the notes pass evaluation again. Each build spends the evaluation. status says whether notes exist, passed evaluation, and whether the workflow was saved since the baseline; changes lists what changed since the baseline; after reconciling the notes, rebase records the current graph as the new baseline.'
     | 'Create a workspace in the conversation’s organization under the current user’s workspace-creation policy. Returns its ID for subsequent explicitly workspace-scoped commands. Includes a starter workflow unless skipDefaultWorkflow is true.'
     | 'Create and run the selected workspace’s workflow tests. create takes a name, a one-line title for the concern, and an optional description, and returns tests/<name>.test.js; write the cases into that file with the file tools. A test file is plain vitest: import { describe, it, expect, vi } from "vitest" and { runWorkflow, mockBlock, mockTool, spyOnBlock } from "sim:test", one top-level describe, an it per case. runWorkflow(name, input) runs a workflow and returns { output } (pass { trigger: "Trigger block name" } as a third argument when it has several triggers); mockBlock(blockName) returns a vi.fn whose value replaces that block’s output and records its inputs; mockTool(toolId) or mockTool(agentBlockName, toolId) answers an Agent’s calls to that tool the same way while the model still runs, naming built-in tools by id (slack_message), MCP tools by server as mockTool({ mcp: "Server name", tool: "tool_name" }), and custom tools by title as mockTool({ customTool: "Title" }); .mockSampleOutput({ ...overrides }) on either mock makes it answer with a placeholder output shaped like the real one, with your fields merged in; await expect(value).toMatchRubric(rubric) asks a model judge for pass or fail. Every write is checked and refused if the file does not load. run takes a version (draft while editing, deployed before shipping), waits, and returns each file’s failures with line numbers and messages. list and get report status; update changes title or description.'
     | 'Discover and configure organization Search sources. list/get return accessible sources and indexing status; providers returns available integration approvals; approve changes a provider approval when authorized; setup returns the existing connection UI for the user to complete. Put the returned setupUrl in a clickable Markdown link at the end of the reply. Setup does not mean connected or indexed. Use search_workspace and read_document to retrieve source content.'
@@ -51,6 +52,7 @@ export interface ToolCatalogEntry {
     | 'browser_upload_file'
     | 'browser_wait_for'
     | 'browser_zoom'
+    | 'build_notes'
     | 'call_integration_tool'
     | 'cancel_workflow_run'
     | 'changelog'
@@ -8042,6 +8044,37 @@ export const Changelog: ToolCatalogEntry = {
   },
 }
 
+export const BuildNotes: ToolCatalogEntry = {
+  id: 'build_notes',
+  description:
+    'A workflow’s build notes: the hidden scratchpad the agent drafts a build in before changing the graph. Nobody else sees or edits it; a later chat reads it to explain how the workflow was built. create writes build-notes/<workflowId>.md from a template and records the current graph as build-notes/<workflowId>.baseline.json; edit the notes with the file tools, never the baseline. evaluate dry-runs the notes’ operations block and lists what still blocks a build: open placeholders, items marked [gather] or [ask], dry-run skips, input errors and lint. Once evaluate passes, apply builds from exactly that block, atomically; a workflows operations apply of a different batch, notes edited since, or a graph changed outside the agent is refused until the notes pass evaluation again. Each build spends the evaluation. status says whether notes exist, passed evaluation, and whether the workflow was saved since the baseline; changes lists what changed since the baseline; after reconciling the notes, rebase records the current graph as the new baseline.',
+  route: 'sim',
+  parameters: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    properties: {
+      workspaceId: { type: 'string', minLength: 1, maxLength: 100 },
+      workflowId: {
+        type: 'string',
+        pattern: '^[A-Za-z0-9_-]{1,100}$',
+        description: 'The workflow the notes belong to.',
+      },
+      action: {
+        anyOf: [
+          { type: 'string', const: 'create' },
+          { type: 'string', const: 'status' },
+          { type: 'string', const: 'evaluate' },
+          { type: 'string', const: 'apply' },
+          { type: 'string', const: 'changes' },
+          { type: 'string', const: 'rebase' },
+        ],
+      },
+    },
+    required: ['workflowId', 'action'],
+    additionalProperties: false,
+  },
+}
+
 export const Workspaces: ToolCatalogEntry = {
   id: 'workspaces',
   description:
@@ -8761,6 +8794,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Dashboards.id]: Dashboards,
   [Tests.id]: Tests,
   [Changelog.id]: Changelog,
+  [BuildNotes.id]: BuildNotes,
   [Workspaces.id]: Workspaces,
   [Settings.id]: Settings,
   [SearchSources.id]: SearchSources,

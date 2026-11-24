@@ -9,6 +9,7 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
+import { assertBuildNotesAllowWrite } from '@/lib/build-notes/guard'
 import { principalAuditSource } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -138,6 +139,14 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
   resolveContext: resolvePrincipalWorkflowContext<ReplaceWorkflowStateInput>,
   async execute({ principal, input, context }): Promise<ReplaceWorkflowStateResult> {
     await requireMutableWorkflow(context.workflowId)
+    // Refuses Copilot outright on a workflow with build notes: a replace has no evaluated batch.
+    // A dry run is refused too, so its preview matches the write it stands for.
+    await assertBuildNotesAllowWrite({
+      principal,
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      workspaceOrganizationId: context.workspaceOrganizationId,
+    })
 
     return withWorkflowBlockScope(context, async () => {
       const candidate = {

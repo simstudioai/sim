@@ -62,6 +62,14 @@ const examples = {
     },
     { action: 'update', releaseId: 'release-1', expectedRevision: '2', version: '1.5.0' },
   ],
+  build_notes: [
+    { action: 'create', workflowId: 'wf-1' },
+    { action: 'status', workflowId: 'wf-1' },
+    { action: 'evaluate', workflowId: 'wf-1' },
+    { action: 'apply', workflowId: 'wf-1' },
+    { action: 'changes', workflowId: 'wf-1' },
+    { action: 'rebase', workflowId: 'wf-1' },
+  ],
 }
 
 describe('management tool provider contract', () => {

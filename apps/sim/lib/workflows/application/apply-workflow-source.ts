@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import type { SourceBase, WorkflowLockV1 } from '@sim/workflow-code'
+import { assertBuildNotesAllowWrite } from '@/lib/build-notes/guard'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveWorkflowFolderPath } from '@/lib/workflows/application/folders'
 import {
@@ -80,6 +81,15 @@ async function writeSource(
     const planned = await planSource(principal, target, submission, { allocate: true })
     if (planned.kind === 'refused') throw refusalError(planned)
     return commitSource(principal, planned, target)
+  }
+  // The preview is refused where the write would be, so a dry run answers as the apply does.
+  if (target.kind === 'existing') {
+    await assertBuildNotesAllowWrite({
+      principal,
+      workflowId: target.context.workflowId,
+      workspaceId: target.context.workspaceId,
+      workspaceOrganizationId: target.context.workspaceOrganizationId,
+    })
   }
   const planned = await planSource(principal, target, submission, { allocate: false })
   return planned.kind === 'refused'

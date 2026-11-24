@@ -223,6 +223,12 @@ export interface ReplaceWorkflowNormalizedStateInput {
   state:
     | ReplaceWorkflowState
     | ((tx: DbOrTx, stored: RawNormalizedWorkflow) => Promise<ReplaceWorkflowState>)
+  /**
+   * Runs inside the transaction after the graph and its `updatedAt` are written, under the same
+   * row lock, for a caller that must record exactly what this write committed. Reads only; any
+   * storage write belongs after the commit.
+   */
+  afterWrite?: (tx: DbOrTx) => Promise<void>
   requestId?: string
 }
 
@@ -372,6 +378,7 @@ export async function replaceWorkflowNormalizedState(
     }
 
     await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
+    await input.afterWrite?.(tx)
 
     return result
   })

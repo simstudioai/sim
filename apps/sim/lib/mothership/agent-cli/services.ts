@@ -46,7 +46,8 @@ export async function executeAgentCliService(
         : invocation.kind === 'service' &&
             (invocation.name === 'dashboards' ||
               invocation.name === 'tests' ||
-              invocation.name === 'changelog')
+              invocation.name === 'changelog' ||
+              invocation.name === 'build_notes')
           ? 'workspace'
           : 'organization'
   if (

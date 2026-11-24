@@ -11,6 +11,8 @@ import {
 import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import { restoreBuildNotesForWorkflows } from '@/lib/build-notes/repository'
+import type { DbOrTx as FolderCascadeTx } from '@/lib/folders/cascade'
 import {
   FOLDER_RESOURCE_LABELS,
   FOLDER_RESOURCE_SUPPORTS_LOCKING,
@@ -118,6 +120,17 @@ export interface FolderResourceConfig {
   sortOrderColumn?: PgColumn
   /** Rows restored alongside each resource; see {@link FolderDependentTable}. */
   restoreDependents?: FolderDependentTable[]
+  /**
+   * Restores dependents a column update on one table cannot reach, such as rows linked to the
+   * resource through another table, in the same restore transaction and matched on the same
+   * archive stamp.
+   */
+  restoreLinkedDependents?: (
+    tx: FolderCascadeTx,
+    childIds: string[],
+    timestamp: Date,
+    now: Date
+  ) => Promise<void>
   /**
    * Replaces the cascade's default "one UPDATE over the child table" when archiving a
    * resource has side effects the row update cannot express — dependent graphs, lock
@@ -484,6 +497,8 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
     supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.workflow,
     archiveChildren: archiveWorkflowChildren,
     guardDelete: guardLastWorkflows,
+    /** A workflow's build notes and their files come back with it. */
+    restoreLinkedDependents: restoreBuildNotesForWorkflows,
   },
   /**
    * Present to satisfy the total `Record<FolderResourceType, …>`, but UNREACHABLE at runtime:

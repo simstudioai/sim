@@ -3363,6 +3363,54 @@ export const workflowTestRun = pgTable(
 )
 
 /**
+ * A workflow's build notes: the agent-only scratchpad it drafts and evaluates before building,
+ * read as `build-notes/<workflowId>.md`, and the baseline graph the notes describe, read as
+ * `build-notes/<workflowId>.baseline.json`. Both are hidden owned workspace files.
+ */
+export const workflowBuildNotes = pgTable(
+  'workflow_build_notes',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    /** Purging the soft-deleted notes file takes the soft-deleted row with it. */
+    notesFileId: text('notes_file_id')
+      .notNull()
+      .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
+    /** Null only between the notes file's commit and the baseline file's. */
+    baselineFileId: text('baseline_file_id').references(() => workspaceFiles.id, {
+      onDelete: 'set null',
+    }),
+    /** sha256 of the notes content the latest passing evaluation read. */
+    evaluatedNotesHash: text('evaluated_notes_hash'),
+    /** sha256 of the canonical operations batch that evaluation dry-ran. */
+    evaluatedOperationsHash: text('evaluated_operations_hash'),
+    /** The workflow's `updatedAt` when the baseline was written; later edits may have changed it. */
+    baselineWorkflowUpdatedAt: timestamp('baseline_workflow_updated_at'),
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workflowUnique: uniqueIndex('workflow_build_notes_workflow_unique')
+      .on(table.workflowId)
+      .where(sql`${table.deletedAt} IS NULL`),
+    notesFileUnique: uniqueIndex('workflow_build_notes_notes_file_unique').on(table.notesFileId),
+    baselineFileUnique: uniqueIndex('workflow_build_notes_baseline_file_unique').on(
+      table.baselineFileId
+    ),
+    workspaceIdx: index('workflow_build_notes_workspace_idx').on(table.workspaceId),
+  })
+)
+
+/**
  * A published changelog release, read as `changelog/<id>.md`. The body is a workspace file with
  * `context = 'changelog'`, so it keeps versions and Sim's file edits. The version is a label: Sim
  * picks the bump, the server computes the number, and people may relabel it; links use the id.

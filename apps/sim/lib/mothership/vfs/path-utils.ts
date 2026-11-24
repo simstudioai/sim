@@ -8,7 +8,7 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
 export function canonicalWorkspaceFilePath(parts: {
   folderPath?: string | null
   name: string
-  prefix?: 'files' | 'recently-deleted/files' | 'uploads' | 'tests' | 'changelog'
+  prefix?: 'files' | 'recently-deleted/files' | 'uploads' | 'tests' | 'changelog' | 'build-notes'
 }): string {
   const prefix = parts.prefix ?? 'files'
   const folderSegments = parts.folderPath

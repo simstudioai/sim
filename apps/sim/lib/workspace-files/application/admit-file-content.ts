@@ -28,6 +28,7 @@ interface ClassifiableFile {
 const OWNED_CONTEXT_BY_NAMESPACE = {
   tests: 'test',
   changelog: 'changelog',
+  'build-notes': 'build_notes',
 } as const satisfies Record<OwnedFileNamespace, OwnedFileContext>
 
 /** The identity a classification is bound to: these exact bytes of this exact canonical file. */

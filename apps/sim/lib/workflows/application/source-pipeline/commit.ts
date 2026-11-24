@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { assertBuildNotesAllowWrite } from '@/lib/build-notes/guard'
 import { withCatalogBlockScope } from '@/lib/catalog/application/context'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -48,6 +49,16 @@ export async function commitSource(
     )
   }
   assertPlannedBy(principal, planned)
+  // A source write replaces the whole graph, so Copilot cannot make one on a workflow whose
+  // build notes it must build from instead.
+  if (target.kind === 'existing') {
+    await assertBuildNotesAllowWrite({
+      principal,
+      workflowId,
+      workspaceId: target.context.workspaceId,
+      workspaceOrganizationId: target.context.workspaceOrganizationId,
+    })
+  }
   const { plan, loaded } = planned
   const { catalog, stored, storedFingerprint } = loaded
   const scope = sourceScope(principal, target)

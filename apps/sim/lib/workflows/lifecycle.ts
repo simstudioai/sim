@@ -13,6 +13,10 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import {
+  archiveBuildNotesForWorkflows,
+  restoreBuildNotesForWorkflows,
+} from '@/lib/build-notes/repository'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -224,6 +228,8 @@ export async function restoreWorkflow(
       .where(
         and(eq(workflowMcpTool.workflowId, workflowId), eq(workflowMcpTool.archivedAt, archivedAt))
       )
+
+    if (archivedAt) await restoreBuildNotesForWorkflows(tx, [workflowId], archivedAt, now)
   })
 
   logger.info(`Restored workflow ${workflowId}`, { requestId: options.requestId })
@@ -464,6 +470,9 @@ export async function archiveWorkflowsInTransaction(
       isPublicApi: false,
     })
     .where(and(inArray(workflow.id, workflowIds), isNull(workflow.archivedAt)))
+
+  // After the workflow rows, in the lock order every build-notes path shares.
+  await archiveBuildNotesForWorkflows(tx, workflowIds, now)
 }
 
 /** Best-effort external notifications run only after durable archive state commits. */

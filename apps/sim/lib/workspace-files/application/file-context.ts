@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -55,7 +56,7 @@ function isOwnedFilePrincipal(principal: Principal): boolean {
 
 /**
  * A file another resource owns follows its owner: it needs a live owner with its feature
- * enabled, and admits only the owners' principal kinds.
+ * enabled, and admits only the owners' principal kinds (only Copilot, for an agent-only kind).
  */
 export async function assertOwnedFileAccess(
   principal: Principal,
@@ -64,7 +65,7 @@ export async function assertOwnedFileAccess(
 ): Promise<void> {
   const kind = ownedFileKind(context.fileContext)
   if (!kind) return
-  if (!isOwnedFilePrincipal(principal)) {
+  if (!isOwnedFilePrincipal(principal) || (kind.agentOnly && !isCopilotPrincipal(principal))) {
     throw new OrchestrationError('not_found', 'File not found')
   }
   await kind.assertOwnerAccess(context.fileId, context.workspaceOrganizationId, executor)
