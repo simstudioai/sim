@@ -1385,13 +1385,8 @@ async function execInPage<Args extends unknown[], Result>(
   userGesture = false,
   notAfter?: number
 ): Promise<Result> {
-  const isBlank = (url: string) => url === '' || url === 'about:blank'
-  // A tab a link or popup just opened reports no URL until its first page commits.
-  if ('getURL' in target && isBlank(target.getURL()) && target.isLoading()) {
-    const remaining = notAfter === undefined ? NAVIGATION_TIMEOUT_MS : notAfter - Date.now()
-    await waitForLoadComplete(target, Math.max(0, Math.min(NAVIGATION_TIMEOUT_MS, remaining)))
-  }
-  if ('getURL' in target && isBlank(target.getURL())) {
+  const url = 'getURL' in target ? target.getURL() : target.url
+  if ('getURL' in target && (url === '' || url === 'about:blank')) {
     throw new ToolError(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
@@ -1638,11 +1633,16 @@ function unwrapPageResult(result: unknown): unknown {
   return result
 }
 
-function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<void> {
+function waitForLoadComplete(
+  contents: WebContents,
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false
     let sawStart = contents.isLoading()
     const cleanup = () => {
+      signal?.removeEventListener('abort', finish)
       contents.removeListener('did-start-loading', start)
       contents.removeListener('did-stop-loading', finish)
       contents.removeListener('did-fail-load', fail)
@@ -1693,7 +1693,58 @@ function waitForLoadComplete(contents: WebContents, timeoutMs: number): Promise<
     contents.on('did-stop-loading', finish)
     contents.on('did-fail-load', fail)
     contents.on('destroyed', destroyed)
+    signal?.addEventListener('abort', finish)
   })
+}
+
+/** Tools that read or act in the page itself, which a tab with no page yet cannot serve. */
+const BROWSER_TOOL_USES_PAGE = {
+  browser_navigate: false,
+  browser_open_url: false,
+  browser_go_back: false,
+  browser_go_forward: false,
+  browser_reload: false,
+  browser_open_tab: false,
+  browser_switch_tab: false,
+  browser_close_tab: false,
+  browser_list_tabs: false,
+  browser_list_sessions: false,
+  browser_list_downloads: false,
+  browser_save_download: false,
+  browser_wait_for: true,
+  browser_snapshot: true,
+  browser_find: true,
+  browser_read_text: true,
+  browser_screenshot: true,
+  browser_extract: true,
+  browser_click: true,
+  browser_click_at: true,
+  browser_type: true,
+  browser_fill_form: true,
+  browser_batch: true,
+  browser_insert_text: true,
+  browser_press_key: true,
+  browser_scroll: true,
+  browser_select_option: true,
+  browser_set_checked: true,
+  browser_upload_file: true,
+  browser_hover: true,
+  browser_drag: true,
+  browser_zoom: false,
+  browser_request_takeover: false,
+} as const satisfies Readonly<Record<BrowserToolName, boolean>>
+
+/**
+ * A tab a link or popup just opened reports no URL until its first page commits, so a page tool
+ * reaching it first would refuse it as blank. Returns the wait for that first load, run before the
+ * action records any page state, or null when the agent's tab already has a page.
+ */
+function firstPageLoad(signal: AbortSignal, maxWaitMs: number): Promise<void> | null {
+  const contents = session.automationTab()?.view.webContents
+  if (!contents || contents.isDestroyed() || !contents.isLoading()) return null
+  const url = contents.getURL()
+  if (url !== '' && url !== 'about:blank') return null
+  return waitForLoadComplete(contents, maxWaitMs, signal)
 }
 
 async function navigationResult(
@@ -5458,6 +5509,22 @@ export async function executeTool(
                 ? USER_TAKEOVER_MAX_WAIT_MS
                 : Math.min(USER_TAKEOVER_MAX_WAIT_MS, Math.floor(watchdogMs / 2))
             )
+          }
+          const firstPage = BROWSER_TOOL_USES_PAGE[tool]
+            ? firstPageLoad(
+                executionController.signal,
+                watchdogMs === null
+                  ? NAVIGATION_TIMEOUT_MS
+                  : Math.min(NAVIGATION_TIMEOUT_MS, Math.floor(watchdogMs / 2))
+              )
+            : null
+          if (firstPage) {
+            // Raced with the cancellation so its rejection is observed; a cancel aborts the wait
+            // before it rejects, which is why the abort is checked again afterwards.
+            await Promise.race([firstPage, cancellation])
+            if (executionController.signal.aborted) {
+              throw new ToolError('This browser action was cancelled.')
+            }
           }
           const response = dialogResponse(tool, params)
           state.dialogResponse = response
