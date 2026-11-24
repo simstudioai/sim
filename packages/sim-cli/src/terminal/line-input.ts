@@ -1,9 +1,7 @@
 import { createInterface } from 'node:readline/promises'
+import { INTERRUPTED_EXIT_CODE } from '#sim-cli/exit-codes'
 import { SimApiError } from '#sim-cli/http/client'
 import { writeStderr } from '#sim-cli/output/io'
-
-/** The shell's status for a command the user interrupted with Ctrl-C. */
-const INTERRUPTED_EXIT_CODE = 130
 
 /**
  * Whether a pending question failed because its input ended: Bun rejects it with an

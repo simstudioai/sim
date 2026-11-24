@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import { REQUEST_CANCELLED, SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState, mockedProfile } from '../../test/context-mock'
 import { digest } from './source-dir'
@@ -129,6 +130,20 @@ describe('workflows source status', () => {
       expect(mockRequest).not.toHaveBeenCalled()
     }
   )
+
+  it('refuses while another command holds the directory, asking the server nothing', async () => {
+    mkdirSync(join(root, '.sim/command.lock'))
+    writeFileSync(
+      join(root, '.sim/command.lock/owner.json'),
+      JSON.stringify({ pid: process.pid, host: hostname() })
+    )
+
+    const error = (await run(root, 'status').catch((caught: unknown) => caught)) as SimApiError
+
+    expect(error.code).toBe('SOURCE_DIR_BUSY')
+    expect(error.exitCode).toBe(SOURCE_BUSY_EXIT_CODE)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
 
   it('is clean, exit 0, with nothing changed on either side', async () => {
     mockRequest.mockResolvedValue(dryRun())

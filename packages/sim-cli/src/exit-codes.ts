@@ -88,5 +88,11 @@ export const SOURCE_PLANNED_EXIT_CODE = 14
  */
 export const SOURCE_HELD_EXIT_CODE = 15
 
+/**
+ * The status a shell reports for a command Ctrl-C ended (128 + SIGINT), which a command the user
+ * aborted at a prompt exits with too.
+ */
+export const INTERRUPTED_EXIT_CODE = 130
+
 /** The error code of an {@link AUTH_REQUIRED_EXIT_CODE} refusal the CLI raises itself. */
 export const AUTH_REQUIRED_CODE = 'AUTH_REQUIRED'

@@ -1,6 +1,4 @@
-import { toRecord } from '@sim/utils/object'
 import type { BlockCatalog } from '@sim/workflow-code'
-import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import {
   compactBuilder,
   lookupBuilder,
@@ -9,10 +7,11 @@ import {
 } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
 import { printLine } from '#sim-cli/output/io'
+import type { ResolvedProfile } from '../../config/index'
 import { profileFrom } from '../../context'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
-import { readSourceJson, workspaceFolderOf } from './source-dir'
+import { recordedWorkspace } from './source-dir'
 import { cachedCatalog, cachedSourceCatalog } from './source-tree'
 import { isMachine } from './source-ui'
 
@@ -32,16 +31,16 @@ cached catalog (run a get once).`
 
 /**
  * The catalog the directory was printed with (its `.sim/base.json` hash), else the one cached for
- * its workspace, the workspace a workflow folder belongs to, or the profile's.
+ * the workspace it records ({@link recordedWorkspace}), or the profile's.
  */
-async function lookupCatalog(dir: string, profileWorkspace: string | null): Promise<BlockCatalog> {
+async function lookupCatalog(
+  dir: string,
+  profile: Pick<ResolvedProfile, 'workspaceId' | 'sources'>
+): Promise<BlockCatalog> {
   const printedWith = await cachedSourceCatalog(dir)
   if (printedWith) return printedWith
-  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
   const workspaceId =
-    typeof base.workspaceId === 'string'
-      ? base.workspaceId
-      : ((await workspaceFolderOf(dir))?.workspaceId ?? profileWorkspace)
+    (await recordedWorkspace(dir, profile.sources.workspaceId === 'flag')) ?? profile.workspaceId
   const cached = workspaceId ? cachedCatalog(workspaceId) : null
   if (cached) return cached
   throw new SourceDirError(
@@ -69,7 +68,7 @@ export function attachWorkflowSourceParams(source: Command): void {
     .addHelpText('after', PARAMS_HELP)
     .action(async (query: string, options: { dir: string; full?: boolean }, command: Command) => {
       const profile = profileFrom(command)
-      const catalog = await lookupCatalog(options.dir, profile.workspaceId)
+      const catalog = await lookupCatalog(options.dir, profile)
       const found = lookupBuilder(catalog, query)
       const machine = isMachine(profile.output)
       switch (found.kind) {

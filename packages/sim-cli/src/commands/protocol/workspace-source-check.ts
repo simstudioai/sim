@@ -4,22 +4,20 @@ import { KIND_DIRS, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
 import { profileFrom } from '../../context'
+import { AUTH_REQUIRED_EXIT_CODE } from '../../exit-codes'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import { CliUsageError, SourceDirError } from './local-errors'
 import {
   type CheckFinding,
   checkWorkflowDir,
   readCheckDeclarations,
-  refreshWorkspaceTsconfigs,
   reportCheck,
-  requireCachedCatalog,
   type StrictOptions,
   strictFlags,
   strictHelp,
   strictMode,
-  withWorkflowInputs,
+  typeCheckWorkspace,
   workspaceWorkflowKeys,
-  writtenWorkspaceTypes,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -29,8 +27,8 @@ import {
   withSourceDirLock,
 } from './source-dir'
 import { credentialRefused, unreachableReason } from './source-status'
-import { cachedCatalog, loadCatalog, refreshWorkspaceTypes } from './source-tree'
-import { TYPES_HELP, type TypesOptions, typeCheck, typesFlag } from './source-types'
+import { cachedCatalog, loadCatalog } from './source-tree'
+import { TYPES_HELP, type TypesOptions, typesFlag } from './source-types'
 import { verboseFlag } from './source-ui'
 import { assertWorkspaceDir } from './workspace-source-dir'
 
@@ -56,23 +54,19 @@ deployments, credential bindings), so run it before applying. A check also regen
 workflow's inputs) and adds the blocks the workflows now use to the CLI's tsconfig.json.
 ${TYPES_HELP}
 
-${strictHelp("no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials)")}`
+${strictHelp(`no cached catalog that could not be downloaded (a check downloads it once when none is cached, with the profile's credentials; ${AUTH_REQUIRED_EXIT_CODE} when there is no login to download it with)`)}`
 
 /**
  * The workspace's catalog for a check with none cached (a fresh clone in CI), downloaded and
- * cached with the profile's credentials; without credentials, the refusal that names the get.
+ * cached with the profile's credentials. No login, or a refused credential, is refused as such
+ * (`AUTH_REQUIRED`, exit 13, naming `sim login`).
  */
 async function fetchedCatalog(
   connect: () => Connection<'getSourceCatalog'>,
   workspaceId: string,
   dir: string
 ) {
-  let connection: Connection<'getSourceCatalog'>
-  try {
-    connection = connect()
-  } catch {
-    return requireCachedCatalog(workspaceId, `\`sim workspaces source get --dir ${dir}\``)
-  }
+  const connection = connect()
   try {
     return await loadCatalog(connection.client, { workspaceId, blockTypes: [] })
   } catch (error) {
@@ -170,16 +164,9 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               column,
             })
           }
-          await refreshWorkspaceTypes(
-            options.dir,
-            withWorkflowInputs(declarations.local, declarations.workflowInputs)
-          )
-          await refreshWorkspaceTsconfigs(options.dir, workspaceId)
-          const types = await typeCheck(options.dir, {
+          const types = await typeCheckWorkspace(options.dir, workspaceId, declarations, {
             enabled: options.types !== false,
             compiled: findings,
-            writtenTypes: (written) =>
-              writtenWorkspaceTypes(options.dir, declarations.workflowInputs, written),
           })
           reportCheck(
             profile.output,

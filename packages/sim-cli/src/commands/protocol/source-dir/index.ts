@@ -17,6 +17,7 @@ export {
   assertSourceDirKind,
   directoryWorkspace,
   readStarterWorkspace,
+  recordedWorkspace,
   workspaceFolderOf,
 } from './dir-kind'
 export {

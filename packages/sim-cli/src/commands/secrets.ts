@@ -3,6 +3,7 @@ import { exitCli } from '#sim-cli/embed-context'
 import { printError } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import type { CommandSpec } from '../contract/types'
+import { INTERRUPTED_EXIT_CODE } from '../exit-codes'
 import { type SetSecretResponse, V2_OPERATIONS } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
 import { describeOperation } from '../runtime/build'
@@ -12,8 +13,6 @@ import { renderResult } from '../runtime/result'
 import { promptSecret, SecretInputCancelledError } from '../terminal/secret-input'
 
 const MAX_SECRET_LENGTH = 65_536
-/** Conventional shell exit code for a command the user aborted at a prompt. */
-const CANCELLED_EXIT_CODE = 130
 const SECRET_SCOPES = ['workspace', 'personal'] as const
 
 const SECRET_RESULT: CommandSpec = {
@@ -111,7 +110,7 @@ async function readSecretValue(options: SetSecretOptions): Promise<string | unde
   } catch (error) {
     if (!(error instanceof SecretInputCancelledError)) throw error
     printError(styles().red(`Error: ${error.message}`))
-    return exitCli(CANCELLED_EXIT_CODE)
+    return exitCli(INTERRUPTED_EXIT_CODE)
   }
 }
 

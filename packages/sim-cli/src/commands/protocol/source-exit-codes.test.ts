@@ -6,7 +6,7 @@ import { WORKSPACE_TREE } from './workspace-source-dir'
 
 /**
  * Every code a source command can exit with: each `*_EXIT_CODE` the CLI defines except the
- * run-wait timeout (4), which no source command returns, plus 0, 1 and Ctrl-C's 130.
+ * run-wait timeout (4), which no source command returns, plus 0 and 1.
  */
 const SOURCE_EXIT_CODES = [
   0,
@@ -14,7 +14,6 @@ const SOURCE_EXIT_CODES = [
   ...Object.entries(exitCodes)
     .filter(([name]) => name.endsWith('_EXIT_CODE') && name !== 'STILL_RUNNING_EXIT_CODE')
     .map(([, code]) => code as number),
-  130,
 ].sort((a, b) => a - b)
 
 describe('the exit-code tables an agent or a reader relies on', () => {

@@ -25,6 +25,7 @@ import { printLine } from '../../output/io'
 import { styles } from '../../output/presentation'
 import { bytes, printDocument, sanitize } from '../../output/render'
 import { CliUsageError, LocalRefusal } from './local-errors'
+import { sourceExitCodesHelp } from './source-exit-codes'
 import {
   codeSpan,
   type Diagnostic,
@@ -72,20 +73,16 @@ export interface StatusReport<Plan> extends SourceStatus {
   next: NextStep | null
 }
 
-/** What a status prints and its exit codes, documented in the commands' help. */
-export const STATUS_EXIT_CODES_HELP = `
+/** The `--help` of `command` (a status) after its options: its `--json` output and exit codes. */
+export function statusHelp(
+  command: 'workflows source status' | 'workspaces source status'
+): string {
+  return `
 With --json, \`plan\` is what applying would do as \`apply --dry-run --allow-delete\` reports it
 (its errors and warnings counted the same, a conflict as an error), and \`next\` the command to
 run (with --allow-delete only when the plan deletes something).
-
-Exit codes: 0 clean (nothing to apply, and the server changed nothing since the directory was
-read); ${SOURCE_LOCAL_CHANGES_EXIT_CODE} local changes only (applying writes them); ${SOURCE_DRIFT_EXIT_CODE} the server changed since the
-directory was read: drift (a resource edited, added or deleted there that the directory leaves
-alone) or a conflict (also changed here, so applying it is refused as stale), with or without
-local changes; ${SOURCE_TOO_LARGE_EXIT_CODE} the source is too large for the server to read in one dry run; 1 the command
-failed; ${AUTH_REQUIRED_EXIT_CODE} not logged in (AUTH_REQUIRED) or the credential was refused: the status shows the
-local changes only, then run \`sim login\`. A server that cannot be reached is not a failure: the
-status shows the local changes only and says so (exit 0 or ${SOURCE_LOCAL_CHANGES_EXIT_CODE}).`
+${sourceExitCodesHelp(command)}`
+}
 
 /** What `diff` compares, and its exit codes. */
 export const DIFF_HELP = `

@@ -1,4 +1,3 @@
-import { toRecord } from '@sim/utils/object'
 import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import { KIND_DIRS } from '@sim/workspace-code'
 import type { Command } from 'commander'
@@ -8,31 +7,24 @@ import {
   cachedOrRefuse,
   checkWorkflowDir,
   readCheckDeclarations,
-  refreshWorkspaceTsconfigs,
   reportCheck,
   type StrictOptions,
   strictFlags,
   strictHelp,
   strictMode,
-  withWorkflowInputs,
-  writtenWorkspaceTypes,
+  typeCheckWorkspace,
 } from './source-check'
 import {
   absoluteDirOption,
   assertSourceDirKind,
   directoryWorkspace,
-  readSourceJson,
-  readStarterWorkspace,
-  type Written,
+  recordedWorkspace,
+  SOURCE_DIR_BUSY_HELP,
+  withSourceCommandLock,
   workspaceFolderOf,
 } from './source-dir'
-import {
-  cachedCatalog,
-  cachedSourceCatalog,
-  refreshTsconfigs,
-  refreshWorkspaceTypes,
-} from './source-tree'
-import { TYPES_HELP, type TypesOptions, typeCheck, typesFlag } from './source-types'
+import { cachedCatalog, cachedSourceCatalog, refreshTsconfigs } from './source-tree'
+import { TYPES_HELP, type TypeCheck, type TypesOptions, typeCheck, typesFlag } from './source-types'
 import { verboseFlag } from './source-ui'
 import { requireEntry, WORKFLOW_TREE } from './workflow-dir'
 
@@ -69,7 +61,7 @@ export function attachWorkflowSourceCheck(source: Command): void {
   )
     .allowExcessArguments(false)
     .description('Compile and type-check a workflow source directory locally, without the server')
-    .addHelpText('after', CHECK_HELP)
+    .addHelpText('after', `${CHECK_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
     .action(
       async (
         options: { dir: string; verbose?: boolean } & StrictOptions & TypesOptions,
@@ -77,19 +69,11 @@ export function attachWorkflowSourceCheck(source: Command): void {
       ) => {
         const profile = profileFrom(command)
         await assertSourceDirKind(options.dir, 'workflow')
-        const base = toRecord(await readSourceJson(options.dir, SOURCE_BASE_FILE))
         await requireEntry(options.dir)
         const workspace = await workspaceFolderOf(options.dir)
-        const recorded =
-          typeof base.workspaceId === 'string'
-            ? base.workspaceId
-            : (workspace?.workspaceId ??
-              (profile.sources.workspaceId === 'flag'
-                ? null
-                : await readStarterWorkspace(options.dir)))
         const workspaceId = directoryWorkspace(
           options.dir,
-          recorded,
+          await recordedWorkspace(options.dir, profile.sources.workspaceId === 'flag'),
           profile,
           (from) => `Run it without --workspace to check it against the catalog of ${from}.`
         )
@@ -98,56 +82,56 @@ export function attachWorkflowSourceCheck(source: Command): void {
             `${options.dir} has no ${SOURCE_BASE_FILE} and no workspace is selected: pass --workspace <workspaceId>.`
           )
         }
-        const catalog = cachedOrRefuse(
-          (await cachedSourceCatalog(options.dir)) ?? cachedCatalog(workspaceId),
-          workspaceId,
-          workspace
-            ? `\`sim workspaces source get --dir ${workspace.root}\``
-            : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
-        )
-        const declarations = workspace
-          ? await readCheckDeclarations(workspace.root, catalog)
-          : undefined
-        const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
-          strict: strictMode(options),
-          ...(declarations ? { declarations } : {}),
-        })
-        if (workspace && declarations) {
-          await refreshWorkspaceTypes(
-            workspace.root,
-            withWorkflowInputs(declarations.local, declarations.workflowInputs)
-          )
-          await refreshWorkspaceTsconfigs(workspace.root, workspaceId)
-        } else {
-          await refreshTsconfigs(
-            options.dir,
-            workspaceId,
-            WORKFLOW_TREE,
-            { sources: [entry] },
-            { incremental: true }
-          )
-        }
-        const types = await typeCheck(workspace ? workspace.root : options.dir, {
-          enabled: options.types !== false,
-          compiled: findings,
-          ...(workspace && declarations
-            ? {
+        // A check rewrites the types and tsconfig files, so it holds the lock an apply or get
+        // takes: it never reads a directory one is halfway through rewriting (exit 10 meanwhile).
+        await withSourceCommandLock(
+          options.dir,
+          async () => {
+            const catalog = cachedOrRefuse(
+              (await cachedSourceCatalog(options.dir)) ?? cachedCatalog(workspaceId),
+              workspaceId,
+              workspace
+                ? `\`sim workspaces source get --dir ${workspace.root}\``
+                : `\`sim workflows source get <workflowId> --dir ${options.dir}\` (or \`create\`)`
+            )
+            const declarations = workspace
+              ? await readCheckDeclarations(workspace.root, catalog)
+              : undefined
+            const { findings, entry, unlisted } = await checkWorkflowDir(options.dir, catalog, {
+              strict: strictMode(options),
+              ...(declarations ? { declarations } : {}),
+            })
+            const enabled = options.types !== false
+            let types: TypeCheck
+            if (workspace && declarations) {
+              types = await typeCheckWorkspace(workspace.root, workspaceId, declarations, {
+                enabled,
+                compiled: findings,
                 scope: `${KIND_DIRS.workflow}/${workspace.key}/`,
-                writtenTypes: (written: Written) =>
-                  writtenWorkspaceTypes(workspace.root, declarations.workflowInputs, written),
+              })
+            } else {
+              await refreshTsconfigs(
+                options.dir,
+                workspaceId,
+                WORKFLOW_TREE,
+                { sources: [entry] },
+                { incremental: true }
+              )
+              types = await typeCheck(options.dir, { enabled, compiled: findings })
+            }
+            reportCheck(
+              profile.output,
+              findings,
+              { catalogHash: catalog.hash },
+              {
+                verbose: options.verbose === true,
+                unlisted,
+                dir: options.dir,
+                types,
               }
-            : {}),
-        })
-        reportCheck(
-          profile.output,
-          findings,
-          { catalogHash: catalog.hash },
-          {
-            verbose: options.verbose === true,
-            unlisted,
-            dir: options.dir,
-            types,
-          }
+            )
+          },
+          { readOnly: true }
         )
       }
     )
