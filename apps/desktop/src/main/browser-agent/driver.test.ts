@@ -1091,6 +1091,42 @@ describe('executeTool', () => {
         expect.anything()
       )
     })
+
+    it('refuses a page that outlasts the bounded wait, and never acts on it once it loads', async () => {
+      const { contents, listeners, registered } = await openLoadingTab()
+      const watchdogMs = driver.browserToolWatchdogMs('browser_scroll', { direction: 'down' })
+      const navigationTimeoutMs = 25_000
+      const waitMs =
+        watchdogMs === null
+          ? navigationTimeoutMs
+          : Math.min(navigationTimeoutMs, Math.floor(watchdogMs / 2))
+      vi.useFakeTimers()
+      try {
+        let outcome: unknown
+        void driver
+          .executeTool('chat-test', 'browser_scroll', { direction: 'down' }, 'scroll-slow-popup')
+          .then((result) => {
+            outcome = result
+          })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(listeners('did-stop-loading').length).toBeGreaterThan(registered)
+
+        await vi.advanceTimersByTimeAsync(waitMs + 1)
+        expect(outcome).toEqual({
+          ok: false,
+          error:
+            'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.',
+        })
+
+        vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+        vi.mocked(contents.isLoading).mockReturnValue(false)
+        for (const onLoaded of listeners('did-stop-loading').slice(registered)) onLoaded()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(contents.executeJavaScript).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   it('leaves no watchdog timer pending once a tool finishes', async () => {
