@@ -15,6 +15,7 @@ import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/bal
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getCustomerId } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
@@ -592,6 +593,23 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
  * Handle invoice payment succeeded webhook.
  * Handles both credit purchases and subscription payments.
  */
+/** Whether the customer still has another open, automatically charged invoice that failed. */
+async function hasOtherFailedInvoice(invoice: Stripe.Invoice): Promise<boolean> {
+  const customerId = getCustomerId(invoice.customer)
+  if (!customerId) return false
+  const openInvoices = await requireStripeClient().invoices.list({
+    customer: customerId,
+    status: 'open',
+    limit: 100,
+  })
+  return openInvoices.data.some(
+    (open) =>
+      open.id !== invoice.id &&
+      open.collection_method === 'charge_automatically' &&
+      (open.attempt_count ?? 0) > 0
+  )
+}
+
 export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
@@ -617,7 +635,12 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
 
         const isProrationInvoice = invoice.billing_reason === 'subscription_update'
-        const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+        // A paid invoice restores access only when no other charge is still failing: overage and
+        // seat true-up invoices are separate from renewals, so one can stay unpaid while another
+        // succeeds.
+        const shouldUnblock =
+          (!isProrationInvoice || (invoice.amount_paid ?? 0) > 0) &&
+          !(await hasOtherFailedInvoice(invoice))
 
         if (shouldUnblock) {
           if (subIsOrgScoped) {
