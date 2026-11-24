@@ -35,7 +35,7 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
-  doubleCasts: 6,
+  doubleCasts: 5,
   rawJsonReads: 5,
   untypedResponses: 0,
   annotationsMissingReason: 0,
@@ -114,6 +114,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/cron/cleanup-sandbox-images/route.ts',
   'apps/sim/app/api/cron/cleanup-session-sandboxes/route.ts',
   'apps/sim/app/api/cron/cleanup-oauth-tokens/route.ts',
+  'apps/sim/app/api/cron/cleanup-source-staging/route.ts',
   'apps/sim/app/api/cron/renew-subscriptions/route.ts',
   'apps/sim/app/api/cron/billing-cycle-close/route.ts',
   'apps/sim/app/api/cron/aws-marketplace-reconcile/route.ts',
@@ -124,6 +125,7 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // Returns immediately after Trigger.dev accepts the asynchronous dispatcher task.
   'apps/sim/app/api/cron/workspace-file-search-dispatch/route.ts',
   'apps/sim/app/api/cron/knowledge-projection/route.ts',
+  'apps/sim/app/api/cron/activity-rollup/route.ts',
   'apps/sim/app/api/cron/fold-table-row-changes/route.ts',
   'apps/sim/app/api/logs/cleanup/route.ts',
   'apps/sim/app/api/knowledge/connectors/sync/route.ts',
@@ -149,19 +151,16 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/mcp/copilot/route.ts',
   'apps/sim/app/api/mcp/copilot/.well-known/oauth-authorization-server/route.ts',
   'apps/sim/app/api/mcp/copilot/.well-known/oauth-protected-resource/route.ts',
-  // Deprecated v1 headless copilot chat API: gated to always return 410 Gone
-  // and consumes no client-supplied input.
-  'apps/sim/app/api/v1/copilot/chat/route.ts',
 ])
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
 const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
-  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]|\bimport\s*\{[^}]*\bdefineScimRoute\b[^}]*\}\s*from\s*['"]@\/ee\/scim\/lib\/route['"]/
+  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineV2BodyLifecycleRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]|\bimport\s*\{[^}]*\bdefineScimRoute\b[^}]*\}\s*from\s*['"]@\/ee\/scim\/lib\/route['"]/
 const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
-  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute|defineScimRoute)\s*\(/
+  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineV2BodyLifecycleRoute|defineInternalBinaryRoute|defineV2BinaryRoute|defineScimRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
-const CONTRACT_SERVER_HELPER_PATTERN = /\bvalidateShimEnvelope\(/
+const CONTRACT_SERVER_HELPER_PATTERN = /\bvalidateChatPostEnvelope\(/
 const CANONICAL_HELPER_USAGE_PATTERN =
   /\b(?:isZodError|validationErrorResponse|validationErrorResponseFromError|getValidationErrorMessage)\s*\(/
 const CONTRACT_MAP_PARSE_PATTERN =

@@ -1,0 +1,24 @@
+{
+  "namespace": "cloudtrail",
+  "methods": {
+    "cancel_query": "cancelLakeQuery",
+    "describe_query": "describeLakeQuery",
+    "describe_trails": "describeTrails",
+    "get_event_data_store": "getEventDataStore",
+    "get_event_selectors": "getEventSelectors",
+    "get_insight_selectors": "getInsightSelectors",
+    "get_query_results": "getLakeQueryResults",
+    "get_trail": "getTrail",
+    "get_trail_status": "getTrailStatus",
+    "list_event_data_stores": "listEventDataStores",
+    "list_tags": "listTags",
+    "list_trails": "listTrails",
+    "lookup_events": "lookUpEvents",
+    "start_query": "startLakeQuery"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

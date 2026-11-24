@@ -1,13 +1,12 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { ToastProvider } from '@sim/emcn'
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
-import { BrandedLayout } from '@/components/branded-layout'
 import { SettingsNavigationGuard } from '@/components/settings/settings-navigation-guard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
-import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
 import { env } from '@/lib/core/config/env'
 import {
@@ -16,6 +15,7 @@ import {
   isReactGrabEnabled,
   isReactScanEnabled,
 } from '@/lib/core/config/env-flags'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { DesktopUpdateNotification } from '@/app/_shell/desktop-update-notification'
@@ -25,6 +25,7 @@ import { SessionProvider } from '@/app/_shell/providers/session-provider'
 import { ThemeProvider } from '@/app/_shell/providers/theme-provider'
 import { TooltipProvider } from '@/app/_shell/providers/tooltip-provider'
 import {
+  deploymentShapeHtmlAttributes,
   PublicEnvScript,
   publicEnvHtmlAttributes,
   RuntimePublicEnvScript,
@@ -41,10 +42,120 @@ export const viewport: Viewport = {
   ],
 }
 
-export const metadata: Metadata = generateBrandedMetadata()
+const SUMMARY_FULL = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders — from startups to Fortune 500 companies. SOC2 compliant.`
+const SUMMARY_SHORT = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM to create agents that automate real work.`
+
+/**
+ * Root metadata every route inherits. Deliberately sets no `alternates.canonical`
+ * or `openGraph.url`: a fixed value would make each page claim the home page as
+ * its canonical. Landing pages emit their own canonical URLs.
+ */
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Sim',
+    default: 'Sim',
+  },
+  description: SUMMARY_SHORT,
+  applicationName: 'Sim',
+  authors: [{ name: 'Sim' }],
+  generator: 'Next.js',
+  keywords: [
+    'AI workspace',
+    'AI agent builder',
+    'AI agent workflow builder',
+    'build AI agents',
+    'visual workflow builder',
+    'AI agents',
+    'AI agent platform',
+    'open-source AI agents',
+    'agentic workflows',
+    'LLM orchestration',
+    'AI integrations',
+    'knowledge base',
+    'AI automation',
+    'workflow builder',
+    'AI workflow orchestration',
+    'enterprise AI',
+    'AI agent deployment',
+    'intelligent automation',
+    'AI tools',
+  ],
+  referrer: 'origin-when-cross-origin',
+  creator: 'Sim',
+  publisher: 'Sim',
+  metadataBase: new URL(getBaseUrl()),
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-video-preview': -1,
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    title: 'Sim',
+    description: SUMMARY_FULL,
+    siteName: 'Sim',
+    images: [
+      {
+        url: '/logo/426-240/reverse/small.png',
+        width: 2130,
+        height: 1200,
+        alt: 'Sim',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Sim',
+    description: SUMMARY_FULL,
+    images: ['/logo/426-240/reverse/small.png'],
+    creator: '@simdotai',
+    site: '@simdotai',
+  },
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
+      { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      {
+        url: '/favicon/android-chrome-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        url: '/favicon/android-chrome-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+    apple: '/favicon/apple-touch-icon.png',
+    shortcut: '/icon.svg',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Sim',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  category: 'technology',
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+    'mobile-web-app-capable': 'yes',
+    'msapplication-TileColor': '#33C482',
+    'msapplication-config': 'none',
+  },
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const themeCSS = generateThemeCSS()
   const application = (
     <ToastProvider>
       <SettingsNavigationGuard />
@@ -58,9 +169,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 disabled={env.NEXT_TELEMETRY_DISABLED === '1'}
                 consentRequired={isHosted}
               />
-              <TooltipProvider>
-                <BrandedLayout>{children}</BrandedLayout>
-              </TooltipProvider>
+              <TooltipProvider>{children}</TooltipProvider>
             </SessionProvider>
           </QueryProvider>
         </ThemeProvider>
@@ -69,7 +178,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   )
 
   return (
-    <html lang='en' suppressHydrationWarning {...publicEnvHtmlAttributes()}>
+    <html
+      lang='en'
+      suppressHydrationWarning
+      {...publicEnvHtmlAttributes()}
+      {...deploymentShapeHtmlAttributes()}
+    >
       <head>
         {isReactScanEnabled && (
           <Script
@@ -194,6 +308,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     if (activeTab === 'copilot' && !${isChatEnabled}) {
                       activeTab = 'toolbar';
                     }
+                    // The Code tab is flag-gated per workspace, which this script cannot
+                    // know; the toolbar paints first and React switches to Code if enabled.
+                    if (activeTab === 'code') {
+                      activeTab = 'toolbar';
+                    }
                     if (activeTab) {
                       document.documentElement.setAttribute('data-panel-active-tab', activeTab);
                     }
@@ -242,16 +361,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             `,
           }}
         />
-
-        {/* Theme CSS Override */}
-        {themeCSS && (
-          <style
-            id='theme-override'
-            dangerouslySetInnerHTML={{
-              __html: themeCSS,
-            }}
-          />
-        )}
 
         {/* Basic head hints that are not covered by the Metadata API */}
         <meta name='color-scheme' content='light dark' />

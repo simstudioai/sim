@@ -45,7 +45,6 @@ export const settingsSections: Record<MothershipSettingsScope, readonly Settings
       userSetup:
         'Organization provider secrets are configured from an accessible workspace’s BYOK settings by selecting Organization scope. Use settings open for that explicit workspace; there is no separate organization BYOK page.',
     },
-    { id: 'whitelabeling', label: 'Branding', uiSection: 'whitelabeling' },
     {
       id: 'audit-logs',
       label: 'Audit logs',

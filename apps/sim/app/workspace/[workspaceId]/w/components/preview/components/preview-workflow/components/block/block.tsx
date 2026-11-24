@@ -2,6 +2,7 @@
 
 import { type CSSProperties, memo, useMemo } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import {
   CanvasSentenceView,
   humanizeBlockName,
@@ -38,7 +39,6 @@ import {
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndexForSurface,
-  evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,

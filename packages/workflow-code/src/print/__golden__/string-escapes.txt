@@ -1,0 +1,19 @@
+// @sim-sdk 1
+import { agent, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Fixture', {}, () => {
+  const start = trigger.start('Start', { inputFormat: {} })
+  const escapes = agent(
+    'Escapes',
+    {
+      messages: [{ role: 'user', content: "single 'quote' only" }],
+      model: "it's a \"model\" with 'quotes'",
+    },
+    {
+      extra: {
+        systemPrompt: `back\\slash \`tick\` \${notInterp} tab	here\r
+crlf line\u2028ls\u2029ps 漢字 🎉 rtl\u202Eoverride zero\u200Bwidth iso\u2066late`,
+      },
+    }
+  )
+})

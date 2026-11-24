@@ -1,0 +1,49 @@
+{
+  "namespace": "discord",
+  "methods": {
+    "discord_add_reaction": "addReaction",
+    "discord_archive_thread": "archiveThread",
+    "discord_assign_role": "assignRole",
+    "discord_ban_member": "banMember",
+    "discord_bulk_delete_messages": "bulkDeleteMessages",
+    "discord_create_channel": "createChannel",
+    "discord_create_invite": "createInvite",
+    "discord_create_role": "createRole",
+    "discord_create_thread": "createThread",
+    "discord_create_webhook": "createWebhook",
+    "discord_delete_channel": "deleteChannel",
+    "discord_delete_invite": "deleteInvite",
+    "discord_delete_message": "deleteMessage",
+    "discord_delete_role": "deleteRole",
+    "discord_delete_webhook": "deleteWebhook",
+    "discord_edit_message": "editMessage",
+    "discord_execute_webhook": "executeWebhook",
+    "discord_get_channel": "getChannel",
+    "discord_get_invite": "getInvite",
+    "discord_get_member": "getMember",
+    "discord_get_messages": "getChannelMessages",
+    "discord_get_pinned_messages": "getPinnedMessages",
+    "discord_get_server": "getServerInformation",
+    "discord_get_user": "getUserInformation",
+    "discord_get_webhook": "getWebhook",
+    "discord_join_thread": "joinThread",
+    "discord_kick_member": "kickMember",
+    "discord_leave_thread": "leaveThread",
+    "discord_list_channels": "listChannels",
+    "discord_list_roles": "listRoles",
+    "discord_pin_message": "pinMessage",
+    "discord_remove_reaction": "removeReaction",
+    "discord_remove_role": "removeRole",
+    "discord_send_message": "sendMessage",
+    "discord_unban_member": "unbanMember",
+    "discord_unpin_message": "unpinMessage",
+    "discord_update_channel": "updateChannel",
+    "discord_update_member": "updateMember",
+    "discord_update_role": "updateRole"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

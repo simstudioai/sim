@@ -15,7 +15,10 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  loadWorkflowsFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 type WorkflowListScope = 'active' | 'archived' | 'all'
@@ -167,6 +170,38 @@ export async function loadWorkflowReadSnapshot(workflowId: string, workspaceId: 
         .limit(1),
     ])
     return { normalizedData, workflowRecord: workflowRecord ?? null }
+  })
+}
+
+/**
+ * {@link loadWorkflowReadSnapshot} for many workflows of one workspace in one consistent
+ * snapshot, by workflow id. A workflow that is archived or not in `workspaceId` is left out.
+ */
+export async function loadWorkflowReadSnapshots(
+  workflowIds: readonly string[],
+  workspaceId: string
+) {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
+    const [graphs, records] = await Promise.all([
+      loadWorkflowsFromNormalizedTables(workflowIds, workspaceId, tx),
+      tx
+        .select()
+        .from(workflow)
+        .where(
+          and(
+            inArray(workflow.id, [...workflowIds]),
+            eq(workflow.workspaceId, workspaceId),
+            isNull(workflow.archivedAt)
+          )
+        ),
+    ])
+    return new Map(
+      records.map((workflowRecord) => [
+        workflowRecord.id,
+        { normalizedData: graphs.get(workflowRecord.id) ?? null, workflowRecord },
+      ])
+    )
   })
 }
 

@@ -300,6 +300,8 @@ export interface CommandSpec {
   variants?: readonly CommandVariantSpec[]
   /** One-line help. Falls back to the OpenAPI summary for the operation. */
   describe?: string
+  /** Prose `--help` prints after the options: how the fields combine, where one flag cannot say. */
+  helpText?: string
   /** Per-field flag overrides, keyed by the contract's field name. */
   flags?: Record<string, FlagSpec>
   /** Friendly mutually-exclusive flags for an otherwise opaque union body. */
@@ -334,6 +336,11 @@ export interface CommandSpec {
    */
   confirm?: string
   /**
+   * Accept `-y/--yes` without a `confirm` gate, as a no-op: a write callers run beside confirmed
+   * ones (a deploy after `workflows source apply --yes`) takes the flag they pass there.
+   */
+  acceptsYes?: true
+  /**
    * Discover table columns from inside this nested field as well as from the
    * row's own scalars.
    *
@@ -343,6 +350,11 @@ export interface CommandSpec {
    * column. Only meaningful when `columns` is absent.
    */
   expand?: string
+  /**
+   * The record's keys are data, not field names, as in `workflows outline`'s blocks keyed by block
+   * id: the display formats print each key as sent rather than humanized, so it can be copied back.
+   */
+  dataKeys?: true
   /**
    * The response IS a document, not a record to look at.
    *

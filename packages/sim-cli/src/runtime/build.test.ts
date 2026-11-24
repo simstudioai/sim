@@ -25,7 +25,7 @@ import type { OperationSpec } from './types'
 
 /** `SimClient.requireWorkspace`'s message, verbatim, for the mocked client. */
 const NO_WORKSPACE_FOR_PROFILE =
-  'No workspace set for profile "default". Pass --workspace, or run: sim configure --profile default --set-workspace <id>'
+  'No workspace set for profile "default". Pass -w <workspaceId>, set SIM_WORKSPACE, or run: sim configure --profile default --set-workspace <id>'
 
 const { mockRequest, output, profileState } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
@@ -200,6 +200,18 @@ describe('commands parsed through commander', () => {
       expect(options.method).toBe('DELETE')
     })
   })
+
+  it.each(['--yes', '-y'])(
+    'accepts %s on a deploy, which needs no confirmation, as other writes do',
+    async (flag) => {
+      const [path, options] = await run(['workflows', 'deploy', 'wf-1', flag], {
+        data: { isDeployed: true },
+      })
+      expect(path).toBe('/api/v2/workflows/wf-1/deploy')
+      expect(options.method).toBe('POST')
+      expect(options.body ?? {}).not.toHaveProperty('yes')
+    }
+  )
 
   it('carries a multi-word flag all the way to the request', async () => {
     // The regression: commander stores this as `minDurationMs`, so a lookup by
@@ -944,7 +956,12 @@ describe('headers the route contract declares', () => {
    * instead of the declared header names is what let `--upload-token` through.
    */
   it('exposes no flag spelled as a raw HTTP header', () => {
-    expect([...HEADER_WIRE_FLAGS].sort()).toEqual(['--upload-token', '--x-run-id', '--x-sim-via'])
+    expect([...HEADER_WIRE_FLAGS].sort()).toEqual([
+      '--if-none-match',
+      '--upload-token',
+      '--x-run-id',
+      '--x-sim-via',
+    ])
     expect(wireSpelledFlags(buildProgram())).toEqual([])
 
     const workflowRun = buildProgram()

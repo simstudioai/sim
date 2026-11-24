@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, inArray, isNotNull, lt, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
+import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('BatchDelete')
 
@@ -11,7 +12,7 @@ const logger = createLogger('BatchDelete')
  * `db`, a `dbFor(...)` sub-pool client, and a transaction handle, so callers
  * pick which pool the deletes run on (cleanup jobs pass `dbFor('cleanup')`).
  */
-export type BatchDeleteClient = Pick<typeof db, 'select' | 'delete'>
+export type BatchDeleteClient = Pick<typeof db, 'select' | 'delete' | 'transaction'>
 
 export const DEFAULT_BATCH_SIZE = 2000
 /** 50 × 2000 = 100K row cap per cleanup run; drains long-tail tenants in days, not weeks. */
@@ -93,6 +94,12 @@ export interface ChunkedBatchDeleteOptions<TRow extends { id: string }> {
   /** Runs between SELECT and DELETE; receives the just-selected rows. */
   onBatch?: (rows: TRow[]) => Promise<void>
   /**
+   * Runs in the DELETE's own transaction, after it, with the selected rows it actually deleted,
+   * so whatever it writes commits exactly when the rows go. A throw rolls the DELETE back and
+   * fails the batch like a failed DELETE.
+   */
+  afterDelete?: (tx: DbTransaction, rows: TRow[]) => Promise<void>
+  /**
    * Re-asserted on the DELETE alongside the id list. A soft-delete sweep whose `onBatch` does
    * real work before the DELETE should pass the same predicate it selected on: a row restored
    * in that window would otherwise be hard-deleted — taking the children a folder restore had
@@ -153,6 +160,7 @@ export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
   tableName,
   selectChunk,
   onBatch,
+  afterDelete,
   deleteFilter,
   batchSize = DEFAULT_BATCH_SIZE,
   maxBatches = DEFAULT_MAX_BATCHES_PER_TABLE,
@@ -206,10 +214,22 @@ export async function chunkedBatchDeleteByScope<TRow extends { id: string }>({
         if (onBatch) await onBatch(rows)
 
         const ids = rows.map((r) => r.id)
-        const deleted = await dbClient
-          .delete(tableDef)
-          .where(deleteFilter ? and(inArray(sql`id`, ids), deleteFilter) : inArray(sql`id`, ids))
-          .returning({ id: sql`id` })
+        const deleteRows = (client: Pick<typeof db, 'delete'>) =>
+          client
+            .delete(tableDef)
+            .where(deleteFilter ? and(inArray(sql`id`, ids), deleteFilter) : inArray(sql`id`, ids))
+            .returning({ id: sql<string>`id` })
+        const deleted = afterDelete
+          ? await dbClient.transaction(async (tx) => {
+              const removed = await deleteRows(tx)
+              const removedIds = new Set(removed.map((row) => row.id))
+              await afterDelete(
+                tx,
+                rows.filter((row) => removedIds.has(row.id))
+              )
+              return removed
+            })
+          : await deleteRows(dbClient)
 
         result.deleted += deleted.length
         result.failed += rows.length - deleted.length

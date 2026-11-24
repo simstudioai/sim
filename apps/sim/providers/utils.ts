@@ -1,6 +1,15 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  type CanonicalGroup,
+  type CanonicalModeOverrides,
+  getCanonicalValues,
+  isCanonicalPair,
+  resolveCanonicalMode,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import type OpenAI from 'openai'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
@@ -13,16 +22,7 @@ import {
 } from '@/lib/core/utils/records'
 import type { CustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isFileFieldType, type WorkflowInputField } from '@/lib/workflows/input-format'
-import {
-  buildCanonicalIndex,
-  type CanonicalGroup,
-  type CanonicalModeOverrides,
-  getCanonicalValues,
-  isCanonicalPair,
-  resolveActiveCanonicalValue,
-  resolveCanonicalMode,
-  scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
+import { resolveActiveCanonicalValue } from '@/lib/workflows/subblocks/visibility'
 import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
@@ -32,7 +32,6 @@ import {
   findProviderFromModel,
   getComputerUseModels,
   getHostedModels,
-  getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
@@ -40,9 +39,13 @@ import {
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
   getProviderModels,
+  isAutoModel,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
-  updateOllamaModels as updateOllamaModelsInDefinitions,
+  SIM_AUTO_MODEL_ID,
+  updateLiteLLMModels,
+  updateOllamaModels,
+  updateVLLMModels,
 } from '@/providers/models'
 import {
   getModelPricing as getRegisteredModelPricing,
@@ -172,18 +175,16 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
-  updateOllamaModelsInDefinitions(models)
+  updateOllamaModels(models)
   providers.ollama.models = getProviderModels('ollama')
 }
 
 export function updateVLLMProviderModels(models: string[]): void {
-  const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
   providers.vllm.models = getProviderModels('vllm')
 }
 
 export function updateLiteLLMProviderModels(models: string[]): void {
-  const { updateLiteLLMModels } = require('@/providers/models')
   updateLiteLLMModels(models)
   providers.litellm.models = getProviderModels('litellm')
 }
@@ -259,7 +260,19 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
+/**
+ * The provider that serves `model`, defaulting an unrecognised id to Ollama.
+ *
+ * Throws for a blacklisted provider or model, and for sim-auto: the pseudo-model has no
+ * provider of its own until the model router (`lib/model-router`) swaps in a concrete one at
+ * execution time, so answering Ollama for it would send `sim-auto` to a server that has
+ * never heard of it.
+ */
 export function getProviderFromModel(model: string): ProviderId {
+  if (isAutoModel(model)) {
+    throw new Error(`${SIM_AUTO_MODEL_ID} has no provider until the model router resolves it`)
+  }
+
   const normalizedModel = model.toLowerCase()
 
   let providerId = findProviderFromModel(model)
@@ -1476,7 +1489,6 @@ export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
-export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
 /**
@@ -1518,10 +1530,6 @@ export function supportsThinking(model: string): boolean {
 /** Whether the model accepts caller-placed prompt-cache breakpoints. */
 export function supportsPromptCaching(model: string): boolean {
   return MODELS_WITH_PROMPT_CACHING.includes(model.toLowerCase())
-}
-
-export function isDeepResearchModel(model: string): boolean {
-  return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
 /**

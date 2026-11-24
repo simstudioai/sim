@@ -16,6 +16,11 @@ import {
   replaceSandboxFileMountRefs,
 } from '@/lib/execution/payloads/sandbox-file-mount-ref'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
+import { AgentBlock } from '@/blocks/blocks/agent'
+import { ResponseBlock } from '@/blocks/blocks/response'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
+import { getBlock } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import { ExecutionState } from '@/executor/execution/state'
 import type { ExecutionContext } from '@/executor/types'
@@ -1282,5 +1287,167 @@ describe('VariableResolver agent model levels', () => {
     expect(result.thinkingLevel).toBe('medium')
     expect(result.tools[0].usageControlExpression).toBe('low')
     expect(result.model).toBe('gpt-5')
+  })
+})
+
+describe('VariableResolver JSON text inputs', () => {
+  const awkwardText = 'Line one\nHe said "hi" at C:\\temp\t— café 🚀'
+  const blockConfigs: Record<string, BlockConfig> = {
+    [BlockType.AGENT]: AgentBlock,
+    [BlockType.RESPONSE]: ResponseBlock,
+    table_v2: TableV2Block,
+  }
+
+  beforeEach(() => {
+    vi.mocked(getBlock).mockImplementation((type) => blockConfigs[type])
+  })
+
+  function createJsonResolver(blockType: string, params: Record<string, unknown>) {
+    return {
+      resolve: (extra: { env?: Record<string, string>; output?: Record<string, unknown> } = {}) =>
+        resolveJsonInputs(blockType, params, extra),
+    }
+  }
+
+  function resolveJsonInputs(
+    blockType: string,
+    params: Record<string, unknown>,
+    extra: { env?: Record<string, string>; output?: Record<string, unknown> }
+  ) {
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const consumer = createBlock('consumer', 'Consumer', blockType, params)
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, consumer],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', {
+      text: awkwardText,
+      plain: 'ok',
+      count: 42,
+      flag: true,
+      nothing: null,
+      record: { name: 'Ada "the first"', tags: ['x', 'y'] },
+      ...extra.output,
+    })
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: { QUOTED_SECRET: 'p"ss\\word', ...extra.env },
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as unknown as ExecutionContext
+    return new VariableResolver(workflow, {}, state).resolveInputs(
+      ctx,
+      'consumer',
+      consumer.config.params,
+      consumer
+    )
+  }
+
+  async function resolveResponseBody(data: string): Promise<unknown> {
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, { dataMode: 'json', data })
+    const resolved = await resolve()
+    return JSON.parse(resolved.data)
+  }
+
+  it('keeps a string with newlines, quotes, backslashes, and unicode inside its JSON string', async () => {
+    await expect(resolveResponseBody('{"summary": "<producer.text>"}')).resolves.toEqual({
+      summary: awkwardText,
+    })
+  })
+
+  it('escapes every reference sharing one string', async () => {
+    await expect(
+      resolveResponseBody('{"line": "<producer.plain>: <producer.text> (<producer.count>)"}')
+    ).resolves.toEqual({ line: `ok: ${awkwardText} (42)` })
+  })
+
+  it('reads an escaped quote as staying inside the string', async () => {
+    await expect(resolveResponseBody('{"quote": "say \\"<producer.text>\\""}')).resolves.toEqual({
+      quote: `say "${awkwardText}"`,
+    })
+  })
+
+  it('stringifies non-string values that sit inside quotes', async () => {
+    await expect(
+      resolveResponseBody(
+        '{"record": "<producer.record>", "count": "<producer.count>", "flag": "<producer.flag>", "nothing": "<producer.nothing>"}'
+      )
+    ).resolves.toEqual({
+      record: JSON.stringify({ name: 'Ada "the first"', tags: ['x', 'y'] }),
+      count: '42',
+      flag: 'true',
+      nothing: 'null',
+    })
+  })
+
+  it('splices bare references outside strings as JSON values', async () => {
+    await expect(
+      resolveResponseBody(
+        '{"record": <producer.record>, "count": <producer.count>, "flag": <producer.flag>, "text": "<producer.plain>"}'
+      )
+    ).resolves.toEqual({
+      record: { name: 'Ada "the first"', tags: ['x', 'y'] },
+      count: 42,
+      flag: true,
+      text: 'ok',
+    })
+  })
+
+  it('escapes environment variables inside JSON strings', async () => {
+    await expect(resolveResponseBody('{"auth": "Bearer {{QUOTED_SECRET}}"}')).resolves.toEqual({
+      auth: 'Bearer p"ss\\word',
+    })
+  })
+
+  it('keeps splicing a value that is already escaped JSON string content raw', async () => {
+    const escapedKey = ['-----BEGIN KEY-----', 'abc', '-----END KEY-----'].join('\\n')
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: '{"key": "{{ESCAPED_KEY}}", "quote": "<producer.escaped>"}',
+    })
+    const resolved = await resolve({
+      env: { ESCAPED_KEY: escapedKey },
+      output: { escaped: 'say \\"hi\\"' },
+    })
+    expect(JSON.parse(resolved.data)).toEqual({
+      key: '-----BEGIN KEY-----\nabc\n-----END KEY-----',
+      quote: 'say "hi"',
+    })
+  })
+
+  it('escapes references in table row data', async () => {
+    const { resolve } = createJsonResolver('table_v2', {
+      operation: 'insert_row',
+      data: '{"body": "<producer.text>"}',
+    })
+    const resolved = await resolve()
+    expect(JSON.parse(resolved.data)).toEqual({ body: awkwardText })
+  })
+
+  it('leaves quoted references in non-JSON fields raw', async () => {
+    const { resolve } = createJsonResolver(BlockType.AGENT, {
+      userPrompt: '{"note": "<producer.text>"}',
+    })
+    const resolved = await resolve()
+    expect(resolved.userPrompt).toBe(`{"note": "${awkwardText}"}`)
+  })
+
+  it('leaves a plain-text body in a JSON field raw', async () => {
+    const { resolve } = createJsonResolver(BlockType.RESPONSE, {
+      dataMode: 'json',
+      data: 'Answer: "<producer.text>"',
+    })
+    const resolved = await resolve()
+    expect(resolved.data).toBe(`Answer: "${awkwardText}"`)
   })
 })

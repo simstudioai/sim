@@ -886,21 +886,6 @@ export const tinesProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          'No: branding customization is scoped to Pages (custom logo, background/action colors, light/dark mode, saved Page themes), not the whole workspace or product UI. No evidence of full white-labeling (removing the Tines name/logo tenant-wide) was found.',
-        detail:
-          'Page themes let you brand individual deployed pages differently per audience, which is narrower than workspace-wide white-labeling.',
-        shortValue: 'No: only per-Page branding, not full white-label',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.tines.com/docs/pages/branding-and-style/',
-            label: 'Branding and style | Docs | Tines',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           'No: audit logs have a fixed two-year retention period, with no org-configurable retention window for logs or soft-deleted resources. Self-hosted deployments expose configurable event/rate limits via environment variables, but not data retention windows.',

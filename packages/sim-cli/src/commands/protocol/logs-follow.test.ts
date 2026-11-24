@@ -1,3 +1,4 @@
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ListLogsResponse } from '../../generated/v2-api'
@@ -5,11 +6,9 @@ import { SimApiError } from '../../http/client'
 import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { attachLogsFollow, type LogRow } from './logs-follow'
 
-const { mockSleep } = vi.hoisted(() => ({
-  mockSleep: vi.fn(() => Promise.resolve()),
-}))
+const { mockSleep } = utilsHelpersMockFns
 
-vi.mock('@sim/utils/helpers', () => ({ sleep: mockSleep }))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
 

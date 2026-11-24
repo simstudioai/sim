@@ -115,6 +115,7 @@ function ctx(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
     workflowId: 'wf',
     workspaceId: 'ws',
     userId: 'user',
+    metadata: {},
     resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     ...overrides,
   } as ExecutionContext

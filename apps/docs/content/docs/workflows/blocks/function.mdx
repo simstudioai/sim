@@ -427,13 +427,22 @@ const chunk = await sim.files.readTextChunk(file, { offset: 0, length: 1024 * 10
 const bytes = await sim.files.readBase64Chunk(file, { offset: 0, length: 1024 * 1024 });
 ```
 
-`sim.files.readText`, `readBase64`, and the `…Chunk` variants stream from execution storage under memory caps. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data in a remote Function block, write files under `/tmp/sim/outputs` and pass them to a compatible File or Table action. The separate Function tool exposes `outputPath`, `outputSandboxPath`, and `outputTable` for explicit persistence; those are not builder fields.
+`sim.files` reads a file of up to 64 MiB and returns at most 10 MiB per call, so read larger files in chunks. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data in a remote Function block, write files under `/tmp/sim/outputs` and pass them to a compatible File or Table action. The separate Function tool exposes `outputPath`, `outputSandboxPath`, and `outputTable` for explicit persistence; those are not builder fields.
 
-The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and Shell do not support them yet.
+The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and Shell do not support them yet. See [Large data](/workflows/large-data) for every size limit.
 
 ## Errors and timeout
 
 An uncaught error follows the connected error port or fails the run. Catch an error only when your code can return a meaningful recovery result. `console.log()`, `print()`, and ordinary Shell output appear in `stdout` and the run logs.
+
+On the error path, the failed block has two outputs:
+
+| Output | What it is |
+| --- | --- |
+| `<function.error>` | The message with the line and code that threw: ``Line 4: `throw new Error('invalid phone')` - invalid phone`` |
+| `<function.errorMessage>` | The thrown message alone: `invalid phone` |
+
+Use `<function.errorMessage>` in a reply to a caller, such as a Response block's body, so the caller never sees your code. Use `<function.error>` when you need the line to debug. A failure your code did not throw, such as a timeout, has no line, so both hold the same message.
 
 Function uses the workflow's remaining execution time when a deadline exists. Without a workflow deadline, it still has a fallback timeout of 300,000 ms (5 minutes) by default, configurable through `EXECUTION_TIMEOUT_FREE`. An explicit internal timeout can replace that fallback or shorten the workflow budget; it cannot extend the workflow deadline. There is no separate timeout field in the current block editor. Exceeding the budget terminates execution and reports a block error.
 

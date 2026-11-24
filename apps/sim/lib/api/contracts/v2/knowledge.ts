@@ -1402,6 +1402,20 @@ export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2KnowledgeDocumentUploadSchema) },
 })
 
+/**
+ * `GET /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/content`: the original bytes
+ * of an uploaded document, as stored.
+ */
+export const v2DownloadKnowledgeDocumentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content',
+  params: v2KnowledgeDocumentParamsSchema,
+  query: z
+    .object({ workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.') })
+    .strict(),
+  response: { mode: 'binary' },
+})
+
 export const v2GetKnowledgeDocumentContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',

@@ -229,11 +229,232 @@ export const ComputerUseSchema = z.union([
 ]);
 export type ComputerUseInput = z.infer<typeof ComputerUseSchema>;
 
+/** Typed app commands: one allowlisted create or list read through the OS's own data frameworks, never a script. */
+const CommandTitle = z
+  .string()
+  .max(1024)
+  .refine((title) => title.trim().length > 0, "A title must not be blank");
+/** `YYYY-MM-DD`, or a date-time with optional seconds, fraction and offset. */
+const ISO_DATE_OR_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const RealDate = z.iso.date();
+// Zod requires seconds beside a zone unless precision is minutes, and the shape allows either.
+const RealDateTime = z.union([
+  z.iso.datetime({ local: true, offset: true }),
+  z.iso.datetime({ local: true, offset: true, precision: -1 }),
+]);
+/** The shape the model sees, refined to a day and time that exist, so Feb 30 never reaches the user's confirmation. */
+const DateOrDateTime = z
+  .string()
+  .regex(ISO_DATE_OR_TIME, "Use YYYY-MM-DD or an ISO 8601 date-time")
+  .refine(
+    (value) => RealDate.safeParse(value).success || RealDateTime.safeParse(value).success,
+    "Use a real date and time",
+  );
+const CommandNotes = z.string().max(8000).optional();
+const UpdatedEventBoundary = DateOrDateTime.describe(
+  "In the event's own form: YYYY-MM-DD for an all-day event, else an ISO 8601 date-time. Keep an offset the source states; without one it is this Mac's local time.",
+);
+const EventBoundary = DateOrDateTime.describe(
+  "ISO 8601 date-time, or YYYY-MM-DD when allDay is true. Without an offset it is this Mac's local time, as typing it into Calendar would be.",
+);
+
+/** Typed app commands through the OS's own data frameworks, never a script: allowlisted creates, bounded reads, reminder or event updates by id, and additions to a contact. Nothing is deleted. */
+export const AppCommandSchema = z.discriminatedUnion("name", [
+  z.strictObject({ name: z.literal("list_reminder_lists") }),
+  z.strictObject({
+    name: z.literal("create_reminder"),
+    title: CommandTitle,
+    notes: CommandNotes,
+    due: DateOrDateTime.optional().describe(
+      "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
+    ),
+    listId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_reminder_lists; omit for the default list."),
+    priority: z
+      .union([z.literal(0), z.literal(1), z.literal(5), z.literal(9)])
+      .optional()
+      .describe("0 none, 1 high, 5 medium, 9 low."),
+  }),
+  z.strictObject({
+    name: z.literal("find_reminders"),
+    id: z.string().min(1).max(256).optional().describe("Read just this reminder."),
+    listId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_reminder_lists; omit for every list."),
+    titleContains: z.string().min(1).max(256).optional().describe("Case-insensitive part of the title."),
+    includeCompleted: z.boolean().optional().describe("Completed reminders are left out unless true."),
+  }),
+  z
+    .strictObject({
+      name: z.literal("update_reminder"),
+      id: z.string().min(1).max(256).describe("An id from find_reminders or create_reminder."),
+      title: CommandTitle.optional(),
+      notes: CommandNotes.describe("Replaces the notes; an empty string clears them."),
+      due: DateOrDateTime.optional().describe(
+        "YYYY-MM-DD for a date-only reminder, or an ISO 8601 date-time (this Mac's local time without an offset).",
+      ),
+      clearDue: z.literal(true).optional().describe("Removes the due date."),
+      priority: z
+        .union([z.literal(0), z.literal(1), z.literal(5), z.literal(9)])
+        .optional()
+        .describe("0 none, 1 high, 5 medium, 9 low."),
+      completed: z.boolean().optional().describe("true marks it done; false reopens it."),
+    })
+    .refine((update) => !(update.due !== undefined && update.clearDue), {
+      message: "Pass due or clearDue, not both",
+    })
+    .refine(
+      (update) =>
+        [update.title, update.notes, update.due, update.clearDue, update.priority, update.completed].some(
+          (value) => value !== undefined,
+        ),
+      { message: "An update needs at least one field to change" },
+    ),
+  z.strictObject({ name: z.literal("list_calendars") }),
+  z.strictObject({
+    name: z.literal("create_event"),
+    title: CommandTitle,
+    start: EventBoundary,
+    end: EventBoundary,
+    allDay: z.boolean().optional(),
+    location: z.string().max(1024).optional(),
+    notes: CommandNotes,
+    calendarId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe("An id from list_calendars; omit for the default calendar."),
+    alertMinutesBefore: z.number().int().min(0).max(40_320).optional(),
+  }),
+  z
+    .strictObject({
+      name: z.literal("find_events"),
+      id: z.string().min(1).max(256).optional().describe("Read just this event."),
+      calendarId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("An id from list_calendars; omit for every calendar."),
+      from: DateOrDateTime.optional().describe("Range start (this Mac's local time without an offset)."),
+      to: DateOrDateTime.optional().describe(
+        "Range end, at most 31 days after from; a YYYY-MM-DD end includes that whole day.",
+      ),
+      titleContains: z.string().min(1).max(256).optional().describe("Case-insensitive part of the title."),
+    })
+    .refine((find) => find.id !== undefined || (find.from !== undefined && find.to !== undefined), {
+      message: "Pass id, or from and to",
+    }),
+  z
+    .strictObject({
+      name: z.literal("update_event"),
+      id: z
+        .string()
+        .min(1)
+        .max(256)
+        .describe("An id from find_events or create_event; repeating events are refused."),
+      title: CommandTitle.optional(),
+      start: UpdatedEventBoundary.optional(),
+      end: UpdatedEventBoundary.optional(),
+      location: z.string().max(1024).optional().describe("Replaces the location; an empty string clears it."),
+      notes: CommandNotes.describe("Replaces the notes; an empty string clears them."),
+    })
+    .refine(
+      (update) =>
+        [update.title, update.start, update.end, update.location, update.notes].some(
+          (value) => value !== undefined,
+        ),
+      { message: "An update needs at least one field to change" },
+    ),
+  z.strictObject({ name: z.literal("list_contact_groups") }),
+  z.strictObject({
+    name: z.literal("create_contact_group"),
+    title: CommandTitle.describe(
+      "Group name; an existing group with this name is returned instead of a duplicate.",
+    ),
+  }),
+  z
+    .strictObject({
+      name: z.literal("create_contact"),
+      givenName: z.string().max(1024).optional(),
+      familyName: z.string().max(1024).optional(),
+      organization: z.string().max(1024).optional(),
+      jobTitle: z.string().max(1024).optional(),
+      emails: z.array(z.string().min(3).max(320)).max(5).optional(),
+      phones: z.array(z.string().min(1).max(64)).max(5).optional(),
+      groupId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("An id from list_contact_groups or create_contact_group."),
+    })
+    .refine(
+      (contact) =>
+        Boolean(contact.givenName?.trim() || contact.familyName?.trim() || contact.organization?.trim()),
+      {
+        message: "A contact needs a name or an organization",
+      },
+    ),
+  z
+    .strictObject({
+      name: z.literal("find_contacts"),
+      id: z.string().min(1).max(256).optional().describe("Read just this contact."),
+      nameContains: z.string().min(2).max(256).optional().describe("Part of a person's name."),
+    })
+    .refine((find) => find.id !== undefined || find.nameContains !== undefined, {
+      message: "Pass id or nameContains",
+    }),
+  z
+    .strictObject({
+      name: z.literal("update_contact"),
+      id: z.string().min(1).max(256).describe("An id from find_contacts or create_contact."),
+      emails: z
+        .array(z.string().min(3).max(320))
+        .max(5)
+        .optional()
+        .describe("Emails to add; existing ones stay."),
+      phones: z
+        .array(z.string().min(1).max(64))
+        .max(5)
+        .optional()
+        .describe("Phones to add; existing ones stay."),
+      groupId: z
+        .string()
+        .min(1)
+        .max(256)
+        .optional()
+        .describe("A group from list_contact_groups or create_contact_group to add the contact to."),
+    })
+    .refine((update) => Boolean(update.emails?.length || update.phones?.length || update.groupId), {
+      message: "An update needs an email, phone or group to add",
+    }),
+]);
+export type AppCommand = z.infer<typeof AppCommandSchema>;
+
+/** The computer tool for desktops that support app commands. */
+export const ComputerUseWithAppCommandsSchema = z.union([
+  ...ComputerUseSchema.options,
+  z.strictObject({ action: z.literal("app_command"), command: AppCommandSchema }),
+]);
+export type ComputerUseWithAppCommandsInput = z.infer<typeof ComputerUseWithAppCommandsSchema>;
+
 export const ComputerUseStatusSchema = z.strictObject({
   kind: z.literal("status"),
   platform: z.literal("darwin"),
   accessibility: z.boolean(),
   screenRecording: z.boolean(),
+  reminders: z.enum(["granted", "denied", "not_determined"]).optional(),
+  calendars: z.enum(["granted", "denied", "not_determined"]).optional(),
+  contacts: z.enum(["granted", "denied", "not_determined"]).optional(),
 });
 
 export const ComputerUseAppSchema = z.strictObject({
@@ -301,8 +522,94 @@ export const ComputerUseSnapshotSchema = z.strictObject({
 });
 export type ComputerUseSnapshot = z.infer<typeof ComputerUseSnapshotSchema>;
 
+const CommandItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  allowsModifications: z.boolean(),
+});
+
+const ReminderItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  list: z.string().max(1024),
+  due: z.string().max(64).optional(),
+  priority: z.number().int().min(0).max(9),
+  completed: z.boolean(),
+  notes: z.string().max(8000).optional(),
+});
+
+const EventItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  list: z.string().max(1024),
+  start: z.string().max(64),
+  end: z.string().max(64),
+  allDay: z.boolean(),
+  recurring: z.boolean(),
+  location: z.string().max(1024).optional(),
+  notes: z.string().max(8000).optional(),
+});
+
+const ContactItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  organization: z.string().max(1024).optional(),
+});
+
+const SavedItem = z.strictObject({
+  id: z.string().min(1).max(256),
+  title: z.string().max(1024),
+  list: z.string().max(1024),
+});
+
+/** A create must return the id it committed, so a lost reply is never retried as a second create. */
+export const ComputerUseCommandResultSchema = z
+  .strictObject({
+    kind: z.literal("command"),
+    command: z.enum([
+      "list_reminder_lists",
+      "create_reminder",
+      "find_reminders",
+      "update_reminder",
+      "list_calendars",
+      "create_event",
+      "find_events",
+      "update_event",
+      "list_contact_groups",
+      "create_contact_group",
+      "create_contact",
+      "find_contacts",
+      "update_contact",
+    ]),
+    created: SavedItem.optional(),
+    updated: SavedItem.optional(),
+    items: z.array(CommandItem).max(200).optional(),
+    reminders: z.array(ReminderItem).max(50).optional(),
+    events: z.array(EventItem).max(50).optional(),
+    contacts: z.array(ContactItem).max(50).optional(),
+    truncated: z
+      .boolean()
+      .optional()
+      .describe("True when more items exist than the read returns (200 for lists, 50 for finds)."),
+  })
+  .refine(
+    (result) => {
+      if (result.command.startsWith("create_")) return result.created !== undefined;
+      if (result.command.startsWith("update_")) return result.updated !== undefined;
+      if (result.command === "find_reminders") return result.reminders !== undefined;
+      if (result.command === "find_events") return result.events !== undefined;
+      if (result.command === "find_contacts") return result.contacts !== undefined;
+      return result.items !== undefined;
+    },
+    {
+      message:
+        "A create returns created, an update updated, a find its reminders, events or contacts, and a list items",
+    },
+  );
+
 export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
   ComputerUseStatusSchema,
+  ComputerUseCommandResultSchema,
   z.strictObject({ kind: z.literal("apps"), apps: z.array(ComputerUseAppSchema).max(1000) }),
   ComputerUseSnapshotSchema,
   z

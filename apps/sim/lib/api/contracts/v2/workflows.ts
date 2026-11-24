@@ -60,6 +60,7 @@ import {
   referenceOccurrenceSchema,
   workflowReferenceManifestSchema,
 } from '@/lib/api/contracts/workflow-references'
+import { sourceFingerprintSchema } from '@/lib/api/contracts/workflow-source'
 import {
   cancelWorkflowExecutionReasonSchema,
   workflowExecutionPausedDetailSchema,
@@ -75,9 +76,21 @@ import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
+/** The longest workflow name v2 create and update accept. */
+export const V2_WORKFLOW_NAME_MAX_LENGTH = 255
+
+/** The longest workflow description v2 create and update accept. */
+export const V2_WORKFLOW_DESCRIPTION_MAX_LENGTH = 50_000
+
 export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
+
+const v2PausedRunIdSchema = z
+  .string()
+  .describe(
+    'Run to name in Resume workflow run: the run this pause is recorded under, which for a resumed run that paused again is the run it resumed.'
+  )
 
 /**
  * `X-Run-Id` reserves an execution ID without guaranteeing a retrievable run.
@@ -452,13 +465,21 @@ const v2WorkflowLintSchema = z
             .union([z.string(), z.array(z.string())])
             .describe('The reference, or references, that did not resolve.'),
           kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
+            .enum([
+              'credential',
+              'resource',
+              'custom-tool',
+              'mcp-tool',
+              'skill',
+              'block-output',
+              'child-result',
+            ])
             .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
       )
       .describe(
-        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON. These values are still persisted; they are reported, not dropped.'
+        'Credential, resource, tool, and skill references that do not resolve; `block-output` references that will not work as written: a block that does not exist, or an output field the block does not have (reason `unknown-field`); and text outputs written unquoted in a JSON field (reason `unquoted-json-string`), which leave the field invalid JSON at run time unless the text is itself JSON; `child-result` references to the `result.<key>` of a Workflow block whose child responds, so its result is the Response output (`{ data, status, headers }`) and the key reads nothing (the value meant is `result.data.<key>`). A deploy also reports, as `resource`, a called child workflow that is not deployed, which a deployed run cannot call. These values are still persisted; they are reported, not dropped.'
       ),
     tableFieldIssues: z
       .array(
@@ -710,11 +731,11 @@ export const v2CreateWorkflowBodySchema = z
       .string({ error: missingFieldError('name is required') })
       .trim()
       .min(1, 'name is required')
-      .max(255, 'name is too long')
+      .max(V2_WORKFLOW_NAME_MAX_LENGTH, 'name is too long')
       .describe('Workflow name.'),
     description: z
       .string()
-      .max(50_000, 'description is too long')
+      .max(V2_WORKFLOW_DESCRIPTION_MAX_LENGTH, 'description is too long')
       .nullable()
       .optional()
       .describe('Optional workflow description.'),
@@ -743,12 +764,12 @@ export const v2UpdateWorkflowBodySchema = z
       .string()
       .trim()
       .min(1, 'name cannot be empty')
-      .max(255, 'name is too long')
+      .max(V2_WORKFLOW_NAME_MAX_LENGTH, 'name is too long')
       .optional()
       .describe('Replacement workflow name.'),
     description: z
       .string()
-      .max(50_000, 'description is too long')
+      .max(V2_WORKFLOW_DESCRIPTION_MAX_LENGTH, 'description is too long')
       .nullable()
       .optional()
       .describe('Replacement workflow description; null clears it.'),
@@ -1072,6 +1093,11 @@ export const v2DeployWorkflowContract = defineRouteContract({
       description: v1DeployWorkflowBodySchema.shape.description.describe(
         'Optional release note for the deployment version.'
       ),
+      expectedDraftFingerprint: sourceFingerprintSchema('expectedDraftFingerprint')
+        .optional()
+        .describe(
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.'
+        ),
     })
     .strict()
     .optional()
@@ -1642,7 +1668,9 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
               blockId: z
                 .string()
                 .min(1, 'run.entry.blockId cannot be empty')
-                .describe('Saved workflow block at which manual execution should resume.'),
+                .describe(
+                  'Saved workflow block at which manual execution should resume: its id, display name or reference key (the name lowercased, whitespace and dots removed).'
+                ),
               sourceRunId: z
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
@@ -1661,7 +1689,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .min(1, 'run.stopAfterBlockId cannot be empty')
         .optional()
         .describe(
-          'Saved workflow block after which the run stops; downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
+          'Saved workflow block after which the run stops (its id, display name or reference key); downstream blocks do not execute. Must not be inside a loop or parallel. If a router, condition, or untaken error path routes the run away from the block, the run fails as soon as that is decided; no further block starts, though blocks already running finish. With a block entry naming the same block, re-runs only that block against the source run.'
         ),
     })
     .strict(),
@@ -1817,6 +1845,101 @@ const v2AppliedExecutionTimeoutSchema = z
     "Execution timeout applied to this run, in seconds: the plan's timeout, lowered by `executionTimeoutSeconds` when one was requested. Null when the run has no execution timeout."
   )
 
+const v2PauseInputFieldSchema = z
+  .object({
+    name: z.string().describe('Key to supply this field under in the resume `input`.'),
+    label: z.string().describe('Display label for the field.'),
+    type: z.string().describe('Declared value type, such as `string`, `number`, or `boolean`.'),
+    description: z.string().optional().describe('Field help text, when configured.'),
+    placeholder: z.string().optional().describe('Placeholder text, when configured.'),
+    required: z.boolean().describe('Whether the field is marked required.'),
+    options: z
+      .array(z.unknown().describe('One selectable option.'))
+      .optional()
+      .describe('Selectable options, when the field offers a fixed set.'),
+  })
+  .meta({
+    id: 'WorkflowRunPauseInputField',
+    title: 'Pause input field',
+    description: 'One field a human pause asks the resumer to fill.',
+  })
+
+const v2WorkflowRunPausePointSchema = z
+  .object({
+    contextId: z
+      .string()
+      .describe('Pause context to name in `contextId` when resuming this point.'),
+    blockId: z.string().describe('Workflow block that paused.'),
+    blockName: z
+      .string()
+      .nullable()
+      .describe(
+        'Name of the block as the run executed it. Null only for a point paused before names were recorded whose run was manual or whose deployment version no longer exists.'
+      ),
+    kind: z
+      .enum(['human', 'time'])
+      .describe('`human` waits for a resume request; `time` resumes automatically at `resumeAt`.'),
+    status: z
+      .enum(['paused', 'queued', 'resuming', 'resumed', 'failed'])
+      .describe(
+        'Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt.'
+      ),
+    registeredAt: z
+      .string()
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.'
+      )
+      .meta({ format: 'date-time' }),
+    resumeAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 automatic-resume timestamp for a time pause, otherwise null.')
+      .meta({ format: 'date-time' }),
+    parallel: z
+      .object({
+        parallelId: z.string().describe('Parallel block containing the pause.'),
+        branchIndex: z.number().int().describe('Zero-based branch that paused.'),
+        branchTotal: z
+          .number()
+          .int()
+          .nullable()
+          .describe('Number of branches, or null when unrecorded.'),
+      })
+      .nullable()
+      .describe('Parallel branch of the pause, or null outside a parallel.'),
+    loop: z
+      .object({
+        loopId: z.string().describe('Loop block containing the pause.'),
+        iteration: z.number().int().describe('Zero-based iteration that paused.'),
+      })
+      .nullable()
+      .describe('Loop iteration of the pause, or null outside a loop.'),
+    inputFields: z
+      .array(v2PauseInputFieldSchema)
+      .nullable()
+      .describe(
+        'Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
+      ),
+    display: z
+      .unknown()
+      .describe('Reviewer content value.')
+      .nullable()
+      .describe(
+        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
+      ),
+    queuePosition: z
+      .number()
+      .int()
+      .nullable()
+      .describe('Position among pending resume requests for this run, or null when none waits.'),
+  })
+  .meta({
+    id: 'WorkflowRunPausePoint',
+    title: 'Workflow run pause point',
+    description: 'One point at which a paused run waits.',
+  })
+
 /**
  * The run result resource. In-band run failures are `status: 'failed'`
  * with a structured `error` — never an HTTP error: **a `runId` means 200/202 +
@@ -1852,6 +1975,17 @@ export const v2ExecuteWorkflowDataSchema = z
       .meta({ format: 'date-time' }),
     durationMs: z.number().nonnegative().optional().describe('Execution duration in milliseconds.'),
     executionTimeoutSeconds: v2AppliedExecutionTimeoutSchema,
+    paused: z
+      .object({
+        runId: v2PausedRunIdSchema,
+        points: z
+          .array(v2WorkflowRunPausePointSchema.pick({ contextId: true, kind: true, status: true }))
+          .describe(
+            'Every point the run is paused at. Resume one with Resume workflow run, naming `runId` and its `contextId`.'
+          ),
+      })
+      .nullable()
+      .describe('Where the run waits when `status` is `paused`; null otherwise.'),
   })
   .meta({
     id: 'WorkflowRunResult',
@@ -2144,101 +2278,6 @@ export const v2RunFileSchema = z
   })
 export type V2RunFile = z.output<typeof v2RunFileSchema>
 
-const v2PauseInputFieldSchema = z
-  .object({
-    name: z.string().describe('Key to supply this field under in the resume `input`.'),
-    label: z.string().describe('Display label for the field.'),
-    type: z.string().describe('Declared value type, such as `string`, `number`, or `boolean`.'),
-    description: z.string().optional().describe('Field help text, when configured.'),
-    placeholder: z.string().optional().describe('Placeholder text, when configured.'),
-    required: z.boolean().describe('Whether the field is marked required.'),
-    options: z
-      .array(z.unknown().describe('One selectable option.'))
-      .optional()
-      .describe('Selectable options, when the field offers a fixed set.'),
-  })
-  .meta({
-    id: 'WorkflowRunPauseInputField',
-    title: 'Pause input field',
-    description: 'One field a human pause asks the resumer to fill.',
-  })
-
-const v2WorkflowRunPausePointSchema = z
-  .object({
-    contextId: z
-      .string()
-      .describe('Pause context to name in `contextId` when resuming this point.'),
-    blockId: z.string().describe('Workflow block that paused.'),
-    blockName: z
-      .string()
-      .nullable()
-      .describe(
-        'Name of the block as the run executed it. Null only for a point paused before names were recorded whose run was manual or whose deployment version no longer exists.'
-      ),
-    kind: z
-      .enum(['human', 'time'])
-      .describe('`human` waits for a resume request; `time` resumes automatically at `resumeAt`.'),
-    status: z
-      .enum(['paused', 'queued', 'resuming', 'resumed', 'failed'])
-      .describe(
-        'Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt.'
-      ),
-    registeredAt: z
-      .string()
-      .nullable()
-      .describe(
-        'ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.'
-      )
-      .meta({ format: 'date-time' }),
-    resumeAt: z
-      .string()
-      .nullable()
-      .describe('ISO 8601 automatic-resume timestamp for a time pause, otherwise null.')
-      .meta({ format: 'date-time' }),
-    parallel: z
-      .object({
-        parallelId: z.string().describe('Parallel block containing the pause.'),
-        branchIndex: z.number().int().describe('Zero-based branch that paused.'),
-        branchTotal: z
-          .number()
-          .int()
-          .nullable()
-          .describe('Number of branches, or null when unrecorded.'),
-      })
-      .nullable()
-      .describe('Parallel branch of the pause, or null outside a parallel.'),
-    loop: z
-      .object({
-        loopId: z.string().describe('Loop block containing the pause.'),
-        iteration: z.number().int().describe('Zero-based iteration that paused.'),
-      })
-      .nullable()
-      .describe('Loop iteration of the pause, or null outside a loop.'),
-    inputFields: z
-      .array(v2PauseInputFieldSchema)
-      .nullable()
-      .describe(
-        'Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured.'
-      ),
-    display: z
-      .unknown()
-      .describe('Reviewer content value.')
-      .nullable()
-      .describe(
-        "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
-      ),
-    queuePosition: z
-      .number()
-      .int()
-      .nullable()
-      .describe('Position among pending resume requests for this run, or null when none waits.'),
-  })
-  .meta({
-    id: 'WorkflowRunPausePoint',
-    title: 'Workflow run pause point',
-    description: 'One point at which a paused run waits.',
-  })
-
 /**
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
@@ -2292,6 +2331,7 @@ export const v2WorkflowRunStatusSchema = z
     paused: workflowExecutionPausedDetailSchema
       .omit({ pausedExecutionId: true })
       .extend({
+        runId: v2PausedRunIdSchema,
         points: z
           .array(v2WorkflowRunPausePointSchema)
           .describe(
@@ -2527,9 +2567,17 @@ export const v2CancelWorkflowRunDataSchema = z
         'Whether this request cancelled anything. `false` with an `already_*` reason means the run had already reached that terminal state, so there was nothing to cancel — still `200`, because a no-op is not an error. `false` with any other reason identifies a degraded or incomplete cancellation step.'
       ),
     runId: v2WorkflowRunIdSchema,
+    /**
+     * Kept for wire compatibility; it no longer reports Redis availability. False only when a
+     * cancellation that must publish its cancellation event (a paused run's, or a reconciled
+     * workflow-group run's) did not: the stop was not confirmed, the pause could not be reconciled,
+     * or the publish failed. True otherwise.
+     */
     redisAvailable: z
       .boolean()
-      .describe('Whether the distributed cancellation channel was available.'),
+      .describe(
+        'Kept for compatibility. False only when a cancellation that must publish its cancellation event did not.'
+      ),
     durablyRecorded: z
       .boolean()
       .describe(
@@ -3902,8 +3950,10 @@ const v2WorkflowOperationParamsSchema = z
   )
   .describe(
     'Patch only supplied fields: `inputs`, `name`, `connections`, `removeEdges`, `nestedNodes`, ' +
-      `\`retry\`, \`triggerMode\`, and \`advancedMode\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
-      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges.'
+      `\`retry\`, \`triggerMode\`, \`advancedMode\`, and \`parentId\`. ${WORKFLOW_OPERATION_PARAM_ENVELOPE} ` +
+      'Re-sending `connections` replaces outgoing edges; use `removeEdges` to delete selected edges. ' +
+      '`parentId` moves the block, keeping its id, into the loop or parallel it names, or with ' +
+      '`null` out of its container.'
   )
 
 const v2AddWorkflowBlockParamsSchema = z

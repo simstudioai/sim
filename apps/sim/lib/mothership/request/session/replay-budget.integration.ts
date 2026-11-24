@@ -10,8 +10,7 @@ import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { toRecord } from '@sim/utils/object'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer: createHttpServer } = await import('node:http')
   const abortRequests: Array<Record<string, unknown>> = []
   const hooks = {
@@ -46,16 +45,12 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  /** The real Redis module and worker URL resolution read these at import. */
-  process.env.REDIS_URL = url
+  /** Worker URL resolution reads this at import. */
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
   return {
-    redisUrl: url,
     inheritedEnv,
     worker: {
       server,
@@ -140,15 +135,11 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { restoreStreamingContext } from '@/lib/mothership/request/context/restore'
-import {
-  createFilePreviewAdapterState,
-  processFilePreviewStreamEvent,
-} from '@/lib/mothership/request/go/file-preview-adapter'
 import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { acquirePendingChatStream } from '@/lib/mothership/request/session/abort'
@@ -167,21 +158,19 @@ import { STREAM_STRING_PREVIEW_UNITS } from '@/lib/mothership/request/session/re
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 import type { StreamingContext } from '@/lib/mothership/request/types'
+import {
+  createFilePreviewAdapterState,
+  processFilePreviewStreamEvent,
+} from '@/lib/mothership/request/worker/file-preview-adapter'
 import { readCallActivity } from '@/lib/mothership/tools/activity'
 import {
   type PendingFileIntent,
   storeFileIntent,
 } from '@/lib/mothership/tools/server/files/intent-store'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 import { GET as mothershipChatGET } from '@/app/api/mothership/chats/[chatId]/route'
 
 const MB = 1024 * 1024
-
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
-  return client
-}
 
 /** A writer that owns a real chat lock, with the frames it delivers to its client. */
 async function leasedWriter(options: { lease?: ChatStreamLease; ownLock?: boolean } = {}) {
@@ -190,7 +179,7 @@ async function leasedWriter(options: { lease?: ChatStreamLease; ownLock?: boolea
     key: chatStreamLockKey(generateId()),
     value: `${streamId}\n${generateId()}`,
   }
-  if (options.ownLock !== false) await redis().set(lease.key, lease.value, 'EX', 60)
+  if (options.ownLock !== false) await getRedisClient().set(lease.key, lease.value, 'EX', 60)
   const writer = new StreamWriter({
     streamId,
     requestId: generateId(),
@@ -222,7 +211,7 @@ async function leasedWriter(options: { lease?: ChatStreamLease; ownLock?: boolea
 }
 
 async function storedMembers(streamId: string): Promise<string[]> {
-  return redis().zrange(`mothership_stream:${streamId}:events`, 0, -1)
+  return getRedisClient().zrange(`mothership_stream:${streamId}:events`, 0, -1)
 }
 
 function toolCall(
@@ -257,7 +246,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => {
+describe('leased Chat stream writer with Redis', () => {
   it('delivers and persists the same bounded copy of a 2 MB tool call, leaving the dispatched event whole', async () => {
     const { streamId, writer, frames } = await leasedWriter()
     const stdout = 'o'.repeat(2 * MB)
@@ -382,7 +371,7 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
 
   it('still refuses a controller whose lease was taken over', async () => {
     const lease = { key: chatStreamLockKey(generateId()), value: `stale\n${generateId()}` }
-    await redis().set(lease.key, `successor\n${generateId()}`, 'EX', 60)
+    await getRedisClient().set(lease.key, `successor\n${generateId()}`, 'EX', 60)
     const { writer, frames } = await leasedWriter({ lease, ownLock: false })
 
     const published = writer.publish(text('from the stale controller'))
@@ -393,7 +382,7 @@ describe.runIf(Boolean(redisUrl))('leased Chat stream writer with Redis', () => 
   })
 })
 
-describe.runIf(Boolean(redisUrl))('the replay ring trimmed past its byte target', () => {
+describe('the replay ring trimmed past its byte target', () => {
   /** A ring whose counter is already past the byte target, as after a long run. */
   async function overTargetRing(seqs: number[]) {
     const streamId = generateId()
@@ -404,7 +393,7 @@ describe.runIf(Boolean(redisUrl))('the replay ring trimmed past its byte target'
     )
     expect(persisted).toEqual({ persisted: true })
     const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
-    await redis().set(ownerBudgetKey, maxOwnerBytes - MB, 'EX', 3600)
+    await getRedisClient().set(ownerBudgetKey, maxOwnerBytes - MB, 'EX', 3600)
     return { streamId, ownerBudgetKey }
   }
 
@@ -426,7 +415,7 @@ describe.runIf(Boolean(redisUrl))('the replay ring trimmed past its byte target'
 
   it('trims a replayed member below the ring with it, leaving a contiguous tail', async () => {
     const { streamId, ownerBudgetKey } = await overTargetRing([2, 3])
-    const before = Number(await redis().get(ownerBudgetKey))
+    const before = Number(await getRedisClient().get(ownerBudgetKey))
     const dropped = await storedMembers(streamId)
     const newest = textEvent(streamId, 4)
 
@@ -435,7 +424,7 @@ describe.runIf(Boolean(redisUrl))('the replay ring trimmed past its byte target'
     })
 
     expect(await seqsOf(streamId)).toEqual([4])
-    expect(Number(await redis().get(ownerBudgetKey))).toBe(
+    expect(Number(await getRedisClient().get(ownerBudgetKey))).toBe(
       before + Buffer.byteLength(JSON.stringify(newest)) - bytesOf(dropped)
     )
   })
@@ -453,13 +442,13 @@ describe.runIf(Boolean(redisUrl))('the replay ring trimmed past its byte target'
 
     await appendEvents([textEvent(streamId, 6002)], { streamId })
     expect(await seqsOf(streamId)).toEqual([6002])
-    expect(Number(await redis().get(ownerBudgetKey))).toBeLessThan(
+    expect(Number(await getRedisClient().get(ownerBudgetKey))).toBeLessThan(
       getRedisBudgetLimits('copilot_stream').maxOwnerBytes - MB
     )
   })
 })
 
-describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budget', () => {
+describe('a turn whose stream exhausts its replay budget', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()
@@ -470,7 +459,28 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     attemptedBytes: 0,
   }).userMessage
 
+  /** Resolves when a controller's root span ends, the last step of its teardown. */
+  const teardowns = new Map<string, () => void>()
+
   beforeAll(async () => {
+    trace.disable()
+    trace.setGlobalTracerProvider(
+      new TracerProvider({
+        spanProcessors: [
+          {
+            onStart: () => {},
+            onEnd: (span) => {
+              const streamId = span.attributes[TraceAttr.StreamId]
+              if (span.name === TraceSpan.GenAiAgentExecute && typeof streamId === 'string') {
+                teardowns.get(streamId)?.()
+              }
+            },
+            forceFlush: async () => {},
+            shutdown: async () => {},
+          },
+        ],
+      })
+    )
     const now = new Date()
     await db.insert(user).values({
       id: userId,
@@ -505,39 +515,17 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     await db.delete(permissions).where(eq(permissions.userId, userId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
+    trace.disable()
   })
 
   /** Admits a turn the way the chat POST does, runs its controller, and returns its frames. */
-  /** Resolves when a controller's root span ends, the last step of its teardown. */
-  const teardowns = new Map<string, () => void>()
-  beforeAll(() => {
-    trace.disable()
-    trace.setGlobalTracerProvider(
-      new TracerProvider({
-        spanProcessors: [
-          {
-            onStart: () => {},
-            onEnd: (span) => {
-              const streamId = span.attributes[TraceAttr.StreamId]
-              if (span.name === TraceSpan.GenAiAgentExecute && typeof streamId === 'string') {
-                teardowns.get(streamId)?.()
-              }
-            },
-            forceFlush: async () => {},
-            shutdown: async () => {},
-          },
-        ],
-      })
-    )
-  })
-  afterAll(() => trace.disable())
 
   async function runTurn(script: unknown[], prepare?: (streamId: string) => Promise<void>) {
     const streamId = generateId()
     const teardown = new Promise<void>((resolve) => teardowns.set(streamId, resolve))
     const runId = generateId()
     expect(await acquirePendingChatStream(chatId, streamId, 0)).toBe(true)
-    const controllerToken = (await redis().get(chatStreamLockKey(chatId)))!
+    const controllerToken = (await getRedisClient().get(chatStreamLockKey(chatId)))!
     const request = {
       message: 'Summarize the logs',
       userId,
@@ -601,7 +589,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
         const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
         /** Room for the turn's opening session frame, not for the worker's tool call. */
-        await redis().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
+        await getRedisClient().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
       }
     )
 
@@ -616,10 +604,12 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored).toMatchObject({ status: 'error', error: ownerMessage })
     expect(worker.abortRequests).toEqual([expect.objectContaining({ messageId: streamId })])
-    expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+    expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBeNull()
 
     const reconnect = await streamGET(
-      new NextRequest(`http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=0`),
+      new NextRequest(
+        `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=0`
+      ),
       { params: Promise.resolve({}) }
     )
     const replayed = dataFrames(await reconnect.text())
@@ -633,7 +623,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     })
     expect(recovered?.status).toBe('error')
     expect(worker.runs).toHaveLength(1)
-    expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+    expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBeNull()
 
     const [controllerRun] = worker.runs
     expect(controllerRun.dispatched).toEqual([])
@@ -660,18 +650,20 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       const successorToken = `successor\n${generateId()}`
       const { streamId, runId, frames } = await runTurn([
         async () => {
-          await redis().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
+          await getRedisClient().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
         },
         step,
       ])
 
       expect(frames.map((frame) => frame.type)).toEqual(['session'])
-      expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
-      expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
+      expect(await getRedisClient().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(
+        300
+      )
+      expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBe(successorToken)
       const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
       expect(stored.status).toBe('active')
       expect(worker.abortRequests).toEqual([])
-      await redis().del(chatStreamLockKey(chatId))
+      await getRedisClient().del(chatStreamLockKey(chatId))
     }
   )
 
@@ -681,7 +673,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       [
         async () => {
           // A corrupt buffer key makes the next append fail while the lease is still held.
-          await redis().set(eventsKey, 'corrupt', 'EX', 3600)
+          await getRedisClient().set(eventsKey, 'corrupt', 'EX', 3600)
         },
         toolCall('call-unsaved', 'cli_blocks_get', { command: 'blocks get' }),
       ],
@@ -691,7 +683,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     )
 
     expect(frames.map((frame) => frame.type)).toEqual(['session'])
-    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
+    expect(await getRedisClient().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('active')
     expect(worker.abortRequests).toEqual([])
@@ -720,7 +712,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       [
         async () => {
           // A corrupt buffer key makes the terminal append fail while the lease is held.
-          await redis().set(eventsKey, 'corrupt', 'EX', 3600)
+          await getRedisClient().set(eventsKey, 'corrupt', 'EX', 3600)
         },
       ],
       async (id) => {
@@ -730,7 +722,9 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
 
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('complete')
-    expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeLessThanOrEqual(300)
+    expect(await getRedisClient().ttl(`mothership_stream:${streamId}:events`)).toBeLessThanOrEqual(
+      300
+    )
   })
 
   it('completes a turn that previews a file larger than one replay write', async () => {
@@ -819,9 +813,9 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       id: streamId,
       userId,
     })
-    expect(Number(await redis().get(ownerBudgetKey))).toBe(retainedBytes)
+    expect(Number(await getRedisClient().get(ownerBudgetKey))).toBe(retainedBytes)
     expect(retainedBytes).toBeLessThan(maxOwnerBytes)
-    expect(Number(await redis().get(userBudgetKey))).toBeLessThan(maxUserBytes)
+    expect(Number(await getRedisClient().get(userBudgetKey))).toBeLessThan(maxUserBytes)
 
     const seqs = members.map((member) => JSON.parse(member).seq as number)
     const oldestSeq = seqs[0]
@@ -834,7 +828,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         await (
           await streamGET(
             new NextRequest(
-              `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}`
+              `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=${after}`
             ),
             { params: Promise.resolve({}) }
           )
@@ -866,6 +860,30 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       { streamId, chatId, userId },
     ])
   }, 180_000)
+
+  it("is not refused for bytes the user's workflow runs hold", async () => {
+    const [, executionUserKey] = getRedisBudgetKeys({
+      kind: 'execution',
+      id: generateId(),
+      userId,
+    })
+    await getRedisClient().set(
+      executionUserKey,
+      getRedisBudgetLimits('execution').maxUserBytes,
+      'EX',
+      300
+    )
+    try {
+      const { runId, frames } = await runTurn([text('The digest is ready.')])
+
+      expect(frames.map((frame) => frame.type)).not.toContain('error')
+      expect(frames.at(-1)).toMatchObject({ type: 'complete', payload: { status: 'complete' } })
+      const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
+      expect(stored.status).toBe('complete')
+    } finally {
+      await getRedisClient().del(executionUserKey)
+    }
+  })
 
   /**
    * An unfinished run with no live controller whose ring a byte trim has advanced past
@@ -916,7 +934,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
       { streamId }
     )
     expect(persisted).toEqual({ persisted: true })
-    await redis().zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
+    await getRedisClient().zremrangebyrank(`mothership_stream:${streamId}:events`, 0, 1)
     worker.runs.length = 0
     worker.script = []
     return streamId
@@ -925,7 +943,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   const resume = async (streamId: string, query: string) =>
     streamGET(
       new NextRequest(
-        `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&${query}`
+        `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&${query}`
       ),
       { params: Promise.resolve({}) }
     )
@@ -933,7 +951,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   describe('when a byte trim has removed the head of an unfinished turn', () => {
     afterAll(async () => {
       await db.update(copilotChats).set({ conversationId: null }).where(eq(copilotChats.id, chatId))
-      await redis().del(chatStreamLockKey(chatId))
+      await getRedisClient().del(chatStreamLockKey(chatId))
     })
 
     it.each(['after=4', 'after=0'])(
@@ -1040,7 +1058,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
   it("leaves its successor's stream untouched when the lease is lost while ending a refused turn", async () => {
     const successorToken = `successor\n${generateId()}`
     worker.hooks.onAbort = async () => {
-      await redis().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
+      await getRedisClient().set(chatStreamLockKey(chatId), successorToken, 'EX', 60)
     }
     try {
       const { streamId, frames } = await runTurn(
@@ -1048,16 +1066,18 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
         async (streamId) => {
           const { maxOwnerBytes } = getRedisBudgetLimits('copilot_stream')
           const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
-          await redis().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
+          await getRedisClient().set(ownerBudgetKey, String(maxOwnerBytes - 512), 'EX', 3600)
         }
       )
 
       expect(frames.map((frame) => frame.type)).toEqual(['session', 'error', 'complete'])
-      expect(await redis().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(300)
-      expect(await redis().get(chatStreamLockKey(chatId))).toBe(successorToken)
+      expect(await getRedisClient().ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(
+        300
+      )
+      expect(await getRedisClient().get(chatStreamLockKey(chatId))).toBe(successorToken)
     } finally {
       worker.hooks.onAbort = undefined
-      await redis().del(chatStreamLockKey(chatId))
+      await getRedisClient().del(chatStreamLockKey(chatId))
     }
   })
 
@@ -1097,9 +1117,9 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     const controllerToken = `owner\n${generateId()}`
     const { streamId, runId } = await pausedRun(controllerToken)
     const lease = { key: chatStreamLockKey(generateId()), value: controllerToken }
-    await redis().set(lease.key, lease.value, 'EX', 60)
+    await getRedisClient().set(lease.key, lease.value, 'EX', 60)
     /** A corrupt buffer key makes every append fail while the lease is still held. */
-    await redis().set(`mothership_stream:${streamId}:events`, 'not a sorted set', 'EX', 60)
+    await getRedisClient().set(`mothership_stream:${streamId}:events`, 'not a sorted set', 'EX', 60)
     const publisher = new StreamWriter({ streamId, requestId: generateId(), lease })
 
     const failure = await finalizeAsError(publisher, runId).catch((error: unknown) => error)
@@ -1108,7 +1128,7 @@ describe.runIf(Boolean(redisUrl))('a turn whose stream exhausts its replay budge
     expect(failure).not.toBeInstanceOf(StreamControllerSupersededError)
     const [stored] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId))
     expect(stored.status).toBe('error')
-    await redis().del(lease.key)
+    await getRedisClient().del(lease.key)
   })
 
   it('leaves its run for a successor when it lost the lease while publishing', async () => {

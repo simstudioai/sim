@@ -359,5 +359,7 @@ export function addOperationOptions(
         ? 'Confirm this operation (required unless --dry-run)'
         : 'Confirm this operation (required)'
     )
+  } else if (commandSpec.acceptsYes) {
+    command.option('-y, --yes', 'Accepted and ignored: this command needs no confirmation')
   }
 }

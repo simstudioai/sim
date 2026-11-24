@@ -21,7 +21,7 @@ function redirectParts(response: Response): { destination: URL; callback: URL } 
 
 describe('OAuth login bridge', () => {
   beforeEach(() => {
-    setEnvFlags({ isAuthDisabled: false, isRegistrationDisabled: false })
+    setEnvFlags({ isAuthDisabled: false })
     setEnv({ NEXT_PUBLIC_APP_URL: 'https://sim.test' })
   })
 

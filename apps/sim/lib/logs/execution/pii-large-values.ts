@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { env, envNumber } from '@/lib/core/config/env'
 import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import {
   appendLargeArrayManifest,
@@ -156,7 +156,7 @@ async function redactValueRefs(
  * Multiplies with the mask-batch chunk concurrency for total in-flight Presidio
  * load, which the load-balanced fleet behind the internal ALB absorbs.
  */
-const REF_CONCURRENCY = env.PII_REF_CONCURRENCY ?? 4
+const REF_CONCURRENCY = envNumber(env.PII_REF_CONCURRENCY, 4, { min: 1, integer: true })
 
 /**
  * A single ref past the default inline ceiling hydrates its whole blob at once

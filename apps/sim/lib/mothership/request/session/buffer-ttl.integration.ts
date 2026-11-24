@@ -5,13 +5,9 @@
  */
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
-  process.env.REDIS_URL = url
+vi.hoisted(() => {
   /** Shorter than the lock heartbeat that refreshes a live buffer. */
   process.env.COPILOT_STREAM_TTL_SECONDS = '5'
-  return { redisUrl: url }
 })
 
 import { sleep } from '@sim/utils/helpers'
@@ -50,7 +46,7 @@ async function appendText(streamId: string, text: string): Promise<number> {
   return seq
 }
 
-describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
+describe('replay buffer lifetime', () => {
   afterAll(async () => {
     await closeRedisConnection()
   })
@@ -61,7 +57,7 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     expect(await acquirePendingChatStream(chatId, streamId, 0)).toBe(true)
     await appendText(streamId, 'before the park')
     const [ownerBudgetKey] = getRedisBudgetKeys({ kind: 'copilot_stream', id: streamId })
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
     const chargedBytes = await redis.get(ownerBudgetKey)
     /** Shortening every TTL to 5 s stands in for a park longer than each; the park outlasts it twice. */
     for (const key of [
@@ -96,7 +92,7 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
     const streamId = generateId()
     await appendText(streamId, 'live')
 
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
     expect(await redis.ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThanOrEqual(55)
     expect(await redis.ttl(`mothership_stream:${streamId}:seq`)).toBeGreaterThanOrEqual(55)
   })
@@ -108,7 +104,7 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
 
     await refreshBufferTtl(streamId)
 
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
     expect(await redis.ttl(`mothership_stream:${streamId}:events`)).toBeGreaterThan(250)
     expect(await redis.ttl(`mothership_stream:${streamId}:seq`)).toBeGreaterThan(250)
   })
@@ -116,7 +112,7 @@ describe.runIf(Boolean(redisUrl))('replay buffer lifetime', () => {
   it('reports a gap to a cursor ahead of a buffer whose numbering restarted', async () => {
     const streamId = generateId()
     for (let index = 0; index < 5; index++) await appendText(streamId, `part ${index}`)
-    const redis = getRedisClient()!
+    const redis = getRedisClient()
     await redis.del(`mothership_stream:${streamId}:events`, `mothership_stream:${streamId}:seq`)
     await appendText(streamId, 'after expiry')
 

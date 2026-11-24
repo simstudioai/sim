@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { sanitizeForJsonb } from '@sim/utils/string'
 import type { GuardrailsMaskBatchResult } from '@/lib/api/contracts'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { env, envNumber } from '@/lib/core/config/env'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { chunkIndicesByBudget } from '@/lib/guardrails/pii-batching'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
@@ -23,7 +23,7 @@ const logger = createLogger('PiiMaskClient')
  * (scaled) Presidio service is expected to eventually respond; an unreachable
  * service still rejects fast (connection refused) so the caller scrubs.
  */
-const CHUNK_CONCURRENCY = env.PII_MASK_CHUNK_CONCURRENCY ?? 64
+const CHUNK_CONCURRENCY = envNumber(env.PII_MASK_CHUNK_CONCURRENCY, 64, { min: 1, integer: true })
 
 /**
  * Attempts per chunk for transient failures (network errors, timeouts, and the

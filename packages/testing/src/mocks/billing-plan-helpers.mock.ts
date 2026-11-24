@@ -1,15 +1,15 @@
 import { vi } from 'vitest'
+import { getPlanWeeklyRefreshDollars, isPaid } from './billing-plan-logic'
 
 type Plan = string | null | undefined
 type PlanCategory = 'free' | 'pro' | 'team' | 'enterprise'
 
 /** Mirrors `CREDIT_TIERS` in `@/lib/billing/constants`. */
 const CREDIT_TIERS = [
-  { credits: 6000, dollars: 25, weeklyRefreshCredits: 2000, name: 'Pro' },
-  { credits: 25000, dollars: 100, weeklyRefreshCredits: 4000, name: 'Max' },
+  { credits: 6000, dollars: 25, name: 'Pro' },
+  { credits: 25000, dollars: 100, name: 'Max' },
 ] as const
 const MAX_TIER_CREDITS = 25000
-const CREDITS_PER_DOLLAR = 200
 const DEFAULT_PRO_TIER_COST_LIMIT = 20
 const DEFAULT_TEAM_TIER_COST_LIMIT = 40
 
@@ -33,10 +33,6 @@ function isEnterprise(plan: Plan): boolean {
 
 function isLegacyPlan(plan: Plan): boolean {
   return plan === 'pro' || plan === 'team'
-}
-
-function isPaid(plan: Plan): boolean {
-  return isPro(plan) || isTeam(plan) || isEnterprise(plan)
 }
 
 function isOrgPlan(plan: Plan): boolean {
@@ -64,12 +60,6 @@ function getPlanTierDollars(plan: Plan): number {
   if (plan === 'pro') return DEFAULT_PRO_TIER_COST_LIMIT
   if (plan === 'team') return DEFAULT_TEAM_TIER_COST_LIMIT
   return 0
-}
-
-function getPlanWeeklyRefreshDollars(plan: Plan): number {
-  if (!isPaid(plan) || isEnterprise(plan)) return 0
-  const tier = getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? CREDIT_TIERS[1] : CREDIT_TIERS[0]
-  return tier.weeklyRefreshCredits / CREDITS_PER_DOLLAR
 }
 
 function getPlanType(plan: Plan): PlanCategory {

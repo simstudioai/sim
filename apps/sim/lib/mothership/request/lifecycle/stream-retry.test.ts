@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
 import {
   BillingLimitError,
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
   WorkerStreamInterruptedError,
   WorkerUnreachableError,
-} from '@/lib/mothership/request/go/stream'
-import { StreamRetryWindow } from '@/lib/mothership/request/lifecycle/stream-retry'
+} from '@/lib/mothership/request/worker/stream'
 
 afterEach(() => vi.useRealTimers())
 

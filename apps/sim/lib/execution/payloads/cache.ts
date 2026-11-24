@@ -185,7 +185,8 @@ export function materializeLargeValueRefSync(
 ): unknown {
   cleanupExpiredValues()
   const cached = inMemoryValues.get(ref.id)
-  if (!cached || !scopeMatchesRef(ref, cached.scope, callerScope)) {
+  // Callers admit reads by the declared size, so never serve a value larger than the ref claims.
+  if (!cached || cached.size > ref.size || !scopeMatchesRef(ref, cached.scope, callerScope)) {
     return undefined
   }
   // Idle-TTL touch on every authorized read: refresh expiry and move the entry

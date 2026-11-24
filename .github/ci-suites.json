@@ -25,6 +25,10 @@
       "task": "ci:e2e-organization-search"
     },
     {
+      "group": "search-permissions",
+      "task": "ci:e2e-search-permissions"
+    },
+    {
       "group": "browser-extension-navigation",
       "task": "ci:e2e-browser-extension"
     },
@@ -47,6 +51,10 @@
     {
       "group": "markdown-viewer",
       "task": "ci:e2e-markdown-viewer"
+    },
+    {
+      "group": "workflow-code-ui",
+      "task": "ci:e2e-workflow-code-ui"
     }
   ],
   "production": [

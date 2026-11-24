@@ -86,6 +86,11 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content",
+    "operation": "knowledge.documents.read"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/knowledge/[knowledgeBaseId]/export",
     "operation": "knowledge.export"
   },

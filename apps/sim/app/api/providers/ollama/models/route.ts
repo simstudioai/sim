@@ -5,10 +5,9 @@ import {
   ollamaUpstreamResponseSchema,
   providerModelsResponseSchema,
 } from '@/lib/api/contracts/providers'
-import { isHosted } from '@/lib/core/config/env-flags'
-import { getOllamaUrl, isOllamaUrlConfigured } from '@/lib/core/utils/urls'
+import { getOllamaUrl, isOllamaAvailable } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
+import { filterBlacklistedModels } from '@/providers/utils'
 
 const logger = createLogger('OllamaModelsAPI')
 const OLLAMA_HOST = getOllamaUrl()
@@ -17,23 +16,16 @@ const OLLAMA_HOST = getOllamaUrl()
  * Get available Ollama models
  */
 export const GET = withRouteHandler(async (_request: NextRequest) => {
-  if (isProviderBlacklisted('ollama')) {
-    logger.info('Ollama provider is blacklisted, returning empty models')
-    return NextResponse.json({ models: [] })
-  }
-
   /**
-   * Ollama runs alongside the app it serves, so the hosted platform never has one
-   * and `OLLAMA_URL`'s loopback default cannot answer there. Skip the probe rather
-   * than dial an address known to refuse on every poll.
-   *
-   * Only the unconfigured default is skipped: an explicit `OLLAMA_URL` states an
-   * intent to reach a real server and is still honoured. Self-hosted deployments
-   * are untouched either way, including the localhost default that needs no
-   * configuration to work.
+   * Ollama runs alongside the app it serves, so the hosted platform never has one and
+   * `OLLAMA_URL`'s loopback default cannot answer there: skip the probe rather than dial an
+   * address known to refuse on every poll. An explicit `OLLAMA_URL` is still honoured, and
+   * self-hosted deployments probe the localhost default that needs no configuration.
    */
-  if (isHosted && !isOllamaUrlConfigured()) {
-    logger.info('Ollama is not available on the hosted platform, returning empty models')
+  if (!isOllamaAvailable()) {
+    logger.info(
+      'Ollama is blacklisted or not configured on this deployment, returning empty models'
+    )
     return NextResponse.json({ models: [] })
   }
 

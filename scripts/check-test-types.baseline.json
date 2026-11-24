@@ -57,9 +57,6 @@
   "apps/sim/app/api/billing/switch-plan/route.test.ts": {
     "TS2554": 1
   },
-  "apps/sim/app/api/billing/update-cost/replay.live.test.ts": {
-    "TS2554": 1
-  },
   "apps/sim/app/api/billing/update-cost/route.test.ts": {
     "TS2554": 50
   },
@@ -89,12 +86,6 @@
   },
   "apps/sim/app/api/copilot/api-keys/validate/route.test.ts": {
     "TS2554": 52
-  },
-  "apps/sim/app/api/copilot/chat/stop/route.test.ts": {
-    "TS18046": 2,
-    "TS2345": 1,
-    "TS2554": 1,
-    "TS2571": 2
   },
   "apps/sim/app/api/copilot/feedback/route.test.ts": {
     "TS2554": 1
@@ -208,6 +199,12 @@
   },
   "apps/sim/app/api/mcp/servers/test-connection/route.test.ts": {
     "TS2554": 5
+  },
+  "apps/sim/app/api/mothership/chat/stop/route.test.ts": {
+    "TS18046": 2,
+    "TS2345": 1,
+    "TS2554": 1,
+    "TS2571": 2
   },
   "apps/sim/app/api/mothership/chats/[chatId]/fork/route.test.ts": {
     "TS2488": 1,
@@ -525,7 +522,6 @@
   "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
     "TS2304": 1,
     "TS2322": 4,
-    "TS2353": 1,
     "TS2550": 1
   },
   "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form.test.tsx": {
@@ -1094,16 +1090,13 @@
   "apps/sim/lib/core/rate-limiter/hosted-key/rate-limiter.test.ts": {
     "TS2352": 1
   },
-  "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": {
-    "TS2345": 1
-  },
   "apps/sim/lib/core/rate-limiter/rate-limiter.test.ts": {
     "TS2307": 4,
     "TS2352": 1,
     "TS2664": 2
   },
   "apps/sim/lib/core/rate-limiter/storage/factory.test.ts": {
-    "TS2345": 2
+    "TS2345": 1
   },
   "apps/sim/lib/core/security/encryption.test.ts": {
     "TS2352": 2
@@ -1869,9 +1862,6 @@
   "apps/sim/lib/mothership/request/context/result.test.ts": {
     "TS2739": 1
   },
-  "apps/sim/lib/mothership/request/go/file-preview-adapter.test.ts": {
-    "TS2322": 1
-  },
   "apps/sim/lib/mothership/request/handlers/handlers.test.ts": {
     "TS2339": 1
   },
@@ -1907,6 +1897,9 @@
     "TS2345": 2
   },
   "apps/sim/lib/mothership/request/tools/workflow-context.test.ts": {
+    "TS2322": 1
+  },
+  "apps/sim/lib/mothership/request/worker/file-preview-adapter.test.ts": {
     "TS2322": 1
   },
   "apps/sim/lib/mothership/resources/search.test.ts": {
@@ -2060,9 +2053,6 @@
     "TS2502": 1
   },
   "apps/sim/lib/table/dispatcher.test.ts": {
-    "TS2322": 1
-  },
-  "apps/sim/lib/table/events.test.ts": {
     "TS2322": 1
   },
   "apps/sim/lib/table/jobs/service.test.ts": {
@@ -2288,9 +2278,6 @@
   },
   "apps/sim/lib/workflows/dynamic-handle-topology.test.ts": {
     "TS2352": 1
-  },
-  "apps/sim/lib/workflows/editing/operations.test.ts": {
-    "TS2353": 1
   },
   "apps/sim/lib/workflows/editing/validation.test.ts": {
     "TS2322": 1

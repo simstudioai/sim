@@ -89,8 +89,8 @@ const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
 /**
  * Keys no row collected here may name: Project prefix cleanup, the Assistant upload-session
  * sweep, organization logos, and profile pictures — which account deletion takes only from the
- * account's own `user.image` (see {@link extractProfilePictureKey}), because whitelabel logos were
- * once uploaded as `profile-pictures` rows under an admin's account.
+ * account's own `user.image` (see {@link extractProfilePictureKey}), because organization branding
+ * logos were once uploaded as `profile-pictures` rows under an admin's account.
  */
 const FOREIGN_LIFECYCLE_ROOTS = [
   'project/',

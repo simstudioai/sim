@@ -27,4 +27,28 @@ describe('llmChatTool.operation', () => {
     expect(input.apiKey).toBe('credential')
     expect(params.context).toBe('secret-value')
   })
+
+  it('refuses sim-auto, which only the model router resolves, rather than calling Ollama', () => {
+    expect(() =>
+      llmChatTool.operation.input({
+        model: 'sim-auto',
+        systemPrompt: 'Translate to French',
+        context: 'hello',
+      })
+    ).toThrow('sim-auto has no provider until the model router resolves it')
+  })
+
+  it.each(['gpt-oss:20b', 'mistral:latest', 'claude-local:7b', 'gemini-tuned/chat:q4_k_m'])(
+    'sends a locally installed Ollama model that shares a cloud prefix to Ollama: %s',
+    (model) => {
+      const input = llmChatTool.operation.input({
+        model,
+        systemPrompt: 'Translate to French',
+        context: 'hello',
+      }) as Record<string, unknown>
+
+      expect(input.provider).toBe('ollama')
+      expect(input.model).toBe(model)
+    }
+  )
 })

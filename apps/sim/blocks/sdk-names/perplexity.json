@@ -1,0 +1,7 @@
+{
+  "namespace": "perplexity",
+  "methods": {
+    "perplexity_chat": "chat",
+    "perplexity_search": "search"
+  }
+}

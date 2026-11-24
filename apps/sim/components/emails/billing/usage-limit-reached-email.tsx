@@ -2,7 +2,6 @@ import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface UsageLimitReachedEmailProps {
   userName?: string
@@ -12,6 +11,39 @@ interface UsageLimitReachedEmailProps {
   currentUsage: number
   limit: number
   ctaLink: string
+  /** Set during a free trial, whose allowance is fixed until the trial ends on this date. */
+  trialEndsOn?: string
+}
+
+const PAUSED_PRODUCTS = 'Workflow runs, knowledge base search, document uploads, and Chat'
+
+/** The email's wording: a trial waits for its end date, other plans raise the limit. */
+function getLimitReachedCopy(
+  planName: string,
+  scope: 'user' | 'organization',
+  trialEndsOn: string | undefined
+): { preview: string; status: string; remedy?: string; action: string } {
+  if (trialEndsOn) {
+    return {
+      preview: `Sim: You've used your ${planName} trial credits`,
+      status: `You've used the credits included in your ${planName} free trial. ${PAUSED_PRODUCTS} are paused until your trial ends on ${trialEndsOn}, when your full ${planName} allowance starts.`,
+      action: 'View Billing',
+    }
+  }
+  if (scope === 'organization') {
+    return {
+      preview: `Sim: You've reached your ${planName} usage limit`,
+      status: `Your organization has reached its monthly usage limit on the ${planName} plan. ${PAUSED_PRODUCTS} are paused until the limit goes up.`,
+      remedy: 'Raise the organization usage limit in billing settings to resume.',
+      action: 'Raise Organization Limit',
+    }
+  }
+  return {
+    preview: `Sim: You've reached your ${planName} usage limit`,
+    status: `You've reached your monthly usage limit on the ${planName} plan. ${PAUSED_PRODUCTS} are paused until the limit goes up.`,
+    remedy: 'Raise your usage limit in billing settings, or upgrade your plan, to resume.',
+    action: 'Raise Usage Limit',
+  }
 }
 
 /**
@@ -26,22 +58,15 @@ export function UsageLimitReachedEmail({
   currentUsage,
   limit,
   ctaLink,
+  trialEndsOn,
 }: UsageLimitReachedEmailProps) {
-  const brand = getBrandConfig()
-  const isOrganization = scope === 'organization'
-  const previewText = `${brand.name}: You've reached your ${planName} usage limit`
+  const copy = getLimitReachedCopy(planName, scope, trialEndsOn)
 
   return (
-    <EmailLayout preview={previewText} showUnsubscribe={true}>
+    <EmailLayout preview={copy.preview} showUnsubscribe={true}>
       <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
-      <Text style={baseStyles.paragraph}>
-        {isOrganization
-          ? `Your organization has reached its monthly usage limit on the ${planName} plan.`
-          : `You've reached your monthly usage limit on the ${planName} plan.`}{' '}
-        Workflow runs, knowledge base search, document uploads, and Chat are paused until the limit
-        goes up.
-      </Text>
+      <Text style={baseStyles.paragraph}>{copy.status}</Text>
 
       <Section style={baseStyles.infoBox}>
         <Text style={baseStyles.infoBoxTitle}>Usage</Text>
@@ -51,15 +76,9 @@ export function UsageLimitReachedEmail({
         </Text>
       </Section>
 
-      <Text style={baseStyles.paragraph}>
-        {isOrganization
-          ? 'Raise the organization usage limit in billing settings to resume.'
-          : 'Raise your usage limit in billing settings, or upgrade your plan, to resume.'}
-      </Text>
+      {copy.remedy && <Text style={baseStyles.paragraph}>{copy.remedy}</Text>}
 
-      <EmailButton href={ctaLink}>
-        {isOrganization ? 'Raise Organization Limit' : 'Raise Usage Limit'}
-      </EmailButton>
+      <EmailButton href={ctaLink}>{copy.action}</EmailButton>
 
       <div style={baseStyles.divider} />
 

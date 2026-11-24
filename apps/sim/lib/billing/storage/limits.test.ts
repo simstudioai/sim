@@ -84,6 +84,7 @@ describe('storage limits and quota', () => {
       currentUsage: 0,
       error: 'Failed to check storage quota',
       limit: 0,
+      unavailable: true,
     }
 
     mockGetHighestPrioritySubscription.mockRejectedValueOnce(new Error('subscription unavailable'))

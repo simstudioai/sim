@@ -62,8 +62,8 @@ return "waiting"
 export interface EnqueueResult {
   /** Position at the moment of enqueue (0 = head, you go next). */
   position: number
-  /** Whether Redis was available — false means we're in no-op mode. */
-  enabled: boolean
+  /** Whether the ticket was enqueued — false means the enqueue failed and the queue is skipped. */
+  enqueued: boolean
 }
 
 /**
@@ -73,7 +73,7 @@ export interface EnqueueResult {
  * the head, then attempt to consume from the token bucket. On success or cap
  * exceeded, they `dequeue` to make room for the next caller.
  *
- * No-op when Redis is unavailable: every method returns "you're the head /
+ * Fails open when a Redis call fails: the method returns "you're the head /
  * empty / etc." so the rate limiter falls back to plain bucket racing.
  */
 export class HostedKeyQueue {
@@ -86,15 +86,11 @@ export class HostedKeyQueue {
     billingActorId: string,
     ticketId: string
   ): Promise<EnqueueResult> {
-    const redis = getRedisClient()
-    if (!redis) {
-      return { position: 0, enabled: false }
-    }
-
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
 
     try {
+      const redis = getRedisClient()
       const pipeline = redis.multi()
       pipeline.rpush(listKey, ticketId)
       pipeline.expire(listKey, QUEUE_LIST_TTL_SECONDS)
@@ -103,10 +99,10 @@ export class HostedKeyQueue {
       // results[0] is the rpush response: [err, length]
       const length = results?.[0] && typeof results[0][1] === 'number' ? results[0][1] : 1
       // Position is length - 1 (just-pushed at the tail).
-      return { position: length - 1, enabled: true }
+      return { position: length - 1, enqueued: true }
     } catch (error) {
       logger.warn(`Queue enqueue failed for ${listKey}`, { error: toError(error).message })
-      return { position: 0, enabled: false }
+      return { position: 0, enqueued: false }
     }
   }
 
@@ -119,22 +115,18 @@ export class HostedKeyQueue {
    *  - "head": you're at the head, proceed to consume from the bucket
    *  - "waiting": someone else is the head and they're alive
    *  - "missing": your ticket isn't in the queue at all (e.g. queue list TTL
-   *    expired); caller should re-enqueue or treat as enabled=false
+   *    expired); caller should re-enqueue or treat as enqueued=false
    */
   async checkHead(
     provider: string,
     billingActorId: string,
     ticketId: string
   ): Promise<'head' | 'waiting' | 'missing'> {
-    const redis = getRedisClient()
-    if (!redis) {
-      return 'head'
-    }
-
     const listKey = queueListKey(provider, billingActorId)
     const hbPrefix = `hosted-queue-tkt:${provider}:${billingActorId}:`
 
     try {
+      const redis = getRedisClient()
       const result = (await redis.eval(CHECK_HEAD_SCRIPT, 1, listKey, hbPrefix, ticketId)) as
         | 'head'
         | 'waiting'
@@ -157,12 +149,10 @@ export class HostedKeyQueue {
     billingActorId: string,
     ticketId: string
   ): Promise<void> {
-    const redis = getRedisClient()
-    if (!redis) return
-
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
     try {
+      const redis = getRedisClient()
       const pipeline = redis.multi()
       pipeline.set(hbKey, '1', 'EX', TICKET_HEARTBEAT_TTL_SECONDS)
       pipeline.expire(listKey, QUEUE_LIST_TTL_SECONDS)
@@ -179,12 +169,10 @@ export class HostedKeyQueue {
    * call multiple times. LREM count=1 removes at most one matching entry.
    */
   async dequeue(provider: string, billingActorId: string, ticketId: string): Promise<void> {
-    const redis = getRedisClient()
-    if (!redis) return
-
     const listKey = queueListKey(provider, billingActorId)
     const hbKey = heartbeatKey(provider, billingActorId, ticketId)
     try {
+      const redis = getRedisClient()
       const pipeline = redis.multi()
       pipeline.lrem(listKey, 1, ticketId)
       pipeline.del(hbKey)

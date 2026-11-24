@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import {
   buildCanonicalIndexForSurface,
   resolveDependencyValue,

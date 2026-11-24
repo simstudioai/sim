@@ -118,7 +118,7 @@ export type AbortProjectFileUploadParams = {
   uploadId: string
 }
 
-export type AbortProjectFileUploadQuery = Record<string, unknown>
+export type AbortProjectFileUploadQuery = Record<string, never>
 
 export type AbortProjectFileUploadHeaders = {
   'upload-token': string
@@ -171,9 +171,9 @@ export type ActivateWorkflowVersionParams = {
   workflowId: string
 }
 
-export type ActivateWorkflowVersionQuery = Record<string, unknown>
+export type ActivateWorkflowVersionQuery = Record<string, never>
 
-export type ActivateWorkflowVersionBody = Record<string, unknown>
+export type ActivateWorkflowVersionBody = Record<string, never>
 
 type ActivateWorkflowVersionResponseRef0 = {
   deploymentVersionId: string
@@ -227,7 +227,7 @@ export type AddOrganizationDomainParams = {
   organizationId: string
 }
 
-export type AddOrganizationDomainQuery = Record<string, unknown>
+export type AddOrganizationDomainQuery = Record<string, never>
 
 export type AddOrganizationDomainBody = {
   domain: string
@@ -250,7 +250,7 @@ export type AddPermissionGroupMemberParams = {
   groupId: string
 }
 
-export type AddPermissionGroupMemberQuery = Record<string, unknown>
+export type AddPermissionGroupMemberQuery = Record<string, never>
 
 export type AddPermissionGroupMemberBody = {
   userId: string
@@ -274,7 +274,7 @@ export type AddTableColumnParams = {
   tableId: string
 }
 
-export type AddTableColumnQuery = Record<string, unknown>
+export type AddTableColumnQuery = Record<string, never>
 
 export type AddTableColumnBody = {
   workspaceId: string
@@ -320,7 +320,7 @@ export type AddWorkflowGroupParams = {
   tableId: string
 }
 
-export type AddWorkflowGroupQuery = Record<string, unknown>
+export type AddWorkflowGroupQuery = Record<string, never>
 
 export type AddWorkflowGroupBody = {
   workspaceId: string
@@ -405,7 +405,7 @@ export type AddWorkspaceFilesToKnowledgeBaseParams = {
   knowledgeBaseId: string
 }
 
-export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, unknown>
+export type AddWorkspaceFilesToKnowledgeBaseQuery = Record<string, never>
 
 export type AddWorkspaceFilesToKnowledgeBaseBody = {
   workspaceId: string
@@ -447,7 +447,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         name: string
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       }
     }
   | {
@@ -456,7 +458,9 @@ type ApplyWorkflowOperationsBodyRef0 =
       params: {
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       } & Record<string, unknown>
     }
   | {
@@ -472,7 +476,9 @@ type ApplyWorkflowOperationsBodyRef0 =
         name: string
         inputs?: {
           tools?: ApplyWorkflowOperationsBodyRef1
+          [key: string]: unknown
         } & Record<string, unknown>
+        [key: string]: unknown
       }
     }
   | {
@@ -480,6 +486,7 @@ type ApplyWorkflowOperationsBodyRef0 =
       block_id: string
       params: {
         subflowId: string
+        [key: string]: unknown
       }
     }
 
@@ -497,6 +504,7 @@ type ApplyWorkflowOperationsBodyRef3 = {
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
   params?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 type ApplyWorkflowOperationsBodyRef4 =
@@ -505,6 +513,7 @@ type ApplyWorkflowOperationsBodyRef4 =
       customToolId: string
       usageControl?: 'auto' | 'force' | 'none'
       usageControlExpression?: string
+      [key: string]: unknown
     }
   | {
       type: 'custom-tool'
@@ -514,11 +523,14 @@ type ApplyWorkflowOperationsBodyRef4 =
           name: string
           description?: string
           parameters: Record<string, unknown>
+          [key: string]: unknown
         }
+        [key: string]: unknown
       }
       code: string
       usageControl?: 'auto' | 'force' | 'none'
       usageControlExpression?: string
+      [key: string]: unknown
     }
 
 type ApplyWorkflowOperationsBodyRef5 = {
@@ -526,9 +538,11 @@ type ApplyWorkflowOperationsBodyRef5 = {
   params: {
     serverId: string
     toolName: string
+    [key: string]: unknown
   } & Record<string, unknown>
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
+  [key: string]: unknown
 }
 
 type ApplyWorkflowOperationsBodyRef6 = {
@@ -550,6 +564,7 @@ type ApplyWorkflowOperationsBodyRef6 = {
   }
   usageControl?: 'auto' | 'force' | 'none'
   usageControlExpression?: string
+  [key: string]: unknown
 }
 
 export type ApplyWorkflowOperationsBody = {
@@ -575,6 +590,7 @@ type ApplyWorkflowOperationsResponseRef0 = {
     | 'invalid_edge_scope'
     | 'invalid_source_handle'
     | 'invalid_target_handle'
+    | 'edge_cycle'
     | 'invalid_subblock_field'
     | 'missing_required_params'
     | 'invalid_subflow_parent'
@@ -653,7 +669,14 @@ type ApplyWorkflowOperationsResponseRef2 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -691,12 +714,343 @@ export type ApplyWorkflowOperationsResponse = {
   data: ApplyWorkflowOperationsResponseRef3
 }
 
+/** `POST /api/v2/workflows/[workflowId]/source` */
+export type ApplyWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type ApplyWorkflowSourceQuery = {
+  dryRun?: boolean
+  allowDelete?: boolean
+}
+
+export type ApplyWorkflowSourceBody = {
+  files: Record<string, string>
+  lock: {
+    version: 1
+    blocks: Record<
+      string,
+      {
+        id: string
+        parent: string | null
+        branches?: Record<string, string>
+        items?: Record<
+          string,
+          Array<{
+            name: string
+            id: string
+          }>
+        >
+        ident: string
+        order: number
+        layout?: {
+          x: number
+          y: number
+          w?: number
+          h?: number
+          height?: number
+          horizontalHandles?: boolean
+          [key: string]: unknown
+        }
+        codeFile?: string
+        [key: string]: unknown
+      }
+    >
+    variables: Record<string, string>
+    [key: string]: unknown
+  }
+  base: {
+    version: 1
+    workflowId: string
+    workspaceId: string
+    fingerprint: string
+    catalogHash: string
+    [key: string]: unknown
+  }
+  provenance?: {
+    client: 'cli' | 'copilot' | 'canvas' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type ApplyWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
 /** `PATCH /api/v2/workflows/[workflowId]/variables` */
 export type ApplyWorkflowVariablesParams = {
   workflowId: string
 }
 
-export type ApplyWorkflowVariablesQuery = Record<string, unknown>
+export type ApplyWorkflowVariablesQuery = Record<string, never>
 
 export type ApplyWorkflowVariablesBody = {
   operations: Array<
@@ -729,12 +1083,730 @@ export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/source` */
+export type ApplyWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type ApplyWorkspaceSourceQuery = {
+  dryRun?: boolean
+}
+
+export type ApplyWorkspaceSourceBody = {
+  files: Record<string, string>
+  blobs?: Array<{
+    path: string
+    sha256: string
+    size: number
+  }>
+  base?: {
+    version: 1
+    workspaceId: string
+    resources: Record<
+      string,
+      {
+        id: string
+        fingerprint?: string
+        columns?: Record<
+          string,
+          {
+            id: string
+            options?: Record<string, string>
+          }
+        >
+        blobs?: Record<
+          string,
+          {
+            id: string
+            rev: string
+            sha256: string
+          }
+        >
+        rows?: {
+          fingerprint: string
+          version: number
+          [key: string]: unknown
+        }
+        [key: string]: unknown
+      }
+    >
+    [key: string]: unknown
+  }
+  kinds: Array<
+    | 'secret'
+    | 'credential'
+    | 'custom-tool'
+    | 'skill'
+    | 'mcp-server'
+    | 'table'
+    | 'knowledge-base'
+    | 'file'
+    | 'workflow'
+    | 'deployment'
+  >
+  options?: {
+    allowDelete?: boolean
+    only?: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+  }
+  provenance?: {
+    client: 'cli' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type ApplyWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    dryRun: boolean
+    plan: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    refuses?: boolean
+    applied: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    failed?: {
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      message: string
+    }
+    needBlobs: Array<string>
+    applyId?: string
+    files: Record<string, string>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `POST /api/v2/projects/[projectId]/files/archive` */
 export type ArchiveProjectFileItemsParams = {
   projectId: string
 }
 
-export type ArchiveProjectFileItemsQuery = Record<string, unknown>
+export type ArchiveProjectFileItemsQuery = Record<string, never>
 
 export type ArchiveProjectFileItemsBody = {
   fileIds?: Array<string>
@@ -760,7 +1832,7 @@ export type BulkAddPermissionGroupMembersParams = {
   groupId: string
 }
 
-export type BulkAddPermissionGroupMembersQuery = Record<string, unknown>
+export type BulkAddPermissionGroupMembersQuery = Record<string, never>
 
 export type BulkAddPermissionGroupMembersBody = {
   userIds?: Array<string>
@@ -777,7 +1849,7 @@ export type BulkAddPermissionGroupMembersResponse = {
 }
 
 /** `POST /api/v2/files/bulk-delete` */
-export type BulkDeleteFilesQuery = Record<string, unknown>
+export type BulkDeleteFilesQuery = Record<string, never>
 
 export type BulkDeleteFilesBody = {
   workspaceId: string
@@ -795,7 +1867,7 @@ export type BulkDeleteFilesResponse = {
 }
 
 /** `POST /api/v2/tables/bulk-delete` */
-export type BulkDeleteTablesQuery = Record<string, unknown>
+export type BulkDeleteTablesQuery = Record<string, never>
 
 type BulkDeleteTablesBodyRef0 = string
 
@@ -851,7 +1923,7 @@ export type BulkSaveKnowledgeTagDefinitionsParams = {
   knowledgeBaseId: string
 }
 
-export type BulkSaveKnowledgeTagDefinitionsQuery = Record<string, unknown>
+export type BulkSaveKnowledgeTagDefinitionsQuery = Record<string, never>
 
 type BulkSaveKnowledgeTagDefinitionsBodyRef0 = {
   tagSlot:
@@ -905,7 +1977,7 @@ export type BulkUpdateKnowledgeChunksParams = {
   knowledgeBaseId: string
 }
 
-export type BulkUpdateKnowledgeChunksQuery = Record<string, unknown>
+export type BulkUpdateKnowledgeChunksQuery = Record<string, never>
 
 export type BulkUpdateKnowledgeChunksBody = {
   workspaceId: string
@@ -928,7 +2000,7 @@ export type BulkUpdateKnowledgeDocumentsParams = {
   knowledgeBaseId: string
 }
 
-export type BulkUpdateKnowledgeDocumentsQuery = Record<string, unknown>
+export type BulkUpdateKnowledgeDocumentsQuery = Record<string, never>
 
 export type BulkUpdateKnowledgeDocumentsBody = {
   workspaceId: string
@@ -953,7 +2025,7 @@ export type BulkUpdateTableRowsParams = {
   tableId: string
 }
 
-export type BulkUpdateTableRowsQuery = Record<string, unknown>
+export type BulkUpdateTableRowsQuery = Record<string, never>
 
 type BulkUpdateTableRowsBodyRef0 = Record<string, unknown>
 
@@ -1018,7 +2090,7 @@ export type CancelOrganizationAccessRequestParams = {
   requestId: string
 }
 
-export type CancelOrganizationAccessRequestQuery = Record<string, unknown>
+export type CancelOrganizationAccessRequestQuery = Record<string, never>
 
 type CancelOrganizationAccessRequestResponseRef0 = {
   id: string
@@ -1248,7 +2320,7 @@ export type CancelTableRunsParams = {
   tableId: string
 }
 
-export type CancelTableRunsQuery = Record<string, unknown>
+export type CancelTableRunsQuery = Record<string, never>
 
 type CancelTableRunsBodyRef0 =
   | {
@@ -1359,7 +2431,7 @@ export type CancelWorkflowRunParams = {
   runId: string
 }
 
-export type CancelWorkflowRunQuery = Record<string, unknown>
+export type CancelWorkflowRunQuery = Record<string, never>
 
 type CancelWorkflowRunResponseRef0 = {
   success: boolean
@@ -1392,7 +2464,7 @@ export type CancelWorkspaceAccessRequestParams = {
   requestId: string
 }
 
-export type CancelWorkspaceAccessRequestQuery = Record<string, unknown>
+export type CancelWorkspaceAccessRequestQuery = Record<string, never>
 
 type CancelWorkspaceAccessRequestResponseRef0 = {
   id: string
@@ -1490,7 +2562,7 @@ export type CancelWorkspaceAccessRequestResponse = {
 }
 
 /** `POST /api/v2/chat` */
-export type ChatQuery = Record<string, unknown>
+export type ChatQuery = Record<string, never>
 
 export type ChatBody = {
   workspaceId: string
@@ -1794,7 +2866,7 @@ export type CompleteProjectFileUploadParams = {
   uploadId: string
 }
 
-export type CompleteProjectFileUploadQuery = Record<string, unknown>
+export type CompleteProjectFileUploadQuery = Record<string, never>
 
 export type CompleteProjectFileUploadHeaders = {
   'upload-token': string
@@ -1848,9 +2920,9 @@ export type CompleteSourcePermissionImportParams = {
   importId: string
 }
 
-export type CompleteSourcePermissionImportQuery = Record<string, unknown>
+export type CompleteSourcePermissionImportQuery = Record<string, never>
 
-export type CompleteSourcePermissionImportBody = Record<string, unknown>
+export type CompleteSourcePermissionImportBody = Record<string, never>
 
 export type CompleteSourcePermissionImportResponse = {
   data: {
@@ -1923,7 +2995,7 @@ export type CompleteTableImportResponse = {
 }
 
 /** `POST /api/v2/files/copy` */
-export type CopyFileItemsQuery = Record<string, unknown>
+export type CopyFileItemsQuery = Record<string, never>
 
 export type CopyFileItemsBody = {
   source: {
@@ -1984,7 +3056,7 @@ export type CopyFileItemsResponse = {
 }
 
 /** `POST /api/v2/credentials/connections` */
-export type CreateCredentialConnectionQuery = Record<string, unknown>
+export type CreateCredentialConnectionQuery = Record<string, never>
 
 export type CreateCredentialConnectionBody =
   | {
@@ -2089,7 +3161,7 @@ export type CreateCredentialConnectionResponse = {
 }
 
 /** `POST /api/v2/credentials/workload-identity/subjects` */
-export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, unknown>
+export type CreateCredentialWorkloadIdentitySubjectQuery = Record<string, never>
 
 export type CreateCredentialWorkloadIdentitySubjectBody = {
   workspaceId: string
@@ -2124,7 +3196,7 @@ export type CreateCredentialWorkloadIdentitySubjectResponse = {
 }
 
 /** `POST /api/v2/custom-tools` */
-export type CreateCustomToolQuery = Record<string, unknown>
+export type CreateCustomToolQuery = Record<string, never>
 
 export type CreateCustomToolBody = {
   workspaceId: string
@@ -2138,8 +3210,11 @@ export type CreateCustomToolBody = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
 }
@@ -2156,8 +3231,11 @@ type CreateCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -2169,7 +3247,7 @@ export type CreateCustomToolResponse = {
 }
 
 /** `POST /api/v2/files` */
-export type CreateFileQuery = Record<string, unknown>
+export type CreateFileQuery = Record<string, never>
 
 type CreateFileBodyRef0 = string
 
@@ -2202,7 +3280,7 @@ export type CreateFileResponse = {
 }
 
 /** `POST /api/v2/files/folders` */
-export type CreateFileFolderQuery = Record<string, unknown>
+export type CreateFileFolderQuery = Record<string, never>
 
 type CreateFileFolderBodyRef0 = string
 
@@ -2224,7 +3302,7 @@ export type CreateFileFolderResponse = {
 }
 
 /** `POST /api/v2/files/uploads` */
-export type CreateFileUploadQuery = Record<string, unknown>
+export type CreateFileUploadQuery = Record<string, never>
 
 type CreateFileUploadBodyRef0 = string
 
@@ -2325,7 +3403,7 @@ export type CreateFileUploadPartUrlsResponse = {
 }
 
 /** `POST /api/v2/knowledge` */
-export type CreateKnowledgeBaseQuery = Record<string, unknown>
+export type CreateKnowledgeBaseQuery = Record<string, never>
 
 type CreateKnowledgeBaseBodyRef0 = {
   maxSize?: number
@@ -2361,6 +3439,7 @@ type CreateKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type CreateKnowledgeBaseResponseRef1 = {
@@ -2391,7 +3470,7 @@ export type CreateKnowledgeChunkParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeChunkQuery = Record<string, unknown>
+export type CreateKnowledgeChunkQuery = Record<string, never>
 
 export type CreateKnowledgeChunkBody = {
   workspaceId: string
@@ -2428,7 +3507,7 @@ export type CreateKnowledgeConnectorParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeConnectorQuery = Record<string, unknown>
+export type CreateKnowledgeConnectorQuery = Record<string, never>
 
 export type CreateKnowledgeConnectorBody = {
   workspaceId: string
@@ -2466,7 +3545,7 @@ export type CreateKnowledgeDocumentUploadParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeDocumentUploadQuery = Record<string, unknown>
+export type CreateKnowledgeDocumentUploadQuery = Record<string, never>
 
 export type CreateKnowledgeDocumentUploadBody = {
   workspaceId: string
@@ -2581,7 +3660,7 @@ export type CreateKnowledgeDocumentUploadPartUrlsResponse = {
 }
 
 /** `POST /api/v2/knowledge/folders` */
-export type CreateKnowledgeFolderQuery = Record<string, unknown>
+export type CreateKnowledgeFolderQuery = Record<string, never>
 
 type CreateKnowledgeFolderBodyRef0 = string
 
@@ -2603,7 +3682,7 @@ export type CreateKnowledgeFolderResponse = {
 }
 
 /** `POST /api/v2/knowledge/imports` */
-export type CreateKnowledgeImportQuery = Record<string, unknown>
+export type CreateKnowledgeImportQuery = Record<string, never>
 
 type CreateKnowledgeImportBodyRef0 = {
   type: 'upload'
@@ -2699,7 +3778,7 @@ export type CreateKnowledgeTagParams = {
   knowledgeBaseId: string
 }
 
-export type CreateKnowledgeTagQuery = Record<string, unknown>
+export type CreateKnowledgeTagQuery = Record<string, never>
 
 export type CreateKnowledgeTagBody = {
   workspaceId: string
@@ -2737,7 +3816,7 @@ export type CreateKnowledgeTagResponse = {
 }
 
 /** `POST /api/v2/mcp-servers` */
-export type CreateMcpServerQuery = Record<string, unknown>
+export type CreateMcpServerQuery = Record<string, never>
 
 export type CreateMcpServerBody = {
   workspaceId: string
@@ -2786,7 +3865,7 @@ export type CreateOrganizationAccessRequestParams = {
   organizationId: string
 }
 
-export type CreateOrganizationAccessRequestQuery = Record<string, unknown>
+export type CreateOrganizationAccessRequestQuery = Record<string, never>
 
 export type CreateOrganizationAccessRequestBody = {
   target:
@@ -2965,7 +4044,7 @@ export type CreateOrganizationInvitationParams = {
   organizationId: string
 }
 
-export type CreateOrganizationInvitationQuery = Record<string, unknown>
+export type CreateOrganizationInvitationQuery = Record<string, never>
 
 export type CreateOrganizationInvitationBody = {
   email: string
@@ -2993,7 +4072,7 @@ export type CreatePermissionGroupParams = {
   organizationId: string
 }
 
-export type CreatePermissionGroupQuery = Record<string, unknown>
+export type CreatePermissionGroupQuery = Record<string, never>
 
 export type CreatePermissionGroupBody = {
   name: string
@@ -3120,7 +4199,7 @@ export type CreateProjectFileParams = {
   projectId: string
 }
 
-export type CreateProjectFileQuery = Record<string, unknown>
+export type CreateProjectFileQuery = Record<string, never>
 
 type CreateProjectFileBodyRef0 = string
 
@@ -3159,7 +4238,7 @@ export type CreateProjectFileFolderParams = {
   projectId: string
 }
 
-export type CreateProjectFileFolderQuery = Record<string, unknown>
+export type CreateProjectFileFolderQuery = Record<string, never>
 
 export type CreateProjectFileFolderBody = {
   name: string
@@ -3189,7 +4268,7 @@ export type CreateProjectFileUploadParams = {
   projectId: string
 }
 
-export type CreateProjectFileUploadQuery = Record<string, unknown>
+export type CreateProjectFileUploadQuery = Record<string, never>
 
 type CreateProjectFileUploadBodyRef0 = string
 
@@ -3262,7 +4341,7 @@ export type CreateProjectFileUploadResponse = {
 }
 
 /** `POST /api/v2/sandboxes` */
-export type CreateSandboxQuery = Record<string, unknown>
+export type CreateSandboxQuery = Record<string, never>
 
 export type CreateSandboxBody = {
   workspaceId: string
@@ -3343,8 +4422,65 @@ export type CreateSandboxResponse = {
   data: CreateSandboxResponseRef0
 }
 
+/** `POST /api/v2/organizations/[organizationId]/search/sources` */
+export type CreateSearchSourceParams = {
+  organizationId: string
+}
+
+export type CreateSearchSourceQuery = Record<string, never>
+
+export type CreateSearchSourceBody = {
+  connectorType: string
+  credentialId?: string
+  apiKey?: string
+  sourceConfig: Record<string, unknown>
+  accessMode?: 'admin' | 'members'
+  permissionConfig?: {
+    provider: 'gitlab'
+    mode: 'administrator' | 'csv'
+    expectedRevision?: number
+    userMapping?: {
+      filename: string
+      content: string
+    }
+    projectPermissions?: {
+      filename: string
+      content: string
+    }
+  }
+}
+
+export type CreateSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `POST /api/v2/credentials` */
-export type CreateServiceAccountCredentialQuery = Record<string, unknown>
+export type CreateServiceAccountCredentialQuery = Record<string, never>
 
 export type CreateServiceAccountCredentialBody = {
   workspaceId: string
@@ -3374,7 +4510,7 @@ export type CreateServiceAccountCredentialResponse = {
 }
 
 /** `POST /api/v2/skills` */
-export type CreateSkillQuery = Record<string, unknown>
+export type CreateSkillQuery = Record<string, never>
 
 export type CreateSkillBody = {
   workspaceId: string
@@ -3403,7 +4539,7 @@ export type CreateSourcePermissionImportParams = {
   sourceId: string
 }
 
-export type CreateSourcePermissionImportQuery = Record<string, unknown>
+export type CreateSourcePermissionImportQuery = Record<string, never>
 
 export type CreateSourcePermissionImportBody = {
   provider: 'gitlab'
@@ -3428,7 +4564,7 @@ export type CreateSourcePermissionImportResponse = {
 }
 
 /** `POST /api/v2/tables` */
-export type CreateTableQuery = Record<string, unknown>
+export type CreateTableQuery = Record<string, never>
 
 type CreateTableBodyRef0 = string
 
@@ -3507,7 +4643,7 @@ export type CreateTableDispatchParams = {
   tableId: string
 }
 
-export type CreateTableDispatchQuery = Record<string, unknown>
+export type CreateTableDispatchQuery = Record<string, never>
 
 type CreateTableDispatchBodyRef0 =
   | {
@@ -3622,7 +4758,7 @@ export type CreateTableExportParams = {
   tableId: string
 }
 
-export type CreateTableExportQuery = Record<string, unknown>
+export type CreateTableExportQuery = Record<string, never>
 
 export type CreateTableExportBody = {
   workspaceId: string
@@ -3647,7 +4783,7 @@ export type CreateTableExportResponse = {
 }
 
 /** `POST /api/v2/tables/folders` */
-export type CreateTableFolderQuery = Record<string, unknown>
+export type CreateTableFolderQuery = Record<string, never>
 
 type CreateTableFolderBodyRef0 = string
 
@@ -3669,7 +4805,7 @@ export type CreateTableFolderResponse = {
 }
 
 /** `POST /api/v2/tables/imports` */
-export type CreateTableImportQuery = Record<string, unknown>
+export type CreateTableImportQuery = Record<string, never>
 
 type CreateTableImportBodyRef0 = {
   type: 'upload'
@@ -3844,7 +4980,7 @@ export type CreateTableRowsParams = {
   tableId: string
 }
 
-export type CreateTableRowsQuery = Record<string, unknown>
+export type CreateTableRowsQuery = Record<string, never>
 
 type CreateTableRowsBodyRef0 = Record<string, unknown>
 
@@ -3900,7 +5036,7 @@ export type CreateTableViewParams = {
   tableId: string
 }
 
-export type CreateTableViewQuery = Record<string, unknown>
+export type CreateTableViewQuery = Record<string, never>
 
 type CreateTableViewBodyRef0 =
   | {
@@ -4033,7 +5169,7 @@ export type CreateTableViewResponse = {
 }
 
 /** `POST /api/v2/workflows` */
-export type CreateWorkflowQuery = Record<string, unknown>
+export type CreateWorkflowQuery = Record<string, never>
 
 type CreateWorkflowBodyRef0 = string
 
@@ -4071,7 +5207,7 @@ export type CreateWorkflowResponse = {
 }
 
 /** `POST /api/v2/workflows/folders` */
-export type CreateWorkflowFolderQuery = Record<string, unknown>
+export type CreateWorkflowFolderQuery = Record<string, never>
 
 type CreateWorkflowFolderBodyRef0 = string
 
@@ -4093,8 +5229,303 @@ export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/workflows/source` */
+export type CreateWorkflowFromSourceParams = {
+  workspaceId: string
+}
+
+export type CreateWorkflowFromSourceQuery = {
+  dryRun?: boolean
+  allowDelete?: boolean
+}
+
+type CreateWorkflowFromSourceBodyRef0 = string
+
+export type CreateWorkflowFromSourceBody = {
+  files: Record<string, string>
+  name?: string
+  description?: string | null
+  folderPath?: CreateWorkflowFromSourceBodyRef0
+  provenance?: {
+    client: 'cli' | 'copilot' | 'canvas' | 'api'
+    gitSha?: string
+    repo?: string
+  }
+}
+
+export type CreateWorkflowFromSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
 /** `POST /api/v2/workflow-mcp-servers` */
-export type CreateWorkflowMcpServerQuery = Record<string, unknown>
+export type CreateWorkflowMcpServerQuery = Record<string, never>
 
 export type CreateWorkflowMcpServerBody = {
   workspaceId: string
@@ -4123,7 +5554,7 @@ export type CreateWorkspaceAccessRequestParams = {
   workspaceId: string
 }
 
-export type CreateWorkspaceAccessRequestQuery = Record<string, unknown>
+export type CreateWorkspaceAccessRequestQuery = Record<string, never>
 
 export type CreateWorkspaceAccessRequestBody = {
   target:
@@ -4302,7 +5733,7 @@ export type CreateWorkspaceInvitationsParams = {
   workspaceId: string
 }
 
-export type CreateWorkspaceInvitationsQuery = Record<string, unknown>
+export type CreateWorkspaceInvitationsQuery = Record<string, never>
 
 export type CreateWorkspaceInvitationsBody = {
   emails: Array<string>
@@ -4618,7 +6049,7 @@ export type DeletePermissionGroupParams = {
   groupId: string
 }
 
-export type DeletePermissionGroupQuery = Record<string, unknown>
+export type DeletePermissionGroupQuery = Record<string, never>
 
 type DeletePermissionGroupResponseRef0 = {
   id: string
@@ -4636,7 +6067,7 @@ export type DeleteProjectFileVersionParams = {
   version: number
 }
 
-export type DeleteProjectFileVersionQuery = Record<string, unknown>
+export type DeleteProjectFileVersionQuery = Record<string, never>
 
 export type DeleteProjectFileVersionResponse = {
   data: {
@@ -4662,6 +6093,21 @@ type DeleteSandboxResponseRef0 = {
 
 export type DeleteSandboxResponse = {
   data: DeleteSandboxResponseRef0
+}
+
+/** `DELETE /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type DeleteSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type DeleteSearchSourceQuery = Record<string, never>
+
+export type DeleteSearchSourceResponse = {
+  data: {
+    id: string
+    deleted: true
+  }
 }
 
 /** `DELETE /api/v2/secrets/[name]` */
@@ -4708,7 +6154,7 @@ export type DeleteSsoProviderParams = {
   providerId: string
 }
 
-export type DeleteSsoProviderQuery = Record<string, unknown>
+export type DeleteSsoProviderQuery = Record<string, never>
 
 export type DeleteSsoProviderResponse = {
   data: {
@@ -4740,7 +6186,7 @@ export type DeleteTableColumnParams = {
   tableId: string
 }
 
-export type DeleteTableColumnQuery = Record<string, unknown>
+export type DeleteTableColumnQuery = Record<string, never>
 
 export type DeleteTableColumnBody = {
   workspaceId: string
@@ -4826,7 +6272,7 @@ export type DeleteTableRowsParams = {
   tableId: string
 }
 
-export type DeleteTableRowsQuery = Record<string, unknown>
+export type DeleteTableRowsQuery = Record<string, never>
 
 type DeleteTableRowsBodyRef0 =
   | {
@@ -4957,7 +6403,7 @@ export type DeleteWorkflowParams = {
   workflowId: string
 }
 
-export type DeleteWorkflowQuery = Record<string, unknown>
+export type DeleteWorkflowQuery = Record<string, never>
 
 type DeleteWorkflowResponseRef0 = {
   id: string
@@ -4974,7 +6420,7 @@ export type DeleteWorkflowChatDeploymentParams = {
   workflowId: string
 }
 
-export type DeleteWorkflowChatDeploymentQuery = Record<string, unknown>
+export type DeleteWorkflowChatDeploymentQuery = Record<string, never>
 
 type DeleteWorkflowChatDeploymentResponseRef0 = {
   id: string
@@ -5024,7 +6470,7 @@ export type DeleteWorkflowGroupParams = {
   tableId: string
 }
 
-export type DeleteWorkflowGroupQuery = Record<string, unknown>
+export type DeleteWorkflowGroupQuery = Record<string, never>
 
 export type DeleteWorkflowGroupBody = {
   workspaceId: string
@@ -5059,7 +6505,7 @@ export type DeleteWorkflowMcpServerParams = {
   serverId: string
 }
 
-export type DeleteWorkflowMcpServerQuery = Record<string, unknown>
+export type DeleteWorkflowMcpServerQuery = Record<string, never>
 
 type DeleteWorkflowMcpServerResponseRef0 = {
   id: string
@@ -5075,11 +6521,12 @@ export type DeployWorkflowParams = {
   workflowId: string
 }
 
-export type DeployWorkflowQuery = Record<string, unknown>
+export type DeployWorkflowQuery = Record<string, never>
 
 export type DeployWorkflowBody = {
   name?: string
   description?: string | null
+  expectedDraftFingerprint?: string
 }
 
 type DeployWorkflowResponseRef0 = {
@@ -5168,7 +6615,14 @@ type DeployWorkflowResponseRef4 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -5208,7 +6662,7 @@ export type DeployWorkflowMcpToolParams = {
   serverId: string
 }
 
-export type DeployWorkflowMcpToolQuery = Record<string, unknown>
+export type DeployWorkflowMcpToolQuery = Record<string, never>
 
 export type DeployWorkflowMcpToolBody = {
   workflowId: string
@@ -5480,6 +6934,19 @@ export type DownloadFileVersionQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileVersionResponse = never
 
+/** `GET /api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content` */
+export type DownloadKnowledgeDocumentParams = {
+  documentId: string
+  knowledgeBaseId: string
+}
+
+export type DownloadKnowledgeDocumentQuery = {
+  workspaceId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadKnowledgeDocumentResponse = never
+
 /** `GET /api/v2/projects/[projectId]/files/bulk-download` */
 export type DownloadProjectFileItemsParams = {
   projectId: string
@@ -5500,7 +6967,7 @@ export type DownloadRunFileParams = {
   fileId: string
 }
 
-export type DownloadRunFileQuery = Record<string, unknown>
+export type DownloadRunFileQuery = Record<string, never>
 
 /** Non-JSON response (`binary`). */
 export type DownloadRunFileResponse = never
@@ -5510,7 +6977,7 @@ export type DuplicateWorkflowParams = {
   workflowId: string
 }
 
-export type DuplicateWorkflowQuery = Record<string, unknown>
+export type DuplicateWorkflowQuery = Record<string, never>
 
 type DuplicateWorkflowBodyRef0 = string
 
@@ -5543,7 +7010,7 @@ export type EditFileContentParams = {
   fileId: string
 }
 
-export type EditFileContentQuery = Record<string, unknown>
+export type EditFileContentQuery = Record<string, never>
 
 export type EditFileContentBody = {
   workspaceId: string
@@ -5605,7 +7072,7 @@ export type ExecuteToolParams = {
   toolId: string
 }
 
-export type ExecuteToolQuery = Record<string, unknown>
+export type ExecuteToolQuery = Record<string, never>
 
 export type ExecuteToolBody = {
   workspaceId: string
@@ -5632,7 +7099,7 @@ export type ExecuteWorkflowParams = {
   workflowId: string
 }
 
-export type ExecuteWorkflowQuery = Record<string, unknown>
+export type ExecuteWorkflowQuery = Record<string, never>
 
 export type ExecuteWorkflowBody = {
   input?: Record<string, unknown>
@@ -5698,6 +7165,14 @@ type ExecuteWorkflowResponseRef1 = {
   endedAt?: string
   durationMs?: number
   executionTimeoutSeconds: number | null
+  paused: {
+    runId: string
+    points: Array<{
+      contextId: string
+      kind: 'human' | 'time'
+      status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+    }>
+  } | null
 }
 
 type ExecuteWorkflowResponseRef2 = {
@@ -5733,7 +7208,7 @@ export type ExportProjectFileSnapshotParams = {
   fileId: string
 }
 
-export type ExportProjectFileSnapshotQuery = Record<string, unknown>
+export type ExportProjectFileSnapshotQuery = Record<string, never>
 
 export type ExportProjectFileSnapshotBody = {
   content: string
@@ -5797,12 +7272,33 @@ export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/source/blobs/missing` */
+export type FindMissingWorkspaceSourceBlobsParams = {
+  workspaceId: string
+}
+
+export type FindMissingWorkspaceSourceBlobsQuery = Record<string, never>
+
+export type FindMissingWorkspaceSourceBlobsBody = {
+  blobs: Array<{
+    sha256: string
+    size: number
+  }>
+}
+
+export type FindMissingWorkspaceSourceBlobsResponse = {
+  data: {
+    workspaceId: string
+    missing: Array<string>
+  }
+}
+
 /** `POST /api/v2/workspaces/[workspaceId]/fork` */
 export type ForkWorkspaceParams = {
   workspaceId: string
 }
 
-export type ForkWorkspaceQuery = Record<string, unknown>
+export type ForkWorkspaceQuery = Record<string, never>
 
 export type ForkWorkspaceBody = {
   name?: string
@@ -6163,8 +7659,11 @@ type GetCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -6344,6 +7843,7 @@ type GetKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type GetKnowledgeBaseResponseRef1 = {
@@ -6580,8 +8080,10 @@ type GetLogResponseRef1 = {
     startTime?: string
     endTime?: string
     duration?: number
+    [key: string]: unknown
   }>
   children?: Array<GetLogResponseRef1>
+  [key: string]: unknown
 }
 
 type GetLogResponseRef2 = {
@@ -6594,6 +8096,13 @@ type GetLogResponseRef2 = {
   startedAt: string
   endedAt: string | null
   totalDurationMs: number | null
+  failure: {
+    blockId: string
+    blockName: string
+    blockType: string
+    error: string | null
+    errorMessage: string | null
+  } | null
   files: Array<GetLogResponseRef0> | null
   executedByEmail: string | null
   workflow: {
@@ -6726,7 +8235,7 @@ export type GetMcpServerResponse = {
 }
 
 /** `GET /api/v2/meta` */
-export type GetMetaQuery = Record<string, unknown>
+export type GetMetaQuery = Record<string, never>
 
 type GetMetaResponseRef0 = {
   v2Enabled: boolean
@@ -6774,7 +8283,7 @@ export type GetOrganizationParams = {
   organizationId: string
 }
 
-export type GetOrganizationQuery = Record<string, unknown>
+export type GetOrganizationQuery = Record<string, never>
 
 type GetOrganizationResponseRef0 = {
   id: string
@@ -6794,7 +8303,7 @@ export type GetOrganizationAccessRequestSettingsParams = {
   organizationId: string
 }
 
-export type GetOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+export type GetOrganizationAccessRequestSettingsQuery = Record<string, never>
 
 type GetOrganizationAccessRequestSettingsResponseRef0 = {
   allowRequests: boolean
@@ -6810,7 +8319,7 @@ export type GetOrganizationInvitationParams = {
   invitationId: string
 }
 
-export type GetOrganizationInvitationQuery = Record<string, unknown>
+export type GetOrganizationInvitationQuery = Record<string, never>
 
 type GetOrganizationInvitationResponseRef0 = {
   id: string
@@ -6834,7 +8343,7 @@ export type GetOrganizationMemberUsageLimitParams = {
   userId: string
 }
 
-export type GetOrganizationMemberUsageLimitQuery = Record<string, unknown>
+export type GetOrganizationMemberUsageLimitQuery = Record<string, never>
 
 type GetOrganizationMemberUsageLimitResponseRef0 = {
   creditsUsed: number
@@ -6928,7 +8437,7 @@ export type GetPermissionGroupParams = {
   groupId: string
 }
 
-export type GetPermissionGroupQuery = Record<string, unknown>
+export type GetPermissionGroupQuery = Record<string, never>
 
 type GetPermissionGroupResponseRef0 = {
   id: string
@@ -7001,7 +8510,7 @@ export type GetProjectFileMetadataParams = {
   fileId: string
 }
 
-export type GetProjectFileMetadataQuery = Record<string, unknown>
+export type GetProjectFileMetadataQuery = Record<string, never>
 
 type GetProjectFileMetadataResponseRef0 = {
   id: string
@@ -7031,7 +8540,7 @@ export type GetProjectFileShareParams = {
   fileId: string
 }
 
-export type GetProjectFileShareQuery = Record<string, unknown>
+export type GetProjectFileShareQuery = Record<string, never>
 
 type GetProjectFileShareResponseRef0 = {
   id: string
@@ -7055,7 +8564,7 @@ export type GetProjectFileUploadParams = {
   uploadId: string
 }
 
-export type GetProjectFileUploadQuery = Record<string, unknown>
+export type GetProjectFileUploadQuery = Record<string, never>
 
 export type GetProjectFileUploadHeaders = {
   'upload-token': string
@@ -7108,7 +8617,7 @@ export type GetProjectFileUploadPartUrlsParams = {
   uploadId: string
 }
 
-export type GetProjectFileUploadPartUrlsQuery = Record<string, unknown>
+export type GetProjectFileUploadPartUrlsQuery = Record<string, never>
 
 export type GetProjectFileUploadPartUrlsBody = {
   partNumbers: Array<number>
@@ -7140,7 +8649,7 @@ export type GetProjectFileVersionParams = {
   version: number
 }
 
-export type GetProjectFileVersionQuery = Record<string, unknown>
+export type GetProjectFileVersionQuery = Record<string, never>
 
 type GetProjectFileVersionResponseRef0 = GetProjectFileVersionResponseRef1
 
@@ -7273,13 +8782,50 @@ export type GetSandboxResponse = {
   data: GetSandboxResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type GetSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetSearchSourceQuery = Record<string, never>
+
+export type GetSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
 export type GetSearchSourcePermissionsParams = {
   organizationId: string
   sourceId: string
 }
 
-export type GetSearchSourcePermissionsQuery = Record<string, unknown>
+export type GetSearchSourcePermissionsQuery = Record<string, never>
 
 type GetSearchSourcePermissionsResponseRef0 = {
   revision: number
@@ -7290,7 +8836,7 @@ export type GetSearchSourcePermissionsResponse = {
 }
 
 /** `POST /api/v2/selectors/get` */
-export type GetSelectorQuery = Record<string, unknown>
+export type GetSelectorQuery = Record<string, never>
 
 export type GetSelectorBody = {
   workspaceId: string
@@ -7461,12 +9007,726 @@ export type GetSkillResponse = {
   data: GetSkillResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/workflows/source/catalog` */
+export type GetSourceCatalogParams = {
+  workspaceId: string
+}
+
+export type GetSourceCatalogQuery = {
+  workflowId?: string
+}
+
+export type GetSourceCatalogHeaders = {
+  'if-none-match'?: string
+}
+
+export type GetSourceCatalogResponse = {
+  data: {
+    catalogVersion: 1
+    hash: string
+    sdkMajor: number
+    blocks: Record<
+      string,
+      {
+        type: string
+        name: string
+        category: 'blocks' | 'tools' | 'triggers'
+        addable?: false
+        lifecycle?: {
+          hidden?: true
+          preview?: true
+          sunset?: {
+            status: 'legacy' | 'deprecated'
+            replacedBy?: string
+          }
+        }
+        triggerAllowed?: boolean
+        triggers?: {
+          enabled: boolean
+          available: Array<string>
+        }
+        singleInstance?: boolean
+        subBlocks: Array<
+          | {
+              id: string
+              type: string
+              title?: string
+              mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+              canonicalParamId?: string
+              surface?: 'action' | 'trigger'
+              condition?:
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              visibleFor?: Record<string, boolean>
+              visibleWhen?: Record<
+                string,
+                {
+                  field: string
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string | number | boolean>
+                    | {
+                        list: number
+                      }
+                  not?: boolean
+                  and?: {
+                    field: string
+                    value?:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                  }
+                }
+              >
+              visibleForModel?: Record<string, boolean>
+              required?:
+                | boolean
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              dependsOn?: {
+                all: Array<string>
+                any: Array<string>
+              }
+              defaultValue?: unknown
+              valueDefault?:
+                | {
+                    computed: true
+                    initial?: unknown
+                  }
+                | {
+                    constant: unknown
+                  }
+              options?:
+                | Array<{
+                    id: string
+                    label?: string
+                  }>
+                | {
+                    dynamic: true
+                  }
+                | {
+                    opaque: true
+                  }
+              optionsVary?: true
+              hidden?: boolean
+              readOnly?: boolean
+              password?: boolean
+              hideFromCopilot?: boolean
+              context?: 'tool-input'
+              paramVisibility?: string
+              emptyIsValid?: boolean
+              language?: string
+              multiple?: boolean
+              min?: number
+              max?: number
+              step?: number
+              integer?: boolean
+              columns?: Array<string>
+              selectorKey?: string
+              serviceId?: string
+              credentialProviders?: Array<string>
+              valueKind:
+                | 'string'
+                | 'number'
+                | 'boolean'
+                | 'array'
+                | 'object'
+                | 'json'
+                | 'code'
+                | 'branches'
+                | 'tools'
+                | 'resource'
+                | 'picked'
+                | 'upload'
+                | 'none'
+              resourceKind?: string
+              storage: 'native' | 'json-string'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
+              acceptsNumber?: boolean
+              neverDecoded?: boolean
+              tableFilter?: boolean
+              valueShape?: 'number' | 'boolean' | 'json'
+            }
+          | {
+              shared: number
+            }
+          | {
+              trigger: string
+              start: number
+              count: number
+            }
+        >
+        tools: {
+          access: Array<string>
+          selector: 'single' | 'operation' | 'opaque'
+        }
+        outputs?: Record<
+          string,
+          {
+            type: string
+            description?: string
+            condition?: unknown
+            hiddenFromDisplay?: boolean
+            mayBeText?: true
+            properties?: Record<string, unknown>
+            sharedProperties?: number
+            items?: unknown
+          }
+        >
+        sharedOutputs?: number
+        operationOutputs?: Record<
+          string,
+          {
+            names: Array<string>
+            nullable?: Array<string>
+          }
+        >
+        dynamicOutputs?: {
+          source: 'responseFormat' | 'inputFormat' | 'humanForm' | 'tableRows'
+          param: string
+        }
+        errorOutputs?: Array<string>
+        graph: {
+          canBeTarget: boolean
+          errorPort: boolean
+          container: 'loop' | 'parallel' | null
+          annotationOnly: boolean
+          branches?: {
+            subBlockId: string
+            kind: 'condition' | 'router'
+          }
+        }
+        legacyIds?: Array<{
+          from: string
+          to: string | null
+          whenOperation?: Array<string>
+          conditional?: true
+        }>
+        legacyCanonicalIds?: Array<{
+          from: string
+          to: string
+        }>
+        paramAliases?: {
+          action?: Record<string, string>
+          trigger?: Record<string, string>
+        }
+        custom?: {
+          sourceWorkflowId?: string
+        }
+      }
+    >
+    triggers: Record<
+      string,
+      {
+        id: string
+        provider: string
+        name: string
+        polling?: boolean
+        webhook?: boolean
+        subBlocks: Array<
+          | {
+              id: string
+              type: string
+              title?: string
+              mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+              canonicalParamId?: string
+              surface?: 'action' | 'trigger'
+              condition?:
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              visibleFor?: Record<string, boolean>
+              visibleWhen?: Record<
+                string,
+                {
+                  field: string
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string | number | boolean>
+                    | {
+                        list: number
+                      }
+                  not?: boolean
+                  and?: {
+                    field: string
+                    value?:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                  }
+                }
+              >
+              visibleForModel?: Record<string, boolean>
+              required?:
+                | boolean
+                | {
+                    field: string
+                    value:
+                      | string
+                      | number
+                      | boolean
+                      | Array<string | number | boolean>
+                      | {
+                          list: number
+                        }
+                    not?: boolean
+                    and?: {
+                      field: string
+                      value?:
+                        | string
+                        | number
+                        | boolean
+                        | Array<string | number | boolean>
+                        | {
+                            list: number
+                          }
+                      not?: boolean
+                    }
+                  }
+                | {
+                    opaque: true
+                  }
+              dependsOn?: {
+                all: Array<string>
+                any: Array<string>
+              }
+              defaultValue?: unknown
+              valueDefault?:
+                | {
+                    computed: true
+                    initial?: unknown
+                  }
+                | {
+                    constant: unknown
+                  }
+              options?:
+                | Array<{
+                    id: string
+                    label?: string
+                  }>
+                | {
+                    dynamic: true
+                  }
+                | {
+                    opaque: true
+                  }
+              optionsVary?: true
+              hidden?: boolean
+              readOnly?: boolean
+              password?: boolean
+              hideFromCopilot?: boolean
+              context?: 'tool-input'
+              paramVisibility?: string
+              emptyIsValid?: boolean
+              language?: string
+              multiple?: boolean
+              min?: number
+              max?: number
+              step?: number
+              integer?: boolean
+              columns?: Array<string>
+              selectorKey?: string
+              serviceId?: string
+              credentialProviders?: Array<string>
+              valueKind:
+                | 'string'
+                | 'number'
+                | 'boolean'
+                | 'array'
+                | 'object'
+                | 'json'
+                | 'code'
+                | 'branches'
+                | 'tools'
+                | 'resource'
+                | 'picked'
+                | 'upload'
+                | 'none'
+              resourceKind?: string
+              storage: 'native' | 'json-string'
+              structured?:
+                | 'tools'
+                | 'branches'
+                | 'tableRows'
+                | 'inputFormat'
+                | 'variables'
+                | 'skills'
+              acceptsNumber?: boolean
+              neverDecoded?: boolean
+              tableFilter?: boolean
+              valueShape?: 'number' | 'boolean' | 'json'
+            }
+          | {
+              shared: number
+            }
+        >
+        outputs?: Record<
+          string,
+          {
+            type: string
+            description?: string
+            condition?: unknown
+            hiddenFromDisplay?: boolean
+            mayBeText?: true
+            properties?: Record<string, unknown>
+            sharedProperties?: number
+            items?: unknown
+          }
+        >
+        sharedOutputs?: number
+      }
+    >
+    builders: Record<
+      string,
+      {
+        type: string
+        operation?: string
+        triggerMode?: boolean
+        fixed?: Record<string, string>
+      }
+    >
+    subBlocks?: Array<{
+      id: string
+      type: string
+      title?: string
+      mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
+      canonicalParamId?: string
+      surface?: 'action' | 'trigger'
+      condition?:
+        | {
+            field: string
+            value:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+            and?: {
+              field: string
+              value?:
+                | string
+                | number
+                | boolean
+                | Array<string | number | boolean>
+                | {
+                    list: number
+                  }
+              not?: boolean
+            }
+          }
+        | {
+            opaque: true
+          }
+      visibleFor?: Record<string, boolean>
+      visibleWhen?: Record<
+        string,
+        {
+          field: string
+          value:
+            | string
+            | number
+            | boolean
+            | Array<string | number | boolean>
+            | {
+                list: number
+              }
+          not?: boolean
+          and?: {
+            field: string
+            value?:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+          }
+        }
+      >
+      visibleForModel?: Record<string, boolean>
+      required?:
+        | boolean
+        | {
+            field: string
+            value:
+              | string
+              | number
+              | boolean
+              | Array<string | number | boolean>
+              | {
+                  list: number
+                }
+            not?: boolean
+            and?: {
+              field: string
+              value?:
+                | string
+                | number
+                | boolean
+                | Array<string | number | boolean>
+                | {
+                    list: number
+                  }
+              not?: boolean
+            }
+          }
+        | {
+            opaque: true
+          }
+      dependsOn?: {
+        all: Array<string>
+        any: Array<string>
+      }
+      defaultValue?: unknown
+      valueDefault?:
+        | {
+            computed: true
+            initial?: unknown
+          }
+        | {
+            constant: unknown
+          }
+      options?:
+        | Array<{
+            id: string
+            label?: string
+          }>
+        | {
+            dynamic: true
+          }
+        | {
+            opaque: true
+          }
+      optionsVary?: true
+      hidden?: boolean
+      readOnly?: boolean
+      password?: boolean
+      hideFromCopilot?: boolean
+      context?: 'tool-input'
+      paramVisibility?: string
+      emptyIsValid?: boolean
+      language?: string
+      multiple?: boolean
+      min?: number
+      max?: number
+      step?: number
+      integer?: boolean
+      columns?: Array<string>
+      selectorKey?: string
+      serviceId?: string
+      credentialProviders?: Array<string>
+      valueKind:
+        | 'string'
+        | 'number'
+        | 'boolean'
+        | 'array'
+        | 'object'
+        | 'json'
+        | 'code'
+        | 'branches'
+        | 'tools'
+        | 'resource'
+        | 'picked'
+        | 'upload'
+        | 'none'
+      resourceKind?: string
+      storage: 'native' | 'json-string'
+      structured?: 'tools' | 'branches' | 'tableRows' | 'inputFormat' | 'variables' | 'skills'
+      acceptsNumber?: boolean
+      neverDecoded?: boolean
+      tableFilter?: boolean
+      valueShape?: 'number' | 'boolean' | 'json'
+    }>
+    lists?: Array<Array<string | number | boolean>>
+    outputs?: Array<
+      Record<
+        string,
+        {
+          type: string
+          description?: string
+          condition?: unknown
+          hiddenFromDisplay?: boolean
+          mayBeText?: true
+          properties?: Record<string, unknown>
+          sharedProperties?: number
+          items?: unknown
+        }
+      >
+    >
+    scope?: {
+      organizationId: string
+    }
+  }
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/workflows/source/resources` */
+export type GetSourceResourcesParams = {
+  workspaceId: string
+}
+
+export type GetSourceResourcesQuery = Record<string, never>
+
+export type GetSourceResourcesResponse = {
+  data: {
+    workspaceId: string
+    tables: Array<{
+      key: string
+      id: string
+      name: string
+      columns: Array<{
+        name: string
+        type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'ttl' | 'json' | 'select'
+        options?: Array<string>
+        multiple?: boolean
+        required?: boolean
+      }>
+    }>
+    knowledgeBases: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    credentials: Array<{
+      key: string
+      id: string
+      name: string
+      provider: string
+    }>
+    workflows: Array<{
+      key: string
+      id: string
+      name: string
+      inputs: Array<{
+        name: string
+        type: string
+      }>
+    }>
+    skills: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    customTools: Array<{
+      key: string
+      id: string
+      name: string
+    }>
+    mcpServers: Array<{
+      key: string
+      id: string
+      name: string
+      tools?: Array<string>
+    }>
+    env: Array<string>
+    truncated: boolean
+  }
+}
+
 /** `GET /api/v2/organizations/[organizationId]/sso/policy` */
 export type GetSsoPolicyParams = {
   organizationId: string
 }
 
-export type GetSsoPolicyQuery = Record<string, unknown>
+export type GetSsoPolicyQuery = Record<string, never>
 
 export type GetSsoPolicyResponse = {
   data: {
@@ -7482,7 +9742,7 @@ export type GetSsoProviderParams = {
   providerId: string
 }
 
-export type GetSsoProviderQuery = Record<string, unknown>
+export type GetSsoProviderQuery = Record<string, never>
 
 export type GetSsoProviderResponse = {
   data: {
@@ -7816,7 +10076,7 @@ export type GetWorkflowParams = {
   workflowId: string
 }
 
-export type GetWorkflowQuery = Record<string, unknown>
+export type GetWorkflowQuery = Record<string, never>
 
 type GetWorkflowResponseRef0 = {
   name: string
@@ -7828,6 +10088,7 @@ type GetWorkflowResponseRef1 = {
   type: string
   properties?: Record<string, unknown>
   required?: Array<string>
+  [key: string]: unknown
 }
 
 type GetWorkflowResponseRef2 = {
@@ -7857,7 +10118,7 @@ export type GetWorkflowChatDeploymentParams = {
   workflowId: string
 }
 
-export type GetWorkflowChatDeploymentQuery = Record<string, unknown>
+export type GetWorkflowChatDeploymentQuery = Record<string, never>
 
 type GetWorkflowChatDeploymentResponseRef0 = {
   primaryColor?: string
@@ -7900,7 +10161,7 @@ export type GetWorkflowDeploymentParams = {
   workflowId: string
 }
 
-export type GetWorkflowDeploymentQuery = Record<string, unknown>
+export type GetWorkflowDeploymentQuery = Record<string, never>
 
 type GetWorkflowDeploymentResponseRef0 = {
   deploymentVersionId: string
@@ -7960,7 +10221,7 @@ export type GetWorkflowMcpServerParams = {
   serverId: string
 }
 
-export type GetWorkflowMcpServerQuery = Record<string, unknown>
+export type GetWorkflowMcpServerQuery = Record<string, never>
 
 type GetWorkflowMcpServerResponseRef0 = {
   id: string
@@ -7981,7 +10242,7 @@ export type GetWorkflowOutlineParams = {
   workflowId: string
 }
 
-export type GetWorkflowOutlineQuery = Record<string, unknown>
+export type GetWorkflowOutlineQuery = Record<string, never>
 
 type GetWorkflowOutlineResponseRef0 = {
   type: string
@@ -8103,6 +10364,7 @@ type GetWorkflowRunResponseRef4 = {
     automaticResumeWaitingReason: string | null
     pausePointCount: number
     resumedCount: number
+    runId: string
     points: Array<GetWorkflowRunResponseRef0>
   } | null
   cost: {
@@ -8118,12 +10380,242 @@ export type GetWorkflowRunResponse = {
   data: GetWorkflowRunResponseRef4
 }
 
+/** `GET /api/v2/workflows/[workflowId]/source` */
+export type GetWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type GetWorkflowSourceQuery = {
+  functionCode?: 'inline' | 'files'
+}
+
+export type GetWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    canonicalHash: string
+    sdkMajor: number
+    blockTypes: Array<string>
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `GET /api/v2/workflows/[workflowId]/state` */
 export type GetWorkflowStateParams = {
   workflowId: string
 }
 
-export type GetWorkflowStateQuery = Record<string, unknown>
+export type GetWorkflowStateQuery = Record<string, never>
 
 type GetWorkflowStateResponseRef0 = {
   id: string
@@ -8228,7 +10720,7 @@ export type GetWorkflowVersionParams = {
   workflowId: string
 }
 
-export type GetWorkflowVersionQuery = Record<string, unknown>
+export type GetWorkflowVersionQuery = Record<string, never>
 
 type GetWorkflowVersionResponseRef0 = Record<string, unknown>
 
@@ -8251,7 +10743,7 @@ export type GetWorkspaceParams = {
   workspaceId: string
 }
 
-export type GetWorkspaceQuery = Record<string, unknown>
+export type GetWorkspaceQuery = Record<string, never>
 
 type GetWorkspaceResponseRef0 = {
   id: string
@@ -8272,7 +10764,7 @@ export type GetWorkspaceForkAvailabilityParams = {
   workspaceId: string
 }
 
-export type GetWorkspaceForkAvailabilityQuery = Record<string, unknown>
+export type GetWorkspaceForkAvailabilityQuery = Record<string, never>
 
 type GetWorkspaceForkAvailabilityResponseRef0 = {
   available: boolean
@@ -8287,7 +10779,7 @@ export type GetWorkspaceForkLineageParams = {
   workspaceId: string
 }
 
-export type GetWorkspaceForkLineageQuery = Record<string, unknown>
+export type GetWorkspaceForkLineageQuery = Record<string, never>
 
 type GetWorkspaceForkLineageResponseRef0 = {
   current: {
@@ -8350,7 +10842,7 @@ export type GetWorkspaceOperationParams = {
   operationId: string
 }
 
-export type GetWorkspaceOperationQuery = Record<string, unknown>
+export type GetWorkspaceOperationQuery = Record<string, never>
 
 type GetWorkspaceOperationResponseRef0 = {
   operationId: string
@@ -8403,7 +10895,7 @@ export type GetWorkspacePermissionConfigParams = {
   workspaceId: string
 }
 
-export type GetWorkspacePermissionConfigQuery = Record<string, unknown>
+export type GetWorkspacePermissionConfigQuery = Record<string, never>
 
 type GetWorkspacePermissionConfigResponseRef0 = {
   permissionGroupId: string | null
@@ -8465,12 +10957,370 @@ export type GetWorkspacePermissionConfigResponse = {
   data: GetWorkspacePermissionConfigResponseRef0
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]/source` */
+export type GetWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceSourceQuery = {
+  kinds?: string
+}
+
+export type GetWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    kinds: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+    files: Record<string, string>
+    blobs: Array<{
+      path: string
+      sha256?: string
+      size: number
+      id: string
+      href: string
+      rev?: string
+    }>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    skipped: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      reason: string
+    }>
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
 /** `POST /api/v2/skills/[skillId]/editors` */
 export type GrantSkillEditorParams = {
   skillId: string
 }
 
-export type GrantSkillEditorQuery = Record<string, unknown>
+export type GrantSkillEditorQuery = Record<string, never>
 
 export type GrantSkillEditorBody = {
   workspaceId: string
@@ -8489,7 +11339,7 @@ export type GrantSkillEditorResponse = {
 }
 
 /** `POST /api/v2/workflows/import` */
-export type ImportWorkflowQuery = Record<string, unknown>
+export type ImportWorkflowQuery = Record<string, never>
 
 type ImportWorkflowBodyRef0 = string
 
@@ -9004,8 +11854,11 @@ type ListCustomToolsResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -9180,6 +12033,7 @@ type ListKnowledgeBasesResponseRef1 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 export type ListKnowledgeBasesResponse = {
@@ -9505,8 +12359,10 @@ type ListLogsResponseRef2 = {
     startTime?: string
     endTime?: string
     duration?: number
+    [key: string]: unknown
   }>
   children?: Array<ListLogsResponseRef2>
+  [key: string]: unknown
 }
 
 export type ListLogsResponse = {
@@ -9569,11 +12425,13 @@ type ListMcpServerToolsResponseRef0 = {
     type: 'object'
     properties?: Record<string, unknown>
     required?: Array<string>
+    [key: string]: unknown
   }
   outputSchema?: {
     type: 'object'
     properties?: Record<string, unknown>
     required?: Array<string>
+    [key: string]: unknown
   }
   serverId: string
   serverName: string
@@ -10452,6 +13310,48 @@ export type ListSandboxesResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources` */
+export type ListSearchSourcesParams = {
+  organizationId: string
+}
+
+export type ListSearchSourcesQuery = {
+  sortBy?: 'connectorType' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+  limit?: number
+  cursor?: string
+}
+
+export type ListSearchSourcesResponse = {
+  data: Array<{
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/secrets` */
 export type ListSecretsQuery = {
   workspaceId: string
@@ -10480,7 +13380,7 @@ export type ListSecretsResponse = {
 }
 
 /** `POST /api/v2/selectors/list` */
-export type ListSelectorQuery = Record<string, unknown>
+export type ListSelectorQuery = Record<string, never>
 
 export type ListSelectorBody = {
   workspaceId: string
@@ -11032,7 +13932,7 @@ export type ListWorkflowMcpToolsParams = {
   serverId: string
 }
 
-export type ListWorkflowMcpToolsQuery = Record<string, unknown>
+export type ListWorkflowMcpToolsQuery = Record<string, never>
 
 type ListWorkflowMcpToolsResponseRef0 = {
   id: string
@@ -11126,7 +14026,7 @@ export type ListWorkflowTriggersParams = {
   workflowId: string
 }
 
-export type ListWorkflowTriggersQuery = Record<string, unknown>
+export type ListWorkflowTriggersQuery = Record<string, never>
 
 type ListWorkflowTriggersResponseRef0 = {
   blockId: string
@@ -11365,7 +14265,7 @@ export type ListWorkspaceSchedulesResponse = {
 }
 
 /** `POST /api/v2/files/move` */
-export type MoveFileItemsQuery = Record<string, unknown>
+export type MoveFileItemsQuery = Record<string, never>
 
 type MoveFileItemsBodyRef0 = string
 
@@ -11390,7 +14290,7 @@ export type MoveProjectFileItemsParams = {
   projectId: string
 }
 
-export type MoveProjectFileItemsQuery = Record<string, unknown>
+export type MoveProjectFileItemsQuery = Record<string, never>
 
 type MoveProjectFileItemsBodyRef0 = string
 
@@ -11410,7 +14310,7 @@ export type MoveProjectFileItemsResponse = {
 }
 
 /** `POST /api/v2/tables/move` */
-export type MoveTablesQuery = Record<string, unknown>
+export type MoveTablesQuery = Record<string, never>
 
 type MoveTablesBodyRef0 = string
 
@@ -11449,7 +14349,7 @@ export type MoveTablesResponse = {
 }
 
 /** `POST /api/v2/workflows/move` */
-export type MoveWorkflowsQuery = Record<string, unknown>
+export type MoveWorkflowsQuery = Record<string, never>
 
 type MoveWorkflowsBodyRef0 = string
 
@@ -11469,13 +14369,1067 @@ export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
 }
 
+/** `POST /api/v2/workflows/[workflowId]/source/plan` */
+export type PlanWorkflowSourceParams = {
+  workflowId: string
+}
+
+export type PlanWorkflowSourceQuery = {
+  allowDelete?: boolean
+}
+
+export type PlanWorkflowSourceBody = {
+  files: Record<string, string>
+  lock: {
+    version: 1
+    blocks: Record<
+      string,
+      {
+        id: string
+        parent: string | null
+        branches?: Record<string, string>
+        items?: Record<
+          string,
+          Array<{
+            name: string
+            id: string
+          }>
+        >
+        ident: string
+        order: number
+        layout?: {
+          x: number
+          y: number
+          w?: number
+          h?: number
+          height?: number
+          horizontalHandles?: boolean
+          [key: string]: unknown
+        }
+        codeFile?: string
+        [key: string]: unknown
+      }
+    >
+    variables: Record<string, string>
+    [key: string]: unknown
+  }
+  base: {
+    version: 1
+    workflowId: string
+    workspaceId: string
+    fingerprint: string
+    catalogHash: string
+    [key: string]: unknown
+  }
+}
+
+export type PlanWorkflowSourceResponse = {
+  data: {
+    workflowId: string
+    workspaceId: string
+    dryRun: boolean
+    applied: boolean
+    diff: {
+      noop: boolean
+      meta?: Array<'name' | 'description'>
+      blocks: {
+        added: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        removed: Array<{
+          id: string
+          key: string
+          type: string
+        }>
+        renamed: Array<{
+          id: string
+          from: string
+          to: string
+        }>
+        modified: Array<{
+          id: string
+          key: string
+          fields: Array<string>
+          reparented?: boolean
+        }>
+      }
+      edges: {
+        added: number
+        removed: number
+      }
+      variables: {
+        added: Array<string>
+        removed: Array<string>
+        renamed: Array<{
+          from: string
+          to: string
+        }>
+        modified: Array<string>
+      }
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_STALE'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_NAME_TAKEN'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      blockKey?: string
+      param?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      blockId?: string
+      path?: string
+    }>
+    files: Record<string, string>
+    lock: {
+      version: 1
+      blocks: Record<
+        string,
+        {
+          id: string
+          parent: string | null
+          branches?: Record<string, string>
+          items?: Record<
+            string,
+            Array<{
+              name: string
+              id: string
+            }>
+          >
+          ident: string
+          order: number
+          layout?: {
+            x: number
+            y: number
+            w?: number
+            h?: number
+            height?: number
+            horizontalHandles?: boolean
+            [key: string]: unknown
+          }
+          codeFile?: string
+          [key: string]: unknown
+        }
+      >
+      variables: Record<string, string>
+      [key: string]: unknown
+    }
+    base: {
+      version: 1
+      workflowId: string
+      workspaceId: string
+      fingerprint: string
+      catalogHash: string
+      [key: string]: unknown
+    }
+    mintedIds: Record<string, string>
+    notes: Array<string>
+    needsRedeployment: boolean
+  }
+}
+
+/** `POST /api/v2/workspaces/[workspaceId]/source/plan` */
+export type PlanWorkspaceSourceParams = {
+  workspaceId: string
+}
+
+export type PlanWorkspaceSourceQuery = Record<string, never>
+
+export type PlanWorkspaceSourceBody = {
+  files: Record<string, string>
+  blobs?: Array<{
+    path: string
+    sha256: string
+    size: number
+  }>
+  base?: {
+    version: 1
+    workspaceId: string
+    resources: Record<
+      string,
+      {
+        id: string
+        fingerprint?: string
+        columns?: Record<
+          string,
+          {
+            id: string
+            options?: Record<string, string>
+          }
+        >
+        blobs?: Record<
+          string,
+          {
+            id: string
+            rev: string
+            sha256: string
+          }
+        >
+        rows?: {
+          fingerprint: string
+          version: number
+          [key: string]: unknown
+        }
+        [key: string]: unknown
+      }
+    >
+    [key: string]: unknown
+  }
+  kinds: Array<
+    | 'secret'
+    | 'credential'
+    | 'custom-tool'
+    | 'skill'
+    | 'mcp-server'
+    | 'table'
+    | 'knowledge-base'
+    | 'file'
+    | 'workflow'
+    | 'deployment'
+  >
+  options?: {
+    allowDelete?: boolean
+    only?: Array<
+      | 'secret'
+      | 'credential'
+      | 'custom-tool'
+      | 'skill'
+      | 'mcp-server'
+      | 'table'
+      | 'knowledge-base'
+      | 'file'
+      | 'workflow'
+      | 'deployment'
+    >
+  }
+}
+
+export type PlanWorkspaceSourceResponse = {
+  data: {
+    workspaceId: string
+    dryRun: boolean
+    plan: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    refuses?: boolean
+    applied: Array<{
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      action: 'create' | 'update' | 'adopt' | 'delete' | 'noop'
+      fields?: Array<string>
+      destructive?: {
+        what: string
+        counts: Record<string, number>
+      }
+      id?: string
+      held?: true
+    }>
+    failed?: {
+      kind:
+        | 'secret'
+        | 'credential'
+        | 'custom-tool'
+        | 'skill'
+        | 'mcp-server'
+        | 'table'
+        | 'knowledge-base'
+        | 'file'
+        | 'workflow'
+        | 'deployment'
+      key: string
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      message: string
+    }
+    needBlobs: Array<string>
+    applyId?: string
+    files: Record<string, string>
+    base: {
+      version: 1
+      workspaceId: string
+      resources: Record<
+        string,
+        {
+          id: string
+          fingerprint?: string
+          columns?: Record<
+            string,
+            {
+              id: string
+              options?: Record<string, string>
+            }
+          >
+          blobs?: Record<
+            string,
+            {
+              id: string
+              rev: string
+              sha256: string
+            }
+          >
+          rows?: {
+            fingerprint: string
+            version: number
+            [key: string]: unknown
+          }
+          [key: string]: unknown
+        }
+      >
+      [key: string]: unknown
+    }
+    diagnostics: Array<{
+      code:
+        | 'E_DECL_SYNTAX'
+        | 'E_DECL_HEADER'
+        | 'E_DECL_IMPORT'
+        | 'E_DECL_EXPORT'
+        | 'E_DECL_UNSUPPORTED'
+        | 'E_DECL_DUPLICATE_KEY'
+        | 'E_DECL_SHAPE'
+        | 'E_DECL_UNKNOWN_FIELD'
+        | 'E_DECL_UNKNOWN_FILE'
+        | 'W_PATH_NOT_SENT'
+        | 'E_BLOB_MANIFEST'
+        | 'E_BLOB_MISSING'
+        | 'E_KEY_INVALID'
+        | 'W_DECL_SUSPICIOUS_CHARACTER'
+        | 'E_BASE_JSON'
+        | 'E_BASE_VERSION'
+        | 'E_BASE_SHAPE'
+        | 'E_BASE_UNKNOWN_FIELD'
+        | 'E_SECRET_NAME'
+        | 'E_SECRET_MISSING'
+        | 'W_SECRET_MISSING'
+        | 'E_CREDENTIAL_MISSING'
+        | 'E_CREDENTIAL_AMBIGUOUS'
+        | 'W_CREDENTIAL_MISSING'
+        | 'W_CREDENTIAL_AMBIGUOUS'
+        | 'E_TABLE_COLUMN_NAME'
+        | 'E_TABLE_DUPLICATE_COLUMN'
+        | 'E_TABLE_TOO_MANY_COLUMNS'
+        | 'E_TABLE_OPTIONS'
+        | 'E_TABLE_TYPE_CONVERSION'
+        | 'E_TABLE_FOLDER'
+        | 'E_TABLE_ROWS'
+        | 'I_TABLE_SEED_SKIPPED'
+        | 'I_TABLE_ROWS_UNKEYED'
+        | 'W_LIKELY_RENAME'
+        | 'E_TOOL_SCHEMA'
+        | 'E_TOOL_CODE'
+        | 'E_TOOL_STORED_MISSING'
+        | 'W_TOOL_LITERAL_SECRET'
+        | 'E_SKILL_FRONTMATTER'
+        | 'E_MCP_LITERAL_SECRET'
+        | 'E_MCP_STORED_MISSING'
+        | 'E_MCP_TOOL_UNKNOWN'
+        | 'W_MCP_REPLACE'
+        | 'W_MCP_TOOLS_UNCHECKED'
+        | 'E_FILE_PATH'
+        | 'E_FILE_PATH_COLLISION'
+        | 'E_FILE_NAME'
+        | 'E_FILE_TOO_LARGE'
+        | 'E_FILE_CONTENT'
+        | 'E_KB_EMBEDDING_IMMUTABLE'
+        | 'E_KB_EMBEDDING_MODEL'
+        | 'E_KB_DOC_AMBIGUOUS'
+        | 'E_KB_DOC_NAME'
+        | 'E_KB_DOC_EMPTY'
+        | 'E_KB_CHUNKING'
+        | 'E_KB_FOLDER'
+        | 'W_KB_DOC_UNCHECKED'
+        | 'W_KB_DOC_FAILED'
+        | 'I_KB_REEMBED'
+        | 'I_KB_CHUNKING'
+        | 'I_KB_PROCESSING'
+        | 'I_KB_DOCS_UNHASHED'
+        | 'I_KB_UNMANAGED_DOCS'
+        | 'I_KB_REPLACE_UNFINISHED'
+        | 'E_DEPLOY_WORKFLOW'
+        | 'E_DEPLOY_SECRET'
+        | 'E_DEPLOY_CHAT_OUTPUT'
+        | 'E_DEPLOY_CHAT_IDENTIFIER'
+        | 'E_DEPLOY_PINNED_CHAT'
+        | 'W_DEPLOYED_DRAFT_CHANGED'
+        | 'W_DEPLOY_DRAFT_NOT_SOURCE'
+        | 'E_DEPLOY_DRAFT_NOT_SOURCE_CHAT'
+        | 'I_DEPLOY_DRAFT_NOT_LIVE'
+        | 'E_APPLY_NO_BASE'
+        | 'E_APPLY_FORBIDDEN'
+        | 'E_APPLY_DELETE_NOT_ALLOWED'
+        | 'E_APPLY_LOCKED'
+        | 'E_APPLY_REFUSED'
+        | 'E_APPLY_FAILED'
+        | 'E_PLAN_TOO_LARGE'
+        | 'E_PLAN_REF_DELETED'
+        | 'E_PLAN_REF_HELD'
+        | 'W_RESOURCE_IN_USE'
+        | 'W_TABLE_COLUMN_RENAMED_IN_USE'
+        | 'E_WORKFLOW_FILES_MISSING'
+        | 'E_WORKFLOW_FOLDER_COPIED'
+        | 'W_UNDECLARED'
+        | 'W_BASE_OTHER_WORKSPACE'
+        | 'W_PROMOTE_TARGET_DELETED'
+        | 'W_PROMOTE_DELETES_TARGET_ONLY'
+        | 'W_SERVER_CHANGED'
+        | 'W_SERVER_DELETED'
+        | 'W_SERVER_MOVED'
+        | 'I_KEY_REBOUND'
+        | 'E_KEY_RENAMED'
+        | 'E_APPLY_STALE'
+        | 'E_LIMIT_EXCEEDED'
+        | 'E_NAME_TAKEN'
+        | 'I_FINDINGS_TRUNCATED'
+        | 'E_SYNTAX'
+        | 'E_SDK_HEADER'
+        | 'E_SDK_MAJOR'
+        | 'E_UNSUPPORTED_SYNTAX'
+        | 'E_WORKFLOW_EXPORT'
+        | 'E_INVALID_CHARACTER'
+        | 'E_NUMBER_NOT_FINITE'
+        | 'W_NUMBER_PRECISION'
+        | 'E_TOO_MANY_ERRORS'
+        | 'E_DUPLICATE_NAME'
+        | 'E_RESERVED_NAME'
+        | 'E_KEY_OVERRIDE'
+        | 'E_EMPTY_NAME'
+        | 'E_LOOKALIKE_NAME'
+        | 'W_LOOKALIKE_NAME'
+        | 'W_SUSPICIOUS_CHARACTER'
+        | 'E_NAME_NOT_LITERAL'
+        | 'E_UNKNOWN_IDENTIFIER'
+        | 'E_OUT_OF_SCOPE'
+        | 'E_UNKNOWN_VARIABLE'
+        | 'E_DUPLICATE_VARIABLE'
+        | 'E_VARIABLE_NAME_MISMATCH'
+        | 'E_INVALID_ENV_NAME'
+        | 'W_ENV_UNKNOWN'
+        | 'W_CHILD_INPUT_UNKNOWN'
+        | 'W_CHILD_NO_START'
+        | 'W_CHILD_RESULT_PATH'
+        | 'E_UNKNOWN_SUBFLOW_PROPERTY'
+        | 'W_FORWARD_REF'
+        | 'W_REF_NOT_NORMALIZED'
+        | 'E_REF_UNREPRESENTABLE'
+        | 'W_REF_OUT_OF_SCOPE'
+        | 'E_EDGE_SCOPE'
+        | 'E_EDGE_NOTE'
+        | 'E_TARGET_TRIGGER'
+        | 'E_NO_DEFAULT_OUTPUT'
+        | 'E_DUPLICATE_EDGE'
+        | 'E_ERROR_PORT_UNSUPPORTED'
+        | 'W_ERROR_PORT_STORED'
+        | 'E_UNKNOWN_BRANCH'
+        | 'E_DUPLICATE_BRANCH_KEY'
+        | 'E_BRANCH_KEY_COLLIDES'
+        | 'E_BRANCH_ELSE_LAST'
+        | 'W_RAW_HANDLE'
+        | 'W_SUBFLOW_HANDLE_SCOPE'
+        | 'E_EDGE_CYCLE'
+        | 'W_EDGE_CYCLE'
+        | 'W_BRANCH_UNWIRED'
+        | 'E_UNKNOWN_BUILDER'
+        | 'E_UNKNOWN_PARAM'
+        | 'E_FIXED_PARAM'
+        | 'W_FIELD_NOT_APPLICABLE'
+        | 'W_REQUIRED_MISSING'
+        | 'W_UNKNOWN_OPTION'
+        | 'E_UNKNOWN_OPERATION'
+        | 'W_UNKNOWN_MODEL'
+        | 'W_LEGACY_BLOCK_TYPE'
+        | 'W_UNKNOWN_BLOCK_TYPE'
+        | 'W_TYPE_NOT_ADDABLE'
+        | 'I_SCHEDULE_UTC'
+        | 'E_STORED_VALUE_MISSING'
+        | 'W_VALUE_KIND'
+        | 'W_OUT_OF_RANGE'
+        | 'W_TABLE_FILTER_SHAPE'
+        | 'W_LITERAL_SECRET'
+        | 'W_SUBFLOW_COUNT'
+        | 'W_UNKNOWN_OUTPUT_PATH'
+        | 'W_OUTPUT_PATH_UNDECLARED'
+        | 'W_JSON_REF_UNTYPED'
+        | 'W_LOOP_CONDITION_SYNTAX'
+        | 'E_CODE_FILE_MISSING'
+        | 'E_CODE_FILE_PATH'
+        | 'W_CODE_FILE_INLINED'
+        | 'W_CODE_FILE_REF_SYNTAX'
+        | 'W_UNRESOLVED_REF'
+        | 'W_FORWARD_REF_LITERALIZED'
+        | 'W_COMMENT_MOVED'
+        | 'W_COMMENT_DROPPED'
+        | 'E_LOCK_JSON'
+        | 'E_LOCK_VERSION'
+        | 'E_LOCK_SHAPE'
+        | 'E_LOCK_UNKNOWN_FIELD'
+        | 'E_LOCK_KEY'
+        | 'E_LOCK_IDENT'
+        | 'E_LOCK_DUPLICATE_IDENT'
+        | 'E_LOCK_DUPLICATE_ID'
+        | 'E_LOCK_PARENT'
+        | 'E_LOCK_BRANCH'
+        | 'E_LOCK_CODE_FILE_PATH'
+        | 'E_SOURCE_META_JSON'
+        | 'E_SOURCE_META_VERSION'
+        | 'E_SOURCE_META_SHAPE'
+        | 'E_SOURCE_META_UNKNOWN_FIELD'
+        | 'E_SOURCE_META_IDENT'
+        | 'E_SOURCE_META_DUPLICATE_IDENT'
+        | 'E_SOURCE_META_ANCHOR'
+        | 'E_CANON_LEGACY_NAME_COLLISION'
+        | 'E_CANON_EDGE_SCOPE'
+        | 'W_CANON_RESERVED_NAME'
+        | 'W_CANON_DANGLING_EDGE'
+        | 'W_CANON_DANGLING_PARENT'
+        | 'W_CANON_RAW_HANDLE'
+        | 'W_CANON_UNKNOWN_BLOCK_TYPE'
+        | 'W_CANON_UNRESOLVED_ID'
+        | 'W_CANON_TITLE_OVERRIDE'
+        | 'W_CANON_SUBFLOW_REPAIRED'
+        | 'W_CANON_SUBBLOCK_TYPE_DRIFT'
+        | 'W_CANON_UNDECODABLE_JSON'
+        | 'E_MAT_DUPLICATE_LOCK_ID'
+        | 'E_MAT_UNKNOWN_RESOURCE'
+        | 'E_MAT_UNKNOWN_VARIABLE'
+        | 'W_MAT_DELETED_SINCE_PULL'
+        | 'W_MAT_INFERRED_RENAME'
+        | 'W_MAT_RETYPE_RECREATED'
+        | 'W_MAT_LOCK_ID_CLAIMED'
+        | 'I_MAT_NEEDS_LAYOUT'
+        | 'E_APPLY_WORKFLOW_MISMATCH'
+        | 'E_APPLY_LOCKED_BLOCK'
+        | 'E_APPLY_TYPE_NOT_ADDABLE'
+        | 'E_APPLY_INVALID_STATE'
+        | 'E_APPLY_BLOCK_NOT_FOUND'
+        | 'E_APPLY_INVALID_BLOCK_TYPE'
+        | 'E_APPLY_BLOCK_NOT_ALLOWED'
+        | 'E_APPLY_MODEL_NOT_ALLOWED'
+        | 'E_APPLY_TOOL_NOT_ALLOWED'
+        | 'E_APPLY_INVALID_EDGE_SOURCE'
+        | 'E_APPLY_INVALID_EDGE_SCOPE'
+        | 'E_APPLY_INVALID_SOURCE_HANDLE'
+        | 'E_APPLY_INVALID_TARGET_HANDLE'
+        | 'E_APPLY_INVALID_SUBBLOCK_FIELD'
+        | 'E_APPLY_MISSING_REQUIRED_PARAMS'
+        | 'E_APPLY_RETRY_NOT_SUPPORTED'
+        | 'E_APPLY_DUPLICATE_TRIGGER'
+        | 'E_APPLY_DUPLICATE_SINGLE_INSTANCE_BLOCK'
+        | 'E_APPLY_DISABLED_ANCESTOR'
+        | 'E_APPLY_CREDENTIAL_UNREACHABLE'
+        | 'W_APPLY_CREDENTIAL_KEPT'
+        | 'E_APPLY_SANDBOX_PLAN_REQUIRED'
+        | 'W_APPLY_HOSTED_KEY_DROPPED'
+        | 'W_APPLY_VALUE_NORMALIZED'
+        | 'W_APPLY_TYPE_CHANGED'
+        | 'W_APPLY_TRIGGER_REMOVED'
+        | 'W_APPLY_CATALOG_MOVED'
+        | 'W_APPLY_PROBABLE_RENAME'
+        | 'E_APPLY_LINT'
+        | 'E_APPLY_UNRESOLVED_REF'
+        | 'E_APPLY_REF_OUT_OF_SCOPE'
+        | 'E_APPLY_CODE_FILE_REF_SYNTAX'
+        | 'E_APPLY_LOOP_CONDITION_SYNTAX'
+        | 'W_APPLY_LINT'
+        | 'W_TABLE_UNKNOWN_COLUMN'
+        | 'E_APPLY_INVALID_SCHEDULE'
+        | 'E_APPLY_BLOCK_DELETE'
+        | 'E_APPLY_VARIABLE_DELETE'
+        | 'E_WORKFLOW_META_INVALID'
+        | 'E_TYPE'
+        | 'W_TYPES_UNCHECKED'
+      severity: 'error' | 'warning' | 'info'
+      message: string
+      hint?: string
+      file?: string
+      line?: number
+      column?: number
+      endLine?: number
+      endColumn?: number
+      frame?: string
+      path?: string
+      kind?: string
+      key?: string
+      blockKey?: string
+      param?: string
+    }>
+  }
+}
+
+/** `POST /api/v2/organizations/[organizationId]/search/sources/prepare` */
+export type PrepareSearchSourcesParams = {
+  organizationId: string
+}
+
+export type PrepareSearchSourcesQuery = Record<string, never>
+
+export type PrepareSearchSourcesBody = {
+  connectorType: string
+  accessMode?: 'admin' | 'members'
+}
+
+export type PrepareSearchSourcesResponse = {
+  data: {
+    ready: true
+  }
+}
+
 /** `GET /api/v2/organizations/[organizationId]/access-requests/[requestId]/preview` */
 export type PreviewOrganizationAccessRequestParams = {
   organizationId: string
   requestId: string
 }
 
-export type PreviewOrganizationAccessRequestQuery = Record<string, unknown>
+export type PreviewOrganizationAccessRequestQuery = Record<string, never>
 
 type PreviewOrganizationAccessRequestResponseRef0 = {
   newLimitCredits: number | null
@@ -11797,7 +15751,7 @@ export type PreviewOrganizationAccessRequestResponse = {
 }
 
 /** `POST /api/v2/workflows/import/preview` */
-export type PreviewWorkflowImportQuery = Record<string, unknown>
+export type PreviewWorkflowImportQuery = Record<string, never>
 
 type PreviewWorkflowImportBodyRef0 = string
 
@@ -11947,7 +15901,7 @@ export type PreviewWorkspaceForkParams = {
   workspaceId: string
 }
 
-export type PreviewWorkspaceForkQuery = Record<string, unknown>
+export type PreviewWorkspaceForkQuery = Record<string, never>
 
 export type PreviewWorkspaceForkBody = {
   name?: string
@@ -11982,7 +15936,7 @@ export type PreviewWorkspacePullParams = {
   workspaceId: string
 }
 
-export type PreviewWorkspacePullQuery = Record<string, unknown>
+export type PreviewWorkspacePullQuery = Record<string, never>
 
 export type PreviewWorkspacePullBody = {
   otherWorkspaceId: string
@@ -12132,7 +16086,7 @@ export type PreviewWorkspacePushParams = {
   workspaceId: string
 }
 
-export type PreviewWorkspacePushQuery = Record<string, unknown>
+export type PreviewWorkspacePushQuery = Record<string, never>
 
 export type PreviewWorkspacePushBody = {
   otherWorkspaceId: string
@@ -12282,7 +16236,7 @@ export type PullWorkspaceParams = {
   workspaceId: string
 }
 
-export type PullWorkspaceQuery = Record<string, unknown>
+export type PullWorkspaceQuery = Record<string, never>
 
 export type PullWorkspaceBody = {
   otherWorkspaceId: string
@@ -12394,7 +16348,7 @@ export type PushWorkspaceParams = {
   workspaceId: string
 }
 
-export type PushWorkspaceQuery = Record<string, unknown>
+export type PushWorkspaceQuery = Record<string, never>
 
 export type PushWorkspaceBody = {
   otherWorkspaceId: string
@@ -12509,7 +16463,7 @@ export type PutSourcePermissionImportPartParams = {
   partNumber: number
 }
 
-export type PutSourcePermissionImportPartQuery = Record<string, unknown>
+export type PutSourcePermissionImportPartQuery = Record<string, never>
 
 export type PutSourcePermissionImportPartBody = {
   field: 'userMapping' | 'projectPermissions'
@@ -12527,7 +16481,7 @@ export type QueryRowsParams = {
   tableId: string
 }
 
-export type QueryRowsQuery = Record<string, unknown>
+export type QueryRowsQuery = Record<string, never>
 
 type QueryRowsBodyRef0 =
   | {
@@ -12658,7 +16612,7 @@ export type QueryRowsCountParams = {
   tableId: string
 }
 
-export type QueryRowsCountQuery = Record<string, unknown>
+export type QueryRowsCountQuery = Record<string, never>
 
 type QueryRowsCountBodyRef0 =
   | {
@@ -12838,7 +16792,7 @@ export type ReadProjectFileContentParams = {
   fileId: string
 }
 
-export type ReadProjectFileContentQuery = Record<string, unknown>
+export type ReadProjectFileContentQuery = Record<string, never>
 
 /** Non-JSON response (`binary`). */
 export type ReadProjectFileContentResponse = never
@@ -12850,13 +16804,13 @@ export type ReadProjectFileVersionContentParams = {
   version: number
 }
 
-export type ReadProjectFileVersionContentQuery = Record<string, unknown>
+export type ReadProjectFileVersionContentQuery = Record<string, never>
 
 /** Non-JSON response (`binary`). */
 export type ReadProjectFileVersionContentResponse = never
 
 /** `PATCH /api/v2/files/folders` */
-export type RelocateFileFolderQuery = Record<string, unknown>
+export type RelocateFileFolderQuery = Record<string, never>
 
 type RelocateFileFolderBodyRef0 = string
 
@@ -12881,7 +16835,7 @@ export type RelocateFileFolderResponse = {
 }
 
 /** `PATCH /api/v2/knowledge/folders` */
-export type RelocateKnowledgeFolderQuery = Record<string, unknown>
+export type RelocateKnowledgeFolderQuery = Record<string, never>
 
 type RelocateKnowledgeFolderBodyRef0 = string
 
@@ -12906,7 +16860,7 @@ export type RelocateKnowledgeFolderResponse = {
 }
 
 /** `PATCH /api/v2/tables/folders` */
-export type RelocateTableFolderQuery = Record<string, unknown>
+export type RelocateTableFolderQuery = Record<string, never>
 
 type RelocateTableFolderBodyRef0 = string
 
@@ -12931,7 +16885,7 @@ export type RelocateTableFolderResponse = {
 }
 
 /** `PATCH /api/v2/workflows/folders` */
-export type RelocateWorkflowFolderQuery = Record<string, unknown>
+export type RelocateWorkflowFolderQuery = Record<string, never>
 
 type RelocateWorkflowFolderBodyRef0 = string
 
@@ -12979,7 +16933,7 @@ export type RemoveOrganizationDomainParams = {
   domainId: string
 }
 
-export type RemoveOrganizationDomainQuery = Record<string, unknown>
+export type RemoveOrganizationDomainQuery = Record<string, never>
 
 export type RemoveOrganizationDomainResponse = {
   data: {
@@ -12994,7 +16948,7 @@ export type RemoveOrganizationMemberParams = {
   userId: string
 }
 
-export type RemoveOrganizationMemberQuery = Record<string, unknown>
+export type RemoveOrganizationMemberQuery = Record<string, never>
 
 type RemoveOrganizationMemberResponseRef0 = {
   userId: string
@@ -13012,7 +16966,7 @@ export type RemovePermissionGroupMemberParams = {
   userId: string
 }
 
-export type RemovePermissionGroupMemberQuery = Record<string, unknown>
+export type RemovePermissionGroupMemberQuery = Record<string, never>
 
 type RemovePermissionGroupMemberResponseRef0 = {
   userId: string
@@ -13029,7 +16983,7 @@ export type RemoveWorkspaceMemberParams = {
   userId: string
 }
 
-export type RemoveWorkspaceMemberQuery = Record<string, unknown>
+export type RemoveWorkspaceMemberQuery = Record<string, never>
 
 type RemoveWorkspaceMemberResponseRef0 = {
   userId: string
@@ -13046,7 +17000,7 @@ export type RenameFileParams = {
   fileId: string
 }
 
-export type RenameFileQuery = Record<string, unknown>
+export type RenameFileQuery = Record<string, never>
 
 export type RenameFileBody = {
   workspaceId: string
@@ -13077,7 +17031,7 @@ export type RenameProjectFileParams = {
   fileId: string
 }
 
-export type RenameProjectFileQuery = Record<string, unknown>
+export type RenameProjectFileQuery = Record<string, never>
 
 export type RenameProjectFileBody = {
   name: string
@@ -13111,7 +17065,7 @@ export type ReplaceSearchSourcePermissionsParams = {
   sourceId: string
 }
 
-export type ReplaceSearchSourcePermissionsQuery = Record<string, unknown>
+export type ReplaceSearchSourcePermissionsQuery = Record<string, never>
 
 export type ReplaceSearchSourcePermissionsBody = {
   expectedRevision: number
@@ -13141,7 +17095,7 @@ export type ReplaceWorkflowChatDeploymentParams = {
   workflowId: string
 }
 
-export type ReplaceWorkflowChatDeploymentQuery = Record<string, unknown>
+export type ReplaceWorkflowChatDeploymentQuery = Record<string, never>
 
 type ReplaceWorkflowChatDeploymentBodyRef0 = {
   primaryColor?: string
@@ -13361,7 +17315,14 @@ type ReplaceWorkflowStateResponseRef0 = {
     blockType: string | null
     field: string
     value: string | Array<string>
-    kind: 'credential' | 'resource' | 'custom-tool' | 'mcp-tool' | 'skill' | 'block-output'
+    kind:
+      | 'credential'
+      | 'resource'
+      | 'custom-tool'
+      | 'mcp-tool'
+      | 'skill'
+      | 'block-output'
+      | 'child-result'
     reason: string
   }>
   tableFieldIssues: Array<{
@@ -13399,9 +17360,9 @@ export type ResendOrganizationInvitationParams = {
   invitationId: string
 }
 
-export type ResendOrganizationInvitationQuery = Record<string, unknown>
+export type ResendOrganizationInvitationQuery = Record<string, never>
 
-export type ResendOrganizationInvitationBody = Record<string, unknown>
+export type ResendOrganizationInvitationBody = Record<string, never>
 
 type ResendOrganizationInvitationResponseRef0 = {
   id: string
@@ -13425,7 +17386,7 @@ export type ResolveOrganizationAccessRequestParams = {
   requestId: string
 }
 
-export type ResolveOrganizationAccessRequestQuery = Record<string, unknown>
+export type ResolveOrganizationAccessRequestQuery = Record<string, never>
 
 export type ResolveOrganizationAccessRequestBody =
   | {
@@ -13538,7 +17499,7 @@ export type RestoreFileParams = {
   fileId: string
 }
 
-export type RestoreFileQuery = Record<string, unknown>
+export type RestoreFileQuery = Record<string, never>
 
 export type RestoreFileBody = {
   workspaceId: string
@@ -13563,7 +17524,7 @@ export type RestoreFileResponse = {
 }
 
 /** `POST /api/v2/files/folders/restore` */
-export type RestoreFileFolderQuery = Record<string, unknown>
+export type RestoreFileFolderQuery = Record<string, never>
 
 type RestoreFileFolderBodyRef0 = string
 
@@ -13597,7 +17558,7 @@ export type RestoreKnowledgeBaseParams = {
   knowledgeBaseId: string
 }
 
-export type RestoreKnowledgeBaseQuery = Record<string, unknown>
+export type RestoreKnowledgeBaseQuery = Record<string, never>
 
 export type RestoreKnowledgeBaseBody = {
   workspaceId: string
@@ -13614,6 +17575,7 @@ type RestoreKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type RestoreKnowledgeBaseResponseRef1 = {
@@ -13644,9 +17606,9 @@ export type RestoreProjectFileParams = {
   fileId: string
 }
 
-export type RestoreProjectFileQuery = Record<string, unknown>
+export type RestoreProjectFileQuery = Record<string, never>
 
-export type RestoreProjectFileBody = Record<string, unknown>
+export type RestoreProjectFileBody = Record<string, never>
 
 type RestoreProjectFileResponseRef0 = {
   id: string
@@ -13676,9 +17638,9 @@ export type RestoreProjectFileFolderParams = {
   folderId: string
 }
 
-export type RestoreProjectFileFolderQuery = Record<string, unknown>
+export type RestoreProjectFileFolderQuery = Record<string, never>
 
-export type RestoreProjectFileFolderBody = Record<string, unknown>
+export type RestoreProjectFileFolderBody = Record<string, never>
 
 export type RestoreProjectFileFolderResponse = {
   data: {
@@ -13709,7 +17671,7 @@ export type RestoreTableParams = {
   tableId: string
 }
 
-export type RestoreTableQuery = Record<string, unknown>
+export type RestoreTableQuery = Record<string, never>
 
 export type RestoreTableBody = {
   workspaceId: string
@@ -13764,7 +17726,7 @@ export type RestoreTableResponse = {
 }
 
 /** `POST /api/v2/tables/folders/restore` */
-export type RestoreTableFolderQuery = Record<string, unknown>
+export type RestoreTableFolderQuery = Record<string, never>
 
 type RestoreTableFolderBodyRef0 = string
 
@@ -13798,7 +17760,7 @@ export type RestoreWorkflowParams = {
   workflowId: string
 }
 
-export type RestoreWorkflowQuery = Record<string, unknown>
+export type RestoreWorkflowQuery = Record<string, never>
 
 type RestoreWorkflowResponseRef0 = {
   id: string
@@ -13825,7 +17787,7 @@ export type ResumeWorkflowParams = {
   runId: string
 }
 
-export type ResumeWorkflowQuery = Record<string, unknown>
+export type ResumeWorkflowQuery = Record<string, never>
 
 export type ResumeWorkflowBody = {
   contextId: string
@@ -13857,6 +17819,14 @@ type ResumeWorkflowResponseRef1 = {
   startedAt?: string
   endedAt?: string
   durationMs?: number
+  paused: {
+    runId: string
+    points: Array<{
+      contextId: string
+      kind: 'human' | 'time'
+      status: 'paused' | 'queued' | 'resuming' | 'resumed' | 'failed'
+    }>
+  } | null
 }
 
 type ResumeWorkflowResponseRef2 = {
@@ -13879,7 +17849,7 @@ export type RevertFileVersionParams = {
   version: number
 }
 
-export type RevertFileVersionQuery = Record<string, unknown>
+export type RevertFileVersionQuery = Record<string, never>
 
 export type RevertFileVersionBody = {
   workspaceId: string
@@ -13936,7 +17906,7 @@ export type RevertProjectFileVersionParams = {
   version: number
 }
 
-export type RevertProjectFileVersionQuery = Record<string, unknown>
+export type RevertProjectFileVersionQuery = Record<string, never>
 
 export type RevertProjectFileVersionBody = {
   expectedCurrentVersion?: number
@@ -13995,9 +17965,9 @@ export type RevertWorkflowVersionParams = {
   workflowId: string
 }
 
-export type RevertWorkflowVersionQuery = Record<string, unknown>
+export type RevertWorkflowVersionQuery = Record<string, never>
 
-export type RevertWorkflowVersionBody = Record<string, unknown>
+export type RevertWorkflowVersionBody = Record<string, never>
 
 type RevertWorkflowVersionResponseRef0 = {
   id: string
@@ -14015,7 +17985,7 @@ export type RevokeOrganizationInvitationParams = {
   invitationId: string
 }
 
-export type RevokeOrganizationInvitationQuery = Record<string, unknown>
+export type RevokeOrganizationInvitationQuery = Record<string, never>
 
 type RevokeOrganizationInvitationResponseRef0 = {
   id: string
@@ -14050,7 +18020,7 @@ export type RollbackWorkflowParams = {
   workflowId: string
 }
 
-export type RollbackWorkflowQuery = Record<string, unknown>
+export type RollbackWorkflowQuery = Record<string, never>
 
 export type RollbackWorkflowBody = {
   version?: number
@@ -14106,7 +18076,7 @@ export type RollbackWorkspaceForkParams = {
   workspaceId: string
 }
 
-export type RollbackWorkspaceForkQuery = Record<string, unknown>
+export type RollbackWorkspaceForkQuery = Record<string, never>
 
 export type RollbackWorkspaceForkBody = {
   otherWorkspaceId: string
@@ -14131,7 +18101,7 @@ export type RunRowEnrichmentParams = {
   groupId: string
 }
 
-export type RunRowEnrichmentQuery = Record<string, unknown>
+export type RunRowEnrichmentQuery = Record<string, never>
 
 export type RunRowEnrichmentBody = {
   workspaceId: string
@@ -14150,7 +18120,7 @@ export type SaveSsoProviderParams = {
   organizationId: string
 }
 
-export type SaveSsoProviderQuery = Record<string, unknown>
+export type SaveSsoProviderQuery = Record<string, never>
 
 export type SaveSsoProviderBody =
   | {
@@ -14251,7 +18221,7 @@ export type SearchFileContentResponse = {
 }
 
 /** `POST /api/v2/knowledge/search` */
-export type SearchKnowledgeQuery = Record<string, unknown>
+export type SearchKnowledgeQuery = Record<string, never>
 
 type SearchKnowledgeBodyRef0 = {
   tagName: string
@@ -14363,7 +18333,7 @@ export type SearchTableRowsParams = {
   tableId: string
 }
 
-export type SearchTableRowsQuery = Record<string, unknown>
+export type SearchTableRowsQuery = Record<string, never>
 
 type SearchTableRowsBodyRef0 =
   | {
@@ -14483,9 +18453,9 @@ export type SetPrimarySsoProviderParams = {
   providerId: string
 }
 
-export type SetPrimarySsoProviderQuery = Record<string, unknown>
+export type SetPrimarySsoProviderQuery = Record<string, never>
 
-export type SetPrimarySsoProviderBody = Record<string, unknown>
+export type SetPrimarySsoProviderBody = Record<string, never>
 
 export type SetPrimarySsoProviderResponse = {
   data: {
@@ -14499,7 +18469,7 @@ export type SetSecretParams = {
   name: string
 }
 
-export type SetSecretQuery = Record<string, unknown>
+export type SetSecretQuery = Record<string, never>
 
 export type SetSecretBody = {
   workspaceId: string
@@ -14523,13 +18493,30 @@ export type SetSecretResponse = {
   data: SetSecretResponseRef0
 }
 
+/** `POST /api/v2/workspaces/[workspaceId]/source/blobs` */
+export type StageWorkspaceSourceBlobsParams = {
+  workspaceId: string
+}
+
+export type StageWorkspaceSourceBlobsQuery = Record<string, never>
+
+export type StageWorkspaceSourceBlobsResponse = {
+  data: {
+    workspaceId: string
+    staged: Array<{
+      sha256: string
+      size: number
+    }>
+  }
+}
+
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync` */
 export type SyncKnowledgeConnectorParams = {
   connectorId: string
   knowledgeBaseId: string
 }
 
-export type SyncKnowledgeConnectorQuery = Record<string, unknown>
+export type SyncKnowledgeConnectorQuery = Record<string, never>
 
 export type SyncKnowledgeConnectorBody = {
   workspaceId: string
@@ -14570,7 +18557,7 @@ export type UndeployWorkflowParams = {
   workflowId: string
 }
 
-export type UndeployWorkflowQuery = Record<string, unknown>
+export type UndeployWorkflowQuery = Record<string, never>
 
 type UndeployWorkflowResponseRef0 = {
   deploymentVersionId: string
@@ -14628,7 +18615,7 @@ export type UndeployWorkflowMcpToolParams = {
   workflowId: string
 }
 
-export type UndeployWorkflowMcpToolQuery = Record<string, unknown>
+export type UndeployWorkflowMcpToolQuery = Record<string, never>
 
 type UndeployWorkflowMcpToolResponseRef0 = {
   id: string
@@ -14646,7 +18633,7 @@ export type UnlinkWorkspaceForkParams = {
   workspaceId: string
 }
 
-export type UnlinkWorkspaceForkQuery = Record<string, unknown>
+export type UnlinkWorkspaceForkQuery = Record<string, never>
 
 export type UnlinkWorkspaceForkBody = {
   otherWorkspaceId: string
@@ -14665,7 +18652,7 @@ export type UnzipFileParams = {
   fileId: string
 }
 
-export type UnzipFileQuery = Record<string, unknown>
+export type UnzipFileQuery = Record<string, never>
 
 export type UnzipFileBody = {
   workspaceId: string
@@ -14687,7 +18674,7 @@ export type UnzipProjectFileParams = {
   fileId: string
 }
 
-export type UnzipProjectFileQuery = Record<string, unknown>
+export type UnzipProjectFileQuery = Record<string, never>
 
 type UnzipProjectFileResponseRef0 = UnzipProjectFileResponseRef1
 
@@ -14758,7 +18745,7 @@ export type UpdateCustomToolParams = {
   customToolId: string
 }
 
-export type UpdateCustomToolQuery = Record<string, unknown>
+export type UpdateCustomToolQuery = Record<string, never>
 
 export type UpdateCustomToolBody = {
   workspaceId: string
@@ -14772,8 +18759,11 @@ export type UpdateCustomToolBody = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code?: string
 }
@@ -14790,8 +18780,11 @@ type UpdateCustomToolResponseRef0 = {
         type: string
         properties: Record<string, unknown>
         required?: Array<string>
+        [key: string]: unknown
       }
+      [key: string]: unknown
     }
+    [key: string]: unknown
   }
   code: string
   createdAt: string
@@ -14807,7 +18800,7 @@ export type UpdateFileContentParams = {
   fileId: string
 }
 
-export type UpdateFileContentQuery = Record<string, unknown>
+export type UpdateFileContentQuery = Record<string, never>
 
 export type UpdateFileContentBody = {
   workspaceId: string
@@ -14840,7 +18833,7 @@ export type UpdateKnowledgeBaseParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeBaseQuery = Record<string, unknown>
+export type UpdateKnowledgeBaseQuery = Record<string, never>
 
 type UpdateKnowledgeBaseBodyRef0 = {
   maxSize?: number
@@ -14876,6 +18869,7 @@ type UpdateKnowledgeBaseResponseRef0 = {
     recipe?: 'plain' | 'markdown' | 'code'
     strictBoundaries?: boolean
   }
+  [key: string]: unknown
 }
 
 type UpdateKnowledgeBaseResponseRef1 = {
@@ -14907,7 +18901,7 @@ export type UpdateKnowledgeChunkParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeChunkQuery = Record<string, unknown>
+export type UpdateKnowledgeChunkQuery = Record<string, never>
 
 export type UpdateKnowledgeChunkBody = {
   workspaceId: string
@@ -14945,7 +18939,7 @@ export type UpdateKnowledgeConnectorParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeConnectorQuery = Record<string, unknown>
+export type UpdateKnowledgeConnectorQuery = Record<string, never>
 
 export type UpdateKnowledgeConnectorBody = {
   workspaceId: string
@@ -14982,7 +18976,7 @@ export type UpdateKnowledgeConnectorDocumentsParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, unknown>
+export type UpdateKnowledgeConnectorDocumentsQuery = Record<string, never>
 
 export type UpdateKnowledgeConnectorDocumentsBody = {
   workspaceId: string
@@ -15006,7 +19000,7 @@ export type UpdateKnowledgeDocumentParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeDocumentQuery = Record<string, unknown>
+export type UpdateKnowledgeDocumentQuery = Record<string, never>
 
 export type UpdateKnowledgeDocumentBody = {
   workspaceId: string
@@ -15064,7 +19058,7 @@ export type UpdateKnowledgeTagParams = {
   knowledgeBaseId: string
 }
 
-export type UpdateKnowledgeTagQuery = Record<string, unknown>
+export type UpdateKnowledgeTagQuery = Record<string, never>
 
 export type UpdateKnowledgeTagBody = {
   workspaceId: string
@@ -15088,7 +19082,7 @@ export type UpdateMcpServerParams = {
   mcpServerId: string
 }
 
-export type UpdateMcpServerQuery = Record<string, unknown>
+export type UpdateMcpServerQuery = Record<string, never>
 
 export type UpdateMcpServerBody = {
   workspaceId: string
@@ -15137,7 +19131,7 @@ export type UpdateOrganizationAccessRequestSettingsParams = {
   organizationId: string
 }
 
-export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, unknown>
+export type UpdateOrganizationAccessRequestSettingsQuery = Record<string, never>
 
 export type UpdateOrganizationAccessRequestSettingsBody = {
   allowRequests: boolean
@@ -15157,7 +19151,7 @@ export type UpdateOrganizationMemberParams = {
   userId: string
 }
 
-export type UpdateOrganizationMemberQuery = Record<string, unknown>
+export type UpdateOrganizationMemberQuery = Record<string, never>
 
 export type UpdateOrganizationMemberBody = {
   role: 'member' | 'admin'
@@ -15181,7 +19175,7 @@ export type UpdateOrganizationMemberUsageLimitParams = {
   userId: string
 }
 
-export type UpdateOrganizationMemberUsageLimitQuery = Record<string, unknown>
+export type UpdateOrganizationMemberUsageLimitQuery = Record<string, never>
 
 export type UpdateOrganizationMemberUsageLimitBody = {
   creditLimit: number | null
@@ -15201,7 +19195,7 @@ export type UpdatePermissionGroupParams = {
   groupId: string
 }
 
-export type UpdatePermissionGroupQuery = Record<string, unknown>
+export type UpdatePermissionGroupQuery = Record<string, never>
 
 export type UpdatePermissionGroupBody = {
   name?: string
@@ -15329,7 +19323,7 @@ export type UpdateProjectFileContentParams = {
   fileId: string
 }
 
-export type UpdateProjectFileContentQuery = Record<string, unknown>
+export type UpdateProjectFileContentQuery = Record<string, never>
 
 export type UpdateProjectFileContentBody = {
   content: string
@@ -15365,7 +19359,7 @@ export type UpdateProjectFileFolderParams = {
   folderId: string
 }
 
-export type UpdateProjectFileFolderQuery = Record<string, unknown>
+export type UpdateProjectFileFolderQuery = Record<string, never>
 
 export type UpdateProjectFileFolderBody = {
   name?: string
@@ -15397,7 +19391,7 @@ export type UpdateProjectFileShareParams = {
   fileId: string
 }
 
-export type UpdateProjectFileShareQuery = Record<string, unknown>
+export type UpdateProjectFileShareQuery = Record<string, never>
 
 export type UpdateProjectFileShareBody = {
   isActive: boolean
@@ -15427,7 +19421,7 @@ export type UpdateRowsByFilterParams = {
   tableId: string
 }
 
-export type UpdateRowsByFilterQuery = Record<string, unknown>
+export type UpdateRowsByFilterQuery = Record<string, never>
 
 type UpdateRowsByFilterBodyRef0 =
   | {
@@ -15539,7 +19533,7 @@ export type UpdateSandboxParams = {
   sandboxId: string
 }
 
-export type UpdateSandboxQuery = Record<string, unknown>
+export type UpdateSandboxQuery = Record<string, never>
 
 export type UpdateSandboxBody = {
   workspaceId: string
@@ -15620,12 +19614,68 @@ export type UpdateSandboxResponse = {
   data: UpdateSandboxResponseRef0
 }
 
+/** `PATCH /api/v2/organizations/[organizationId]/search/sources/[sourceId]` */
+export type UpdateSearchSourceParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type UpdateSearchSourceQuery = Record<string, never>
+
+export type UpdateSearchSourceBody = {
+  apiKey?: string
+  sourceConfig?: Record<string, unknown>
+  permissionConfig?: {
+    provider: 'gitlab'
+    mode: 'administrator' | 'csv'
+    expectedRevision?: number
+    userMapping?: {
+      filename: string
+      content: string
+    }
+    projectPermissions?: {
+      filename: string
+      content: string
+    }
+  }
+  status?: 'active' | 'paused'
+}
+
+export type UpdateSearchSourceResponse = {
+  data: {
+    id: string
+    connectorType: string
+    credentialId: string | null
+    sourceConfig: Record<string, unknown>
+    status: 'active' | 'paused' | 'pending' | 'syncing' | 'error' | 'disabled'
+    createdAt: string
+    updatedAt: string
+    accessMode: 'admin' | 'members'
+    approved: boolean
+    permissionConfig: {
+      provider: 'gitlab'
+      mode: 'administrator' | 'csv'
+      revision: number
+      userMapping: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+      projectPermissions: {
+        filename: string
+        uploadedAt: string
+        rowCount: number
+      } | null
+    } | null
+  }
+}
+
 /** `PATCH /api/v2/skills/[skillId]` */
 export type UpdateSkillParams = {
   skillId: string
 }
 
-export type UpdateSkillQuery = Record<string, unknown>
+export type UpdateSkillQuery = Record<string, never>
 
 export type UpdateSkillBody = {
   workspaceId: string
@@ -15653,7 +19703,7 @@ export type UpdateSsoPolicyParams = {
   organizationId: string
 }
 
-export type UpdateSsoPolicyQuery = Record<string, unknown>
+export type UpdateSsoPolicyQuery = Record<string, never>
 
 export type UpdateSsoPolicyBody = {
   requireSso: boolean
@@ -15672,7 +19722,7 @@ export type UpdateTableParams = {
   tableId: string
 }
 
-export type UpdateTableQuery = Record<string, unknown>
+export type UpdateTableQuery = Record<string, never>
 
 type UpdateTableBodyRef0 = string
 
@@ -15736,7 +19786,7 @@ export type UpdateTableColumnParams = {
   tableId: string
 }
 
-export type UpdateTableColumnQuery = Record<string, unknown>
+export type UpdateTableColumnQuery = Record<string, never>
 
 export type UpdateTableColumnBody = {
   workspaceId: string
@@ -15791,7 +19841,7 @@ export type UpdateTableRowParams = {
   rowId: string
 }
 
-export type UpdateTableRowQuery = Record<string, unknown>
+export type UpdateTableRowQuery = Record<string, never>
 
 type UpdateTableRowBodyRef0 = Record<string, unknown>
 
@@ -15830,7 +19880,7 @@ export type UpdateTableViewParams = {
   viewId: string
 }
 
-export type UpdateTableViewQuery = Record<string, unknown>
+export type UpdateTableViewQuery = Record<string, never>
 
 type UpdateTableViewBodyRef0 =
   | {
@@ -15979,7 +20029,7 @@ export type UpdateWorkflowParams = {
   workflowId: string
 }
 
-export type UpdateWorkflowQuery = Record<string, unknown>
+export type UpdateWorkflowQuery = Record<string, never>
 
 type UpdateWorkflowBodyRef0 = string
 
@@ -16013,7 +20063,7 @@ export type UpdateWorkflowGroupParams = {
   tableId: string
 }
 
-export type UpdateWorkflowGroupQuery = Record<string, unknown>
+export type UpdateWorkflowGroupQuery = Record<string, never>
 
 export type UpdateWorkflowGroupBody = {
   workspaceId: string
@@ -16099,7 +20149,7 @@ export type UpdateWorkflowMcpServerParams = {
   serverId: string
 }
 
-export type UpdateWorkflowMcpServerQuery = Record<string, unknown>
+export type UpdateWorkflowMcpServerQuery = Record<string, never>
 
 export type UpdateWorkflowMcpServerBody = {
   name?: string
@@ -16126,7 +20176,7 @@ export type UpdateWorkflowPublicApiParams = {
   workflowId: string
 }
 
-export type UpdateWorkflowPublicApiQuery = Record<string, unknown>
+export type UpdateWorkflowPublicApiQuery = Record<string, never>
 
 export type UpdateWorkflowPublicApiBody = {
   isPublicApi: boolean
@@ -16147,7 +20197,7 @@ export type UpdateWorkflowTriggerParams = {
   blockId: string
 }
 
-export type UpdateWorkflowTriggerQuery = Record<string, unknown>
+export type UpdateWorkflowTriggerQuery = Record<string, never>
 
 export type UpdateWorkflowTriggerBody = {
   enabled: boolean
@@ -16178,7 +20228,7 @@ export type UpdateWorkflowVersionParams = {
   workflowId: string
 }
 
-export type UpdateWorkflowVersionQuery = Record<string, unknown>
+export type UpdateWorkflowVersionQuery = Record<string, never>
 
 export type UpdateWorkflowVersionBody = {
   name?: string
@@ -16200,7 +20250,7 @@ export type UpdateWorkspaceParams = {
   workspaceId: string
 }
 
-export type UpdateWorkspaceQuery = Record<string, unknown>
+export type UpdateWorkspaceQuery = Record<string, never>
 
 export type UpdateWorkspaceBody = {
   name?: string
@@ -16226,7 +20276,7 @@ export type UpdateWorkspaceForkExclusionsParams = {
   workspaceId: string
 }
 
-export type UpdateWorkspaceForkExclusionsQuery = Record<string, unknown>
+export type UpdateWorkspaceForkExclusionsQuery = Record<string, never>
 
 export type UpdateWorkspaceForkExclusionsBody = {
   workflowIds: Array<string>
@@ -16246,7 +20296,7 @@ export type UpdateWorkspaceForkMappingsParams = {
   workspaceId: string
 }
 
-export type UpdateWorkspaceForkMappingsQuery = Record<string, unknown>
+export type UpdateWorkspaceForkMappingsQuery = Record<string, never>
 
 export type UpdateWorkspaceForkMappingsBody = {
   otherWorkspaceId: string
@@ -16284,7 +20334,7 @@ export type UpdateWorkspaceMemberParams = {
   userId: string
 }
 
-export type UpdateWorkspaceMemberQuery = Record<string, unknown>
+export type UpdateWorkspaceMemberQuery = Record<string, never>
 
 export type UpdateWorkspaceMemberBody = {
   role: 'admin' | 'write' | 'read'
@@ -16358,7 +20408,7 @@ export type UpsertFileShareParams = {
   fileId: string
 }
 
-export type UpsertFileShareQuery = Record<string, unknown>
+export type UpsertFileShareQuery = Record<string, never>
 
 export type UpsertFileShareBody = {
   workspaceId: string
@@ -16389,7 +20439,7 @@ export type UpsertTableRowParams = {
   tableId: string
 }
 
-export type UpsertTableRowQuery = Record<string, unknown>
+export type UpsertTableRowQuery = Record<string, never>
 
 type UpsertTableRowBodyRef0 = Record<string, unknown>
 
@@ -16434,9 +20484,9 @@ export type VerifyOrganizationDomainParams = {
   domainId: string
 }
 
-export type VerifyOrganizationDomainQuery = Record<string, unknown>
+export type VerifyOrganizationDomainQuery = Record<string, never>
 
-export type VerifyOrganizationDomainBody = Record<string, unknown>
+export type VerifyOrganizationDomainBody = Record<string, never>
 
 export type VerifyOrganizationDomainResponse = {
   data: {
@@ -16582,7 +20632,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Add column',
     body: {
@@ -16594,7 +20647,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Add workflow group',
     body: {
@@ -16676,6 +20732,48 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  applyWorkflowSource: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/source',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Apply workflow source',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+      },
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      lock: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.',
+      },
+      base: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Where and when the source was read (`.sim/base.json`). The apply answers `409` when the saved draft no longer matches `base.fingerprint`, and `400` when `base.workflowId` names another workflow.',
+      },
+      provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
+    },
+  },
   applyWorkflowVariables: {
     method: 'PATCH',
     path: '/api/v2/workflows/[workflowId]/variables',
@@ -16689,6 +20787,47 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Variable changes to apply, in order.',
       },
+    },
+  },
+  applyWorkspaceSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Apply workspace source',
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Plan, check and authorize every change without writing. Findings, errors included, come back in `diagnostics` with a `200`.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
+      },
+      blobs: {
+        kind: 'array',
+        describe:
+          'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+      },
+      base: {
+        kind: 'object',
+        describe:
+          '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.',
+      },
+      kinds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.',
+      },
+      options: { kind: 'object', describe: 'How far the apply may go.' },
+      provenance: { kind: 'object', describe: 'Where the directory came from, for the audit log.' },
     },
   },
   archiveProjectFileItems: {
@@ -16881,7 +21020,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/bulk-update',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Bulk update rows',
     body: {
@@ -16928,7 +21070,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
     pathParams: ['tableId', 'dispatchId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
@@ -16946,7 +21089,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -16984,7 +21128,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/cancel-runs',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Cancel column runs',
     body: {
@@ -17926,6 +22073,44 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  createSearchSource: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Create Search source',
+    body: {
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      credentialId: {
+        kind: 'string',
+        describe:
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types), or a saved credential for an `apiKey` connector type that declares `auth.savedCredential` (such as Amazon S3 with a saved AWS credential); otherwise omit it for `apiKey` connectors.',
+      },
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        required: true,
+        describe: 'Connector-specific source selection and filtering configuration.',
+      },
+      accessMode: {
+        kind: 'enum',
+        values: ['admin', 'members'] as const,
+        default: 'admin',
+        describe:
+          'Source-managed permissions (admin), or individually connected member accounts (members).',
+      },
+      permissionConfig: {
+        kind: 'object',
+        describe:
+          'Provider-specific permissions for initial setup. Large CSV snapshots use permission imports after creation.',
+      },
+    },
+  },
   createServiceAccountCredential: {
     method: 'POST',
     path: '/api/v2/credentials',
@@ -18042,7 +22227,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/dispatches',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create run dispatch',
     body: {
@@ -18072,7 +22260,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/exports',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create table export',
     body: {
@@ -18151,7 +22342,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create rows',
     body: {
@@ -18163,7 +22357,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Create view',
     body: {
@@ -18210,6 +22407,49 @@ export const V2_OPERATIONS = {
         describe: 'Workspace in which to create the folder.',
       },
       path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
+    },
+  },
+  createWorkflowFromSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace in which to create the workflow.' },
+    responseMode: 'json',
+    summary: 'Create workflow from source',
+    workspaceKeyUnsupported: true,
+    query: {
+      dryRun: {
+        kind: 'boolean',
+        describe:
+          'Run every check without writing, auditing, or notifying collaborators. Findings, errors included, come back in `diagnostics` with `applied: false` and a `200`, and the files, lock and fingerprint show what a committed apply would store. A request refused before the source is evaluated (an invalid or oversized body, a locked workflow or folder) gets the same status as without `dryRun`, and a create under a taken name answers `409`.',
+      },
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Allow the apply to delete blocks and variables the source no longer declares. Without it, an apply that would delete any block is refused with `E_APPLY_BLOCK_DELETE`, and one that would delete any variable with `E_APPLY_VARIABLE_DELETE`, naming them. Ignored when creating a workflow.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      name: {
+        kind: 'string',
+        describe: "Workflow name. Defaults to the name in the source's `workflow('…')` call.",
+      },
+      description: {
+        kind: 'string',
+        describe: 'Workflow description. Defaults to the description in the source.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as "New folder" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.',
+      },
+      provenance: { kind: 'object', describe: 'Where the source came from, for the audit log.' },
     },
   },
   createWorkflowMcpServer: {
@@ -18577,6 +22817,17 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
   },
+  deleteSearchSource: {
+    method: 'DELETE',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Delete Search source',
+  },
   deleteSecret: {
     method: 'DELETE',
     path: '/api/v2/secrets/[name]',
@@ -18633,7 +22884,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete table',
     query: {
@@ -18644,7 +22898,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete column',
     body: {
@@ -18687,7 +22944,11 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete row',
     query: {
@@ -18698,7 +22959,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete rows',
     body: {
@@ -18716,7 +22980,11 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete view',
     query: {
@@ -18775,7 +23043,10 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Delete workflow group',
     body: {
@@ -18805,6 +23076,11 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe: 'Optional release note for the deployment version.',
+      },
+      expectedDraftFingerprint: {
+        kind: 'string',
+        describe:
+          'Deploy only this draft: the `sf1:` fingerprint a source apply answered with (`base.fingerprint`). When the draft changed since, the deploy answers `409` and publishes nothing.',
       },
     },
   },
@@ -18981,6 +23257,24 @@ export const V2_OPERATIONS = {
     summary: 'Download file version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  downloadKnowledgeDocument: {
+    method: 'GET',
+    path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]/content',
+    pathParams: ['knowledgeBaseId', 'documentId'] as const,
+    pathParamDocs: {
+      knowledgeBaseId: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
+    responseMode: 'binary',
+    summary: 'Download document',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   downloadProjectFileItems: {
@@ -19234,6 +23528,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  findMissingWorkspaceSourceBlobs: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/blobs/missing',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Find missing workspace source blobs',
+    body: {
+      blobs: { kind: 'array', required: true, describe: 'The binary files an apply will need.' },
+    },
+  },
   forkWorkspace: {
     method: 'POST',
     path: '/api/v2/workspaces/[workspaceId]/fork',
@@ -19299,7 +23604,7 @@ export const V2_OPERATIONS = {
     pathParams: ['blockId'] as const,
     pathParamDocs: {
       blockId:
-        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.',
+        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID. A legacy or deprecated block (such as `starter`) is readable by its exact ID, and its description opens with the block that replaces it.',
     },
     responseMode: 'json',
     summary: 'Get block',
@@ -19843,7 +24148,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       rowId: 'Unique table row identifier.',
       groupId: 'Workflow or enrichment group to run.',
     },
@@ -19863,6 +24169,17 @@ export const V2_OPERATIONS = {
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
+  },
+  getSearchSource: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Get Search source',
   },
   getSearchSourcePermissions: {
     method: 'GET',
@@ -20052,6 +24369,38 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
   },
+  getSourceCatalog: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source/catalog',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: {
+      workspaceId:
+        'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what the catalog contains.',
+    },
+    responseMode: 'json',
+    summary: 'Get source catalog',
+    query: {
+      workflowId: {
+        kind: 'string',
+        describe:
+          'Return the source catalog for this workflow: the workspace catalog plus every block type already placed in it, the ones the caller could not add marked `addable: false`.',
+      },
+    },
+    headers: {
+      'if-none-match': {
+        kind: 'string',
+        describe: 'A catalog `hash` (quoted, as sent in `ETag`) the caller already holds.',
+      },
+    },
+  },
+  getSourceResources: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/workflows/source/resources',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace whose resources to list.' },
+    responseMode: 'json',
+    summary: 'Get source resources',
+  },
   getSsoPolicy: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/sso/policy',
@@ -20081,7 +24430,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Get table',
     query: {
@@ -20093,7 +24445,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/dispatches/[dispatchId]',
     pathParams: ['tableId', 'dispatchId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
@@ -20111,7 +24464,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -20149,7 +24503,11 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Get row',
     query: {
@@ -20165,7 +24523,11 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Get view',
     query: {
@@ -20263,6 +24625,22 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         maximum: 16777216,
         describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
+      },
+    },
+  },
+  getWorkflowSource: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/source',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Get workflow source',
+    query: {
+      functionCode: {
+        kind: 'enum',
+        values: ['inline', 'files'] as const,
+        describe:
+          'Where function-block code goes: `files` (default) writes it to `functions/*` files referenced with `codeFile()`; `inline` prints it in tagged templates.',
       },
     },
   },
@@ -20377,6 +24755,20 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get workspace permission config',
     workspaceKeyUnsupported: true,
+  },
+  getWorkspaceSource: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/source',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Get workspace source',
+    query: {
+      kinds: {
+        kind: 'string',
+        describe: 'Comma-separated kinds to read; every kind the server supports when omitted.',
+      },
+    },
   },
   grantSkillEditor: {
     method: 'POST',
@@ -22258,6 +26650,40 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listSearchSources: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'List Search sources',
+    query: {
+      sortBy: {
+        kind: 'enum',
+        values: ['connectorType', 'createdAt', 'updatedAt'] as const,
+        default: 'createdAt',
+        describe: 'Field used to sort the result.',
+      },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        maximum: 100,
+        describe:
+          'Maximum connectors to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+    },
+  },
   listSecrets: {
     method: 'GET',
     path: '/api/v2/secrets',
@@ -22596,7 +27022,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/dispatches',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List run dispatches',
     query: {
@@ -22643,7 +27072,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List rows',
     query: {
@@ -22658,7 +27090,7 @@ export const V2_OPERATIONS = {
       cursor: {
         kind: 'string',
         describe:
-          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+          'Opaque cursor from the previous page. Send it back with the same sort, filters and table reference (its id or its name, as the first page used); only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
       includeRunState: {
         kind: 'boolean',
@@ -22725,7 +27157,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List views',
     query: {
@@ -22825,7 +27260,10 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'List workflow groups',
     query: {
@@ -23302,6 +27740,93 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  planWorkflowSource: {
+    method: 'POST',
+    path: '/api/v2/workflows/[workflowId]/source/plan',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Plan workflow source',
+    workspaceKeyUnsupported: true,
+    query: {
+      allowDelete: {
+        kind: 'boolean',
+        describe:
+          'Plan the deletes of blocks and variables the source no longer declares as an apply with `allowDelete` would, listing them in the diff, instead of reporting `E_APPLY_BLOCK_DELETE` or `E_APPLY_VARIABLE_DELETE`.',
+      },
+    },
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Relative path → file text: `workflow.ts` plus every function-code file it references (for example `functions/score.js`). At most 2001 files and 4000000 bytes together, for a workflow of at most 2000 blocks.',
+      },
+      lock: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Identity sidecar (`.sim/lock.json`): binds the keys in the source to stored ids.',
+      },
+      base: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Where and when the source was read (`.sim/base.json`). A draft that no longer matches `base.fingerprint` is reported as `E_APPLY_STALE` in `diagnostics`.',
+      },
+    },
+  },
+  planWorkspaceSource: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/plan',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Plan workspace source',
+    body: {
+      files: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Directory path → text for every managed kind: declarations (`tables/leads.ts`) and workflow folders (`workflows/ingest/workflow.ts`, `functions/*`, `.sim/lock.json`, `.sim/base.json`). A workflow folder sent with only its `.sim/base.json` is unchanged.',
+      },
+      blobs: {
+        kind: 'array',
+        describe:
+          'Binary files by path, with the SHA-256 and size of their bytes. Their bytes must be staged first: `sim workspaces source apply` stages them, or upload them to `POST /api/v2/workspaces/{workspaceId}/source/blobs` (not available over MCP). An apply with any missing is refused with `E_BLOB_MISSING` and writes nothing.',
+      },
+      base: {
+        kind: 'object',
+        describe:
+          '`.sim/base.json`: per resource, the id and fingerprint the directory was read at. Apply compares it with the server to tell a local edit from a server change.',
+      },
+      kinds: {
+        kind: 'array',
+        required: true,
+        describe:
+          'The kind folders the directory holds, empty ones included. A kind is managed only when listed here or when a file of it is sent.',
+      },
+      options: { kind: 'object', describe: 'How far the apply may go.' },
+    },
+  },
+  prepareSearchSources: {
+    method: 'POST',
+    path: '/api/v2/organizations/[organizationId]/search/sources/prepare',
+    pathParams: ['organizationId'] as const,
+    pathParamDocs: { organizationId: 'Organization identifier.' },
+    responseMode: 'json',
+    summary: 'Prepare Search sources',
+    body: {
+      connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
+      accessMode: {
+        kind: 'enum',
+        values: ['admin', 'members'] as const,
+        default: 'admin',
+        describe:
+          'Source-managed permissions (admin), or individually connected member accounts (members).',
+      },
+    },
+  },
   previewOrganizationAccessRequest: {
     method: 'GET',
     path: '/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview',
@@ -23597,7 +28122,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Query rows',
     body: {
@@ -23614,7 +28142,11 @@ export const V2_OPERATIONS = {
         describe:
           'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.',
       },
-      cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor returned by the previous query page. Send it back under the same table reference (its id or its name, as the first page used).',
+      },
       includeRunState: {
         kind: 'boolean',
         default: false,
@@ -23627,7 +28159,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query/count',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Count rows',
     body: {
@@ -24169,7 +28704,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/restore',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names.',
+    },
     responseMode: 'json',
     summary: 'Restore table',
     body: {
@@ -24351,7 +28889,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       rowId: 'Unique table row identifier.',
       groupId: 'Workflow or enrichment group to run.',
     },
@@ -24807,7 +29346,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/search',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Search rows',
     body: {
@@ -24873,6 +29415,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  stageWorkspaceSourceBlobs: {
+    method: 'POST',
+    path: '/api/v2/workspaces/[workspaceId]/source/blobs',
+    pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to read or apply.' },
+    responseMode: 'json',
+    summary: 'Stage workspace source blobs',
+  },
   syncKnowledgeConnector: {
     method: 'POST',
     path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync',
@@ -24902,7 +29452,8 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/[tableId]/exports/[exportId]/download',
     pathParams: ['tableId', 'exportId'] as const,
     pathParamDocs: {
-      tableId: 'Unique table identifier.',
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
@@ -25519,7 +30070,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update rows by filter',
     body: {
@@ -25572,6 +30126,39 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  updateSearchSource: {
+    method: 'PATCH',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Search source identifier, also used by permission uploads.',
+    },
+    responseMode: 'json',
+    summary: 'Update Search source',
+    body: {
+      apiKey: {
+        kind: 'string',
+        describe:
+          'Replacement token for providers supporting credential updates (currently GitLab). For GitLab, supply permissionConfig with the current expectedRevision; omitted CSVs retain grants. Omit to keep the saved token.',
+      },
+      sourceConfig: {
+        kind: 'object',
+        describe:
+          'Complete replacement source configuration. Read the existing configuration before editing it.',
+      },
+      permissionConfig: {
+        kind: 'object',
+        describe:
+          'Provider-specific permission update, using the current expectedRevision. Omit to retain permissions.',
+      },
+      status: {
+        kind: 'enum',
+        values: ['active', 'paused'] as const,
+        describe: 'Pause or resume this source without changing its ID or stored permissions.',
+      },
+    },
+  },
   updateSkill: {
     method: 'PATCH',
     path: '/api/v2/skills/[skillId]',
@@ -25613,7 +30200,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update table',
     body: {
@@ -25634,7 +30224,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update column',
     body: {
@@ -25651,7 +30244,11 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      rowId: 'Unique table row identifier.',
+    },
     responseMode: 'json',
     summary: 'Update row',
     body: {
@@ -25667,7 +30264,11 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+      viewId: 'Unique saved-view identifier.',
+    },
     responseMode: 'json',
     summary: 'Update view',
     body: {
@@ -25707,7 +30308,10 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Update workflow group',
     body: {
@@ -25975,7 +30579,10 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/upsert',
     pathParams: ['tableId'] as const,
-    pathParamDocs: { tableId: 'Unique table identifier.' },
+    pathParamDocs: {
+      tableId:
+        'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).',
+    },
     responseMode: 'json',
     summary: 'Upsert row',
     body: {

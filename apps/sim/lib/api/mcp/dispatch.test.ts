@@ -28,6 +28,7 @@ vi.mock('@/lib/api/mcp/catalog', () => {
       handler: async () => mocks.route,
     }),
     callerHeaderNames: (name: string) => (name === 'completeFileUpload' ? ['upload-token'] : []),
+    isReadOperation: async (name: string) => name === 'getTableRow',
   }
 })
 
@@ -168,6 +169,22 @@ describe('dispatchMcpOperation', () => {
       context
     )
     expect(result.isError).toBe(true)
-    expect(result.content[0]).toMatchObject({ text: expect.stringContaining('too large') })
+    expect(result.content[0]).toMatchObject({ text: expect.stringContaining('Request less') })
+  })
+
+  it('never asks for a write that answered too large to be retried', async () => {
+    mocks.route.mockResolvedValue(jsonResponse({ data: 'x'.repeat(1024 * 1024) }))
+    const result = await dispatchMcpOperation(
+      {
+        operation: 'completeFileUpload',
+        params: { uploadId: 'u' },
+        body: { workspaceId: 'w' },
+        headers: { 'upload-token': 't' },
+      },
+      context
+    )
+    expect(result.isError).toBe(true)
+    expect(result.content[0]).toMatchObject({ text: expect.stringContaining('Do not repeat it') })
+    expect(result.content[0]).not.toMatchObject({ text: expect.stringContaining('Request less') })
   })
 })

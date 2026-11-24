@@ -3,6 +3,7 @@
 import { outboxEvent } from '@sim/db/schema'
 import { readTestDatabaseUrl, readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { withUtcTimestamps } from '@sim/db/timestamps'
+import { createMockRedis } from '@sim/testing/mocks/redis.mock'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { generateId } from '@sim/utils/id'
@@ -57,22 +58,19 @@ describe('completed outbox retention in PostgreSQL', () => {
   const cursorKeys = [RECOVER, EMBEDDING_CHECKPOINT_EXPIRY].map(
     (eventType) => `outbox-prune-cursor:v1:${eventType}`
   )
-  let redis: Redis | undefined
+  const redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
 
   beforeAll(async () => {
     await connection`CREATE SCHEMA ${connection(schemaName)}`
     await connection`CREATE TABLE outbox_event (LIKE public.outbox_event INCLUDING ALL)`
     database.current = testDb
-    if (redisUrl) {
-      redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
-      await redis.connect()
-      await redis.del(...cursorKeys)
-    }
+    await redis.connect()
+    await redis.del(...cursorKeys)
   })
 
   afterEach(async () => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-    await redis?.del(...cursorKeys)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(createMockRedis())
+    await redis.del(...cursorKeys)
     await connection`TRUNCATE outbox_event`
   })
 
@@ -81,14 +79,13 @@ describe('completed outbox retention in PostgreSQL', () => {
       await connection`DROP SCHEMA ${connection(schemaName)} CASCADE`
     } finally {
       await connection.end()
-      await redis?.quit()
+      await redis.quit()
       database.current = undefined
     }
   })
 
   /** Runs the rest of the test with each type's pass resuming through real Redis. */
   function resumeThroughRedis(): Redis {
-    if (!redis) throw new Error('TEST_REDIS_URL is required for the resume cases')
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
     return redis
   }
@@ -179,7 +176,7 @@ describe('completed outbox retention in PostgreSQL', () => {
     expect(rows.map((row) => [row.id, row.status])).toEqual([[gate.id, 'pending']])
   })
 
-  describe.runIf(Boolean(redisUrl))("resuming each type's pass across runs", () => {
+  describe("resuming each type's pass across runs", () => {
     /** One full batch plus one newer row, all completed, a millisecond apart, oldest first. */
     async function seedFullBatchPlusOne(eventType: string) {
       const newest = expired().toISOString()

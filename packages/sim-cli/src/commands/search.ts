@@ -12,7 +12,7 @@ const MAX_RESULTS = 5
  * it heavily would rank every command that takes `--workflow` as a workflow
  * command.
  */
-const FIELD_BOOST = { command: 8, summary: 5, context: 0.5 } as const
+const FIELD_BOOST = { command: 8, summary: 5, tasks: 4, context: 0.5 } as const
 
 /**
  * Filler in a plain-language query. Left in, prefix matching turns `a` or `i`
@@ -46,12 +46,29 @@ const SEARCH_OPTIONS = {
  */
 const TRAILING_PARENTHETICAL = /\s*\([^)]*\)\s*$/
 
+/**
+ * The plain-language tasks a command is the answer to, where its name and summary use other
+ * words: "build a workflow" for `workflows source create`, "promote dev to prod" for
+ * `workspaces source apply`. Set by the command's own module ({@link searchTasks}).
+ */
+const TASKS = new WeakMap<Command, string>()
+
+/**
+ * Indexes `command` for `tasks` too, so `sim cli search` finds it from how an agent or a person
+ * phrases the job, not only from its name. Returns the command, to chain.
+ */
+export function searchTasks(command: Command, tasks: readonly string[]): Command {
+  TASKS.set(command, tasks.join('. '))
+  return command
+}
+
 interface SearchDocument {
   command: string
   /** The summary as printed, qualifier included. */
   display: string
   /** The summary with its trailing qualifier removed, so only what the command does is ranked. */
   summary: string
+  tasks: string
   context: string
 }
 
@@ -93,6 +110,7 @@ function collectDocuments(
         command: ['sim', ...path].join(' '),
         display,
         summary: display.replace(TRAILING_PARENTHETICAL, ''),
+        tasks: TASKS.get(command) ?? '',
         context: [
           ...ancestors,
           ...command.registeredArguments.map((argument) =>
@@ -114,7 +132,7 @@ function collectDocuments(
 /** Ranks every command in `program` against a plain-language query, best first. */
 export function searchCommands(program: Command, query: string, exclude: Command): SearchResult[] {
   const index = new MiniSearch<SearchDocument>({
-    fields: ['command', 'summary', 'context'],
+    fields: ['command', 'summary', 'tasks', 'context'],
     storeFields: ['command', 'display'],
     idField: 'command',
   })

@@ -6,16 +6,16 @@ import {
   COPILOT_BILLING_PROTOCOL_HEADER,
   requireBillingCallbackAttribution,
 } from '@/lib/billing/core/attribution'
-import { isFreeRunPayer, readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
+import { isCappedRunPayer, readMidRunUsageVerdict } from '@/lib/billing/core/mid-run-usage'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   authorizeCopilotChatCallback,
   checkCopilotContinuationBilling,
 } from '@/lib/mothership/application/authorize-chat-callback'
-import { BillingLimitError } from '@/lib/mothership/request/go/stream'
 import { BillingAdmissionSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
+import { BillingLimitError } from '@/lib/mothership/request/worker/stream'
 
 /** Restores only the original server-owned admission, never a newly selected payer. */
 export function restoreBillingAdmission(
@@ -84,8 +84,8 @@ export async function authorizeLifecycleContinuation(
     if (usage.status === 'blocked')
       throw new OrchestrationError('forbidden', 'Continuation billing account is blocked')
     if (usage.status === 'exceeded') throw new BillingLimitError(context.userId, usage.scope)
-    // A free payer's spend past its limit is never billed, so an unreadable standing refuses it.
-    if (usage.status === 'unknown' && isFreeRunPayer(context.billingAttribution)) {
+    // A capped payer's spend past its limit is never billed, so an unreadable standing refuses it.
+    if (usage.status === 'unknown' && isCappedRunPayer(context.billingAttribution)) {
       throw new BillingLimitError(context.userId)
     }
   }

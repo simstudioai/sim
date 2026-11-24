@@ -21,6 +21,15 @@ function managedRedisUrl(): string | null {
   return port ? `redis://${LOOPBACK_HOST}:${port}` : null
 }
 
+/**
+ * The URL to keep once the managed container answers at `managedUrl`: a configured REDIS_URL that
+ * answers too (it did not before the restart) wins, so its DB index or credentials survive.
+ */
+async function keepConfiguredUrl(managedUrl: string, existing?: string): Promise<string> {
+  if (existing && existing !== managedUrl && (await redisPing(existing)).ok) return existing
+  return managedUrl
+}
+
 async function pingWithSpinner(url: string, label: string): Promise<boolean> {
   const spin = p.spinner()
   spin.start(label)
@@ -33,8 +42,11 @@ async function startManagedRedis(detection: Detection): Promise<string> {
   const hostPort = detection.redisPortOpen ? 6380 : 6379
   const url = `redis://${LOOPBACK_HOST}:${hostPort}`
   // A prior sim-redis (unhealthy, or bound to a stale port) would collide on the
-  // name. Unlike Postgres this container has no data volume, so removing it
-  // loses nothing — no prompt needed. `rm -f` is a no-op when none exists.
+  // name. It has no data volume, so replacing it drops what it held: live OTPs,
+  // OAuth state, rate-limit buckets, and idempotency records (kept up to 7 days,
+  // so a webhook redelivered afterwards can run again). That is acceptable for a
+  // local dev Redis that is not answering anyway, so it is replaced without a
+  // prompt. `rm -f` is a no-op when none exists.
   spawnSync('docker', ['rm', '-f', REDIS_CONTAINER], { stdio: 'ignore' })
   docker([
     'run',
@@ -73,7 +85,7 @@ async function promptRedisUrl(existing?: string): Promise<string> {
   })
   if (!(await pingWithSpinner(url, 'Pinging Redis…'))) {
     throw new SetupError(`Redis at ${url} is not answering.`, [
-      'fix the URL and re-run, or skip Redis — single-instance runs fine without it',
+      'fix the URL and re-run — Sim requires a reachable Redis',
     ])
   }
   return url
@@ -81,13 +93,10 @@ async function promptRedisUrl(existing?: string): Promise<string> {
 
 /**
  * Non-interactive Redis for quick mode: adopt whatever already answers, else
- * start the managed container. Quick's contract is sensible defaults with no
- * questions, and Redis is not optional enough to skip — pub/sub (live Chat
- * status, table events) has no PostgreSQL fallback. Returns null only when
- * nothing answers and Docker is unavailable, so the caller can warn instead of
- * failing the whole setup.
+ * start the managed container. Redis is required, so when nothing answers and
+ * Docker is unavailable setup fails with the steps to provide one.
  */
-export async function ensureRedis(detection: Detection, existing?: string): Promise<string | null> {
+export async function ensureRedis(detection: Detection, existing?: string): Promise<string> {
   if (existing && (await redisPing(existing)).ok) return existing
   if (detection.redisPortOpen && (await redisPing(LOCAL_URL)).ok) {
     p.log.step(`Using the Redis already on :6379`)
@@ -98,14 +107,14 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
     const managedUrl = managedRedisUrl()
     if (managedUrl && (await waitFor(async () => (await redisPing(managedUrl)).ok, 15_000, 500))) {
       p.log.step(`Reusing ${REDIS_CONTAINER}`)
-      return managedUrl
+      return keepConfiguredUrl(managedUrl, existing)
     }
   }
   if (!(await ensureDocker(false))) {
-    p.log.warn(
-      'Docker is unavailable, so Redis was not configured — live Chat status and table events will not stream.'
-    )
-    return null
+    throw new SetupError('Sim requires Redis, and none is reachable.', [
+      'start Docker so the wizard can run a Redis container, then re-run it',
+      `or start Redis yourself and set REDIS_URL in apps/sim/.env (e.g. ${LOCAL_URL})`,
+    ])
   }
   return startManagedRedis(detection)
 }
@@ -117,6 +126,8 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
 export async function resolveRedis(detection: Detection, existing?: string): Promise<string> {
   // A configured REDIS_URL wins over the port scan: it may point at a non-default
   // port, or at a host that isn't this machine at all.
+  // A URL the user declined to keep is never restored below.
+  let configured = existing
   if (
     existing &&
     existing !== LOCAL_URL &&
@@ -124,6 +135,7 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
   ) {
     const keep = await p.confirm({ message: `Keep using ${existing}?`, initialValue: true })
     if (keep) return existing
+    configured = undefined
   }
 
   if (
@@ -145,10 +157,10 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
       managedUrl &&
       (await pingWithSpinner(managedUrl, `Starting existing ${REDIS_CONTAINER} container…`))
     ) {
-      return managedUrl
+      return keepConfiguredUrl(managedUrl, configured)
     }
     p.log.warn(
-      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it (it holds no data).`
+      `${REDIS_CONTAINER} exists but is not answering — starting a fresh one will replace it and drop what it held: live OTPs, OAuth state, rate-limit buckets, and idempotency records (so a webhook redelivered afterwards can run again).`
     )
   }
 

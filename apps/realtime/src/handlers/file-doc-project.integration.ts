@@ -39,7 +39,7 @@ import {
   commitRoomPermission,
   ROLE_REVALIDATION_TTL_MS,
 } from '@/middleware/permissions'
-import { MemoryRoomManager } from '@/rooms'
+import { RedisRoomManager } from '@/rooms'
 import { createHttpHandler } from '@/routes/http'
 
 const projectId = generateId()
@@ -66,6 +66,7 @@ const delayedAccess = new Map<
 let app: HttpServer
 let http: HttpServer
 let io: Server
+let manager: RedisRoomManager
 let socketUrl: string
 const capturedActors: string[] = []
 const seedFailures = new Map<string, number>()
@@ -162,7 +163,8 @@ beforeAll(async () => {
   env.NEXT_PUBLIC_APP_URL = await listen(app)
   http = createServer()
   io = new Server(http)
-  const manager = new MemoryRoomManager(io)
+  manager = new RedisRoomManager(io, env.REDIS_URL)
+  await manager.initialize()
   http.on('request', createHttpHandler(manager, createLogger('OwnerProtocolFixture')))
   io.on('connection', (socket) => {
     const authed = socket as AuthenticatedSocket
@@ -613,7 +615,7 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       accessGates.set(actor, gate)
       const now = Date.now()
       const clock = vi.spyOn(Date, 'now').mockReturnValue(now + ROLE_REVALIDATION_TTL_MS + 1)
-      const sweep = startAccessRevalidationSweep(new MemoryRoomManager(io))
+      const sweep = startAccessRevalidationSweep(manager)
       sweep.stop()
       const room = `project-file-doc:${projectId}/${fileId}`
       try {
@@ -884,6 +886,7 @@ afterAll(async () => {
   await new Promise<void>((resolve) => io.close(() => resolve()))
   await new Promise<void>((resolve) => app.close(() => resolve()))
   await getFileDocStore().shutdown()
+  await manager?.shutdown()
   document.destroy()
   const reportPath =
     process.env.PROJECT_FILE_SOCKET_REPORT_PATH ?? resolve('test-results/project-file-socket.json')

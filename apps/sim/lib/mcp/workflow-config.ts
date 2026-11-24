@@ -1,11 +1,11 @@
 import { filterUndefined, isPlainRecord, omit } from '@sim/utils/object'
-import { isMcpRuntimeReference, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import {
   type CanonicalGroup,
   type CanonicalModeOverrides,
-  resolveActiveCanonicalValue,
   resolveCanonicalMode,
-} from '@/lib/workflows/subblocks/visibility'
+} from '@sim/workflow-code/catalog/canonical-index'
+import { isMcpRuntimeReference, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
+import { resolveActiveCanonicalValue } from '@/lib/workflows/subblocks/visibility'
 
 export const MCP_FIELD_GROUPS = {
   server: { canonicalId: 'server', basicId: 'serverSelector', advancedIds: ['serverReference'] },

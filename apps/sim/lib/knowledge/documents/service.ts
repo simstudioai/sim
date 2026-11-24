@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -20,6 +21,7 @@ import {
   desc,
   eq,
   getTableColumns,
+  gt,
   gte,
   inArray,
   isNotNull,
@@ -57,7 +59,6 @@ import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   assertKnowledgeEmbeddingCapacity,
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
@@ -2952,6 +2953,7 @@ export async function getDocuments(
     fileUrl: string
     contentHash: string | null
     fileSize: number
+    fileSha256: string | null
     mimeType: string
     chunkCount: number
     tokenCount: number
@@ -3060,6 +3062,7 @@ export async function getDocuments(
         fileUrl: document.fileUrl,
         contentHash: document.contentHash,
         fileSize: document.fileSize,
+        fileSha256: document.fileSha256,
         mimeType: document.mimeType,
         chunkCount: document.chunkCount,
         tokenCount: document.tokenCount,
@@ -3178,6 +3181,7 @@ export async function getDocuments(
       fileUrl: doc.fileUrl,
       contentHash: doc.contentHash,
       fileSize: doc.fileSize,
+      fileSha256: doc.fileSha256,
       mimeType: doc.mimeType,
       chunkCount: doc.chunkCount,
       tokenCount: doc.tokenCount,
@@ -3217,6 +3221,135 @@ export async function getDocuments(
       hasMore,
     },
   }
+}
+
+/** The columns {@link getDocumentsAfter} reads: identity, size, hash, indexing state and tags. */
+function documentPageColumns() {
+  return {
+    id: document.id,
+    filename: document.filename,
+    fileSize: document.fileSize,
+    fileSha256: document.fileSha256,
+    uploadedAt: document.uploadedAt,
+    connectorId: document.connectorId,
+    sourceUrl: document.sourceUrl,
+    processingStatus: document.processingStatus,
+    processingOutcome: documentProcessingOutcomeSelection(),
+    tag1: document.tag1,
+    tag2: document.tag2,
+    tag3: document.tag3,
+    tag4: document.tag4,
+    tag5: document.tag5,
+    tag6: document.tag6,
+    tag7: document.tag7,
+    number1: document.number1,
+    number2: document.number2,
+    number3: document.number3,
+    number4: document.number4,
+    number5: document.number5,
+    date1: document.date1,
+    date2: document.date2,
+    boolean1: document.boolean1,
+    boolean2: document.boolean2,
+    boolean3: document.boolean3,
+  }
+}
+
+/** One keyset page of {@link getDocumentsAfter}. */
+interface DocumentPageAfter {
+  documents: Array<{
+    id: string
+    filename: string
+    fileSize: number
+    fileSha256: string | null
+    uploadedAt: Date
+    connectorId: string | null
+    sourceUrl: string | null
+    processingStatus: string
+    processingOutcome: DocumentProcessingOutcome
+    tag1: string | null
+    tag2: string | null
+    tag3: string | null
+    tag4: string | null
+    tag5: string | null
+    tag6: string | null
+    tag7: string | null
+    number1: number | null
+    number2: number | null
+    number3: number | null
+    number4: number | null
+    number5: number | null
+    date1: Date | null
+    date2: Date | null
+    boolean1: boolean | null
+    boolean2: boolean | null
+    boolean3: boolean | null
+  }>
+  /** The id to pass as `after` for the next page; `null` once the list is exhausted. */
+  next: string | null
+}
+
+/**
+ * One page of a knowledge base's live documents the caller can read, in id order after `after`
+ * (from the start when `null`), only those of `documentIds` when given. Keyset paging never skips or repeats a document another write
+ * adds, deletes or renames between pages, and costs the same at any depth; unlike
+ * {@link getDocuments} it counts nothing. Documents the caller may not read are passed over, so a
+ * page can hold fewer than `limit` while `next` is set.
+ */
+export async function getDocumentsAfter(
+  knowledgeBaseId: string,
+  options: { after: string | null; limit: number; documentIds?: readonly string[] },
+  access: KnowledgeReadAccess
+): Promise<DocumentPageAfter> {
+  const { after, limit, documentIds } = options
+  if (documentIds?.length === 0) return { documents: [], next: null }
+  const live = [
+    eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
+    isNull(document.deletedAt),
+    ...(documentIds ? [inArray(document.id, [...documentIds])] : []),
+  ]
+  const from = (cursor: string | null) => (cursor === null ? [] : [gt(document.id, cursor)])
+  if (!('get' in access)) {
+    const rows = await db
+      .select(documentPageColumns())
+      .from(document)
+      .where(and(...live, ...from(after), knowledgeAccessCondition(access)))
+      .orderBy(asc(document.id))
+      .limit(limit + 1)
+    const documents = rows.slice(0, limit)
+    return {
+      documents,
+      next: rows.length > limit ? (documents[documents.length - 1]?.id ?? null) : null,
+    }
+  }
+  // Per-document access: walk candidate ids in order, admitting each batch before reading it.
+  const identity = await access.get()
+  const documents: DocumentPageAfter['documents'] = []
+  let cursor = after
+  while (documents.length < limit) {
+    const candidates = await db
+      .select({ id: document.id })
+      .from(document)
+      .where(and(...live, ...from(cursor), knowledgeMetadataCandidateAccessCondition(identity)))
+      .orderBy(asc(document.id))
+      .limit(MAX_KNOWLEDGE_ACCESS_CANDIDATES)
+    if (candidates.length === 0) return { documents, next: null }
+    const ids = candidates.map((candidate) => candidate.id)
+    const scope = await access.getForDocuments(ids)
+    const visible = await db
+      .select(documentPageColumns())
+      .from(document)
+      .where(and(...live, inArray(document.id, ids), knowledgeAccessCondition(scope)))
+      .orderBy(asc(document.id))
+      .limit(limit - documents.length)
+    documents.push(...visible)
+    if (documents.length >= limit) break
+    if (candidates.length < MAX_KNOWLEDGE_ACCESS_CANDIDATES) return { documents, next: null }
+    cursor = ids[ids.length - 1]
+  }
+  return { documents, next: documents[documents.length - 1]?.id ?? null }
 }
 
 export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
@@ -3286,12 +3419,36 @@ export async function getKnowledgeDocumentById(
   return row ? { ...row, connectorType: row.connectorType ?? null } : null
 }
 
+/**
+ * Records the SHA-256 of a document's original bytes, read from `storageKey`. Only a document
+ * that still holds that key and has none recorded is written, so a concurrent replace or an
+ * earlier record wins.
+ */
+export async function recordDocumentFileSha256(
+  documentId: string,
+  storageKey: string,
+  sha256: string
+): Promise<void> {
+  await db
+    .update(document)
+    .set({ fileSha256: sha256 })
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.storageKey, storageKey),
+        isNull(document.fileSha256)
+      )
+    )
+}
+
 export async function createSingleDocument(
   documentData: {
     filename: string
     fileUrl: string
     fileSize: number
     mimeType: string
+    /** SHA-256 of the file's bytes, when the caller holds them (`document.fileSha256`). */
+    fileSha256?: string
     documentTagsData?: string
     tag1?: string
     tag2?: string
@@ -3314,6 +3471,8 @@ export async function createSingleDocument(
     processing?: {
       processingOptions: ProcessingOptions
       billingAttribution: BillingAttributionSnapshot
+      /** The id the processing outbox event takes, for a caller that relays it after commit. */
+      eventId?: string
     }
   }
 ): Promise<{
@@ -3387,6 +3546,7 @@ export async function createSingleDocument(
     fileUrl: resolvedDocumentData.fileUrl,
     storageKey: getKnowledgeBaseStorageKey(resolvedDocumentData.fileUrl),
     fileSize: resolvedDocumentData.fileSize,
+    fileSha256: documentData.fileSha256 ?? null,
     mimeType: resolvedDocumentData.mimeType,
     chunkCount: 0,
     tokenCount: 0,
@@ -3518,18 +3678,22 @@ export async function createSingleDocument(
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
     if (options?.processing) {
-      await enqueueKnowledgeDocumentProcessing(tx, {
-        knowledgeBaseId,
-        documentId,
-        processingOptions: options.processing.processingOptions,
-        billingAttribution: options.processing.billingAttribution,
-        /**
-         * Every caller of this function is a person adding a document — an
-         * upload session, a workspace-file attach, a direct create. Connector
-         * ingestion builds its documents through the sync engine instead.
-         */
-        processingLane: 'interactive',
-      })
+      await enqueueKnowledgeDocumentProcessing(
+        tx,
+        {
+          knowledgeBaseId,
+          documentId,
+          processingOptions: options.processing.processingOptions,
+          billingAttribution: options.processing.billingAttribution,
+          /**
+           * Every caller of this function is a person adding a document — an
+           * upload session, a workspace-file attach, a direct create. Connector
+           * ingestion builds its documents through the sync engine instead.
+           */
+          processingLane: 'interactive',
+        },
+        options.processing.eventId
+      )
     }
 
     return {

@@ -30,9 +30,10 @@ import {
  * what the user or the model would observe: the result the model is resumed with, what landed in
  * the workspace, what Sim persisted, and which requests reached Sim.
  *
- * Sim runs the background executor wherever it has Redis, as it does here. Most tests cover the
- * chat view running desktop tools itself, as on an install without Redis: the proxy answers the
- * app's registration as such an install does, so the app stays dormant and no turn binds to it.
+ * Sim runs the background executor for a registered desktop app, as it does here. Most tests cover
+ * the chat view running desktop tools itself: the proxy answers the app's registration with the
+ * executor off (as servers predating required Redis did), so the app stays dormant and no turn
+ * binds to it.
  * The tests marked as running in the background let Sim's own answer through.
  */
 

@@ -1,0 +1,64 @@
+{
+  "namespace": "bitbucket",
+  "methods": {
+    "bitbucket_approve_pull_request": "approvePullRequest",
+    "bitbucket_create_branch": "createBranch",
+    "bitbucket_create_pull_request": "createPullRequest",
+    "bitbucket_create_pull_request_comment": "createPullRequestComment",
+    "bitbucket_decline_pull_request": "declinePullRequest",
+    "bitbucket_delete_branch": "deleteBranch",
+    "bitbucket_get_commit": "getCommit",
+    "bitbucket_get_file": "getFile",
+    "bitbucket_get_file_metadata": "getFileMetadata",
+    "bitbucket_get_pipeline": "getPipeline",
+    "bitbucket_get_pipeline_step_log": "getPipelineStepLog",
+    "bitbucket_get_pull_request": "getPullRequest",
+    "bitbucket_get_pull_request_diff": "getPullRequestDiff",
+    "bitbucket_get_pull_request_diffstat": "getPullRequestDiffstat",
+    "bitbucket_get_pull_request_merge_task_status": "getPullRequestMergeTaskStatus",
+    "bitbucket_get_repository": "getRepository",
+    "bitbucket_list_branches": "listBranches",
+    "bitbucket_list_commits": "listCommits",
+    "bitbucket_list_directory": "listDirectory",
+    "bitbucket_list_pipeline_steps": "listPipelineSteps",
+    "bitbucket_list_pipelines": "listPipelines",
+    "bitbucket_list_pull_request_comments": "listPullRequestComments",
+    "bitbucket_list_pull_request_commit_statuses": "listPullRequestCommitStatuses",
+    "bitbucket_list_pull_requests": "listPullRequests",
+    "bitbucket_list_repositories": "listRepositories",
+    "bitbucket_list_workspaces": "listWorkspaces",
+    "bitbucket_merge_pull_request": "mergePullRequest",
+    "bitbucket_request_pull_request_changes": "requestPullRequestChanges",
+    "bitbucket_stop_pipeline": "stopPipeline",
+    "bitbucket_trigger_pipeline": "triggerPipeline"
+  },
+  "triggers": {
+    "bitbucket_build_status_created": "buildStatusCreated",
+    "bitbucket_build_status_updated": "buildStatusUpdated",
+    "bitbucket_commit_comment_created": "commitCommentCreated",
+    "bitbucket_pull_request_approval_removed": "pullRequestApprovalRemoved",
+    "bitbucket_pull_request_approved": "pullRequestApproved",
+    "bitbucket_pull_request_changes_request_removed": "pullRequestChangesRequestRemoved",
+    "bitbucket_pull_request_changes_requested": "pullRequestChangesRequested",
+    "bitbucket_pull_request_comment_created": "pullRequestCommentCreated",
+    "bitbucket_pull_request_comment_deleted": "pullRequestCommentDeleted",
+    "bitbucket_pull_request_comment_reopened": "pullRequestCommentReopened",
+    "bitbucket_pull_request_comment_resolved": "pullRequestCommentResolved",
+    "bitbucket_pull_request_comment_updated": "pullRequestCommentUpdated",
+    "bitbucket_pull_request_created": "pullRequestCreated",
+    "bitbucket_pull_request_declined": "pullRequestDeclined",
+    "bitbucket_pull_request_merged": "pullRequestMerged",
+    "bitbucket_pull_request_updated": "pullRequestUpdated",
+    "bitbucket_push": "push",
+    "bitbucket_repository_forked": "repositoryForked",
+    "bitbucket_repository_updated": "repositoryUpdated"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

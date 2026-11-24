@@ -11,8 +11,8 @@ import {
   getRunSegment,
   recordToolPermissionDecision,
 } from '@/lib/mothership/async-runs/repository'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import {
   publishToolPermissionDecision,
   TOOL_PERMISSION_DECISION,
@@ -30,7 +30,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
-import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
+import { withIncomingWorkerSpan } from '@/lib/mothership/request/otel'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 
 const logger = createLogger('CopilotToolPermissionAPI')
@@ -150,7 +150,7 @@ async function applyDecision(
 export const POST = withRouteHandler((req: NextRequest) => {
   const tracker = createRequestTracker()
 
-  return withIncomingGoSpan(
+  return withIncomingWorkerSpan(
     req.headers,
     TraceSpan.CopilotToolPermissionDecide,
     { [TraceAttr.RequestId]: tracker.requestId },

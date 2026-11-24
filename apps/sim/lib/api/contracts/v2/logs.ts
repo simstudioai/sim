@@ -248,6 +248,32 @@ export const v2LogDetailSchema = z
       .number()
       .nullable()
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
+    /**
+     * Listed before `workflowState` and `traceSpans` on purpose: a reader scanning a long
+     * record for why the run failed finds it here instead of past the state dump.
+     */
+    failure: z
+      .object({
+        blockId: z.string().describe('Identifier of the block the run failed in.'),
+        blockName: z.string().describe('Name of the block the run failed in.'),
+        blockType: z.string().describe('Type of the block the run failed in.'),
+        error: z
+          .string()
+          .nullable()
+          .describe(
+            "The error the block recorded, or null when its span carries none (a withheld or compacted trace). A Function block's leads with the line and code that threw."
+          ),
+        errorMessage: z
+          .string()
+          .nullable()
+          .describe(
+            "A Function block's thrown message alone, which is the text to reply with; null for any other block."
+          ),
+      })
+      .nullable()
+      .describe(
+        'Where the run failed, read from the trace: the innermost block whose error nothing handled. Null when the run did not fail, or the trace does not name one (not recorded, compacted, or withheld by a permission group).'
+      ),
     files: v2LogFilesSchema,
     /**
      * The identity the run acted as, captured by the run itself rather than read

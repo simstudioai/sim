@@ -1,0 +1,10 @@
+{
+  "namespace": "legacy.langsmith",
+  "methods": {
+    "langsmith_create_feedback": "createFeedback",
+    "langsmith_create_run": "createRun",
+    "langsmith_create_runs_batch": "createRunsBatch",
+    "langsmith_get_run": "getRun",
+    "langsmith_update_run": "updateRun"
+  }
+}

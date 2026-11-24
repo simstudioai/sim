@@ -282,6 +282,21 @@ async function flushSubblockUpdate(
     let updateSuccessful = false
     let blockLocked = false
     await db.transaction(async (tx) => {
+      // Every read-then-rewrite writer of this graph (a source apply, `persistWorkflowOperation`,
+      // another flush) holds the workflow row lock from its read to its commit, so taking it first
+      // keeps this read-modify-write out of such a writer's window, where it would be lost.
+      // `no key update` still lets a blind replace insert blocks (its foreign-key check takes
+      // `key share`), so the two cannot deadlock; a blind replace's delete surfaces below instead.
+      const [lockedWorkflow] = await tx
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+        .for('no key update')
+      if (!lockedWorkflow) {
+        return
+      }
+
       const allBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -316,12 +331,14 @@ async function flushSubblockUpdate(
         subBlocks[subblockId] = { ...subBlocks[subblockId], value }
       }
 
-      await tx
+      // A writer that replaced the blocks without the row lock deleted this row under us.
+      const updated = await tx
         .update(workflowBlocks)
         .set({ subBlocks, updatedAt: new Date() })
         .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
 
-      updateSuccessful = true
+      updateSuccessful = updated.length > 0
     })
 
     if (updateSuccessful) {

@@ -84,13 +84,41 @@ function renderSharedPage(source: string, snapshot: PublicFileShareSnapshot) {
     throw error
   }
 }
+/** A content write (a collaborative save, an upload) committed between a read's snapshot and its delivery. */
+class SharedFileRevisionChangedError extends OrchestrationError {
+  constructor() {
+    super('conflict', 'Shared file changed during the read')
+  }
+}
+const MAX_SHARED_FILE_READ_ATTEMPTS = 3
 function requireRevision(current: WorkspaceFileRow, expected: WorkspaceFileRow) {
   if (
     current.id !== expected.id ||
     current.key !== expected.key ||
     current.contentUpdatedAt.getTime() !== expected.contentUpdatedAt.getTime()
   )
-    throw new OrchestrationError('conflict', 'Shared file changed during the read')
+    throw new SharedFileRevisionChangedError()
+}
+/**
+ * Runs one public delivery again from a fresh snapshot when the shared file, or an input it embeds,
+ * is rewritten mid-read, as a collaborative save of a file being edited does. Every attempt is a
+ * complete read that still refuses mixed revisions, so this only spares the viewer a benign race; a
+ * file rewritten on every attempt still refuses. `deliver` must cover the whole delivery, including
+ * opening a stream, because a stream rechecks the revision on open. Nothing is reported or audited
+ * for a refused attempt.
+ */
+export async function retryOnSharedFileRevisionChange<T>(deliver: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await deliver()
+    } catch (error) {
+      if (
+        attempt >= MAX_SHARED_FILE_READ_ATTEMPTS ||
+        !(asOrchestrationError(error) instanceof SharedFileRevisionChangedError)
+      )
+        throw error
+    }
+  }
 }
 function requirePublicBytes(provenance: WorkspaceFileSecretProvenance) {
   if (

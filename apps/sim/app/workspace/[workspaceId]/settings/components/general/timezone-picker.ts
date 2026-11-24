@@ -1,5 +1,5 @@
 import type { ComboboxOption } from '@sim/emcn'
-import { isValidTimezone, sanitizeTimezoneForDisplay } from '@/lib/core/utils/timezone'
+import { isValidTimezone, sanitizeTimezoneForDisplay } from '@sim/utils/timezone'
 
 export const AUTO_TIMEZONE_OPTION_VALUE = '__auto_timezone__'
 export const INVALID_TIMEZONE_OPTION_VALUE = '__invalid_timezone__'

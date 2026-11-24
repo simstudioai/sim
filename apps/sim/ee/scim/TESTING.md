@@ -1,7 +1,7 @@
 # SCIM integration verification
 
 The local integration harness sends real HTTP requests to a running Next.js app
-and inspects the resulting PostgreSQL records. It does not mock route handlers,
+and inspects the resulting PostgreSQL records and Redis rate-limit buckets. It does not mock route handlers,
 authentication, application operations, or persistence. Okta and Microsoft Entra
 request shapes are emulated; this is not certification against either provider's
 provisioning service.
@@ -10,20 +10,21 @@ provisioning service.
 
 - Bun and the repository dependencies installed.
 - A running local app configured for hosted Enterprise SCIM with billing enabled, using a dedicated local
-  PostgreSQL database with all migrations applied (including `0325`). Leave
-  Redis unconfigured so the app uses PostgreSQL for rate-limit storage.
+  PostgreSQL database with all migrations applied (including `0325`), and a
+  local Redis (required by the app; it holds the rate-limit buckets).
   Enable People on the app with `PEOPLE=true` to exercise SCIM profile imports.
   For `next dev`, set `NEXT_PUBLIC_FORCE_HOSTED=true` and `BILLING_ENABLED=true`.
 - The app's local `BETTER_AUTH_SECRET`, at least 32 characters long.
 - An app URL using HTTP on `localhost`, `127.0.0.1`, or `::1`. The database must
-  also use a loopback host, and its name must include `test` or `scim`.
+  also use a loopback host, and its name must include `test` or `scim`. Redis
+  must use a loopback host too.
 
 The harness creates two isolated synthetic organizations, owner accounts, active
 Enterprise subscriptions, workspaces, verified `.test` domains, and signed owner
 sessions. It obtains bearer tokens through the real administration API. Database
 setup also supplies scenarios unavailable through the SCIM API, such as manual
 suspension, pre-existing workspace access, and credential expiry.
-The rate-limit scenario exhausts only its own connection's database bucket and
+The rate-limit scenario exhausts only its own connection's Redis bucket and
 verifies that overlapping credentials share it while another tenant remains
 unaffected.
 
@@ -39,6 +40,7 @@ From `apps/sim`, set these values for the local app and database, then run:
 ```sh
 export SCIM_E2E_BASE_URL=http://localhost:3000
 export SCIM_E2E_DATABASE_URL='postgresql://<local-user>:<local-password>@127.0.0.1:<port>/<test-database>'
+export SCIM_E2E_REDIS_URL=redis://127.0.0.1:6379
 export SCIM_E2E_AUTH_SECRET='<the-local-app-BETTER_AUTH_SECRET>'
 export SCIM_E2E_REPORT_PATH=/tmp/sim-scim-e2e-report.json
 bun run test:scim:e2e
@@ -46,8 +48,8 @@ bun run test:scim:e2e
 
 Set `PEOPLE_E2E_SCREENSHOT_DIR` to run the signed-in People import flow in Chromium and save its screenshots. Install Chromium with `bunx --no-install playwright install chromium` when using that option.
 
-The first three variables are required; the report path is optional. The app and
-the harness must use the same database and authentication secret. The report
+The first four variables are required; the report path is optional. The app and
+the harness must use the same database, Redis, and authentication secret. The report
 contains check names, outcomes, timing, and HTTP request count; it excludes
 bearer credentials, session cookies, and secrets. A failed check exits nonzero
 after cleanup. Request redirects are rejected and each request has a 60-second

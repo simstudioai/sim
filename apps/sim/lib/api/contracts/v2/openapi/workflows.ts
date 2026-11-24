@@ -26,6 +26,9 @@ import {
   WORKSPACE_ERRORS,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { sourceResourcesOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/source-resources'
+import { workflowSourceOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workflow-source'
+import { workspaceSourceOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-source'
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
@@ -207,6 +210,7 @@ const RUN_RESULT_EXAMPLE = {
     startedAt: '2026-08-09T18:04:10.000Z',
     endedAt: '2026-08-09T18:04:11.000Z',
     durationMs: 1_000,
+    paused: null,
   },
 } as const
 
@@ -1587,7 +1591,7 @@ const declaredRoutes = [
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume workflow run',
       description:
-        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
+        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt; when it pauses again, `paused.runId` names the run to resume next. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {
@@ -1771,8 +1775,6 @@ const declaredRoutes = [
   ),
 ] as const
 
-const routes = declaredRoutes.map(withRequestBodyErrors)
-
 export const workflowsOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-workflows.json',
   info: {
@@ -1812,5 +1814,11 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
   headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
-  routes: [...routes, ...workspaceSyncOpenApiRoutes],
+  routes: [
+    ...declaredRoutes,
+    ...workflowSourceOpenApiRoutes,
+    ...sourceResourcesOpenApiRoutes,
+    ...workspaceSyncOpenApiRoutes,
+    ...workspaceSourceOpenApiRoutes,
+  ].map(withRequestBodyErrors),
 })

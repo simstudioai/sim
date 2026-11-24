@@ -1,0 +1,33 @@
+{
+  "namespace": "pagerduty",
+  "methods": {
+    "add_note": "addNote",
+    "create_incident": "createIncident",
+    "get_incident": "getIncident",
+    "get_service": "getService",
+    "list_escalation_policies": "listEscalationPolicies",
+    "list_incident_alerts": "listIncidentAlerts",
+    "list_incidents": "listIncidents",
+    "list_oncalls": "listOnCalls",
+    "list_schedules": "listSchedules",
+    "list_services": "listServices",
+    "list_users": "listUsers",
+    "merge_incidents": "mergeIncidents",
+    "send_event": "sendEvent",
+    "snooze_incident": "snoozeIncident",
+    "update_incident": "updateIncident"
+  },
+  "triggers": {
+    "pagerduty_incident_acknowledged": "incidentAcknowledged",
+    "pagerduty_incident_escalated": "incidentEscalated",
+    "pagerduty_incident_reassigned": "incidentReassigned",
+    "pagerduty_incident_resolved": "incidentResolved",
+    "pagerduty_incident_triggered": "incidentTriggered",
+    "pagerduty_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

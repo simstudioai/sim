@@ -3,7 +3,6 @@ import { baseStyles } from '@/components/emails/_styles'
 import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CreditsExhaustedEmailProps {
   userName?: string
@@ -16,18 +15,16 @@ export function CreditsExhaustedEmail({
   limit,
   upgradeLink,
 }: CreditsExhaustedEmailProps) {
-  const brand = getBrandConfig()
-
   return (
     <EmailLayout
-      preview={`You've used all ${dollarsToCredits(limit).toLocaleString()} of your free ${brand.name} credits`}
+      preview={`You've used all ${dollarsToCredits(limit).toLocaleString()} of your free Sim credits`}
       showUnsubscribe={true}
     >
       <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         You&apos;ve used all <EmailStrong>{dollarsToCredits(limit).toLocaleString()}</EmailStrong>{' '}
-        of your free credits on {brand.name}. Your workflows are paused until you upgrade.
+        of your free credits on Sim. Your workflows are paused until you upgrade.
       </Text>
 
       <ProFeaturesBox />

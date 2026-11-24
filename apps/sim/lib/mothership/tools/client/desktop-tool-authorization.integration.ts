@@ -8,17 +8,13 @@
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-  const url = readTestRedisUrl()
+const { inheritedEnv } = vi.hoisted(() => {
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     COPILOT_TOOL_PERMISSIONS_ENABLED: process.env.COPILOT_TOOL_PERMISSIONS_ENABLED,
   }
-  /** The real Redis module, the confirmation channel and the permission flag read these at import. */
-  if (url) process.env.REDIS_URL = url
+  /** The permission flag is read at import. */
   process.env.COPILOT_TOOL_PERMISSIONS_ENABLED = 'true'
-  return { redisUrl: url, inheritedEnv }
+  return { inheritedEnv }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -39,7 +35,6 @@ import {
 import { getAutoAllowedTools } from '@/lib/mothership/persistence/tool-permission/auto-allow'
 import { prePersistClientExecutableToolCall } from '@/lib/mothership/request/handlers'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
-import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as toolPermissionPOST } from '@/app/api/copilot/tool-permission/route'
@@ -106,7 +101,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admits', () => {
+describe('desktop tool calls the server no longer admits', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatId = generateId()
@@ -144,7 +139,6 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
       accumulatedContent: '',
       finalAssistantContent: '',
       sawMainToolCall: false,
-      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

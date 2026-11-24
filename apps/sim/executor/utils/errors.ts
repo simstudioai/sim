@@ -104,6 +104,30 @@ export function readTrustedExecutionCost(subject: unknown): TrustedExecutionCost
   return isRecordedThrown(subject) ? trustedExecutionCosts.get(subject) : undefined
 }
 
+/**
+ * The values of a block's declared error outputs (`BlockConfig.errorOutputs`, a Function's
+ * `errorMessage`), keyed by the error its handler throws. A side table like
+ * {@link trustedExecutionCosts}, so only the executor's deliberate copy of a declared key puts a
+ * value into block output.
+ */
+const attachedErrorOutputs = new WeakMap<object, Readonly<Record<string, string>>>()
+
+/** Attaches the values a handler reports for its block's declared error outputs to its error. */
+export function attachErrorOutputs(error: unknown, outputs: Record<string, unknown>): void {
+  if (!isRecordedThrown(error)) return
+  const values = Object.fromEntries(
+    Object.entries(outputs).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string'
+    )
+  )
+  if (Object.keys(values).length > 0) attachedErrorOutputs.set(error, values)
+}
+
+/** Reads the error-output values a handler attached, if it attached any. */
+export function readErrorOutputs(error: unknown): Readonly<Record<string, string>> | undefined {
+  return isRecordedThrown(error) ? attachedErrorOutputs.get(error) : undefined
+}
+
 function normalizeTrustedExecutionCost(cost: unknown): TrustedExecutionCost | undefined {
   if (!cost || typeof cost !== 'object' || Array.isArray(cost)) return undefined
 

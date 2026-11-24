@@ -79,6 +79,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'READ_ONLY_API_KEY',
   /** The organization's identity provider owns this membership, so Sim will not change it. */
   'SCIM_MANAGED_MEMBERSHIP',
+  /** The operation's feature is not rolled out to this workspace, its organization or the caller. */
+  'FEATURE_NOT_ENABLED',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]

@@ -169,6 +169,7 @@ BETTER_AUTH_SECRET=$(openssl rand -hex 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
 INTERNAL_API_SECRET=$(openssl rand -hex 32)
 CRON_SECRET=$(openssl rand -hex 32)
+POSTGRES_PASSWORD=$(openssl rand -hex 24)
 EOF
 
 # Start Sim
@@ -179,31 +180,34 @@ Access the application at [http://localhost:3000/](http://localhost:3000/)
 
 #### Using Local Models
 
-To use local models with Sim:
+To use local models with Sim, either point it at an Ollama server you already run or start one alongside the stack.
 
-1. Install Ollama and pull models:
+- **Ollama on your machine**: install it, pull a model, and point the app at the host:
 
-   ```bash
-   # Install Ollama (if not already installed)
-   curl -fsSL https://ollama.ai/install.sh | sh
+  ```bash
+  curl -fsSL https://ollama.ai/install.sh | sh
+  ollama pull gemma3:4b
 
-   # Pull a model (e.g., gemma3:4b)
-   ollama pull gemma3:4b
-   ```
+  echo 'OLLAMA_URL=http://host.docker.internal:11434' >> .env
+  docker compose -f docker-compose.prod.yml up -d
+  ```
 
-2. Start Sim with local model support:
+  Ollama must listen on an interface the container can reach (`OLLAMA_HOST=0.0.0.0:11434`). For an Ollama server elsewhere, set `OLLAMA_URL` to its address instead.
 
-   ```bash
-   # With NVIDIA GPU support
-   docker compose --profile local-gpu -f docker-compose.ollama.yml up -d
+- **Bundled Ollama**: layer `docker-compose.ollama.yml` on the production file, with exactly one of the `gpu` or `cpu` profiles, then pull the starter model once:
 
-   # Without GPU (CPU only)
-   docker compose --profile local-cpu -f docker-compose.ollama.yml up -d
+  ```bash
+  echo 'OLLAMA_URL=http://ollama:11434' >> .env
 
-   # If hosting on a server, update the environment variables in the docker-compose.prod.yml file
-   # to include the server's public IP then start again (OLLAMA_URL to i.e. http://1.1.1.1:11434)
-   docker compose -f docker-compose.prod.yml up -d
-   ```
+  # With NVIDIA GPU support
+  docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile gpu up -d
+
+  # Without GPU (CPU only)
+  docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile cpu up -d
+
+  # Pull gemma3:4b into the running server
+  docker compose -f docker-compose.prod.yml -f docker-compose.ollama.yml --profile setup run --rm model-setup
+  ```
 
 ### Option 3: Manual Setup
 
@@ -234,7 +238,7 @@ If you prefer not to use Docker. **All commands run from the repository root unl
    cp packages/db/.env.example packages/db/.env
    ```
 
-   At minimum, each `.env` needs `DATABASE_URL`. `apps/sim/.env` and `apps/realtime/.env` additionally need matching values for `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and `NEXT_PUBLIC_APP_URL`. `apps/sim/.env` also needs `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY`. Generate any 32-char secrets with `openssl rand -hex 32`.
+   At minimum, each `.env` needs `DATABASE_URL`. `apps/sim/.env` and `apps/realtime/.env` additionally need matching values for `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, `NEXT_PUBLIC_APP_URL`, and `REDIS_URL`: both services refuse to start without Redis (for a local one, run `docker run -d -p 127.0.0.1:6379:6379 redis:7-alpine` and set `REDIS_URL=redis://localhost:6379`). `apps/sim/.env` also needs `ENCRYPTION_KEY` and `API_ENCRYPTION_KEY`. Generate any 32-char secrets with `openssl rand -hex 32`.
 
    The same `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and `DATABASE_URL` must appear in both `apps/sim/.env` and `apps/realtime/.env` so the two services share auth and DB. After editing `apps/sim/.env`, you can mirror the shared subset into the realtime env in one shot:
 
@@ -516,10 +520,10 @@ In addition, you will need to update the registries:
    Ensure that your tool functions correctly by making test requests and verifying the responses.
 
 8. **Generate Documentation:**
-   Run the documentation generator (from `apps/sim`) to create docs for your new tool:
+   Regenerate every derived artifact, including your tool's docs page, from the repo root:
 
    ```bash
-   cd apps/sim && bun run generate-docs
+   bun run generate
    ```
 
 ### Naming Conventions

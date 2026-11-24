@@ -8,6 +8,7 @@
  * map builders here.
  */
 
+import { cellKeyOf } from '@sim/table-cells/rows'
 import { generateId } from '@sim/utils/id'
 import type {
   ColumnDefinition,
@@ -28,7 +29,7 @@ import type {
  * which is exactly the key the column still uses, so the fallback is correct.
  */
 export function getColumnId(col: Pick<ColumnDefinition, 'id' | 'name'>): string {
-  return col.id ?? col.name
+  return cellKeyOf(col)
 }
 
 /**

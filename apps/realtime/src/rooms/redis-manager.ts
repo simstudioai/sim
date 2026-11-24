@@ -457,9 +457,4 @@ export class RedisRoomManager implements IRoomManager {
     const users = await this.getRoomUsers(room)
     return new Set(users.map((u) => u.userId)).size
   }
-
-  async getTotalActiveConnections(): Promise<number> {
-    // Local instance only; the true cross-pod count would require aggregation.
-    return this._io.sockets.sockets.size
-  }
 }

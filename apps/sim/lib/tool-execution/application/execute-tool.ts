@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -361,6 +362,21 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('forbidden', 'Tool execution requires an acting user')
     }
 
+    // The executor authorizes credentials with no workflow, so only this ties the credential
+    // to the workspace whose allowedIntegrations and deniedTools govern the call.
+    if (input.credentialId) {
+      const access = await authorizeCredentialUseForAuth(
+        { success: true, userId },
+        { credentialId: input.credentialId, workspaceId: context.workspaceId }
+      )
+      if (!access.ok) {
+        throw new OrchestrationError(
+          'forbidden',
+          'credentialId is not a credential you can use in this workspace'
+        )
+      }
+    }
+
     const registry = mustClassifyContent(principal)
       ? new ResolvedSecretTraceRegistry([], { userId, workspaceId: context.workspaceId })
       : undefined
@@ -493,9 +509,10 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  *
  * `@/tools` computes the cost and hands it back on `output.cost.total`, but it
  * writes no ledger row: a workflow run bills through the execution ledger and
- * Copilot bills through Go's `_serviceCost`, and this surface is neither. Its
- * own doc comment says so — "any new caller of executeTool that is not Copilot
- * must arrange its own metering" — and this is that arrangement.
+ * Copilot bills through service receipts recorded by `recordServiceCost`, and
+ * this surface is neither. Its own doc comment says so — "any new caller of
+ * executeTool that is not Copilot must arrange its own metering" — and this is
+ * that arrangement.
  *
  * The provider already ran and already charged Sim's key by the time this runs,
  * so a metering failure must not destroy the caller's result: it is logged for

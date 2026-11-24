@@ -87,7 +87,7 @@ Edit generated prose at its owner, then regenerate:
 | MCP operation catalog | Authorized operation definitions and generated OpenAPI | `bun run generate:mcp-operations` |
 | v2 route table | Canonical route definitions | `bun run generate:v2-route-table` |
 | Marked Agent streaming table | Streaming protocol metadata and `scripts/sync-agent-stream-docs.ts` | `bun run generate:agent-stream-docs` |
-| Integration references, icons, navigation inventory and public catalog | Block/tool/trigger and OAuth metadata; authored `MANUAL-CONTENT` regions; registered credential guides; `scripts/generate-docs.ts` | `bun run scripts/generate-docs.ts` |
+| Integration references, icons, navigation inventory and public catalog | Block/tool/trigger and OAuth metadata; authored `MANUAL-CONTENT` regions; registered credential guides; `scripts/generate-docs.ts` | `bun run generate:docs` |
 
 Do not hand-edit generated pages, JSON specifications, or marked generated regions. Preserve all argument, option, schema, authentication, and confirmation detail. CLI descriptions also feed command discovery; run the existing search-ranking checks after changing help copy. Validate rendered request examples against their canonical input contracts; schema validity alone may still leave a semantic error such as an invalid serialized workflow.
 

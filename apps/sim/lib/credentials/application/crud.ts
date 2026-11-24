@@ -137,22 +137,30 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ListInternalCredentialsResult> {
+    const userId = requirePrincipalSubjectUserId(principal)
+    const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, userId)
+    const viewer = { userId, organizationId: context.workspaceOrganizationId }
     if (input.credentialId) {
-      return {
-        mode: 'lookup',
-        credential: await findWorkspaceCredentialLookup({
-          workspaceId: context.workspaceId,
-          credentialId: input.credentialId,
-          userId: requirePrincipalSubjectUserId(principal),
-        }),
-      }
+      const found = await findWorkspaceCredentialLookup({
+        workspaceId: context.workspaceId,
+        credentialId: input.credentialId,
+        userId,
+      })
+      if (!found) return { mode: 'lookup', credential: null }
+      // Visibility is the list mode's own rule, so a credential hidden there reads as absent here.
+      const page = await listVisibleWorkspaceCredentials({
+        workspaceId: context.workspaceId,
+        userId,
+        workspaceAccess,
+        ids: [found.id],
+      })
+      const [visible] = await filterGatedServiceAccountCredentials(page.data, viewer)
+      return { mode: 'lookup', credential: visible ? found : null }
     }
 
-    const userId = requirePrincipalSubjectUserId(principal)
     if (!input.type || input.type === 'oauth') {
       await syncWorkspaceOAuthCredentialsForUser({ workspaceId: context.workspaceId, userId })
     }
-    const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, userId)
     const page = await listVisibleWorkspaceCredentials({
       workspaceId: context.workspaceId,
       userId,
@@ -160,10 +168,7 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
       types: input.type ? [input.type] : undefined,
       providerId: input.providerId,
     })
-    const credentials = await filterGatedServiceAccountCredentials(page.data, {
-      userId,
-      organizationId: context.workspaceOrganizationId,
-    })
+    const credentials = await filterGatedServiceAccountCredentials(page.data, viewer)
     return { mode: 'list', credentials }
   },
 })

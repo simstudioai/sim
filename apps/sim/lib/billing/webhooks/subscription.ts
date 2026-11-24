@@ -263,6 +263,7 @@ export async function handleSubscriptionDeleted(
     billingInterval?: string | null
     periodStart?: Date | null
     periodEnd?: Date | null
+    trialEnd?: Date | null
     metadata?: unknown
   },
   stripeEventId?: string

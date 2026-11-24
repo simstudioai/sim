@@ -231,7 +231,6 @@ const CAPABILITY_CHECKS: ReadonlyArray<{
     supports: (model) => Boolean(model.capabilities.nativeStructuredOutputs),
   },
   { label: 'computer use', supports: (model) => Boolean(model.capabilities.computerUse) },
-  { label: 'deep research', supports: (model) => Boolean(model.capabilities.deepResearch) },
 ]
 
 function buildCostSentence({ a, b }: ModelComparison): string {

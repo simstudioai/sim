@@ -10,13 +10,11 @@ import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/w
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflowOperations } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
 const logger = createLogger('WorkflowsPage')
 
 export default function WorkflowsPage() {
-  const brand = useOrgBrandConfig()
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -93,7 +91,7 @@ export default function WorkflowsPage() {
               )}
             </div>
           ) : (
-            <ApplicationLoading brand={brand} fullScreen={false} />
+            <ApplicationLoading fullScreen={false} />
           )}
         </div>
         <WorkflowScopeProvider workspaceId={workspaceId} workflowId={null}>

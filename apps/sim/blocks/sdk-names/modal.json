@@ -1,0 +1,8 @@
+{
+  "namespace": "modal",
+  "methods": {
+    "call_function": "callFunction",
+    "chat_completion": "chatCompletion",
+    "list_models": "listModels"
+  }
+}

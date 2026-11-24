@@ -33,11 +33,7 @@ import {
 } from '@/lib/mcp/oauth'
 import type { McpOauthCredentials } from '@/lib/mcp/oauth/coordinated-fetch'
 import { findMissingMcpConfigEnvVars, resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
-import {
-  createMcpCacheAdapter,
-  getMcpCacheType,
-  type McpCacheStorageAdapter,
-} from '@/lib/mcp/storage'
+import { createMcpCacheAdapter, type McpCacheStorageAdapter } from '@/lib/mcp/storage'
 import {
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
@@ -296,7 +292,6 @@ class McpService {
 
   constructor() {
     this.cacheAdapter = createMcpCacheAdapter()
-    logger.info(`MCP Service initialized with ${getMcpCacheType()} cache`)
 
     if (mcpConnectionManager) {
       this.unsubscribeConnectionManager = mcpConnectionManager.subscribe((event) => {

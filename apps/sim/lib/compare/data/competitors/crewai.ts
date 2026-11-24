@@ -889,14 +889,6 @@ export const crewaiProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value: 'Not publicly documented',
-        detail:
-          'No CrewAI source describes a white-labeling or custom-branding option for the AMP platform UI or Crew Studio.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
-      },
       dataRetention: {
         value: 'Not publicly documented',
         detail:

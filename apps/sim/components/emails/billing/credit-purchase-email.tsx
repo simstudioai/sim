@@ -4,7 +4,6 @@ import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/compo
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CreditPurchaseEmailProps {
   userName?: string
@@ -19,10 +18,9 @@ export function CreditPurchaseEmail({
   newBalance,
   purchaseDate = new Date(),
 }: CreditPurchaseEmailProps) {
-  const brand = getBrandConfig()
   const baseUrl = getBaseUrl()
 
-  const previewText = `${brand.name}: ${dollarsToCredits(amount).toLocaleString()} credits added to your account`
+  const previewText = `Sim: ${dollarsToCredits(amount).toLocaleString()} credits added to your account`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={false}>

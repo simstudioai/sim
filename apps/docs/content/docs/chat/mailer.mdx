@@ -11,7 +11,7 @@ Sim Mailer gives an enabled workspace an email address. Send or forward a messag
 
 A workspace **Admin** configures the inbox. On Sim Cloud, availability follows the workspace's Max or Enterprise plan and active billing, rather than the sender's individual plan.
 
-On self-hosted deployments, availability depends on configured Chat and email services. `INBOX_ENABLED` or billing-disabled configuration can allow access, but the required Chat service key must still be configured. See [self-hosted environment variables](/platform/self-hosting/environment-variables).
+On self-hosted deployments without billing, the inbox is on by default. Set `INBOX_ENABLED=false` to turn it off; that closes it on the server and removes it from the interface. It still needs the Chat service key and email services configured to work. See [self-hosted environment variables](/platform/self-hosting/environment-variables).
 
 Members keep their own workspace permissions when submitting email tasks. An allowed external email sender can submit read-only tasks; allowlisting does not grant workspace membership, workflow execution, mutation access, or raw-secret access.
 
@@ -40,7 +40,7 @@ Manage **Allowed senders** in **Settings** → **Inbox**:
 
 An external email sender is different from an external workspace member. The latter has access to Sim according to their workspace role without joining the organization; an email-only sender has no such membership.
 
-Emails from unauthorized senders are rejected. Automated senders, rate limits, or loss of plan entitlement can also prevent a task from being accepted.
+Emails from unauthorized senders are rejected. A member or allowed address is only recognized when the message passes SPF, DKIM, or DMARC for that address's domain, so mail from a domain that publishes none of these is rejected. Automated senders, rate limits, or loss of plan entitlement can also prevent a task from being accepted.
 
 ## Select secret access
 

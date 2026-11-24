@@ -14,6 +14,7 @@ import {
   workflow as workflowTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapEachWithConcurrency, mapWithConcurrency } from '@sim/utils/concurrency'
 import {
   findCause,
   getPostgresConstraintName,
@@ -30,7 +31,6 @@ import {
   toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type {
@@ -735,7 +735,9 @@ export async function cancelWorkflowGroupRuns(
       }
     )
 
-    await mapWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
+    // Every row's jobs were cancelled above, so every row gets its cancellation write even when
+    // one fails; otherwise rows after the failure would stay "running" with no job behind them.
+    await mapEachWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
       try {
         const updated = await updateRow(
           {
@@ -811,7 +813,8 @@ export async function cancelWorkflowGroupRuns(
     const needsTombstone = aheadOfCursorTombstones.filter((t) => !handledGroupIds.has(t.groupId))
     if (needsTombstone.length > 0) {
       const now = new Date()
-      await mapWithConcurrency(
+      // Each tombstone is its own write: one failing must not leave the rest unwritten.
+      await mapEachWithConcurrency(
         needsTombstone,
         TABLE_CANCELLATION_CONCURRENCY,
         async (tombstone) => {

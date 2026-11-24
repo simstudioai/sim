@@ -10,8 +10,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   const worker = {
     stops: [] as string[],
@@ -34,14 +33,11 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  if (url) process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -485,7 +481,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stops the run', () => {
+describe('removing a run’s chat, owner or access stops the run', () => {
   beforeEach(() => {
     testStreams.clear()
     worker.unreachable.clear()
@@ -502,7 +498,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     if (organizationIds.length)
       await db.delete(organization).where(inArray(organization.id, organizationIds))
     if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
-    chatPubSub?.dispose()
+    chatPubSub.dispose()
     await closeRedisConnection()
   })
 
@@ -564,7 +560,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
 
     expect(await deleteCopilotChat({ chatId: run.chatId, userId: ownerId })).not.toBeNull()
 
-    await expect.poll(() => getRedisClient()?.exists(`execution:cancel:${executionId}`)).toBe(1)
+    await expect.poll(() => getRedisClient().exists(`execution:cancel:${executionId}`)).toBe(1)
   })
 
   it('still stops the run when the worker cannot take the pushed Stop', async () => {
@@ -851,7 +847,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
               message: { id: streamId, content },
               recovery: {
                 kind: 'interactive_stream',
-                goRoute: '/api/mothership',
+                workerRoute: '/api/mothership',
                 clientToolPickupExpected: false,
                 request: {
                   userId: suspended.userId,
@@ -1177,7 +1173,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     const workspaceRun = await seedRun({ userId: memberId, workspaceId })
     const assistantRun = await seedRun({ userId: memberId, organizationId })
     /** A live controller keeps the run unsettled, as it would be while both removals commit. */
-    await getRedisClient()?.set(
+    await getRedisClient().set(
       chatStreamLockKey(workspaceRun.chatId),
       workspaceRun.streamId,
       'EX',
@@ -1190,7 +1186,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     await expect.poll(pushedStops).toEqual(expected)
     await sleep(300)
     expect(pushedStops()).toEqual(expected)
-    await getRedisClient()?.del(chatStreamLockKey(workspaceRun.chatId))
+    await getRedisClient().del(chatStreamLockKey(workspaceRun.chatId))
   })
 
   it('answers Stop for a suspended owner’s run', async () => {
@@ -1237,7 +1233,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
             message: { id: sendStreamId, content: 'Start over' },
             recovery: {
               kind: 'interactive_stream',
-              goRoute: '/api/mothership',
+              workerRoute: '/api/mothership',
               clientToolPickupExpected: false,
               request: {
                 userId: ownerId,
@@ -1302,7 +1298,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
               message: { id: streamId, content },
               recovery: {
                 kind: 'interactive_stream',
-                goRoute: '/api/mothership',
+                workerRoute: '/api/mothership',
                 clientToolPickupExpected: false,
                 request: {
                   userId: ownerId,

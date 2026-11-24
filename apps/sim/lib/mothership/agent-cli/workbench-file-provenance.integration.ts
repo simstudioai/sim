@@ -20,15 +20,18 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 const redisUrl = readTestRedisUrl()
-const redis = redisUrl
-  ? new Redis(redisUrl, {
-      lazyConnect: true,
-      retryStrategy: () => null,
-      maxRetriesPerRequest: 1,
-      connectTimeout: 1000,
-    })
-  : undefined
-redis?.on('error', () => {})
+const redis = new Redis(redisUrl, {
+  lazyConnect: true,
+  retryStrategy: () => null,
+  maxRetriesPerRequest: 1,
+  connectTimeout: 1000,
+})
+redis.on('error', () => {})
+/** A client whose connection has closed: every command rejects the way it does when Redis drops. */
+const closedRedis = new Redis(redisUrl, { lazyConnect: true, retryStrategy: () => null })
+closedRedis.on('error', () => {})
+closedRedis.disconnect()
+const STORAGE_FAILURE = 'Connection is closed'
 const receiptPrefixes = new Set<string>()
 const historyKeys = new Set<string>()
 const fixtureWorkspaceId = generateShortId()
@@ -92,7 +95,6 @@ async function settledWorkspaceAudits() {
 }
 
 beforeAll(async () => {
-  if (!redis) return
   await redis.connect()
   await db.insert(user).values({
     id: fixtureUserId,
@@ -126,13 +128,11 @@ beforeEach(() => {
   )
 })
 afterEach(async () => {
-  if (!redis) return
   await settledWorkspaceAudits()
   await db.delete(auditLog).where(eq(auditLog.workspaceId, fixtureWorkspaceId))
   submittedAudits = 0
 })
 afterAll(async () => {
-  if (!redis) return
   try {
     for (const prefix of receiptPrefixes) {
       let cursor = '0'
@@ -152,7 +152,7 @@ afterAll(async () => {
   }
 })
 
-describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', () => {
+describe('trusted workbench byte receipts with real Redis', () => {
   it.each(['complete', 'pending sibling', 'unknown'] as const)(
     'persists settled stdout evidence from a %s registry',
     async (state) => {
@@ -236,7 +236,7 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
     'isolates receipts by %s when machine history is unavailable',
     async (field) => {
       await download()
-      await redis!.del(...historyKeys)
+      await redis.del(...historyKeys)
       const next = createWorkbenchFileProvenance({
         ...scope,
         ...(['workspaceId', 'userId', 'sessionKey'].includes(field) ? { [field]: 'other' } : {}),
@@ -349,15 +349,15 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
         provenance: { status: 'unknown' },
       }),
     ]) {
-      await redis!.set(key, value, 'EX', 60)
+      await redis.set(key, value, 'EX', 60)
       const broken = createWorkbenchFileProvenance(scope)
       await consume(broken.observeUpload(machine, body()))
       expect(broken.uploadProvenance()).toEqual({ status: 'unknown' })
     }
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue(closedRedis)
     const unavailable = createWorkbenchFileProvenance(scope)
     await expect(consume(unavailable.observeUpload(machine, body()))).rejects.toThrow(
-      'storage is unavailable'
+      STORAGE_FAILURE
     )
     expect(() => unavailable.uploadProvenance()).toThrow('has not finished')
   })
@@ -394,11 +394,11 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
         await expect(reader.read()).rejects.toThrow('stopped')
       } else {
         if (outcome === 'storage failure') {
-          redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(null)
+          redisConfigMockFns.mockGetRedisClient.mockReturnValueOnce(closedRedis)
         } else if (outcome === 'abort during persistence') {
           redisConfigMockFns.mockGetRedisClient.mockImplementationOnce(() => {
             stop.abort(new Error('stopped during persistence'))
-            return redis!
+            return redis
           })
         }
         producer.close()
@@ -406,13 +406,13 @@ describe.skipIf(!redisUrl)('trusted workbench byte receipts with real Redis', ()
           expect(await reader.read()).toEqual({ done: true, value: undefined })
         } else {
           await expect(reader.read()).rejects.toThrow(
-            outcome === 'storage failure' ? 'storage is unavailable' : 'stopped during persistence'
+            outcome === 'storage failure' ? STORAGE_FAILURE : 'stopped during persistence'
           )
         }
       }
       if (outcome === 'abort during persistence') {
         /** Cancellation rejects the reader before the already-issued receipt write settles. */
-        await redis!.ping()
+        await redis.ping()
         await flushMacrotask()
       }
       const entries = await settledWorkspaceAudits()

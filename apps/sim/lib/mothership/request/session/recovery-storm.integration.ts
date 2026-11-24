@@ -10,8 +10,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { toRecord } = await import('@sim/utils/object')
   const { createServer } = await import('node:http')
   interface RunFixture {
@@ -78,15 +77,12 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  /** The real Redis module and worker URL resolution read these at import. */
-  process.env.REDIS_URL = url
+  /** Worker URL resolution reads this at import. */
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -134,7 +130,7 @@ vi.mock('@/lib/mothership/request/session/buffer', async (importOriginal) => {
         throw new Error('simulated transient Redis write failure')
       }
       /** The lock expires under a live controller, and nobody else holds it. */
-      if (hit && fault.effect === 'lose_lease') await getRedisClient()!.del(lease.key)
+      if (hit && fault.effect === 'lose_lease') await getRedisClient().del(lease.key)
       return actual.appendEvents(...args)
     },
     readEvents: async (...args: Parameters<typeof actual.readEvents>) => {
@@ -174,17 +170,11 @@ import { appendEvents } from '@/lib/mothership/request/session/buffer'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { StreamRecoveryExhaustedError } from '@/lib/mothership/request/session/turn-failure'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()
 const workspaceId = generateId()
 const chatIds: string[] = []
-
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
-  return client
-}
 
 /** A run whose controller died after persisting two text frames, its lock long expired. */
 async function orphanedRun(
@@ -315,7 +305,7 @@ async function reconnect(
   const drains = controllers.map(async (controller) => {
     const response = await streamGET(
       new NextRequest(
-        `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=2`,
+        `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=2`,
         { signal: controller.signal }
       ),
       { params: Promise.resolve({}) }
@@ -326,14 +316,15 @@ async function reconnect(
   while (Date.now() - startedAt < windowMs) {
     const settled =
       isTerminalStreamStatus((await storedRun(runId)).status) &&
-      !(await redis().get(chatStreamLockKey(chatId)))
+      !(await getRedisClient().get(chatStreamLockKey(chatId)))
     if (settled) break
     await sleep(100)
   }
   for (const controller of controllers) controller.abort()
   await Promise.allSettled(drains)
   if (waitForLeaseRelease)
-    for (let i = 0; i < 50 && (await redis().get(chatStreamLockKey(chatId))); i++) await sleep(100)
+    for (let i = 0; i < 50 && (await getRedisClient().get(chatStreamLockKey(chatId))); i++)
+      await sleep(100)
   const requests = fixture.posts.filter((post) => post.at >= startedAt)
   return {
     startedAt,
@@ -353,7 +344,7 @@ afterAll(async () => {
   expect(worker.unexpectedRequests).toEqual([])
 })
 
-describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => {
+describe('reconnecting to an orphaned Chat run', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
@@ -537,7 +528,7 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
   it('never takes over a parked run whose controller still holds the chat lock', async () => {
     const run = await orphanedRun({ status: 'paused_waiting_for_tool' })
     const liveController = `${run.streamId}\n${generateId()}`
-    await redis().set(chatStreamLockKey(run.chatId), liveController, 'EX', 60)
+    await getRedisClient().set(chatStreamLockKey(run.chatId), liveController, 'EX', 60)
     try {
       const { turns } = await reconnect(run, {
         tails: 3,
@@ -549,9 +540,9 @@ describe.runIf(Boolean(redisUrl))('reconnecting to an orphaned Chat run', () => 
       const stored = await storedRun(run.runId)
       expect(stored.status).toBe('paused_waiting_for_tool')
       expect(stored.recoveryBackoff).toBeUndefined()
-      expect(await redis().get(chatStreamLockKey(run.chatId))).toBe(liveController)
+      expect(await getRedisClient().get(chatStreamLockKey(run.chatId))).toBe(liveController)
     } finally {
-      await redis().del(chatStreamLockKey(run.chatId))
+      await getRedisClient().del(chatStreamLockKey(run.chatId))
     }
   }, 30_000)
 

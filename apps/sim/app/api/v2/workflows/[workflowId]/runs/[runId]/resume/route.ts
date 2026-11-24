@@ -18,7 +18,7 @@ import {
 } from '@/lib/api/server/routes'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { presentV2RunPause, v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 import { ResumeWorkflowExecutionError } from '@/lib/workflows/executor/resume-execution'
@@ -118,6 +118,7 @@ export const POST = withRouteHandler(
           output: result.output ?? null,
           // Resume has no request body to name selectors in, so selection never applies here.
           blockOutputs: null,
+          paused: presentV2RunPause(result.paused),
         },
         { headers }
       )

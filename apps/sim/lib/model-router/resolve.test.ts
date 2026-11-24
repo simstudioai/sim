@@ -5,9 +5,9 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import {
   permissionCheckMock,
   permissionCheckMockFns,
@@ -15,7 +15,7 @@ import {
 import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
@@ -27,10 +27,11 @@ import {
   addAutoRoutingCost,
   resolveAutoModel,
 } from '@/lib/model-router/resolve'
+import { ModelRouterRequest } from '@/lib/mothership/generated/model-router'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const mockFetchGo = mothershipGoFetchMockFns.mockFetchGo
+const mockFetchWorker = mothershipWorkerFetchMockFns.mockFetchWorker
 const mockGetMothershipBaseURL = mothershipAgentUrlMockFns.mockGetMothershipBaseURL
 
 const mockGetProviderFromModel = providersUtilsMockFns.mockGetProviderFromModel
@@ -112,7 +113,7 @@ describe('resolveAutoModel', () => {
     byTier.forEach((expected, index) => {
       const tier = String(index + 1)
       it(`routes ${mediaKind} tier ${tier} to ${expected}`, async () => {
-        mockFetchGo.mockResolvedValue(routerResponse({ choice: tier }))
+        mockFetchWorker.mockResolvedValue(routerResponse({ choice: tier }))
 
         const result = await resolveAutoModel({
           ctx,
@@ -128,7 +129,7 @@ describe('resolveAutoModel', () => {
   }
 
   it('never crosses media kinds when walking down from a denied tier', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '3' }))
+    mockFetchWorker.mockResolvedValue(routerResponse({ choice: '3' }))
     // gpt-5.6-sol denied; the file column must drop to sonnet, never to a
     // Fireworks model that cannot accept the attachment at all.
     mockValidateModelProvider.mockImplementation(async (_u, _w, model: string) => {
@@ -147,7 +148,7 @@ describe('resolveAutoModel', () => {
   })
 
   it('uses the router choice and applies the cost multiplier when billable', async () => {
-    mockFetchGo.mockResolvedValue(
+    mockFetchWorker.mockResolvedValue(
       routerResponse({
         choice: '2',
         decidedBy: 'llm',
@@ -173,8 +174,23 @@ describe('resolveAutoModel', () => {
     expect(result.billableRoutingCost).toBeCloseTo(0.002)
   })
 
+  it('sends a request body the worker contract accepts', async () => {
+    // The worker answers 400 to a body its contract rejects, e.g. a tier id outside its alphabet.
+    mockFetchWorker.mockResolvedValue(routerResponse(null, false, 503))
+    await resolveAutoModel({
+      ctx,
+      blockId: 'b1',
+      signals: makeSignals(),
+      fallbackModel: 'claude-sonnet-5',
+    })
+    const init = mockFetchWorker.mock.lastCall?.[1] as RequestInit | undefined
+    const parsed = ModelRouterRequest.safeParse(JSON.parse(String(init?.body)))
+    expect(parsed.error).toBeUndefined()
+    expect(parsed.data?.candidates.map((c) => c.id)).toEqual(['1', '2', '3'])
+  })
+
   it('does not bill when the response omits billable (fail-safe)', async () => {
-    mockFetchGo.mockResolvedValue(
+    mockFetchWorker.mockResolvedValue(
       routerResponse({
         choice: '1',
         usage: {
@@ -197,7 +213,7 @@ describe('resolveAutoModel', () => {
   })
 
   it('falls back when the router call fails', async () => {
-    mockFetchGo.mockRejectedValue(new Error('timeout'))
+    mockFetchWorker.mockRejectedValue(new Error('timeout'))
     const result = await resolveAutoModel({
       ctx,
       blockId: 'b1',
@@ -209,8 +225,10 @@ describe('resolveAutoModel', () => {
   })
 
   it('falls back when every pool model is denied by workspace permissions', async () => {
-    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
-    mockValidateModelProvider.mockRejectedValue(new Error('provider blocked'))
+    mockFetchWorker.mockResolvedValue(routerResponse({ choice: '1' }))
+    mockValidateModelProvider.mockImplementation(async (_userId, _workspaceId, model) => {
+      if (model !== 'sim-auto') throw new Error('provider blocked')
+    })
     const result = await resolveAutoModel({
       ctx,
       blockId: 'b1',
@@ -219,5 +237,37 @@ describe('resolveAutoModel', () => {
     })
     expect(result.model).toBe('claude-sonnet-5')
     expect(result.decidedBy).toBe('fallback')
+  })
+
+  it('refuses a denied sim-auto instead of running a pool or fallback model', async () => {
+    mockFetchWorker.mockResolvedValue(routerResponse({ choice: '1' }))
+    const denied = new Error('Model sim-auto is not allowed')
+    mockValidateModelProvider.mockImplementation(async (_userId, _workspaceId, model) => {
+      if (model === 'sim-auto') throw denied
+    })
+
+    await expect(
+      resolveAutoModel({
+        ctx,
+        blockId: 'b1',
+        signals: makeSignals(),
+        fallbackModel: 'claude-sonnet-5',
+      })
+    ).rejects.toBe(denied)
+    expect(mockFetchWorker).not.toHaveBeenCalled()
+
+    setEnvFlags({ isHosted: false })
+    try {
+      await expect(
+        resolveAutoModel({
+          ctx,
+          blockId: 'b1',
+          signals: makeSignals(),
+          fallbackModel: 'claude-sonnet-5',
+        })
+      ).rejects.toBe(denied)
+    } finally {
+      setEnvFlags({ isHosted: true })
+    }
   })
 })

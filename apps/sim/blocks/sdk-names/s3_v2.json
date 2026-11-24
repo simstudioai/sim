@@ -1,0 +1,21 @@
+{
+  "namespace": "s3",
+  "methods": {
+    "copy_object": "copyObject",
+    "create_bucket": "createBucket",
+    "delete_bucket": "deleteBucket",
+    "delete_object": "deleteObject",
+    "delete_objects": "deleteObjectsBatch",
+    "get_object": "downloadFile",
+    "head_object": "headObjectMetadata",
+    "list_buckets": "listBuckets",
+    "list_objects": "listObjects",
+    "presigned_url": "presignedUrl",
+    "put_object": "uploadFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

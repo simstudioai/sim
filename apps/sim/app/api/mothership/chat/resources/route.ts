@@ -1,36 +1,70 @@
-import type { NextRequest, NextResponse } from 'next/server'
-import { mothershipChatResourceEnvelopeSchema } from '@/lib/api/contracts/mothership-chats'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateShimEnvelope } from '@/lib/mothership/request/http'
 import {
-  DELETE as copilotResourcesDelete,
-  PATCH as copilotResourcesPatch,
-  POST as copilotResourcesPost,
-} from '@/app/api/copilot/chat/resources/route'
+  addMothershipChatResourceContract,
+  removeMothershipChatResourceContract,
+  reorderMothershipChatResourcesContract,
+} from '@/lib/api/contracts/mothership-chats'
+import {
+  defineInternalJsonRoute,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
+import { presentChatResourceForBrowser } from '@/lib/mothership/resources/presentation'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 
-async function validateResourceRequestEnvelope(request: NextRequest): Promise<NextResponse | null> {
-  const invalid = await validateShimEnvelope(request, mothershipChatResourceEnvelopeSchema)
-  if (invalid) return invalid
-  return null
+const policy = {
+  auth: internalSessionAuth,
+  operation: changeChatResources.operation,
+  rateLimit: internalRateLimits.none({
+    reason: 'Personal chat layout updates have no separate rate bucket.',
+  }),
+  errorPolicy: internalOrchestrationErrorPolicy,
+  useCase: changeChatResources,
+  present: ({ resources }: { resources: MothershipResource[] }) => ({
+    success: true as const,
+    resources: resources.map(presentChatResourceForBrowser),
+  }),
 }
 
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const validationResponse = await validateResourceRequestEnvelope(request)
-  if (validationResponse) return validationResponse
-
-  return copilotResourcesPost(request, undefined)
+export const POST = defineInternalJsonRoute({
+  ...policy,
+  contract: addMothershipChatResourceContract,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    change: {
+      kind: 'upsert' as const,
+      resources: [
+        { ...body.resource, ...(body.clearViewId ? { clearViewId: true as const } : {}) },
+      ],
+    },
+  }),
 })
 
-export const PATCH = withRouteHandler(async (request: NextRequest) => {
-  const validationResponse = await validateResourceRequestEnvelope(request)
-  if (validationResponse) return validationResponse
-
-  return copilotResourcesPatch(request, undefined)
+export const PATCH = defineInternalJsonRoute({
+  ...policy,
+  contract: reorderMothershipChatResourcesContract,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    change: { kind: 'reorder' as const, resources: body.resources },
+  }),
 })
 
-export const DELETE = withRouteHandler(async (request: NextRequest) => {
-  const validationResponse = await validateResourceRequestEnvelope(request)
-  if (validationResponse) return validationResponse
-
-  return copilotResourcesDelete(request, undefined)
+export const DELETE = defineInternalJsonRoute({
+  ...policy,
+  contract: removeMothershipChatResourceContract,
+  mapInput: ({ body }) => ({
+    chatId: body.chatId,
+    change: {
+      kind: 'remove' as const,
+      resources: [
+        {
+          type: body.resourceType,
+          id: body.resourceId,
+          workspaceId: body.workspaceId,
+          owner: body.owner,
+        },
+      ],
+    },
+  }),
 })

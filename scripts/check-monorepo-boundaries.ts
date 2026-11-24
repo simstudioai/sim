@@ -19,10 +19,21 @@
  *      context type.
  *    Fix by taking the surface fact (a cursor's route identity, a wire shape) as input from
  *    the adapter.
+ * 3. `@sim/workflow-code`, `@sim/workspace-code` and the `@sim/table-cells` rules they check rows
+ *    with (every non-test file under their `src`) compile untrusted source on the server, in the
+ *    browser and in the CLI, so they must stay pure and must never execute code: no Node built-in
+ *    (`vm`, `child_process`, `fs`, any `node:*`, even type-only), no dynamic `import()`,
+ *    `import.meta` or `require`, no `.constructor` read (a function's constructor is
+ *    `Function`), and no value reference to `eval`, `Function`,
+ *    `Reflect` or the global object under any name (`globalThis`, `window`, `self`, `global`),
+ *    which also bans computed lookups such as `globalThis[name]`. Fix by keeping I/O in
+ *    the caller (the compiler takes file text as input) and interpreting the AST instead of
+ *    evaluating it.
  *
  * There is no allowlist. Run: `bun run check:boundaries`
  */
 import { readdir, readFile } from 'node:fs/promises'
+import { isBuiltin } from 'node:module'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 
@@ -173,6 +184,116 @@ async function scanImports(
   return offenders
 }
 
+const PURE_PACKAGES = ['workflow-code', 'workspace-code', 'table-cells'].map((name) => ({
+  name: `@sim/${name}`,
+  src: path.join(PACKAGES_DIR, name, 'src'),
+}))
+/**
+ * Names that reach code execution or the host global object, which leads back to both: `eval`,
+ * `Function`, the global object under each of its names, `Reflect` (`Reflect.get(globalThis, k)`)
+ * and `require`.
+ */
+const HOST_GLOBALS = new Set([
+  'eval',
+  'Function',
+  'globalThis',
+  'window',
+  'self',
+  'global',
+  'Reflect',
+  'require',
+])
+/** Member names banned however they are reached: `x.constructor` is `Function` for any function. */
+const HOST_MEMBERS = new Set([...HOST_GLOBALS, 'constructor'])
+
+/**
+ * The member a destructuring element reads: `constructor` in `{ constructor: F }` or
+ * `{ constructor }`.
+ */
+function destructuredMember(node: ts.BindingElement): string | undefined {
+  const key = node.propertyName ?? node.name
+  if (ts.isIdentifier(key) || ts.isStringLiteralLike(key)) return key.text
+  if (ts.isComputedPropertyName(key) && ts.isStringLiteralLike(key.expression)) {
+    return key.expression.text
+  }
+  return undefined
+}
+
+/** Whether `node` names a host global as a value rather than as a key or a type. */
+function isHostGlobalReference(node: ts.Identifier): boolean {
+  if (!HOST_GLOBALS.has(node.text)) return false
+  const parent = node.parent
+  if (
+    (ts.isPropertyAssignment(parent) ||
+      ts.isPropertyDeclaration(parent) ||
+      ts.isPropertySignature(parent) ||
+      ts.isMethodDeclaration(parent) ||
+      ts.isMethodSignature(parent) ||
+      ts.isGetAccessorDeclaration(parent) ||
+      ts.isSetAccessorDeclaration(parent)) &&
+    parent.name === node
+  ) {
+    return false
+  }
+  for (let ancestor: ts.Node = parent; !ts.isSourceFile(ancestor); ancestor = ancestor.parent) {
+    if (ts.isTypeNode(ancestor)) return false
+  }
+  return true
+}
+
+/** Rule 3: every way a file in pure package `pkg` could reach the host or execute code. */
+async function scanPurePackageFile(file: string, pkg: string): Promise<Offender[]> {
+  const content = await readFile(file, 'utf8')
+  const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true)
+  const lines = content.split('\n')
+  const offenders: Offender[] = []
+  function report(node: ts.Node, description: string): void {
+    const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
+    offenders.push({
+      file: path.relative(ROOT, file),
+      line: line + 1,
+      description,
+      snippet: lines[line].trim(),
+    })
+  }
+
+  for (const { module } of importEdges(source)) {
+    if (module.text.startsWith('node:') || isBuiltin(module.text)) {
+      report(module, `${pkg} imports a Node built-in: ${module.text}`)
+    }
+  }
+  function visit(node: ts.Node): void {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      report(node, `${pkg} uses dynamic import()`)
+    }
+    if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
+      report(node, `${pkg} uses import.meta`)
+    }
+    if (ts.isIdentifier(node) && isHostGlobalReference(node)) {
+      report(node, `${pkg} references ${node.text}`)
+    }
+    if (ts.isPropertyAccessExpression(node) && node.name.text === 'constructor') {
+      report(node, `${pkg} reads .constructor`)
+    }
+    if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      const member = destructuredMember(node)
+      if (member && HOST_MEMBERS.has(member)) {
+        report(node, `${pkg} destructures ${member}`)
+      }
+    }
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      HOST_MEMBERS.has(node.argumentExpression.text)
+    ) {
+      report(node, `${pkg} references ${node.argumentExpression.text}`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return offenders
+}
+
 /** Package dependencies point toward shared code, including type-only imports. */
 function forbiddenImport(file: string, specifier: string, appNames: ReadonlySet<string>): boolean {
   if (specifier.startsWith('@/') || specifier.startsWith('apps/')) return true
@@ -230,6 +351,10 @@ async function main() {
           forbiddenImport(file, module.text, appNames) ? `import into apps/: ${module.text}` : null
         ))
       )
+      const pure = PURE_PACKAGES.find(({ src }) => file.startsWith(`${src}${path.sep}`))
+      if (pure && !TEST_FILE.test(file)) {
+        offenders.push(...(await scanPurePackageFile(file, pure.name)))
+      }
     }
   }
 
@@ -248,7 +373,7 @@ async function main() {
 
   if (offenders.length === 0) {
     console.log(
-      '✅ Monorepo boundaries OK: no package imports from apps/*, and application code is surface-neutral'
+      '✅ Monorepo boundaries OK: no package imports from apps/*, application code is surface-neutral, and @sim/workflow-code, @sim/workspace-code and @sim/table-cells are pure'
     )
     return
   }

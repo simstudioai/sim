@@ -1,4 +1,8 @@
 import {
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+} from '@sim/workflow-code/catalog/canonical-index'
+import {
   BLOCK_DIMENSIONS,
   CONTAINER_DIMENSIONS,
   clampNoteBlockTotalHeight,
@@ -30,8 +34,6 @@ import { getDisplayValue, hasDisplayableRowValue } from '@/lib/workflows/subbloc
 import {
   buildCanonicalIndexForSurface,
   buildSubBlockValues,
-  type CanonicalModeOverrides,
-  evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,

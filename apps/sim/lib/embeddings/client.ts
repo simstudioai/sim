@@ -5,6 +5,7 @@ import {
 } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { chunkArray } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
 import { getBYOKKey } from '@/lib/api-key/byok'
@@ -19,13 +20,12 @@ import {
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getOllamaUrl } from '@/lib/core/utils/urls'
+import { getOllamaUrl, isOllamaReachable } from '@/lib/core/utils/urls'
 import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
   DEFAULT_EMBEDDING_MODEL,
@@ -38,7 +38,6 @@ import {
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { getEmbeddingResponseDiagnostic } from '@/lib/embeddings/error-diagnostics'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
-import { isOllamaServerConfigured } from '@/lib/embeddings/ollama-model-catalog.server'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import { getAdapterFactory } from '@/lib/embeddings/providers'
 import {
@@ -406,7 +405,7 @@ async function resolveProvider(
    * would have made this stricter than the selector that offers the models.
    */
   if (info.provider === 'ollama') {
-    if (!isOllamaServerConfigured()) {
+    if (!isOllamaReachable()) {
       throw new EmbeddingConfigurationError()
     }
     const baseUrl = getOllamaUrl().replace(/\/+$/, '')

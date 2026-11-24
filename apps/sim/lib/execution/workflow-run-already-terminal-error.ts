@@ -5,7 +5,6 @@ export type WorkflowRunAlreadyTerminalStatus = 'completed' | 'failed'
 interface WorkflowRunAlreadyTerminalErrorOptions {
   executionId: string
   executionStatus: WorkflowRunAlreadyTerminalStatus
-  redisAvailable: boolean
   locallyAborted: boolean
 }
 
@@ -13,7 +12,6 @@ interface WorkflowRunAlreadyTerminalErrorOptions {
 export class WorkflowRunAlreadyTerminalError extends OrchestrationError {
   readonly executionId: string
   readonly executionStatus: WorkflowRunAlreadyTerminalStatus
-  readonly redisAvailable: boolean
   readonly locallyAborted: boolean
 
   constructor(options: WorkflowRunAlreadyTerminalErrorOptions) {
@@ -21,7 +19,6 @@ export class WorkflowRunAlreadyTerminalError extends OrchestrationError {
     this.name = 'WorkflowRunAlreadyTerminalError'
     this.executionId = options.executionId
     this.executionStatus = options.executionStatus
-    this.redisAvailable = options.redisAvailable
     this.locallyAborted = options.locallyAborted
   }
 }

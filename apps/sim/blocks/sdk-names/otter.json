@@ -1,0 +1,18 @@
+{
+  "namespace": "legacy.otter",
+  "methods": {
+    "create_conversation": "importRecording",
+    "get_conversation": "getConversation",
+    "get_conversation_audio": "getConversationAudio",
+    "get_workspace": "getWorkspace",
+    "list_channel_members": "listChannelMembers",
+    "list_channels": "listChannels",
+    "list_conversations": "listConversations",
+    "list_workspace_conversations": "listWorkspaceConversations"
+  },
+  "triggers": {
+    "otter_conversation_completed": "conversationCompleted",
+    "otter_conversation_shared": "conversationShared",
+    "otter_webhook": "webhook"
+  }
+}

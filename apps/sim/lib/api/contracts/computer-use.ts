@@ -1,4 +1,4 @@
-import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
+import { ComputerUseWithAppCommandsSchema } from '@sim/desktop-bridge/computer-use'
 import { z } from 'zod'
 import { desktopToolCallIdSchema } from '@/lib/api/contracts/desktop-tool-authorization'
 import { organizationIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
@@ -8,7 +8,7 @@ const authorizeComputerUseBodySchema = z.object({ toolCallId: desktopToolCallIdS
 const authorizeComputerUseResponseSchema = z
   .object({
     toolName: z.literal('computer'),
-    args: ComputerUseSchema,
+    args: ComputerUseWithAppCommandsSchema,
     chatId: z.string().min(1),
   })
   .strict()

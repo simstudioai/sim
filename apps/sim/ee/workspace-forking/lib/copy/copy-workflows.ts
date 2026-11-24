@@ -2,6 +2,12 @@ import { folder as folderTable, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
+import { remapSourceMeta } from '@sim/workflow-code/source-meta'
+import {
+  readWorkflowSourceMeta,
+  writeWorkflowSourceMeta,
+} from '@sim/workflow-persistence/source-meta'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -26,7 +32,6 @@ import {
   replaceCustomBlockInputs,
   type SubBlockTransform,
 } from '@/lib/workflows/references/remap-references'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   deriveForkBlockId,
   type ForkBlockIdResolver,
@@ -420,6 +425,12 @@ export interface CopyWorkflowStateParams {
      */
     isPublicApi?: boolean
   }
+  /**
+   * The source workflow whose code metadata (source bindings, order and comments) is written onto
+   * the target, re-keyed to the copied block and variable ids. A source without any clears the
+   * target's. Omitted leaves the target's own value untouched.
+   */
+  sourceMetaFromWorkflowId?: string
   /** source workflow id -> target workflow id, for `workflow-selector` references */
   workflowIdMap: Map<string, string>
   /** source folder id -> target folder id */
@@ -491,6 +502,7 @@ export async function copyWorkflowStateIntoTarget(
     now,
     sourceState,
     sourceMeta,
+    sourceMetaFromWorkflowId,
     workflowIdMap,
     folderIdMap,
     transformSubBlocks,
@@ -745,6 +757,15 @@ export async function copyWorkflowStateIntoTarget(
         ...(sourceMeta.isPublicApi !== undefined ? { isPublicApi: sourceMeta.isPublicApi } : {}),
       })
       .where(eq(workflow.id, targetWorkflowId))
+  }
+
+  if (sourceMetaFromWorkflowId !== undefined) {
+    const copiedSourceMeta = await readWorkflowSourceMeta(tx, sourceMetaFromWorkflowId)
+    await writeWorkflowSourceMeta(
+      tx,
+      targetWorkflowId,
+      copiedSourceMeta ? remapSourceMeta(copiedSourceMeta, blockIdMapping, varIdMapping) : null
+    )
   }
 
   const remappedState: WorkflowState = {

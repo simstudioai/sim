@@ -1,0 +1,10 @@
+{
+  "namespace": "legacy.gamma",
+  "methods": {
+    "check_status": "checkStatus",
+    "generate": "generate",
+    "generate_from_template": "generateFromTemplate",
+    "list_folders": "listFolders",
+    "list_themes": "listThemes"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "namespace": "legacy.logs",
+  "methods": {
+    "get_execution": "getExecutionDetails",
+    "get_log": "getLogById",
+    "query": "queryLogs"
+  }
+}

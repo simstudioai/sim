@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toWellFormed, truncate } from '@sim/utils/string'
-import { env } from '@/lib/core/config/env'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { env, envNumber } from '@/lib/core/config/env'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -52,7 +52,7 @@ function displayEntityType(type: string, patterns?: CustomPiiPattern[]): string 
  * raise via `PII_SERVICE_CHUNK_CONCURRENCY` for a scaled Presidio fleet (this is
  * the route → Presidio fan-out, inner to the app → route `PII_MASK_CHUNK_CONCURRENCY`).
  */
-const CHUNK_CONCURRENCY = env.PII_SERVICE_CHUNK_CONCURRENCY ?? 4
+const CHUNK_CONCURRENCY = envNumber(env.PII_SERVICE_CHUNK_CONCURRENCY, 4, { min: 1, integer: true })
 
 /** Presidio service serving /analyze, /anonymize, and combined /redact (VIN is native there). */
 const PII_URL = env.PII_URL || 'http://localhost:5001'

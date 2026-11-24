@@ -13,8 +13,8 @@ import {
 } from '@sim/emcn'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { isElseConditionTitle } from '@sim/workflow-types/workflow'
 import Editor from 'react-simple-code-editor'
-import { isElseConditionTitle } from '@/lib/workflows/conditions'
 import {
   isLikelyReferenceSegment,
   SYSTEM_REFERENCE_PREFIXES,
@@ -75,6 +75,11 @@ interface ConditionalBlock {
   id: string
   /** Block title (if/else if/else) */
   title: string
+  /**
+   * Persisted branch key written by code apply or the copilot; every edit here spreads
+   * the row, so it survives reorders and title renumbering untouched.
+   */
+  key?: string
   /** Code content of the condition */
   value: string
   /** Whether tag dropdown is visible */

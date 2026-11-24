@@ -1,0 +1,32 @@
+// @sim-sdk 1
+// Owned by the support team.
+import { agent, response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow(
+  'Fixture',
+  {
+    variables: {
+      // starts at one
+      count: { type: 'number', value: 1 },
+    },
+  },
+  () => {
+    const start = trigger.start('Start', { inputFormat: {} })
+    // Cheap model first.
+    // param not printed
+    const classify = agent('Classify', {
+      model: 'm',
+      // tuned 2026-10
+      temperature: 0.5,
+    }) // see runbook
+    /**
+     * Final reply.
+     */
+    const done = response('Done', {})
+
+    // Wiring
+    start.to(classify)
+    classify.to(done) // happy path
+  }
+)
+// end of file

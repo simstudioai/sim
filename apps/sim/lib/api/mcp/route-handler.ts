@@ -1,8 +1,14 @@
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isPlainRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { v2McpOperations } from '@/lib/api/application/operations'
 import { simMcpContract } from '@/lib/api/contracts/sim-mcp'
-import { getMcpOperation, resolveOperation, TOOL_NAMES } from '@/lib/api/mcp/catalog'
+import {
+  CODE_TOOL_NAMES,
+  getMcpOperation,
+  resolveOperation,
+  TOOL_NAMES,
+} from '@/lib/api/mcp/catalog'
 import { withSimMcpAuthChallenge } from '@/lib/api/mcp/oauth-metadata'
 import { createSimMcpServer } from '@/lib/api/mcp/server'
 import { getSimMcpUrl } from '@/lib/api/mcp/urls'
@@ -49,22 +55,34 @@ function admit(request: NextRequest) {
  * tool with a known operation. Its OAuth scope is checked before the SDK runs,
  * so a token without it gets the protocol's `insufficient_scope` step-up
  * challenge rather than a tool error. Raw routes declare no operation and all
- * change something, so they need `api:write`.
+ * change something, so they need `api:write`, as does the write code tool,
+ * whose programs may run any operation. The read code tool needs only the
+ * `api:read` every connection already holds.
  */
 async function toolCallOperation(
   message: Record<string, unknown>
 ): Promise<ApplicationOperation | null> {
   if (message.method !== 'tools/call' || !isPlainRecord(message.params)) return null
   const { name, arguments: args } = message.params
+  if (name === CODE_TOOL_NAMES.write) return v2McpOperations.rawRoute
   if (name !== TOOL_NAMES.read && name !== TOOL_NAMES.write) return null
   if (!isPlainRecord(args) || typeof args.operation !== 'string') return null
   const resolved = await resolveOperation(
-    args.operation,
+    args.operation.trim(),
     name === TOOL_NAMES.read ? 'read' : 'write'
   )
   if ('error' in resolved) return null
   const route = await getMcpOperation(resolved.operation).handler()
   return v2RouteOperation(route) ?? v2McpOperations.rawRoute
+}
+
+/**
+ * Names the caller for the sandbox pool's per-caller fairness: the person
+ * calling, or the workspace a workspace key belongs to.
+ */
+function sandboxOwnerKey(principal: Principal): string {
+  if (principal.kind === 'workspace_api_key') return `workspace:${principal.workspaceId}`
+  return `user:${requirePrincipalSubjectUserId(principal)}`
 }
 
 /** Browsers may only reach the server from Sim's own origins (DNS-rebinding protection). */
@@ -90,11 +108,14 @@ export function createSimMcpHandlers() {
       if (!parsed.success) return parsed.response
       const operation = await toolCallOperation(parsed.data.body)
       if (operation) requireOAuthOperationScope(admission.auth.principal, operation)
-      const server = createSimMcpServer({
-        inbound: request,
-        credential: readMcpCredentialHeaders(request.headers),
-        audience: simMcpAudience(),
-      })
+      const server = createSimMcpServer(
+        {
+          inbound: request,
+          credential: readMcpCredentialHeaders(request.headers),
+          audience: simMcpAudience(),
+        },
+        sandboxOwnerKey(admission.auth.principal)
+      )
       return await serveStatelessMcp(server, request, parsed.data.body)
     } catch (error) {
       const response = v2CaughtOrchestrationError(error)

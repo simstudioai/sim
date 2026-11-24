@@ -20,6 +20,7 @@ import {
 } from '@sim/emcn'
 import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getBrowserTimezone, getTimezoneOptions } from '@sim/utils/timezone'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -27,7 +28,6 @@ import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/client'
 import { signOutAndRedirect } from '@/lib/auth/sign-out'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { DeleteAccountModal } from '@/app/workspace/[workspaceId]/settings/components/general/components/delete-account-modal'
 import { PrivacyView } from '@/app/workspace/[workspaceId]/settings/components/general/components/privacy-view'
@@ -43,7 +43,6 @@ import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/comp
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
-import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
   useResetPassword,
@@ -96,7 +95,6 @@ function getInitials(name: string | undefined | null): string {
 
 export function General() {
   const router = useRouter()
-  const brandConfig = useBrandConfig()
   const { data: session } = useSession()
   const { hosted } = useDeploymentShape()
 
@@ -273,7 +271,7 @@ export function General() {
     }
   }
 
-  const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
+  const imageUrl = profilePictureUrl || profile?.image
 
   if (view === 'privacy') {
     return <PrivacyView onBack={() => setView(null, { history: 'replace' })} />

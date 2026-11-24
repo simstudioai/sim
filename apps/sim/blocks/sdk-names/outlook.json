@@ -1,0 +1,39 @@
+{
+  "namespace": "outlook",
+  "methods": {
+    "copy_outlook": "copyEmail",
+    "create_event_calendar": "createEvent",
+    "create_folder_outlook": "createFolder",
+    "delete_event_calendar": "deleteEvent",
+    "delete_outlook": "deleteEmail",
+    "draft_outlook": "draftEmail",
+    "forward_outlook": "forwardEmail",
+    "get_attachment_outlook": "getAttachment",
+    "get_event_calendar": "getCalendarEvent",
+    "list_attachments_outlook": "listAttachments",
+    "list_events_calendar": "listCalendarEvents",
+    "list_folders_outlook": "listFolders",
+    "mark_read_outlook": "markAsRead",
+    "mark_unread_outlook": "markAsUnread",
+    "move_outlook": "moveEmail",
+    "read_outlook": "readEmail",
+    "reply_all_outlook": "replyAll",
+    "reply_outlook": "replyToEmail",
+    "respond_calendar": "respondToInvite",
+    "search_outlook": "searchEmail",
+    "send_outlook": "sendEmail",
+    "update_event_calendar": "updateEvent",
+    "update_message_outlook": "setCategoriesFlag"
+  },
+  "triggers": {
+    "outlook_poller": "poller"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    },
+    "trigger": {
+      "oauthCredential": "credential"
+    }
+  }
+}

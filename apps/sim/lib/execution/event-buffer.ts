@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { randomInt } from '@sim/utils/random'
-import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
@@ -12,7 +11,7 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
-import { getExecutionSignalChannel, publishLocalExecutionSignal } from '@/lib/execution/signal'
+import { getExecutionSignalChannel } from '@/lib/execution/signal'
 import type { BlockStartedData, ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')
@@ -302,13 +301,6 @@ export interface ExecutionEventEntry {
   event: ExecutionEvent
 }
 
-interface MemoryExecutionStream {
-  events: ExecutionEventEntry[]
-  meta: ExecutionStreamMeta | null
-  nextEventId: number
-  expiresAt: number
-}
-
 export interface ExecutionEventWriter {
   write: (event: ExecutionEvent) => Promise<ExecutionEventEntry>
   writeTerminal: (
@@ -386,110 +378,6 @@ async function compactEventForBuffer(
   return { ...event, data: eventData } as ExecutionEvent
 }
 
-const memoryExecutionStreams = new Map<string, MemoryExecutionStream>()
-
-function canUseMemoryEventBuffer(): boolean {
-  return typeof window === 'undefined' && getConfiguredCacheProvider() === 'database'
-}
-
-function pruneExpiredMemoryStreams(now = Date.now()): void {
-  for (const [executionId, stream] of memoryExecutionStreams) {
-    if (stream.expiresAt <= now) memoryExecutionStreams.delete(executionId)
-  }
-}
-
-function getMemoryStream(executionId: string): MemoryExecutionStream {
-  pruneExpiredMemoryStreams()
-  let stream = memoryExecutionStreams.get(executionId)
-  if (!stream) {
-    stream = {
-      events: [],
-      meta: null,
-      nextEventId: 1,
-      expiresAt: Date.now() + ACTIVE_TTL_SECONDS * 1000,
-    }
-    memoryExecutionStreams.set(executionId, stream)
-  }
-  return stream
-}
-
-function touchMemoryStream(stream: MemoryExecutionStream): void {
-  const terminal = stream.meta?.status && stream.meta.status !== 'active'
-  stream.expiresAt = Date.now() + (terminal ? TERMINAL_TTL_SECONDS : ACTIVE_TTL_SECONDS) * 1000
-}
-
-function readMemoryMeta(executionId: string): ExecutionMetaReadResult {
-  pruneExpiredMemoryStreams()
-  const stream = memoryExecutionStreams.get(executionId)
-  if (!stream?.meta) return { status: 'missing' }
-  return { status: 'found', meta: stream.meta }
-}
-
-function readMemoryEvents(executionId: string, afterEventId: number): ExecutionEventsReadResult {
-  pruneExpiredMemoryStreams()
-  const stream = memoryExecutionStreams.get(executionId)
-  if (!stream) return { status: 'ok', events: [] }
-  const earliestEventId = stream.meta?.earliestEventId
-  if (
-    isReplayBeforeAvailableEvents(afterEventId, earliestEventId, stream.meta?.replayStartEventId)
-  ) {
-    return { status: 'pruned', earliestEventId }
-  }
-  return {
-    status: 'ok',
-    events: stream.events.filter((entry) => entry.eventId > afterEventId),
-  }
-}
-
-function createMemoryExecutionEventWriter(
-  executionId: string,
-  context: ExecutionEventWriterContext = {}
-): ExecutionEventWriter {
-  const writeMemoryEvent = async (event: ExecutionEvent, publish: boolean) => {
-    const stream = getMemoryStream(executionId)
-    const compactEvent = await compactEventForBuffer(event, context)
-    const entry = {
-      eventId: stream.nextEventId++,
-      executionId,
-      event: compactEvent,
-    }
-    stream.events.push(entry)
-    if (stream.events.length > EVENT_LIMIT) {
-      stream.events = stream.events.slice(-EVENT_LIMIT)
-      const earliestEventId = stream.events[0]?.eventId
-      if (earliestEventId !== undefined && stream.meta) {
-        stream.meta = {
-          ...stream.meta,
-          earliestEventId,
-          updatedAt: new Date().toISOString(),
-        }
-      }
-    }
-    touchMemoryStream(stream)
-    if (publish) publishLocalExecutionSignal(executionId, 'event')
-    return entry
-  }
-
-  return {
-    write: (event) => writeMemoryEvent(event, true),
-    writeTerminal: async (event, status) => {
-      const entry = await writeMemoryEvent(event, false)
-      const stream = getMemoryStream(executionId)
-      stream.meta = {
-        ...stream.meta,
-        status,
-        updatedAt: new Date().toISOString(),
-        activeBlockStarts: [],
-      }
-      touchMemoryStream(stream)
-      publishLocalExecutionSignal(executionId, 'event')
-      return entry
-    },
-    flush: async () => {},
-    close: async () => {},
-  }
-}
-
 function isReplayBeforeAvailableEvents(
   afterEventId: number,
   earliestEventId?: number,
@@ -531,24 +419,6 @@ export async function flushExecutionStreamReplayBuffer(
 
 export async function resetExecutionStreamBuffer(executionId: string): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      const stream = getMemoryStream(executionId)
-      stream.events = []
-      stream.meta = {
-        status: 'active',
-        protocolVersion: EXECUTION_STREAM_PROTOCOL_VERSION,
-        replayStartEventId: stream.nextEventId,
-        updatedAt: new Date().toISOString(),
-        activeBlockStarts: [],
-      }
-      touchMemoryStream(stream)
-      return true
-    }
-    logger.warn('resetExecutionStreamBuffer: Redis client unavailable', { executionId })
-    return false
-  }
-
   try {
     const currentSequence = Number(await redis.get(getSeqKey(executionId)).catch(() => 0))
     const replayStartEventId = Number.isFinite(currentSequence) ? currentSequence + 1 : 1
@@ -582,32 +452,6 @@ export async function setExecutionMeta(
   meta: Partial<ExecutionStreamMeta>
 ): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      const stream = getMemoryStream(executionId)
-      const status = meta.status ?? stream.meta?.status
-      if (!status) return false
-      if (meta.activeBlockStarts !== undefined) {
-        const activeBlockStarts = JSON.stringify(meta.activeBlockStarts)
-        if (
-          meta.activeBlockStarts.length > EVENT_LIMIT ||
-          Buffer.byteLength(activeBlockStarts, 'utf8') > MAX_ACTIVE_BLOCK_SNAPSHOT_BYTES
-        ) {
-          return false
-        }
-      }
-      stream.meta = {
-        ...stream.meta,
-        ...meta,
-        status,
-        updatedAt: new Date().toISOString(),
-      }
-      touchMemoryStream(stream)
-      return true
-    }
-    logger.warn('setExecutionMeta: Redis client unavailable', { executionId })
-    return false
-  }
   try {
     const key = getMetaKey(executionId)
     const payload: Record<string, string> = {
@@ -672,24 +516,6 @@ export async function setExecutionActiveBlockStarts(
   }
 
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      const stream = getMemoryStream(executionId)
-      if (!stream.meta?.status) return false
-      if (stream.meta.status !== 'active') return true
-      stream.meta = {
-        ...stream.meta,
-        activeBlockStarts,
-        updatedAt: new Date().toISOString(),
-      }
-      touchMemoryStream(stream)
-      publishLocalExecutionSignal(executionId, 'event')
-      return true
-    }
-    logger.warn('setExecutionActiveBlockStarts: Redis client unavailable', { executionId })
-    return false
-  }
-
   try {
     await redis.eval(
       SET_ACTIVE_BLOCK_STARTS_SCRIPT,
@@ -735,23 +561,6 @@ export async function markExecutionStreamTerminal(
   status: TerminalExecutionStreamStatus
 ): Promise<boolean> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      const stream = getMemoryStream(executionId)
-      stream.meta = {
-        ...stream.meta,
-        status,
-        protocolVersion: EXECUTION_STREAM_PROTOCOL_VERSION,
-        updatedAt: new Date().toISOString(),
-        activeBlockStarts: [],
-      }
-      touchMemoryStream(stream)
-      publishLocalExecutionSignal(executionId, 'event')
-      return true
-    }
-    logger.warn('markExecutionStreamTerminal: Redis client unavailable', { executionId })
-    return false
-  }
   try {
     await redis.eval(
       MARK_TERMINAL_META_SCRIPT,
@@ -777,11 +586,6 @@ export async function readExecutionMetaState(
   executionId: string
 ): Promise<ExecutionMetaReadResult> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) return readMemoryMeta(executionId)
-    logger.warn('readExecutionMetaState: Redis client unavailable', { executionId })
-    return { status: 'unavailable', error: 'Redis client unavailable' }
-  }
   try {
     const key = getMetaKey(executionId)
     const meta = await redis.hgetall(key)
@@ -835,10 +639,6 @@ export async function readExecutionEventsState(
   afterEventId: number
 ): Promise<ExecutionEventsReadResult> {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) return readMemoryEvents(executionId, afterEventId)
-    return { status: 'unavailable', error: 'Redis client unavailable' }
-  }
   try {
     const meta = await redis.hgetall(getMetaKey(executionId))
     const earliestEventId =
@@ -890,14 +690,6 @@ export function createExecutionEventWriter(
   context: ExecutionEventWriterContext = {}
 ): ExecutionEventWriter {
   const redis = getRedisClient()
-  if (!redis) {
-    if (canUseMemoryEventBuffer()) {
-      logger.info('createExecutionEventWriter: using in-memory event buffer', { executionId })
-      return createMemoryExecutionEventWriter(executionId, context)
-    }
-    throw new Error(`Redis execution event buffer unavailable for ${executionId}`)
-  }
-
   let pending: ExecutionEventEntry[] = []
   let nextEventId = 0
   let maxReservedId = 0

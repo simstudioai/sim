@@ -1,4 +1,8 @@
 import { isRecordLike } from '@sim/utils/object'
+import type {
+  CanonicalGroup,
+  CanonicalModeOverrides,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { VideoIcon } from '@/components/icons'
 import {
   directVideoDefaults,
@@ -11,11 +15,7 @@ import {
   getFalVideoModel,
   getFalVideoVariant,
 } from '@/lib/media/fal-video-catalog'
-import {
-  type CanonicalGroup,
-  type CanonicalModeOverrides,
-  resolveActiveCanonicalValue,
-} from '@/lib/workflows/subblocks/visibility'
+import { resolveActiveCanonicalValue } from '@/lib/workflows/subblocks/visibility'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockConfig } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalBooleanInput } from '@/blocks/utils'
 

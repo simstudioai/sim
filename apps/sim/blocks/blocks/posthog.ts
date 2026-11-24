@@ -1,7 +1,63 @@
+import { toBooleanFromInput } from '@sim/utils/coerce'
 import { PosthogIcon } from '@/components/icons'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { mapperOperation } from '@/blocks/utils'
+
+/**
+ * Boolean params the tools copy straight into the request body. Older workflows
+ * store a switch as the text `'true'`/`'false'`, a create-or-keep dropdown holds
+ * `'true'`/`'false'` or `''` (keep current), and an agent tool call can pass
+ * either form; PostHog would receive the string (and `'false'` reads as truthy),
+ * so each is read back to a real boolean when present, and `''` to unset.
+ * `is_static` is the create-cohort copy `tools.config.tool` makes of `isStatic`.
+ */
+const SWITCH_PARAMS = [
+  'pinned',
+  'favorited',
+  'active',
+  'ensureExperienceContinuity',
+  'isStatic',
+  'is_static',
+  'deleted',
+  'archived',
+] as const
+
+/**
+ * A boolean a create operation shares with its update, as a dropdown. Create offers True/False and
+ * seeds `createDefault`; every other context leads with "Keep current" (`''`), so an update leaves
+ * the stored setting alone rather than resending the create default. That includes agent tool
+ * rows, whose values carry no operation: `value` seeds per operation and returns undefined without
+ * one, so the editor falls back to the first option, and `dependsOn` reseeds on an operation
+ * switch. A workflow that stored the old switch's `true`/`false` keeps sending it.
+ */
+function createOrKeepBoolean(field: {
+  id: string
+  title: string
+  create: string
+  update: string
+  createDefault: boolean
+}): SubBlockConfig {
+  const { create, update } = field
+  return {
+    id: field.id,
+    title: field.title,
+    type: 'dropdown',
+    dependsOn: ['operation'],
+    options: (params) => [
+      ...(params?.values.operation === create ? [] : [{ label: 'Keep current', id: '' }]),
+      { label: 'True', id: 'true' },
+      { label: 'False', id: 'false' },
+    ],
+    value: (params) =>
+      params?.operation === create
+        ? String(field.createDefault)
+        : params?.operation === update
+          ? ''
+          : undefined,
+    condition: { field: 'operation', value: [create, update] },
+  }
+}
 
 /** Cohort membership definition, whichever of the three forms the user filled. */
 const COHORT_DEFINITION_FIELD = ['filters', 'query', 'groups'] as const
@@ -948,16 +1004,13 @@ Return ONLY the JSON object.`,
       condition: { field: 'operation', value: 'posthog_update_insight' },
     },
 
-    {
+    createOrKeepBoolean({
       id: 'active',
       title: 'Active',
-      type: 'switch',
-      value: () => 'true',
-      condition: {
-        field: 'operation',
-        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
-      },
-    },
+      create: 'posthog_create_feature_flag',
+      update: 'posthog_update_feature_flag',
+      createDefault: true,
+    }),
     {
       id: 'rolloutPercentage',
       title: 'Rollout Percentage',
@@ -968,16 +1021,13 @@ Return ONLY the JSON object.`,
         value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
       },
     },
-    {
+    createOrKeepBoolean({
       id: 'ensureExperienceContinuity',
       title: 'Ensure Experience Continuity',
-      type: 'switch',
-      value: () => 'false',
-      condition: {
-        field: 'operation',
-        value: ['posthog_create_feature_flag', 'posthog_update_feature_flag'],
-      },
-    },
+      create: 'posthog_create_feature_flag',
+      update: 'posthog_update_feature_flag',
+      createDefault: false,
+    }),
 
     {
       id: 'groups',
@@ -986,13 +1036,13 @@ Return ONLY the JSON object.`,
       placeholder: '[{"properties": [...]}]',
       condition: { field: 'operation', value: ['posthog_create_cohort', 'posthog_update_cohort'] },
     },
-    {
+    createOrKeepBoolean({
       id: 'isStatic',
       title: 'Static Cohort',
-      type: 'switch',
-      value: () => 'false',
-      condition: { field: 'operation', value: ['posthog_create_cohort', 'posthog_update_cohort'] },
-    },
+      create: 'posthog_create_cohort',
+      update: 'posthog_update_cohort',
+      createDefault: false,
+    }),
     {
       id: 'deleted',
       title: 'Archive Cohort',
@@ -1572,6 +1622,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           result.rolloutPercentage = Number(params.rolloutPercentage)
         }
         if (params.responsesLimit) result.responsesLimit = Number(params.responsesLimit)
+        // Assigned whenever present, so "Keep current" (`''`) replaces the raw input as unset.
+        for (const key of SWITCH_PARAMS) {
+          if (Object.hasOwn(params, key)) result[key] = toBooleanFromInput(params[key])
+        }
 
         return result
       },

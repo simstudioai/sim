@@ -8,7 +8,6 @@ import {
 import {
   updateOrganizationDataRetentionBodySchema,
   updateOrganizationSessionPolicyBodySchema,
-  updateOrganizationWhitelabelBodySchema,
 } from '@/lib/api/contracts/organization'
 import { updateUserProfileBodySchema } from '@/lib/api/contracts/user'
 import {
@@ -52,10 +51,8 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   getOrganizationDataRetention,
   getOrganizationSessionPolicy,
-  getOrganizationWhitelabel,
   updateOrganizationDataRetention,
   updateOrganizationSessionPolicy,
-  updateOrganizationWhitelabel,
 } from '@/lib/organizations/application/configuration'
 import {
   organizationSettingsPatchSchema,
@@ -260,26 +257,6 @@ const adapters: Record<string, SettingAdapter> = {
   'organization/sim-links': {
     available: (context) => isSimLinksEnabled(organizationInput(context).organizationId),
     get: (context) => readSettingsSimLinks(context),
-  },
-  'organization/whitelabeling': {
-    schema: updateOrganizationWhitelabelBodySchema.strict(),
-    get: async (context) =>
-      (
-        await getOrganizationWhitelabel.execute({
-          principal: context.principal,
-          input: organizationInput(context),
-        })
-      ).settings,
-    update: async (context, changes) =>
-      (
-        await updateOrganizationWhitelabel.execute({
-          principal: context.principal,
-          input: {
-            ...organizationInput(context),
-            settings: updateOrganizationWhitelabelBodySchema.strict().parse(changes),
-          },
-        })
-      ).data,
   },
   'organization/security': {
     schema: updateOrganizationSessionPolicyBodySchema.strict(),

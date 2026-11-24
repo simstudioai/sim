@@ -6,8 +6,16 @@ on:
     paths:
       - 'packages/sim-cli/**'
       # The build bundles its workspace dependencies, so a change there
-      # changes what ships.
+      # changes what ships. `bun run check:sim-cli-bundle` fails when this
+      # list and the bundle's workspace packages disagree. bun.lock is not
+      # watched: nearly every lockfile change leaves the bundle byte-identical,
+      # and the next change to a watched package ships the ones that do not.
+      - 'packages/table-cells/**'
       - 'packages/utils/**'
+      - 'packages/workflow-code/**'
+      - 'packages/workflow-sdk/**'
+      - 'packages/workflow-types/**'
+      - 'packages/workspace-code/**'
       # A change to how the package is built or published has to republish it.
       - '.github/workflows/publish-sim-cli.yml'
 
@@ -32,8 +40,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # Vitest 5 requires Node 22.12+; the published bundle is still
-      # smoke-tested on Node 20 below, its minimum supported runtime.
+      # Vitest 5 requires Node 22.12+; the published bundle is also
+      # smoke-tested below on Node 22.18.0, its minimum supported runtime.
       - name: Setup workspace
         uses: ./.github/actions/setup
         with:
@@ -123,10 +131,10 @@ jobs:
         working-directory: packages/sim-cli
         run: bun pm pack --ignore-scripts --filename "$RUNNER_TEMP/package.tgz" --quiet
 
-      - name: Setup Node 20 for the bundle smoke test
+      - name: Setup the minimum supported Node for the bundle smoke test
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
-          node-version: '20'
+          node-version: '22.18.0'
 
       - name: Smoke-test packed Node bundle
         env:

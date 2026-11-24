@@ -1,0 +1,8 @@
+{
+  "namespace": "pulse",
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

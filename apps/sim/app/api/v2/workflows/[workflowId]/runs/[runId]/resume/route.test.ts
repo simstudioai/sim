@@ -137,6 +137,35 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
     expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
   })
 
+  it("presents the pause the resume reports, not the resume attempt's own run id", async () => {
+    mocks.resume.mockResolvedValueOnce({
+      kind: 'sync',
+      success: true,
+      status: 'paused',
+      executionId: 'resume-execution-4',
+      output: {},
+      error: undefined,
+      structuredError: null,
+      paused: {
+        runId: 'run-1',
+        points: [{ contextId: 'context-4', pauseKind: 'human', resumeStatus: 'paused' }],
+      },
+    })
+    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-3' }))
+
+    const body = await (await POST(request, context)).json()
+
+    expect(body.data).toMatchObject({
+      runId: 'resume-execution-4',
+      status: 'paused',
+      paused: {
+        runId: 'run-1',
+        points: [{ contextId: 'context-4', kind: 'human', status: 'paused' }],
+      },
+    })
+    expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
+  })
+
   it('wraps synchronous resume results in the canonical v2 run shape', async () => {
     mocks.resume.mockResolvedValueOnce({
       kind: 'sync',
@@ -165,6 +194,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
         status: 'completed',
         output: { approved: true },
         blockOutputs: null,
+        paused: null,
         error: null,
         startedAt: '2026-08-05T00:00:00.000Z',
         endedAt: '2026-08-05T00:00:01.000Z',
@@ -208,6 +238,7 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
         status: 'failed',
         output: { partial: true },
         blockOutputs: null,
+        paused: null,
         error: {
           message: 'Condition evaluation failed',
           code: 'BLOCK_EXECUTION_FAILED',

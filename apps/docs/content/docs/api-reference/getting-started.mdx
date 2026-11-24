@@ -239,7 +239,7 @@ Some endpoints return an unpaginated bounded inventory or a provider-specific pa
 
 ## Rate limits
 
-V2 request limits apply to the credential and its user or workspace. Workflow execution also applies separate synchronous/asynchronous execution buckets, quota, and concurrency policy. Plan and deployment configuration determine the effective limits.
+V2 request limits apply to the credential and its user or workspace. Workflow execution also applies separate synchronous/asynchronous execution buckets, quota, and concurrency policy. Writing workflow source (applying it, or creating a workflow from it) draws on one tighter budget of its own, 20 requests a minute with bursts of up to 40, on every plan. A dry run, which writes nothing, draws on the source plan budget the plan routes use instead, 30 requests a minute with bursts of up to 60. Plan and deployment configuration determine the other limits.
 
 A rate-limited request returns `429`; `Retry-After` gives seconds to wait. Inspect [Billing status](/api-reference/billing/getBillingStatus) for a workspace's current credits and storage. Async mode does not bypass admission or usage limits.
 

@@ -2,13 +2,15 @@ import {
   type ComputerUseActivity,
   type ComputerUseAppPermission,
   ComputerUseError,
+  type ComputerUsePermission,
   type ComputerUseStatus,
 } from '@sim/desktop-bridge'
 import {
-  type ComputerUseInput,
+  type AppCommand,
   type ComputerUseResult,
-  ComputerUseSchema,
   type ComputerUseSnapshot,
+  type ComputerUseWithAppCommandsInput,
+  ComputerUseWithAppCommandsSchema,
 } from '@sim/desktop-bridge/computer-use'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -23,15 +25,20 @@ interface ComputerUseServiceDeps {
     app: ComputerUseAppPermission,
     signal: AbortSignal
   ) => Promise<'once' | 'always' | 'deny'>
+  /** Confirms one app-command write. It shows the exact fields, since nothing happens on screen. */
+  confirmAppCommand: (
+    request: { appName: string; summary: string; change: 'add' | 'update' },
+    signal: AbortSignal
+  ) => Promise<boolean>
   onActivity: (activity: ComputerUseActivity | null) => void
   setStopShortcutActive?: (active: boolean) => boolean
-  openPermissionSettings?: (permission: 'accessibility' | 'screenCapture') => Promise<void>
+  openPermissionSettings?: (permission: ComputerUsePermission) => Promise<void>
 }
 
 interface ToolWork {
   toolCallId: string
   scopeId: string
-  input: ComputerUseInput
+  input: ComputerUseWithAppCommandsInput
   controller: AbortController
 }
 
@@ -40,6 +47,206 @@ interface SnapshotOwnership {
   bundleId: string
   windowId: string
   elementWindows: Map<string, string>
+}
+
+/** The app each command writes to; its Computer Use app permission governs the command. */
+const APP_COMMAND_APPS: Record<AppCommand['name'], string> = {
+  list_reminder_lists: 'com.apple.reminders',
+  create_reminder: 'com.apple.reminders',
+  find_reminders: 'com.apple.reminders',
+  update_reminder: 'com.apple.reminders',
+  list_calendars: 'com.apple.iCal',
+  create_event: 'com.apple.iCal',
+  find_events: 'com.apple.iCal',
+  update_event: 'com.apple.iCal',
+  list_contact_groups: 'com.apple.AddressBook',
+  create_contact_group: 'com.apple.AddressBook',
+  create_contact: 'com.apple.AddressBook',
+  find_contacts: 'com.apple.AddressBook',
+  update_contact: 'com.apple.AddressBook',
+}
+
+const PRIORITY_NAMES: Record<number, string> = { 1: 'High', 5: 'Medium', 9: 'Low' }
+
+/** The app a call operates; an app command operates the app its data belongs to. */
+function workBundleId(input: ComputerUseWithAppCommandsInput): string | undefined {
+  if (input.action === 'app_command') return APP_COMMAND_APPS[input.command.name]
+  return 'bundleId' in input ? input.bundleId : undefined
+}
+
+/** The list, calendar or group a write names by id, and the read that lists its kind. */
+function chosenDestination(
+  command: AppCommand
+): { id: string; list: 'list_reminder_lists' | 'list_calendars' | 'list_contact_groups' } | null {
+  if (command.name === 'create_reminder' && command.listId)
+    return { id: command.listId, list: 'list_reminder_lists' }
+  if (command.name === 'create_event' && command.calendarId)
+    return { id: command.calendarId, list: 'list_calendars' }
+  if ((command.name === 'create_contact' || command.name === 'update_contact') && command.groupId)
+    return { id: command.groupId, list: 'list_contact_groups' }
+  return null
+}
+
+type CommandResult = Extract<ComputerUseResult, { kind: 'command' }>
+type ReminderItem = NonNullable<CommandResult['reminders']>[number]
+type EventItem = NonNullable<CommandResult['events']>[number]
+type Change = [label: string, before: string | undefined, after: string]
+
+/**
+ * An update as the user approves it, and the values the helper must still find before it writes;
+ * a contact update only adds, so it has none to check.
+ */
+interface UpdateApproval {
+  summary: string
+  expected?: Record<string, unknown>
+}
+
+/**
+ * One line per value: a title or note from a shared calendar could otherwise add lines that read
+ * like extra fields in the confirmation.
+ */
+function oneLine(value: string): string {
+  // C0/C1 controls (NEL breaks a line too), line and paragraph separators, and bidi controls,
+  // which could reorder "current → new".
+  return value
+    .replace(
+      /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]+/g,
+      ' '
+    )
+    .trim()
+}
+
+/**
+ * A new date or time as the helper will save it. A time with an offset keeps that offset, which names
+ * exactly one moment even in an hour a daylight-saving change repeats, and adds this Mac's local time,
+ * the form the current value is shown in.
+ */
+function localTime(value: string): string {
+  if (!/T.*(Z|[+-]\d{2}:\d{2})$/.test(value)) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  return `${value} (${local} here)`
+}
+
+/**
+ * Which item, then each changed field's current and new value, then anything only added, since
+ * nothing happens on screen.
+ */
+function changeSummary(
+  header: Array<[label: string, value: string]>,
+  changes: Change[],
+  additions: Array<[label: string, value: string | undefined]> = []
+): string {
+  return [
+    ...header.map(([label, value]) => `${label}: ${oneLine(value)}`),
+    ...changes.map(
+      ([label, before, after]) => `${label}: ${oneLine(before || 'none')} → ${oneLine(after)}`
+    ),
+    ...additions.flatMap(([label, value]) => (value ? [`${label}: ${oneLine(value)}`] : [])),
+  ].join('\n')
+}
+
+function reminderChanges(
+  command: Extract<AppCommand, { name: 'update_reminder' }>,
+  current: ReminderItem
+): Change[] {
+  const priority = (value: number) =>
+    value === 0 ? 'None' : (PRIORITY_NAMES[value] ?? String(value))
+  const changes: Change[] = []
+  const title = command.title?.trim()
+  if (title !== undefined && title !== current.title) changes.push(['Title', current.title, title])
+  if (command.due !== undefined) changes.push(['Due', current.due, localTime(command.due)])
+  if (command.clearDue) changes.push(['Due', current.due, 'none'])
+  if (command.priority !== undefined)
+    changes.push(['Priority', priority(current.priority), priority(command.priority)])
+  if (command.completed !== undefined)
+    changes.push([
+      'Status',
+      current.completed ? 'Completed' : 'Open',
+      command.completed ? 'Completed' : 'Open',
+    ])
+  if (command.notes !== undefined)
+    changes.push(['Notes', current.notes, command.notes.trim() || 'none'])
+  return changes
+}
+
+function eventChanges(
+  command: Extract<AppCommand, { name: 'update_event' }>,
+  current: EventItem
+): Change[] {
+  const changes: Change[] = []
+  const title = command.title?.trim()
+  if (title !== undefined && title !== current.title) changes.push(['Title', current.title, title])
+  if (command.start !== undefined) changes.push(['Starts', current.start, localTime(command.start)])
+  if (command.end !== undefined) changes.push(['Ends', current.end, localTime(command.end)])
+  if (command.location !== undefined)
+    changes.push(['Location', current.location, command.location.trim() || 'none'])
+  if (command.notes !== undefined)
+    changes.push(['Notes', current.notes, command.notes.trim() || 'none'])
+  return changes
+}
+
+/**
+ * The exact fields a write will save, for the user to confirm; null for a read, which needs none.
+ * `destination` is the chosen list, calendar or group by name, so the user can tell where it goes.
+ */
+function writeSummary(command: AppCommand, destination: string | undefined): string | null {
+  // Trimmed exactly as the helper trims before saving, so the user confirms the saved values.
+  const lines = (entries: Array<[string, string | number | undefined]>) =>
+    entries
+      .map(([label, value]) => [label, typeof value === 'string' ? value.trim() : value] as const)
+      .filter(([, value]) => value !== undefined && value !== '')
+      .map(([label, value]) => `${label}: ${typeof value === 'string' ? oneLine(value) : value}`)
+      .join('\n')
+  switch (command.name) {
+    case 'create_reminder':
+      return lines([
+        ['Reminder', command.title],
+        ['Due', command.due],
+        ['Priority', command.priority ? PRIORITY_NAMES[command.priority] : undefined],
+        ['List', destination ?? 'default'],
+        ['Notes', command.notes],
+      ])
+    case 'create_event':
+      return lines([
+        ['Event', command.title],
+        ['Starts', command.start],
+        ['Ends', command.end],
+        ['All day', command.allDay ? 'yes' : undefined],
+        ['Location', command.location],
+        [
+          'Alert',
+          command.alertMinutesBefore !== undefined
+            ? `${command.alertMinutesBefore} minutes before`
+            : undefined,
+        ],
+        ['Calendar', destination ?? 'default'],
+        ['Notes', command.notes],
+      ])
+    case 'create_contact_group':
+      return lines([['Contact group', command.title]])
+    case 'create_contact':
+      return lines([
+        ['Contact', [command.givenName, command.familyName].filter(Boolean).join(' ') || undefined],
+        ['Organization', command.organization],
+        ['Job title', command.jobTitle],
+        ['Emails', command.emails?.map((email) => email.trim()).join(', ')],
+        ['Phones', command.phones?.map((phone) => phone.trim()).join(', ')],
+        ['Group', destination],
+      ])
+    default:
+      return null
+  }
+}
+
+function notFound(kind: string, read: string): ComputerUseError {
+  return new ComputerUseError({
+    code: 'not_found',
+    message: `No ${kind} has this id; call ${read}.`,
+    dispatchState: 'not_started',
+  })
 }
 
 /** Native snapshots cannot transfer authority between chats or restarted helpers. */
@@ -82,6 +289,9 @@ export class ComputerUseService {
     status.permissions = {
       accessibility: native.accessibility,
       screenCapture: native.screenRecording,
+      reminders: native.reminders === 'granted',
+      calendars: native.calendars === 'granted',
+      contacts: native.contacts === 'granted',
     }
     status.enabled = this.isEnabled()
     status.activeAction = this.activity
@@ -111,9 +321,7 @@ export class ComputerUseService {
     return this.getStatus()
   }
 
-  async requestPermission(
-    permission: 'accessibility' | 'screenCapture'
-  ): Promise<ComputerUseStatus> {
+  async requestPermission(permission: ComputerUsePermission): Promise<ComputerUseStatus> {
     if (!this.deps.supported) return this.getStatus()
     await this.deps.native.request('request_permission', { permission })
     await this.deps.openPermissionSettings?.(permission)
@@ -131,7 +339,7 @@ export class ComputerUseService {
     )
     const persisted = this.deps.config.flush()
     for (const work of this.queued.values()) {
-      if ('bundleId' in work.input && work.input.bundleId === bundleId) this.cancel(work.toolCallId)
+      if (workBundleId(work.input) === bundleId) this.cancel(work.toolCallId)
     }
     for (const apps of this.taskGrants.values()) apps.delete(bundleId)
     this.invalidateSnapshots()
@@ -200,7 +408,7 @@ export class ComputerUseService {
     if (this.queued.has(toolCallId))
       return Promise.reject(new Error('This Computer Use action is already running.'))
     // A newer server can send arguments this build predates; nothing has been queued yet.
-    const parsed = ComputerUseSchema.safeParse(raw)
+    const parsed = ComputerUseWithAppCommandsSchema.safeParse(raw)
     if (!parsed.success)
       return Promise.reject(
         new ComputerUseError({
@@ -240,6 +448,7 @@ export class ComputerUseService {
         stopShortcutAvailable: this.deps.setStopShortcutActive?.(true) ?? false,
       }
       this.deps.onActivity(this.activity)
+      if (input.action === 'app_command') return await this.runAppCommand(input.command, work)
       if ('bundleId' in input) {
         if (/^ai\.sim\.desktop(?:\.|$)/.test(input.bundleId)) {
           throw new Error('Computer Use cannot operate Sim or its own permission controls.')
@@ -347,6 +556,151 @@ export class ComputerUseService {
       this.activity = null
       this.deps.onActivity(null)
     }
+  }
+
+  /**
+   * A typed write through the OS's data frameworks leaves nothing on screen to watch, so each one
+   * needs the app's usual Computer Use permission and its own confirmation of the exact fields.
+   */
+  private async runAppCommand(command: AppCommand, work: ToolWork): Promise<ComputerUseResult> {
+    const appName = await this.authorizeApp(APP_COMMAND_APPS[command.name], work)
+    if (this.activity) {
+      this.activity = { ...this.activity, appName }
+      this.deps.onActivity(this.activity)
+    }
+    const update = await this.updateApproval(command, work)
+    const summary = update
+      ? update.summary
+      : writeSummary(command, await this.destinationName(command, work))
+    if (summary !== null) {
+      const confirmed = await this.deps.confirmAppCommand(
+        { appName, summary, change: update ? 'update' : 'add' },
+        work.controller.signal
+      )
+      this.check(work)
+      if (!confirmed)
+        throw new ComputerUseError({
+          code: 'user_declined',
+          message: 'The user declined this change. Do not retry it.',
+          dispatchState: 'not_started',
+        })
+    }
+    this.check(work)
+    // The helper refuses the update if a field it changes no longer has the value the user approved.
+    return await this.appCommand(command, update?.expected)
+  }
+
+  /** Runs one app command in the helper and checks the reply is for that command. */
+  private async appCommand(
+    command: AppCommand,
+    expected?: Record<string, unknown>
+  ): Promise<CommandResult> {
+    const result = await this.deps.native.request(
+      'app_command',
+      expected ? { command, expected } : { command }
+    )
+    if (result.kind !== 'command' || result.command !== command.name)
+      throw new Error('Computer Use returned a result for a different command.')
+    return result
+  }
+
+  /**
+   * For an update, reads the item it names when it is confirmed. An unknown id, or a repeating
+   * event (whose occurrences the user must choose in Calendar), is refused before the user is asked.
+   */
+  private async updateApproval(
+    command: AppCommand,
+    work: ToolWork
+  ): Promise<UpdateApproval | undefined> {
+    if (command.name === 'update_reminder') {
+      const found = await this.appCommand({ name: 'find_reminders', id: command.id })
+      this.check(work)
+      const current = found.reminders?.find((item) => item.id === command.id)
+      if (!current) throw notFound('reminder', 'find_reminders')
+      return {
+        summary: changeSummary(
+          [
+            ['Reminder', current.title],
+            ['List', current.list],
+          ],
+          reminderChanges(command, current)
+        ),
+        expected: omit(current, ['id', 'list']),
+      }
+    }
+    if (command.name === 'update_event') {
+      const found = await this.appCommand({ name: 'find_events', id: command.id })
+      this.check(work)
+      const current = found.events?.find((item) => item.id === command.id)
+      if (!current) throw notFound('event', 'find_events')
+      if (current.recurring)
+        throw new ComputerUseError({
+          code: 'recurring_unsupported',
+          message: 'This event repeats; change it in Calendar so the user picks which occurrences.',
+          dispatchState: 'not_started',
+        })
+      // An all-day event takes dates and a timed one takes times; a mismatch is refused before asking.
+      for (const boundary of [command.start, command.end])
+        if (boundary !== undefined && boundary.includes('T') === current.allDay)
+          throw new ComputerUseError({
+            code: 'invalid_arguments',
+            message: current.allDay
+              ? 'This is an all-day event; pass start and end as YYYY-MM-DD.'
+              : 'This event has times; pass start and end as ISO 8601 date-times.',
+            dispatchState: 'not_started',
+          })
+      return {
+        summary: changeSummary(
+          [
+            ['Event', current.title],
+            ['Calendar', current.list],
+            ['When', `${current.start} – ${current.end}`],
+          ],
+          eventChanges(command, current)
+        ),
+        expected: omit(current, ['id', 'list', 'allDay', 'recurring']),
+      }
+    }
+    if (command.name === 'update_contact') {
+      const found = await this.appCommand({ name: 'find_contacts', id: command.id })
+      this.check(work)
+      const current = found.contacts?.find((item) => item.id === command.id)
+      if (!current) throw notFound('contact', 'find_contacts')
+      const header: Array<[string, string]> = [['Contact', current.title]]
+      if (current.organization) header.push(['Organization', current.organization])
+      return {
+        summary: changeSummary(
+          header,
+          [],
+          [
+            ['Add emails', command.emails?.map((email) => email.trim()).join(', ')],
+            ['Add phones', command.phones?.map((phone) => phone.trim()).join(', ')],
+            ['Add to group', await this.destinationName(command, work)],
+          ]
+        ),
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * The name of the list, calendar or group a write chose by id, read when it is confirmed so the
+   * name is current. An id missing from a complete read is refused before the user is asked; past
+   * the read's limit the id itself is shown, and the helper checks it before saving.
+   */
+  private async destinationName(command: AppCommand, work: ToolWork): Promise<string | undefined> {
+    const destination = chosenDestination(command)
+    if (!destination) return undefined
+    const lists = await this.appCommand({ name: destination.list })
+    this.check(work)
+    const chosen = lists.items?.find((item) => item.id === destination.id)
+    if (chosen) return chosen.title
+    if (lists.truncated) return destination.id
+    throw new ComputerUseError({
+      code: 'list_unavailable',
+      message: `No list, calendar or group has this id; call ${destination.list}.`,
+      dispatchState: 'not_started',
+    })
   }
 
   private rememberSnapshot(work: ToolWork, snapshot: ComputerUseSnapshot, windowId?: string): void {

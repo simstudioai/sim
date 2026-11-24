@@ -3225,8 +3225,92 @@
     {
       "idx": 461,
       "version": "7",
-      "when": 1795047802480,
-      "tag": "0461_workflow_build_notes",
+      "when": 1795057212936,
+      "tag": "0461_permission_import_subject_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 462,
+      "version": "7",
+      "when": 1795059305210,
+      "tag": "0462_workflow_activity_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 463,
+      "version": "7",
+      "when": 1795059338803,
+      "tag": "0463_workflow_execution_logs_late_end_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 464,
+      "version": "7",
+      "when": 1795070323624,
+      "tag": "0464_activity_rollup_maintenance_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 465,
+      "version": "7",
+      "when": 1795078639607,
+      "tag": "0465_activity_rollup_correction_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 466,
+      "version": "7",
+      "when": 1795086561892,
+      "tag": "0466_workspace_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 467,
+      "version": "7",
+      "when": 1795151802047,
+      "tag": "0467_workflow_edges_block_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 468,
+      "version": "7",
+      "when": 1795223641227,
+      "tag": "0468_retire_legacy_search_and_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 469,
+      "version": "7",
+      "when": 1795263216402,
+      "tag": "0469_staged_blob_consumed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 470,
+      "version": "7",
+      "when": 1795345308196,
+      "tag": "0470_contract_whitelabel_and_rate_limit_bucket",
+      "breakpoints": true
+    },
+    {
+      "idx": 471,
+      "version": "7",
+      "when": 1795435350407,
+      "tag": "0471_pro_trial_card",
+      "breakpoints": true
+    },
+    {
+      "idx": 472,
+      "version": "7",
+      "when": 1795516972777,
+      "tag": "0472_trial_card_user_id_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 473,
+      "version": "7",
+      "when": 1795546310091,
+      "tag": "0473_workflow_build_notes",
       "breakpoints": true
     }
   ]

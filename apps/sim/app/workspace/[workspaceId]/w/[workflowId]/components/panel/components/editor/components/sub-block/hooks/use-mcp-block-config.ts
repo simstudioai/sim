@@ -1,6 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

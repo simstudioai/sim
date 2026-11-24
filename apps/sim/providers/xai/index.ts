@@ -17,11 +17,11 @@ import {
   recordProviderConversationToolError,
   recordProviderConversationUsage,
 } from '@/providers/conversation-history'
-import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
 import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { createChatCompletionUsageMeter } from '@/providers/openai-compat/usage-meter'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -151,31 +151,7 @@ export const xAIProvider: ProviderConfig = {
       preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
     }
 
-    const tokens = { input: 0, output: 0, cacheRead: 0, total: 0 }
-    let inputCost = 0
-    let outputCost = 0
-    const recordUsage = (usage: CompletionUsage | undefined) => {
-      const modelUsage = getChatCompletionConversationUsage(usage)
-      if (!modelUsage || !usage) return
-      tokens.input += modelUsage.input
-      tokens.output += modelUsage.output
-      tokens.cacheRead += modelUsage.cacheRead ?? 0
-      tokens.total += usage.total_tokens
-      const cost = priceModelUsage(request.model, modelUsage, LIST_PRICE_POLICY)
-      inputCost += cost.input
-      outputCost += cost.output
-    }
-    const getCost = (toolCost = 0) => {
-      const input = Number.parseFloat(inputCost.toFixed(8))
-      const output = Number.parseFloat(outputCost.toFixed(8))
-      return {
-        input,
-        output,
-        total: Number.parseFloat((input + output + toolCost).toFixed(8)),
-        pricing: priceModelUsage(request.model, { input: 0, output: 0 }, LIST_PRICE_POLICY).pricing,
-        ...(toolCost ? { toolCost } : {}),
-      }
-    }
+    const usageMeter = createChatCompletionUsageMeter(request.model)
 
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info('XAI Provider - Using direct streaming (no tools)')
@@ -212,9 +188,9 @@ export const xAIProvider: ProviderConfig = {
             normalizeUsage: normalizeXaiUsage,
             onComplete: ({ content, usage }) => {
               output.content = content
-              recordUsage(usage)
-              output.tokens = { ...tokens }
-              output.cost = getCost()
+              usageMeter.record(usage)
+              output.tokens = { ...usageMeter.tokens }
+              output.cost = usageMeter.cost()
             },
           }),
       })
@@ -252,7 +228,7 @@ export const xAIProvider: ProviderConfig = {
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
       if (currentResponse.usage) currentResponse.usage = normalizeXaiUsage(currentResponse.usage)
-      recordUsage(currentResponse.usage)
+      usageMeter.record(currentResponse.usage)
       if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
         await captureProviderConversationStep(
           request,
@@ -540,7 +516,7 @@ export const xAIProvider: ProviderConfig = {
           )
           if (currentResponse.usage)
             currentResponse.usage = normalizeXaiUsage(currentResponse.usage)
-          recordUsage(currentResponse.usage)
+          usageMeter.record(currentResponse.usage)
           if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
             await captureProviderConversationStep(
               request,
@@ -616,7 +592,7 @@ export const xAIProvider: ProviderConfig = {
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
             if (finalResponse.usage) finalResponse.usage = normalizeXaiUsage(finalResponse.usage)
-            recordUsage(finalResponse.usage)
+            usageMeter.record(finalResponse.usage)
             if (!finalResponse.choices[0]?.message?.tool_calls?.length) {
               await captureProviderConversationStep(
                 request,
@@ -656,7 +632,7 @@ export const xAIProvider: ProviderConfig = {
         throw error
       }
       if (request.stream) {
-        const finalCost = getCost(sumToolCosts(toolResults))
+        const finalCost = usageMeter.cost(sumToolCosts(toolResults))
 
         const streamingResult = createStreamingExecution({
           model: request.model,
@@ -670,7 +646,7 @@ export const xAIProvider: ProviderConfig = {
             iterations: iterationCount + 1,
             timeSegments,
           },
-          initialTokens: { ...tokens },
+          initialTokens: { ...usageMeter.tokens },
           initialCost: finalCost,
           toolCalls:
             toolCalls.length > 0
@@ -683,7 +659,7 @@ export const xAIProvider: ProviderConfig = {
           streamFormat: 'agent-events-v1',
           createStream: ({ output, finalizeTiming }) => {
             output.content = content
-            output.tokens = { ...tokens }
+            output.tokens = { ...usageMeter.tokens }
             output.cost = finalCost
             finalizeTiming()
             return createSettledAgentEventStream(content)
@@ -707,8 +683,8 @@ export const xAIProvider: ProviderConfig = {
       return {
         content,
         model: request.model,
-        tokens,
-        cost: getCost(sumToolCosts(toolResults)),
+        tokens: { ...usageMeter.tokens },
+        cost: usageMeter.cost(sumToolCosts(toolResults)),
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         timing: {

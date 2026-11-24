@@ -5,11 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { choosePostgresPassword, LEGACY_POSTGRES_PASSWORD } from './compose-database'
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
-const COMPOSE_FILES = [
-  'docker-compose.prod.yml',
-  'docker-compose.local.yml',
-  'docker-compose.ollama.yml',
-] as const
+const COMPOSE_FILES = ['docker-compose.prod.yml', 'docker-compose.local.yml'] as const
 
 function composePath(file: string): string {
   return path.join(REPO_ROOT, file)

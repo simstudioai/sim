@@ -53,11 +53,13 @@ import {
   createPausedExecutionResumeMetadata,
   parsePausedExecutionResumeMetadata,
 } from '@/lib/workflows/executor/paused-execution-metadata'
+import { reopenExecutionLogForNextPause } from '@/lib/workflows/executor/reopen-execution-log'
 import {
   type AutomaticResumeWaitingMetadata,
   normalizeAutomaticResumeWaitingReason,
   resolveAutomaticResumeAdmissionFailure,
 } from '@/lib/workflows/executor/resume-policy'
+import { pausedRunIdOf } from '@/lib/workflows/executor/run-pause'
 import {
   forwardAgentStreamToExecutionEvents,
   shouldForwardAnswerTextFromSink,
@@ -332,32 +334,6 @@ function clearAutomaticResumeWaitingMetadataSql(contextId: string): SQL {
       THEN ${pausedExecutions.metadata} - 'automaticResumeWaiting'
     ELSE ${pausedExecutions.metadata}
   END`
-}
-
-/**
- * The terminal columns a `workflow_execution_logs` row keeps when a partial
- * resume moves it back to `pending`.
- *
- * The revival claim excludes only `cancelled`, so it also matches a row
- * `markResumeFailed` already ended: one context's resume fails, a sibling
- * context resumes successfully afterwards, and the run becomes live again
- * carrying the end timestamp and duration of the attempt that failed. A live row
- * must not carry a terminal stamp — and because `elapsedDurationMsSql` preserves
- * a `pending` row's `total_duration_ms` as its pause checkpoint, leaving it
- * there also hands the next terminal write a duration frozen at the failed
- * resume rather than one it recomputes.
- *
- * A row revived from a non-terminal status is the opposite case: its columns are
- * the checkpoint `completeWithPause` banked, which is precisely what that
- * preservation rule exists to keep, so they survive untouched. The row's own
- * status decides, read — like every expression in the same `SET` — against the
- * pre-update row.
- */
-const revivedExecutionLogStamp = {
-  endedAt: sql<Date | null>`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.endedAt} END`,
-  totalDurationMs: sql<
-    number | null
-  >`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.totalDurationMs} END`,
 }
 
 function withoutAutomaticResumeWaitingReason(
@@ -1022,7 +998,7 @@ export class PauseResumeManager {
          * reason, then throw so the attempt settles as failed below. The thrown
          * message stays stable; the underlying error rides on `cause`.
          */
-        const effectiveExecutionId = result.metadata?.executionId ?? resumeExecutionId
+        const effectiveExecutionId = pausedRunIdOf(result, resumeExecutionId)
         const failPause = async (reason: string, cause?: unknown): Promise<never> => {
           logger.error(
             reason,
@@ -2366,20 +2342,7 @@ export class PauseResumeManager {
           })
           .where(eq(pausedExecutions.executionId, targetParentExecutionId))
       } else {
-        await tx
-          .update(workflowExecutionLogs)
-          .set({ status: 'pending', executionDeadlineAt: null, ...revivedExecutionLogStamp })
-          .where(
-            and(
-              eq(workflowExecutionLogs.executionId, targetParentExecutionId),
-              sql`${workflowExecutionLogs.status} != 'cancelled'`,
-              sql`NOT EXISTS (
-                SELECT 1 FROM ${pausedExecutions}
-                WHERE ${pausedExecutions.executionId} = ${targetParentExecutionId}
-                  AND ${pausedExecutions.status} = 'cancelling'
-              )`
-            )
-          )
+        await reopenExecutionLogForNextPause(tx, targetParentExecutionId)
       }
     })
   }

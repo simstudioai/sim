@@ -16,6 +16,14 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Pencil, Server, Wrench, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import {
+  buildCanonicalIndex,
+  type CanonicalIndex,
+  type CanonicalModeOverrides,
+  isCanonicalPair,
+  resolveCanonicalMode,
+  scopeCanonicalModesForTool,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
@@ -34,14 +42,8 @@ import {
 } from '@/lib/permission-groups/operation-access'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
-  buildCanonicalIndex,
-  type CanonicalIndex,
-  type CanonicalModeOverrides,
-  isCanonicalPair,
   reindexToolCanonicalModes,
-  resolveCanonicalMode,
   resolveDependencyValue,
-  scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import {
@@ -70,6 +72,7 @@ import {
   isCustomToolAlreadySelected,
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
+  supportsToolUsageControlForModel,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -103,8 +106,7 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOperationAccess } from '@/hooks/use-operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { supportsForcedToolUse, supportsToolUsageControl } from '@/providers/models'
-import { getProviderFromModel } from '@/providers/utils'
+import { supportsForcedToolUse } from '@/providers/models'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -601,9 +603,7 @@ export const ToolInput = memo(function ToolInput({
 
   const modelValue = useSubBlockStore((state) => state.getValue(blockId, 'model'))
   const model = typeof modelValue === 'string' ? modelValue : ''
-  const provider = model ? getProviderFromModel(model) : ''
-  const supportsToolControl =
-    blockType === 'mothership' || (provider ? supportsToolUsageControl(provider) : false)
+  const supportsToolControl = supportsToolUsageControlForModel(blockType, model)
   const supportsForce = blockType === 'mothership' || supportsForcedToolUse(model)
 
   const {

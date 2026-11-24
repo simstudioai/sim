@@ -205,6 +205,22 @@ describe('JSON flags that name a file', () => {
     })
     rmSync(path)
   })
+
+  it.each([
+    ['UTF-16LE, as a Windows PowerShell 5.1 redirect writes it', 'utf16le'],
+    ['UTF-8 with a byte-order mark', 'utf8'],
+  ] as const)('reads @path saved as %s', async (_, encoding) => {
+    const path = join(tmpdir(), `sim-cli-arg-${encoding}.json`)
+    writeFileSync(path, Buffer.from('﻿{"name":"Café","state":{"blocks":{}}}\r\n', encoding))
+    try {
+      expect(await coerce(`@${path}`, field, {}, 'workflow')).toEqual({
+        name: 'Café',
+        state: { blocks: {} },
+      })
+    } finally {
+      rmSync(path)
+    }
+  })
 })
 
 describe('folder paths are typed by the name the app shows', () => {

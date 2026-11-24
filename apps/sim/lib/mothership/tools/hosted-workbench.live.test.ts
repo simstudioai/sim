@@ -73,7 +73,7 @@ describe.skipIf(!enabled)('configured hosted Mship workbench', () => {
       SANDBOX_PROVIDER: 'e2b',
       E2B_ENABLED: 'true',
     })
-    expect(await getRedisClient()?.ping()).toBe('PONG')
+    expect(await getRedisClient().ping()).toBe('PONG')
   })
 
   afterEach(async () => {

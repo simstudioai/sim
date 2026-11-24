@@ -11,5 +11,8 @@
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Mothership adds calendar events you confirm and lists your calendars so it can file them correctly.</string>
+<key>NSContactsUsageDescription</key><string>Mothership adds contacts and contact groups you confirm.</string>
+<key>NSRemindersFullAccessUsageDescription</key><string>Mothership adds reminders you confirm and lists your reminder lists so it can file them correctly.</string>
 <key>NSScreenCaptureUsageDescription</key><string>Mothership captures the app window you select to understand and verify computer-use actions.</string>
 </dict></plist>

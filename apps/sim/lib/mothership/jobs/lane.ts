@@ -32,12 +32,12 @@ export function jobLaneWorkQuery(now: Date) {
  * first means a run that met its condition, or a third failure that turned its job off, stops
  * the job before its next occurrence is claimed.
  *
- * Jobs run only where their turns are durable: the worker is configured, and Redis holds the
- * chat locks that let Sim take a turn over after its process dies. Elsewhere the lane does
- * nothing, not even a query.
+ * Jobs run only where the worker is configured, so their turns are durable (Redis holds the chat
+ * locks that let Sim take a turn over after its process dies). Elsewhere the lane does nothing,
+ * not even a query.
  */
 export async function runJobLane(now: Date = new Date()): Promise<{ claimed: number }> {
-  if (!env.COPILOT_API_KEY || !env.REDIS_URL) return { claimed: 0 }
+  if (!env.COPILOT_API_KEY) return { claimed: 0 }
   const [work] = await db.execute<{ due: boolean; open: boolean }>(jobLaneWorkQuery(now))
   if (work?.open) await reconcileJobRuns(now)
   const claimed = work?.due ? await claimDueJobOccurrences(now, JOB_CLAIM_LIMIT) : []

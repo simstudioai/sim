@@ -108,6 +108,11 @@ import {
   getPlans,
   resolvePlanFromStripeSubscription,
 } from '@/lib/billing/plans'
+import {
+  enforceOneTrialPerCard,
+  enforceOneTrialPerCardForCheckout,
+  getProTrialCheckoutParams,
+} from '@/lib/billing/trial'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -129,15 +134,15 @@ import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
   isBillingEnabled,
-  isEmailPasswordEnabled,
-  isEmailSignupDisabled,
+  isEmailPasswordAuthEnabled,
+  isEmailSignupAllowed,
   isEmailVerificationEnabled,
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
   isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
-  isRegistrationDisabled,
+  isSelfServeRegistrationClosed,
   isSignupMxValidationEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
@@ -891,7 +896,7 @@ export const auth = betterAuth({
           },
         }),
     },
-    isRegistrationDisabled
+    isSelfServeRegistrationClosed
   ),
   emailVerification: {
     autoSignInAfterVerification: true,
@@ -938,12 +943,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     /**
-     * Same flag that hides the email/password signup form (DISABLE_EMAIL_SIGNUP).
-     * Blocks /sign-up/email at the better-auth layer so ripping out the frontend
-     * form cannot be bypassed by calling the endpoint directly. Existing users
-     * can still sign in.
+     * Same `REGISTRATION_MODE` decision that hides the email/password signup form
+     * (anything but `open`). Blocks /sign-up/email at the better-auth layer so
+     * ripping out the frontend form cannot be bypassed by calling the endpoint
+     * directly. Existing users can still sign in unless the mode also turns
+     * email/password off (the `no-email*` gate in the before hook).
      */
-    disableSignUp: isEmailSignupDisabled,
+    disableSignUp: !isEmailSignupAllowed,
     requireEmailVerification: isEmailVerificationEffectivelyEnabled(),
     /**
      * When someone signs up with an already-registered email, better-auth returns a
@@ -1127,12 +1133,12 @@ export const auth = betterAuth({
           }
         }
 
-        if (ctx.path.startsWith('/sign-up') && isRegistrationDisabled)
+        if (ctx.path.startsWith('/sign-up') && isSelfServeRegistrationClosed)
           throw new APIError('FORBIDDEN', {
             message: 'Registration is disabled, please contact your admin.',
           })
 
-        if (!isEmailPasswordEnabled) {
+        if (!isEmailPasswordAuthEnabled) {
           const emailPasswordPaths = ['/sign-in/email', '/sign-up/email', '/email-otp']
           if (emailPasswordPaths.some((path) => ctx.path.startsWith(path)))
             throw new APIError('FORBIDDEN', {
@@ -1493,13 +1499,13 @@ export const auth = betterAuth({
       /**
        * Without this, /sign-in/email-otp auto-registers any unknown email —
        * bypassing the signup gate entirely (no captcha, no /sign-up path).
-       * Gated by the same DISABLE_EMAIL_SIGNUP flag as the signup form (and by
-       * DISABLE_REGISTRATION, whose /sign-up path check has the same blind
-       * spot); when set, better-auth also silently skips sending OTPs to
-       * unknown emails (enumeration-safe) while existing users keep OTP
-       * sign-in.
+       * Gated by the same `REGISTRATION_MODE` decision as the signup form
+       * (anything but `open`, which covers the `closed*` modes whose /sign-up
+       * path check has the same blind spot); when set, better-auth also
+       * silently skips sending OTPs to unknown emails (enumeration-safe) while
+       * existing users keep OTP sign-in.
        */
-      disableSignUp: isEmailSignupDisabled || isRegistrationDisabled,
+      disableSignUp: !isEmailSignupAllowed,
       sendVerificationOnSignUp: false,
       otpLength: 6, // Explicitly set the OTP length
       expiresIn: 15 * 60, // 15 minutes in seconds
@@ -1614,8 +1620,15 @@ export const auth = betterAuth({
                   requestedPlan
                 )
               },
-              getCheckoutSessionParams: async () => ({
-                params: { allow_promotion_codes: true },
+              getCheckoutSessionParams: async ({ user, plan, subscription }) => ({
+                params: {
+                  allow_promotion_codes: true,
+                  ...(await getProTrialCheckoutParams({
+                    userId: user.id,
+                    referenceId: subscription.referenceId,
+                    planName: plan.name,
+                  })),
+                },
               }),
               onSubscriptionComplete: async ({
                 event,
@@ -1637,6 +1650,23 @@ export const auth = betterAuth({
                   priceId,
                   isAnnual,
                   status: subscription.status,
+                })
+
+                // The plugin swallows this hook's errors, so a failed check must not skip the rest of
+                // it; `onEvent` runs the check again on the retried checkout webhook.
+                const keptTrial = await enforceOneTrialPerCard(
+                  stripeSubscription,
+                  subscription
+                ).catch((error: unknown) => {
+                  logger.error(
+                    '[onSubscriptionComplete] Trial card check failed; retrying via onEvent',
+                    {
+                      subscriptionId: subscription.id,
+                      error: toError(error).message,
+                    }
+                  )
+                  // Unconfirmed until the retry settles it, so the welcome email promises no trial.
+                  return false
                 })
 
                 if (!planFromStripe) {
@@ -1707,7 +1737,12 @@ export const auth = betterAuth({
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
 
-                await sendPlanWelcomeEmail(resolvedSubscription)
+                await sendPlanWelcomeEmail(resolvedSubscription, {
+                  trialEnd:
+                    keptTrial && stripeSubscription.trial_end
+                      ? new Date(stripeSubscription.trial_end * 1000)
+                      : null,
+                })
               },
               onSubscriptionUpdate: async ({
                 event,
@@ -1878,6 +1913,10 @@ export const auth = betterAuth({
                     await handleManualEnterpriseSubscription(event)
                     await reconcileSubscriptionSyncFromStripe(event)
                     await handleSubscriptionUsageUpdate(event)
+                    break
+                  }
+                  case 'checkout.session.completed': {
+                    await enforceOneTrialPerCardForCheckout(event.data.object)
                     break
                   }
                   case 'checkout.session.expired': {

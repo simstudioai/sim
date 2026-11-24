@@ -3,7 +3,6 @@ import { baseStyles } from '@/components/emails/_styles'
 import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface FreeTierUpgradeEmailProps {
   userName?: string
@@ -20,9 +19,7 @@ export function FreeTierUpgradeEmail({
   limit,
   upgradeLink,
 }: FreeTierUpgradeEmailProps) {
-  const brand = getBrandConfig()
-
-  const previewText = `${brand.name}: You've used ${percentUsed}% of your free credits`
+  const previewText = `Sim: You've used ${percentUsed}% of your free credits`
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>

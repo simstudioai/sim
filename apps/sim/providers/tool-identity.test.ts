@@ -78,9 +78,10 @@ describe('provider tool identities', () => {
     const longId = `tool_${'a'.repeat(80)}`
     const tools = [providerTool(longId, 'a'), providerTool(longId, 'b')]
 
-    assignProviderToolIdentities(tools)
+    const identities = assignProviderToolIdentities(tools)
 
-    expect(tools[0].id).toBe(longId)
+    expect(tools[0].id).toBe(longId.slice(0, 64))
+    expect(identities.toolIdByWireId.get(tools[0].id)).toBe(longId)
     expect(tools[1].id).toHaveLength(64)
     expect(tools[1].id).toMatch(/__sim_2$/)
   })
@@ -170,5 +171,70 @@ describe('provider tool identities', () => {
     ])
     expect(output.toolCalls?.list[0].name).toBe('gmail_send')
     expect(output.providerTiming?.timeSegments?.[0].name).toBe('gmail_send')
+  })
+
+  it('gives a custom tool titled with spaces and unicode a provider-safe name that maps back', () => {
+    const PROVIDER_NAME = /^[a-zA-Z0-9_-]{1,64}$/
+    const spaced = providerTool('custom_Get Weather', 'a')
+    const unicode = providerTool('custom_Météo du jour ☀', 'b')
+
+    const identities = assignProviderToolIdentities([spaced, unicode])
+
+    expect(spaced.id).toMatch(PROVIDER_NAME)
+    expect(unicode.id).toMatch(PROVIDER_NAME)
+    expect(identities.toolIdByWireId.get(spaced.id)).toBe('custom_Get Weather')
+    expect(identities.toolIdByWireId.get(unicode.id)).toBe('custom_Météo du jour ☀')
+
+    const response: ProviderResponse = {
+      content: 'done',
+      model: 'test-model',
+      toolCalls: [{ name: spaced.id, arguments: {} }],
+    }
+    projectProviderResponseToolIdentities(response, identities)
+    expect(response.toolCalls?.[0].name).toBe('custom_Get Weather')
+  })
+
+  it('keeps custom tools whose safe names collide distinct, and a safe id unchanged', () => {
+    const tools = [
+      providerTool('custom_Get Weather', 'a'),
+      providerTool('custom_Get/Weather', 'b'),
+      providerTool('custom_Get_Weather', 'c'),
+    ]
+
+    const identities = assignProviderToolIdentities(tools)
+    const wireIds = tools.map((tool) => tool.id)
+
+    expect(new Set(wireIds).size).toBe(3)
+    expect(tools[2].id).toBe('custom_Get_Weather')
+    expect(identities.toolIdByWireId.get(wireIds[0])).toBe('custom_Get Weather')
+    expect(identities.toolIdByWireId.get(wireIds[1])).toBe('custom_Get/Weather')
+    expect(identities.toolIdByWireId.has('custom_Get_Weather')).toBe(false)
+
+    assignProviderToolIdentities(tools)
+    expect(tools.map((tool) => tool.id)).toEqual(wireIds)
+  })
+
+  it('bounds a long custom tool title to the provider name limit, keeping tools that share a prefix distinct', () => {
+    const PROVIDER_NAME = /^[a-zA-Z0-9_-]{1,64}$/
+    const prefix = `custom_${'Look up the customer account '.repeat(3)}`
+    const tools = [
+      providerTool(`${prefix}by email`, 'a'),
+      providerTool(`${prefix}by phone`, 'b'),
+      providerTool(`custom_${'x'.repeat(80)}`, 'c'),
+    ]
+
+    const identities = assignProviderToolIdentities(tools)
+    const wireIds = tools.map((tool) => tool.id)
+
+    for (const wireId of wireIds) expect(wireId).toMatch(PROVIDER_NAME)
+    expect(new Set(wireIds).size).toBe(3)
+    expect(wireIds.map((wireId) => identities.toolIdByWireId.get(wireId))).toEqual([
+      `${prefix}by email`,
+      `${prefix}by phone`,
+      `custom_${'x'.repeat(80)}`,
+    ])
+
+    assignProviderToolIdentities(tools)
+    expect(tools.map((tool) => tool.id)).toEqual(wireIds)
   })
 })

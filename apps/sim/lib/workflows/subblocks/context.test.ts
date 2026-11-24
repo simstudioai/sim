@@ -2,6 +2,8 @@ import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } fro
 
 vi.unmock('@/blocks/registry')
 
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
+import { resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import * as blocksBarrel from '@/blocks'
 import { getAllBlocks, getBlock as getRealBlock } from '@/blocks/registry'
 import {
@@ -9,7 +11,6 @@ import {
   getSelectorContextSubBlocks,
   SELECTOR_CONTEXT_FIELDS,
 } from './context'
-import { buildCanonicalIndex, isCanonicalPair, resolveDependencyValue } from './visibility'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an

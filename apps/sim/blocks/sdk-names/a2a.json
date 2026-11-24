@@ -1,0 +1,9 @@
+{
+  "namespace": "a2a",
+  "methods": {
+    "a2a_cancel_task": "cancelTask",
+    "a2a_get_agent_card": "getAgentCard",
+    "a2a_get_task": "getTask",
+    "a2a_send_message": "sendMessage"
+  }
+}

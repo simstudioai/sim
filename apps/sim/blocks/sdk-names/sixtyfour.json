@@ -1,0 +1,9 @@
+{
+  "namespace": "legacy.sixtyfour",
+  "methods": {
+    "enrich_company": "enrichCompany",
+    "enrich_lead": "enrichLead",
+    "find_email": "findEmail",
+    "find_phone": "findPhone"
+  }
+}

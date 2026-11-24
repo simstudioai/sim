@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit, toRecord } from '@sim/utils/object'
+import { buildCanonicalIndex, isCanonicalPair } from '@sim/workflow-code/catalog/canonical-index'
+import { SYSTEM_SUBBLOCK_IDS } from '@sim/workflow-types/blocks'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -48,15 +50,12 @@ import {
   isDeploymentVersionProtectedByCurrentOperation,
 } from '@/lib/workflows/persistence/deployment-operations'
 import {
-  buildCanonicalIndex,
   buildSubBlockValues,
-  isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
-import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 import { SIM_SUBSCRIBED_EVENTS, slackEventById } from '@/triggers/slack/shared'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 

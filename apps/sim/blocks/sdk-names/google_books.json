@@ -1,0 +1,7 @@
+{
+  "namespace": "googleBooks",
+  "methods": {
+    "volume_details": "getVolumeDetails",
+    "volume_search": "searchVolumes"
+  }
+}

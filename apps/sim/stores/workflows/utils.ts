@@ -1,11 +1,11 @@
 import { generateId } from '@sim/utils/id'
-import { escapeRegExp } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from '@xyflow/react'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
+import { rewriteBlockNameReferences } from '@/lib/workflows/references/block-rename'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -112,43 +112,6 @@ export function mergeSubblockState(
   return mergeSubblockStateWithValues(blocks, workflowSubblockValues, blockId)
 }
 
-function updateValueReferences(value: unknown, nameMap: Map<string, string>): unknown {
-  if (typeof value === 'string') {
-    let updatedValue = value
-    nameMap.forEach((newName, oldName) => {
-      /**
-       * A rename to itself is a no-op, so skip the scan entirely. This is the
-       * whole map on the import path (`regenerateWorkflowIds` seeds it with
-       * `name -> name`), which turns an O(names x values) rescan of every
-       * sub-block string into nothing.
-       */
-      if (oldName === newName) return
-
-      /**
-       * `oldName` is a block name, which reaches this function straight from
-       * imported workflow JSON — `normalizeWorkflowBlockName` only lowercases
-       * and strips whitespace/dots, so regex metacharacters survive. Without
-       * escaping, a name like `a*a*a*a*b` compiles to a catastrophically
-       * backtracking pattern that pins the event loop on a sub-kilobyte input.
-       */
-      const regex = new RegExp(`<${escapeRegExp(oldName)}\\.`, 'g')
-      updatedValue = updatedValue.replace(regex, `<${newName}.`)
-    })
-    return updatedValue
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => updateValueReferences(item, nameMap))
-  }
-  if (value && typeof value === 'object') {
-    const result: Record<string, unknown> = {}
-    for (const [key, val] of Object.entries(value)) {
-      result[key] = updateValueReferences(val, nameMap)
-    }
-    return result
-  }
-  return value
-}
-
 /**
  * Clears a cloned block's `triggerPath` so it derives a fresh webhook URL from its own block id.
  *
@@ -198,10 +161,7 @@ function updateBlockReferences(
         }
 
         if (subBlock.value !== undefined && subBlock.value !== null) {
-          const updatedValue = updateValueReferences(
-            subBlock.value,
-            nameMap
-          ) as SubBlockState['value']
+          const updatedValue = rewriteBlockNameReferences(subBlock.value, nameMap)
           block.subBlocks[subBlockId] = { ...subBlock, value: updatedValue }
         }
       })
@@ -494,7 +454,7 @@ export function regenerateBlockIds(
 
   Object.entries(newSubBlockValues).forEach(([_, blockValues]) => {
     Object.keys(blockValues).forEach((subBlockId) => {
-      blockValues[subBlockId] = updateValueReferences(blockValues[subBlockId], nameMap)
+      blockValues[subBlockId] = rewriteBlockNameReferences(blockValues[subBlockId], nameMap)
     })
   })
 

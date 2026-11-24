@@ -904,7 +904,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
@@ -938,7 +938,7 @@ describe('handleUnifiedChatPost', () => {
         workspaceId: 'ws-1',
         orchestrateOptions: expect.objectContaining({
           workflowId: 'wf-1',
-          goRoute: '/api/copilot',
+          workerRoute: '/api/copilot',
           executionContext: expect.objectContaining({
             userId: 'user-1',
             workflowId: 'wf-1',
@@ -976,7 +976,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('routes workspace chat requests through the mothership backend path', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
@@ -1007,7 +1007,7 @@ describe('handleUnifiedChatPost', () => {
         workspaceId: 'ws-1',
         orchestrateOptions: expect.objectContaining({
           workspaceId: 'ws-1',
-          goRoute: '/api/mothership',
+          workerRoute: '/api/mothership',
           executionContext: expect.objectContaining({
             userId: 'user-1',
             workflowId: '',
@@ -1023,7 +1023,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('never persists browser tab attachments, which the desktop app restores itself', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Continue in this browser',
@@ -1059,7 +1059,7 @@ describe('handleUnifiedChatPost', () => {
       active: index === 11,
     }))
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Inspect every open shell',
@@ -1085,7 +1085,7 @@ describe('handleUnifiedChatPost', () => {
       content: 'authorized table',
     })
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Summarize this view',
@@ -1138,7 +1138,7 @@ describe('handleUnifiedChatPost', () => {
     })
     const currentView = { viewId: 'all-view', filter: null, sort: null }
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'This view',
@@ -1171,7 +1171,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('validates selection snapshots and omits unsafe browser source URLs', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Explain these selections',
@@ -1238,7 +1238,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('rejects invalid terminal selection line ranges', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Explain this selection',
@@ -1266,7 +1266,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('passes browser attachment metadata without advertising an unavailable browser agent', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Explain the selected page',
@@ -1300,7 +1300,7 @@ describe('handleUnifiedChatPost', () => {
 
   async function sendBrowserTab(tab: { title: string; url: string }): Promise<string> {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'What is this page?',
@@ -1345,7 +1345,7 @@ describe('handleUnifiedChatPost', () => {
     loadChatMcpServerIds.mockResolvedValue(['mcp-server-1'])
 
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'now search billing',
@@ -1374,7 +1374,7 @@ describe('handleUnifiedChatPost', () => {
     loadChatMcpServerIds.mockResolvedValue(['mcp-server-1'])
 
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: '/Docs /Issues cross-reference',
@@ -1396,7 +1396,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('persists cancelled partial responses from the server lifecycle', async () => {
     await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
@@ -1438,7 +1438,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('persists partial responses when the server lifecycle throws (onError)', async () => {
     await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
@@ -1485,7 +1485,7 @@ describe('handleUnifiedChatPost', () => {
     'persists an empty failure with result metadata present=%s',
     async (hasResult) => {
       await handleUnifiedChatPost(
-        new NextRequest('http://localhost/api/copilot/chat', {
+        new NextRequest('http://localhost/api/mothership/chat', {
           method: 'POST',
           body: JSON.stringify({
             message: 'Hello',
@@ -1528,7 +1528,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('republishes completed status when cancelled lifecycle persistence already ran', async () => {
     await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
@@ -1572,7 +1572,7 @@ describe('handleUnifiedChatPost', () => {
 
   it('rejects requests that have neither workflow nor workspace attachment', async () => {
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({
           message: 'Hello',
@@ -1820,7 +1820,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
   function chatRequest(body: Record<string, unknown> = {}) {
     return createMockRequest({
       method: 'POST',
-      url: 'http://localhost/api/copilot/chat',
+      url: 'http://localhost/api/mothership/chat',
       body: { message: 'Hello', workspaceId: 'ws-1', ...body },
     })
   }
@@ -1918,7 +1918,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     })
 
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({ message: 'Hello', workflowId: 'wf-1', createNewChat: true }),
       })
@@ -2028,7 +2028,7 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
     })
 
     const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
+      new NextRequest('http://localhost/api/mothership/chat', {
         method: 'POST',
         body: JSON.stringify({ message: 'Hello', workflowId: 'wf-1', createNewChat: true }),
       })

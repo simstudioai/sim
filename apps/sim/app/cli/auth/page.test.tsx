@@ -1,7 +1,6 @@
-import { envFlagsMock } from '@sim/testing'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
@@ -31,10 +30,6 @@ function pageProps() {
 describe('CliAuthPage signed-out bounce', () => {
   beforeEach(() => {
     mockGetSession.mockResolvedValue(null)
-  })
-
-  afterEach(() => {
-    envFlagsMock.isRegistrationDisabled = false
   })
 
   it('sends a signed-out visitor to signup, carrying the handoff as callbackUrl', async () => {

@@ -18,6 +18,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { resolveCurrencyCode } from '@sim/table-cells/currency'
 import { omit } from '@sim/utils/object'
 import { and, asc, count, eq, gt, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -35,15 +36,14 @@ import {
   writeBackCoercedCells,
 } from '@/lib/table/column-types/registry.server'
 import { COLUMN_TYPES, getMaxRowSizeBytes, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
-import { resolveCurrencyCode } from '@/lib/table/currency'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
-import type { DbTransaction } from '@/lib/table/planner'
+import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
-import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
+import { scaledStatementTimeoutMs, setTableTxTimeouts, type TableWriteTx } from '@/lib/table/tx'
 import type {
   ColumnDefinition,
   DeleteColumnData,
@@ -77,10 +77,26 @@ export function getColumnRetypeScanBatchSize(): number {
 
 export interface ColumnMutationOptions {
   expectedWorkspaceId?: string
+  /** Joins this transaction instead of opening one, so the write commits with the caller's. */
+  tx?: TableWriteTx
 }
 
-async function readColumnRetypePage(
-  trx: DbTransaction,
+/** Options only {@link addTableColumn} reads. */
+export interface AddColumnOptions extends ColumnMutationOptions {
+  /**
+   * Refuse a `required` column that any existing row would leave empty. Only workspace-source
+   * apply sets it, so an applied manifest refuses what its plan reported. The table, v1 and v2
+   * APIs leave it unset and keep accepting such a column, which then constrains later writes.
+   */
+  refuseEmptyRequired?: boolean
+}
+
+/**
+ * One page of `columnKey`'s stored values (missing and null cells skipped), by row id after
+ * `afterId`. Pages of {@link getColumnRetypeScanBatchSize} rows stay under the scan's byte cap.
+ */
+export async function readColumnRetypePage(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   columnKey: string,
@@ -129,7 +145,7 @@ export async function addTableColumn(
     currencyCode?: string
   },
   requestId: string,
-  options?: ColumnMutationOptions
+  options?: AddColumnOptions
 ): Promise<TableDefinition> {
   return withLockedTable(
     tableId,
@@ -191,6 +207,18 @@ export async function addTableColumn(
 
       const newColumnId = getColumnId(newColumn)
 
+      // A fresh column is empty in every row; one re-added under its old id holds only what its
+      // cells still carry. Workspace-source apply refuses a required column over any empty row.
+      if (newColumn.required && options?.refuseEmptyRequired) {
+        const emptyCount = await countEmptyCells(trx, tableId, table.workspaceId, newColumnId)
+        if (emptyCount > 0) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${column.name}" cannot be added as required: ${emptyCount} row(s) would have no value. Add it without required, fill its cells, then make it required.`
+          )
+        }
+      }
+
       const columns = [...schema.columns]
       if (
         column.position !== undefined &&
@@ -248,7 +276,7 @@ export async function addTableColumn(
         updatedAt: now,
       }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -329,7 +357,7 @@ export async function renameColumn(
       )
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -359,6 +387,40 @@ function stripColumnIdsFromMetadata(
   return next
 }
 
+/** Removes `columnIds`' cells from every row of the table, in `trx`. */
+async function stripColumnData(
+  trx: DbTransaction,
+  tableId: string,
+  workspaceId: string,
+  columnIds: string[]
+): Promise<void> {
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: sql`${userTableRows.tableId} = ${tableId} and ${userTableRows.workspaceId} = ${workspaceId}`,
+    transformation: { mode: 'remove-columns', columnIds },
+  })
+}
+
+/** The statement timeout a strip of `columnCount` columns from `rowCount` rows gets. */
+function stripTimeoutMs(rowCount: number, columnCount: number): number {
+  return scaledStatementTimeoutMs(rowCount, { baseMs: 60_000, perRowMs: 2 * columnCount })
+}
+
+/**
+ * Removes the cells of `columnIds`, columns {@link deleteColumn} dropped in `tx` with
+ * `callerStripsRows`, from every row of `table`, in one pass under a row-count-scaled timeout, so
+ * the row version the commit leaves already holds that write.
+ */
+export async function stripDroppedColumnData(
+  tx: TableWriteTx,
+  table: Pick<TableDefinition, 'id' | 'workspaceId' | 'rowCount'>,
+  columnIds: string[]
+): Promise<void> {
+  if (columnIds.length === 0) return
+  const timeoutMs = stripTimeoutMs(table.rowCount ?? 0, columnIds.length)
+  await setTableTxTimeouts(tx.trx, { statementMs: timeoutMs, idleMs: timeoutMs })
+  await stripColumnData(tx.trx, table.id, table.workspaceId, columnIds)
+}
+
 /**
  * Fire-and-forget reclamation of a deleted column's row storage. The column is
  * already gone from the schema, so reads never surface the orphaned id —
@@ -376,18 +438,8 @@ function stripColumnDataInBackground(
   void (async () => {
     try {
       await db.transaction(async (trx) => {
-        const statementMs = scaledStatementTimeoutMs(rowCount, {
-          baseMs: 60_000,
-          perRowMs: 2 * columnIds.length,
-        })
-        await setTableTxTimeouts(trx, { statementMs })
-        await updateTableRowsWithDerivedSecretProvenance(trx, {
-          rowWhere: and(
-            eq(userTableRows.tableId, tableId),
-            eq(userTableRows.workspaceId, workspaceId)
-          )!,
-          transformation: { mode: 'remove-columns', columnIds },
-        })
+        await setTableTxTimeouts(trx, { statementMs: stripTimeoutMs(rowCount, columnIds.length) })
+        await stripColumnData(trx, tableId, workspaceId, columnIds)
       })
       logger.info(
         `Background-stripped deleted column data [${columnIds.join(', ')}] from table ${tableId}`,
@@ -404,9 +456,10 @@ function stripColumnDataInBackground(
 }
 
 /**
- * Deletes a column from a table's schema. When id-keyed, returns once the schema
- * is updated and reclaims the column's row-data storage in the background
- * (fire-and-forget); the legacy path strips the row key synchronously.
+ * Deletes a column from a table's schema. Returns once the schema is updated and
+ * reclaims the column's row-data storage in the background (fire-and-forget),
+ * unless `callerStripsRows` leaves that to the caller's transaction
+ * ({@link stripDroppedColumnData}).
  *
  * @param data - Delete column data
  * @param requestId - Request ID for logging
@@ -416,7 +469,14 @@ function stripColumnDataInBackground(
 export async function deleteColumn(
   data: DeleteColumnData,
   requestId: string,
-  options?: ColumnMutationOptions
+  options?: ColumnMutationOptions & {
+    /**
+     * Leave the column's cells for the caller to strip in its `tx` with
+     * {@link stripDroppedColumnData}, once for every column it drops, so the row version the
+     * commit leaves already holds that write (workspace source records it for managed rows).
+     */
+    callerStripsRows?: boolean
+  }
 ): Promise<TableDefinition> {
   const { def, stripKey } = await withLockedTable(
     data.tableId,
@@ -495,16 +555,20 @@ export async function deleteColumn(
         stripKey: columnId,
       }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 
-  stripColumnDataInBackground(
-    data.tableId,
-    def.workspaceId,
-    [stripKey],
-    def.rowCount ?? 0,
-    requestId
-  )
+  const strip = () =>
+    stripColumnDataInBackground(
+      data.tableId,
+      def.workspaceId,
+      [stripKey],
+      def.rowCount ?? 0,
+      requestId
+    )
+  if (!options?.tx) strip()
+  // Inside a caller's transaction the drop may still roll back, so the cells stay until it commits.
+  else if (!options.callerStripsRows) options.tx.afterCommit(strip)
   return def
 }
 
@@ -587,14 +651,15 @@ async function persistColumns(
 /**
  * Whether any two rows share an equal value in this column.
  *
- * Shared by the constraint write and the retype's pre-validation so the two
- * cannot drift — the same reason {@link countEmptyCells} is shared. A retype
+ * Shared by the constraint write, the retype's pre-validation and the workspace
+ * source plan so they cannot drift — the same reason {@link countEmptyCells} is
+ * shared. A retype
  * that sets `unique` in the same request has to run this against the values the
  * conversion is ABOUT to write, not the ones on disk: coercing `"5"` and `"5.0"`
  * to a number manufactures a duplicate that no pre-scan of the raw text sees.
  */
-async function hasDuplicateValues(
-  trx: DbTransaction,
+export async function hasDuplicateValues(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   column: ColumnDefinition
@@ -991,7 +1056,7 @@ export async function updateColumnType(
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -1062,7 +1127,7 @@ export async function updateColumnConstraints(
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -1190,19 +1255,12 @@ export async function updateColumnOptions(
       // Counted after the removal above, so dropping surplus options and turning
       // multiselect off in one save is allowed when every cell ends up with one.
       if (wasMultiple && !nextMultiple) {
-        const [result] = await trx
-          .select({ count: count() })
-          .from(userTableRows)
-          .where(
-            and(
-              eq(userTableRows.tableId, data.tableId),
-              eq(userTableRows.workspaceId, table.workspaceId),
-              sql`CASE WHEN jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'
-                       THEN jsonb_array_length(${userTableRows.data}->${columnKey}::text) > 1
-                       ELSE false END`
-            )
-          )
-        const multiValuedCount = result?.count ?? 0
+        const multiValuedCount = await countMultiValuedCells(
+          trx,
+          data.tableId,
+          table.workspaceId,
+          columnKey
+        )
 
         if (multiValuedCount > 0) {
           throw new OrchestrationError(
@@ -1255,7 +1313,7 @@ export async function updateColumnOptions(
 
       return updated
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
@@ -1351,22 +1409,20 @@ export async function updateColumnCurrency(
 
       return { ...table, schema: updatedSchema, updatedAt: now }
     },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
+    { expectedWorkspaceId: options?.expectedWorkspaceId, tx: options?.tx }
   )
 }
 
 /**
- * Rows whose cell counts as empty for a `required` constraint: the key is
+ * Rows whose cell in `columnKey` counts as empty for a `required` constraint: the key is
  * missing, the value is JSON null, or it is an emptied multiselect `[]`.
  *
- * Single source of truth. `updateColumnType`'s pre-flight and
- * `updateColumnConstraints` both ask this question, and they run as separate
- * transactions — when the two definitions drifted, a combined type+required
- * request passed the first check, committed the conversion, and only then
- * failed the constraint write.
+ * Single source of truth for `updateColumnType`'s pre-flight, `updateColumnConstraints` and the
+ * workspace source plan: the first two run in separate transactions, so diverging definitions
+ * would let a type+required change commit the conversion and then fail the constraint.
  */
-async function countEmptyCells(
-  trx: DbTransaction,
+export async function countEmptyCells(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   columnKey: string
@@ -1387,12 +1443,36 @@ async function countEmptyCells(
 }
 
 /**
+ * Rows holding a value in each of `columnKeys` (the cells deleting that column would lose), in one
+ * pass over the table's rows: column key → filled cells.
+ */
+export async function countFilledCellsByColumn(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKeys: readonly string[]
+): Promise<Map<string, number>> {
+  if (columnKeys.length === 0) return new Map()
+  const filled = (columnKey: string) =>
+    sql<number>`count(*) filter (where ${userTableRows.data} ? ${columnKey} and ${userTableRows.data}->>${columnKey}::text is not null and ${userTableRows.data}->${columnKey}::text <> '[]'::jsonb)`.mapWith(
+      Number
+    )
+  const [row] = await executor
+    .select(
+      Object.fromEntries(columnKeys.map((columnKey, index) => [`c${index}`, filled(columnKey)]))
+    )
+    .from(userTableRows)
+    .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.workspaceId, workspaceId)))
+  return new Map(columnKeys.map((columnKey, index) => [columnKey, row?.[`c${index}`] ?? 0]))
+}
+
+/**
  * Rows that removing these options would leave with no selection at all — a
  * single cell holding a removed id, or a multi cell whose every element is
  * being removed. Rows that keep at least one option are unaffected.
  */
-async function countCellsLosingTheirOptions(
-  trx: DbTransaction,
+export async function countCellsLosingTheirOptions(
+  trx: DbExecutor,
   tableId: string,
   workspaceId: string,
   columnKey: string,
@@ -1443,6 +1523,83 @@ async function countCellsLosingTheirOptions(
 }
 
 /**
+ * The rows whose `columnKey` cell holds an option outside `options`: a single cell holding a
+ * removed id, or a multi cell holding one or more. {@link clearRemovedSelectOptions} rewrites
+ * exactly these rows and {@link countCellsLosingAnOption} counts them, so a plan's count is the
+ * write's.
+ */
+function rowsHoldingRemovedOptions(
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+) {
+  const keptIds = JSON.stringify(options.map((o) => o.id))
+  const cell = sql`${userTableRows.data}->${columnKey}::text`
+  return and(
+    eq(userTableRows.tableId, tableId),
+    eq(userTableRows.workspaceId, workspaceId),
+    ...(multiple
+      ? [sql`jsonb_typeof(${cell}) = 'array'`, sql`NOT (${keptIds}::jsonb @> (${cell}))`]
+      : [
+          sql`jsonb_typeof(${cell}) = 'string'`,
+          sql`${userTableRows.data}->>${columnKey}::text <> ''`,
+          sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${cell}))`,
+        ])
+  )
+}
+
+/**
+ * Rows whose cell loses at least one selection when every option but `options` is removed: a
+ * multi cell keeping some of its options counts too, unlike {@link countCellsLosingTheirOptions}.
+ */
+export async function countCellsLosingAnOption(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  options: SelectOption[],
+  multiple: boolean
+): Promise<number> {
+  const [result] = await executor
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(rowsHoldingRemovedOptions(tableId, workspaceId, columnKey, options, multiple))
+  return result?.count ?? 0
+}
+
+/**
+ * Rows whose multi-select cell holds more than one option, counting only the ids of `kept` when
+ * given (the options a removal in the same change leaves). Switching the column to single-select
+ * is refused while any exist.
+ */
+export async function countMultiValuedCells(
+  executor: DbExecutor,
+  tableId: string,
+  workspaceId: string,
+  columnKey: string,
+  kept?: SelectOption[]
+): Promise<number> {
+  const cell = sql`${userTableRows.data}->${columnKey}::text`
+  const selected = kept
+    ? sql`(SELECT count(*) FROM jsonb_array_elements(${cell}) AS e(v)
+           WHERE ${JSON.stringify(kept.map((o) => o.id))}::jsonb @> jsonb_build_array(e.v))`
+    : sql`jsonb_array_length(${cell})`
+  const [result] = await executor
+    .select({ count: count() })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`CASE WHEN jsonb_typeof(${cell}) = 'array' THEN ${selected} > 1 ELSE false END`
+      )
+    )
+  return result?.count ?? 0
+}
+
+/**
  * Clears stored ids that are no longer in a `select` column's option set.
  *
  * A single cell holding a removed option becomes null; a multi cell drops just
@@ -1457,15 +1614,12 @@ async function clearRemovedSelectOptions(
   multiple: boolean
 ): Promise<void> {
   const keptIds = JSON.stringify(options.map((o) => o.id))
+  const rowWhere = rowsHoldingRemovedOptions(tableId, workspaceId, columnKey, options, multiple)
+  if (!rowWhere) return
 
   if (multiple) {
     await updateTableRowsWithDerivedSecretProvenance(trx, {
-      rowWhere: and(
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId),
-        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`,
-        sql`NOT (${keptIds}::jsonb @> (${userTableRows.data}->${columnKey}::text))`
-      )!,
+      rowWhere,
       transformation: {
         mode: 'preserve',
         dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], COALESCE((
@@ -1480,13 +1634,7 @@ async function clearRemovedSelectOptions(
   }
 
   await updateTableRowsWithDerivedSecretProvenance(trx, {
-    rowWhere: and(
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, workspaceId),
-      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`,
-      sql`${userTableRows.data}->>${columnKey}::text <> ''`,
-      sql`NOT (${keptIds}::jsonb @> jsonb_build_array(${userTableRows.data}->${columnKey}::text))`
-    )!,
+    rowWhere,
     transformation: {
       mode: 'preserve',
       dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], 'null'::jsonb)`,

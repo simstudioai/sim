@@ -16,6 +16,7 @@ import {
   v2DeleteKnowledgeConnectorContract,
   v2DeleteKnowledgeDocumentContract,
   v2DeleteKnowledgeFolderContract,
+  v2DownloadKnowledgeDocumentContract,
   v2ExportKnowledgeBaseContract,
   v2GetKnowledgeBaseContract,
   v2GetKnowledgeConnectorContract,
@@ -1204,6 +1205,35 @@ const declaredRoutes = [
         'V2KnowledgeDocumentResponse',
         'Knowledge document response',
         'Full knowledge document detail.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DownloadKnowledgeDocumentContract,
+    knowledgeOperation({
+      applicationOperation: knowledgeOperations.readDocument,
+      operationId: 'downloadKnowledgeDocument',
+      summary: 'Download document',
+      description: `Download an uploaded document's original bytes, as stored. A document with no stored original, such as one a connector syncs, returns \`404\`. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: {
+        description: 'The document as stored.',
+        headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
+        contentTypes: ['application/octet-stream'],
+      },
+    }),
+    {
+      params: documentedSchema(
+        v2DownloadKnowledgeDocumentContract.params,
+        'DownloadKnowledgeDocumentParams',
+        'Download knowledge document path parameters',
+        'Knowledge base and document selected for download.'
+      ),
+      query: documentedSchema(
+        v2DownloadKnowledgeDocumentContract.query,
+        'DownloadKnowledgeDocumentQuery',
+        'Download knowledge document query',
+        'Workspace scope for the knowledge document.'
       ),
     }
   ),

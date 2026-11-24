@@ -1,0 +1,28 @@
+{
+  "namespace": "legacy.notion",
+  "methods": {
+    "notion_add_database_row": "addDatabaseRow",
+    "notion_append_blocks": "appendBlockChildren",
+    "notion_create_comment": "createComment",
+    "notion_create_database": "createDatabase",
+    "notion_create_page": "createPage",
+    "notion_delete_block": "deleteBlock",
+    "notion_list_comments": "listComments",
+    "notion_list_users": "listUsers",
+    "notion_query_database": "queryDatabase",
+    "notion_read": "readPage",
+    "notion_read_database": "readDatabase",
+    "notion_retrieve_block": "retrieveBlock",
+    "notion_retrieve_block_children": "retrieveBlockChildren",
+    "notion_retrieve_user": "retrieveUser",
+    "notion_search": "searchWorkspace",
+    "notion_update_block": "updateBlock",
+    "notion_update_page": "updatePageProperties",
+    "notion_write": "appendContent"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

@@ -20,40 +20,40 @@ import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import type { TraceSpan } from '@/lib/logs/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
 
 /**
  * GenAI Semantic Convention Attributes
  */
 const GenAIAttributes = {
   SYSTEM: 'gen_ai.system',
-  REQUEST_MODEL: 'gen_ai.request.model',
+  REQUEST_MODEL: TraceAttr.GenAiRequestModel,
   RESPONSE_MODEL: 'gen_ai.response.model',
 
-  USAGE_INPUT_TOKENS: 'gen_ai.usage.input_tokens',
-  USAGE_OUTPUT_TOKENS: 'gen_ai.usage.output_tokens',
-  USAGE_TOTAL_TOKENS: 'gen_ai.usage.total_tokens',
+  USAGE_INPUT_TOKENS: TraceAttr.GenAiUsageInputTokens,
+  USAGE_OUTPUT_TOKENS: TraceAttr.GenAiUsageOutputTokens,
+  USAGE_TOTAL_TOKENS: TraceAttr.GenAiUsageTotalTokens,
 
   REQUEST_TEMPERATURE: 'gen_ai.request.temperature',
   REQUEST_TOP_P: 'gen_ai.request.top_p',
   REQUEST_MAX_TOKENS: 'gen_ai.request.max_tokens',
   RESPONSE_FINISH_REASON: 'gen_ai.response.finish_reason',
 
-  AGENT_ID: 'gen_ai.agent.id',
-  AGENT_NAME: 'gen_ai.agent.name',
+  AGENT_ID: TraceAttr.GenAiAgentId,
+  AGENT_NAME: TraceAttr.GenAiAgentName,
   AGENT_TASK: 'gen_ai.agent.task',
 
-  WORKFLOW_ID: 'gen_ai.workflow.id',
-  WORKFLOW_NAME: 'gen_ai.workflow.name',
+  WORKFLOW_ID: TraceAttr.GenAiWorkflowId,
+  WORKFLOW_NAME: TraceAttr.GenAiWorkflowName,
   WORKFLOW_VERSION: 'gen_ai.workflow.version',
   WORKFLOW_EXECUTION_ID: 'gen_ai.workflow.execution_id',
 
-  TOOL_NAME: 'gen_ai.tool.name',
+  TOOL_NAME: TraceAttr.GenAiToolName,
   TOOL_DESCRIPTION: 'gen_ai.tool.description',
 
-  COST_TOTAL: 'gen_ai.cost.total',
-  COST_INPUT: 'gen_ai.cost.input',
-  COST_OUTPUT: 'gen_ai.cost.output',
+  COST_TOTAL: TraceAttr.GenAiCostTotal,
+  COST_INPUT: TraceAttr.GenAiCostInput,
+  COST_OUTPUT: TraceAttr.GenAiCostOutput,
 }
 
 const logger = createLogger('OTelIntegration')
@@ -127,17 +127,17 @@ const BLOCK_TYPE_MAPPING: Record<
     spanKind: 'gen_ai.tool',
     getAttributes: (span) => ({
       [GenAIAttributes.TOOL_NAME]: span.name,
-      'tool.id': span.id,
-      'tool.duration_ms': span.duration,
+      [TraceAttr.ToolId]: span.id,
+      [TraceAttr.ToolDurationMs]: span.duration,
     }),
   },
   model: {
     spanName: 'gen_ai.model.request',
     spanKind: 'gen_ai.model',
     getAttributes: (span) => ({
-      'model.name': span.name,
-      'model.id': span.id,
-      'model.duration_ms': span.duration,
+      [TraceAttr.ModelName]: span.name,
+      [TraceAttr.ModelId]: span.id,
+      [TraceAttr.ModelDurationMs]: span.duration,
     }),
   },
   api: {
@@ -150,8 +150,8 @@ const BLOCK_TYPE_MAPPING: Record<
         'http.request.method': input?.method || 'GET',
         'http.request.url': input?.url || '',
         'http.response.status_code': output?.status || 0,
-        'block.id': span.blockId,
-        'block.name': span.name,
+        [TraceAttr.BlockId]: span.blockId,
+        [TraceAttr.BlockName]: span.name,
       }
     },
   },
@@ -159,9 +159,9 @@ const BLOCK_TYPE_MAPPING: Record<
     spanName: 'function.execute',
     spanKind: 'function',
     getAttributes: (span) => ({
-      'function.name': span.name,
-      'function.id': span.blockId,
-      'function.execution_time_ms': span.duration,
+      [TraceAttr.FunctionName]: span.name,
+      [TraceAttr.FunctionId]: span.blockId,
+      [TraceAttr.FunctionExecutionTimeMs]: span.duration,
     }),
   },
   router: {
@@ -170,9 +170,9 @@ const BLOCK_TYPE_MAPPING: Record<
     getAttributes: (span) => {
       const output = span.output as { selectedPath?: { blockId?: string } } | undefined
       return {
-        'router.name': span.name,
-        'router.id': span.blockId,
-        'router.selected_path': output?.selectedPath?.blockId,
+        [TraceAttr.RouterName]: span.name,
+        [TraceAttr.RouterId]: span.blockId,
+        [TraceAttr.RouterSelectedPath]: output?.selectedPath?.blockId,
       }
     },
   },
@@ -182,9 +182,9 @@ const BLOCK_TYPE_MAPPING: Record<
     getAttributes: (span) => {
       const output = span.output as { conditionResult?: boolean | string } | undefined
       return {
-        'condition.name': span.name,
-        'condition.id': span.blockId,
-        'condition.result': output?.conditionResult,
+        [TraceAttr.ConditionName]: span.name,
+        [TraceAttr.ConditionId]: span.blockId,
+        [TraceAttr.ConditionResult]: output?.conditionResult,
       }
     },
   },
@@ -192,18 +192,18 @@ const BLOCK_TYPE_MAPPING: Record<
     spanName: 'loop.execute',
     spanKind: 'loop',
     getAttributes: (span) => ({
-      'loop.name': span.name,
-      'loop.id': span.blockId,
-      'loop.iterations': span.children?.length || 0,
+      [TraceAttr.LoopName]: span.name,
+      [TraceAttr.LoopId]: span.blockId,
+      [TraceAttr.LoopIterations]: span.children?.length || 0,
     }),
   },
   parallel: {
     spanName: 'parallel.execute',
     spanKind: 'parallel',
     getAttributes: (span) => ({
-      'parallel.name': span.name,
-      'parallel.id': span.blockId,
-      'parallel.branches': span.children?.length || 0,
+      [TraceAttr.ParallelName]: span.name,
+      [TraceAttr.ParallelId]: span.blockId,
+      [TraceAttr.ParallelBranches]: span.children?.length || 0,
     }),
   },
 }
@@ -220,17 +220,17 @@ function createOTelSpanFromTraceSpan(traceSpan: TraceSpan, parentSpan?: Span): S
       spanName: `block.${traceSpan.type}`,
       spanKind: 'internal',
       getAttributes: (span: TraceSpan) => ({
-        'block.type': span.type,
-        'block.id': span.blockId,
-        'block.name': span.name,
+        [TraceAttr.BlockType]: span.type,
+        [TraceAttr.BlockId]: span.blockId,
+        [TraceAttr.BlockName]: span.name,
       }),
     }
 
     const attributes = {
       ...blockMapping.getAttributes(traceSpan),
-      'span.type': traceSpan.type,
-      'span.duration_ms': traceSpan.duration,
-      'span.status': traceSpan.status,
+      [TraceAttr.SpanType]: traceSpan.type,
+      [TraceAttr.SpanDurationMs]: traceSpan.duration,
+      [TraceAttr.SpanStatus]: traceSpan.status,
     }
 
     const ctx = parentSpan ? trace.setSpan(context.active(), parentSpan) : context.active()
@@ -414,9 +414,9 @@ export const PlatformEvents = {
     provider?: string
   }) => {
     trackPlatformEvent('platform.user.signed_up', {
-      'user.id': attrs.userId,
-      'user.auth_method': attrs.authMethod,
-      ...(attrs.provider && { 'user.auth_provider': attrs.provider }),
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.UserAuthMethod]: attrs.authMethod,
+      ...(attrs.provider && { [TraceAttr.UserAuthProvider]: attrs.provider }),
     })
   },
 
@@ -429,9 +429,9 @@ export const PlatformEvents = {
     provider?: string
   }) => {
     trackPlatformEvent('platform.user.signed_in', {
-      'user.id': attrs.userId,
-      'user.auth_method': attrs.authMethod,
-      ...(attrs.provider && { 'user.auth_provider': attrs.provider }),
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.UserAuthMethod]: attrs.authMethod,
+      ...(attrs.provider && { [TraceAttr.UserAuthProvider]: attrs.provider }),
     })
   },
 
@@ -440,7 +440,7 @@ export const PlatformEvents = {
    */
   passwordResetRequested: (attrs: { userId: string }) => {
     trackPlatformEvent('platform.user.password_reset_requested', {
-      'user.id': attrs.userId,
+      [TraceAttr.UserId]: attrs.userId,
     })
   },
 
@@ -449,9 +449,9 @@ export const PlatformEvents = {
    */
   workspaceCreated: (attrs: { workspaceId: string; userId: string; name: string }) => {
     trackPlatformEvent('platform.workspace.created', {
-      'workspace.id': attrs.workspaceId,
-      'workspace.name': attrs.name,
-      'user.id': attrs.userId,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
+      [TraceAttr.WorkspaceName]: attrs.name,
+      [TraceAttr.UserId]: attrs.userId,
     })
   },
 
@@ -466,9 +466,9 @@ export const PlatformEvents = {
     membershipIntent?: string
   }) => {
     trackPlatformEvent('platform.workspace.member_invited', {
-      'workspace.id': attrs.workspaceId,
-      'user.id': attrs.invitedBy,
-      'invitation.role': attrs.role,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
+      [TraceAttr.UserId]: attrs.invitedBy,
+      [TraceAttr.InvitationRole]: attrs.role,
       ...(attrs.membershipIntent ? { 'invitation.membership_intent': attrs.membershipIntent } : {}),
     })
   },
@@ -484,10 +484,10 @@ export const PlatformEvents = {
     role: string
   }) => {
     trackPlatformEvent('platform.workspace.member_added', {
-      'workspace.id': attrs.workspaceId,
-      'user.id': attrs.addedBy,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
+      [TraceAttr.UserId]: attrs.addedBy,
       'member.id': attrs.addedUserId,
-      'member.role': attrs.role,
+      [TraceAttr.MemberRole]: attrs.role,
     })
   },
 
@@ -496,9 +496,9 @@ export const PlatformEvents = {
    */
   workspaceMemberJoined: (attrs: { workspaceId: string; userId: string; role: string }) => {
     trackPlatformEvent('platform.workspace.member_joined', {
-      'workspace.id': attrs.workspaceId,
-      'user.id': attrs.userId,
-      'member.role': attrs.role,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.MemberRole]: attrs.role,
     })
   },
 
@@ -512,10 +512,10 @@ export const PlatformEvents = {
     folderId?: string
   }) => {
     trackPlatformEvent('platform.workflow.created', {
-      'workflow.id': attrs.workflowId,
-      'workflow.name': attrs.name,
-      'workflow.has_workspace': !!attrs.workspaceId,
-      'workflow.has_folder': !!attrs.folderId,
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      [TraceAttr.WorkflowName]: attrs.name,
+      [TraceAttr.WorkflowHasWorkspace]: !!attrs.workspaceId,
+      [TraceAttr.WorkflowHasFolder]: !!attrs.folderId,
     })
   },
 
@@ -524,8 +524,8 @@ export const PlatformEvents = {
    */
   workflowDeleted: (attrs: { workflowId: string; workspaceId?: string }) => {
     trackPlatformEvent('platform.workflow.deleted', {
-      'workflow.id': attrs.workflowId,
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      ...(attrs.workspaceId && { [TraceAttr.WorkspaceId]: attrs.workspaceId }),
     })
   },
 
@@ -538,9 +538,9 @@ export const PlatformEvents = {
     workspaceId?: string
   }) => {
     trackPlatformEvent('platform.workflow.duplicated', {
-      'workflow.source_id': attrs.sourceWorkflowId,
-      'workflow.new_id': attrs.newWorkflowId,
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      [TraceAttr.WorkflowSourceId]: attrs.sourceWorkflowId,
+      [TraceAttr.WorkflowNewId]: attrs.newWorkflowId,
+      ...(attrs.workspaceId && { [TraceAttr.WorkspaceId]: attrs.workspaceId }),
     })
   },
 
@@ -558,16 +558,16 @@ export const PlatformEvents = {
     blockTypes?: string
   }) => {
     trackPlatformEvent('platform.workflow.deployed', {
-      'workflow.id': attrs.workflowId,
-      'workflow.name': attrs.workflowName,
-      'workflow.blocks_count': attrs.blocksCount,
-      'workflow.edges_count': attrs.edgesCount,
-      'deployment.version': attrs.version,
-      ...(attrs.loopsCount !== undefined && { 'workflow.loops_count': attrs.loopsCount }),
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      [TraceAttr.WorkflowName]: attrs.workflowName,
+      [TraceAttr.WorkflowBlocksCount]: attrs.blocksCount,
+      [TraceAttr.WorkflowEdgesCount]: attrs.edgesCount,
+      [TraceAttr.DeploymentVersion]: attrs.version,
+      ...(attrs.loopsCount !== undefined && { [TraceAttr.WorkflowLoopsCount]: attrs.loopsCount }),
       ...(attrs.parallelsCount !== undefined && {
-        'workflow.parallels_count': attrs.parallelsCount,
+        [TraceAttr.WorkflowParallelsCount]: attrs.parallelsCount,
       }),
-      ...(attrs.blockTypes && { 'workflow.block_types': attrs.blockTypes }),
+      ...(attrs.blockTypes && { [TraceAttr.WorkflowBlockTypes]: attrs.blockTypes }),
     })
   },
 
@@ -576,7 +576,7 @@ export const PlatformEvents = {
    */
   workflowUndeployed: (attrs: { workflowId: string }) => {
     trackPlatformEvent('platform.workflow.undeployed', {
-      'workflow.id': attrs.workflowId,
+      [TraceAttr.WorkflowId]: attrs.workflowId,
     })
   },
 
@@ -593,13 +593,13 @@ export const PlatformEvents = {
     totalCost?: number
   }) => {
     trackPlatformEvent('platform.workflow.executed', {
-      'workflow.id': attrs.workflowId,
-      'execution.duration_ms': attrs.durationMs,
-      'execution.status': attrs.status,
-      'execution.trigger': attrs.trigger,
-      'execution.blocks_executed': attrs.blocksExecuted,
-      'execution.has_errors': attrs.hasErrors,
-      ...(attrs.totalCost !== undefined && { 'execution.total_cost': attrs.totalCost }),
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      [TraceAttr.ExecutionDurationMs]: attrs.durationMs,
+      [TraceAttr.ExecutionStatus]: attrs.status,
+      [TraceAttr.ExecutionTrigger]: attrs.trigger,
+      [TraceAttr.ExecutionBlocksExecuted]: attrs.blocksExecuted,
+      [TraceAttr.ExecutionHasErrors]: attrs.hasErrors,
+      ...(attrs.totalCost !== undefined && { [TraceAttr.ExecutionTotalCost]: attrs.totalCost }),
     })
   },
 
@@ -614,7 +614,7 @@ export const PlatformEvents = {
     trackPlatformEvent('platform.knowledge_base.created', {
       'knowledge_base.id': attrs.knowledgeBaseId,
       'knowledge_base.name': attrs.name,
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.workspaceId && { [TraceAttr.WorkspaceId]: attrs.workspaceId }),
     })
   },
 
@@ -641,12 +641,12 @@ export const PlatformEvents = {
   }) => {
     trackPlatformEvent('platform.knowledge_base.documents_uploaded', {
       'knowledge_base.id': attrs.knowledgeBaseId,
-      'documents.count': attrs.documentsCount,
-      'documents.upload_type': attrs.uploadType,
-      ...(attrs.chunkSize !== undefined && { 'processing.chunk_size': attrs.chunkSize }),
-      ...(attrs.recipe && { 'processing.recipe': attrs.recipe }),
-      ...(attrs.mimeType && { 'document.mime_type': attrs.mimeType }),
-      ...(attrs.fileSize !== undefined && { 'document.file_size': attrs.fileSize }),
+      [TraceAttr.DocumentsCount]: attrs.documentsCount,
+      [TraceAttr.DocumentsUploadType]: attrs.uploadType,
+      ...(attrs.chunkSize !== undefined && { [TraceAttr.ProcessingChunkSize]: attrs.chunkSize }),
+      ...(attrs.recipe && { [TraceAttr.ProcessingRecipe]: attrs.recipe }),
+      ...(attrs.mimeType && { [TraceAttr.DocumentMimeType]: attrs.mimeType }),
+      ...(attrs.fileSize !== undefined && { [TraceAttr.DocumentFileSize]: attrs.fileSize }),
     })
   },
 
@@ -673,10 +673,10 @@ export const PlatformEvents = {
       'search.document_ids': attrs.documentIds,
       'search.documents_count': attrs.documentIds.length,
       'search.connector_types': attrs.connectorTypes,
-      'search.results_count': attrs.resultsCount,
+      [TraceAttr.SearchResultsCount]: attrs.resultsCount,
       'search.principal_kind': attrs.principalKind,
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
-      ...(attrs.actorUserId && { 'user.id': attrs.actorUserId }),
+      ...(attrs.workspaceId && { [TraceAttr.WorkspaceId]: attrs.workspaceId }),
+      ...(attrs.actorUserId && { [TraceAttr.UserId]: attrs.actorUserId }),
       ...(attrs.delegatedServiceId && { 'search.delegated_service': attrs.delegatedServiceId }),
       ...(attrs.accessScopeKind && { 'search.access_scope_kind': attrs.accessScopeKind }),
       ...(attrs.surface && { 'search.surface': attrs.surface }),
@@ -688,8 +688,8 @@ export const PlatformEvents = {
    */
   apiKeyGenerated: (attrs: { userId: string; keyName?: string }) => {
     trackPlatformEvent('platform.api_key.generated', {
-      'user.id': attrs.userId,
-      ...(attrs.keyName && { 'api_key.name': attrs.keyName }),
+      [TraceAttr.UserId]: attrs.userId,
+      ...(attrs.keyName && { [TraceAttr.ApiKeyName]: attrs.keyName }),
     })
   },
 
@@ -698,8 +698,8 @@ export const PlatformEvents = {
    */
   apiKeyRevoked: (attrs: { userId: string; keyId: string }) => {
     trackPlatformEvent('platform.api_key.revoked', {
-      'user.id': attrs.userId,
-      'api_key.id': attrs.keyId,
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.ApiKeyId]: attrs.keyId,
     })
   },
 
@@ -708,9 +708,9 @@ export const PlatformEvents = {
    */
   oauthConnected: (attrs: { userId: string; provider: string; workspaceId?: string }) => {
     trackPlatformEvent('platform.oauth.connected', {
-      'user.id': attrs.userId,
-      'oauth.provider': attrs.provider,
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.OauthProvider]: attrs.provider,
+      ...(attrs.workspaceId && { [TraceAttr.WorkspaceId]: attrs.workspaceId }),
     })
   },
 
@@ -719,8 +719,8 @@ export const PlatformEvents = {
    */
   oauthDisconnected: (attrs: { userId: string; provider: string }) => {
     trackPlatformEvent('platform.oauth.disconnected', {
-      'user.id': attrs.userId,
-      'oauth.provider': attrs.provider,
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.OauthProvider]: attrs.provider,
     })
   },
 
@@ -734,10 +734,10 @@ export const PlatformEvents = {
     workspaceId?: string
   }) => {
     trackPlatformEvent('platform.webhook.created', {
-      'webhook.id': attrs.webhookId,
-      'workflow.id': attrs.workflowId,
-      'webhook.provider': attrs.provider,
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      [TraceAttr.WebhookId]: attrs.webhookId,
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      [TraceAttr.WebhookProvider]: attrs.provider,
+      ...(attrs.workspaceId && { [TraceAttr.WorkspaceId]: attrs.workspaceId }),
     })
   },
 
@@ -746,8 +746,8 @@ export const PlatformEvents = {
    */
   webhookDeleted: (attrs: { webhookId: string; workflowId: string }) => {
     trackPlatformEvent('platform.webhook.deleted', {
-      'webhook.id': attrs.webhookId,
-      'workflow.id': attrs.workflowId,
+      [TraceAttr.WebhookId]: attrs.webhookId,
+      [TraceAttr.WorkflowId]: attrs.workflowId,
     })
   },
 
@@ -761,10 +761,10 @@ export const PlatformEvents = {
     success: boolean
   }) => {
     trackPlatformEvent('platform.webhook.triggered', {
-      'webhook.id': attrs.webhookId,
-      'workflow.id': attrs.workflowId,
-      'webhook.provider': attrs.provider,
-      'webhook.trigger_success': attrs.success,
+      [TraceAttr.WebhookId]: attrs.webhookId,
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      [TraceAttr.WebhookProvider]: attrs.provider,
+      [TraceAttr.WebhookTriggerSuccess]: attrs.success,
     })
   },
 
@@ -778,10 +778,10 @@ export const PlatformEvents = {
     workspaceId: string
   }) => {
     trackPlatformEvent('platform.mcp.server_added', {
-      'mcp.server_id': attrs.serverId,
-      'mcp.server_name': attrs.serverName,
-      'mcp.transport': attrs.transport,
-      'workspace.id': attrs.workspaceId,
+      [TraceAttr.McpServerId]: attrs.serverId,
+      [TraceAttr.McpServerName]: attrs.serverName,
+      [TraceAttr.McpTransport]: attrs.transport,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
     })
   },
 
@@ -795,10 +795,10 @@ export const PlatformEvents = {
     workspaceId: string
   }) => {
     trackPlatformEvent('platform.mcp.tool_executed', {
-      'mcp.server_id': attrs.serverId,
-      'mcp.tool_name': attrs.toolName,
-      'mcp.execution_status': attrs.status,
-      'workspace.id': attrs.workspaceId,
+      [TraceAttr.McpServerId]: attrs.serverId,
+      [TraceAttr.McpToolName]: attrs.toolName,
+      [TraceAttr.McpExecutionStatus]: attrs.status,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
     })
   },
 
@@ -811,9 +811,9 @@ export const PlatformEvents = {
     interval: 'monthly' | 'yearly'
   }) => {
     trackPlatformEvent('platform.billing.subscription_created', {
-      'user.id': attrs.userId,
-      'billing.plan': attrs.plan,
-      'billing.interval': attrs.interval,
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.BillingPlan]: attrs.plan,
+      [TraceAttr.BillingInterval]: attrs.interval,
     })
   },
 
@@ -827,10 +827,10 @@ export const PlatformEvents = {
     changeType: 'upgrade' | 'downgrade'
   }) => {
     trackPlatformEvent('platform.billing.subscription_changed', {
-      'user.id': attrs.userId,
-      'billing.previous_plan': attrs.previousPlan,
-      'billing.new_plan': attrs.newPlan,
-      'billing.change_type': attrs.changeType,
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.BillingPreviousPlan]: attrs.previousPlan,
+      [TraceAttr.BillingNewPlan]: attrs.newPlan,
+      [TraceAttr.BillingChangeType]: attrs.changeType,
     })
   },
 
@@ -839,8 +839,8 @@ export const PlatformEvents = {
    */
   subscriptionCancelled: (attrs: { userId: string; plan: string }) => {
     trackPlatformEvent('platform.billing.subscription_cancelled', {
-      'user.id': attrs.userId,
-      'billing.plan': attrs.plan,
+      [TraceAttr.UserId]: attrs.userId,
+      [TraceAttr.BillingPlan]: attrs.plan,
     })
   },
 
@@ -851,7 +851,7 @@ export const PlatformEvents = {
     trackPlatformEvent('platform.folder.created', {
       'folder.id': attrs.folderId,
       'folder.name': attrs.name,
-      'workspace.id': attrs.workspaceId,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
     })
   },
 
@@ -861,7 +861,7 @@ export const PlatformEvents = {
   folderDeleted: (attrs: { folderId: string; workspaceId: string }) => {
     trackPlatformEvent('platform.folder.deleted', {
       'folder.id': attrs.folderId,
-      'workspace.id': attrs.workspaceId,
+      [TraceAttr.WorkspaceId]: attrs.workspaceId,
     })
   },
 
@@ -955,10 +955,10 @@ export const PlatformEvents = {
     hasOutputConfigs: boolean
   }) => {
     trackPlatformEvent('platform.chat.deployed', {
-      'chat.id': attrs.chatId,
-      'workflow.id': attrs.workflowId,
-      'chat.auth_type': attrs.authType,
-      'chat.has_output_configs': attrs.hasOutputConfigs,
+      [TraceAttr.ChatId]: attrs.chatId,
+      [TraceAttr.WorkflowId]: attrs.workflowId,
+      [TraceAttr.ChatAuthType]: attrs.authType,
+      [TraceAttr.ChatHasOutputConfigs]: attrs.hasOutputConfigs,
     })
   },
 }

@@ -32,7 +32,7 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({ getCustomToolById: v
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById: vi.fn() }))
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
-vi.mock('@/blocks/utils', () => ({ getModelOptions: vi.fn(() => []) }))
+vi.mock('@/blocks/utils', () => ({ MODEL_OPTION_SOURCES: new Map() }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
 vi.mock('@/lib/knowledge/application/documents', () => ({
   readKnowledgeDocument: { execute: hoisted.document },

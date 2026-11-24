@@ -1,11 +1,11 @@
 import { backoffWithJitter } from '@sim/utils/retry'
-import { StreamContinuityError } from '@/lib/mothership/request/go/parser'
+import { StreamContinuityError } from '@/lib/mothership/request/worker/parser'
 import {
   CopilotBackendError,
   StreamEndedWithoutTerminalError,
   WorkerStreamInterruptedError,
   WorkerUnreachableError,
-} from '@/lib/mothership/request/go/stream'
+} from '@/lib/mothership/request/worker/stream'
 
 const MAX_STREAM_RETRIES = 3
 const STREAM_RECOVERY_WINDOW_MS = 30_000

@@ -1,0 +1,25 @@
+{
+  "namespace": "legacy.railway",
+  "methods": {
+    "create_environment": "createEnvironment",
+    "create_project": "createProject",
+    "create_service": "createService",
+    "delete_environment": "deleteEnvironment",
+    "delete_project": "deleteProject",
+    "delete_service": "deleteService",
+    "delete_variable": "deleteVariable",
+    "deploy_service": "deployService",
+    "get_deployment": "getDeployment",
+    "get_deployment_logs": "getDeploymentLogs",
+    "get_project": "getProject",
+    "list_deployments": "listDeployments",
+    "list_project_members": "listProjectMembers",
+    "list_projects": "listProjects",
+    "list_variables": "listVariables",
+    "restart_deployment": "restartDeployment",
+    "rollback_deployment": "rollbackDeployment",
+    "transfer_project": "transferProject",
+    "update_project": "updateProject",
+    "upsert_variable": "upsertVariable"
+  }
+}

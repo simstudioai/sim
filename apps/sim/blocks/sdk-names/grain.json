@@ -1,0 +1,24 @@
+{
+  "namespace": "legacy.grain",
+  "methods": {
+    "grain_create_hook": "createWebhook",
+    "grain_delete_hook": "deleteWebhook",
+    "grain_get_recording": "getRecording",
+    "grain_get_transcript": "getTranscript",
+    "grain_list_hooks": "listWebhooks",
+    "grain_list_meeting_types": "listMeetingTypes",
+    "grain_list_recordings": "listRecordings",
+    "grain_list_teams": "listTeams",
+    "grain_list_views": "listViews"
+  },
+  "triggers": {
+    "grain_highlight_created": "highlightCreated",
+    "grain_highlight_updated": "highlightUpdated",
+    "grain_item_added": "itemAdded",
+    "grain_item_updated": "itemUpdated",
+    "grain_recording_created": "recordingCreated",
+    "grain_recording_updated": "recordingUpdated",
+    "grain_story_created": "storyCreated",
+    "grain_webhook": "webhook"
+  }
+}

@@ -129,7 +129,6 @@ export const imageGenerateTool: ImageGenerationToolConfig = {
     apiKeyParam: 'apiKey',
     byokProviderId: 'falai',
     exactCostSettlement: 'falai',
-    requiresPaidPlan: true,
     pricing: {
       type: 'custom',
       getCost: (_params, output) => {

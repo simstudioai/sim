@@ -228,13 +228,10 @@ describe('deleted workspace storage sweep', () => {
 
   it.each([
     {
-      name: 'an organization whitelabel logo serve URL',
+      name: 'an organization logo serve URL',
       table: 'organization',
       row: {
-        logo: null,
-        whitelabel: {
-          logoUrl: 'https://sim.test/api/files/serve/s3/workspace-logos%2Fwsdoomed1%2Flogo.png',
-        },
+        logo: 'https://sim.test/api/files/serve/s3/workspace-logos%2Fwsdoomed1%2Flogo.png',
         metadata: null,
       },
     },

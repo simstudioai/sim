@@ -106,6 +106,12 @@ export interface AccountBillingDecision {
    * verdict judges the payer's current one, so the limit can only be under-enforced.
    */
   readonly payerSubscriptionId?: string
+  /**
+   * Whether the payer's spend past its limit is billed as overage at admission
+   * (`billsOverage`): false for the free plan and a trial, whose limit is a hard cap.
+   * Absent in decisions minted before it existed, which judge by `payerSubscriptionId` alone.
+   */
+  readonly payerBillsOverage?: boolean
 }
 
 export interface ResolveBillingAttributionParams {
@@ -475,7 +481,7 @@ function parseBillingAttributionHeader(
   return attribution
 }
 
-/** Settles exactly the admitted scope, including organization charges replayed from Go's ledger. */
+/** Settles exactly the admitted scope, including organization charges replayed from the worker's ledger. */
 export function requireBillingCallbackAttribution(
   headers: Pick<Headers, 'get'>,
   expected: { actorUserId: string; workspaceId?: string; organizationId?: string }
@@ -574,6 +580,10 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
   if (payerSubscriptionId !== undefined && !isNonEmptyString(payerSubscriptionId)) {
     throw new Error('Account billing decision must contain a valid payer subscription ID')
   }
+  const payerBillsOverage = value.payerBillsOverage
+  if (payerBillsOverage !== undefined && typeof payerBillsOverage !== 'boolean') {
+    throw new Error('Account billing decision must contain a valid overage flag')
+  }
 
   return Object.freeze({
     userId: value.userId,
@@ -587,12 +597,13 @@ function assertAccountBillingDecision(value: unknown): AccountBillingDecision {
       ...(source !== undefined ? { source } : {}),
     }),
     ...(payerSubscriptionId !== undefined ? { payerSubscriptionId } : {}),
+    ...(payerBillsOverage !== undefined ? { payerBillsOverage } : {}),
   })
 }
 
 /**
  * Encodes the immutable direct-account payer selected by trusted Sim
- * admission. Go stores and returns this value opaquely.
+ * admission. The worker stores and returns this value opaquely.
  */
 export function serializeAccountBillingDecisionHeader(decision: AccountBillingDecision): string {
   return encodeURIComponent(JSON.stringify(assertAccountBillingDecision(decision)))
@@ -870,7 +881,7 @@ export function assertBillingAttributionOwner(
  * requests when the workspace is absent from this Sim deployment.
  *
  * Unlike modern attributed-v1/direct-v1 envelopes, this decision is mutable:
- * historical markerless Go allocated its callback billing ID after admission
+ * the retired markerless Go copilot allocated its callback billing ID after admission
  * and returned no payer material, so admission and callback independently
  * resolve current state. Hosted traffic may use this only for explicit
  * legacy-v0 replay; markerless use is confined to local self-hosting.

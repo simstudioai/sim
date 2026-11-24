@@ -3,8 +3,6 @@
  * the real code boundary against the real history script in a disposable Redis, so a mount the
  * caller could not classify has to leave the machine uncertified. Only the sandbox provider is a
  * stand-in: it hands back a machine that executes nothing.
- *
- * Set TEST_REDIS_URL to an isolated local Redis service.
  */
 import { createHash } from 'node:crypto'
 import {
@@ -14,23 +12,12 @@ import {
 import { generateShortId } from '@sim/utils/id'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedRedisUrl, mockCreate, mockFindSessionSandbox } = await vi.hoisted(
-  async () => {
-    const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
-    const url = readTestRedisUrl()
-    const inheritedRedisUrl = process.env.REDIS_URL
-    /** The real Redis module reads this at import. */
-    if (url) process.env.REDIS_URL = url
-    return {
-      redisUrl: url,
-      inheritedRedisUrl,
-      mockCreate: vi.fn<SandboxProvider['create']>(async () => {
-        throw new Error('The certification fixture only reuses an existing machine')
-      }),
-      mockFindSessionSandbox: vi.fn<NonNullable<SandboxProvider['findSessionSandbox']>>(),
-    }
-  }
-)
+const { mockCreate, mockFindSessionSandbox } = vi.hoisted(() => ({
+  mockCreate: vi.fn<SandboxProvider['create']>(async () => {
+    throw new Error('The certification fixture only reuses an existing machine')
+  }),
+  mockFindSessionSandbox: vi.fn<NonNullable<SandboxProvider['findSessionSandbox']>>(),
+}))
 
 vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 vi.mock('@/lib/execution/remote-sandbox/resolve', () => ({
@@ -111,18 +98,11 @@ function run(kind: 'code' | 'shell', request: SessionRunRequest) {
 }
 
 afterAll(async () => {
-  if (redisUrl && createdKeys.length) {
-    const redis = getRedisClient()
-    if (redis) await redis.del(...createdKeys)
-  }
-  if (redisUrl) await closeRedisConnection()
-  // Only restore what the hoisted setup changed; assigning undefined would store the string "undefined".
-  if (!redisUrl) return
-  if (inheritedRedisUrl === undefined) Reflect.deleteProperty(process.env, 'REDIS_URL')
-  else process.env.REDIS_URL = inheritedRedisUrl
+  if (createdKeys.length) await getRedisClient().del(...createdKeys)
+  await closeRedisConnection()
 })
 
-describe.skipIf(!redisUrl)('workbench certification at the code boundary', () => {
+describe('workbench certification at the code boundary', () => {
   it.each([
     ['code', false],
     ['code', true],

@@ -5,9 +5,9 @@
  * org-scoped enterprise features apply deployment-wide.
  *
  * Membership alone is not enough. Session policies and SSO provisioning resolve
- * the governing org from the user's `member` row, but whitelabeling, PII
- * redaction, permission groups, data drains, and audit scoping all resolve it
- * from `workspace.organization_id`. This script therefore does both: it adds
+ * the governing org from the user's `member` row, but PII redaction, permission
+ * groups, data drains, and audit scoping all resolve it from
+ * `workspace.organization_id`. This script therefore does both: it adds
  * every user to the target org AND attaches their personal/grandfathered
  * workspaces to it.
  *
@@ -362,9 +362,8 @@ async function main(): Promise<void> {
 
   if (!isOrganizationsEnabled) {
     console.log(
-      'WARNING: organizations are not enabled for this process. Set ORGANIZATIONS_ENABLED=true and\n' +
-        '         NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true on the app, or the org UI stays hidden even\n' +
-        '         though the data written here is correct.\n'
+      'WARNING: organizations are not enabled for this process. Set ORGANIZATIONS_ENABLED=true on\n' +
+        '         the app, or the org UI stays hidden even though the data written here is correct.\n'
     )
   }
 

@@ -56,6 +56,11 @@ const FEATURE_FLAGS = {
       'Enable workflow tests: the workspace Tests page, tests/<name>.test.js files, and the Sim tests tool. Supports global and organization rollout; disabled by default.',
     fallback: 'WORKFLOW_TESTS',
   },
+  'workflow-code': {
+    description:
+      'Enable workflows and workspaces as code: the block catalog and resources for the workflow SDK, workflow and workspace source read and apply, and the read-only Code tab. Supports global, organization, workspace and user rollout; disabled by default.',
+    fallback: 'WORKFLOW_CODE',
+  },
   'build-notes': {
     description:
       'Enable build notes: the hidden, agent-only build-notes/<workflowId>.md scratchpad and baseline the agent drafts, evaluates and builds from, the Sim build_notes tool, and the apply checks for workflows that have notes. Supports global and organization rollout; disabled by default.',
@@ -131,6 +136,21 @@ const FEATURE_FLAGS = {
       'so a configured host is used unless this is turned on. AppConfig-only: when AppConfig is ' +
       'unreachable the host stays in use.',
     fallback: null,
+  },
+  'organization-activity-rollup-reads': {
+    description:
+      'Serve organization activity summaries and breakdowns from the hourly workflow activity ' +
+      'rollup where it covers the window, with identical results. Supports organization rollout; ' +
+      'off by default, which reads the source tables. Off-AppConfig falls back to ' +
+      'ORGANIZATION_ACTIVITY_ROLLUP_READS.',
+    fallback: 'ORGANIZATION_ACTIVITY_ROLLUP_READS',
+  },
+  'activity-rollup-maintenance': {
+    description:
+      'Run the activity rollup pass on its cron: backfill and maintain workflow_activity_hourly. ' +
+      'Global on/off only; off by default, which starts no pass. Off-AppConfig falls back to ' +
+      'ACTIVITY_ROLLUP_MAINTENANCE.',
+    fallback: 'ACTIVITY_ROLLUP_MAINTENANCE',
   },
   'mothership-abandoned-run-takeover-disabled': {
     description:

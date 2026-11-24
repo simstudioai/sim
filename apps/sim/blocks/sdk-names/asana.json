@@ -1,0 +1,24 @@
+{
+  "namespace": "asana",
+  "methods": {
+    "add_comment": "addComment",
+    "add_followers": "addFollowers",
+    "create_project": "createProject",
+    "create_section": "createSection",
+    "create_subtask": "createSubtask",
+    "create_task": "createTask",
+    "delete_task": "deleteTask",
+    "get_project": "getProject",
+    "get_projects": "getProjects",
+    "get_task": "getTask",
+    "list_sections": "listSections",
+    "list_workspaces": "listWorkspaces",
+    "search_tasks": "searchTasks",
+    "update_task": "updateTask"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

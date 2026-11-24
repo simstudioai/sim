@@ -1,0 +1,26 @@
+{
+  "namespace": "sharepoint",
+  "methods": {
+    "sharepoint_add_list_items": "addListItem",
+    "sharepoint_create_list": "createList",
+    "sharepoint_create_page": "createPage",
+    "sharepoint_delete_file": "deleteFile",
+    "sharepoint_delete_list_item": "deleteListItem",
+    "sharepoint_delete_page": "deletePage",
+    "sharepoint_download_file": "downloadFile",
+    "sharepoint_get_drive_item": "getDriveItem",
+    "sharepoint_get_list": "readList",
+    "sharepoint_get_list_item": "getListItem",
+    "sharepoint_list_sites": "listSites",
+    "sharepoint_publish_page": "publishPage",
+    "sharepoint_read_page": "readPage",
+    "sharepoint_update_list": "updateListItem",
+    "sharepoint_update_page": "updatePage",
+    "sharepoint_upload_file": "uploadFile"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

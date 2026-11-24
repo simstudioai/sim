@@ -23,7 +23,7 @@ export const WORKER_STREAM_IDLE_TIMEOUT_MS = 120_000
 /**
  * Watchdog cap for a single sim-executed copilot tool. A tool that neither
  * resolves nor rejects within its cap is failed with a timeout error so the
- * checkpoint loop can resume Go with an error result instead of wedging the
+ * checkpoint loop can resume the worker with an error result instead of wedging the
  * chat (and its pending-stream lock) behind a hung await forever.
  */
 export const TOOL_WATCHDOG_DEFAULT_MS = 60_000

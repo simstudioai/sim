@@ -77,7 +77,7 @@ export const PerplexityBlock: BlockConfig = {
       type: 'slider',
       min: 0,
       max: 1,
-      value: () => '0.7',
+      value: () => 0.7,
       condition: { field: 'operation', value: 'perplexity_chat' },
     },
     {

@@ -479,6 +479,7 @@
                         "startedAt": "2026-01-15T10:30:00.000Z",
                         "endedAt": "2026-01-15T10:30:01.250Z",
                         "totalDurationMs": 1250,
+                        "failure": null,
                         "files": [
                           {
                             "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
@@ -1066,7 +1067,8 @@
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
           "READ_ONLY_API_KEY",
-          "SCIM_MANAGED_MEMBERSHIP"
+          "SCIM_MANAGED_MEMBERSHIP",
+          "FEATURE_NOT_ENABLED"
         ],
         "title": "Forbidden detail code",
         "description": "Stable cause code for an actionable `403` response."
@@ -1652,6 +1654,55 @@
             ],
             "description": "Total execution duration in milliseconds, or null while unavailable."
           },
+          "failure": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "blockId": {
+                    "type": "string",
+                    "description": "Identifier of the block the run failed in."
+                  },
+                  "blockName": {
+                    "type": "string",
+                    "description": "Name of the block the run failed in."
+                  },
+                  "blockType": {
+                    "type": "string",
+                    "description": "Type of the block the run failed in."
+                  },
+                  "error": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The error the block recorded, or null when its span carries none (a withheld or compacted trace). A Function block's leads with the line and code that threw."
+                  },
+                  "errorMessage": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "A Function block's thrown message alone, which is the text to reply with; null for any other block."
+                  }
+                },
+                "required": ["blockId", "blockName", "blockType", "error", "errorMessage"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the run failed, read from the trace: the innermost block whose error nothing handled. Null when the run did not fail, or the trace does not name one (not recorded, compacted, or withheld by a permission group)."
+          },
           "files": {
             "anyOf": [
               {
@@ -1912,6 +1963,7 @@
           "startedAt",
           "endedAt",
           "totalDurationMs",
+          "failure",
           "files",
           "executedByEmail",
           "workflow",
@@ -1950,6 +2002,7 @@
               "startedAt": "2026-01-15T10:30:00.000Z",
               "endedAt": "2026-01-15T10:30:01.250Z",
               "totalDurationMs": 1250,
+              "failure": null,
               "files": [
                 {
                   "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",

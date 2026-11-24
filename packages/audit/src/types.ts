@@ -156,6 +156,8 @@ export const AuditAction = {
   CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
   CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
   CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
+  CREDENTIAL_KEY_BOUND: 'credential_key.bound',
+  CREDENTIAL_KEY_RELEASED: 'credential_key.released',
 
   PASSWORD_RESET_REQUESTED: 'password.reset_requested',
   PASSWORD_RESET: 'password.reset',

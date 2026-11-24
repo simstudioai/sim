@@ -275,22 +275,19 @@ Different domains can also use different providers, such as Okta for `eng.acme.c
 
 ## Self-hosted setup
 
-For a deployment with billing disabled, enable SSO and its browser twin:
+For a deployment with billing disabled, enable SSO:
 
 ```bash
 SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
 
 # Organization membership on first SSO sign-in
 ORGANIZATIONS_ENABLED=true
-NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
 
 # Optional directory provisioning tab
 SCIM_ENABLED=true
-NEXT_PUBLIC_SCIM_ENABLED=true
 ```
 
-The enterprise master pair also enables these features. See [Self-hosted enterprise](/platform/enterprise/self-hosted) for organization setup.
+`ENTERPRISE_ENABLED=true` also enables these features. See [Self-hosted enterprise](/platform/enterprise/self-hosted) for organization setup.
 
 `SSO_TRUSTED_PROVIDER_IDS` is an optional comma-separated list for non-SSO provider account linking. It does not authorize SSO linking; SSO trust comes from the provider's verified domain.
 

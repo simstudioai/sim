@@ -9,9 +9,9 @@ import {
   mothershipAgentUrlMockFns,
 } from '@sim/testing/mocks/mothership-agent-url.mock'
 import {
-  mothershipGoFetchMock,
-  mothershipGoFetchMockFns,
-} from '@sim/testing/mocks/mothership-go-fetch.mock'
+  mothershipWorkerFetchMock,
+  mothershipWorkerFetchMockFns,
+} from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import {
   workflowContextMock,
@@ -34,7 +34,7 @@ vi.mock('next/server', async (original) => ({
   ...(await original<typeof import('next/server')>()),
   after: hoisted.after,
 }))
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
@@ -68,7 +68,7 @@ const mocks = {
   ...hoisted,
   banned: authBanMockFns.mockGetActivelyBannedUserIds,
   internalAuth: copilotHttpMockFns.mockCheckInternalApiKey,
-  worker: mothershipGoFetchMockFns.mockFetchGo,
+  worker: mothershipWorkerFetchMockFns.mockFetchWorker,
   workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
   execution: workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext,
 }

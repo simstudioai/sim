@@ -491,8 +491,6 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): Next
 export const config = {
   matcher: [
     '/', // Root path for self-hosted redirect logic
-    '/terms', // Whitelabel terms redirect
-    '/privacy', // Whitelabel privacy redirect
     '/w', // Legacy /w redirect
     '/w/:path*', // Legacy /w/* redirects
     '/workspace/:path*', // New workspace routes

@@ -177,7 +177,22 @@ const descriptionSchema = z
 export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
-  tableId: z.string().min(1).describe('Unique table identifier.'),
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique table identifier. With a workspace named, the name of one of its active tables also works (a reference starting `tbl_` is always read as an id).'
+    ),
+})
+
+/** A restore's address: the id alone, since archived tables' names need not be unique. */
+export const archivedTableIdParamsSchema = z.object({
+  tableId: z
+    .string()
+    .min(1)
+    .describe(
+      'Unique identifier of the archived table. A restore takes the id alone: archived tables need not have unique names.'
+    ),
 })
 
 export const tableRowParamsSchema = tableIdParamsSchema.extend({
@@ -886,6 +901,12 @@ export const updateRowsByFilterBodySchema = z.object({
     .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
 
+/**
+ * The keys of a row write that name no column, which a lax name-keyed write drops instead of
+ * refusing. Only the workflow Table tools' writes report it; the grid's routes never do.
+ */
+const ignoredColumnsSchema = z.array(z.string()).optional()
+
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
     success: z.literal(true),
@@ -1011,7 +1032,7 @@ export const deleteTableContract = defineRouteContract({
 export const restoreTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/table/[tableId]/restore',
-  params: tableIdParamsSchema,
+  params: archivedTableIdParamsSchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ table: tableDefinitionSchema })),
@@ -1210,6 +1231,7 @@ export const insertTableRowsContract = defineRouteContract({
         z.object({
           row: tableRowSchema,
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
       successResponseSchema(
@@ -1217,6 +1239,7 @@ export const insertTableRowsContract = defineRouteContract({
           rows: z.array(tableRowSchema),
           insertedCount: z.number(),
           message: z.string(),
+          ignoredColumns: ignoredColumnsSchema,
         })
       ),
     ]),
@@ -1408,6 +1431,7 @@ export const upsertTableRowContract = defineRouteContract({
         row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1440,6 +1464,7 @@ export const updateTableRowContract = defineRouteContract({
       z.object({
         row: tableRowWireSchema,
         message: z.string(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },
@@ -1474,6 +1499,7 @@ export const updateTableRowsByFilterContract = defineRouteContract({
         message: z.string(),
         updatedCount: z.number(),
         updatedRowIds: z.array(z.string()).optional(),
+        ignoredColumns: ignoredColumnsSchema,
       })
     ),
   },

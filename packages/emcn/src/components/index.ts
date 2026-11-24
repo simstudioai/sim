@@ -117,16 +117,9 @@ export { Label } from './label/label'
 export { Lightbox } from './lightbox/lightbox'
 export {
   Modal,
-  ModalBody,
   ModalClose,
   ModalContent,
   ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
@@ -144,13 +137,11 @@ export { POPOVER_ANIMATION_CLASSES } from './popover/animation'
 export {
   Popover,
   PopoverAnchor,
-  PopoverBackButton,
   PopoverContent,
   PopoverDivider,
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
-  PopoverSearch,
   PopoverSection,
   PopoverTrigger,
   usePopoverContext,
@@ -182,14 +173,12 @@ export {
 export {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from './table/table'
-export { TagInput, type TagItem } from './tag-input/tag-input'
+export { TagInput } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker } from './time-picker/time-picker'
 export { ToastProvider, toast, useToast } from './toast/toast'

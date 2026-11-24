@@ -1,5 +1,6 @@
 import {
   type EnvCapabilityValues,
+  getRedisConfigurationError,
   hasEnvCapabilityValue,
 } from '@sim/deployment-config/env-capabilities'
 import {
@@ -21,7 +22,13 @@ type FeatureStatus = EnvCapabilityFeatureStatuses[keyof EnvCapabilityFeatureStat
 
 interface CoreConfigurationIssue {
   key: (typeof REQUIRED_APP_KEYS)[number]
-  reason: 'missing' | 'placeholder' | 'invalid secret' | 'invalid URL'
+  reason:
+    | 'missing'
+    | 'placeholder'
+    | 'invalid secret'
+    | 'invalid URL'
+    | 'invalid Redis configuration'
+  detail?: string
 }
 
 export type SetupStatusSource = Omit<ConfigurationSource, 'values'>
@@ -63,6 +70,11 @@ function inspectCoreConfiguration(values: EnvCapabilityValues): CoreConfiguratio
       } catch {
         issues.push({ key, reason: 'invalid URL' })
       }
+    } else if (key === 'REDIS_URL') {
+      const redisError = getRedisConfigurationError(values)
+      if (redisError) {
+        issues.push({ key, reason: 'invalid Redis configuration', detail: redisError })
+      }
     }
   }
   return issues
@@ -98,8 +110,6 @@ function featureDetail(feature: FeatureStatus): string {
       return feature.providerId ? titleCase(feature.providerId) : 'Not configured'
     case 'jobs':
       return feature.providerId === 'database' ? 'Database queue (default)' : 'Trigger.dev'
-    case 'cache':
-      return feature.providerId === 'database' ? 'Postgres (default)' : 'Redis'
     case 'knowledge':
       if (feature.providerId === 'local') return 'Local parser (default)'
       if (feature.providerId === 'azure-mistral') return 'Azure Mistral OCR'
@@ -265,7 +275,7 @@ export function renderSetupStatusReport(report: SetupStatusReport): string {
     lines.push(` ${glyph.pass} All ${REQUIRED_APP_KEYS.length} required app values are present`)
   } else {
     for (const coreIssue of report.coreIssues) {
-      lines.push(` ${glyph.fail} ${coreIssue.key}: ${coreIssue.reason}`)
+      lines.push(` ${glyph.fail} ${coreIssue.key}: ${coreIssue.detail ?? coreIssue.reason}`)
     }
     for (const configurationIssue of source.configurationIssues ?? []) {
       lines.push(` ${glyph.fail} ${configurationIssue}`)

@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflowDeploymentVersion } from '@sim/db/schema'
 import { isPlainRecord } from '@sim/utils/object'
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -12,7 +13,6 @@ import {
 } from '@/lib/mcp/operation-policy'
 import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import { normalizeMcpToolAttachments, resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 
 function matchesTarget(value: unknown, targetId: string): boolean {
   return (

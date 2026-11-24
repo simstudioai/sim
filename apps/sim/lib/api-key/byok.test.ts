@@ -29,6 +29,15 @@ const { mockGetRotatingApiKey } = vi.hoisted(() => ({
   mockGetRotatingApiKey: vi.fn(),
 }))
 
+const { mockMayUseHostedKey } = vi.hoisted(() => ({
+  mockMayUseHostedKey: vi.fn(async () => true),
+}))
+
+vi.mock('@/lib/billing/core/hosted-key-access', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/core/hosted-key-access')>()),
+  mayUseHostedKey: mockMayUseHostedKey,
+}))
+
 vi.mock('@/providers/models', () => providersModelsMock)
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
@@ -353,6 +362,63 @@ describe('getApiKeyWithBYOK for TypeSafe', () => {
     await expect(getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId())).rejects.toThrow(
       'API key is required'
     )
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+})
+
+describe('getApiKeyWithBYOK for a payer without paid access', () => {
+  const HOSTED_MODEL = 'claude-fixture-hosted'
+
+  beforeEach(() => {
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true })
+    mockGetHostedModels.mockReturnValue([HOSTED_MODEL])
+    mockGetRotatingApiKey.mockReturnValue('platform-anthropic-key')
+    mockMayUseHostedKey.mockResolvedValue(false)
+  })
+
+  it("refuses Sim's key with a paid-plan error when the caller has no key of its own", async () => {
+    const workspaceId = uniqueWorkspaceId()
+    const attribution = {
+      billingEntity: { type: 'user' as const, id: 'free-payer' },
+      payerSubscription: null,
+    }
+
+    await expect(
+      getApiKeyWithBYOK('anthropic', HOSTED_MODEL, workspaceId, undefined, undefined, attribution)
+    ).rejects.toMatchObject({
+      statusCode: 402,
+      message: expect.stringContaining('available on paid plans'),
+    })
+    expect(mockMayUseHostedKey).toHaveBeenCalledWith(workspaceId, attribution)
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+
+  it("serves the caller's own key as BYOK so its usage is never billed", async () => {
+    await expect(
+      getApiKeyWithBYOK('anthropic', HOSTED_MODEL, uniqueWorkspaceId(), 'caller-key')
+    ).resolves.toEqual({ apiKey: 'caller-key', isBYOK: true })
+    expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
+  })
+
+  it('runs a workspace BYOK key without consulting the plan', async () => {
+    dbChainMockFns.orderBy.mockResolvedValue([storedKey('own-key')])
+    mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted: encrypted.replace('encrypted-', 'decrypted-'),
+    }))
+
+    await expect(
+      getApiKeyWithBYOK('anthropic', HOSTED_MODEL, uniqueWorkspaceId())
+    ).resolves.toEqual({ apiKey: 'decrypted-own-key', isBYOK: true, scope: 'workspace' })
+    expect(mockMayUseHostedKey).not.toHaveBeenCalled()
+  })
+
+  it('refuses the hosted Fireworks pool the same way', async () => {
+    mockGetHostedModels.mockReturnValue(['fireworks/glm-fixture'])
+
+    await expect(
+      getApiKeyWithBYOK('fireworks', 'fireworks/glm-fixture', uniqueWorkspaceId())
+    ).rejects.toMatchObject({ statusCode: 402 })
     expect(mockGetRotatingApiKey).not.toHaveBeenCalled()
   })
 })

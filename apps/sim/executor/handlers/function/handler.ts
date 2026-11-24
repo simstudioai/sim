@@ -13,7 +13,7 @@ import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { attachTrustedExecutionCost } from '@/executor/utils/errors'
+import { attachErrorOutputs, attachTrustedExecutionCost } from '@/executor/utils/errors'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -119,6 +119,7 @@ export class FunctionBlockHandler implements BlockHandler {
           ? new NonRetryableExecutionError(result.error || 'Function execution is indeterminate')
           : new Error(result.error || 'Function execution failed')
       attachTrustedExecutionCost(error, result.output?.cost)
+      attachErrorOutputs(error, { errorMessage: result.output?.errorMessage })
       throw adoptToolFailure(error, result)
     }
 

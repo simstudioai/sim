@@ -4937,7 +4937,7 @@ async function buildOAuthScopesSection(
 
   if (gatedScopes.length) {
     section +=
-      'Requested only when `SLACK_EXTENDED_SCOPES` and `NEXT_PUBLIC_SLACK_EXTENDED_SCOPES` are enabled. Enable them only after Slack approves the app for these scopes:\n\n'
+      'Requested only when `SLACK_EXTENDED_SCOPES` is enabled. Enable them only after Slack approves the app for these scopes:\n\n'
     section += scopeTable(gatedScopes, describe)
   }
 
@@ -5702,7 +5702,7 @@ if (import.meta.main) {
         if (stale.length > 0) {
           console.error(
             `Generated integration docs are stale:\n- ${stale.join('\n- ')}\n` +
-              'Run `bun run scripts/generate-docs.ts` and commit the result.'
+              'Run `bun run generate:docs` and commit the result.'
           )
           process.exit(1)
         }

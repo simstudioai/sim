@@ -1,0 +1,28 @@
+{
+  "namespace": "zoom",
+  "methods": {
+    "zoom_create_meeting": "createMeeting",
+    "zoom_delete_meeting": "deleteMeeting",
+    "zoom_delete_recording": "deleteRecording",
+    "zoom_get_meeting": "getMeeting",
+    "zoom_get_meeting_invitation": "getMeetingInvitation",
+    "zoom_get_meeting_recordings": "getMeetingRecordings",
+    "zoom_list_meetings": "listMeetings",
+    "zoom_list_past_participants": "listPastParticipants",
+    "zoom_list_recordings": "listRecordings",
+    "zoom_update_meeting": "updateMeeting"
+  },
+  "triggers": {
+    "zoom_meeting_ended": "meetingEnded",
+    "zoom_meeting_started": "meetingStarted",
+    "zoom_participant_joined": "participantJoined",
+    "zoom_participant_left": "participantLeft",
+    "zoom_recording_completed": "recordingCompleted",
+    "zoom_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

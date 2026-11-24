@@ -19,6 +19,7 @@ const CORE_VALUES = {
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   ENCRYPTION_KEY: 'b'.repeat(64),
   INTERNAL_API_SECRET: 'c'.repeat(32),
+  REDIS_URL: 'redis://localhost:6379',
 }
 
 describe('setup status', () => {
@@ -57,5 +58,18 @@ describe('setup status', () => {
     expect(output).toContain('Spotify OAuth client: partial')
     expect(output).toContain('SPOTIFY_CLIENT_SECRET')
     expect(output).not.toContain('partial-client-value')
+  })
+  it.each([
+    ['missing', { REDIS_URL: '' }, { reason: 'missing' }],
+    [
+      'not a Redis URL',
+      { REDIS_URL: 'http://localhost:6379' },
+      { detail: expect.stringContaining('must be a valid redis://') },
+    ],
+  ])('fails when Redis is %s', (_, overrides, issue) => {
+    const report = buildSetupStatusReport(source({ ...CORE_VALUES, ...overrides }))
+
+    expect(report.failed).toBe(true)
+    expect(report.coreIssues).toEqual([expect.objectContaining({ key: 'REDIS_URL', ...issue })])
   })
 })

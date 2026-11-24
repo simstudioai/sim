@@ -10,7 +10,6 @@ import { PublicFileEmailAuth } from '@/app/f/[token]/public-file-email-auth'
 import { PublicFileSSOAuth } from '@/app/f/[token]/public-file-sso-auth'
 import { PublicFileView } from '@/app/f/[token]/public-file-view'
 import { buildProvenance } from '@/app/f/[token]/utils'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,12 +44,11 @@ export async function generateMetadata({ params }: PublicFilePageProps): Promise
       `Shared file · ${title}`
   }
 
-  const brand = getBrandConfig()
   return {
     title,
     description,
     robots: NOINDEX,
-    openGraph: { type: 'website', title, description, siteName: brand.name },
+    openGraph: { type: 'website', title, description, siteName: 'Sim' },
     twitter: { card: 'summary_large_image', title, description },
   }
 }

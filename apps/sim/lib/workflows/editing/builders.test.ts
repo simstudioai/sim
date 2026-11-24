@@ -16,6 +16,7 @@ import {
   resolveBlockRetryUpdate,
 } from '@/lib/workflows/editing/builders'
 import type { SkippedItem } from '@/lib/workflows/editing/types'
+import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { TailscaleBlock } from '@/blocks/blocks/tailscale'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
@@ -45,9 +46,9 @@ const agentBlockConfig = {
   name: 'Agent',
   outputs: {
     content: { type: 'string', description: 'Default content output' },
-    interactionId: {
-      type: 'string',
-      condition: { field: 'model', value: ['deep-research-pro-preview-12-2025'] },
+    answers: {
+      type: 'json',
+      condition: { field: 'model', value: ['jev-latest'] },
     },
   },
   subBlocks: [
@@ -152,6 +153,24 @@ const blocksByType: Record<string, unknown> = {
 }
 
 describe('createBlockFromParams', () => {
+  it("leaves the schedule timezone unset rather than seeding the server's own", () => {
+    mockGetBlock.mockImplementation((type: string) =>
+      type === 'schedule' ? ScheduleBlock : blocksByType[type]
+    )
+    try {
+      const block = createBlockFromParams('schedule-1', {
+        type: 'schedule',
+        name: 'Daily',
+        triggerMode: true,
+        inputs: { scheduleType: 'daily', dailyTime: '09:00' },
+      })
+      expect(block.subBlocks.timezone).toBeDefined()
+      expect(block.subBlocks.timezone?.value ?? null).toBeNull()
+    } finally {
+      mockGetBlock.mockImplementation((type: string) => blocksByType[type])
+    }
+  })
+
   it.each([
     [{}, true],
     [{ authorized: false }, false],
@@ -230,16 +249,16 @@ describe('createBlockFromParams', () => {
 
   it('exposes the output ports of the seeded Agent default', () => {
     const block = createBlockFromParams(
-      'agent-research-default',
+      'agent-evaluation-default',
       { type: 'agent', name: 'Agent' },
       undefined,
       undefined,
       {
         ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        defaultAgentModel: 'deep-research-pro-preview-12-2025',
+        defaultAgentModel: 'jev-latest',
       }
     )
-    expect(block.outputs.interactionId).toEqual({ type: 'string' })
+    expect(block.outputs.answers).toEqual({ type: 'json' })
   })
   it('uses the group Agent default when creating an Agent without an explicit model', () => {
     const config = { ...DEFAULT_PERMISSION_GROUP_CONFIG, defaultAgentModel: 'gpt-4o' }
@@ -352,6 +371,31 @@ describe('createBlockFromParams', () => {
     const parsed = JSON.parse(block.subBlocks.conditions.value)
     expect(parsed[0].id).toBe('condition-1-if')
     expect(parsed[1].id).toBe('condition-1-else')
+  })
+
+  it('keeps each row key when it renumbers condition and router branch ids', () => {
+    const condition = createBlockFromParams('cond-1', {
+      type: 'condition',
+      name: 'Condition 1',
+      inputs: {
+        conditions: JSON.stringify([
+          { id: 'x', title: 'if', value: 'a', key: 'isVip' },
+          { id: 'y', title: 'else if', value: 'b', key: 'isTrial' },
+          { id: 'z', title: 'else', value: '' },
+        ]),
+      },
+      triggerMode: false,
+    })
+    expect(
+      JSON.parse(condition.subBlocks.conditions.value).map((row: { id: string; key?: string }) => [
+        row.id,
+        row.key,
+      ])
+    ).toEqual([
+      ['cond-1-if', 'isVip'],
+      ['cond-1-else-if-0', 'isTrial'],
+      ['cond-1-else', undefined],
+    ])
   })
 
   it('persists knowledge tag subblocks as JSON strings, not raw arrays', () => {

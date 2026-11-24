@@ -7,8 +7,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   const worker = {
     requests: [] as Array<Record<string, unknown>>,
@@ -34,17 +33,14 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
     COPILOT_STREAM_EVENT_LIMIT: process.env.COPILOT_STREAM_EVENT_LIMIT,
   }
-  process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
   /** A ring this small loses the head of every stream below. */
   process.env.COPILOT_STREAM_EVENT_LIMIT = '5'
-  return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
+  return { inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
@@ -59,7 +55,7 @@ import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import { allocateCursor, appendEvents } from '@/lib/mothership/request/session/buffer'
 import { createEvent } from '@/lib/mothership/request/session/event'
-import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
+import { GET as streamGET } from '@/app/api/mothership/chat/stream/route'
 
 const userId = generateId()
 const workspaceId = generateId()
@@ -117,7 +113,7 @@ async function liveRunWithTrimmedRing(): Promise<{ streamId: string; runId: stri
 function reconnect(streamId: string, after: string, batch = false, extra = '') {
   return streamGET(
     new NextRequest(
-      `http://localhost:3000/api/copilot/chat/stream?streamId=${streamId}&after=${after}${batch ? '&batch=true' : ''}${extra}`
+      `http://localhost:3000/api/mothership/chat/stream?streamId=${streamId}&after=${after}${batch ? '&batch=true' : ''}${extra}`
     ),
     { params: Promise.resolve({}) }
   )
@@ -144,7 +140,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
+describe('reconnects past the replay ring', () => {
   beforeAll(async () => {
     const now = new Date()
     await db.insert(user).values({
@@ -214,7 +210,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
 
   it('re-syncs a cursor ahead of a ring whose numbering restarted', async () => {
     const { streamId } = await liveRunWithTrimmedRing()
-    await getRedisClient()!.del(
+    await getRedisClient().del(
       `mothership_stream:${streamId}:events`,
       `mothership_stream:${streamId}:seq`
     )
@@ -285,7 +281,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     const body = response.text()
     // Let the tail reach its poll loop, past the reconnect-time gap check.
     await sleep(500)
-    await getRedisClient()!.del(
+    await getRedisClient().del(
       `mothership_stream:${streamId}:events`,
       `mothership_stream:${streamId}:seq`
     )

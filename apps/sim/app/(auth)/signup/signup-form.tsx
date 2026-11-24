@@ -9,8 +9,7 @@ import { trackGoogleEvent } from '@/lib/analytics/google'
 import { client, useSession } from '@/lib/auth/client'
 import { DISPOSABLE_EMAIL_ERROR_CODE, DISPOSABLE_EMAIL_MESSAGE } from '@/lib/auth/constants'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
-import { getEnv, isFalsy } from '@/lib/core/config/env'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { getEnv } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { captureEvent } from '@/lib/posthog/client'
@@ -95,9 +94,12 @@ interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
+  /** Whether `REGISTRATION_MODE` lets new accounts sign up with email/password or email OTP. */
   emailSignupEnabled: boolean
   /** Server-derived: verification is enabled AND a mail provider is configured. */
   emailVerificationEnabled: boolean
+  /** Whether SAML/OIDC single sign-on is enabled for this deployment. */
+  ssoEnabled: boolean
 }
 
 function SignupFormContent({
@@ -106,6 +108,7 @@ function SignupFormContent({
   microsoftAvailable,
   emailSignupEnabled,
   emailVerificationEnabled,
+  ssoEnabled,
 }: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -386,13 +389,10 @@ function SignupFormContent({
     }
   }
 
-  const ssoEnabled = isSsoEnabled
-  const emailEnabled =
-    !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
-  const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+  const hasOnlySSO = ssoEnabled && !emailSignupEnabled && !hasSocial
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
-  const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
+  const showDivider = (emailSignupEnabled || hasOnlySSO) && showBottomSection
 
   const nameFieldErrors = showNameValidationError && nameErrors.length > 0 ? nameErrors : []
   const emailHasError = Boolean(emailError) || (showEmailValidationError && emailErrors.length > 0)
@@ -409,7 +409,7 @@ function SignupFormContent({
     <div className='au:space-y-[var(--auth-group-gap)]'>
       <AuthHeader title='Create an account' description='Get started with Sim.' />
 
-      {!emailEnabled && !hasSocial && !ssoEnabled && (
+      {!emailSignupEnabled && !hasSocial && !ssoEnabled && (
         <AuthFormMessage type='error'>
           No sign-in methods are enabled. Contact your administrator for access.
         </AuthFormMessage>
@@ -419,7 +419,7 @@ function SignupFormContent({
         <SSOLoginButton callbackURL={redirectUrl || DEFAULT_POST_AUTH_ROUTE} variant='primary' />
       )}
 
-      {emailEnabled && (
+      {emailSignupEnabled && (
         <form onSubmit={onSubmit} className='au:space-y-[var(--auth-group-gap)]'>
           <div className='au:space-y-5'>
             <AuthField htmlFor='name' label='Full name' errors={nameFieldErrors}>
@@ -517,6 +517,7 @@ export default function SignupPage({
   microsoftAvailable,
   emailSignupEnabled,
   emailVerificationEnabled,
+  ssoEnabled,
 }: SignupFormProps) {
   return (
     <Suspense fallback={<SignupLoading />}>
@@ -526,6 +527,7 @@ export default function SignupPage({
         microsoftAvailable={microsoftAvailable}
         emailSignupEnabled={emailSignupEnabled}
         emailVerificationEnabled={emailVerificationEnabled}
+        ssoEnabled={ssoEnabled}
       />
     </Suspense>
   )

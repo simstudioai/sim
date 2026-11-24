@@ -1,5 +1,5 @@
 {
-  "id": "c9e30b2b-d28f-4822-8a7b-d67c9fabd8ba",
+  "id": "0de1ee0b-d6ef-4887-aab6-d0fbdce6e922",
   "prevId": "c9d94573-ec90-44ce-9f13-30f3242d0f09",
   "version": "7",
   "dialect": "postgresql",
@@ -12503,17 +12503,17 @@
         }
       },
       "indexes": {
-        "kcpii_subject_idx": {
-          "name": "kcpii_subject_idx",
+        "kcpii_subject_import_idx": {
+          "name": "kcpii_subject_import_idx",
           "columns": [
             {
-              "expression": "import_id",
+              "expression": "subject_token",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "subject_token",
+              "expression": "import_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -26688,201 +26688,6 @@
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workflow_build_notes": {
-      "name": "workflow_build_notes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workflow_id": {
-          "name": "workflow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes_file_id": {
-          "name": "notes_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "baseline_file_id": {
-          "name": "baseline_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_notes_hash": {
-          "name": "evaluated_notes_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_operations_hash": {
-          "name": "evaluated_operations_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "baseline_workflow_updated_at": {
-          "name": "baseline_workflow_updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "workflow_build_notes_workflow_unique": {
-          "name": "workflow_build_notes_workflow_unique",
-          "columns": [
-            {
-              "expression": "workflow_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workflow_build_notes\".\"deleted_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_build_notes_notes_file_unique": {
-          "name": "workflow_build_notes_notes_file_unique",
-          "columns": [
-            {
-              "expression": "notes_file_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_build_notes_baseline_file_unique": {
-          "name": "workflow_build_notes_baseline_file_unique",
-          "columns": [
-            {
-              "expression": "baseline_file_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_build_notes_workspace_idx": {
-          "name": "workflow_build_notes_workspace_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workflow_build_notes_workspace_id_workspace_id_fk": {
-          "name": "workflow_build_notes_workspace_id_workspace_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_workflow_id_workflow_id_fk": {
-          "name": "workflow_build_notes_workflow_id_workflow_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_notes_file_id_workspace_files_id_fk": {
-          "name": "workflow_build_notes_notes_file_id_workspace_files_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workspace_files",
-          "columnsFrom": ["notes_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_baseline_file_id_workspace_files_id_fk": {
-          "name": "workflow_build_notes_baseline_file_id_workspace_files_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workspace_files",
-          "columnsFrom": ["baseline_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_created_by_user_id_user_id_fk": {
-          "name": "workflow_build_notes_created_by_user_id_user_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "user",
-          "columnsFrom": ["created_by_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

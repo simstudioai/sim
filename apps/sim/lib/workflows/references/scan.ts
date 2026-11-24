@@ -1,8 +1,8 @@
+import type { CanonicalModeOverrides } from '@sim/workflow-code/catalog/canonical-index'
 import {
   type ForkRemapKind,
   scanWorkflowReferences,
 } from '@/lib/workflows/references/remap-references'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** A block reduced to what the reference scanner reads (incl. canonical context for detection). */

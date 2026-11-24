@@ -71,7 +71,7 @@ const ATTRIBUTION = {
   payerSubscription: null,
 }
 
-const ACCOUNT_SUBSCRIPTION = { id: 'account-subscription' }
+const ACCOUNT_SUBSCRIPTION = { id: 'account-subscription', plan: 'pro_6000', status: 'active' }
 const ACCOUNT_BILLING_DECISION = {
   userId: 'user-1',
   billingEntity: { type: 'organization' as const, id: 'account-org' },
@@ -431,7 +431,7 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
   })
 
-  it('admits a direct-v1 key without Redis while ignoring a local workspace ID', async () => {
+  it('admits a direct-v1 key against the account payer, ignoring the workspace ID it sends', async () => {
     mockSerializeAccountBillingDecisionHeader.mockImplementation((decision: object) =>
       encodeURIComponent(JSON.stringify(decision))
     )
@@ -463,7 +463,11 @@ describe('POST /api/copilot/api-keys/validate billing protocols', () => {
     expect(mockGetWorkspaceBillingSettings).not.toHaveBeenCalled()
     expect(
       JSON.parse(decodeURIComponent(res.headers.get('x-sim-billing-account-decision') ?? ''))
-    ).toEqual({ ...ACCOUNT_BILLING_DECISION, payerSubscriptionId: ACCOUNT_SUBSCRIPTION.id })
+    ).toEqual({
+      ...ACCOUNT_BILLING_DECISION,
+      payerSubscriptionId: ACCOUNT_SUBSCRIPTION.id,
+      payerBillsOverage: true,
+    })
   })
 
   it('fails direct-v1 admission closed when its payer cannot be resolved', async () => {

@@ -79,34 +79,26 @@ export function publishToolConfirmation(event: AsyncCompletionEnvelope): void {
     toolCallId: event.toolCallId,
     status: event.status,
   })
-  const redis = getRedisClient()
-  if (redis) {
-    void redis
-      .set(
-        toolConfirmationKey(event.toolCallId),
-        JSON.stringify(event),
-        'EX',
-        TOOL_CONFIRMATION_TTL_SECONDS
-      )
-      .then(() => {
-        logger.info('Persisted tool confirmation in Redis', {
-          toolCallId: event.toolCallId,
-          status: event.status,
-          redisKey: toolConfirmationKey(event.toolCallId),
-        })
+  void getRedisClient()
+    .set(
+      toolConfirmationKey(event.toolCallId),
+      JSON.stringify(event),
+      'EX',
+      TOOL_CONFIRMATION_TTL_SECONDS
+    )
+    .then(() => {
+      logger.info('Persisted tool confirmation in Redis', {
+        toolCallId: event.toolCallId,
+        status: event.status,
+        redisKey: toolConfirmationKey(event.toolCallId),
       })
-      .catch((error) => {
-        logger.warn('Failed to persist tool confirmation in Redis', {
-          toolCallId: event.toolCallId,
-          error: toError(error).message,
-        })
-      })
-  } else {
-    logger.warn('Redis unavailable while publishing tool confirmation', {
-      toolCallId: event.toolCallId,
-      status: event.status,
     })
-  }
+    .catch((error) => {
+      logger.warn('Failed to persist tool confirmation in Redis', {
+        toolCallId: event.toolCallId,
+        error: toError(error).message,
+      })
+    })
   toolConfirmationChannel.publish(event)
 }
 
@@ -136,11 +128,13 @@ export async function waitForToolConfirmation(
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let pollId: ReturnType<typeof setTimeout> | null = null
     let unsubscribe: (() => void) | null = null
+    let releaseReadyWait: (() => void) | null = null
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId)
       if (pollId) clearTimeout(pollId)
       if (unsubscribe) unsubscribe()
+      if (releaseReadyWait) releaseReadyWait()
       abortSignal?.removeEventListener('abort', onAbort)
     }
 
@@ -216,6 +210,16 @@ export async function waitForToolConfirmation(
     }
     abortSignal?.addEventListener('abort', onAbort, { once: true })
 
+    // A publisher commits the row before it publishes. When this process is not subscribed yet, a
+    // signal sent before the subscription lands reaches no handler, so the row is read once more
+    // when it does.
+    const subscribedBeforeFirstRead = toolConfirmationChannel.isReady()
     void checkDurableConfirmation('subscribe').then(scheduleDurablePoll)
+    if (!subscribedBeforeFirstRead && !settled) {
+      releaseReadyWait = toolConfirmationChannel.onReady(() => {
+        releaseReadyWait = null
+        if (!settled) void checkDurableConfirmation('subscribe')
+      })
+    }
   })
 }

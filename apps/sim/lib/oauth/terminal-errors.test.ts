@@ -1,5 +1,5 @@
 import { redisConfigMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   clearOAuthRefreshDeadFlag,
   getOAuthRefreshCoordinationIdentity,
@@ -33,10 +33,6 @@ function createFakeRedis(): FakeRedis {
     del: vi.fn(async (key: string) => (store.delete(key) ? 1 : 0)),
   }
 }
-
-beforeEach(() => {
-  redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-})
 
 describe('isTerminalRefreshError', () => {
   it('treats a revoked refresh token as terminal but not a transient failure', () => {
@@ -107,12 +103,6 @@ describe('markCredentialDead / getRecentTerminalError / clearDeadFlag', () => {
       expect(identity).not.toContain(scopeKey)
     }
   )
-
-  it('all functions are no-ops when Redis is unavailable', async () => {
-    await expect(markCredentialDead('acc-1', 'code')).resolves.toBeUndefined()
-    await expect(getRecentTerminalError('acc-1')).resolves.toBeNull()
-    await expect(clearDeadFlag('acc-1')).resolves.toBeUndefined()
-  })
 
   it('absorbs Redis errors without throwing', async () => {
     const redis = createFakeRedis()

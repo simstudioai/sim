@@ -518,3 +518,10 @@ export function generateUniqueTableName(existingNames: string[]): string {
   const suffix = randomInt(100, 1000)
   return `${adj.toLowerCase()}_${noun.toLowerCase()}_${suffix}`
 }
+
+/**
+ * Every table not-found answer, a table that does not exist and one the caller may not reach
+ * alike: a name is guessable where an id is not, so the two must read the same.
+ */
+export const TABLE_NOT_FOUND_MESSAGE =
+  'Table not found in this workspace, by id or by name. It may not exist or may belong to a different workspace; list the tables in this workspace to see the ids and names you can use here.'

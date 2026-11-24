@@ -216,6 +216,25 @@ export function splitMarkdownBlocks(body: string): string[] {
   return blocks
 }
 
+/** Detect clipboard formatting with the same grammar and bounded blocks used to open files. */
+export function hasMarkdownFormatting(body: string): boolean {
+  const markdown = markdownManager().instance
+  const normalized = body.replace(/\r\n?/g, '\n')
+  const blocks = NON_CHUNKABLE.test(normalized) ? [normalized] : splitMarkdownBlocks(normalized)
+  for (const block of blocks) {
+    let formatted = false
+    markdown.walkTokens(markdown.lexer(block), (token) => {
+      // Native paste can add autolinks separately, retaining the text if formatting exceeds its budget.
+      if (token.type === 'link' && token.raw === token.text) return
+      // Bare HTML can be ordinary text such as List<Code>; explicit Markdown bypasses detection.
+      if (token.type === 'html') return
+      if (!['paragraph', 'text', 'space', 'escape', 'def'].includes(token.type)) formatted = true
+    })
+    if (formatted) return true
+  }
+  return false
+}
+
 /**
  * Parse a markdown body into a ProseMirror doc by splitting it into top-level blocks and parsing each
  * independently, then assembling the results.

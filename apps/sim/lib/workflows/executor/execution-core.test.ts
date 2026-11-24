@@ -15,6 +15,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { executionSignalMockFns } from '@sim/testing/mocks/execution-signal.mock'
 import {
   largeValueMetadataMock,
   largeValueMetadataMockFns,
@@ -108,13 +109,7 @@ vi.mock('@/lib/execution/cancellation', () => ({
   clearExecutionCancellation: clearExecutionCancellationMock,
 }))
 
-const { connectExecutionSignalHubMock } = vi.hoisted(() => ({
-  connectExecutionSignalHubMock: vi.fn(),
-}))
-
-vi.mock('@/lib/execution/signal', () => ({
-  connectExecutionSignalHub: connectExecutionSignalHubMock,
-}))
+const connectExecutionSignalHubMock = executionSignalMockFns.mockConnectExecutionSignalHub
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -1087,7 +1082,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         expect(result.success).toBe(true)
         expect(executorExecuteMock).toHaveBeenCalledOnce()
         expect(downloadFileMock).toHaveBeenCalledWith(
-          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: 64 * 1024 * 1024 })
+          expect.objectContaining({ key: manifest.chunks[0].ref.key, maxBytes: sourceBytes.length })
         )
         expect(uploadFileMock).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -1101,6 +1096,37 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
           })
       }
     )
+
+    it('logs the redacted input of a run that fails after its input stage, before it runs', async () => {
+      const state = createRestoredState(createManifest())
+      state.blockStates = {
+        previous: {
+          output: { result: 'restored alice@example.com' },
+          executed: true,
+          executionTime: 0,
+        },
+      }
+      maskBatchMock
+        .mockImplementationOnce(async (texts: string[]) => ({
+          masked: texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>')),
+          scrubbedCount: 0,
+        }))
+        .mockRejectedValue(new Error('PII service unavailable'))
+
+      await expect(
+        executeWorkflowCore({
+          snapshot: createPiiSnapshot(state, { email: 'alice@example.com' }),
+          callbacks: {},
+          loggingSession: loggingSession as unknown as LoggingSession,
+        })
+      ).rejects.toThrow()
+
+      expect(executorExecuteMock).not.toHaveBeenCalled()
+      expect(safeCompleteWithErrorMock).toHaveBeenCalledOnce()
+      expect(safeCompleteWithErrorMock.mock.calls[0]?.[0]?.workflowInput).toEqual({
+        email: '<EMAIL_ADDRESS>',
+      })
+    })
 
     it.each([
       ['another workspace', 'workspace-2', 'workflow-1', 'source-execution'],
@@ -1516,6 +1542,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       expect.objectContaining({
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        workflowInput: { hello: 'world' },
         executionState,
       })
     )
@@ -1554,6 +1581,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
         error: { message: 'Execution timed out' },
         totalDurationMs: 123,
         traceSpans: [{ id: 'span-1' }],
+        workflowInput: { hello: 'world' },
         executionState,
       })
     )
@@ -1854,7 +1882,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
     expect(safeCompleteWithErrorMock).toHaveBeenCalledWith(
-      expect.objectContaining({ executionState })
+      expect.objectContaining({ executionState, workflowInput: { hello: 'world' } })
     )
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
     expect(wasExecutionFinalizedByCore(error, 'execution-1')).toBe(true)
@@ -1991,6 +2019,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       })
     )
     expect(safeCompleteWithErrorMock).toHaveBeenCalledTimes(1)
+    expect(safeCompleteWithErrorMock.mock.calls[0]?.[0]?.workflowInput).toBeUndefined()
     expect(wasExecutionFinalizedByCore(envError, 'execution-1')).toBe(true)
   })
 

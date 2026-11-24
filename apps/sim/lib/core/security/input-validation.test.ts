@@ -227,37 +227,6 @@ describe('validateDatabaseHost', () => {
     })
   })
 
-  describe('deprecated ALLOW_PRIVATE_DATABASE_HOSTS alias', () => {
-    afterEach(() => {
-      envFlagsMock.legacyPrivateDatabaseAccess = false
-    })
-
-    it.each([
-      ['localhost', 'loopback by name'],
-      ['100.64.0.1', 'CGNAT, where a Tailscale host lives'],
-    ])('keeps %s reachable for a deployment still on the old flag — %s', async (host) => {
-      envFlagsMock.legacyPrivateDatabaseAccess = true
-      expect((await validateDatabaseHost(host)).isValid).toBe(true)
-    })
-
-    it('still cannot reach cloud metadata through the alias', async () => {
-      envFlagsMock.legacyPrivateDatabaseAccess = true
-      const result = await validateDatabaseHost('169.254.169.254')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('cloud metadata endpoint')
-    })
-
-    it('does not widen HTTP destinations, which the flag never governed', async () => {
-      envFlagsMock.legacyPrivateDatabaseAccess = true
-      expect(
-        (await validateUrlWithDNS('https://10.0.0.5/api', 'url', 'requestTarget')).isValid
-      ).toBe(false)
-      expect(
-        (await validateUrlWithDNS('https://10.0.0.5/api', 'url', 'configuredEndpoint')).isValid
-      ).toBe(false)
-    })
-  })
-
   describe('self-host opt-in (EGRESS_ALLOWED_HOSTS / EGRESS_ALLOWED_IP_RANGES)', () => {
     beforeEach(() => {
       envFlagsMock.egressAllowedHosts = 'localhost'

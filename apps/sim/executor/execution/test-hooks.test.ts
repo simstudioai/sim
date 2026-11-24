@@ -1,5 +1,6 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createSerializedBlock, createSerializedWorkflow } from '@sim/testing'
+import { isolatedVmMock } from '@sim/testing/mocks/isolated-vm.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockChannel,
@@ -16,6 +17,8 @@ const { executed, inputsSeen } = vi.hoisted(() => ({
   executed: [] as string[],
   inputsSeen: [] as Array<{ blockId: string; inputs: Record<string, unknown> }>,
 }))
+
+vi.mock('@/lib/execution/isolated-vm', () => isolatedVmMock)
 
 vi.mock('@/executor/handlers/registry', () => ({
   createBlockHandlers: () => [

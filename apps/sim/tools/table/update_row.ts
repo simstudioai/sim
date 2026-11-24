@@ -2,10 +2,14 @@ import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-se
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { tableSuccess } from '@/tools/table/response'
-import type { TableRowResponse, TableRowUpdateParams } from '@/tools/table/types'
+import {
+  IGNORED_COLUMNS_OUTPUT,
+  type TableRowUpdateParams,
+  type TableRowWriteResponse,
+} from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
-export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableRowResponse> = {
+export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableRowWriteResponse> = {
   id: 'table_update_row',
   name: 'Update Row',
   description:
@@ -54,19 +58,21 @@ export const tableUpdateRowTool: InternalToolConfig<TableRowUpdateParams, TableR
     },
   },
 
-  transformResponse: async (response): Promise<TableRowResponse> => {
+  transformResponse: async (response): Promise<TableRowWriteResponse> => {
     const result = await response.json()
     const data = result.data || result
 
     return tableSuccess({
       row: data.row,
       message: data.message || 'Row updated successfully',
+      ignoredColumns: data.ignoredColumns ?? [],
     })
   },
 
   outputs: {
     success: { type: 'boolean', description: 'Whether row was updated' },
     row: { type: 'json', description: 'Updated row data' },
+    ignoredColumns: IGNORED_COLUMNS_OUTPUT,
     message: { type: 'string', description: 'Status message' },
   },
 }

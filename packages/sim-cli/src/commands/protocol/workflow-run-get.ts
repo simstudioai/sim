@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Command } from 'commander'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { V2_OPERATIONS } from '../../generated/v2-api'
@@ -19,24 +20,9 @@ import type { OperationSpec } from '../../runtime/types'
  * The same test the run resource applies (`isValidUuid`) before deciding a
  * selector head is a name it cannot resolve.
  */
-const BLOCK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const BLOCK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const SELECT_OUTPUT_FLAG = 'select-output'
-
-/**
- * A block name as the executor compares one: lowercased, whitespace and dots
- * removed.
- *
- * `normalizeWorkflowBlockName` in `@sim/workflow-types`, restated. It is the
- * rule `workflows run --select-output` resolves names with server-side and the
- * one every block-name conflict check applies, so `Summarize Result` and
- * `summarizeresult` name the same block on both commands. Restated rather than
- * imported because this package ships standalone and carries no workspace
- * dependency.
- */
-function normalizeBlockName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '').replace(/\./g, '')
-}
 
 interface WorkflowBlock {
   id: string
@@ -105,9 +91,9 @@ function resolveSelection(
     const { head, path } = splitSelector(selector)
     let blockId = head
     if (!BLOCK_ID.test(head)) {
-      const wanted = normalizeBlockName(head)
+      const wanted = normalizeWorkflowBlockName(head)
       const matches = blocks.filter(
-        (block) => block.id === head || normalizeBlockName(block.name) === wanted
+        (block) => block.id === head || normalizeWorkflowBlockName(block.name) === wanted
       )
       if (matches.length === 0) {
         unresolved.push(selector)

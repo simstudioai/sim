@@ -1,4 +1,4 @@
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import type { BlockConfig } from '@/blocks/types'
 import type { ToolMetadata } from '@/tools/metadata'
 import { prepareToolRequestUrl } from '@/tools/request-transport'

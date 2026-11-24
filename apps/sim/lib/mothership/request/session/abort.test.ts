@@ -237,10 +237,6 @@ describe('startAbortPoller heartbeat', () => {
 })
 
 describe('getChatStreamLockOwners', () => {
-  beforeEach(() => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-  })
-
   it('returns a verified empty owner map when no chat ids are provided', async () => {
     const result = await getChatStreamLockOwners([])
     expect(result.status).toBe('verified')
@@ -279,7 +275,8 @@ describe('getChatStreamLockOwners', () => {
 
   it('trusts verified Redis null over a process-local pending stream', async () => {
     const mget = vi.fn().mockResolvedValue([null])
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget } as never)
+    const get = vi.fn().mockResolvedValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget, get } as never)
     await acquirePendingChatStream('chat-local', 'stream-local')
 
     try {
@@ -292,16 +289,10 @@ describe('getChatStreamLockOwners', () => {
     }
   })
 
-  it('returns unknown status when Redis is unavailable', async () => {
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
-
-    const result = await getChatStreamLockOwners(['chat-1', 'chat-2'])
-
-    expect(result.status).toBe('unknown')
-    expect(result.ownersByChatId.size).toBe(0)
-  })
-
-  it('preserves local pending stream owners when Redis is unavailable', async () => {
+  it('preserves local pending stream owners when mget rejects', async () => {
+    const mget = vi.fn().mockRejectedValue(new Error('redis down'))
+    const get = vi.fn().mockResolvedValue(null)
+    redisConfigMockFns.mockGetRedisClient.mockReturnValue({ mget, get } as never)
     await acquirePendingChatStream('chat-local', 'stream-local')
 
     try {

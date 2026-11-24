@@ -4,10 +4,8 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamActivityReceipt, ToolActivity } from '@/lib/mothership/generated/protocol'
-import type { RequestTraceV1Span } from '@/lib/mothership/generated/request-trace-v1'
-import type { ProviderToolCallIdentity } from '@/lib/mothership/request/go/tool-call-identity'
 import type { StreamEvent } from '@/lib/mothership/request/session'
-import type { TraceCollector } from '@/lib/mothership/request/trace'
+import type { ProviderToolCallIdentity } from '@/lib/mothership/request/worker/tool-call-identity'
 import type {
   ToolExecutionContext,
   ToolExecutionResult,
@@ -152,30 +150,11 @@ export interface ActiveFileIntent {
   edit?: Record<string, unknown>
 }
 
-// One paused subagent frame in an async continuation. Mirrors the wire
-// MothershipStreamV1CheckpointPauseFrame the run handler maps from, but is the
-// internal shape the resume driver consumes (named once here so the lifecycle
-// driver and handlers reference the same type instead of re-declaring it inline).
-export interface ResumeFrame {
-  parentToolCallId: string
-  parentToolName: string
-  pendingToolIds: string[]
-  // Per-subagent checkpoint model: this frame's OWN checkpoint chain. When set,
-  // the resume loop must POST /api/tools/resume with THIS id (not the top-level
-  // checkpointId) carrying only this frame's leaf results, and may drive the N
-  // frames concurrently. Empty under the bundled-frame model.
-  checkpointId?: string
-}
-
-// The async-continuation state captured from a checkpoint_pause: what the resume
-// loop needs to drive the next /resume (the bundled top-level id + pending tools,
-// or per-subagent frames each carrying their own checkpointId).
-export interface ResumeContinuation {
+interface ResumeContinuation {
   checkpointId: string
   executionId?: string
   runId?: string
   pendingToolCallIds: string[]
-  frames?: ResumeFrame[]
 }
 
 export interface StreamingContext {
@@ -190,7 +169,7 @@ export interface StreamingContext {
   desktopDeviceId?: string | null
   messageId: string
   /**
-   * Shared by all live resume legs. Reconnects replay events without resuming Go; any future
+   * Shared by all live resume legs. Reconnects replay events without resuming the worker; any future
    * durable lifecycle takeover must persist and restore this map alongside its checkpoints.
    * Absent on legacy contexts, whose tool IDs retain their original meaning.
    */
@@ -244,8 +223,6 @@ export interface StreamingContext {
   activeFileIntents: Map<string, ActiveFileIntent>
   /** File preview content this turn has streamed; one object shared by every leg. */
   filePreviewBudget: { contentBytes: number }
-  trace: TraceCollector
-  subAgentTraceSpans?: Map<string, RequestTraceV1Span>
   /**
    * Per-request state for the tool permission gate. `autoAllowed` starts from
    * the user's saved always-allow list and is added to in place when they pick

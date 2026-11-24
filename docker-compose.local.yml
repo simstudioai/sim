@@ -70,6 +70,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     restart: unless-stopped
     ports:
       - '3002:3002'
@@ -101,9 +103,10 @@ services:
     command: ['bun', 'run', 'db:migrate']
     restart: 'no'
 
-  # Backs pub/sub (live Chat task-status and table events) and the shared caches.
-  # The app falls back to PostgreSQL for storage when REDIS_URL is unset, but the
-  # pub/sub channels have no fallback — without Redis, live status never streams.
+  # Required: rate limiting, OTPs, pub/sub (live Chat task-status and table
+  # events), realtime coordination, and the shared caches all live here, and the
+  # app and realtime refuse to start without REDIS_URL. Set REDIS_URL in .env to
+  # use a managed Redis instead.
   # Not published to the host: only the app and realtime containers need it, and
   # binding 6379 would collide with a Redis already running locally.
   redis:

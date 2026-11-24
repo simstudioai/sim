@@ -11,6 +11,7 @@ export {
 } from './deploy'
 export {
   deleteWorkflowRecord,
+  isWorkflowNameUniqueViolation,
   type PerformCreateWorkflowParams,
   type PerformCreateWorkflowResult,
   performCreateWorkflow,
@@ -18,4 +19,5 @@ export {
   performDeleteWorkflow,
   performRestoreWorkflow,
   updateWorkflowRecord,
+  workflowNameExistsInFolder,
 } from './workflow-lifecycle'

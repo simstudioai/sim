@@ -60,7 +60,6 @@ import {
   getSourceOrganization,
   type InboundSourceOrgCustomBlock,
   resolveMoveEntitlements,
-  willBrandingChange,
 } from '@/lib/workspaces/admin-move-source-impact'
 import {
   mergeInvitationMembershipIntent,
@@ -196,8 +195,6 @@ export interface WorkspaceMoveSourceImpact {
     email: string
     sourceOrgLimitDollars: number | null
   }>
-  /** The workspace visibly re-skins when the two orgs' whitelabel settings differ. */
-  brandingChanges: boolean
   /** Rows omitted to stay inside the contract's array bounds, or `null`. */
   truncated: {
     customBlocks: number
@@ -509,7 +506,6 @@ function buildAppliedSourceImpact(params: {
     blockingForkEdges: [],
     strippedRetentionRules: { piiRedactionRules: 0, retentionOverrides: 0 },
     retainedCollaboratorCaps: [],
-    brandingChanges: false,
     truncated: Object.values(truncated).some((dropped) => dropped > 0) ? truncated : null,
   }
 }
@@ -719,7 +715,7 @@ export async function getWorkspaceMovePreflight(
       resolveMoveEntitlements(sourceOrganizationId, destinationOrganizationId),
       collectWorkspaceCredentialSummary(workspaceId, sourceOrganizationId),
       findCrossOrgForkEdges(workspaceId, destinationOrganizationId),
-      collectSourceOrganizationImpact(workspaceId, sourceOrganizationId, destinationOrganizationId),
+      collectSourceOrganizationImpact(workspaceId, sourceOrganizationId),
     ])
 
   const boundedForkEdges = boundList(forkEdges, PREFLIGHT_LIST_LIMITS.forkEdges)
@@ -879,11 +875,6 @@ function buildMoveNotices(params: {
       `${cappedCollaborators} retained collaborator${cappedCollaborators === 1 ? '' : 's'} had a per-member usage cap in ${params.sourceOrganization.name} that will no longer apply. Re-apply it in ${params.destinationOrganization.name} if it should continue.`
     )
   }
-  if (params.sourceImpact.brandingChanges) {
-    notices.push(
-      `The workspace will re-skin to ${params.destinationOrganization.name}'s branding immediately.`
-    )
-  }
   return notices
 }
 
@@ -922,8 +913,7 @@ function formatList(items: string[]): string {
  */
 async function collectSourceOrganizationImpact(
   workspaceId: string,
-  sourceOrganizationId: string | null,
-  destinationOrganizationId: string
+  sourceOrganizationId: string | null
 ): Promise<Omit<WorkspaceMoveSourceImpact, 'blockingForkEdges'>> {
   if (!sourceOrganizationId) {
     return {
@@ -932,30 +922,22 @@ async function collectSourceOrganizationImpact(
       detachedPermissionGroups: [],
       strippedRetentionRules: { piiRedactionRules: 0, retentionOverrides: 0 },
       retainedCollaboratorCaps: [],
-      brandingChanges: false,
       truncated: null,
     }
   }
 
-  const [
-    customBlocks,
-    inboundCustomBlocks,
-    permissionGroups,
-    retentionSettings,
-    collaboratorCaps,
-    brandingChanges,
-  ] = await Promise.all([
-    findUnpublishableCustomBlocks(workspaceId, sourceOrganizationId),
-    findInboundSourceOrgCustomBlockUsage(workspaceId, sourceOrganizationId),
-    findAttachedPermissionGroups(workspaceId),
-    db
-      .select({ dataRetentionSettings: organization.dataRetentionSettings })
-      .from(organization)
-      .where(eq(organization.id, sourceOrganizationId))
-      .limit(1),
-    findRetainedCollaboratorCaps(workspaceId, sourceOrganizationId),
-    willBrandingChange(sourceOrganizationId, destinationOrganizationId),
-  ])
+  const [customBlocks, inboundCustomBlocks, permissionGroups, retentionSettings, collaboratorCaps] =
+    await Promise.all([
+      findUnpublishableCustomBlocks(workspaceId, sourceOrganizationId),
+      findInboundSourceOrgCustomBlockUsage(workspaceId, sourceOrganizationId),
+      findAttachedPermissionGroups(workspaceId),
+      db
+        .select({ dataRetentionSettings: organization.dataRetentionSettings })
+        .from(organization)
+        .where(eq(organization.id, sourceOrganizationId))
+        .limit(1),
+      findRetainedCollaboratorCaps(workspaceId, sourceOrganizationId),
+    ])
 
   const boundedBlocks = boundList(customBlocks.items, PREFLIGHT_LIST_LIMITS.customBlocks)
   /** Enrichment already capped the slice, so the gap comes from the true total. */
@@ -973,7 +955,6 @@ async function collectSourceOrganizationImpact(
       workspaceId
     ),
     retainedCollaboratorCaps: boundedCaps.items,
-    brandingChanges,
     truncated:
       droppedBlocks + boundedInbound.dropped + boundedGroups.dropped + boundedCaps.dropped > 0
         ? {

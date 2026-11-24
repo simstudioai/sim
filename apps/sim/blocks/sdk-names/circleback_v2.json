@@ -1,0 +1,35 @@
+{
+  "namespace": "circleback",
+  "methods": {
+    "add_tag_to_meetings": "addTagToMeetings",
+    "create_tag": "createTag",
+    "delete_action_item": "deleteActionItem",
+    "delete_meeting": "deleteMeeting",
+    "delete_tag": "deleteTag",
+    "get_company": "getCompany",
+    "get_meeting": "getMeeting",
+    "get_person": "getPerson",
+    "get_transcript": "getTranscript",
+    "list_action_items": "listActionItems",
+    "list_calendar_events": "listCalendarEvents",
+    "list_companies": "listCompanies",
+    "list_meetings": "listMeetings",
+    "list_people": "listPeople",
+    "list_tags": "listTags",
+    "remove_tag_from_meetings": "removeTagFromMeetings",
+    "search_meetings": "searchMeetings",
+    "update_action_item": "updateActionItem",
+    "update_meeting": "updateMeeting",
+    "update_tag": "updateTag"
+  },
+  "triggers": {
+    "circleback_meeting_completed": "meetingCompleted",
+    "circleback_meeting_notes": "meetingNotes",
+    "circleback_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

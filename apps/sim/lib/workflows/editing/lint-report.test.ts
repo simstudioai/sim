@@ -1,3 +1,5 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { Mock } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,6 +96,35 @@ describe('buildWorkflowLintReport notes', () => {
       await expect(buildWorkflowLintReport(graph, scope)).resolves.toMatchObject({ notes: [] })
     }
   )
+
+  it('a complete diagnostic whose reference and child workflow lookups both fail rejects once, leaving no rejection unhandled', async () => {
+    resetDbChainMock()
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      const call = block('call', 'workflow_input')
+      call.subBlocks = { workflowId: { id: 'workflowId', type: 'short-input', value: 'child-1' } }
+      mocks.collectUnresolvedReferences.mockRejectedValueOnce(new Error('lookup down'))
+      dbChainMockFns.where.mockImplementationOnce(() => {
+        throw new Error('child lookup down')
+      })
+
+      await expect(
+        buildWorkflowLintReport(
+          { blocks: { start: block('start', 'starter'), call }, edges: [edge('start', 'call')] },
+          scope,
+          { requireComplete: true }
+        )
+      ).rejects.toThrow('Workflow reference checks could not complete')
+      await flushMacrotask()
+
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+      resetDbChainMock()
+    }
+  })
 
   /**
    * `--blocks '{}' --edges '[]'` used to lint perfectly clean, so a dry run gave
@@ -283,6 +314,69 @@ describe('buildWorkflowLintReport table fields', () => {
         field: 'score',
         tableName: 'Leads',
       },
+    ])
+  })
+
+  it('reports row-write keys that name no column, judging only the literal keys', async () => {
+    const rowWrite = (id: string, values: Record<string, unknown>) =>
+      tableBlock(id, { manualTableId: 'tbl_leads', ...values })
+    const report = await buildWorkflowLintReport(
+      {
+        blocks: {
+          insert: rowWrite('insert', {
+            operation: 'insert_row',
+            data: '{"names": "<start.name>", "score": <start.score>, "<start.key>": 1, "name": "x"}',
+          }),
+          batch: rowWrite('batch', {
+            operation: 'batch_insert_rows',
+            rows: '[{"name": "a"}, {"email": "b"}]',
+          }),
+          dynamic: rowWrite('dynamic', { operation: 'insert_row', data: '<start.row>' }),
+          query: rowWrite('query', { operation: 'query_rows', data: '{"stale": 1}' }),
+        },
+        edges: [],
+      } as never,
+      { ...scope, subjectUserId: null }
+    )
+
+    expect(
+      report.tableFieldIssues.map(({ blockId, field, rowWrite, hint }) => ({
+        blockId,
+        field,
+        rowWrite,
+        hint,
+      }))
+    ).toEqual([
+      { blockId: 'insert', field: 'names', rowWrite: 'data', hint: 'Did you mean name?' },
+      {
+        blockId: 'insert',
+        field: 'score',
+        rowWrite: 'data',
+        hint: "The table's columns are name.",
+      },
+      { blockId: 'batch', field: 'email', rowWrite: 'rows', hint: "The table's columns are name." },
+    ])
+  })
+
+  it('checks row writes against a declared schema instead of the stored one', async () => {
+    const report = await buildWorkflowLintReport(
+      {
+        blocks: {
+          insert: tableBlock('insert', {
+            manualTableId: 'tbl_pending',
+            operation: 'insert_row',
+            data: '{"name": "a", "email": "b"}',
+          }),
+        },
+        edges: [],
+      } as never,
+      { ...scope, subjectUserId: null },
+      { declaredTables: new Map([['tbl_pending', { name: 'Pending', columnNames: ['email'] }]]) }
+    )
+
+    expect(mockGetTableById).not.toHaveBeenCalledWith('tbl_pending')
+    expect(report.tableFieldIssues.map(({ field, tableName }) => [field, tableName])).toEqual([
+      ['name', 'Pending'],
     ])
   })
 

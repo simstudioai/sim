@@ -1,0 +1,21 @@
+{
+  "namespace": "whatsapp",
+  "methods": {
+    "get_media": "downloadMedia",
+    "mark_read": "markAsRead",
+    "send_interactive": "sendInteractive",
+    "send_media": "sendMedia",
+    "send_message": "sendMessage",
+    "send_reaction": "sendReaction",
+    "send_template": "sendTemplate",
+    "upload_media": "uploadMedia"
+  },
+  "triggers": {
+    "whatsapp_webhook": "webhook"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

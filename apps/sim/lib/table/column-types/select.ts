@@ -1,12 +1,8 @@
 import { TagIcon } from '@sim/emcn/icons'
+import { CELL_RULES } from '@sim/table-cells/rules'
+import { resolveSelectOptionId, splitMultiSelectInput } from '@sim/table-cells/select'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import { MAX_SELECT_OPTIONS } from '@/lib/table/constants'
-import {
-  optionIds,
-  resolveSelectCellValue,
-  resolveSelectOptionId,
-  splitMultiSelectInput,
-} from '@/lib/table/select-options'
 import { selectValueToNames } from '@/lib/table/select-values'
 import type { FilterOp, JsonValue } from '@/lib/table/types'
 
@@ -80,50 +76,7 @@ export const selectColumnType: ColumnTypeDefinition = {
     return column.multiple ? MULTI_SELECT_OPERATORS : SINGLE_SELECT_OPERATORS
   },
 
-  coerce(value, column) {
-    if (column.multiple) {
-      // `resolveSelectCellValue` DROPS parts that match no option, which is
-      // right for a display read of a cell whose option was since deleted, but
-      // is a silent discard on a write: `["green"]` would resolve to `[]` and
-      // store an empty cell for a value the caller asked to keep. A write only
-      // coerces when every part it named resolves — the same rule the single
-      // branch has always had, and the same rule `isCompatibleWith` uses for
-      // the bulk conversion.
-      const options = column.options ?? []
-      const parts = splitMultiSelectInput(value)
-      if (parts.some((part) => resolveSelectOptionId(part, options) === null)) return { ok: false }
-    }
-    const resolved = resolveSelectCellValue(value, column)
-    // A single target that matches no option has nothing safe to store.
-    return resolved === null ? { ok: false } : { ok: true, value: resolved }
-  },
-
-  salvage(value, column) {
-    // Where the write cannot fail, a multi cell keeps the members that DO
-    // resolve rather than being blanked: `Alpha, opt_b, ghost` from a CSV or a
-    // block output stores `[opt_a, opt_b]`, which is what it stored before the
-    // write path started refusing partial matches. Dropping one unmatched name
-    // is a smaller loss than erasing the two that matched. A single cell holds
-    // one option and has nothing partial to keep, so it stays blanked.
-    if (!column.multiple) return { ok: false }
-    const resolved = resolveSelectCellValue(value, column)
-    return resolved === null ? { ok: false } : { ok: true, value: resolved }
-  },
-
-  validateCell(value, column) {
-    const ids = optionIds(column)
-    if (column.multiple) {
-      if (!Array.isArray(value)) return `${column.name} must be a list of options`
-      if (!value.every((v) => typeof v === 'string' && ids.has(v))) {
-        return `${column.name} must only contain defined options`
-      }
-      if (column.required && value.length === 0) return `Missing required field: ${column.name}`
-      return null
-    }
-    return typeof value === 'string' && ids.has(value)
-      ? null
-      : `${column.name} must be one of the defined options`
-  },
+  ...CELL_RULES.select,
 
   validateDefinition(column) {
     const errors: string[] = []

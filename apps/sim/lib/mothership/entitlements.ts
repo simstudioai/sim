@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { readBuildNotesAvailability } from '@/lib/build-notes/application/availability'
 import { isBuildNotesEnabled } from '@/lib/build-notes/feature-flag'
 import { readChangelogAvailability } from '@/lib/changelog/application/availability'
@@ -8,6 +8,8 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { ENTITLEMENTS, type Entitlement } from '@/lib/mothership/generated/protocol'
 import { readWorkflowTestAvailability } from '@/lib/workflow-tests/application/availability'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
+import { readWorkflowCodeAvailability } from '@/lib/workflows/application/code-availability'
+import { isWorkflowCodeEnabled } from '@/lib/workflows/code/feature-flag'
 
 /** The owner of one chat turn: exactly one of a workspace or an organization. */
 export interface EntitlementOwner {
@@ -66,6 +68,16 @@ const EVALUATORS: Record<Entitlement, EntitlementEvaluator> = {
     workspace: ({ principal, workspaceId }) =>
       readChangelogAvailability.execute({ principal, input: { workspaceId } }),
     organization: ({ organizationId }) => isChangelogEnabled(organizationId),
+  },
+  /** The `workflows source` and `workspaces source` commands; their use cases re-check it. */
+  [ENTITLEMENTS.workflowCode]: {
+    workspace: ({ principal, workspaceId }) =>
+      readWorkflowCodeAvailability.execute({ principal, input: { workspaceId } }),
+    organization: ({ principal, organizationId }) =>
+      isWorkflowCodeEnabled({
+        orgId: organizationId,
+        userId: principal ? resolvePrincipalSubjectUserId(principal) : undefined,
+      }),
   },
   [ENTITLEMENTS.build_notes]: {
     workspace: ({ principal, workspaceId }) =>

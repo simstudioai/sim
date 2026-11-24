@@ -1,0 +1,17 @@
+{
+  "namespace": "tinybird",
+  "methods": {
+    "tinybird_append_datasource": "appendDataSourceFromUrl",
+    "tinybird_delete_datasource_rows": "deleteDataSourceRows",
+    "tinybird_events": "sendEvents",
+    "tinybird_get_job": "getJobStatus",
+    "tinybird_query": "query",
+    "tinybird_query_pipe": "queryPipeEndpoint",
+    "tinybird_truncate_datasource": "truncateDataSource"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

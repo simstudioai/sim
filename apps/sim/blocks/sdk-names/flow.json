@@ -1,0 +1,33 @@
+{
+  "namespace": "flow",
+  "methods": {
+    "add_link": "addLink",
+    "create_branch": "createBranch",
+    "create_comment": "createComment",
+    "create_entities": "createEntities",
+    "create_entity": "createEntity",
+    "delete_comment": "deleteComment",
+    "delete_entity": "deleteEntity",
+    "filter_entities": "filterEntities",
+    "get_comment": "getComment",
+    "get_data_model": "getDataModel",
+    "get_entities": "getEntities",
+    "get_entity_history": "getEntityHistory",
+    "get_project": "getProject",
+    "list_branches": "listBranches",
+    "list_comments": "listComments",
+    "list_entities": "listEntities",
+    "list_projects": "listProjects",
+    "remove_link": "removeLink",
+    "restore_entity": "restoreEntity",
+    "search_entities": "searchEntities",
+    "set_value": "setValue",
+    "set_values": "setValues",
+    "update_comment": "updateComment"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

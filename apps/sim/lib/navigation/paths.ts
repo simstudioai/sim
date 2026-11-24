@@ -89,8 +89,7 @@ export function isAppSurfacePath(pathname: string): boolean {
 /**
  * Non-app routes that must never appear in search results: deployed chats,
  * paused-run resume links, invitations, unsubscribe links, shared files, the
- * legacy `/w` redirects, the design playground, and account, self-host, and
- * upgrade utility pages.
+ * legacy `/w` redirects, and account, self-host, and upgrade utility pages.
  */
 const NOINDEX_PATH_ROOTS = [
   '/sim',
@@ -101,7 +100,6 @@ const NOINDEX_PATH_ROOTS = [
   '/unsubscribe',
   '/f',
   '/w',
-  '/playground',
   '/account',
   '/selfhost',
   '/upgrade',

@@ -119,7 +119,6 @@ vi.mock('@/lib/mcp/resolve-config', () => ({
 
 vi.mock('@/lib/mcp/storage', () => ({
   createMcpCacheAdapter: () => mockCacheAdapter,
-  getMcpCacheType: () => 'memory',
 }))
 
 import { MAX_MCP_LAST_ERROR_LENGTH } from '@/lib/mcp/constants'

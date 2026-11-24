@@ -217,11 +217,6 @@
             "id": "slidingWindowTokens",
             "type": "short-input",
             "value": null
-          },
-          "previousInteractionId": {
-            "id": "previousInteractionId",
-            "type": "short-input",
-            "value": null
           }
         },
         "outputs": {

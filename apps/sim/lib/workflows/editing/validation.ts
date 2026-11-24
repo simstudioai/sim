@@ -2,7 +2,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord, omit } from '@sim/utils/object'
+import {
+  buildCanonicalIndex,
+  evaluateSubBlockCondition,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@sim/workflow-code/catalog/canonical-index'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
+import { isOllamaAvailable } from '@/lib/core/utils/urls'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
 import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
@@ -27,25 +34,24 @@ import {
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
-  buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   buildSubBlockValues,
-  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
-  isCanonicalPair,
-  resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getModelOptions } from '@/blocks/utils'
+import { MODEL_OPTION_SOURCES } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import {
+  findProviderFromModel,
   getHostedModels,
   isAutoModel,
   isCustomModelId,
   isEvaluationModel,
   isKnownModelId,
+  OLLAMA_MODEL_NAME,
   suggestModelIdsForUnknownModel,
 } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
@@ -103,15 +109,69 @@ function isContainerBlockType(blockType: string): blockType is 'loop' | 'paralle
 }
 
 /**
+ * `inputs` with each key that names a `canonicalParamId` instead of a subBlock (`tableId` for the
+ * table block's `tableSelector` / `manualTableId`) written under the member that param is stored
+ * in, as the catalog (`sim blocks get`) and source both name it. A param with one member is that
+ * member. For a basic/advanced pair, a string (an id, a `<block.output>` reference) goes to the
+ * advanced member, the free-text field that takes either, and anything else to the basic one, as
+ * source compiles a literal; the caller then records the mode the written member implies. A
+ * canonical name written beside one of its own members is refused: the two would compete. Names
+ * resolve on the block's active surface (`triggerSurface`), so a trigger-mode block's name never
+ * lands on a dormant action member that shares it.
+ */
+function withCanonicalNamesResolved(
+  subBlocks: SubBlockConfig[],
+  subBlockMap: ReadonlyMap<string, SubBlockConfig[]>,
+  inputs: Record<string, unknown>,
+  triggerSurface: boolean,
+  refuse: (key: string, error: string) => void
+): Record<string, unknown> {
+  if (Object.keys(inputs).every((key) => subBlockMap.has(key))) return inputs
+  const { groupsById } = buildCanonicalIndexForSurface(subBlocks, triggerSurface)
+  const resolved: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(inputs)) {
+    const group = subBlockMap.has(key) ? undefined : groupsById[key]
+    if (!group) {
+      resolved[key] = value
+      continue
+    }
+    const members = [group.basicId, ...group.advancedIds].filter(
+      (id): id is string => id !== undefined
+    )
+    const written = members.filter((id) => Object.hasOwn(inputs, id))
+    if (written.length > 0) {
+      const paired = isCanonicalPair(group)
+      const named = members.map((id) => {
+        if (!paired) return `"${id}"`
+        return `"${id}" (${id === group.basicId ? 'basic' : 'advanced'} mode)`
+      })
+      refuse(
+        key,
+        `"${key}" is the shared name of ${named.join(' and ')}, and this edit also sets ${written.map((id) => `"${id}"`).join(' and ')}: set one of them, not both`
+      )
+      continue
+    }
+    const member =
+      typeof value === 'string'
+        ? (group.advancedIds[0] ?? group.basicId)
+        : (group.basicId ?? group.advancedIds[0])
+    if (member !== undefined) resolved[member] = value
+  }
+  return resolved
+}
+
+/**
  * Validates and filters inputs against a block's subBlock configuration
- * Returns valid inputs and any validation errors encountered
+ * Returns valid inputs and any validation errors encountered. `triggerSurface` is whether the
+ * block runs in trigger mode, the surface a canonical param name resolves on.
  */
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
   blockId: string,
   existingValues: Record<string, unknown> = {},
-  enforceToolBindingContract = false
+  enforceToolBindingContract = false,
+  triggerSurface = false
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -169,13 +229,21 @@ export function validateInputsForBlock(
 
   const validatedInputs: Record<string, any> = {}
   const subBlockMap = new Map<string, SubBlockConfig[]>()
-  const conditionValues = { ...existingValues, ...inputs }
 
   for (const subBlock of blockConfig.subBlocks) {
     const variants = subBlockMap.get(subBlock.id) ?? []
     variants.push(subBlock)
     subBlockMap.set(subBlock.id, variants)
   }
+
+  inputs = withCanonicalNamesResolved(
+    blockConfig.subBlocks,
+    subBlockMap,
+    inputs,
+    triggerSurface,
+    (key, error) => errors.push({ blockId, blockType, field: key, value: inputs[key], error })
+  )
+  const conditionValues = { ...existingValues, ...inputs }
 
   for (const [key, value] of Object.entries(inputs)) {
     // Skip runtime subblock IDs
@@ -426,7 +494,8 @@ function parseArrayInput(value: unknown): unknown {
   }
 }
 
-const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value'])
+/** `key` is the optional persisted branch key, which the runtime ignores. */
+const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value', 'key'])
 const ROUTER_ROUTE_SHAPE =
   'a route is {id?, title, value}; "value" holds the description the model reads'
 
@@ -491,7 +560,7 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
   if (isEvaluationModel(model)) {
     return `${where}: ${model} is an evaluation model and cannot serve as a chat fallback`
   }
-  if (!isKnownModelId(model) && !isCustomModelId(model)) {
+  if (!isRunnableModelId(model)) {
     const suggestions = suggestModelIdsForUnknownModel(model)
     const suggestionText =
       suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
@@ -514,6 +583,23 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
     }
   }
   return null
+}
+
+/**
+ * Whether Sim can run `model`: a catalogued or namespaced id, or a local Ollama name. An id no
+ * provider claims runs on Ollama (`getProviderFromModel`'s default), so wherever an Ollama server
+ * is reachable an Ollama-shaped name may be a locally installed model. The server cannot list
+ * what is installed, so a mistyped name of that shape fails at execution instead. sim-auto is
+ * never one: it never reaches a provider as itself.
+ */
+function isRunnableModelId(model: string): boolean {
+  if (isKnownModelId(model) || isCustomModelId(model)) return true
+  return (
+    !isAutoModel(model) &&
+    OLLAMA_MODEL_NAME.test(model) &&
+    findProviderFromModel(model) === null &&
+    isOllamaAvailable()
+  )
 }
 
 /** A file object as the file-upload editor stores it: at least its name and serve path. */
@@ -697,7 +783,29 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
-    case 'condition-input':
+    case 'condition-input': {
+      const parsedValue = parseArrayInput(value)
+      const malformedAt = Array.isArray(parsedValue)
+        ? parsedValue.findIndex((condition: unknown) => !isPlainRecord(condition))
+        : -1
+      if (!Array.isArray(parsedValue) || malformedAt !== -1) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: Array.isArray(parsedValue)
+              ? `Invalid condition at index ${malformedAt}: expected an object with "title" and "value"`
+              : `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
     case 'knowledge-tag-filters':
     case 'document-tag-entry': {
       const parsedValue = parseArrayInput(value)
@@ -898,19 +1006,22 @@ export function validateValueForSubBlockType(
     case 'short-input':
     case 'long-input':
     case 'combobox': {
-      const usesProviderCatalog =
-        fieldName === 'model' && subBlockConfig.options === getModelOptions
+      const modelSource =
+        fieldName === 'model' ? MODEL_OPTION_SOURCES.get(subBlockConfig.options) : undefined
 
-      if (usesProviderCatalog) {
+      if (modelSource) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
-        // sim-auto is a valid model value on hosted Sim only (mirrors the
-        // options array the agent reads: it is absent from self-hosted
-        // snapshots, so writes of it there are rejected as unknown).
-        if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
+        // A reference or {{ENV_VAR}} names its model only at execution time.
+        if (containsReference(trimmed)) {
+          return { valid: true, value: trimmed }
+        }
+        // sim-auto is valid only where the source offers Auto, which it does on hosted Sim
+        // only; writes of it anywhere else are rejected as unknown.
+        if (isAutoModel(trimmed) && modelSource.auto && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
         }
-        if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {
+        if (trimmed !== '' && !isRunnableModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
             suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
@@ -970,6 +1081,17 @@ export function validateValueForSubBlockType(
 }
 
 /**
+ * Whether a block has an error output an edge can leave from: not a loop or parallel container
+ * and not a trigger, the same rule the workflow source catalog's `errorPort` follows, so every
+ * error edge the engine stores is one source can write (`onError`). An unknown type is not
+ * refused.
+ */
+function hasErrorOutput(blockType: string): boolean {
+  if (blockType === BlockType.LOOP || blockType === BlockType.PARALLEL) return false
+  return getBlock(blockType)?.category !== 'triggers'
+}
+
+/**
  * Validates source handle is valid for the block type
  */
 export function validateSourceHandleForBlock(
@@ -978,7 +1100,11 @@ export function validateSourceHandleForBlock(
   sourceBlock: any
 ): EdgeHandleValidationResult {
   if (sourceHandle === 'error') {
-    return { valid: true }
+    if (hasErrorOutput(sourceBlockType)) return { valid: true }
+    return {
+      valid: false,
+      error: `Invalid source handle "error" - a ${sourceBlockType} block has no error output`,
+    }
   }
 
   switch (sourceBlockType) {
@@ -988,7 +1114,7 @@ export function validateSourceHandleForBlock(
       }
       return {
         valid: false,
-        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles: loop-start-source, loop-end-source, error`,
+        error: `Invalid source handle "${sourceHandle}" for loop block. Valid handles: loop-start-source, loop-end-source`,
       }
 
     case 'parallel':
@@ -997,7 +1123,7 @@ export function validateSourceHandleForBlock(
       }
       return {
         valid: false,
-        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles: parallel-start-source, parallel-end-source, error`,
+        error: `Invalid source handle "${sourceHandle}" for parallel block. Valid handles: parallel-start-source, parallel-end-source`,
       }
 
     case 'condition': {
@@ -1128,6 +1254,13 @@ export function validateConditionHandle(
     }
   }
 
+  // A row's own id wins over another row's alias: after a reorder, a title or position alias can
+  // spell another row's stored handle.
+  for (const condition of conditions) {
+    if (condition.id)
+      handleToNormalized.set(`condition-${condition.id}`, `condition-${condition.id}`)
+  }
+
   const normalizedHandle = handleToNormalized.get(sourceHandle)
   if (normalizedHandle) {
     return { valid: true, normalizedHandle }
@@ -1223,6 +1356,12 @@ export function validateRouterHandle(
         handleToNormalized.set(`${legacySemanticPrefix}${normalizedTitle}`, normalizedHandle)
       }
     }
+  }
+
+  // A row's own id wins over another row's alias: after a reorder, a title or position alias can
+  // spell another row's stored handle.
+  for (const route of routes) {
+    if (route.id) handleToNormalized.set(`router-${route.id}`, `router-${route.id}`)
   }
 
   const normalizedHandle = handleToNormalized.get(sourceHandle)

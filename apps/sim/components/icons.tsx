@@ -1828,6 +1828,40 @@ export function DustIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function DifyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='12 13.5 38 38' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#0033FF'
+        d='M23.146 22.63c2.59 0 3.546-1.588 3.546-3.547s-.956-3.548-3.546-3.548-3.546 1.587-3.546 3.546c0 1.96.958 3.547 3.546 3.547v.001Z'
+      />
+      <path
+        fill='#0033FF'
+        d='M35.56 23.389v2.28h-5.827v5.068h5.827v12.667h-9.627V25.668H13.267v5.067h7.094v12.667H12v5.068h38v-5.068h-8.867V30.735H50v-5.067h-8.867V20.6H50v-5.066h-6.587c-4.33 0-7.853 3.523-7.853 7.854Z'
+      />
+    </svg>
+  )
+}
+
+export function RelevanceAIIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 134 135' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#C7D2FE'
+        d='M89.26 89.884c24.644 0 44.622-19.978 44.622-44.623 0-24.644-19.978-44.623-44.623-44.623-24.644 0-44.623 19.979-44.623 44.623 0 24.645 19.979 44.623 44.623 44.623Z'
+      />
+      <path
+        fill='#4F46E5'
+        d='M32.573 45.261h-4.096C12.746 45.261 0 58.02 0 73.738v32.305c0 15.731 12.746 28.477 28.477 28.477h32.305c15.731 0 28.477-12.746 28.477-28.477v-4.096c-31.248 0-56.672-25.425-56.672-56.673l-.014-.013Z'
+      />
+      <path
+        fill='#818CF8'
+        d='M89.26 89.897V73.751c0-15.731-12.746-28.477-28.478-28.477H44.636c0 24.648 19.976 44.623 44.623 44.623Z'
+      />
+    </svg>
+  )
+}
+
 export function OpenClawIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const gid = (name: string) => `openclaw_${name}_${id}`

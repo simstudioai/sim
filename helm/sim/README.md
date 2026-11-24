@@ -57,7 +57,6 @@ Optional components (off by default):
 * **`networkPolicy`** — east-west and egress isolation (blocks cloud metadata endpoints by default).
 * **`hpa`** — HorizontalPodAutoscaler for `app` and `realtime`.
 * **`podDisruptionBudget`** — auto-activates when `replicaCount > 1`.
-* **`servicemonitor`** — Prometheus Operator integration.
 
 ---
 
@@ -72,7 +71,6 @@ Optional components (off by default):
 | cert-manager | Only if you want auto-issued TLS certificates. See [cert-manager docs](https://cert-manager.io/docs/). |
 | metrics-server | Only if `autoscaling.enabled=true` (HPA needs metrics). |
 | External Secrets Operator | Only if `externalSecrets.enabled=true`. See [ESO docs](https://external-secrets.io/). |
-| Prometheus Operator | Only if `monitoring.serviceMonitor.enabled=true`. |
 | Namespace PSS labels | Recommended: `pod-security.kubernetes.io/enforce=restricted`. The chart's pod and container security contexts are PSS-restricted by default. |
 
 ---
@@ -224,7 +222,7 @@ GPG provenance format and will not work; use `cosign verify` above.
 ## Upgrading
 
 ```bash
-helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 --namespace sim --values my-values.yaml
+helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version <chart-version> --namespace sim --values my-values.yaml
 ```
 
 ---
@@ -235,12 +233,14 @@ helm upgrade sim oci://ghcr.io/simstudioai/charts/sim --version 1.9.5 --namespac
 helm uninstall sim --namespace sim
 ```
 
-**PVCs are not deleted by `helm uninstall`.** If you want to wipe data too:
+**The Postgres PVCs are not deleted by `helm uninstall`** (they come from StatefulSet volume claim templates). The Ollama PVC is a chart-managed resource, so `helm uninstall` deletes it along with its downloaded models. If you want to wipe the remaining data too:
 
 ```bash
-# WARNING: this destroys all Postgres, Ollama, and shared-storage data.
+# WARNING: this destroys all remaining Postgres data. The second selector term
+# spares shared-storage PVCs kept with helm.sh/resource-policy=keep when
+# upgrading past chart 1.13; drop it to delete those too.
 kubectl delete pvc --namespace sim \
-  -l app.kubernetes.io/instance=sim
+  -l 'app.kubernetes.io/instance=sim,sim.ai/volume-type!=shared-storage'
 
 # Or list and delete by name
 kubectl get pvc --namespace sim
@@ -259,7 +259,7 @@ Pre-built values files for common scenarios live in [`helm/sim/examples/`](https
 | File | When to use |
 |---|---|
 | `values-development.yaml` | Local dev / `kind` / `minikube`. Minimal resources, no TLS. |
-| `values-production.yaml` | Generic production: HA, network policy, autoscaling, monitoring. |
+| `values-production.yaml` | Generic production: HA, network policy, autoscaling. |
 | `values-aws.yaml` | EKS — EBS GP3 storage, ALB ingress, IRSA-friendly. |
 | `values-aws-marketplace.yaml` | EKS from the AWS Marketplace listing — Sim's images only, RDS + ElastiCache, Enterprise from the Marketplace license. |
 | `values-gcp.yaml` | GKE — Persistent Disk storage, GCP managed certs, Workload Identity. |
@@ -268,7 +268,6 @@ Pre-built values files for common scenarios live in [`helm/sim/examples/`](https
 | `values-external-secrets.yaml` | Sync secrets from Vault / AWS SM / Azure KV / GCP SM via External Secrets Operator. |
 | `values-existing-secret.yaml` | GitOps / Sealed Secrets / SOPS — reference pre-created Kubernetes Secrets. |
 | `values-copilot.yaml` | Enables the Copilot service + its Postgres StatefulSet. |
-| `values-whitelabeled.yaml` | Custom branding (logo, name, support links). |
 
 Use one with:
 
@@ -437,14 +436,13 @@ See `examples/values-external-secrets.yaml`.
 
 ## Persistence
 
-Postgres, Ollama, and any configured `sharedStorage.volumes[]` use PersistentVolumeClaims. PVCs **survive `helm uninstall`** — see [Uninstalling](#uninstalling) for full cleanup.
+Postgres and Ollama use PersistentVolumeClaims. The Postgres PVCs (from StatefulSet volume claim templates) **survive `helm uninstall`**; the Ollama PVC does not, so `helm uninstall` deletes it and its downloaded models. See [Uninstalling](#uninstalling) for full cleanup.
 
 | Component | Default size | Access mode | Storage class |
 |---|---|---|---|
 | `postgresql` | 10Gi | `ReadWriteOnce` | `global.storageClass` |
 | `copilot.postgresql` | 10Gi | `ReadWriteOnce` | `global.storageClass` |
 | `ollama` | 100Gi | `ReadWriteOnce` | `global.storageClass` |
-| `sharedStorage.volumes[]` | user-defined | `ReadWriteMany` recommended | `sharedStorage.storageClass` |
 
 For production, use a `StorageClass` with `reclaimPolicy: Retain` on database volumes.
 
@@ -464,7 +462,7 @@ User-supplied `securityContext` values are merged with the defaults — your val
 Other security features:
 
 * `automountServiceAccountToken: false` on the ServiceAccount **and** every pod.
-* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`, `PII_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, branding defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A **non-empty** value placed in `app.env` wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists). An **empty** value does not — to remove a key rather than change it, see [Removing an inherited env key](#removing-an-inherited-env-key).
+* Every value in `app.env` and `realtime.env` is written to a chart-managed Secret and mounted via `envFrom: secretRef` — no values are inlined on the container spec. This eliminates a sensitivity classifier (no static list of "secret" keys to maintain) and ensures new provider keys can never accidentally leak into pod manifests. Two categories are inlined on the container instead: chart-computed values (`DATABASE_URL`, `SOCKET_SERVER_URL`, `OLLAMA_URL`, `PII_URL`) and operational defaults under `app.envDefaults` / `realtime.envDefaults` (rate limits, timeouts, IVM tunables, feature-flag defaults, `http://localhost:3000` URL fallbacks). Operational defaults are non-sensitive by design — moving them out of `app.env` keeps the Secret small and means External Secrets Operator users only have to map the keys they actually set, not every chart default. A **non-empty** value placed in `app.env` wins over the same key in `app.envDefaults` (the template skips the inline default when an override exists). An **empty** value does not — to remove a key rather than change it, see [Removing an inherited env key](#removing-an-inherited-env-key).
 * Optional `networkPolicy.enabled=true` enforces east-west isolation and blocks cloud metadata endpoints in egress.
 
 ---
@@ -484,7 +482,7 @@ Or on the CLI: `--set app.envDefaults.FREE_TABLES_LIMIT=null`.
 
 **Null the key in every layer that sets it.** `null` deletes the key from the map you null, not from the pod — so if a key is set in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry makes the inline `envDefaults` value apply again and the variable stays on the pod. The same holds for `realtime.env` / `realtime.envDefaults`. Under ESO there is a third source: a key mapped in `externalSecrets.remoteRefs.app` keeps being synced into the Secret regardless of `app.env`, so remove that mapping too. Rendering the manifest (below) is the reliable way to confirm the key is actually gone.
 
-**Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the ten placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BRAND_NAME`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
+**Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the four placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
 
 With the chart-managed Secret (the default), nulling a key the application cannot start without (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `CRON_SECRET` with `cronjobs.enabled=true`) fails at template time with the existing required-secret error rather than at runtime. In `existingSecret` mode the chart skips that validation entirely — those values come from your pre-created Secret, which the chart cannot read — so a null there renders successfully and the key is simply absent from `app.env`. Under ESO the key must still be mapped in `externalSecrets.remoteRefs.app`, which is validated at template time.
 
@@ -511,20 +509,7 @@ autoscaling:
   targetMemoryUtilizationPercentage: 80
 ```
 
-When `autoscaling.enabled=true`, the chart omits `spec.replicas` from the Deployment so the HPA owns replica count. Requires `metrics-server` in the cluster. The realtime Deployment gets the same HPA unless `autoscaling.realtime.enabled=false` — scale realtime past one replica only with `REDIS_URL` set (Socket.IO Redis adapter), or cross-pod collaboration events are dropped.
-
----
-
-## Monitoring
-
-```yaml
-monitoring:
-  serviceMonitor:
-    enabled: true
-    interval: 30s
-```
-
-Requires the Prometheus Operator CRDs. Scrapes `/metrics` on the app and realtime services — note the default images do not currently expose a `/metrics` endpoint, so enable this only with a build that does.
+When `autoscaling.enabled=true`, the chart omits `spec.replicas` from the Deployment so the HPA owns replica count. Requires `metrics-server` in the cluster. The realtime Deployment gets the same HPA unless `autoscaling.realtime.enabled=false` — realtime bridges cross-pod collaboration events through Redis, which every install has (bundled, or your `REDIS_URL`).
 
 ---
 
@@ -621,6 +606,45 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 
 ---
 
+## Upgrading to 1.15.0
+
+* **Redis is required.** The application no longer falls back to PostgreSQL or in-memory state for rate limiting, OTPs, pub/sub, or realtime coordination, and refuses to start without `REDIS_URL`. Installs that keep the bundled Redis (`redis.enabled: true`, the default) or already supply `REDIS_URL` need no action.
+
+  With `redis.enabled: false`, the chart now fails to render unless `REDIS_URL` reaches every enabled app and realtime pod. Accepted sources:
+
+  * `app.env.REDIS_URL` or `realtime.env.REDIS_URL`, written into the app Secret both pods load.
+  * A top-level `extraEnvVars` entry named `REDIS_URL` (for example with `valueFrom.secretKeyRef`), set inline on both pods.
+  * A pre-created `app.secrets.existingSecret`, which the chart trusts since it cannot read it.
+  * `externalSecrets.remoteRefs.app.REDIS_URL` when External Secrets is enabled, now also checked for a realtime-only release.
+  * `app.envDefaults.REDIS_URL` covers only the app pod and `realtime.envDefaults.REDIS_URL` only the realtime pod, so set both when both components are enabled.
+
+  The app Secret (chart-managed or External Secrets) now also renders for a realtime-only release (`app.enabled: false`), since the realtime pod loads it. If you previously ran with Redis disabled, either re-enable the bundled Redis or point `REDIS_URL` at a managed instance before upgrading.
+
+## Upgrading to 1.14.0
+
+* **`REGISTRATION_MODE` replaces the registration toggles.** Set `app.env.REGISTRATION_MODE` to `open` (default), `no-email-signup`, `closed`, `no-email`, or `closed-no-email`; the `no-email` modes also disable email/password sign-in. `DISABLE_REGISTRATION`, `EMAIL_PASSWORD_SIGNUP_ENABLED`, and `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED` are gone from `app.env`, but the application still honors them (and `DISABLE_EMAIL_SIGNUP`) as deprecated aliases, and the most restrictive setting wins. `NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: "false"` now also disables email/password sign-in on the server.
+
+* **Enterprise flags are server variables only.** The browser reads the server-resolved state, so these `NEXT_PUBLIC_*` keys were removed and the application no longer reads them:
+
+  * from `app.env`: `NEXT_PUBLIC_ENTERPRISE_ENABLED`, `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED`, `NEXT_PUBLIC_SSO_ENABLED`, `NEXT_PUBLIC_INBOX_ENABLED`, `NEXT_PUBLIC_AUDIT_LOGS_ENABLED`, `NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED`, `NEXT_PUBLIC_DATA_DRAINS_ENABLED`
+  * from `app.envDefaults`: `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED`, `NEXT_PUBLIC_ORGANIZATIONS_ENABLED`
+
+  Leaving them in a values file is harmless. Set the matching server key instead (`ENTERPRISE_ENABLED`, `ACCESS_CONTROL_ENABLED`, `SSO_ENABLED`, …). New per-feature server keys: `SCIM_ENABLED`, `SESSION_POLICIES_ENABLED`, `DATA_RETENTION_ENABLED`, `USAGE_MONITORING_ENABLED`, `FORKING_ENABLED`, `CREDENTIAL_GROUPS`, and `SANDBOXES_ENABLED` (which also needs a remote sandbox provider).
+
+## Upgrading to 1.13.0
+
+* **`monitoring.serviceMonitor` was removed.** The chart no longer renders a Prometheus Operator `ServiceMonitor`. The `monitoring` key is still accepted and ignored, so older values files validate; manage scraping outside the chart.
+
+* **`sharedStorage` was removed.** The chart created its PVCs but never mounted them. The key is still accepted, but `sharedStorage.enabled: true` with `volumes` now fails the render, because upgrading would delete those PVCs. If you mount them through `extraVolumes`, keep them first, then set `sharedStorage.enabled: false`:
+
+  ```bash
+  kubectl annotate pvc -n <namespace> -l app.kubernetes.io/instance=<release>,sim.ai/volume-type=shared-storage helm.sh/resource-policy=keep
+  ```
+
+## Upgrading to 1.12.0
+
+* **White-labeling was removed.** The `branding` key (and its ConfigMap) and the `NEXT_PUBLIC_BRAND_*`, `NEXT_PUBLIC_CUSTOM_CSS_URL`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_DOCUMENTATION_URL`, `NEXT_PUBLIC_TERMS_URL`, `NEXT_PUBLIC_PRIVACY_URL`, `WHITELABELING_ENABLED`, and `NEXT_PUBLIC_WHITELABELING_ENABLED` env keys no longer have any effect. `branding` is still accepted and ignored, so older values files validate.
+
 ## Upgrading to 1.6.4
 
 * `appVersion` — the default image tag for every first-party image (`app`, `realtime`, `migrations`, `pii`, `copilot`) when `image.tag` is unset — moves from `v0.7.44` to `v0.8.18`. It had not been bumped since chart 1.2.0, so an unpinned install deployed an application dozens of releases behind the chart it shipped with, and values keys added by newer charts had no effect because the running image did not read them. **An unpinned release rolls every first-party pod on upgrade.** Installs that pin `image.tag` or `image.digest` are unaffected; pinning explicitly remains the recommendation for production.
@@ -635,7 +659,7 @@ Two changes alter behavior on an existing release. Neither requires action, but 
 
   **An existing `REDIS_URL` always wins, wherever it comes from — no action needed on upgrade.** The bundled URL ships as a ConfigMap listed *before* the app Secret in `envFrom`. Kubernetes resolves duplicate keys by letting the last source win, so a `REDIS_URL` in your chart-managed Secret, a pre-created `existingSecret`, or one synced by External Secrets overrides the bundled value — the chart never has to read it. The bundled Redis simply fills the gap when nothing else provides a URL.
 
-  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod), or `redis.enabled: false` to opt out.
+  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod). (Since 1.15.0, `redis.enabled: false` also requires a `REDIS_URL` from one of those sources.)
 
 ## Upgrading to 1.2.0
 

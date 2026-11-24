@@ -1,8 +1,8 @@
 /**
  * MCP Pub/Sub Adapter
  *
- * Broadcasts MCP notification events across processes using Redis Pub/Sub.
- * Gracefully falls back to process-local EventEmitter when Redis is unavailable.
+ * Broadcasts MCP notification events across processes using Redis Pub/Sub. The channels
+ * connect on first use, so importing this module opens nothing.
  *
  * Two channels:
  *  - `mcp:tools_changed` — external MCP server sent a listChanged notification
@@ -25,48 +25,34 @@ interface McpPubSubAdapter {
 }
 
 type McpPubSubGlobal = typeof globalThis & {
-  _mcpToolsChannel?: PubSubChannel<ToolsChangedEvent> | null
-  _mcpWorkflowToolsChannel?: PubSubChannel<WorkflowToolsChangedEvent> | null
+  _mcpToolsChannel?: PubSubChannel<ToolsChangedEvent>
+  _mcpWorkflowToolsChannel?: PubSubChannel<WorkflowToolsChangedEvent>
 }
 
 const g = globalThis as McpPubSubGlobal
 
-if (!('_mcpToolsChannel' in g)) {
-  g._mcpToolsChannel =
-    typeof window !== 'undefined'
-      ? null
-      : createPubSubChannel<ToolsChangedEvent>({
-          channel: 'mcp:tools_changed',
-          label: 'mcp-tools',
-        })
-}
-
-if (!('_mcpWorkflowToolsChannel' in g)) {
-  g._mcpWorkflowToolsChannel =
-    typeof window !== 'undefined'
-      ? null
-      : createPubSubChannel<WorkflowToolsChangedEvent>({
-          channel: 'mcp:workflow_tools_changed',
-          label: 'mcp-workflow-tools',
-        })
-}
+g._mcpToolsChannel ??= createPubSubChannel<ToolsChangedEvent>({
+  channel: 'mcp:tools_changed',
+  label: 'mcp-tools',
+})
+g._mcpWorkflowToolsChannel ??= createPubSubChannel<WorkflowToolsChangedEvent>({
+  channel: 'mcp:workflow_tools_changed',
+  label: 'mcp-workflow-tools',
+})
 
 const toolsChannel = g._mcpToolsChannel
 const workflowToolsChannel = g._mcpWorkflowToolsChannel
 
-export const mcpPubSub: McpPubSubAdapter | null =
-  typeof window !== 'undefined' || !toolsChannel || !workflowToolsChannel
-    ? null
-    : {
-        publishToolsChanged: (event) => toolsChannel.publish(event),
-        publishWorkflowToolsChanged: (event) => workflowToolsChannel.publish(event),
-        onToolsChanged: (handler) => toolsChannel.subscribe(handler),
-        onWorkflowToolsChanged: (handler) => workflowToolsChannel.subscribe(handler),
-        ready: async () => {
-          await Promise.all([toolsChannel.ready(), workflowToolsChannel.ready()])
-        },
-        dispose: () => {
-          toolsChannel.dispose()
-          workflowToolsChannel.dispose()
-        },
-      }
+export const mcpPubSub: McpPubSubAdapter = {
+  publishToolsChanged: (event) => toolsChannel.publish(event),
+  publishWorkflowToolsChanged: (event) => workflowToolsChannel.publish(event),
+  onToolsChanged: (handler) => toolsChannel.subscribe(handler),
+  onWorkflowToolsChanged: (handler) => workflowToolsChannel.subscribe(handler),
+  ready: async () => {
+    await Promise.all([toolsChannel.ready(), workflowToolsChannel.ready()])
+  },
+  dispose: () => {
+    toolsChannel.dispose()
+    workflowToolsChannel.dispose()
+  },
+}

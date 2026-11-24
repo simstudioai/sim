@@ -1,5 +1,5 @@
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
+import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { type Command, Option } from 'commander'
 import { printError, writeStderr } from '#sim-cli/output/io'
 import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
@@ -10,6 +10,7 @@ import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
+import { resumeCommandFor } from '../../runtime/paused-run'
 import { renderResult } from '../../runtime/result'
 
 /**
@@ -86,7 +87,6 @@ export interface RunSnapshot {
   /** `time` resumes itself; `human` and null wait for a person. */
   pauseKind: string | null
   resumeAt: string | null
-  contextId: string | null
 }
 
 function optionalString(value: unknown): string | null {
@@ -115,7 +115,6 @@ function readRun(raw: unknown): RunSnapshot {
     status: run.status,
     pauseKind: paused ? optionalString(paused.pauseKind) : null,
     resumeAt: paused ? optionalString(paused.resumeAt) : null,
-    contextId: paused ? optionalString(paused.contextId) : null,
   }
 }
 
@@ -192,13 +191,13 @@ function explain(
   outcome: WaitOutcome,
   runId: string,
   workflowId: string,
-  snapshot: RunSnapshot
+  run: unknown
 ): string | null {
   if (outcome === 'completed') return null
   if (outcome === 'failed') return `Run ${runId} failed.`
   if (outcome === 'cancelled') return `Run ${runId} was cancelled.`
-  const context = snapshot.contextId ? ` --context ${snapshot.contextId}` : ''
-  return `Run ${runId} is paused waiting for input. Resume it: sim workflows runs resume ${runId} --workflow ${workflowId}${context}`
+  const next = resumeCommandFor(toRecord(run), workflowId)
+  return `Run ${runId} is paused waiting for input.${next ? ` Resume it: ${next}` : ''}`
 }
 
 /**
@@ -254,7 +253,7 @@ export async function waitForRun(
       if (outcome) {
         progress.finish()
         renderResult('getWorkflowRun', profile.output, runData(raw), runSpec())
-        const message = explain(outcome, wait.runId, wait.workflowId, snapshot)
+        const message = explain(outcome, wait.runId, wait.workflowId, runData(raw))
         if (message) printError(styles().red(message))
         setSoftExitCode(WAIT_EXIT_CODES[outcome])
         return

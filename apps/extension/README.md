@@ -57,7 +57,7 @@ The E2E suite uses real Chromium, the packaged extension, and a disposable HTTP 
 
 Release verification must additionally exercise typing `go/<name>` in Chrome's real address bar on a clean profile (the e2e proves the visits, not the address bar), the native toolbar and shortcut, Chrome's real grant/revoke prompt, sign-in/SSO and expiry against the running Sim app, side-panel closing/reopening, workspace changes, narrow widths, and the real Mothership streaming response. The fixture suite does not establish those integrations. The design document records launch scope and release criteria.
 
-The authenticated acceptance suite runs against a real local app, Better Auth, and a disposable Postgres database whose name contains `test`. Enable `KNOWLEDGE_MEMBER_ACCESS`, `CREDENTIAL_GROUPS`, `ACCESS_CONTROL_ENABLED`, and `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` on that app to exercise restricted organization members:
+The authenticated acceptance suite runs against a real local app, Better Auth, and a disposable Postgres database whose name contains `test`. Enable `KNOWLEDGE_MEMBER_ACCESS`, `CREDENTIAL_GROUPS`, and `ACCESS_CONTROL_ENABLED` on that app to exercise restricted organization members:
 
 ```sh
 EXTENSION_APP_E2E_BASE_URL=http://127.0.0.1:3007 \

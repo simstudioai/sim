@@ -1,0 +1,16 @@
+{
+  "namespace": "findymail",
+  "methods": {
+    "findymail_find_email_from_linkedin": "findEmailFromLinkedIn",
+    "findymail_find_email_from_name": "findEmailFromName",
+    "findymail_find_emails_by_domain": "findEmailsByDomain",
+    "findymail_find_employees": "findEmployees",
+    "findymail_find_phone": "findPhone",
+    "findymail_get_company": "getCompanyInfo",
+    "findymail_get_credits": "getRemainingCredits",
+    "findymail_lookup_technologies": "lookupTechnologiesByDomain",
+    "findymail_reverse_email_lookup": "reverseEmailLookup",
+    "findymail_search_technologies": "searchTechnologies",
+    "findymail_verify_email": "verifyEmail"
+  }
+}

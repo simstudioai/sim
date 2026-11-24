@@ -1,9 +1,11 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
 import { CLI_CONTRACT } from '../../contract/commands'
 import { embedStore } from '../../embed-context'
+import { STILL_RUNNING_EXIT_CODE } from '../../exit-codes'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
 import { readNdjson } from '../../http/ndjson'
@@ -14,6 +16,8 @@ import { retypeApiError } from '../../runtime/naming'
 import { buildRequest } from '../../runtime/request'
 import { renderResult } from '../../runtime/result'
 import type { OperationSpec } from '../../runtime/types'
+import { printRunFailureSite } from './run-source-location'
+import { BLOCK_ID } from './workflow-run-get'
 import {
   parseWaitTimeout,
   type RunSnapshot,
@@ -40,7 +44,7 @@ const WORKFLOW_RESULT_STREAM_CONTENT_TYPE = 'application/x-ndjson'
 const DONE_SENTINEL = '[DONE]'
 
 /** The sink live commentary is written to; `process.stderr` satisfies it. */
-export interface CommentaryWriter {
+interface CommentaryWriter {
   write(text: string): unknown
 }
 
@@ -59,7 +63,7 @@ type WorkflowRunSelection = {
 }
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
-export function resolveWorkflowRunSelection(
+function resolveWorkflowRunSelection(
   flags: Record<string, unknown>
 ): WorkflowRunSelection | undefined {
   const trigger = typeof flags.trigger === 'string' ? flags.trigger : undefined
@@ -78,7 +82,7 @@ export function resolveWorkflowRunSelection(
     throw new SimApiError('--from-block requires --source-run <runId>', 0)
   }
   if (sourceRun && !fromBlock) {
-    throw new SimApiError('--source-run requires --from-block <blockId>', 0)
+    throw new SimApiError('--source-run requires --from-block <block>', 0)
   }
   if ((manual || fromBlock) && flags.async === true) {
     throw new SimApiError(
@@ -90,7 +94,7 @@ export function resolveWorkflowRunSelection(
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
   }
   if (stopAfter !== undefined && stopAfter.trim() === '') {
-    throw new SimApiError('--stop-after requires a block ID', 0)
+    throw new SimApiError('--stop-after requires a block id, name or key', 0)
   }
 
   const stop = stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}
@@ -250,7 +254,12 @@ async function runWithResultStream(
     })
 
     const failure = runFailureMessage('executeWorkflow', payload)
-    if (failure) throw new SimApiError(failure, 0)
+    if (failure) {
+      if (typeof flags.dir === 'string') {
+        await printRunFailureSite(flags.dir, workflowId, toRecord(payload).error)
+      }
+      throw new SimApiError(failure, 0)
+    }
   } catch (error) {
     throw retypeApiError(error, 'executeWorkflow', commandSpec, operation)
   }
@@ -482,6 +491,23 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
 }
 
 /**
+ * The selection a `--stop-after` run sends when the caller selected nothing: the stop block's
+ * whole output, so `blockOutputs` (with `--follow`, the final frame's `output`) names the block
+ * the run stopped after and holds what it produced (no Response block ran). The block is sent as
+ * the executor compares names (`normalizeWorkflowBlockName`), so a display name with a dot is not read
+ * as a path; an id is sent as it is.
+ */
+function stopBlockSelection(
+  selection: WorkflowRunSelection | undefined,
+  flags: Record<string, unknown>
+): string[] | null {
+  const stopAfter = selection?.stopAfterBlockId
+  if (stopAfter === undefined) return null
+  if (Array.isArray(flags.selectOutput) && flags.selectOutput.length > 0) return null
+  return [BLOCK_ID.test(stopAfter) ? stopAfter : normalizeWorkflowBlockName(stopAfter)]
+}
+
+/**
  * The handler Commander invokes for the generated `run` leaf, given the handler
  * it is replacing.
  */
@@ -504,9 +530,20 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
         0
       )
     }
+    if (
+      typeof initialFlags.dir === 'string' &&
+      (initialFlags.follow === true || initialFlags.async === true)
+    ) {
+      throw new SimApiError(
+        '--dir maps the failure of a run this command waits for; --follow and --async do not report the block that failed. Drop --dir, or run without them',
+        0
+      )
+    }
     const selection = resolveWorkflowRunSelection(initialFlags)
     if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
+    const stopBlock = stopBlockSelection(selection, flags)
+    if (stopBlock) command.setOptionValue('selectOutput', stopBlock)
 
     if (flags.follow !== true) {
       // A queued run has produced nothing to select from, so the server would
@@ -550,6 +587,20 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
   }
 }
 
+/** `sim workflows run --help`, after the options: which version runs, what it prints, how it exits. */
+const RUN_HELP = `
+Without --manual (or a flag that implies it) this runs the active deployment; a workflow never
+deployed has none. --manual runs the saved draft, as the source loop leaves it.
+
+The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
+workflow's final output) and blockOutputs (what --select-output named). It has no success field:
+branch on status, or on the exit code. With --follow it is the stream's final frame
+instead: success and output.
+
+Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
+first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
+elapsed.`
+
 /**
  * Teaches the generated `workflows run` leaf to stream.
  *
@@ -577,20 +628,27 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     .option('--manual', 'Run the current saved workflow state instead of the active deployment')
     .option(
       '--trigger <blockId>',
-      'Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual)'
+      'Enter the run through this runnable trigger, by its block id; runs the current saved workflow state (implies --manual)'
     )
     .option(
       '--mock-payload',
       "Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual)"
     )
-    .option('--from-block <blockId>', 'Run manually from this saved workflow block')
+    .option(
+      '--from-block <block>',
+      'Run manually from this saved workflow block: its id, display name or key'
+    )
     .option(
       '--source-run <runId>',
       'Prior run whose persisted state supplies upstream outputs (requires --from-block)'
     )
     .option(
-      '--stop-after <blockId>',
-      'Stop the run after this saved block, failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual)'
+      '--stop-after <block>',
+      'Stop the run after this saved block (its id, display name or key), failing it if the run takes a path that skips the block; with --from-block on the same block, re-runs only that block (implies --manual). Unless --select-output names others, blockOutputs holds the output of that block under its key (or id); output stays empty'
+    )
+    .option(
+      '--dir <dir>',
+      "This workflow's source directory: a failed run names the source file and line of the block that failed, read through its .sim/lock.json. Not with --async or --follow, and not for a run --wait-timeout leaves running"
     )
     .option(
       WAIT_TIMEOUT_FLAG,
@@ -602,5 +660,6 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option('--include-thinking', 'Show model reasoning while following (requires --follow)')
     .option('--include-tool-calls', 'Show tool calls while following (requires --follow)')
+    .addHelpText('after', RUN_HELP)
     .action(followOrDelegate(previous))
 }

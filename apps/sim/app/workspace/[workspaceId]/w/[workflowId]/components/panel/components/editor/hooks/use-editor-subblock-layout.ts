@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import {
   buildCanonicalIndexForSurface,
   buildSubBlockValues,
-  evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,

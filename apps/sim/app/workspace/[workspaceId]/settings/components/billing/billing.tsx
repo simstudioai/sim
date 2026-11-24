@@ -31,7 +31,6 @@ import {
   getDisplayPlanName,
   getPlanTierCredits,
   getPlanTierDollars,
-  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isFree,
   isPaid,
@@ -40,8 +39,10 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
+  isTrialingSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -79,6 +80,12 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   open: { variant: 'amber', label: 'Open' },
   uncollectible: { variant: 'red', label: 'Uncollectible' },
   void: { variant: 'gray', label: 'Void' },
+}
+
+function getPeriodEndLabel(isCancelledAtPeriodEnd: boolean, isTrialing: boolean): string {
+  if (isCancelledAtPeriodEnd) return 'Access until'
+  if (isTrialing) return 'Free trial ends'
+  return 'Next billing date'
 }
 
 /** Resolve a Stripe invoice status to its badge presentation. */
@@ -337,7 +344,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleOpenBillingPortal = () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't manage payment method", {
         description: 'Only organization admins can manage billing.',
       })
@@ -375,7 +382,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleCancelSubscription = async () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't cancel subscription", {
         description: 'Only organization admins can cancel the subscription.',
       })
@@ -403,7 +410,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   }
 
   const handleRestoreSubscription = async () => {
-    if (!permissions.canEditUsageLimit) {
+    if (!permissions.canManageBilling) {
       toast.error("Can't restore subscription", {
         description: 'Only organization admins can restore the subscription.',
       })
@@ -475,8 +482,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     ? organizationBilling?.cancelAtPeriodEnd === true
     : subscriptionData?.data?.cancelAtPeriodEnd === true
 
+  const isTrialing = isTrialingSubscription(subscription)
   const weeklyRefreshDollars =
-    getPlanWeeklyRefreshDollars(subscription.plan) *
+    getSubscriptionWeeklyRefreshDollars(subscription) *
     (isOrganizationScope ? subscription.seats || 1 : 1)
 
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
@@ -488,10 +496,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     url: invoice.hostedInvoiceUrl ?? invoice.invoicePdf,
   }))
 
-  const canManageBilling = permissions.canEditUsageLimit
+  const canManageBilling = permissions.canManageBilling
   const canExplorePlans = permissions.showUpgradePlans
   const showUsageLimit = subscription.isPaid && !subscription.isEnterprise
-  const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise
+  const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise && !isTrialing
 
   const usageLimitCurrent =
     subscription.isOrgScoped && organizationBilling
@@ -614,7 +622,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             {periodEnd && (
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
-                  {isCancelledAtPeriodEnd ? 'Access until' : 'Next billing date'}
+                  {getPeriodEndLabel(isCancelledAtPeriodEnd, isTrialing)}
                 </span>
                 <span className='text-[var(--text-muted)] text-small'>
                   {new Date(periodEnd).toLocaleDateString()}

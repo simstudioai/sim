@@ -36,6 +36,9 @@ SHELL=/bin/sh
 # Knowledge search projection convergence
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/knowledge-projection"
 
+# Hourly workflow activity rollup (idle until the activity-rollup-maintenance flag is on)
+*/2 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/activity-rollup"
+
 # Table row-change log fold
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/fold-table-row-changes"
 
@@ -64,6 +67,9 @@ SHELL=/bin/sh
 
 # Deletes OAuth token rows after the retention tail
 0 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-oauth-tokens"
+
+# Deletes workspace source blobs staged for an apply that never came
+30 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/cleanup-source-staging"
 
 # Microsoft Graph subscription renewal (Teams chat triggers expire after ~3 days)
 0 */12 * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/renew-subscriptions"

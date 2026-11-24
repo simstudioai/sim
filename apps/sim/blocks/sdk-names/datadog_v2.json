@@ -1,0 +1,51 @@
+{
+  "namespace": "datadog",
+  "methods": {
+    "datadog_add_incident_todo": "addIncidentTodo",
+    "datadog_cancel_downtime": "cancelDowntime",
+    "datadog_create_dashboard": "createDashboard",
+    "datadog_create_downtime": "createDowntime",
+    "datadog_create_event": "createEvent",
+    "datadog_create_incident": "createIncident",
+    "datadog_create_monitor": "createMonitor",
+    "datadog_create_slo": "createSlo",
+    "datadog_delete_dashboard": "deleteDashboard",
+    "datadog_delete_slo": "deleteSlo",
+    "datadog_get_browser_synthetics_results": "getBrowserSyntheticTestResults",
+    "datadog_get_dashboard": "getDashboard",
+    "datadog_get_incident": "getIncident",
+    "datadog_get_monitor": "getMonitor",
+    "datadog_get_security_signal": "getSecuritySignal",
+    "datadog_get_slo": "getSlo",
+    "datadog_get_slo_history": "getSloHistory",
+    "datadog_get_synthetics_results": "getSyntheticTestResults",
+    "datadog_get_synthetics_test": "getSyntheticTest",
+    "datadog_list_dashboards": "listDashboards",
+    "datadog_list_downtimes": "listDowntimes",
+    "datadog_list_incidents": "listIncidents",
+    "datadog_list_monitors": "listMonitors",
+    "datadog_list_security_rules": "listSecurityRules",
+    "datadog_list_security_signals": "listSecuritySignals",
+    "datadog_list_services": "listServices",
+    "datadog_list_slos": "listSlos",
+    "datadog_list_synthetics_tests": "listSyntheticTests",
+    "datadog_mute_monitor": "muteMonitor",
+    "datadog_query_logs": "queryLogs",
+    "datadog_query_timeseries": "queryTimeseries",
+    "datadog_search_spans": "searchSpans",
+    "datadog_send_logs": "sendLogs",
+    "datadog_submit_metrics": "submitMetrics",
+    "datadog_trigger_synthetics_tests": "triggerSyntheticTests",
+    "datadog_unmute_monitor": "unmuteMonitor",
+    "datadog_update_incident": "updateIncident",
+    "datadog_update_security_signal_assignee": "assignSecuritySignal",
+    "datadog_update_security_signal_state": "updateSecuritySignalState",
+    "datadog_update_slo": "updateSlo",
+    "datadog_update_synthetics_status": "pauseOrStartSyntheticTest"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

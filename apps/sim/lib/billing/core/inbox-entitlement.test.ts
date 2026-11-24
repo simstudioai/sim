@@ -150,12 +150,19 @@ describe('Sim Mailer cleanup uncertainty', () => {
 describe('Sim Mailer self-hosted overrides', () => {
   it.each([
     { isInboxEnabled: true, isBillingEnabled: true },
-    { isInboxEnabled: false, isBillingEnabled: false },
+    { isInboxEnabled: true, isBillingEnabled: false },
   ])('preserves self-hosted configuration %o', async (flags) => {
     setEnvFlags({ isHosted: false, ...flags })
 
     await expect(hasWorkspaceInboxAccess('workspace-1')).resolves.toBe(true)
     await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
     expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+  })
+
+  it('stops use when an operator turns inbox off without billing, but keeps its resources', async () => {
+    setEnvFlags({ isHosted: false, isBillingEnabled: false, isInboxEnabled: false })
+
+    await expect(hasWorkspaceInboxAccess('workspace-1')).resolves.toBe(false)
+    await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
   })
 })

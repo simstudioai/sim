@@ -1,0 +1,31 @@
+{
+  "namespace": "legacy.supabase",
+  "methods": {
+    "count": "countRows",
+    "delete": "deleteARow",
+    "get_row": "getARow",
+    "insert": "createARow",
+    "introspect": "introspectSchema",
+    "invoke_function": "invokeEdgeFunction",
+    "query": "getManyRows",
+    "rpc": "callRpcFunction",
+    "storage_copy": "storageCopyFile",
+    "storage_create_bucket": "storageCreateBucket",
+    "storage_create_signed_upload_url": "storageCreateSignedUploadUrl",
+    "storage_create_signed_url": "storageCreateSignedUrl",
+    "storage_delete": "storageDeleteFiles",
+    "storage_delete_bucket": "storageDeleteBucket",
+    "storage_download": "storageDownloadFile",
+    "storage_empty_bucket": "storageEmptyBucket",
+    "storage_get_public_url": "storageGetPublicUrl",
+    "storage_list": "storageListFiles",
+    "storage_list_buckets": "storageListBuckets",
+    "storage_move": "storageMoveFile",
+    "storage_update_bucket": "storageUpdateBucket",
+    "storage_upload": "storageUploadFile",
+    "text_search": "fullTextSearch",
+    "update": "updateARow",
+    "upsert": "upsertARow",
+    "vector_search": "vectorSearch"
+  }
+}

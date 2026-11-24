@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
+import { addMothershipChatResourceBodySchema } from '@/lib/api/contracts/mothership-chats'
 import {
   getChatResourceKey,
   getChatResourceSelectionId,
@@ -65,7 +65,7 @@ describe('desktop session resource identity', () => {
  */
 describe('client and server agree on what can be persisted', () => {
   it.each(PERSISTED_RESOURCE_TYPES)('the API accepts a %s resource', (type) => {
-    const parsed = addCopilotChatResourceBodySchema.safeParse({
+    const parsed = addMothershipChatResourceBodySchema.safeParse({
       chatId: 'chat-1',
       resource: {
         type,
@@ -86,7 +86,7 @@ describe('client and server agree on what can be persisted', () => {
     )
     expect(ephemeral.length).toBeGreaterThan(0)
     for (const type of ephemeral) {
-      const parsed = addCopilotChatResourceBodySchema.safeParse({
+      const parsed = addMothershipChatResourceBodySchema.safeParse({
         chatId: 'chat-1',
         resource: { type, id: 'r1', title: 'Thing' },
       })
@@ -96,21 +96,21 @@ describe('client and server agree on what can be persisted', () => {
 
   it('accepts an explicit table pin clear and rejects ambiguous or non-table clears', () => {
     expect(
-      addCopilotChatResourceBodySchema.safeParse({
+      addMothershipChatResourceBodySchema.safeParse({
         chatId: 'chat-1',
         resource: { type: 'table', id: 'tbl-1', title: 'Invoices' },
         clearViewId: true,
       }).success
     ).toBe(true)
     expect(
-      addCopilotChatResourceBodySchema.safeParse({
+      addMothershipChatResourceBodySchema.safeParse({
         chatId: 'chat-1',
         resource: { type: 'table', id: 'tbl-1', title: 'Invoices', viewId: 'view-1' },
         clearViewId: true,
       }).success
     ).toBe(false)
     expect(
-      addCopilotChatResourceBodySchema.safeParse({
+      addMothershipChatResourceBodySchema.safeParse({
         chatId: 'chat-1',
         resource: { type: 'file', id: 'file-1', title: 'report.csv' },
         clearViewId: true,
@@ -143,7 +143,7 @@ describe('unaddressable resources', () => {
   })
 
   it('refuses a blank id at the write boundary, matching the send path', () => {
-    const parsed = addCopilotChatResourceBodySchema.safeParse({
+    const parsed = addMothershipChatResourceBodySchema.safeParse({
       chatId: 'chat-1',
       resource: { type: 'file', id: '', title: 'reporte-russell.md' },
     })

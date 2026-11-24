@@ -11,15 +11,17 @@ import { z } from 'zod'
 
 const logger = createLogger('DocsProviderE2E')
 const setting = process.env.DOCS_PROVIDER_E2E_DATABASE_URL
+const redisSetting = process.env.DOCS_PROVIDER_E2E_REDIS_URL
 const reportSetting = process.env.DOCS_PROVIDER_E2E_REPORT_PATH
 const origin = process.env.DOCS_PROVIDER_E2E_BASE_URL
 const providerKey = process.env.OPENAI_API_KEY
 const live = process.env.DOCS_PROVIDER_E2E_ALLOW_LIVE === '1'
 assert(
-  setting && reportSetting && origin && (!live || providerKey),
-  'Fixture, report, docs origin and provider credential are required'
+  setting && redisSetting && reportSetting && origin && (!live || providerKey),
+  'Fixture, Redis, report, docs origin and provider credential are required'
 )
 const databaseUrl = new URL(setting)
+const redisUrl = new URL(redisSetting)
 const docsOrigin = new URL(origin)
 assert(
   ['localhost', '127.0.0.1', '[::1]'].includes(databaseUrl.hostname),
@@ -32,6 +34,11 @@ assert(
 )
 assert(['postgres:', 'postgresql:'].includes(databaseUrl.protocol))
 assert(
+  ['localhost', '127.0.0.1', '[::1]'].includes(redisUrl.hostname) &&
+    ['redis:', 'rediss:'].includes(redisUrl.protocol),
+  'Only a loopback Redis is permitted'
+)
+assert(
   ['localhost', '127.0.0.1', '[::1]'].includes(docsOrigin.hostname),
   'Only a loopback docs build may be tested'
 )
@@ -39,6 +46,7 @@ const systemVariables = new Set(['PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'USER'
 for (const key of Object.keys(process.env)) if (!systemVariables.has(key)) delete process.env[key]
 Object.assign(process.env, {
   DATABASE_URL: databaseUrl.href,
+  REDIS_URL: redisUrl.href,
   OPENAI_API_KEY: live ? (providerKey ?? '') : '',
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   NODE_ENV: 'test',
@@ -132,11 +140,6 @@ try {
     created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now()
   )`
   created = true
-  await sql`CREATE TABLE rate_limit_bucket (
-    key text PRIMARY KEY, tokens decimal NOT NULL,
-    last_refill_at timestamp NOT NULL, blocked_until timestamp,
-    capacity_state jsonb, updated_at timestamp NOT NULL DEFAULT now()
-  )`
   let expectedChunks = 0
   await check(
     'Scoped publication fits one bounded provider batch before calling the provider',
@@ -285,7 +288,11 @@ try {
         '@/lib/mothership/docs/corpus'
       )
       const { db } = await import('@sim/db')
-      closePlatform = () => db.$client.end({ timeout: 1 })
+      const { closeRedisConnection } = await import('@/lib/core/config/redis')
+      closePlatform = async () => {
+        await db.$client.end({ timeout: 1 })
+        await closeRedisConnection()
+      }
       let hit: { path: string; url: string; content: string }
       if (live) {
         const result = await searchDocs(
@@ -417,7 +424,7 @@ try {
       server.close((error) => (error ? reject(error) : resolve()))
     })
   }
-  if (created) await sql`DROP TABLE IF EXISTS docs_embeddings, rate_limit_bucket`
+  if (created) await sql`DROP TABLE IF EXISTS docs_embeddings`
   await sql.end({ timeout: 1 })
   await writeFile(
     reportPath,

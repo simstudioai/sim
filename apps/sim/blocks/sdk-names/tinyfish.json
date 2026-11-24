@@ -1,0 +1,14 @@
+{
+  "namespace": "tinyfish",
+  "methods": {
+    "tinyfish_cancel_run": "cancelRun",
+    "tinyfish_fetch": "fetchUrls",
+    "tinyfish_get_run": "getRun",
+    "tinyfish_list_profiles": "listBrowserProfiles",
+    "tinyfish_list_runs": "listRuns",
+    "tinyfish_list_vault_items": "listVaultItems",
+    "tinyfish_run": "runAgent",
+    "tinyfish_run_async": "startAgentRun",
+    "tinyfish_search": "search"
+  }
+}

@@ -1,7 +1,6 @@
 import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceInvitationEmailProps {
   /** Workspaces this invitation grants access to (one entry per workspace). */
@@ -15,11 +14,10 @@ export function WorkspaceInvitationEmail({
   inviterName = 'Someone',
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) {
-  const brand = getBrandConfig()
   const isMultiple = workspaceNames.length > 1
   const preview = isMultiple
-    ? `You've been invited to join ${workspaceNames.length} workspaces on ${brand.name}!`
-    : `You've been invited to join the "${workspaceNames[0]}" workspace on ${brand.name}!`
+    ? `You've been invited to join ${workspaceNames.length} workspaces on Sim!`
+    : `You've been invited to join the "${workspaceNames[0]}" workspace on Sim!`
 
   return (
     <EmailLayout preview={preview} showUnsubscribe={false}>
@@ -37,7 +35,7 @@ export function WorkspaceInvitationEmail({
             <EmailStrong>{name}</EmailStrong>
           </span>
         ))}{' '}
-        {isMultiple ? 'workspaces' : 'workspace'} on {brand.name}.
+        {isMultiple ? 'workspaces' : 'workspace'} on Sim.
       </Text>
 
       <EmailButton href={invitationLink}>Accept Invitation</EmailButton>

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { getAllBlocks, getBlock } from '@/blocks/registry'
 
 describe.concurrent('Blocks Module', () => {

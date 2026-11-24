@@ -1,10 +1,10 @@
-import { reconcileTextEvent } from '@/lib/mothership/request/go/text-receipt'
 import { applyStreamEvent } from '@/lib/mothership/request/handlers'
 import type {
   ExecutionContext,
   StreamEvent,
   StreamingContext,
 } from '@/lib/mothership/request/types'
+import { reconcileTextEvent } from '@/lib/mothership/request/worker/text-receipt'
 
 /** Saved delivery is evidence; only a fresh worker handoff can request tool execution. */
 export async function restoreStreamingContext(

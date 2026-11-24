@@ -8,7 +8,11 @@ import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
-const DEFAULT_CATALOG_PATH = resolve(ROOT, '../copilot/copilot/contracts/tool-catalog-v1.json')
+/** The base catalog is owned by the Mothership worker (D115 there); Sim merges its own tools in. */
+const DEFAULT_CATALOG_PATH = resolve(
+  ROOT,
+  '../copilot/worker/packages/contracts/tool-catalog-v1.json'
+)
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/tool-catalog-v1.ts')
 const RUNTIME_SCHEMA_OUTPUT_PATH = resolve(
   ROOT,
@@ -75,7 +79,7 @@ function inferTSType(values: unknown[]): string {
 function renderRuntimeSchemaModule(catalog: { tools: Record<string, unknown>[] }): string {
   const lines: string[] = [
     '// AUTO-GENERATED FILE. DO NOT EDIT.',
-    '// Generated from copilot/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts',
+    '// Generated from the Mothership worker packages/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts',
     '//',
     '',
     'export type JsonSchema = unknown',
@@ -169,7 +173,7 @@ async function main() {
 
   const lines: string[] = [
     '// AUTO-GENERATED FILE. DO NOT EDIT.',
-    '// Generated from copilot/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts',
+    '// Generated from the Mothership worker packages/contracts/tool-catalog-v1.json with Sim-owned Assistant input contracts',
     '//',
     '',
     iface,

@@ -425,6 +425,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Chat deployments', prefixes: ['chat status', 'chat publish', 'chat unpublish'] },
     { title: 'Export and import', prefixes: ['export', 'import-preview', 'import'] },
     { title: 'Folders', prefixes: ['ls', 'folders', 'mkdir'] },
+    { title: 'Workflows as code', prefixes: ['source'] },
   ],
   workspaces: [
     {
@@ -455,6 +456,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Push and pull', prefixes: ['push-preview', 'push', 'pull-preview', 'pull'] },
     { title: 'Operation status', prefixes: ['operations'] },
     { title: 'Exclusions and recovery', prefixes: ['sync-exclusions', 'fork-rollback', 'unlink'] },
+    { title: 'Workspace as code', prefixes: ['source'] },
   ],
 }
 
@@ -886,6 +888,16 @@ function orderedCommands(entries: DocumentedCommand[]): DocumentedCommand[] {
   )
 }
 
+/**
+ * One paragraph of help text as Markdown: prose reflows into one line, and a paragraph laid out
+ * in columns (an indented line with a gap of two or more spaces inside it, as a table of handles
+ * is) keeps its layout in a fence.
+ */
+function helpParagraph(paragraph: string): string[] {
+  if (/^ {2,}\S.*\S {2,}\S/m.test(paragraph)) return ['```text', paragraph.trimEnd(), '```', '']
+  return [escapeProse(paragraph.replace(/\s*\n\s*/g, ' ').trim()), '']
+}
+
 /** Reads command-specific help additions without emitting the root’s help epilogue. */
 function additionalHelp(command: Command): string[] {
   const chunks: string[] = []
@@ -895,9 +907,7 @@ function additionalHelp(command: Command): string[] {
   const text = chunks.join('').trim()
   if (!text) return []
   const [prose = '', examples] = text.split(/\nExamples:\s*\n/, 2)
-  const lines = prose
-    .split(/\n\s*\n/)
-    .flatMap((paragraph) => [escapeProse(paragraph.replace(/\s*\n\s*/g, ' ').trim()), ''])
+  const lines = prose.split(/\n\s*\n/).flatMap(helpParagraph)
   if (examples) {
     lines.push(
       '**Examples**',
@@ -1078,6 +1088,11 @@ function renderReferencePage(
     '',
     'API schema links describe HTTP payloads. See [CLI output formats](/cli/output)',
     'for resource unwrapping, pagination envelopes, and display formats.',
+    '',
+    'Every command exits 13 when it needs a login it does not have (`AUTH_REQUIRED`) and 9',
+    'when the API still answers `429` after the CLI resends it (every `GET` and the source',
+    'writes, up to 6 times, at most a minute apart); see',
+    '[Exit codes](/cli/scripting#exit-codes) for these and the command-specific codes.',
     ''
   )
 

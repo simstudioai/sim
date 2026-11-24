@@ -1,0 +1,37 @@
+{
+  "namespace": "gauge",
+  "methods": {
+    "gauge_add_tags_to_prompts": "addTagsToPrompts",
+    "gauge_bulk_update_prompts": "bulkUpdatePrompts",
+    "gauge_create_prompts": "createPrompts",
+    "gauge_create_tag": "createTag",
+    "gauge_create_topic": "createTopic",
+    "gauge_delete_tag": "deleteTag",
+    "gauge_get_answer": "getAnswer",
+    "gauge_get_category": "getCategory",
+    "gauge_get_current_credential": "getCurrentCredential",
+    "gauge_get_organization": "getOrganization",
+    "gauge_get_prompt": "getPrompt",
+    "gauge_get_query_metadata": "getQueryCatalog",
+    "gauge_get_tag": "getTag",
+    "gauge_get_topic": "getTopic",
+    "gauge_list_answers": "listAnswers",
+    "gauge_list_brands": "listBrands",
+    "gauge_list_categories": "listCategories",
+    "gauge_list_citations": "listCitations",
+    "gauge_list_organizations": "listOrganizations",
+    "gauge_list_prompts": "listPrompts",
+    "gauge_list_tags": "listTags",
+    "gauge_list_topics": "listTopics",
+    "gauge_query": "runReportQuery",
+    "gauge_remove_tags_from_prompts": "removeTagsFromPrompts",
+    "gauge_rename_topic": "renameTopic",
+    "gauge_update_prompt": "updatePrompt",
+    "gauge_update_tag": "updateTag"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

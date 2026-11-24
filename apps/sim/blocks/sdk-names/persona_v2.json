@@ -1,0 +1,36 @@
+{
+  "namespace": "persona",
+  "methods": {
+    "approve_inquiry": "approveInquiry",
+    "create_account": "createAccount",
+    "create_inquiry": "createInquiry",
+    "create_report": "createReport",
+    "decline_inquiry": "declineInquiry",
+    "expire_inquiry": "expireInquiry",
+    "generate_inquiry_link": "generateInquiryLink",
+    "get_account": "getAccount",
+    "get_case": "getCase",
+    "get_document": "getDocument",
+    "get_inquiry": "getInquiry",
+    "get_report": "getReport",
+    "get_verification": "getVerification",
+    "import_accounts": "importAccountsCsv",
+    "list_accounts": "listAccounts",
+    "list_cases": "listCases",
+    "list_inquiries": "listInquiries",
+    "list_inquiry_templates": "listInquiryTemplates",
+    "list_reports": "listReports",
+    "mark_inquiry_for_review": "markInquiryForReview",
+    "print_inquiry_pdf": "printInquiryPdf",
+    "redact_account": "redactAccount",
+    "redact_inquiry": "redactInquiry",
+    "resume_inquiry": "resumeInquiry",
+    "update_account": "updateAccount",
+    "update_inquiry": "updateInquiry"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

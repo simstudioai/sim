@@ -1,3 +1,8 @@
+import {
+  ENTERPRISE_FEATURE_KEYS,
+  ENTERPRISE_FEATURES,
+  ENTERPRISE_MASTER_ENV_VAR,
+} from '@sim/deployment-config/enterprise-features'
 import { createEgressPolicy } from '@sim/security/egress'
 import { getErrorMessage } from '@sim/utils/errors'
 import { KNOWLEDGE_EMBEDDINGS_SETUP } from './capability-config'
@@ -20,7 +25,7 @@ import {
 } from './env-files'
 import * as p from './prompter'
 import { link, theme } from './theme'
-import { FLAG_TWINS, LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins'
+import { LOGIN_PROVIDERS, SELF_HOST_UNLOCKS } from './twins'
 
 /** Where the Chat key is minted when SIM_CLI_AUTH_ORIGIN is unset. */
 const DEFAULT_CLI_AUTH_ORIGIN = 'https://www.sim.ai'
@@ -298,14 +303,14 @@ export async function promptSecurity(vars: Map<string, string>): Promise<Securit
   return { sim, mirrorToRealtime }
 }
 
-/** Self-host feature unlocks — always writes BOTH members of each twin pair. */
+/** Self-host feature unlocks. Each is one server variable; the browser reads the projected shape. */
 export async function promptUnlocks(vars: Map<string, string>): Promise<Record<string, string>> {
   const selected = await p.multiselect({
     message: 'Unlock self-host features? (bypasses hosted plan gating)',
     options: SELF_HOST_UNLOCKS.map((unlock) => ({
       value: unlock.server,
       label: unlock.label,
-      hint: unlock.hint || undefined,
+      hint: unlock.hint,
     })),
     initialValues: SELF_HOST_UNLOCKS.filter((u) => isTruthy(vars.get(u.server))).map(
       (u) => u.server
@@ -313,22 +318,24 @@ export async function promptUnlocks(vars: Map<string, string>): Promise<Record<s
   })
   if (selected.length === 0) return {}
   const flags = new Set(selected)
-  if (flags.has('ENTERPRISE_ENABLED')) {
+  if (flags.has(ENTERPRISE_MASTER_ENV_VAR)) {
     p.log.info(
       theme.muted(
         'The enterprise switch covers every feature below — pick individual ones only to override it.'
       )
     )
   }
-  if (flags.has('ACCESS_CONTROL_ENABLED') && !flags.has('ORGANIZATIONS_ENABLED')) {
-    flags.add('ORGANIZATIONS_ENABLED')
-    p.log.info(theme.muted('Access control requires organizations — enabling both.'))
+  for (const key of ENTERPRISE_FEATURE_KEYS) {
+    const feature = ENTERPRISE_FEATURES[key]
+    if (!flags.has(feature.envVar)) continue
+    for (const implied of feature.implies ?? []) {
+      const required = ENTERPRISE_FEATURES[implied]
+      if (flags.has(required.envVar)) continue
+      flags.add(required.envVar)
+      p.log.info(
+        theme.muted(`${feature.label} requires ${required.label.toLowerCase()} — enabling both.`)
+      )
+    }
   }
-  const values: Record<string, string> = {}
-  for (const server of flags) {
-    values[server] = 'true'
-    const twin = FLAG_TWINS.find((pair) => pair.server === server)
-    if (twin) values[twin.client] = 'true'
-  }
-  return values
+  return Object.fromEntries([...flags].map((server) => [server, 'true']))
 }

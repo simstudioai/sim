@@ -1,15 +1,14 @@
 # values-production.yaml
 #
 # When to use: generic production deployment on any cluster. Enables HA
-# (replicaCount > 1, PDB), NetworkPolicy, HPA, ServiceMonitor, and
-# PSS-restricted security defaults.
+# (replicaCount > 1, PDB), NetworkPolicy, HPA, and PSS-restricted security
+# defaults.
 #
 # Prerequisites:
 #   - A premium StorageClass with reclaimPolicy: Retain
 #   - cert-manager (for TLS) or pre-provisioned certs
 #   - ingress-nginx (or equivalent) for ingress
 #   - metrics-server in the cluster (HPA)
-#   - (recommended) Prometheus Operator for ServiceMonitor
 #   - (recommended) External Secrets Operator — see values-external-secrets.yaml
 #
 # Install:
@@ -74,10 +73,8 @@ app:
 realtime:
   enabled: true
   # Safe to scale: Socket.IO bridges events across pods through its Redis
-  # adapter, and the chart bundles Redis by default (redis.enabled). If you
-  # set redis.enabled=false without supplying app.env.REDIS_URL, drop this
-  # back to 1 and disable autoscaling.realtime below — multi-replica realtime
-  # without Redis silently drops cross-pod collaboration updates.
+  # adapter. Sim requires Redis — the chart bundles it (redis.enabled) unless
+  # you supply REDIS_URL for a managed instance.
   replicaCount: 2
 
   resources:
@@ -183,9 +180,8 @@ certManager:
 # Horizontal Pod Autoscaler (automatically scales pods based on CPU/memory usage)
 autoscaling:
   enabled: true
-  # Realtime scales with the app because Redis is available by default. Set
-  # this to false if you run without Redis (redis.enabled=false and no
-  # app.env.REDIS_URL) — multi-replica realtime would drop cross-pod events.
+  # Realtime scales with the app; Redis (always required) bridges its
+  # cross-pod events. Set false to pin realtime at realtime.replicaCount.
   realtime:
     enabled: true
   minReplicas: 2
@@ -216,32 +212,9 @@ podDisruptionBudget:
   maxUnavailable: 1  
   unhealthyPodEvictionPolicy: AlwaysAllow 
 
-# Monitoring integration with Prometheus
-monitoring:
-  serviceMonitor:
-    enabled: true
-    labels:
-      monitoring: "prometheus"
-    interval: 15s
-    scrapeTimeout: 10s
-
 # Network policies (restricts pod-to-pod communication for security)
 networkPolicy:
   enabled: true
-
-# Shared storage for data sharing between pods (enterprise feature)
-sharedStorage:
-  enabled: true
-  storageClass: "managed-csi-premium"
-  volumes:
-    - name: output-share
-      size: 100Gi
-      accessModes:
-        - ReadWriteMany
-    - name: model-share
-      size: 200Gi
-      accessModes:
-        - ReadWriteMany
 
 # Telemetry and observability (comprehensive monitoring and tracing)
 telemetry:

@@ -112,3 +112,28 @@ describe('sim workflows runs get --select-output', () => {
     expect(request.mock.calls.map(([path]) => path)).toEqual([STATE_PATH])
   })
 })
+
+describe('sim workflows runs get on a paused run', () => {
+  it('prints the exact resume command beside the run, additively', async () => {
+    const run = {
+      runId: RUN_ID,
+      workflowId: WORKFLOW_ID,
+      status: 'paused',
+      paused: {
+        contextId: 'ctx_1',
+        pauseKind: 'human',
+        runId: RUN_ID,
+        points: [{ contextId: 'ctx_1', kind: 'human', status: 'paused' }],
+      },
+    }
+    answer({ data: run })
+    const out = stdout()
+
+    await get()
+
+    expect(JSON.parse(out())).toEqual({
+      ...run,
+      next: `sim workflows runs resume ${RUN_ID} --workflow ${WORKFLOW_ID} --context ctx_1`,
+    })
+  })
+})

@@ -1,0 +1,24 @@
+{
+  "namespace": "intune",
+  "methods": {
+    "intune_get_compliance_policy": "getCompliancePolicy",
+    "intune_get_detected_app": "getDetectedApp",
+    "intune_get_device": "getDevice",
+    "intune_get_device_configuration": "getDeviceConfiguration",
+    "intune_list_app_devices": "listAppDevices",
+    "intune_list_compliance_policies": "listCompliancePolicies",
+    "intune_list_compliance_policy_device_statuses": "listCompliancePolicyDeviceStatuses",
+    "intune_list_detected_apps": "listDetectedApps",
+    "intune_list_device_configurations": "listDeviceConfigurations",
+    "intune_list_devices": "listDevices",
+    "intune_reboot_device": "rebootDevice",
+    "intune_remote_lock_device": "remoteLockDevice",
+    "intune_retire_device": "retireDevice",
+    "intune_sync_device": "syncDevice"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

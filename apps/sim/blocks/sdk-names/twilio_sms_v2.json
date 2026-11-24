@@ -1,0 +1,12 @@
+{
+  "namespace": "twilioSms",
+  "triggers": {
+    "twilio_sms_received": "received",
+    "twilio_sms_status": "status"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

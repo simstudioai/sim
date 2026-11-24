@@ -1,7 +1,7 @@
 import type {
-  ComputerUseInput,
   ComputerUseNativeError,
   ComputerUseResult,
+  ComputerUseWithAppCommandsInput,
 } from './computer-use.generated'
 import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
 
@@ -58,7 +58,14 @@ export interface ComputerUseActivity {
 export interface ComputerUseStatus {
   supported: boolean
   enabled: boolean
-  permissions: { accessibility: boolean; screenCapture: boolean }
+  /** The app-data permissions are absent in shells without app commands. */
+  permissions: {
+    accessibility: boolean
+    screenCapture: boolean
+    reminders?: boolean
+    calendars?: boolean
+    contacts?: boolean
+  }
   activeAction: ComputerUseActivity | null
   /** Whether a first use of each app needs approval; absent in older shells, which always ask. */
   askForApps?: boolean
@@ -83,6 +90,20 @@ export class ComputerUseError extends Error {
   }
 }
 
+/** The macOS privacy permissions Computer Use can ask for. */
+export const COMPUTER_USE_PERMISSIONS = [
+  'accessibility',
+  'screenCapture',
+  'reminders',
+  'calendars',
+  'contacts',
+] as const
+export type ComputerUsePermission = (typeof COMPUTER_USE_PERMISSIONS)[number]
+
+export function isComputerUsePermission(value: unknown): value is ComputerUsePermission {
+  return COMPUTER_USE_PERMISSIONS.some((permission) => permission === value)
+}
+
 /** Optional so a new web deployment remains compatible with older desktop shells. */
 interface SimDesktopComputerUseApi {
   /**
@@ -90,18 +111,20 @@ interface SimDesktopComputerUseApi {
    * can list only what changed. Absent in older shells, whose ids are positional.
    */
   stableElementIds?: true
+  /** The computer tool accepts typed app commands (reminders); absent in older shells. */
+  appCommands?: true
   /** Current activity without starting the helper; absent in older shells. */
   getActivity?(): Promise<ComputerUseActivity | null>
   getStatus(): Promise<ComputerUseStatus>
   setEnabled(enabled: boolean): Promise<ComputerUseStatus>
-  requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>
+  requestPermission(permission: ComputerUsePermission): Promise<ComputerUseStatus>
   /** Absent in older shells, which always ask before a first use of each app. */
   setAskForApps?(ask: boolean): Promise<ComputerUseStatus>
   listAppPermissions(): Promise<ComputerUseAppPermission[]>
   revokeApp(bundleId: string): Promise<void>
   executeTool(
     toolCallId: string,
-    params: ComputerUseInput
+    params: ComputerUseWithAppCommandsInput
   ): Promise<ComputerUseResult | ComputerUseToolFailure>
   cancel(toolCallId?: string): Promise<void>
   onActivity(callback: (activity: ComputerUseActivity | null) => void): () => void

@@ -1,6 +1,6 @@
-// Sim OTel bootstrap. Filter by `mothership.origin` or span-name
-// prefix (`sim-mothership:` / `go-mothership:`) to separate the two
-// halves of a mothership trace in the OTLP backend.
+// Sim OTel bootstrap. Sim's half of a mothership trace carries
+// `mothership.origin=sim-mothership` and the `sim-mothership:` span-name
+// prefix; the worker's half is identified by service.name `mothership-worker`.
 
 import { hostname } from 'node:os'
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'
@@ -13,7 +13,8 @@ import type {
   SpanProcessor,
 } from '@opentelemetry/sdk-trace'
 import { createLogger } from '@sim/logger'
-import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/observability/trace-attributes'
+import { TraceSpan } from '@/lib/mothership/observability/trace-spans'
 import { env } from './lib/core/config/env'
 import {
   ANONYMOUS_TELEMETRY_ENDPOINT,
@@ -48,7 +49,7 @@ const DEFAULT_TELEMETRY_CONFIG = {
 // Non-mothership code (workflow executor, block runtime, framework
 // noise) is dropped. Broaden carefully — `http.` etc. would reopen
 // the firehose.
-const ALLOWED_SPAN_PREFIXES = ['gen_ai.', 'copilot.', 'sim →', 'sim.', 'tool.execute']
+const ALLOWED_SPAN_PREFIXES = ['gen_ai.', 'copilot.', 'sim →', 'sim.', TraceSpan.ToolExecute]
 
 function isBusinessSpan(spanName: string): boolean {
   return ALLOWED_SPAN_PREFIXES.some((prefix) => spanName.startsWith(prefix))
@@ -90,18 +91,18 @@ function normalizeOtlpLogsUrl(url: string): string {
   }
 }
 
-// deployment.environment in the GO value space (dev | staging | prod) without
+// deployment.environment in the worker's value space (dev | staging | prod) without
 // any new infra env var. Every deployed Sim tier already gets
 // APPCONFIG_ENVIRONMENT = the infra env name (dev | staging | production), so we
-// reuse it and map production -> prod to match Go's `OTEL_DEPLOYMENT_ENVIRONMENT`
-// (and thus a single Grafana $env filter spans Sim + Go). Returns undefined when
+// reuse it and map production -> prod to match the worker's `OTEL_DEPLOYMENT_ENVIRONMENT`
+// (and thus a single Grafana $env filter spans Sim + worker). Returns undefined when
 // unset (local dev) so the OTEL_/NODE_ENV fallbacks still apply.
 function deploymentEnvFromAppConfig(v: string | undefined): string | undefined {
   if (!v) return undefined
   return v === 'production' ? 'prod' : v
 }
 
-// Sampling ratio from env (mirrors Go's `samplerFromEnv`); fallback
+// Sampling ratio from env; fallback
 // is 100% everywhere. Retention caps cost, not sampling.
 function resolveSamplingRatio(_isLocalEndpoint: boolean): number {
   const raw = process.env.TELEMETRY_SAMPLING_RATIO || process.env.OTEL_TRACES_SAMPLER_ARG || ''
@@ -300,7 +301,7 @@ async function initializeOpenTelemetry() {
     // Must be unique per process: replicas sharing one instance id collapse
     // into a single Prometheus series, so their independent cumulative
     // counters interleave and corrupt rate()/increase(). The slug keeps Sim
-    // distinct from Go for Jaeger's clock-skew grouping; the hostname (the
+    // distinct from the worker for Jaeger's clock-skew grouping; the hostname (the
     // container id under ECS) makes each replica its own series.
     const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}-${hostname()}`
     const resource = defaultResource().merge(
@@ -308,8 +309,7 @@ async function initializeOpenTelemetry() {
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
         [ATTR_SERVICE_VERSION]: telemetryConfig.serviceVersion,
         // OTEL_ → DEPLOYMENT_ENVIRONMENT → APPCONFIG_ENVIRONMENT (mapped to the
-        // Go value space) → NODE_ENV. Matches Go's `resourceEnvFromEnv()` so a
-        // single $env spans Sim + Go. APPCONFIG_ENVIRONMENT (already set on every
+        // worker's value space) → NODE_ENV, so a single $env spans Sim + worker. APPCONFIG_ENVIRONMENT (already set on every
         // deployed tier) is the fix that stops deployed Sim tagging everything
         // "production" via the NODE_ENV fallback — no new infra env var needed.
         [ATTR_DEPLOYMENT_ENVIRONMENT]:
@@ -318,12 +318,12 @@ async function initializeOpenTelemetry() {
           deploymentEnvFromAppConfig(process.env.APPCONFIG_ENVIRONMENT) ||
           env.NODE_ENV ||
           'development',
-        'service.namespace': 'mothership',
-        'service.instance.id': serviceInstanceId,
-        'mothership.origin': MOTHERSHIP_ORIGIN,
-        'telemetry.sdk.name': 'opentelemetry',
-        'telemetry.sdk.language': 'nodejs',
-        'telemetry.sdk.version': '1.0.0',
+        [TraceAttr.ServiceNamespace]: 'mothership',
+        [TraceAttr.ServiceInstanceId]: serviceInstanceId,
+        [TraceAttr.MothershipOrigin]: MOTHERSHIP_ORIGIN,
+        [TraceAttr.TelemetrySdkName]: 'opentelemetry',
+        [TraceAttr.TelemetrySdkLanguage]: 'nodejs',
+        [TraceAttr.TelemetrySdkVersion]: '1.0.0',
       })
     )
 
@@ -380,6 +380,12 @@ export async function register() {
   // 500 on whichever request first happens to touch an outbound path.
   const { resolveEgressPolicy } = await import('./lib/core/security/egress/profiles')
   resolveEgressPolicy('requestTarget')
+
+  // Redis is required. Validating REDIS_URL here stops a misconfigured server at boot, naming the
+  // setting, instead of failing whichever request first needs Redis. Next.js never runs
+  // `register` during `next build`, so the build still works without REDIS_URL.
+  const { getConfiguredRedisUrl } = await import('@/lib/core/config/redis')
+  getConfiguredRedisUrl()
 
   await initializeOpenTelemetry()
 

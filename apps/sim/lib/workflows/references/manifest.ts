@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import type { PortableResourceKind } from '@sim/workflow-types/resources'
 import {
   coerceObjectArray,
   type SubBlockRecord,
@@ -10,7 +11,6 @@ import {
   remapSubBlocks,
 } from '@/lib/workflows/references/remap-references'
 import type {
-  PortableResourceKind,
   ReferenceOccurrence,
   WorkflowReferenceManifest,
 } from '@/lib/workflows/references/types'

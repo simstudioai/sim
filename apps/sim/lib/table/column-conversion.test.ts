@@ -2,6 +2,8 @@
  * Guards for the select column-type conversion rules. These paths had no
  * coverage and every case below was a shipped defect caught in review.
  */
+
+import { resolveSelectOptionId } from '@sim/table-cells/select'
 import { describe, expect, it } from 'vitest'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types'
 import {
@@ -9,7 +11,6 @@ import {
   isValueCompatibleWithColumn,
   selectValueForConversion,
 } from '@/lib/table/columns/service'
-import { resolveSelectOptionId } from '@/lib/table/select-options'
 import type { ColumnDefinition, ColumnType, SelectOption } from '@/lib/table/types'
 
 /**

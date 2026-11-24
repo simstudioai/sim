@@ -310,7 +310,9 @@ describe('mothership-stream-outbox', () => {
     mockRedis.eval.mockClear()
     await appendEvents([envelope], { streamId: 'stream-1', userId: 'user-1' })
     expect(mockRedis.eval.mock.calls[0][1]).toBe(4)
-    expect(mockRedis.eval.mock.calls[0][5]).toBe('execution:redis-budget:user:user-1')
+    expect(mockRedis.eval.mock.calls[0][5]).toBe(
+      'execution:redis-budget:copilot_stream_user:user-1'
+    )
   })
 
   it('clears persisted stream state during teardown cleanup', async () => {
@@ -443,13 +445,15 @@ describe('mothership-stream-outbox', () => {
     expect(mockRedis.del.mock.calls[0]).toContain('execution:redis-budget:copilot_stream:stream-1')
   })
 
-  it('never touches the shared user counter when clearing a buffer', async () => {
+  it('never touches the user counter when clearing a buffer', async () => {
     // An owner id is not proof of who wrote the bytes, so crediting the user counter here would
     // let anyone who can name a stream decrement a ceiling they never charged.
     await clearBuffer('stream-1')
 
     const keys = mockRedis.del.mock.calls[0] as string[]
-    expect(keys.some((key) => key.includes('redis-budget:user:'))).toBe(false)
+    expect(keys.filter((key) => key.startsWith('execution:redis-budget:'))).toEqual([
+      'execution:redis-budget:copilot_stream:stream-1',
+    ])
   })
 })
 

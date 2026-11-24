@@ -14,6 +14,7 @@ import {
   authorizePublicFileShare,
   checkPublicFileShareContent,
   readPublicFileShareContent,
+  retryOnSharedFileRevisionChange,
 } from '@/lib/public-shares/application'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { FILE_CACHE_CONTROL } from '@/lib/uploads/server/delivery'
@@ -39,7 +40,7 @@ export const GET = withRouteHandler(
       })
       if (!auth.authorized) return publicFileAuthDenied(auth)
       if (request.method === 'HEAD') {
-        await checkPublicFileShareContent(auth.grant)
+        await retryOnSharedFileRevisionChange(() => checkPublicFileShareContent(auth.grant))
         return new NextResponse(null, {
           headers: {
             'Cache-Control': FILE_CACHE_CONTROL.revalidate,
@@ -47,26 +48,28 @@ export const GET = withRouteHandler(
           },
         })
       }
-      const result = await readPublicFileShareContent({
-        grant: auth.grant,
-        preview: parsed.data.query.preview === '1',
-        request,
-      })
-      if (result.kind === 'stream') {
-        return await createStoredFileStreamResponse(
-          { ...result, cacheControl: FILE_CACHE_CONTROL.revalidate },
-          request.headers
+      return await retryOnSharedFileRevisionChange(async () => {
+        const result = await readPublicFileShareContent({
+          grant: auth.grant,
+          preview: parsed.data.query.preview === '1',
+          request,
+        })
+        if (result.kind === 'stream') {
+          return await createStoredFileStreamResponse(
+            { ...result, cacheControl: FILE_CACHE_CONTROL.revalidate },
+            request.headers
+          )
+        }
+        return createConditionalFileResponse(
+          {
+            buffer: result.buffer,
+            contentType: result.contentType,
+            filename: result.file.originalName,
+            cacheControl: FILE_CACHE_CONTROL.revalidate,
+          },
+          request.headers.get('if-none-match')
         )
-      }
-      return createConditionalFileResponse(
-        {
-          buffer: result.buffer,
-          contentType: result.contentType,
-          filename: result.file.originalName,
-          cacheControl: FILE_CACHE_CONTROL.revalidate,
-        },
-        request.headers.get('if-none-match')
-      )
+      })
     } catch (error) {
       logPublicFileError(logger, 'Error serving public shared file:', error)
       return publicFileBinaryErrorResponse(error, 'Failed to serve file')

@@ -1,0 +1,164 @@
+---
+title: Troubleshooting
+description: Fix a failed sim workflows source or sim workspaces source command, by exit code and by diagnostic code.
+---
+
+Every `sim workflows source` and `sim workspaces source` command reports a failure in two ways: an exit code for the kind of failure, and findings that each name a code, a file, a line and a hint. Find the exit code below first, then the code of the first error it printed.
+
+Each finding prints as `file:line:column`, with the code around it and a hint. `--output json` puts the same findings in a `diagnostics` array, and a refused write prints an `{error:…}` document on stderr whose `details.code` names the refusal, such as `SOURCE_STALE`. Fix the first error first: later ones often follow from it.
+
+## By exit code
+
+[Exit codes](/workflows/code/exit-codes) has the full table. These are the causes behind each code and how to get past them.
+
+### Exit `1`: errors, or the command failed [#exit-1]
+
+- **The source has errors.** Fix each one at the line it names. The [diagnostic codes](#by-diagnostic-code) below cover the common ones, and [Diagnostic codes](/workflows/code/diagnostics) lists every code.
+- **`check` failed on a warning.** An apply saves some warnings as written, such as a required field left empty, so `check` fails on them in a block you added since the `get`. `sim workflows source check --help` lists them.
+- **"No block catalog is cached".** `sim workflows source check` and `params` work from the catalog the last `get` or `create` cached on this machine. Run `get` once, for example on a fresh CI runner. `sim workspaces source check` downloads the catalog itself.
+- **A name is taken.** `SOURCE_NAME_TAKEN` on `create`: pass `--name`. `E_NAME_TAKEN` on an apply: another resource of the same kind already has that name, such as another workflow in the folder for the name `workflow('…')` gives, or another skill or custom tool in a workspace directory.
+- **`get` refused the directory.** `SOURCE_LOCAL_EDITS` means the directory holds edits no apply has saved: apply them, get into another directory, or pass `--force` to discard them. `SOURCE_WORKFLOW_MISMATCH` means it holds another workflow, and `SOURCE_DIR_KIND_MISMATCH` that it is the other kind of directory, which `--force` never overrides.
+- **The directory belongs to another workspace.** `SOURCE_OTHER_WORKSPACE`: a directory acts on the workspace it was read from. Drop `--workspace`, or promote it with `--to`.
+- **Binary files were never downloaded.** `SOURCE_BLOBS_NOT_FETCHED`: run `get` again before applying.
+
+### Exit `5`: stale [#exit-5]
+
+Someone saved what this directory was read from after you read it, in the workflow builder, through the API, or with another apply. A workflow apply, and a workspace apply refused while planning, writes nothing; a dry run exits `5` the same way. A workspace apply that found a resource changed part-way through its writes has saved the changes before it into the directory, so carry over only the rest.
+
+1. See what changed in Sim: `sim workflows source diff --dir <dir> --server`.
+2. Get the current version into a fresh directory: `sim workflows source get <workflowId> --dir <fresh dir>`.
+3. Carry your edit over, then dry-run and apply from the fresh directory.
+
+In CI, this happens when an apply rewrote files that were not committed back, or when two branches each applied: commit the files an apply rewrites, as [Run in CI](/workflows/code/ci) does. In a promotion, it means the target changed a resource the directory changed too; carry the target's change into the source workspace, or undo it in the target.
+
+### Exit `6`: locked [#exit-6]
+
+The workflow, its folder or a table is locked against changes (`E_APPLY_LOCKED`). Ask someone who can to unlock it in Sim. A locked block inside an unlocked workflow exits `1` instead, with `E_APPLY_LOCKED_BLOCK`.
+
+### Exit `7`: over a limit [#exit-7]
+
+The workflow or directory is larger than one get or apply may handle, and the finding names each measured size. Split a large workflow into a parent and a child workflow, or apply a workspace in parts with `--only`. The numbers are in [Limits](/workflows/code/limits).
+
+### Exit `8`: a workspace apply stopped part-way [#exit-8]
+
+A write failed on the server after earlier writes were saved. The CLI saved what was written into the directory and printed the plan with each change marked written or not written. Run the same apply again until it exits `0`; it continues where it stopped.
+
+### Exit `9`: rate limited [#exit-9]
+
+The API still answered `429` after the CLI's retries, and nothing more was written. Wait a minute and run the same command again. In CI, avoid several jobs applying at once with a `concurrency` key.
+
+### Exit `10`: busy [#exit-10]
+
+- `SOURCE_BUSY`: another apply is writing the same workspace. Run yours again once it finished.
+- `SOURCE_DIR_BUSY`: another `sim` command is using this directory, or the workspace directory it is a folder of. The CLI holds `.sim/command.lock/` while a command runs, and takes it over once the process holding it has gone, so run the command again.
+
+Nothing was read or written either way.
+
+### Exit `11`: your edits are not applied [#exit-11]
+
+Only `status` exits `11`, and it is not a failure: the directory holds edits that applying would write. Dry-run, then apply. In a scheduled CI check, `11` usually means a merge whose apply failed.
+
+### Exit `12`: Sim changed since the get [#exit-12]
+
+Only `status` exits `12`. Follow its `Next:` line:
+
+- **Drift**, Sim changed and the directory did not: `get` into the same directory brings it up to date. Commit the result.
+- **A conflict**, both changed the same workflow or resource: an apply would be refused as stale. Get into a fresh directory and carry your edit over, as for [exit `5`](#exit-5).
+
+### Exit `13`: not signed in [#exit-13]
+
+No login, an expired login, or a credential the server refused (`AUTH_REQUIRED`). Run `sim login`, or fix or unset `SIM_API_KEY` when the key comes from it, then run the same command again. See [Authentication](/cli/authentication).
+
+### Exit `14`: apply without `--yes` [#exit-14]
+
+`apply` or `create` found no errors, printed the plan, and wrote nothing, because there was no terminal to confirm in. Run the same command with `--yes`.
+
+### Exit `15`: changes held back [#exit-15]
+
+A workspace apply wrote what it could and held back each change that uses a secret the workspace has no value for (`E_SECRET_MISSING`) or a credential key no credential binds to (`E_CREDENTIAL_MISSING`, `E_CREDENTIAL_AMBIGUOUS`). Set the secret with `sim secrets set NAME --scope workspace`, or connect the credential, then apply again. A dry run exits `15` too, so a script can find out first.
+
+### Exit `130`: interrupted [#exit-130]
+
+Ctrl-C. If the CLI says a write may have happened, `status` shows whether it did.
+
+## A command answers `403` [#forbidden]
+
+- **"Workflows as code is in preview and not enabled for this workspace".** The feature is off for this workspace; see [Workflows as code](/workflows/code) for how it is enabled.
+- **A workspace API key.** Saving a workflow acts as a person, so it needs a personal API key or an OAuth login. In a workspace directory, a workspace key can apply only some kinds and the rest are refused with `E_APPLY_FORBIDDEN`; see [Workspace API keys](/workflows/code/workspace#workspace-api-keys).
+
+## By diagnostic code
+
+### `E_UNSUPPORTED_SYNTAX` [#e-unsupported-syntax]
+
+The file holds a form Sim cannot read without running it, such as a helper function, an `if`, a loop that creates blocks, or an import from anything but `@sim/workflow-sdk`. Write each block as its own `const`, use `loop()`, `parallel()`, `condition` or `router` blocks for control flow, and put logic inside function code. The hint names the supported form; [File syntax](/workflows/code/syntax) lists them all.
+
+### `E_UNKNOWN_BUILDER` and `E_UNKNOWN_PARAM` [#e-unknown-param]
+
+A builder or param name the block catalog does not have. The hint suggests the closest name. `sim workflows source params <builder>` prints a builder's params and outputs, and a namespace such as `gmail` lists its builders.
+
+### `E_TYPE` and `W_TYPES_UNCHECKED` [#e-type]
+
+`E_TYPE` is a type error `check` found after the compile; its message starts with TypeScript's own code, such as `TS2339: Property 'emial' does not exist`. Fix it at the line it names: it usually reads an output or input the block does not declare, or passes a value of the wrong type. `W_TYPES_UNCHECKED` means the type check did not run, most often because the first `check` on this machine could not install TypeScript offline. The compile's findings still stand; run `check` once with network access, or pass `--no-types`.
+
+### `W_REQUIRED_MISSING` [#w-required-missing]
+
+A required field is empty, or holds `todo()`. Fill it in, or use `env.NAME` for a value you keep in an environment variable.
+
+### `E_APPLY_UNRESOLVED_REF` [#e-apply-unresolved-ref]
+
+A reference names a block that does not exist, or an output path the block does not have. In `workflow.ts`, read an output through the block's `const`, as in `triage.content`. In function code, `$ref.<key>` uses the block key: the display name lowercased with whitespace and dots removed. The hint lists the outputs the block has.
+
+### `E_MAT_UNKNOWN_RESOURCE` [#e-mat-unknown-resource]
+
+A resource helper, such as `table('orders')` or `credential('support-slack')`, names a key no live resource has. Keys are exact. `sim workflows source resources` lists the keys of your workspace; in a workspace directory, a key is the resource's file or folder name, and `check` lists the declared ones.
+
+### `E_APPLY_BLOCK_DELETE` and `W_MAT_INFERRED_RENAME` [#e-apply-block-delete]
+
+The save would delete blocks: a stored block no longer matches any block in the file. If you meant to delete them, apply again with `--allow-delete`; a deleted block's webhook URL, schedules and run history go with it.
+
+If you meant a rename, keep the `.sim/` folder, change the display name and keep the `const` name, or the other way round, and apply that before the next rename. When the file adds a block of the deleted one's type, the finding names it as a possible rename and says how to keep the ID. A rename Sim inferred from type, position and connections is reported as `W_MAT_INFERRED_RENAME`: check the plan names the block you meant. `E_APPLY_VARIABLE_DELETE` is the same for workflow variables.
+
+### `E_APPLY_LOCKED_BLOCK` [#e-apply-locked-block]
+
+The change touches a locked block, or a block inside a locked loop or parallel. Nobody can change it from the file. Unlock it in the workflow builder, or leave it as it is.
+
+### `E_APPLY_NO_BASE` [#e-apply-no-base]
+
+A declaration in a workspace directory matches a resource Sim holds that the directory never read, such as a table someone made in Sim under the same name. The apply may only add to such a resource. Run `get` into a new directory to read it, then make your edit there, or give the declaration another name.
+
+### `E_KEY_RENAMED` [#e-key-renamed]
+
+A resource file or folder in a workspace directory was renamed. Keys never change: move it back to its key, and change the resource's `name` inside the file instead.
+
+### `E_APPLY_FORBIDDEN` [#e-apply-forbidden]
+
+Your role in the workspace, or a workspace API key, does not allow the change. The finding names each resource. Use a personal API key or an OAuth login with the role the change needs, or narrow the apply with `--only`.
+
+### `E_EDGE_CYCLE` [#e-edge-cycle]
+
+The wiring closes a cycle, so no block on it would ever run. Remove the edge the finding points at, and repeat work with `loop()` instead.
+
+### `E_STORED_VALUE_MISSING` [#e-stored-value-missing]
+
+`stored()` stands for a saved value, such as a secret, that `get` does not print. A workflow created from a copy has no saved value to keep. Replace `stored()` with `env.NAME` or the value.
+
+### `W_APPLY_CATALOG_MOVED` [#w-apply-catalog-moved]
+
+The compile failed, and the block catalog changed since you read the workflow, for example because a block gained a setting. Run `get` again to update the types, then reapply your edit.
+
+### `W_APPLY_TRIGGER_REMOVED` [#w-apply-trigger-removed]
+
+You deleted or retyped a block that serves a live webhook, schedule, chat or MCP tool. The deployed version keeps serving it until the next deploy. Deploy when the change should take effect, and update whatever called the old webhook URL.
+
+## Other problems
+
+- **The builder does not show a change.** An apply saves the draft. The builder shows it at once, but runs of the deployed version do not change until you deploy.
+- **The Code tab is missing.** Workflows as code is not enabled for the workspace; see [Workflows as code](/workflows/code).
+
+## Related docs
+
+- [Exit codes](/workflows/code/exit-codes)
+- [Diagnostic codes](/workflows/code/diagnostics)
+- [Limits](/workflows/code/limits)
+- [How it works](/workflows/code/how-it-works)
+- [CLI troubleshooting](/cli/troubleshooting)

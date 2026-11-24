@@ -9,13 +9,6 @@ const { redisDelMock, redisEvalMock, redisGetMock } = vi.hoisted(() => ({
   redisGetMock: vi.fn(),
 }))
 
-vi.mock('@/lib/core/storage', () => ({
-  getStorageMethod: () => 'redis',
-  isRedisStorage: () => true,
-  isDatabaseStorage: () => false,
-  requireRedis: () => ({ del: redisDelMock, eval: redisEvalMock }),
-}))
-
 import { RetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   IdempotencyService,

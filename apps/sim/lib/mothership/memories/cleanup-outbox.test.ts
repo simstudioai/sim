@@ -3,13 +3,13 @@
  */
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { mothershipAgentUrlMock } from '@sim/testing/mocks/mothership-agent-url.mock'
-import { mothershipGoFetchMock } from '@sim/testing/mocks/mothership-go-fetch.mock'
+import { mothershipWorkerFetchMock } from '@sim/testing/mocks/mothership-worker-fetch.mock'
 import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/mothership/constants', () => ({ SIM_AGENT_API_URL: 'https://agent.example.test' }))
-vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/request/worker/fetch', () => mothershipWorkerFetchMock)
 vi.mock('@/lib/mothership/request/headers', () => ({ mothershipRequestHeaders: () => ({}) }))
 vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 

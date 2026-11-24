@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
   isCanonicalPair,
   scopeCanonicalModesForTool,
-} from '@/lib/workflows/subblocks/visibility'
+} from '@sim/workflow-code/catalog/canonical-index'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { omitConditionHiddenParams } from '@/lib/workflows/tool-input/hidden-params'
 import { getBlock } from '@/blocks/registry'
 import type { BlockOutput } from '@/blocks/types'

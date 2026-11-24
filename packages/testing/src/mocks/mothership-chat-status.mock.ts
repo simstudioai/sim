@@ -25,8 +25,8 @@ export const mothershipChatStatusMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/mothership/chat-status`. `chatPubSub` is the non-null
- * (Redis/EventEmitter available) adapter whose methods are the fns above.
+ * Static mock module for `@/lib/mothership/chat-status`. `chatPubSub` is the adapter whose
+ * methods are the fns above.
  *
  * @example
  * ```ts

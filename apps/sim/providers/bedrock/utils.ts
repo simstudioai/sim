@@ -264,6 +264,9 @@ const GEO_PROFILE_MODEL_IDS = new Set([
 
 /** Current Claude profiles use AU rather than the older APAC geography. */
 const CLAUDE_GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-opus-5-5',
+  'anthropic.claude-sonnet-5-5',
+  'anthropic.claude-haiku-5-5',
   'anthropic.claude-opus-5',
   'anthropic.claude-sonnet-5',
   'anthropic.claude-opus-4-8',
@@ -275,6 +278,8 @@ const CLAUDE_GEO_PROFILE_MODEL_IDS = new Set([
 /** Unqualified IDs for these models use US geographic inference profiles. */
 const US_GEO_PROFILE_MODEL_IDS = new Set([
   'openai.gpt-6.1-sol',
+  'anthropic.claude-fable-5-2',
+  'anthropic.claude-fable-5-1',
   'anthropic.claude-fable-5',
   'openai.gpt-6-astra',
   'openai.gpt-5.6-sol',

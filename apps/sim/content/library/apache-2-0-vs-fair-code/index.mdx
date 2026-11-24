@@ -42,7 +42,7 @@ faq:
   - q: "Does n8n allow SaaS hosting?"
     a: "n8n does not permit hosting n8n and charging customers for access under the Sustainable Use License without an appropriate separate agreement, as of November 2026."
   - q: "Can I white-label Sim?"
-    a: "Apache 2.0 permits modifying Sim’s Apache-licensed code and commercially distributing those modifications, but it does not grant rights to Sim trademarks or branding. Sim’s built-in whitelabeling feature is covered by the separate Sim Enterprise License, requires an Enterprise subscription for production use, and may not be redistributed."
+    a: "Apache 2.0 permits modifying Sim’s Apache-licensed code and commercially distributing those modifications, but it does not grant rights to Sim trademarks or branding. Code in `apps/sim/ee` is covered by the separate Sim Enterprise License, requires an Enterprise subscription for production use, and may not be redistributed."
   - q: "Can I white-label n8n?"
     a: "n8n states that white-labeling n8n for customers is not permitted under the Sustainable Use License without a separate commercial agreement, as of November 2026."
   - q: "Does Apache 2.0 include a patent license?"
@@ -119,7 +119,7 @@ That distinction matters when a team wants to modify an automation platform, dis
 
 Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
 
-[Sim's core code](https://github.com/simstudioai/sim/blob/main/LICENSE) uses Apache License 2.0. Features in `apps/sim/ee`, including built-in white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that permits development, testing, and internal non-production use; production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted. As of November 2026, [n8n](https://docs.n8n.io/n8n-community-license) uses its Sustainable Use License, a source-available fair-code license that permits internal business use but restricts certain customer-facing commercial uses.
+[Sim's core code](https://github.com/simstudioai/sim/blob/main/LICENSE) uses Apache License 2.0. Features in `apps/sim/ee` use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that permits development, testing, and internal non-production use; production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted. As of November 2026, [n8n](https://docs.n8n.io/n8n-community-license) uses its Sustainable Use License, a source-available fair-code license that permits internal business use but restricts certain customer-facing commercial uses.
 
 This article provides a practical comparison, not legal advice. Have qualified counsel review the license for a production use case when the planned activity is commercially significant.
 
@@ -366,7 +366,7 @@ The distinction is definitional rather than a judgment about product quality. Th
 
 Sim's [Apache License 2.0 file](https://github.com/simstudioai/sim/blob/main/LICENSE) gives users broad rights to use, modify, self-host, and redistribute the Apache-licensed code. Features in `apps/sim/ee` are covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which permits development, testing, and internal non-production use; production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted.
 
-Sim's separately licensed enterprise modules include SSO, SCIM, access control, access requests, audit logs, white-labeling, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups.
+Sim's separately licensed enterprise modules include SSO, SCIM, access control, access requests, audit logs, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups.
 
 Apache 2.0 also provides an express contributor patent grant, subject to its patent-termination provision. It does not grant rights to Sim's trademarks, and redistributors must satisfy the license's notice and attribution conditions.
 
@@ -376,7 +376,7 @@ Sim's core is licensed under Apache 2.0, but the enterprise directory is governe
 
 The [Sim core license](https://github.com/simstudioai/sim/blob/main/LICENSE) grants broad rights to use, modify, and distribute the covered core code, including for commercial purposes when its conditions are followed.
 
-Code in `apps/sim/ee`, including SSO, SCIM, access control, access requests, audit logs, white labeling, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups, is covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). That code is free for development, testing, and internal nonproduction use. Production use requires an active Sim Enterprise subscription. Modification and redistribution are not permitted.
+Code in `apps/sim/ee`, including SSO, SCIM, access control, access requests, audit logs, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups, is covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). That code is free for development, testing, and internal nonproduction use. Production use requires an active Sim Enterprise subscription. Modification and redistribution are not permitted.
 
 This boundary matters when evaluating commercial rights. Apache 2.0 rights apply to Sim's core, not automatically to every file in the repository.
 

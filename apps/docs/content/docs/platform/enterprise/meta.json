@@ -13,8 +13,7 @@
     "audit-logs",
     "usage-tracking",
     "data-retention",
-    "data-drains",
-    "whitelabeling"
+    "data-drains"
   ],
   "defaultOpen": false
 }

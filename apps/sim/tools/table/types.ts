@@ -9,7 +9,7 @@ import type {
   TableRow,
   TableSchema,
 } from '@/lib/table/types'
-import type { ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { OutputProperty, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
 interface TableOperationOutput {
   success: true
@@ -105,6 +105,11 @@ export interface TableRowResponse extends ToolResponse {
   }
 }
 
+/** A single-row write (insert or update), with the data keys it dropped for naming no column. */
+export interface TableRowWriteResponse extends ToolResponse {
+  output: TableRowResponse['output'] & { ignoredColumns: string[] }
+}
+
 export interface TableQueryResponse extends ToolResponse {
   output: TableOperationOutput & {
     rows: TableRow[]
@@ -139,6 +144,7 @@ export interface TableBatchInsertResponse extends ToolResponse {
     rows: TableRow[]
     insertedCount: number
     message: string
+    ignoredColumns: string[]
   }
 }
 
@@ -167,6 +173,11 @@ export interface TableBulkOperationResponse extends ToolResponse {
   }
 }
 
+/** An update by filter, with the data keys it dropped for naming no column. */
+export interface TableBulkUpdateResponse extends ToolResponse {
+  output: TableBulkOperationResponse['output'] & { ignoredColumns: string[] }
+}
+
 export interface TableGetSchemaParams {
   tableId: string
   _context?: WorkflowToolExecutionContext
@@ -188,5 +199,17 @@ export interface TableUpsertResponse extends ToolResponse {
     row: TableRow
     operation: 'insert' | 'update'
     message: string
+    ignoredColumns: string[]
   }
 }
+
+/**
+ * The keys of a row write's data that name no column of the table, which the write drops instead
+ * of failing. Shared so every row-writing tool declares it identically.
+ */
+export const IGNORED_COLUMNS_OUTPUT = {
+  type: 'array',
+  description:
+    'Keys of the written data that name no column of the table, which the write dropped. Empty when every key matched a column.',
+  items: { type: 'string' },
+} satisfies OutputProperty

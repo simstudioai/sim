@@ -480,6 +480,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
         success: false,
         status: 'failed',
         output: { partial: true },
+        paused: null,
         error: 'Route: Condition evaluation failed',
         structuredError: {
           message: 'Condition evaluation failed',

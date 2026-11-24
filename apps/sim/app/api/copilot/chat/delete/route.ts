@@ -52,7 +52,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     logger.info('Chat deleted', { chatId: parsed.chatId })
 
     if (deleted.workspaceId) {
-      chatPubSub?.publishStatusChanged({
+      chatPubSub.publishStatusChanged({
         workspaceId: deleted.workspaceId,
         chatId: parsed.chatId,
         type: 'deleted',

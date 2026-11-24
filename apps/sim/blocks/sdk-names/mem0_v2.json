@@ -1,0 +1,13 @@
+{
+  "namespace": "mem0",
+  "methods": {
+    "add": "addMemories",
+    "get": "getMemories",
+    "search": "searchMemories"
+  },
+  "paramAliases": {
+    "action": {
+      "oauthCredential": "credential"
+    }
+  }
+}

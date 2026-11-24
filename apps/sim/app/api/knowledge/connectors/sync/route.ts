@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { and, asc, eq, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -9,7 +10,6 @@ import {
   resolveSystemOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CONTENT_ENGINE_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'

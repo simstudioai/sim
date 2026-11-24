@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { createInterface } from 'node:readline/promises'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { Command, Option } from 'commander'
 import { printLine } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
+import { askLine } from '#sim-cli/terminal/line-input'
 import {
   buildApprovalUrl,
   createAuthRequest,
@@ -120,15 +120,14 @@ async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
     )
   }
 
-  const prompt = createInterface({ input: process.stdin, output: process.stderr })
-  try {
-    const answer = await prompt.question(
+  const answer = (
+    await askLine(
       `Profile "${redact(profileName)}" already exists. Replace its login and defaults? (y/N) `
     )
-    return answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes'
-  } finally {
-    prompt.close()
-  }
+  )
+    ?.trim()
+    .toLowerCase()
+  return answer === 'y' || answer === 'yes'
 }
 
 function selectedProfileName(command: Command): string {
@@ -309,20 +308,16 @@ async function chooseWorkspace(
     printLine(`  ${index + 1}) ${safeOneLine(workspace.name)} (${workspace.id})`)
   }
 
-  const prompt = createInterface({ input: process.stdin, output: process.stderr })
-  try {
-    const answer = await prompt.question(`Choose a workspace [1-${workspaces.length}]: `)
-    const selected = Number(answer.trim())
-    if (!Number.isInteger(selected) || selected < 1 || selected > workspaces.length) {
-      throw new SimApiError(
-        `Invalid workspace selection "${safeOneLine(answer)}". Choose a number from 1 to ${workspaces.length}.`,
-        0
-      )
-    }
-    return workspaces[selected - 1]
-  } finally {
-    prompt.close()
+  const answer = await askLine(`Choose a workspace [1-${workspaces.length}]: `)
+  if (answer === null) throw new SimApiError('No workspace was chosen.', 0, 'CANCELLED')
+  const selected = Number(answer.trim())
+  if (!Number.isInteger(selected) || selected < 1 || selected > workspaces.length) {
+    throw new SimApiError(
+      `Invalid workspace selection "${safeOneLine(answer)}". Choose a number from 1 to ${workspaces.length}.`,
+      0
+    )
   }
+  return workspaces[selected - 1]
 }
 
 function addProfileCommand(): Command {
@@ -760,7 +755,7 @@ async function loginWithHandoff(
       : `the newest key named "CLI (…Z)", created at about ${new Date().toISOString().slice(0, 19).replace('T', ' ')}Z,`
     printLine(
       styles().yellow(
-        `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → API keys.`
+        `API key ${keyId} was created on your account but could not be stored safely. Revoke ${listedAs} in Settings → Sim API keys.`
       )
     )
     throw error
@@ -856,7 +851,7 @@ export function logoutCommand(): Command {
         printLine(styles().green(`✓ Removed profile "${safeOneLine(profileName)}".`))
         if (credential?.kind === 'api_key') {
           printLine(
-            styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
+            styles().dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
           )
         }
         return
@@ -891,7 +886,7 @@ export function logoutCommand(): Command {
       if (credential.kind === 'api_key') {
         /** Local API-key removal cannot revoke the server-side key. */
         printLine(
-          styles().dim('  The key itself is still active — revoke it in Settings → API keys.')
+          styles().dim('  The key itself is still active — revoke it in Settings → Sim API keys.')
         )
       }
     })

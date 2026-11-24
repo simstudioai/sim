@@ -114,6 +114,7 @@ export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 export const DesktopContextSchema = z.object({
   localFiles: z.boolean().optional(),
   computerUse: z.boolean().default(false),
+  computerUseAppCommands: z.boolean().default(false),
   browser: z.boolean().default(false),
   terminal: z.boolean().default(false),
   terminals: z
@@ -152,6 +153,7 @@ export const ENTITLEMENTS = {
   dashboards: "dashboards",
   tests: "tests",
   changelog: "changelog",
+  workflowCode: "workflow-code",
   build_notes: "build_notes",
 } as const;
 export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
@@ -276,27 +278,36 @@ export const ChatPayloadSchema = z
       ctx.addIssue({ code: "custom", message: "Assistant context requires Assistant mode" });
   });
 
+// The stream fields mothership-stream-v1 payloads share. Each is `?: T | undefined`, so
+// `.optional()`; the stream file spreads these shapes into its payload schemas.
+
 /** A pause or terminal acknowledges all preceding activity only after the receiver handles it. */
-export interface StreamActivityCheckpoint {
-  activityReceipt?: StreamActivityReceipt | undefined;
-}
+export const StreamActivityCheckpointSchema = z.object({
+  activityReceipt: ActivityReceiptSchema.optional(),
+});
+export type StreamActivityCheckpoint = z.infer<typeof StreamActivityCheckpointSchema>;
 
 /** Main-assistant text position within this run, measured in UTF-16 code units. */
-export interface StreamTextPosition {
-  textOffset?: number | undefined;
-}
+export const StreamTextPositionSchema = z.object({
+  textOffset: z.number().int().nonnegative().safe().optional(),
+});
+export type StreamTextPosition = z.infer<typeof StreamTextPositionSchema>;
 
 /** Successful completion states the complete main-answer size, including any replayed prefix. */
-export interface StreamTextCompletion {
-  textLength?: number | undefined;
-}
+export const StreamTextCompletionSchema = z.object({
+  textLength: z.number().int().nonnegative().safe().optional(),
+});
+export type StreamTextCompletion = z.infer<typeof StreamTextCompletionSchema>;
 
-/** Replayed tool activity is presentation only; it never authorizes execution or approval. */
-export interface StreamToolReplay {
-  replay?: true | undefined;
-  /** Requested operation target, authorized independently by Sim. */
-  workspaceId?: string | undefined;
-}
+/**
+ * Replayed tool activity is presentation only; it never authorizes execution or approval.
+ * `workspaceId` is the requested operation target, authorized independently by Sim.
+ */
+export const StreamToolReplaySchema = z.object({
+  replay: z.literal(true).optional(),
+  workspaceId: z.string().optional(),
+});
+export type StreamToolReplay = z.infer<typeof StreamToolReplaySchema>;
 
 /**
  * How long the worker waits for one handed tool call's result, measured from the hand-off.
@@ -304,19 +315,17 @@ export interface StreamToolReplay {
  * re-run inherits what remains) and settles the call, cancellation included, by
  * `deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS`: approval wait, pickup, execution and lease
  * extensions all fit inside it. Sim policy may only end a call sooner. Absent = the
- * receiver's own bounds.
+ * receiver's own bounds. `waitTimeoutMs`, for a workflow tool (`run_workflow`,
+ * `run_workflow_until_block`, `run_from_block`, `run_block`) on a Sim that declares
+ * {@link WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY}: how long Sim waits for the call's run to
+ * settle once it starts waiting on it. A run still going then keeps going and the call settles
+ * with a {@link WorkflowToolRunningResult}. Absent = held until the run settles.
  */
-export interface StreamToolDeadline {
-  deadlineMs?: number | undefined;
-  /**
-   * For a workflow tool (`run_workflow`, `run_workflow_until_block`, `run_from_block`,
-   * `run_block`) on a Sim that declares {@link WORKFLOW_TOOL_WAIT_TIMEOUT_CAPABILITY}: how long
-   * Sim waits for the call's run to settle once it starts waiting on it. A run still going then
-   * keeps going and the call settles with a {@link WorkflowToolRunningResult}. Absent = held
-   * until the run settles.
-   */
-  waitTimeoutMs?: number | undefined;
-}
+export const StreamToolDeadlineSchema = z.object({
+  deadlineMs: z.number().int().positive().optional(),
+  waitTimeoutMs: z.number().int().positive().optional(),
+});
+export type StreamToolDeadline = z.infer<typeof StreamToolDeadlineSchema>;
 
 /**
  * Room between Sim settling a call and the worker's own bound for it: Sim's resume-gate
@@ -489,7 +498,7 @@ export type AbortRequest = z.infer<typeof AbortRequest>;
  * durable log for a reader whose cursor fell off sim's replay ring. Read-only: the owner,
  * its emitter, its lease and its parked calls are untouched. The SSE leg restores what
  * the receipt lacks, follows the log, and ends with `complete` at a terminal or with one
- * `run` frame of kind `replay_end` otherwise.
+ * `MothershipStreamV1ReplayEndEnvelope` (mothership-stream-v1.ts) otherwise.
  */
 export const StreamReplayRequest = z.strictObject({
   streamId: z.uuid(),
@@ -499,23 +508,6 @@ export const StreamReplayRequest = z.strictObject({
   ...ResponseReceiptSchema.shape,
 });
 export type StreamReplayRequest = z.infer<typeof StreamReplayRequest>;
-
-/**
- * A replay leg that ended before the run's terminal. `parked`: the run waits on tool
- * results the owner's leg handed sim. `cap`: the connection reached its length cap;
- * replay again. `stalled`: no instance drives the run (stale heartbeat, not parked);
- * replay again later, once a takeover can have resumed it.
- * `textLength` is the main text this leg's log reached — diagnostic only. A later
- * replay sends sim's OWN received length as `receivedTextChars`, never this value: the
- * log trails live text, and resending from the durable end is what exposes divergence.
- * Replayed tool activity is presentation only (`replay: true`) and never authorizes
- * execution.
- */
-export interface StreamReplayEnd extends StreamTextCompletion {
-  kind: "replay_end";
-  reason: "parked" | "cap" | "stalled";
-  textLength: number;
-}
 
 /** Accepted Stop intent is distinct from an observed terminal worker run. */
 export interface AbortResponse {
@@ -611,15 +603,6 @@ export const SteerDispositionResponse = z.discriminatedUnion("status", [
 ]);
 export type SteerDispositionResponse = z.infer<typeof SteerDispositionResponse>;
 
-/** The `run`/`steering_applied` frame: a steer reached the run's model input. */
-export interface StreamSteeringApplied {
-  kind: "steering_applied";
-  steeringId: string;
-  /** As in SteerV2Response's `applied`; absent only on frames from workers without steer v2. */
-  eventSeq?: number | undefined;
-  textOffset?: number | undefined;
-}
-
 /** POST /api/chats/fork — copy a selected conversation snapshot, never live execution. */
 export const ForkChatRequest = z
   .strictObject({
@@ -710,32 +693,4 @@ export interface ExecuteRequest extends StreamResponseReceipt {
 export interface ExecuteMessage {
   role: "system" | "user" | "assistant";
   content: string;
-}
-
-/**
- * The response half of the wire: every SSE `data:` line is one StreamEnvelope (the
- * mothership-stream-v1 shape), terminated by a literal `data: [DONE]` line per leg. The
- * worker's emitter is compile-locked to this; sim's parser adopts it at the client rework.
- */
-export interface StreamEnvelope {
-  v: 1;
-  type: "session" | "text" | "tool" | "span" | "run" | "resource" | "error" | "complete";
-  seq: number;
-  /** ISO timestamp. */
-  ts: string;
-  stream: { streamId: string; chatId?: string | undefined; cursor?: string | undefined };
-  trace?: { requestId?: string | undefined } | undefined;
-  /** Subagent-lane attribution (mothership-stream-v1 scope): frames carrying it render
-   * inside the named root-level lane instead of the main transcript. */
-  scope?: StreamScope | undefined;
-  payload: Record<string, unknown>;
-}
-
-/** One subagent lane: keyed by the delegating tool call; agentId/spanId identify the lane. */
-export interface StreamScope {
-  lane: "subagent";
-  agentId?: string | undefined;
-  parentToolCallId?: string | undefined;
-  spanId?: string | undefined;
-  parentSpanId?: string | undefined;
 }

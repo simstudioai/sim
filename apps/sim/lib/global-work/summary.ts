@@ -1,7 +1,7 @@
 import { dbReplica } from '@sim/db'
 import { copilotMessages, workflowExecutionLogs } from '@sim/db/schema'
+import { zonedWallClock, zonedWallClockToUtc } from '@sim/utils/timezone'
 import { sql } from 'drizzle-orm'
-import { zonedWallClock, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 
 const REPORTING_TIME_ZONE = 'America/Los_Angeles'
 

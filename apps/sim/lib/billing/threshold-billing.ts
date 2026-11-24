@@ -17,6 +17,7 @@ import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/cor
 import { isSubscriptionCycleCloseCurrent } from '@/lib/billing/cycle-close'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
+  billsOverage,
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
@@ -260,7 +261,7 @@ export async function checkAndBillOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
-    if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
+    if (!billsOverage(userSubscription) || isEnterprise(userSubscription.plan)) {
       return noOp(options, 'plan-ineligible')
     }
 

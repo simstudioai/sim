@@ -9,12 +9,14 @@ const { connection, mockRedisUrl, mockSubscribe, mockUnsubscribe } = vi.hoisted(
     options: undefined as Record<string, unknown> | undefined,
   },
   mockRedisUrl: {
-    value: 'redis://localhost:6379' as string | undefined,
+    value: 'redis://localhost:6379',
     error: undefined as Error | undefined,
   },
   mockSubscribe: vi.fn(),
   mockUnsubscribe: vi.fn(),
 }))
+
+vi.unmock('@/lib/execution/signal')
 
 vi.mock('ioredis', () => ({
   default: class extends EventEmitter {
@@ -34,11 +36,7 @@ vi.mock('ioredis', () => ({
 }))
 
 import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
-import {
-  connectExecutionSignalHub,
-  getExecutionSignalHub,
-  publishLocalExecutionSignal,
-} from '@/lib/execution/signal'
+import { connectExecutionSignalHub, getExecutionSignalHub } from '@/lib/execution/signal'
 
 redisConfigMockFns.mockGetConfiguredRedisUrl.mockImplementation(() => {
   if (mockRedisUrl.error) throw mockRedisUrl.error
@@ -484,19 +482,9 @@ describe('ExecutionSignalHub', () => {
   })
 
   it('does not throw when Redis is misconfigured, leaving that to the first subscriber', () => {
-    mockRedisUrl.error = new Error('Cache capability selected Redis but REDIS_URL is missing')
+    mockRedisUrl.error = new Error('REDIS_URL is required')
 
     expect(() => connectExecutionSignalHub()).not.toThrow()
     expect(connection.client).toBeUndefined()
-  })
-
-  it('uses a process-local signal hub when Redis is not configured', async () => {
-    mockRedisUrl.value = undefined
-    const handler = vi.fn()
-    await getExecutionSignalHub().subscribe('execution-local', handler)
-
-    publishLocalExecutionSignal('execution-local', 'event')
-
-    expect(handler).toHaveBeenCalledWith('event')
   })
 })

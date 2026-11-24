@@ -874,19 +874,6 @@ export const claudeCoworkProfile: CompetitorProfile = {
           },
         ],
       },
-      whiteLabeling: {
-        value:
-          "No/Unknown: There is no evidence Anthropic lets an Enterprise customer replace Claude's own product branding (logo, product name, theme colors) inside the Claude Desktop, Cowork, or claude.ai interface itself. Claude Design (launched April 2026) lets Claude produce branded deliverables (documents, decks, landing pages) carrying the customer's brand, but that brands the output, not the vendor's own workspace UI.",
-        shortValue: 'No: brands outputs, not the Claude UI itself',
-        confidence: 'estimated',
-        sources: [
-          {
-            url: 'https://www.anthropic.com/news/claude-design-anthropic-labs',
-            label: 'Introducing Claude Design by Anthropic Labs',
-            asOf: '2026-07-02',
-          },
-        ],
-      },
       dataRetention: {
         value:
           "Yes for org-wide Claude data, but this does not cover Cowork: Enterprise plan Owners/Primary Owners can set a custom data retention period (minimum 30 days) for conversation and project data in Organization settings > Data and Privacy, and data is kept indefinitely without customization. Cowork conversation history is stored locally on users' computers, is not subject to this standard retention policy, and cannot be centrally managed or exported by admins; Cowork activity is also not currently captured in the Compliance API.",

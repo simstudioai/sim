@@ -7,10 +7,13 @@ import {
   DEFAULT_TEAM_TIER_COST_LIMIT,
   getPlanPricing,
   getPlanTierCredits,
+  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isOrgPlan,
+  isPaid,
   isPro,
   isTeam,
+  PRO_TRIAL_USAGE_LIMIT_DOLLARS,
 } from './billing-plan-logic'
 
 type Status = string | null | undefined
@@ -23,9 +26,34 @@ interface SubscriptionLike {
   referenceId?: string | null
 }
 
-const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
-const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
+const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'] as const
+const USABLE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const
+const SETTLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 const TERMINAL_SUBSCRIPTION_STATUSES = ['canceled', 'incomplete_expired'] as const
+
+function isTrialingSubscription(subscription: { status?: string | null } | null | undefined) {
+  return subscription?.status === 'trialing'
+}
+
+function formatTrialEndDate(trialEnd: Date): string {
+  return trialEnd.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+function billsOverage(subscription: SubscriptionLike | null | undefined): boolean {
+  return isPaid(subscription?.plan) && !isTrialingSubscription(subscription)
+}
+
+function getSubscriptionWeeklyRefreshDollars(
+  subscription: SubscriptionLike | null | undefined
+): number {
+  if (isTrialingSubscription(subscription)) return 0
+  return getPlanWeeklyRefreshDollars(subscription?.plan)
+}
 
 function hasPaidSubscriptionStatus(status: Status): boolean {
   return (ENTITLED_SUBSCRIPTION_STATUSES as readonly string[]).includes(status as string)
@@ -176,6 +204,7 @@ function getPerUserMinimumLimit(
   if (!subscription || !hasPaidSubscriptionStatus(subscription.status)) {
     return getFreeTierAllowance(freeTierEligible)
   }
+  if (isTrialingSubscription(subscription)) return PRO_TRIAL_USAGE_LIMIT_DOLLARS
   if (isPro(subscription.plan)) {
     const tierCredits = getPlanTierCredits(subscription.plan)
     if (tierCredits > 0) return tierCredits / CREDIT_MULTIPLIER
@@ -187,6 +216,7 @@ function getPerUserMinimumLimit(
 
 function canEditUsageLimit(subscription: SubscriptionLike | null | undefined): boolean {
   if (!subscription || !hasUsableSubscriptionStatus(subscription.status)) return false
+  if (isTrialingSubscription(subscription)) return false
   return isPro(subscription.plan) || isTeam(subscription.plan)
 }
 
@@ -194,7 +224,7 @@ function canEditUsageLimit(subscription: SubscriptionLike | null | undefined): b
  * Controllable mock functions for `@/lib/billing/subscriptions/utils`.
  *
  * Every export is a pure helper, so every fn defaults to a faithful port of the real logic
- * (status predicates, `check*Plan`, `isOrgScopedSubscription`, `getEffectiveSeats`,
+ * (status and trial predicates, `check*Plan`, `isOrgScopedSubscription`, `getEffectiveSeats`,
  * `getPerUserMinimumLimit`, `canEditUsageLimit`, `getPlanPricing`). The tier-limit getters
  * return the `@/lib/billing/constants` defaults (free 5, pro 20, team 40, enterprise 200)
  * because the env overrides are unset under test. `getEffectiveSeats` reads Enterprise seats
@@ -209,6 +239,10 @@ function canEditUsageLimit(subscription: SubscriptionLike | null | undefined): b
  * ```
  */
 export const billingSubscriptionUtilsMockFns = {
+  mockIsTrialingSubscription: vi.fn(isTrialingSubscription),
+  mockBillsOverage: vi.fn(billsOverage),
+  mockFormatTrialEndDate: vi.fn(formatTrialEndDate),
+  mockGetSubscriptionWeeklyRefreshDollars: vi.fn(getSubscriptionWeeklyRefreshDollars),
   mockHasPaidSubscriptionStatus: vi.fn(hasPaidSubscriptionStatus),
   mockHasUsableSubscriptionStatus: vi.fn(hasUsableSubscriptionStatus),
   mockHasUsableSubscriptionAccess: vi.fn(hasUsableSubscriptionAccess),
@@ -240,7 +274,13 @@ export const billingSubscriptionUtilsMockFns = {
 export const billingSubscriptionUtilsMock = {
   ENTITLED_SUBSCRIPTION_STATUSES,
   USABLE_SUBSCRIPTION_STATUSES,
+  SETTLED_SUBSCRIPTION_STATUSES,
   TERMINAL_SUBSCRIPTION_STATUSES,
+  isTrialingSubscription: billingSubscriptionUtilsMockFns.mockIsTrialingSubscription,
+  billsOverage: billingSubscriptionUtilsMockFns.mockBillsOverage,
+  formatTrialEndDate: billingSubscriptionUtilsMockFns.mockFormatTrialEndDate,
+  getSubscriptionWeeklyRefreshDollars:
+    billingSubscriptionUtilsMockFns.mockGetSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus: billingSubscriptionUtilsMockFns.mockHasPaidSubscriptionStatus,
   hasUsableSubscriptionStatus: billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionStatus,
   hasUsableSubscriptionAccess: billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionAccess,

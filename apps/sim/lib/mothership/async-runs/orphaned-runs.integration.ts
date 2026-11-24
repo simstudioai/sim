@@ -7,8 +7,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
-  const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
+const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const { createServer } = await import('node:http')
   const server = createServer(async (request, response) => {
     for await (const _chunk of request) {
@@ -18,15 +17,12 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const url = readTestRedisUrl()
   const inheritedEnv = {
-    REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  /** The real Redis module and worker URL resolution read these at import. */
-  process.env.REDIS_URL = url
+  /** Worker URL resolution reads this at import. */
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
-  return { redisUrl: url, inheritedEnv, worker: { server } }
+  return { inheritedEnv, worker: { server } }
 })
 
 import { db } from '@sim/db'
@@ -73,21 +69,15 @@ import {
 /** A recovering controller's first takeover of a run. */
 const FIRST_RECOVERY = { attempts: 1, claimedAt: 0, notBefore: 0 }
 
-function redis() {
-  const client = getRedisClient()
-  if (!client) throw new Error('The integration suite requires TEST_REDIS_URL')
-  return client
-}
-
 /** The sweep's resume point lives in shared Redis; each test and the next suite start fresh. */
 async function resetSweepCursor() {
-  await getRedisClient()?.del('copilot:orphaned-runs:sweep-cursor')
+  await getRedisClient().del('copilot:orphaned-runs:sweep-cursor')
 }
 
 beforeEach(resetSweepCursor)
 
 afterAll(async () => {
-  chatPubSub?.dispose()
+  chatPubSub.dispose()
   await resetSweepCursor()
   await closeRedisConnection()
   await new Promise<void>((resolve) => worker.server.close(() => resolve()))
@@ -97,7 +87,7 @@ afterAll(async () => {
   }
 })
 
-describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
+describe('Chat runs no controller owns', () => {
   const userId = generateId()
   const workspaceId = generateId()
   const chatIds: string[] = []
@@ -464,17 +454,17 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
 
   it('never settles a run whose stream holds its chat lock, or that is still recoverable', async () => {
     const leased = await admittedRun({ idleMinutes: 90 })
-    await redis().set(chatStreamLockKey(leased.chatId), leased.controllerToken!, 'EX', 60)
+    await getRedisClient().set(chatStreamLockKey(leased.chatId), leased.controllerToken!, 'EX', 60)
     /** A recovering controller holds the lock under a new token before it claims the run. */
     const recovering = await admittedRun({ idleMinutes: 90 })
-    await redis().set(
+    await getRedisClient().set(
       chatStreamLockKey(recovering.chatId),
       `${recovering.streamId}\n${generateId()}`,
       'EX',
       60
     )
     const replayable = await admittedRun({ idleMinutes: 90 })
-    await redis().set(`mothership_stream:${replayable.streamId}:seq`, '4', 'EX', 60)
+    await getRedisClient().set(`mothership_stream:${replayable.streamId}:seq`, '4', 'EX', 60)
     const fresh = await admittedRun({ idleMinutes: 5 })
 
     try {
@@ -487,7 +477,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
         expect(current.marker).toBe(run.streamId)
       }
     } finally {
-      await redis().del(
+      await getRedisClient().del(
         chatStreamLockKey(leased.chatId),
         chatStreamLockKey(recovering.chatId),
         `mothership_stream:${replayable.streamId}:seq`
@@ -560,7 +550,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
   it('leaves a stopped run to the controller of its stream that holds the chat lock', async () => {
     const owned = await admittedRun()
     await stop(owned)
-    await redis().set(chatStreamLockKey(owned.chatId), owned.controllerToken!, 'EX', 60)
+    await getRedisClient().set(chatStreamLockKey(owned.chatId), owned.controllerToken!, 'EX', 60)
 
     try {
       expect(await settleStoppedRunWithoutController(owned.runId)).toBe(false)
@@ -568,7 +558,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       expect(run.status).toBe('active')
       expect(run.marker).toBe(owned.streamId)
     } finally {
-      await redis().del(chatStreamLockKey(owned.chatId))
+      await getRedisClient().del(chatStreamLockKey(owned.chatId))
     }
   })
 
@@ -725,7 +715,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
       legacy: true,
     })
     const announced: string[] = []
-    const unsubscribe = chatPubSub!.onStatusChanged((event) => {
+    const unsubscribe = chatPubSub.onStatusChanged((event) => {
       if (event.type === 'completed') announced.push(event.chatId)
     })
 
@@ -777,7 +767,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
             updatedAt: sql`now() - interval '2 hours'`,
           }))
         )
-        const pipeline = redis().pipeline()
+        const pipeline = getRedisClient().pipeline()
         for (const blocker of page) {
           pipeline.set(`mothership_stream:${blocker.streamId}:seq`, '1', 'EX', 600)
         }
@@ -795,7 +785,7 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
           .delete(copilotChats)
           .where(inArray(copilotChats.id, blockerChatIds.slice(start, start + 1000)))
       }
-      const pipeline = redis().pipeline()
+      const pipeline = getRedisClient().pipeline()
       for (const blocker of blockers) pipeline.del(`mothership_stream:${blocker.streamId}:seq`)
       await pipeline.exec()
     }

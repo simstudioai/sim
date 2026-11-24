@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { toArray, toRecord } from '@sim/utils/object'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import {
   HIGGSFIELD_API_BASE,
@@ -85,8 +86,17 @@ export function buildHiggsfieldUrl(
   return url.toString()
 }
 
-/** Auth headers, plus a JSON content type for requests that send a body. */
-export function higgsfieldHeaders(accessToken: string, hasBody = false): Record<string, string> {
+/**
+ * Auth headers, plus a JSON content type for requests that send a body. An Agent tool
+ * with no credential selected reaches here with no key.
+ */
+export function higgsfieldHeaders(
+  accessToken: string | undefined,
+  hasBody = false
+): Record<string, string> {
+  if (!accessToken) {
+    throw new UserFailure('Select a Higgsfield credential to run this tool')
+  }
   return {
     ...higgsfieldAuthHeaders(accessToken),
     ...(hasBody ? { 'Content-Type': 'application/json' } : {}),

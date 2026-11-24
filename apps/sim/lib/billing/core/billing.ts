@@ -25,6 +25,7 @@ import {
   getFreeTierAllowance,
   getFreeTierLimit,
   getPlanPricing,
+  getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -169,6 +170,7 @@ export async function calculateSubscriptionOverage(sub: {
   seats?: number | null
   periodStart?: Date | null
   periodEnd?: Date | null
+  trialEnd?: Date | null
 }): Promise<number> {
   // Enterprise plans have no overages
   if (isEnterprise(sub.plan)) {
@@ -178,6 +180,9 @@ export async function calculateSubscriptionOverage(sub: {
     })
     return 0
   }
+
+  // A trial period owes nothing: its usage is capped at the trial allowance.
+  if (sub.trialEnd && sub.periodEnd && sub.periodEnd.getTime() <= sub.trialEnd.getTime()) return 0
 
   let totalOverageDecimal = new Decimal(0)
 
@@ -311,7 +316,7 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       hasPaidSubscriptionStatus(personalSubscription.status) &&
       personalSubscription.periodStart
     ) {
-      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(plan)
+      const weeklyRefreshDollars = getSubscriptionWeeklyRefreshDollars(personalSubscription)
       if (weeklyRefreshDollars > 0) {
         refreshDeduction = await computeWeeklyRefreshConsumed(
           {

@@ -1,0 +1,21 @@
+{
+  "namespace": "googleMaps",
+  "methods": {
+    "air_quality": "airQuality",
+    "directions": "getDirections",
+    "distance_matrix": "distanceMatrix",
+    "elevation": "getElevation",
+    "geocode": "geocodeAddress",
+    "geolocate": "geolocateWiFiCell",
+    "place_details": "placeDetails",
+    "places_nearby": "nearbyPlaces",
+    "places_search": "searchPlaces",
+    "pollen": "pollenForecast",
+    "reverse_geocode": "reverseGeocode",
+    "snap_to_roads": "snapToRoads",
+    "solar": "solarPotential",
+    "speed_limits": "speedLimits",
+    "timezone": "getTimezone",
+    "validate_address": "validateAddress"
+  }
+}

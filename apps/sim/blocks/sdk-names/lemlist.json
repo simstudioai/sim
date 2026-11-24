@@ -1,0 +1,19 @@
+{
+  "namespace": "legacy.lemlist",
+  "methods": {
+    "get_activities": "getActivities",
+    "get_lead": "getLead",
+    "send_email": "sendEmail"
+  },
+  "triggers": {
+    "lemlist_email_bounced": "emailBounced",
+    "lemlist_email_clicked": "emailClicked",
+    "lemlist_email_opened": "emailOpened",
+    "lemlist_email_replied": "emailReplied",
+    "lemlist_email_sent": "emailSent",
+    "lemlist_interested": "interested",
+    "lemlist_linkedin_replied": "linkedinReplied",
+    "lemlist_not_interested": "notInterested",
+    "lemlist_webhook": "webhook"
+  }
+}

@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { isSupportedCurrencyCode } from '@sim/table-cells/currency'
 import {
   OrchestrationError,
   type OrchestrationErrorCode,
@@ -16,18 +17,12 @@ import {
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
-import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
+import type { TableWriteTx } from '@/lib/table/tx'
 import type { ColumnType, SelectOption, TableDefinition, TableLockKind } from '@/lib/table/types'
 
 const logger = createLogger('TableColumnOrchestration')
-
-function workspaceMutationOptions(
-  expectedWorkspaceId: string | undefined
-): [] | [ColumnMutationOptions] {
-  return expectedWorkspaceId ? [{ expectedWorkspaceId }] : []
-}
 
 export interface PerformUpdateTableColumnParams {
   table: TableDefinition
@@ -45,9 +40,22 @@ export interface PerformUpdateTableColumnParams {
   }
   requestId?: string
   expectedWorkspaceId?: string
+  /** Joins this transaction, so the update commits with the caller's other writes. */
+  tx?: TableWriteTx
   recordAudit?: boolean
   /** Forwarded to the audit record for IP / user-agent capture. */
   request?: OrchestrationRequestContext
+}
+
+/** The scoping and transaction the column writes take, when the caller sets either. */
+function columnMutationOptions({
+  expectedWorkspaceId,
+  tx,
+}: Pick<PerformUpdateTableColumnParams, 'expectedWorkspaceId' | 'tx'>):
+  | []
+  | [ColumnMutationOptions] {
+  if (!expectedWorkspaceId && !tx) return []
+  return [{ ...(expectedWorkspaceId ? { expectedWorkspaceId } : {}), ...(tx ? { tx } : {}) }]
 }
 
 export interface PerformUpdateTableColumnResult {
@@ -78,8 +86,9 @@ function fail(error: string, errorCode: OrchestrationErrorCode): PerformUpdateTa
  * option-set edit, and constraint change — as the single implementation behind
  * the UI route, the v1 and v2 public APIs, and the copilot table tool.
  *
- * Each underlying write is its own locked transaction, so a request that spans
- * several of them could commit one and then fail. Two things prevent that and
+ * Each underlying write runs in its own locked transaction unless the caller passes `tx`; then
+ * every write joins it, so a table reshape commits its column changes together. Without `tx`, a
+ * request that spans several writes could commit one and then fail. Two things prevent that and
  * both are load-bearing: the guards below reject every knowable failure before
  * any write runs, and the rename and constraint changes ride *inside* the typed
  * write's transaction rather than following it. The caller owns authentication
@@ -165,6 +174,7 @@ export async function performUpdateTableColumn(
     return fail(`Cannot set a ${resultingType} column as unique`, 'validation')
   }
 
+  const mutationOptions = columnMutationOptions(params)
   let updated: TableDefinition | undefined
 
   try {
@@ -184,7 +194,7 @@ export async function performUpdateTableColumn(
           ...renameWithTypedWrite,
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     } else if (updates.currencyCode !== undefined) {
       // Re-denominating an existing currency column: schema-only, no cell
@@ -200,7 +210,7 @@ export async function performUpdateTableColumn(
           ...renameWithTypedWrite,
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     } else if (options !== undefined || updates.multiple !== undefined) {
       updated = await updateColumnOptions(
@@ -214,7 +224,7 @@ export async function performUpdateTableColumn(
           ...renameWithTypedWrite,
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     }
 
@@ -230,7 +240,7 @@ export async function performUpdateTableColumn(
           ...(updates.name ? { newName: updates.name } : {}),
         },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     }
 
@@ -243,7 +253,7 @@ export async function performUpdateTableColumn(
       updated = await renameColumn(
         { tableId, oldName: columnRef, newName: updates.name },
         requestId,
-        ...workspaceMutationOptions(params.expectedWorkspaceId)
+        ...mutationOptions
       )
     }
   } catch (error) {

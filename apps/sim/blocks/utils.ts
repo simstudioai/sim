@@ -8,7 +8,13 @@ import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
-import type { BlockConfig, BlockToolParamsContext, SubBlockConfig } from '@/blocks/types'
+import type {
+  BlockConfig,
+  BlockToolParamsContext,
+  OutputFieldDefinition,
+  SubBlockConfig,
+} from '@/blocks/types'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 import {
   findProviderFromModel,
   getBaseModelProviders,
@@ -31,6 +37,7 @@ import {
   SAVED_CREDENTIAL_OAUTH,
   type SavedCredentialService,
 } from '@/tools/shared/saved-credentials'
+import { IGNORED_COLUMNS_OUTPUT } from '@/tools/table/types'
 
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
@@ -232,18 +239,47 @@ function dependOnCredential(
 }
 
 /**
- * Returns model options for combobox subblocks, combining all provider sources.
+ * Model options for a combobox whose block sends the chosen model straight to its provider:
+ * every provider source, without the sim-auto pseudo-model, which only a block that runs
+ * the model router can resolve.
  */
 export function getModelOptions() {
-  return buildModelOptions(false)
+  return buildModelOptions({ includeEvaluation: false, includeAuto: false })
 }
 
-/** Agent supports both conversational and native evaluation models. */
+/**
+ * {@link getModelOptions} plus Auto (hosted only), for a block whose handler resolves
+ * sim-auto through the model router before any provider lookup (router, evaluator).
+ */
+export function getModelOptionsWithAuto() {
+  return buildModelOptions({ includeEvaluation: false, includeAuto: true })
+}
+
+/** Agent supports Auto and both conversational and native evaluation models. */
 export function getAgentModelOptions() {
-  return buildModelOptions(true)
+  return buildModelOptions({ includeEvaluation: true, includeAuto: true })
 }
 
-function buildModelOptions(includeEvaluation: boolean) {
+/**
+ * The model-option sources whose values editing validation checks against Sim's model
+ * catalog, and whether each offers Auto (so accepts sim-auto on hosted Sim).
+ *
+ * {@link getAgentModelOptions} is deliberately absent: the agent's model field also takes
+ * free-typed ids (Bedrock inference profiles, fine-tunes) and retired ids, so validation
+ * passes its values through unchanged.
+ */
+export const MODEL_OPTION_SOURCES: ReadonlyMap<unknown, { auto: boolean }> = new Map([
+  [getModelOptions, { auto: false }],
+  [getModelOptionsWithAuto, { auto: true }],
+])
+
+function buildModelOptions({
+  includeEvaluation,
+  includeAuto,
+}: {
+  includeEvaluation: boolean
+  includeAuto: boolean
+}) {
   const providersState = useProvidersStore.getState()
   const baseModels = orderModelIdsByReleaseDate(providersState.providers.base.models)
   const ollamaModels = providersState.providers.ollama.models
@@ -282,7 +318,7 @@ function buildModelOptions(includeEvaluation: boolean) {
   // Hosted-only automatic model. Deliberately LAST in the list (limited
   // visibility for the initial release): available to anyone who scrolls or
   // searches for it, but never the first thing the dropdown offers.
-  if (getDeploymentShape().hosted) {
+  if (includeAuto && getDeploymentShape().hosted) {
     options.push({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
   }
 
@@ -316,12 +352,12 @@ function getProviderFromStore(model: string): string | null {
 }
 
 /**
- * Whether an Ollama instance is available. `isOllamaConfigured` reads the
+ * Whether this browser knows of an Ollama instance. `isOllamaConfigured` reads the
  * server-only `OLLAMA_URL` env var, which is always undefined in the browser —
  * there the providers store (populated from the server's model list, which is
  * non-empty only when Ollama is configured) is the signal.
  */
-function isOllamaAvailable(): boolean {
+function hasOllamaInstance(): boolean {
   if (isOllamaConfigured) return true
   return useProvidersStore.getState().providers.ollama.models.length > 0
 }
@@ -381,7 +417,7 @@ export function shouldRequireApiKeyForModel(model: string): boolean {
     return false
   if (storeProvider) return true
 
-  if (isOllamaAvailable()) {
+  if (hasOllamaInstance()) {
     if (normalizedModel.includes('/')) return true
     if (normalizedModel in getBaseModelProviders()) return true
     return false
@@ -390,42 +426,56 @@ export function shouldRequireApiKeyForModel(model: string): boolean {
   return true
 }
 
-/** Model whose provider is recorded when a block's own `model` cannot be resolved. */
-const SERIALIZATION_FALLBACK_MODEL = 'gpt-4o'
-
-/** Last-resort provider for when even {@link SERIALIZATION_FALLBACK_MODEL} cannot be resolved. */
+/** Provider recorded when the model's own lookup throws (a blacklisted provider or model). */
 const SERIALIZATION_FALLBACK_PROVIDER: ProviderId = 'openai'
 
 /**
- * Provider id a model-driven block records for `model` during serialization.
+ * Best-effort provider id for a model a block has not executed yet, for serialization and
+ * the editor's tool-usage control. Editor decisions about the provider the user configured
+ * use {@link findConfiguredModelProvider} instead.
  *
  * Serialization runs before variable resolution, and every model block's handler
  * re-derives the provider from the *resolved* model without ever reading this
- * value — so it only has to be shape-correct, and it must never throw. Two cases
- * reach here that {@link getBaseModelProviders} cannot answer: `model` may still
- * hold a `<variable.x>` reference, and gateway providers (OpenRouter, vLLM,
- * LiteLLM, Ollama, …) are deliberately absent from that map even when the model
- * id is perfectly valid. A reference resolves to {@link SERIALIZATION_FALLBACK_MODEL}'s
- * provider; anything else is left to `getProviderFromModel`, which defaults an
- * unrecognised id to `ollama` rather than failing serialization with an error the
- * user cannot act on.
+ * value — so it only has to be shape-correct, and it must never throw. Three cases
+ * reach here that {@link getBaseModelProviders} cannot answer: `model` may be unset or
+ * still hold a `<variable.x>` reference, it may be sim-auto, which has no provider until
+ * the model router resolves it, and gateway providers (OpenRouter, vLLM, LiteLLM, Ollama, …)
+ * are deliberately absent from that map even when the model id is perfectly valid. The
+ * first two answer as {@link DEFAULT_BLOCK_MODEL}; anything else is left to
+ * `getProviderFromModel`, which defaults an unrecognised id to `ollama` rather than
+ * failing with an error the user cannot act on.
  *
  * The remaining throw is a blacklisted provider or model, which is env-driven and
- * can name the fallback itself — so recovery returns
+ * can name the default itself — so recovery returns
  * {@link SERIALIZATION_FALLBACK_PROVIDER} outright rather than resolving a second
  * time through the function that just threw.
  */
-export function getSerializedModelProviderId(
-  model: unknown,
-  fallbackModel: string = SERIALIZATION_FALLBACK_MODEL
-): ProviderId {
+export function resolveModelProviderId(model: unknown): ProviderId {
   const candidate =
-    typeof model === 'string' && model && !containsReference(model) ? model : fallbackModel
+    typeof model === 'string' && model && !containsReference(model) && !isAutoModel(model)
+      ? model
+      : DEFAULT_BLOCK_MODEL
 
   try {
     return getProviderFromModel(candidate)
   } catch {
     return SERIALIZATION_FALLBACK_PROVIDER
+  }
+}
+
+/**
+ * The provider a model value names as written, or `null` when it names none yet: sim-auto,
+ * which the model router resolves at execution and may route to any pool provider, or a
+ * blacklisted model. Unlike {@link resolveModelProviderId} it never substitutes the default
+ * model, so a reference keeps its explicit namespace (`openrouter/<variable.x>`). The editor
+ * uses it for decisions that follow the configured provider: clearing the API key when the
+ * provider changes, and how large an attachment the model is known to accept.
+ */
+export function findConfiguredModelProvider(model: string): ProviderId | null {
+  try {
+    return getProviderFromModel(model)
+  } catch {
+    return null
   }
 }
 
@@ -878,6 +928,19 @@ export const TABLE_OUTPUT_COLUMNS_SUBBLOCK: SubBlockConfig = {
   dependsOn: { any: ['tableSelector', 'manualTableId'] },
   condition: { field: 'operation', value: 'query_rows' },
 }
+
+/**
+ * The `ignoredColumns` output of the Table blocks: present on every operation that writes row
+ * data, which drops a key naming no column instead of failing.
+ */
+export const TABLE_IGNORED_COLUMNS_OUTPUT = {
+  type: 'array',
+  description: IGNORED_COLUMNS_OUTPUT.description,
+  condition: {
+    field: 'operation',
+    value: ['insert_row', 'batch_insert_rows', 'upsert_row', 'update_row', 'update_rows_by_filter'],
+  },
+} satisfies OutputFieldDefinition
 
 /** Block input entry for {@link TABLE_OUTPUT_COLUMNS_SUBBLOCK}. */
 export const TABLE_OUTPUT_COLUMNS_INPUT = {

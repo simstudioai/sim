@@ -62,7 +62,7 @@ describe('runHeadlessCopilotLifecycle', () => {
         chatId: 'chat-1',
         workflowId: 'workflow-1',
         simRequestId: 'workflow-request-id',
-        goRoute: '/api/mothership/execute',
+        workerRoute: '/api/mothership/execute',
         interactive: false,
       }
     )
@@ -78,7 +78,7 @@ describe('runHeadlessCopilotLifecycle', () => {
   it('threads a valid OTel context into the lifecycle', async () => {
     let lifecycleTraceparent = ''
     runCopilotLifecycle.mockImplementationOnce(async (_payload, options) => {
-      const { traceHeaders } = await import('@/lib/mothership/request/go/propagation')
+      const { traceHeaders } = await import('@/lib/mothership/request/worker/propagation')
       lifecycleTraceparent = traceHeaders({}, options.otelContext).traceparent ?? ''
       return createLifecycleResult()
     })
@@ -92,7 +92,7 @@ describe('runHeadlessCopilotLifecycle', () => {
         userId: 'user-1',
         chatId: 'chat-1',
         workflowId: 'workflow-1',
-        goRoute: '/api/mothership/execute',
+        workerRoute: '/api/mothership/execute',
         interactive: false,
       }
     )

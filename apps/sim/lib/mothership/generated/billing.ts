@@ -16,6 +16,9 @@ export const BillingProtocolHeaders = {
   accountDecision: "x-sim-billing-account-decision",
 } as const;
 
+export const BillingAttributionHeaderMaxBytes = 8192;
+export const BillingAccountDecisionHeaderMaxBytes = 2048;
+
 export const BillingCallbackBody = z
   .object({
     userId: z.string().min(1, "User ID is required"),
@@ -37,8 +40,12 @@ export const BillingCallbackHeaders = z
   .object({
     [BillingProtocolHeaders.protocol]: z.enum(Object.values(BillingProtocol)).optional(),
     [BillingProtocolHeaders.requestId]: z.string().uuid().optional(),
-    [BillingProtocolHeaders.attribution]: z.string().min(1).max(8192).optional(),
-    [BillingProtocolHeaders.accountDecision]: z.string().min(1).max(2048).optional(),
+    [BillingProtocolHeaders.attribution]: z.string().min(1).max(BillingAttributionHeaderMaxBytes).optional(),
+    [BillingProtocolHeaders.accountDecision]: z
+      .string()
+      .min(1)
+      .max(BillingAccountDecisionHeaderMaxBytes)
+      .optional(),
   })
   .superRefine((headers, context) => {
     const protocol = headers[BillingProtocolHeaders.protocol];

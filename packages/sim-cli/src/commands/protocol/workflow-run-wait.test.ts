@@ -1,3 +1,4 @@
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { attachWorkflowRunWait } from './workflow-run-wait'
@@ -22,18 +23,7 @@ vi.mock('../../context', () => ({
   }),
 }))
 
-/**
- * Waiting is simulated rather than timed: the mock advances the same clock the
- * command reads its deadline from, so a `--wait-timeout 3600` test costs
- * nothing and the poll schedule is exactly what the assertions say it is.
- */
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: (ms: number) => {
-    sleeps.push(ms)
-    clock.now += ms
-    return Promise.resolve()
-  },
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 let logged: string[]
 let errored: string[]
@@ -53,6 +43,15 @@ beforeEach(() => {
   process.exitCode = undefined
   stderr.isTTY = false
 
+  /**
+   * Waiting is simulated rather than timed: the mock advances the same clock the
+   * command reads its deadline from, so a `--wait-timeout 3600` test costs
+   * nothing and the poll schedule is exactly what the assertions say it is.
+   */
+  utilsHelpersMockFns.mockSleep.mockImplementation(async (ms: number) => {
+    sleeps.push(ms)
+    clock.now += ms
+  })
   vi.spyOn(Date, 'now').mockImplementation(() => clock.now)
   vi.spyOn(console, 'log').mockImplementation((line: string) => {
     logged.push(line)
@@ -73,10 +72,13 @@ afterEach(() => {
 
 interface RunPayload {
   status: string
+  output?: unknown
   paused?: {
     contextId?: string | null
     pauseKind?: string | null
     resumeAt?: string | null
+    runId?: string
+    points?: Array<{ contextId: string; kind: string; status: string }>
   } | null
 }
 
@@ -149,7 +151,15 @@ describe('workflows runs wait', () => {
   })
 
   it('stops on a pause that is waiting for a human, and says how to resume it', async () => {
-    respondWith({ status: 'paused', paused: { pauseKind: 'human', contextId: 'ctx_9' } })
+    respondWith({
+      status: 'paused',
+      paused: {
+        pauseKind: 'human',
+        contextId: 'ctx_9',
+        runId: 'run_1',
+        points: [{ contextId: 'ctx_9', kind: 'human', status: 'paused' }],
+      },
+    })
 
     await wait()
 
@@ -157,6 +167,25 @@ describe('workflows runs wait', () => {
     expect(process.exitCode).toBe(3)
     expect(errored.join('\n')).toContain(
       'sim workflows runs resume run_1 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
+    )
+  })
+
+  it('names the run the server records the pause under, not the run it waited on', async () => {
+    respondWith({
+      status: 'paused',
+      output: { data: { _resume: { contextId: 'decoy', executionId: 'decoy_run' } } },
+      paused: {
+        pauseKind: 'human',
+        contextId: 'ctx_9',
+        runId: 'exec_9',
+        points: [{ contextId: 'ctx_9', kind: 'human', status: 'paused' }],
+      },
+    })
+
+    await wait()
+
+    expect(errored.join('\n')).toContain(
+      'sim workflows runs resume exec_9 --workflow 00000000-0000-4000-8000-00000000000a --context ctx_9'
     )
   })
 

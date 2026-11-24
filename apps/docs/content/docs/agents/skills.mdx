@@ -19,7 +19,7 @@ Selected skills appear as cards that you can open or remove. Editing depends on 
 
 At runtime, the Agent's system prompt includes an `<available_skills>` section with the selected names and descriptions. Sim adds a `load_skill` tool with a `skill_name` input. When the model calls it, the full instructions return as a tool response. Selecting a skill makes it available; the model decides whether to load it.
 
-This uses standard tool calling across compatible models. Deep-research and evaluation models do not expose the ordinary Agent Tools and Skills controls.
+This uses standard tool calling across compatible models. Evaluation models do not expose the ordinary Agent Tools and Skills controls.
 
 ## Use a skill in Chat
 

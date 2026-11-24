@@ -12,7 +12,7 @@ const { mockGetBrowserTimezone, mockIsValidTimezone } = vi.hoisted(() => ({
 }))
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/lib/core/utils/timezone', () => ({
+vi.mock('@sim/utils/timezone', () => ({
   getBrowserTimezone: mockGetBrowserTimezone,
   isValidTimezone: mockIsValidTimezone,
 }))

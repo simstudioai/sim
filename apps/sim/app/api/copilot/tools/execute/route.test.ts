@@ -102,7 +102,7 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
   })
 
   /**
-   * The generated key is a browser-only artifact. This lane's response is what Go feeds the
+   * The generated key is a browser-only artifact. This lane's response is what the worker feeds the
    * model, so it must carry the same projection the resume lane produces — the status message
    * alone. A `key` field here would put the plaintext credential in model context.
    */
@@ -163,7 +163,7 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     })
   })
   /**
-   * Go's body cannot carry the turn's secret authority — the turn payload never did — so a
+   * The worker's body cannot carry the turn's secret authority — the turn payload never did — so a
    * context rebuilt from it alone read as "every secret, as the body's user" for a turn that
    * was admitted with less.
    */

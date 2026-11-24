@@ -1,8 +1,6 @@
+import { evaluateSubBlockCondition } from '@sim/workflow-code/catalog/canonical-index'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  buildSubBlockValues,
-  evaluateSubBlockCondition,
-} from '@/lib/workflows/subblocks/visibility'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'

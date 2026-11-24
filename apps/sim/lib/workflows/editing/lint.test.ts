@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { getBlock } from '@/blocks/registry'
 import { getToolParams } from '@/tools/metadata'
 import {
+  alwaysEndsAtResponseBlock,
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
@@ -112,6 +113,55 @@ function baseBlock(id: string, type: string, name: string, subBlocks: Record<str
     outputs: {},
   }
 }
+
+describe('alwaysEndsAtResponseBlock', () => {
+  const block = (type: string, subBlocks: Record<string, { value: unknown }> = {}) => ({
+    type,
+    subBlocks,
+  })
+  const edge = (source: string, target: string, sourceHandle = 'source') => ({
+    source,
+    target,
+    sourceHandle,
+  })
+
+  it('needs only the branches up to the first else row, the last a run can take', () => {
+    const conditions = JSON.stringify([
+      { id: 'g-if', title: 'if', value: 'true' },
+      { id: 'g-else', title: 'else', value: '' },
+      { id: 'g-after', title: 'else if', value: 'true' },
+    ])
+    const graph = {
+      blocks: {
+        start: block('start_trigger'),
+        gate: block('condition', { conditions: { value: conditions } }),
+        yes: block('response'),
+        no: block('response'),
+      },
+      edges: [
+        edge('start', 'gate'),
+        edge('gate', 'yes', 'condition-g-if'),
+        edge('gate', 'no', 'condition-g-else'),
+      ],
+    }
+
+    expect(alwaysEndsAtResponseBlock(graph)).toBe(true)
+  })
+
+  it('is false for a root cycle, whose blocks never run to the Response block', () => {
+    const graph = {
+      blocks: {
+        start: block('start_trigger'),
+        a: block('function'),
+        b: block('function'),
+        reply: block('response'),
+      },
+      edges: [edge('start', 'a'), edge('a', 'b'), edge('b', 'a')],
+    }
+
+    expect(alwaysEndsAtResponseBlock(graph)).toBe(false)
+  })
+})
 
 describe('lintEditedWorkflowState', () => {
   it('reports orphan blocks but allows unconnected condition/router branches', () => {

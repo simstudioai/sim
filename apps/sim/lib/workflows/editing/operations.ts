@@ -1,70 +1,135 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { isNonEmptyValue } from '@sim/workflow-code/catalog/canonical-index'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
+import { checkBlockPlacement } from '@/lib/workflows/editing/gates'
+import { rewriteBlockNameReferences } from '@/lib/workflows/references/block-rename'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
-import { buildSubBlockValues, isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
-import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import {
   applyBlockRetry,
+  applyEditedBranchRows,
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   createSubBlockInputGate,
-  filterDisallowedTools,
-  normalizeConditionRouterIds,
+  gateToolInputValue,
   normalizeResponseFormat,
   normalizeSubblockValue,
-  normalizeTools,
   updateCanonicalModesForInputs,
 } from './builders'
 import { VALID_LOOP_TYPES, VALID_PARALLEL_TYPES } from './container-types'
-import type { EditWorkflowOperation, OperationContext, SkippedItem } from './types'
+import type { EditWorkflowOperation, OperationContext, ValidationError } from './types'
 import { logSkippedItem } from './types'
-import {
-  findBlockWithDuplicateNormalizedName,
-  isBlockTypeAllowed,
-  validateInputsForBlock,
-} from './validation'
+import { findBlockWithDuplicateNormalizedName, validateInputsForBlock } from './validation'
 
 const logger = createLogger('EditWorkflowServerTool')
 
+/** The graph's blocks other than `blockId`, for judging that block's own type change. */
+function otherBlocks(
+  blocks: Record<string, { type: string }>,
+  blockId: string
+): Array<{ type: string }> {
+  return Object.entries(blocks)
+    .filter(([id]) => id !== blockId)
+    .map(([, block]) => block)
+}
+
 /**
- * Refuses a new block of a sunset (`legacy` / `deprecated`) type and names its
- * successor. Placed instances keep executing and stay editable.
+ * Holds a new child of a container to the same placement gates as a top-level `add`.
  *
  * @returns whether the placement was refused
  */
-function refuseSunsetPlacement(
-  skippedItems: SkippedItem[],
-  placement: {
-    blockType: string | undefined
-    operationType: string
-    blockId: string
-    outcome: string
-    details?: Record<string, unknown>
-  }
+function refuseNestedPlacement(
+  parentBlockId: string,
+  childId: string,
+  childBlock: { type?: unknown },
+  ctx: OperationContext
 ): boolean {
-  const { blockType, operationType, blockId, outcome, details } = placement
-  const sunset = blockType ? getBlock(blockType)?.sunset : undefined
-  if (!sunset) return false
-  const successor = sunset.replacedBy ? ` - use "${sunset.replacedBy}" instead` : ''
-  logSkippedItem(skippedItems, {
-    type: 'block_not_allowed',
-    operationType,
-    blockId,
-    reason: `Block type "${blockType}" is ${sunset.status}${successor} - ${outcome}`,
-    details: { requestedType: blockType, replacedBy: sunset.replacedBy, ...details },
-  })
+  const refusal = checkBlockPlacement(
+    {
+      blockId: childId,
+      blockType: typeof childBlock.type === 'string' ? childBlock.type : '',
+      operationType: 'add_nested_node',
+      outcome: 'child block skipped',
+      details: { parentBlockId },
+      others: ctx.modifiedState.blocks,
+    },
+    { permissionConfig: ctx.permissionConfig }
+  )
+  if (!refusal) return false
+  logSkippedItem(ctx.skippedItems, refusal)
   return true
+}
+
+/** The fields of a loop's or parallel's `data` that hold block references the runtime resolves. */
+const CONTAINER_REFERENCE_FIELDS = ['collection', 'whileCondition', 'doWhileCondition'] as const
+
+/**
+ * Renames a block and rewrites the `<name.` references every other block holds to it: in its
+ * sub-blocks, the same rewrite the editor's rename applies, and in a loop's or parallel's
+ * collection and conditions, which the loop and parallel records are rebuilt from.
+ */
+function renameBlock(blocks: Record<string, BlockState>, blockId: string, name: string): void {
+  const nameMap = new Map([[normalizeName(blocks[blockId].name), normalizeName(name)]])
+  blocks[blockId].name = name
+  for (const [id, block] of Object.entries(blocks)) {
+    if (id === blockId) continue
+    for (const subBlock of Object.values(block.subBlocks ?? {})) {
+      if (subBlock.value === undefined || subBlock.value === null) continue
+      subBlock.value = rewriteBlockNameReferences(subBlock.value, nameMap)
+    }
+    const data = block.data
+    if (!data || (block.type !== 'loop' && block.type !== 'parallel')) continue
+    for (const field of CONTAINER_REFERENCE_FIELDS) {
+      const value = data[field]
+      if (typeof value === 'string') data[field] = rewriteBlockNameReferences(value, nameMap)
+    }
+  }
+}
+
+/**
+ * A loop's `iterations` or a parallel's `count` as stored: a whole number of at least 1, given as
+ * a number or as a string of digits (the way a number input coerces), the bound source compile
+ * holds a count to. Anything else (`0`, `-1`, `2.5`, `"1e3"`, `"0x10"`) is refused as an input
+ * validation error, keeping `current`, since the loader would otherwise reset it to its default.
+ */
+function containerCount(
+  block: BlockState,
+  field: 'iterations' | 'count',
+  value: unknown,
+  validationErrors: ValidationError[],
+  current?: unknown
+): unknown {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\s*\d+\s*$/.test(value)
+        ? Number(value)
+        : Number.NaN
+  if (Number.isSafeInteger(parsed) && parsed >= 1) return parsed
+  validationErrors.push({
+    blockId: block.id,
+    blockType: block.type,
+    field,
+    value,
+    error: `Invalid ${field} "${String(value)}" for ${block.type} "${block.name}" - must be a whole number of at least 1`,
+  })
+  return current
 }
 
 /**
  * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
  */
-function applyLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
+function applyLoopOrParallelContainerData(
+  block: any,
+  params: Record<string, any>,
+  validationErrors: ValidationError[]
+): void {
   if (params.type === 'loop') {
     const loopType =
       params.inputs?.loopType && VALID_LOOP_TYPES.includes(params.inputs.loopType)
@@ -75,7 +140,16 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
       loopType,
       ...(loopType === 'forEach' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
-      ...(loopType === 'for' && params.inputs?.iterations && { count: params.inputs.iterations }),
+      ...(loopType === 'for' &&
+        params.inputs?.iterations !== undefined && {
+          count: containerCount(
+            block,
+            'iterations',
+            params.inputs.iterations,
+            validationErrors,
+            block.data?.count
+          ),
+        }),
       ...(loopType === 'while' &&
         params.inputs?.condition && { whileCondition: params.inputs.condition }),
       ...(loopType === 'doWhile' &&
@@ -91,7 +165,16 @@ function applyLoopOrParallelContainerData(block: any, params: Record<string, any
       parallelType,
       ...(parallelType === 'collection' &&
         params.inputs?.collection && { collection: params.inputs.collection }),
-      ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
+      ...(parallelType === 'count' &&
+        params.inputs?.count !== undefined && {
+          count: containerCount(
+            block,
+            'count',
+            params.inputs.count,
+            validationErrors,
+            block.data?.count
+          ),
+        }),
     }
   }
 }
@@ -134,17 +217,7 @@ function processNestedNodesForParent(
       return
     }
 
-    if (
-      refuseSunsetPlacement(skippedItems, {
-        blockType: childBlock.type,
-        operationType: 'add_nested_node',
-        blockId: childId,
-        outcome: 'child block skipped',
-        details: { parentBlockId },
-      })
-    ) {
-      return
-    }
+    if (refuseNestedPlacement(parentBlockId, childId, childBlock, ctx)) return
 
     const childBlockState = createBlockFromParams(
       childId,
@@ -156,7 +229,7 @@ function processNestedNodesForParent(
       ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
-      applyLoopOrParallelContainerData(childBlockState, childBlock)
+      applyLoopOrParallelContainerData(childBlockState, childBlock, validationErrors)
     }
     modifiedState.blocks[childId] = childBlockState
 
@@ -173,7 +246,11 @@ function processNestedNodesForParent(
   })
 }
 
-function updateLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
+function updateLoopOrParallelContainerData(
+  block: any,
+  params: Record<string, any>,
+  validationErrors: ValidationError[]
+): void {
   if (block.type === 'loop') {
     block.data = block.data || {}
     if (params.inputs?.loopType) {
@@ -183,8 +260,14 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
       }
     }
     const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
-    if (params.inputs?.iterations && effectiveLoopType === 'for') {
-      block.data.count = params.inputs.iterations
+    if (params.inputs?.iterations !== undefined && effectiveLoopType === 'for') {
+      block.data.count = containerCount(
+        block,
+        'iterations',
+        params.inputs.iterations,
+        validationErrors,
+        block.data.count
+      )
     }
     if (params.inputs?.collection && effectiveLoopType === 'forEach') {
       block.data.collection = params.inputs.collection
@@ -208,8 +291,14 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
       }
     }
     const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
-    if (params.inputs?.count && effectiveParallelType === 'count') {
-      block.data.count = params.inputs.count
+    if (params.inputs?.count !== undefined && effectiveParallelType === 'count') {
+      block.data.count = containerCount(
+        block,
+        'count',
+        params.inputs.count,
+        validationErrors,
+        block.data.count
+      )
     }
     if (params.inputs?.collection && effectiveParallelType === 'collection') {
       block.data.collection = params.inputs.collection
@@ -251,7 +340,8 @@ function mergeNestedNodesForParent(
           childBlock.inputs,
           existingId,
           buildSubBlockValues(existingBlock.subBlocks),
-          ctx.enforceToolBindingContract
+          ctx.enforceToolBindingContract,
+          existingBlock.triggerMode === true
         )
         validationErrors.push(...childValidation.errors)
 
@@ -265,16 +355,13 @@ function mergeNestedNodesForParent(
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
           if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
           if (!isInputAllowed(key, value)) return
-          let sanitizedValue = normalizeSubblockValue(key, value)
-          sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
-          if (key === 'tools' && Array.isArray(value)) {
-            sanitizedValue = filterDisallowedTools(
-              normalizeTools(value),
-              permissionConfig,
-              existingId,
-              skippedItems
-            )
-          }
+          let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
+          sanitizedValue = applyEditedBranchRows(modifiedState, existingId, key, sanitizedValue)
+          sanitizedValue = gateToolInputValue(
+            { blockId: existingId, blockType: existingBlock.type, key, value, sanitizedValue },
+            permissionConfig,
+            skippedItems
+          )
           if (key === 'responseFormat' && value) {
             sanitizedValue = normalizeResponseFormat(value)
           }
@@ -295,7 +382,7 @@ function mergeNestedNodesForParent(
       }
 
       if (existingBlock.type === 'loop' || existingBlock.type === 'parallel') {
-        updateLoopOrParallelContainerData(existingBlock, childBlock)
+        updateLoopOrParallelContainerData(existingBlock, childBlock, ctx.validationErrors)
       }
 
       if (childBlock.connections) {
@@ -325,17 +412,7 @@ function mergeNestedNodesForParent(
       return
     }
 
-    if (
-      refuseSunsetPlacement(skippedItems, {
-        blockType: childBlock.type,
-        operationType: 'add_nested_node',
-        blockId: childId,
-        outcome: 'child block skipped',
-        details: { parentBlockId },
-      })
-    ) {
-      return
-    }
+    if (refuseNestedPlacement(parentBlockId, childId, childBlock, ctx)) return
 
     const childBlockState = createBlockFromParams(
       childId,
@@ -347,7 +424,7 @@ function mergeNestedNodesForParent(
       ctx.enforceToolBindingContract
     )
     if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
-      applyLoopOrParallelContainerData(childBlockState, childBlock)
+      applyLoopOrParallelContainerData(childBlockState, childBlock, validationErrors)
     }
     modifiedState.blocks[childId] = childBlockState
 
@@ -486,6 +563,27 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     return
   }
 
+  // Before the inputs, so they are judged against the type the block will have.
+  if (params?.type !== undefined) {
+    const refusal = checkBlockPlacement(
+      {
+        blockId: block_id,
+        blockType: params.type,
+        previousType: block.type,
+        operationType: 'edit',
+        outcome: 'type change skipped',
+        ...(params.type !== block.type && { others: otherBlocks(modifiedState.blocks, block_id) }),
+      },
+      { permissionConfig }
+    )
+    if (refusal) logSkippedItem(skippedItems, refusal)
+    else block.type = params.type
+  }
+
+  if (params && Object.hasOwn(params, 'parentId')) {
+    moveToParent(block, block_id, params.parentId, ctx)
+  }
+
   if (params?.inputs) {
     if (!block.subBlocks) block.subBlocks = {}
 
@@ -502,7 +600,8 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       params.inputs,
       block_id,
       buildSubBlockValues(block.subBlocks),
-      ctx.enforceToolBindingContract
+      ctx.enforceToolBindingContract,
+      typeof params.triggerMode === 'boolean' ? params.triggerMode : block.triggerMode === true
     )
     validationErrors.push(...validationResult.errors)
 
@@ -530,18 +629,15 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
 
       explicitInputKeys.add(key)
-      let sanitizedValue = normalizeSubblockValue(key, value)
+      let sanitizedValue = normalizeSubblockValue(key, value, block.type)
 
-      sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
+      sanitizedValue = applyEditedBranchRows(modifiedState, block_id, key, sanitizedValue)
 
-      if (key === 'tools' && Array.isArray(value)) {
-        sanitizedValue = filterDisallowedTools(
-          normalizeTools(value),
-          permissionConfig,
-          block_id,
-          skippedItems
-        )
-      }
+      sanitizedValue = gateToolInputValue(
+        { blockId: block_id, blockType: block.type, key, value, sanitizedValue },
+        permissionConfig,
+        skippedItems
+      )
 
       if (key === 'responseFormat' && value) {
         sanitizedValue = normalizeResponseFormat(value)
@@ -583,7 +679,13 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
       const effectiveLoopType = params.inputs.loopType ?? block.data.loopType ?? 'for'
       if (params.inputs.iterations !== undefined && effectiveLoopType === 'for') {
-        block.data.count = params.inputs.iterations
+        block.data.count = containerCount(
+          block,
+          'iterations',
+          params.inputs.iterations,
+          validationErrors,
+          block.data.count
+        )
       }
       if (params.inputs.collection !== undefined && effectiveLoopType === 'forEach') {
         block.data.collection = params.inputs.collection
@@ -608,7 +710,13 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       }
       const effectiveParallelType = params.inputs.parallelType ?? block.data.parallelType ?? 'count'
       if (params.inputs.count !== undefined && effectiveParallelType === 'count') {
-        block.data.count = params.inputs.count
+        block.data.count = containerCount(
+          block,
+          'count',
+          params.inputs.count,
+          validationErrors,
+          block.data.count
+        )
       }
       if (params.inputs.collection !== undefined && effectiveParallelType === 'collection') {
         block.data.collection = params.inputs.collection
@@ -640,39 +748,6 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
     }
   }
 
-  if (params?.type !== undefined) {
-    // Special container types (loop, parallel) are not in the block registry but are valid
-    const isContainerType = params.type === 'loop' || params.type === 'parallel'
-
-    const blockConfig = getBlock(params.type)
-    if (!blockConfig && !isContainerType) {
-      logSkippedItem(skippedItems, {
-        type: 'invalid_block_type',
-        operationType: 'edit',
-        blockId: block_id,
-        reason: `Invalid block type "${params.type}" - type change skipped`,
-        details: { requestedType: params.type },
-      })
-    } else if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
-      logSkippedItem(skippedItems, {
-        type: 'block_not_allowed',
-        operationType: 'edit',
-        blockId: block_id,
-        reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - type change skipped`,
-        details: { requestedType: params.type },
-      })
-    } else if (
-      params.type === block.type ||
-      !refuseSunsetPlacement(skippedItems, {
-        blockType: params.type,
-        operationType: 'edit',
-        blockId: block_id,
-        outcome: 'type change skipped',
-      })
-    ) {
-      block.type = params.type
-    }
-  }
   if (params?.name !== undefined) {
     const normalizedName = normalizeName(params.name)
     if (!normalizedName) {
@@ -711,7 +786,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
           },
         })
       } else {
-        block.name = params.name
+        renameBlock(modifiedState.blocks, block_id, params.name)
       }
     }
   }
@@ -732,11 +807,12 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   // block's post-update mode: turning a block into a trigger in the same
   // operation makes it ineligible, exactly as the editor treats it.
   if (params?.retry !== undefined) {
-    applyBlockRetry(block, params.retry, {
-      operationType: 'edit',
-      blockId: block_id,
-      skippedItems,
-    })
+    applyBlockRetry(
+      block,
+      params.retry,
+      { operationType: 'edit', blockId: block_id, skippedItems },
+      permissionConfig
+    )
   }
 
   // Merge strategy: existing children that match an incoming node by name are updated in place
@@ -745,7 +821,7 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   if (params?.nestedNodes) {
     mergeNestedNodesForParent(block_id, params.nestedNodes, ctx)
 
-    updateLoopOrParallelContainerData(block, params)
+    updateLoopOrParallelContainerData(block, params, ctx.validationErrors)
   }
 
   // Defer connections to pass 2 so all blocks exist before edges are created
@@ -776,6 +852,81 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
       )
     })
   }
+}
+
+/**
+ * An edit's `params.parentId`: moves existing block `block` into the loop or parallel it names,
+ * or with `null` (or an empty string) out of its container onto the canvas, keeping its id, as
+ * `insert_into_subflow` and `extract_from_subflow` move one. A parentId that is no container is
+ * declined with the reason.
+ */
+function moveToParent(
+  block: BlockState,
+  blockId: string,
+  parentId: unknown,
+  ctx: OperationContext
+): void {
+  const currentParent = block.data?.parentId
+  if (parentId === null || parentId === '') {
+    if (currentParent) placeAtTopLevel(block, currentParent, ctx.modifiedState.blocks)
+    return
+  }
+  if (typeof parentId !== 'string') {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType: 'edit',
+      blockId,
+      reason: `params.parentId of block "${blockId}" must be a loop or parallel id, or null to move it out of its container`,
+      details: { parentId },
+    })
+    return
+  }
+  if (parentId === currentParent) return
+  if (nestsInItself(blockId, parentId, 'edit', ctx)) return
+  if (!subflowContainer(parentId, blockId, 'edit', ctx)) return
+  placeInSubflow(block, parentId)
+}
+
+/**
+ * Whether placing existing block `blockId` in container `parentId` would put it inside itself
+ * (`parentId` is the block or sits anywhere inside it, a parent cycle), after recording why
+ * `operationType` skips it.
+ */
+function nestsInItself(
+  blockId: string,
+  parentId: string,
+  operationType: string,
+  ctx: OperationContext
+): boolean {
+  if (!isSelfOrDescendant(parentId, blockId, ctx.modifiedState.blocks)) return false
+  logSkippedItem(ctx.skippedItems, {
+    type: 'invalid_subflow_parent',
+    operationType,
+    blockId,
+    reason: `Cannot place block "${blockId}" in "${parentId}" - that would place the block inside itself`,
+    details: { parentId },
+  })
+  return true
+}
+
+/**
+ * Whether block `candidateId` is block `ancestorId` itself or sits anywhere inside it, following
+ * the `parentId` chain up from `candidateId`. Making `ancestorId` a child of such a block would
+ * create a parent cycle.
+ */
+function isSelfOrDescendant(
+  candidateId: string,
+  ancestorId: string,
+  blocks: Record<string, BlockState>
+): boolean {
+  const seen = new Set<string>()
+  let current: string | undefined = candidateId
+  while (current && !seen.has(current)) {
+    if (current === ancestorId) return true
+    seen.add(current)
+    current = blocks[current]?.data?.parentId
+  }
+  return false
 }
 
 export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
@@ -827,67 +978,18 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     return
   }
 
-  // Special container types (loop, parallel) are not in the block registry but are valid
-  const isContainerType = params.type === 'loop' || params.type === 'parallel'
-
-  const addBlockConfig = getBlock(params.type)
-  if (!addBlockConfig && !isContainerType) {
-    logSkippedItem(skippedItems, {
-      type: 'invalid_block_type',
-      operationType: 'add',
+  const refusal = checkBlockPlacement(
+    {
       blockId: block_id,
-      reason: `Invalid block type "${params.type}" - block not added`,
-      details: { requestedType: params.type },
-    })
-    return
-  }
-
-  if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
-    logSkippedItem(skippedItems, {
-      type: 'block_not_allowed',
-      operationType: 'add',
-      blockId: block_id,
-      reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - block not added`,
-      details: { requestedType: params.type },
-    })
-    return
-  }
-
-  if (
-    refuseSunsetPlacement(skippedItems, {
       blockType: params.type,
       operationType: 'add',
-      blockId: block_id,
       outcome: 'block not added',
-    })
-  ) {
-    return
-  }
-
-  const triggerIssue = TriggerUtils.getTriggerAdditionIssue(modifiedState.blocks, params.type)
-  if (triggerIssue) {
-    logSkippedItem(skippedItems, {
-      type: 'duplicate_trigger',
-      operationType: 'add',
-      blockId: block_id,
-      reason: `Cannot add ${triggerIssue.triggerName} - a workflow can only have one`,
-      details: { requestedType: params.type, issue: triggerIssue.issue },
-    })
-    return
-  }
-
-  const singleInstanceIssue = TriggerUtils.getSingleInstanceBlockIssue(
-    modifiedState.blocks,
-    params.type
+      others: modifiedState.blocks,
+    },
+    { permissionConfig }
   )
-  if (singleInstanceIssue) {
-    logSkippedItem(skippedItems, {
-      type: 'duplicate_single_instance_block',
-      operationType: 'add',
-      blockId: block_id,
-      reason: `Cannot add ${singleInstanceIssue.blockName} - a workflow can only have one`,
-      details: { requestedType: params.type },
-    })
+  if (refusal) {
+    logSkippedItem(skippedItems, refusal)
     return
   }
 
@@ -902,7 +1004,7 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
   )
 
   if (params.type === 'loop' || params.type === 'parallel') {
-    applyLoopOrParallelContainerData(newBlock, params)
+    applyLoopOrParallelContainerData(newBlock, params, ctx.validationErrors)
   }
 
   // Add parent block FIRST before adding children
@@ -946,39 +1048,7 @@ export function handleInsertIntoSubflowOperation(
     return
   }
 
-  const subflowBlock = modifiedState.blocks[subflowId]
-  if (!subflowBlock) {
-    logSkippedItem(skippedItems, {
-      type: 'invalid_subflow_parent',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Subflow block "${subflowId}" not found - block "${block_id}" not inserted`,
-      details: { subflowId },
-    })
-    return
-  }
-
-  if (subflowBlock.locked) {
-    logSkippedItem(skippedItems, {
-      type: 'block_locked',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Subflow "${subflowId}" is locked - cannot insert block "${block_id}"`,
-      details: { subflowId },
-    })
-    return
-  }
-
-  if (subflowBlock.type !== 'loop' && subflowBlock.type !== 'parallel') {
-    logSkippedItem(skippedItems, {
-      type: 'invalid_subflow_parent',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Cannot insert block "${block_id}" into "${subflowId}" - the target is a "${subflowBlock.type}" block, not a loop or parallel container`,
-      details: { subflowId, subflowType: subflowBlock.type },
-    })
-    return
-  }
+  if (!subflowContainer(subflowId, block_id, 'insert_into_subflow', ctx)) return
 
   const existingBlock = modifiedState.blocks[block_id]
 
@@ -992,17 +1062,9 @@ export function handleInsertIntoSubflowOperation(
       })
       return
     }
+    if (nestsInItself(block_id, subflowId, 'insert_into_subflow', ctx)) return
 
-    // Moving existing block into subflow — update parent and reset position.
-    // Position must be reset because React Flow uses coordinates relative to
-    // the parent container; keeping the old absolute position would place the
-    // block far outside the container's bounds.
-    existingBlock.data = {
-      ...existingBlock.data,
-      parentId: subflowId,
-      extent: 'parent' as const,
-    }
-    existingBlock.position = { x: 0, y: 0 }
+    placeInSubflow(existingBlock, subflowId)
 
     if (params.inputs) {
       const validationResult = validateInputsForBlock(
@@ -1010,7 +1072,8 @@ export function handleInsertIntoSubflowOperation(
         params.inputs,
         block_id,
         buildSubBlockValues(existingBlock.subBlocks ?? {}),
-        ctx.enforceToolBindingContract
+        ctx.enforceToolBindingContract,
+        existingBlock.triggerMode === true
       )
       validationErrors.push(...validationResult.errors)
 
@@ -1030,18 +1093,15 @@ export function handleInsertIntoSubflowOperation(
           return
         }
 
-        let sanitizedValue = normalizeSubblockValue(key, value)
+        let sanitizedValue = normalizeSubblockValue(key, value, existingBlock.type)
 
-        sanitizedValue = normalizeConditionRouterIds(block_id, key, sanitizedValue)
+        sanitizedValue = applyEditedBranchRows(modifiedState, block_id, key, sanitizedValue)
 
-        if (key === 'tools' && Array.isArray(value)) {
-          sanitizedValue = filterDisallowedTools(
-            normalizeTools(value),
-            permissionConfig,
-            block_id,
-            skippedItems
-          )
-        }
+        sanitizedValue = gateToolInputValue(
+          { blockId: block_id, blockType: existingBlock.type, key, value, sanitizedValue },
+          permissionConfig,
+          skippedItems
+        )
 
         if (key === 'responseFormat' && value) {
           sanitizedValue = normalizeResponseFormat(value)
@@ -1069,41 +1129,19 @@ export function handleInsertIntoSubflowOperation(
       }
     }
   } else {
-    // Special container types (loop, parallel) are not in the block registry but are valid
-    const isContainerType = params.type === 'loop' || params.type === 'parallel'
-
-    const insertBlockConfig = getBlock(params.type)
-    if (!insertBlockConfig && !isContainerType) {
-      logSkippedItem(skippedItems, {
-        type: 'invalid_block_type',
-        operationType: 'insert_into_subflow',
+    const refusal = checkBlockPlacement(
+      {
         blockId: block_id,
-        reason: `Invalid block type "${params.type}" - block not inserted into subflow`,
-        details: { requestedType: params.type, subflowId },
-      })
-      return
-    }
-
-    if (!isContainerType && !isBlockTypeAllowed(params.type, permissionConfig)) {
-      logSkippedItem(skippedItems, {
-        type: 'block_not_allowed',
-        operationType: 'insert_into_subflow',
-        blockId: block_id,
-        reason: `Block type "${params.type}" is unavailable in this deployment or blocked by access control - block not inserted`,
-        details: { requestedType: params.type, subflowId },
-      })
-      return
-    }
-
-    if (
-      refuseSunsetPlacement(skippedItems, {
         blockType: params.type,
         operationType: 'insert_into_subflow',
-        blockId: block_id,
         outcome: 'block not inserted into subflow',
         details: { subflowId },
-      })
-    ) {
+        others: modifiedState.blocks,
+      },
+      { permissionConfig }
+    )
+    if (refusal) {
+      logSkippedItem(skippedItems, refusal)
       return
     }
 
@@ -1118,7 +1156,7 @@ export function handleInsertIntoSubflowOperation(
     )
     modifiedState.blocks[block_id] = newBlock
     if (params.type === 'loop' || params.type === 'parallel') {
-      applyLoopOrParallelContainerData(newBlock, params)
+      applyLoopOrParallelContainerData(newBlock, params, ctx.validationErrors)
     }
     if (params.nestedNodes && (params.type === 'loop' || params.type === 'parallel')) {
       processNestedNodesForParent(block_id, params.nestedNodes, ctx)
@@ -1204,23 +1242,86 @@ export function handleExtractFromSubflowOperation(
     })
   }
 
-  // Convert from relative (to container) to absolute position so the block
-  // appears at roughly the same visual location after extraction. This avoids
-  // needing targeted layout to reposition it — extracted blocks often lose
-  // their edges to siblings still in the container, making them disconnected
-  // and causing layout to stack them at layer 0.
-  const container = modifiedState.blocks[subflowId]
-  if (container?.position && block.position) {
-    block.position = {
-      x: (container.position.x ?? 0) + (block.position.x ?? 0),
-      y: (container.position.y ?? 0) + (block.position.y ?? 0),
-    }
-  } else {
-    // Fallback to (0,0) which signals to blocksNeedingLayout in index.ts
-    // that this block requires targeted layout repositioning.
-    block.position = { x: 0, y: 0 }
-  }
+  placeAtTopLevel(block, subflowId, modifiedState.blocks)
+}
 
+/**
+ * The loop or parallel container `subflowId` names, for `operationType` to place block `blockId`
+ * in, or `null` after recording why it cannot: no such block, locked, or not a container.
+ */
+function subflowContainer(
+  subflowId: string,
+  blockId: string,
+  operationType: string,
+  ctx: OperationContext
+): BlockState | null {
+  const container: BlockState | undefined = ctx.modifiedState.blocks[subflowId]
+  if (!container) {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType,
+      blockId,
+      reason: `Subflow block "${subflowId}" not found - block "${blockId}" not placed in it`,
+      details: { subflowId },
+    })
+    return null
+  }
+  if (container.locked) {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'block_locked',
+      operationType,
+      blockId,
+      reason: `Subflow "${subflowId}" is locked - cannot place block "${blockId}" in it`,
+      details: { subflowId },
+    })
+    return null
+  }
+  if (container.type !== 'loop' && container.type !== 'parallel') {
+    logSkippedItem(ctx.skippedItems, {
+      type: 'invalid_subflow_parent',
+      operationType,
+      blockId,
+      reason: `Cannot place block "${blockId}" in "${subflowId}" - the target is a "${container.type}" block, not a loop or parallel container`,
+      details: { subflowId, subflowType: container.type },
+    })
+    return null
+  }
+  return container
+}
+
+/**
+ * Makes `block` a child of container `subflowId`. Its position resets because React Flow reads a
+ * child's coordinates relative to its container; the old absolute position would place it far
+ * outside the container's bounds.
+ */
+function placeInSubflow(block: BlockState, subflowId: string): void {
+  block.data = { ...block.data, parentId: subflowId, extent: 'parent' }
+  block.position = { x: 0, y: 0 }
+}
+
+/**
+ * Takes `block` out of container `containerId` onto the canvas, at the absolute position it showed
+ * at (its own offset plus that of every enclosing container), so it needs no targeted layout (an
+ * extracted block often loses its edges to siblings left in the container, and layout would stack
+ * it at layer 0). Without every position it goes to (0,0), which marks it for targeted layout.
+ */
+function placeAtTopLevel(
+  block: BlockState,
+  containerId: string,
+  blocks: Record<string, BlockState>
+): void {
+  let position = block.position ? { x: block.position.x ?? 0, y: block.position.y ?? 0 } : null
+  const seen = new Set<string>()
+  let current: string | undefined = containerId
+  while (position && current && !seen.has(current)) {
+    seen.add(current)
+    const container: BlockState | undefined = blocks[current]
+    position = container?.position
+      ? { x: position.x + (container.position.x ?? 0), y: position.y + (container.position.y ?? 0) }
+      : null
+    current = container?.data?.parentId
+  }
+  block.position = position ?? { x: 0, y: 0 }
   if (block.data) {
     block.data.parentId = undefined
     block.data.extent = undefined

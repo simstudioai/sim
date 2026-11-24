@@ -70,9 +70,6 @@ const mockResolveBedrockCredentialSession =
   llmBedrockCredentialMockFns.mockResolveBedrockCredentialSession
 mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
 providersUtilsMockFns.mockGetProviderFromModel.mockReturnValue('mock-provider')
-providersUtilsMockFns.mockIsDeepResearchModel.mockImplementation((model: string) =>
-  model.includes('deep-research')
-)
 providersUtilsMockFns.mockGetApiKey.mockReturnValue('mock-api-key')
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
@@ -1040,23 +1037,6 @@ describe('AgentBlockHandler', () => {
       expect(mockAgentLogger.info).not.toHaveBeenCalledWith(
         'Fallback models held for the final try',
         expect.anything()
-      )
-    })
-
-    it('never falls back on a deep-research follow-up turn', async () => {
-      mockExecuteProviderRequest.mockRejectedValueOnce(new Error('overloaded'))
-
-      await expect(
-        handler.execute(mockContext, mockBlock, {
-          ...baseInputs,
-          previousInteractionId: 'interaction-1',
-          fallbackModels: [{ model: 'claude-sonnet-5' }],
-        })
-      ).rejects.toThrow('overloaded')
-      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
-      expect(mockAgentLogger.info).toHaveBeenCalledWith(
-        'Fallback models skipped for a deep-research follow-up turn',
-        expect.objectContaining({ blockId: mockBlock.id })
       )
     })
 

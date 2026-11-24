@@ -1,8 +1,10 @@
 import type { Principal } from '@sim/auth/principal'
 import { describePrincipalAuth } from '@sim/auth/principal'
 import { setRequestAuth } from '@sim/logger'
+import { LRUCache } from 'lru-cache'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
 import {
   type CopilotRouteUseCase,
@@ -10,7 +12,11 @@ import {
   isCopilotRequest,
 } from '@/lib/api/server/routes/copilot-request'
 import {
+  entityTagMatches,
   methodMatchesContract,
+  notModifiedResponse,
+  REVALIDATE_CACHE_CONTROL,
+  requireHeadAuthorizableUseCase,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
 import type {
@@ -43,7 +49,12 @@ import {
   ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application'
-import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
+import {
+  getRateLimit,
+  RateLimiter,
+  type SubscriptionPlan,
+  type TokenBucketConfig,
+} from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -83,7 +94,11 @@ export const v2ApiKeyAuth = {
 } as const
 
 export interface V2RateLimitPolicy {
-  readonly kind: 'public_api'
+  /**
+   * The most one request may be charged: a route's `rateLimitCost` above it is charged this, so
+   * the largest request the route accepts still fits the bucket.
+   */
+  maxCost?: number
   /** `cost` charges a request that performs several operations, such as a batched read. */
   enforce(
     request: NextRequest,
@@ -93,48 +108,166 @@ export interface V2RateLimitPolicy {
   ): Promise<NextResponse | null>
 }
 
+/**
+ * Charges `cost` to `bucket` for every rate-limit subject of the caller (its key and its user or
+ * workspace) and answers with the most restrictive result: `null` when every bucket admits it,
+ * else the 429.
+ */
+async function enforceV2Buckets(
+  request: NextRequest,
+  auth: V2ApiKeyAuthContext,
+  bucket: string,
+  config: TokenBucketConfig,
+  cost: number
+): Promise<NextResponse | null> {
+  const buckets = await Promise.all(
+    auth.rateLimitSubjectIds.map(async (subjectId) => {
+      try {
+        return await rateLimiter.checkRateLimitDirectOrThrow(
+          `v2:${bucket}:${subjectId}`,
+          config,
+          cost
+        )
+      } catch (error) {
+        throw new V2RouteInfrastructureError('rate_limit', error)
+      }
+    })
+  )
+  const rateLimit = buckets.reduce((mostRestrictive, candidate) => {
+    if (!candidate.allowed && mostRestrictive.allowed) return candidate
+    if (candidate.allowed === mostRestrictive.allowed) {
+      if (candidate.remaining < mostRestrictive.remaining) return candidate
+      if (
+        candidate.remaining === mostRestrictive.remaining &&
+        candidate.resetAt > mostRestrictive.resetAt
+      ) {
+        return candidate
+      }
+    }
+    return mostRestrictive
+  })
+  const snapshot = {
+    allowed: rateLimit.allowed,
+    limit: config.maxTokens,
+    remaining: rateLimit.remaining,
+    resetAt: rateLimit.resetAt,
+    retryAfterMs: rateLimit.retryAfterMs,
+    keyType: auth.keyType,
+  }
+  recordRateLimitSnapshot(request, snapshot)
+  return rateLimit.allowed ? null : v2RateLimitError(snapshot)
+}
+
+/** Validated bodies a route with an entity tag keeps; each can be megabytes (the source catalog). */
+const VALIDATED_BODY_CACHE_MAX = 4
+
+/**
+ * The budget for writing workflow source (an apply or a create from source), per subject and on
+ * every plan. Each request parses, compiles, canonicalizes and diffs a body of up to
+ * `SOURCE_REQUEST_MAX_BYTES`, so it costs far more than the row reads the generic budget is sized
+ * for. A dry run, which writes nothing, draws on the plan bucket instead (see `sourceApply`).
+ */
+const V2_SOURCE_WRITE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 40,
+  refillRate: 20,
+  refillIntervalMs: 60_000,
+}
+
+/**
+ * Reading a workspace as source: each get loads every resource of the kinds it asks for, prints
+ * up to a directory's worth of text and may download stored bytes to hash them, so it costs far
+ * more than the row reads the generic budget is sized for.
+ */
+const V2_SOURCE_READ_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 10,
+  refillRate: 5,
+  refillIntervalMs: 60_000,
+}
+
+/**
+ * Planning source (`sim workflows source status`, `sim workspaces source status`): a plan runs
+ * the apply's whole pipeline without writing, so it is charged like one, one unit per workflow it
+ * evaluates, on a bucket of its own so a status loop never spends the write budget an apply needs
+ * and never runs at the generic budget's rate.
+ */
+const V2_SOURCE_PLAN_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 60,
+  refillRate: 30,
+  refillIntervalMs: 60_000,
+}
+
+/** Whether `request` asks for a dry run (`?dryRun=true`), as the source apply contract reads it. */
+function isDryRunRequest(request: NextRequest): boolean {
+  const flag = booleanQueryFlagSchema.safeParse(
+    request.nextUrl.searchParams.get('dryRun') ?? undefined
+  )
+  return flag.success && flag.data
+}
+
+/**
+ * Staging the binary files of a workspace source apply: each request carries up to 24 MB, so a
+ * 1 GB directory stages in about 45 requests. Its own bucket, so staging never spends the
+ * applies that follow it.
+ */
+const V2_SOURCE_BLOB_STAGE_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 200,
+  refillRate: 100,
+  refillIntervalMs: 60_000,
+}
+
 export const v2RateLimits = {
+  /** The plan's API budget, one bucket per operation. */
   publicApi: {
-    kind: 'public_api',
     async enforce(request, auth, operation, cost = 1) {
       const plan = (auth.rateLimitSubscription?.plan ?? 'free') as SubscriptionPlan
-      const config = getRateLimit(plan, 'api-endpoint')
-      const buckets = await Promise.all(
-        auth.rateLimitSubjectIds.map(async (subjectId) => {
-          try {
-            return await rateLimiter.checkRateLimitDirectOrThrow(
-              `v2:${operation.id}:${subjectId}`,
-              config,
-              cost
-            )
-          } catch (error) {
-            throw new V2RouteInfrastructureError('rate_limit', error)
-          }
-        })
+      return enforceV2Buckets(request, auth, operation.id, getRateLimit(plan, 'api-endpoint'), cost)
+    },
+  } satisfies V2RateLimitPolicy,
+  /** {@link V2_SOURCE_READ_RATE_LIMIT}, for reading a workspace as source. */
+  sourceRead: {
+    async enforce(request, auth) {
+      return enforceV2Buckets(request, auth, 'workspaces.source.read', V2_SOURCE_READ_RATE_LIMIT, 1)
+    },
+  } satisfies V2RateLimitPolicy,
+  /** {@link V2_SOURCE_PLAN_RATE_LIMIT}, one bucket shared by workflow and workspace plans. */
+  sourcePlan: {
+    maxCost: V2_SOURCE_PLAN_RATE_LIMIT.maxTokens,
+    async enforce(request, auth, _operation, cost = 1) {
+      return enforceV2Buckets(request, auth, 'source.plan', V2_SOURCE_PLAN_RATE_LIMIT, cost)
+    },
+  } satisfies V2RateLimitPolicy,
+  /**
+   * A source write route (an apply or a create from source) that also serves dry runs
+   * (`?dryRun=true`): a dry run writes nothing and runs what a plan runs, so it draws on the
+   * {@link V2_SOURCE_PLAN_RATE_LIMIT} bucket as the plan routes do, and only a real write spends
+   * the {@link V2_SOURCE_WRITE_RATE_LIMIT} bucket, one shared by every source write so alternating
+   * an apply and a create cannot double it. Capped at the smaller bucket, so the largest request
+   * fits either.
+   */
+  sourceApply: {
+    maxCost: Math.min(V2_SOURCE_WRITE_RATE_LIMIT.maxTokens, V2_SOURCE_PLAN_RATE_LIMIT.maxTokens),
+    async enforce(request, auth, _operation, cost = 1) {
+      return isDryRunRequest(request)
+        ? enforceV2Buckets(request, auth, 'source.plan', V2_SOURCE_PLAN_RATE_LIMIT, cost)
+        : enforceV2Buckets(
+            request,
+            auth,
+            'workflows.source.write',
+            V2_SOURCE_WRITE_RATE_LIMIT,
+            cost
+          )
+    },
+  } satisfies V2RateLimitPolicy,
+  /** {@link V2_SOURCE_BLOB_STAGE_RATE_LIMIT}, shared by staging and asking what is staged. */
+  sourceBlobStage: {
+    async enforce(request, auth) {
+      return enforceV2Buckets(
+        request,
+        auth,
+        'workspaces.source.blobs',
+        V2_SOURCE_BLOB_STAGE_RATE_LIMIT,
+        1
       )
-      const rateLimit = buckets.reduce((mostRestrictive, candidate) => {
-        if (!candidate.allowed && mostRestrictive.allowed) return candidate
-        if (candidate.allowed === mostRestrictive.allowed) {
-          if (candidate.remaining < mostRestrictive.remaining) return candidate
-          if (
-            candidate.remaining === mostRestrictive.remaining &&
-            candidate.resetAt > mostRestrictive.resetAt
-          ) {
-            return candidate
-          }
-        }
-        return mostRestrictive
-      })
-      const snapshot = {
-        allowed: rateLimit.allowed,
-        limit: config.maxTokens,
-        remaining: rateLimit.remaining,
-        resetAt: rateLimit.resetAt,
-        retryAfterMs: rateLimit.retryAfterMs,
-        keyType: auth.keyType,
-      }
-      recordRateLimitSnapshot(request, snapshot)
-      return rateLimit.allowed ? null : v2RateLimitError(snapshot)
     },
   } satisfies V2RateLimitPolicy,
 } as const
@@ -241,25 +374,6 @@ export const V2_PARSE_DEFAULTS = {
 
 export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
-}
-
-/**
- * Refuses at module load to build a `headSafe: false` route whose use case
- * cannot answer the authorization question on its own — see the `headSafe`
- * option below. A use case with no `authorize` leaves the builder nothing but
- * admission to answer a `HEAD` from, so the gap is a boot failure rather than a
- * silent 200.
- */
-export function requireHeadAuthorizableUseCase(
-  contract: { method: string; path: string },
-  headSafe: boolean | undefined,
-  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
-): void {
-  if (headSafe !== false) return
-  if (typeof useCase.authorize === 'function') return
-  throw new Error(
-    `V2 route ${contract.method} ${contract.path} declares headSafe: false but its use case has no authorize(); a HEAD would have to answer from authentication alone and would leak the resource's existence.`
-  )
 }
 
 /**
@@ -497,6 +611,26 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
     result: NoInfer<R>
   }): void | Promise<void>
   statusForResult?(result: NoInfer<R>): number
+  /**
+   * What a request costs in rate-limit units once its input is known, for a route whose work grows
+   * with its body (a workspace source apply evaluates every workflow it sends). Admission charges
+   * one unit before the body is read; the rest, up to the policy's `maxCost`, is charged before
+   * the use case runs, and a request over the budget is refused with the same 429.
+   */
+  rateLimitCost?(input: NoInfer<I>): number
+  /**
+   * A strong validator for a result whose content is already content-addressed (the block
+   * catalog's hash). When set, a success carries `ETag`, and a request whose `If-None-Match`
+   * names that tag (or `*`) is answered `304` with no body, after the use case ran, so
+   * authorization is unchanged. A tagged 200 and its 304 say `private, no-cache`, so a client may
+   * keep the body and revalidate it. Every other route leaves it unset (`v2-api-conventions`).
+   *
+   * Must be a strong validator of `result` for every caller: equal tags mean equal results,
+   * whoever asked. The route keeps the last few validated bodies keyed by the tag and the parsed
+   * request, and serves one to any principal whose request matches, without presenting it again;
+   * `present` never sees the principal, so the body is a function of exactly that key.
+   */
+  entityTag?(result: NoInfer<R>): string
 }
 
 /**
@@ -523,6 +657,13 @@ export function defineV2JsonRoute<
     options.useCase.operation
   )
   requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
+  /**
+   * Validated bodies by entity tag and parsed request, so a repeat 200 skips presenting and
+   * re-validating (see `entityTag` for why that is safe across principals).
+   */
+  const validatedByTag = options.entityTag
+    ? new LRUCache<string, NonNullable<unknown>>({ max: VALIDATED_BODY_CACHE_MAX })
+    : undefined
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -589,17 +730,44 @@ export function defineV2JsonRoute<
 
       try {
         const input = options.mapInput(parsed.data, credentialFacts)
+        // A Mothership request is admitted without a rate limit, so it is charged nothing more.
+        if (options.rateLimitCost && 'rateLimitSubjectIds' in auth) {
+          const cost = Math.min(
+            options.rateLimitCost(input),
+            options.rateLimit.maxCost ?? Number.POSITIVE_INFINITY
+          )
+          const limited =
+            cost > 1
+              ? await options.rateLimit.enforce(request, auth, options.operation, cost - 1)
+              : null
+          if (limited) return limited
+        }
         const result = await options.useCase.execute({
           principal: auth.principal,
           input,
           request,
         })
-        const body = await options.present(result, parsed.data)
+        const entityTag = options.entityTag ? `"${options.entityTag(result)}"` : undefined
+        if (entityTag && entityTagMatches(request, entityTag)) {
+          await options.onSuccess?.({ principal: auth.principal, input, result })
+          return notModifiedResponse(entityTag)
+        }
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('V2 JSON route response mode changed after initialization')
         }
-        const validatedBody = responseSchema.schema.parse(body)
+        const cacheKey = entityTag ? `${entityTag} ${JSON.stringify(parsed.data)}` : undefined
+        const cached = cacheKey ? validatedByTag?.get(cacheKey) : undefined
+        const validatedBody: unknown =
+          cached ?? responseSchema.schema.parse(await options.present(result, parsed.data))
+        if (
+          cacheKey &&
+          cached === undefined &&
+          validatedBody !== undefined &&
+          validatedBody !== null
+        ) {
+          validatedByTag?.set(cacheKey, validatedBody)
+        }
         const responseStatus = options.statusForResult?.(result) ?? successStatus
         if (!successStatuses.includes(responseStatus)) {
           throw new Error(
@@ -609,7 +777,9 @@ export function defineV2JsonRoute<
         await options.onSuccess?.({ principal: auth.principal, input, result })
         return NextResponse.json(validatedBody, {
           status: responseStatus,
-          headers: { 'Cache-Control': 'private, no-store' },
+          headers: entityTag
+            ? { 'Cache-Control': REVALIDATE_CACHE_CONTROL, ETag: entityTag }
+            : { 'Cache-Control': 'private, no-store' },
         })
       } catch (error) {
         const response = options.errorPolicy.render(error)
