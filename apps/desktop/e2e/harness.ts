@@ -24,11 +24,16 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test'
+import type { BrowserToolName } from '@sim/browser-protocol'
 import type { SimDesktopApi } from '@sim/desktop-bridge'
+import { type BuildOptions, build } from 'esbuild'
+import postcss from 'postcss'
+import loadPostcssConfig from 'postcss-load-config'
 
 export { expect }
 
 export const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
+export const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
 
 /** Above the 5s an account teardown may legitimately hold `before-quit`. */
 const QUIT_DEADLINE_MS = 15_000
@@ -352,4 +357,101 @@ export async function attachBrowserPanel(shell: Page, scope: string, top = 80): 
     },
     { scope, top }
   )
+}
+
+export interface SimFixtureBundle {
+  js: string
+  css: string
+}
+
+/**
+ * Bundles a browser fixture built from apps/sim source, with apps/sim's stylesheet, so a spec can
+ * serve real Sim UI from its fixture server. `entry` is either a file or inline TSX resolved from
+ * apps/sim.
+ */
+export async function bundleSimFixture(
+  entry: { file: string } | { source: string },
+  options: Pick<BuildOptions, 'inject' | 'external'> = {}
+): Promise<SimFixtureBundle> {
+  const bundle = await build({
+    ...('file' in entry
+      ? { entryPoints: [entry.file] }
+      : { stdin: { contents: entry.source, resolveDir: SIM_DIR, loader: 'tsx' } }),
+    bundle: true,
+    write: false,
+    outdir: 'out',
+    jsx: 'automatic',
+    external: ['node:async_hooks', ...(options.external ?? [])],
+    inject: options.inject,
+    banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
+    format: 'iife',
+    platform: 'browser',
+    tsconfig: join(SIM_DIR, 'tsconfig.json'),
+    define: { 'process.env.NODE_ENV': '"development"' },
+  })
+  const js = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
+  if (js === undefined) throw new Error('The fixture bundle produced no JavaScript')
+  const config = await loadPostcssConfig({}, SIM_DIR)
+  const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
+  const css = await postcss(config.plugins).process(readFileSync(stylesheet, 'utf8'), {
+    from: stylesheet,
+  })
+  return { js, css: css.css }
+}
+
+export interface ToolCallAuthorization {
+  chatId: string
+  toolName: string
+  args: unknown
+}
+
+/**
+ * Stands in for Sim's `/api/desktop/tool/authorize`: the desktop asks it before running a tool
+ * call, and it authorizes exactly the calls a test issued.
+ */
+export class ToolAuthorizer {
+  readonly calls = new Map<string, ToolCallAuthorization>()
+  private count = 0
+
+  constructor(private readonly prefix: string) {}
+
+  /** Handles the authorize route; returns false for any other path. */
+  async handle(request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> {
+    if (url.pathname !== '/api/desktop/tool/authorize') return false
+    let body = ''
+    for await (const chunk of request) body += chunk.toString()
+    const authorization = this.calls.get(JSON.parse(body).toolCallId)
+    response.writeHead(authorization ? 200 : 403, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify(authorization ?? {}))
+    return true
+  }
+
+  /** Authorizes a new browser tool call and returns its id. */
+  issue(scope: string, toolName: BrowserToolName, args: unknown): string {
+    const callId = `${this.prefix}-${++this.count}`
+    this.calls.set(callId, { chatId: scope, toolName, args })
+    return callId
+  }
+
+  /** Runs a browser tool from the shell page and returns its result, failing on a tool error. */
+  async execute(
+    shell: Page,
+    scope: string,
+    toolName: BrowserToolName,
+    args: Record<string, unknown>
+  ): Promise<unknown> {
+    const callId = this.issue(scope, toolName, args)
+    const result = await shell.evaluate(
+      ({ callId, toolName, args, scope }) =>
+        (globalThis as DesktopBridge).simDesktop.browserAgent.executeTool(
+          callId,
+          toolName,
+          args,
+          scope
+        ),
+      { callId, toolName, args, scope }
+    )
+    expect(result.ok, result.error).toBe(true)
+    return result.result
+  }
 }
