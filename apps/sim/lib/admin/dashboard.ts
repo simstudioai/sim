@@ -1164,7 +1164,7 @@ export async function updateDashboardEnterpriseSelfServe(
   values: { enabled: boolean; seatPriceUsd?: number; usageLimitDollars?: number },
   actor: AdminMutationActor
 ) {
-  const stripeSubscriptionId = await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
     const [org] = await tx
       .select({ creditBalance: organization.creditBalance })
@@ -1243,13 +1243,7 @@ export async function updateDashboardEnterpriseSelfServe(
         }
       },
     })
-    return subscriptionRow.stripeSubscriptionId
   })
-  // A contract outside self-serve has no customer surface for its payment method, so it returns
-  // to emailed invoices rather than keep charging a method its customer can no longer replace.
-  if (!values.enabled && stripeSubscriptionId) {
-    await setEnterpriseInvoicePayment(stripeSubscriptionId)
-  }
   recordAudit({
     actorId: actor.id,
     actorName: actor.name,
@@ -1265,17 +1259,9 @@ export async function updateDashboardEnterpriseSelfServe(
 }
 
 /**
- * Returns an Enterprise contract from automatic payment to emailed invoices due in 30 days. Only
- * invoices created afterwards change; the saved payment method stays on file.
+ * Returns a self-serve Enterprise contract from automatic payment to emailed invoices due in 30
+ * days. Only invoices created afterwards change; the saved payment method stays on file.
  */
-async function setEnterpriseInvoicePayment(stripeSubscriptionId: string) {
-  await requireStripeClient().subscriptions.update(stripeSubscriptionId, {
-    collection_method: 'send_invoice',
-    days_until_due: INVOICE_DAYS_UNTIL_DUE,
-  })
-}
-
-/** Returns a self-serve Enterprise contract from automatic payment to emailed invoices. */
 export async function revertDashboardEnterpriseToInvoicing(
   organizationId: string,
   actor: AdminMutationActor
@@ -1294,7 +1280,10 @@ export async function revertDashboardEnterpriseToInvoicing(
   if (!subscriptionRow?.stripeSubscriptionId) {
     throw new Error('Active Enterprise subscription not found')
   }
-  await setEnterpriseInvoicePayment(subscriptionRow.stripeSubscriptionId)
+  await requireStripeClient().subscriptions.update(subscriptionRow.stripeSubscriptionId, {
+    collection_method: 'send_invoice',
+    days_until_due: INVOICE_DAYS_UNTIL_DUE,
+  })
   recordAudit({
     actorId: actor.id,
     actorName: actor.name,

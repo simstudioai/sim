@@ -20,6 +20,7 @@ import {
   getOrgIncludedUsageDollars,
   getSubscriptionWeeklyRefreshDollars,
   hasUsableSubscriptionStatus,
+  isEnterpriseSelfServe,
   isHardCappedEnterprise,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -404,12 +405,22 @@ export async function getOrganizationBillingData(
  */
 async function updateSelfServeEnterpriseUsageLimit(
   organizationId: string,
-  subscription: { plan: string; seats: number | null; metadata: unknown },
   newLimit: number
 ): Promise<{ success: boolean; error?: string }> {
-  const includedUsage = getOrgIncludedUsageDollars(subscription)
   return db.transaction(async (tx) => {
     await acquireOrganizationMutationLock(tx, organizationId)
+    // The contract webhook takes the same lock, so these terms are the ones it last applied.
+    const subscription = await getOrganizationSubscription(organizationId, {
+      executor: tx,
+      onError: 'throw',
+    })
+    if (!subscription || !isEnterpriseSelfServe(subscription)) {
+      return {
+        success: false,
+        error: 'Enterprise plans have fixed usage limits that cannot be changed',
+      }
+    }
+    const includedUsage = getOrgIncludedUsageDollars(subscription)
     const [row] = await tx
       .select({ creditBalance: organization.creditBalance })
       .from(organization)
@@ -476,7 +487,7 @@ export async function updateOrganizationUsageLimit(
           error: 'Enterprise plans have fixed usage limits that cannot be changed',
         }
       }
-      return updateSelfServeEnterpriseUsageLimit(organizationId, subscription, newLimit)
+      return await updateSelfServeEnterpriseUsageLimit(organizationId, newLimit)
     }
 
     if (!isPaid(subscription.plan)) {

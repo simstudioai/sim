@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, inArray, isNull, lte, sql } from 'drizzle-orm'
 import {
-  ENTITLED_SUBSCRIPTION_STATUSES,
   isEnterpriseSelfServe,
+  SETTLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
@@ -186,7 +186,7 @@ export async function runEnterpriseSeatTrueUps(now: Date = new Date()) {
     .where(
       and(
         eq(subscription.plan, 'enterprise'),
-        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        inArray(subscription.status, SETTLED_SUBSCRIPTION_STATUSES),
         sql`${subscription.metadata} ->> 'selfServe' = 'true'`
       )
     )

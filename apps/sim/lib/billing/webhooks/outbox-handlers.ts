@@ -88,6 +88,11 @@ interface StripeThresholdOverageInvoicePayload {
   invoiceIdemKeyStem: string
   itemIdemKeyStem: string
   metadata?: Record<string, string>
+  /** How the invoice is collected, fixed on the first attempt (see the handler). */
+  collection?: {
+    method: 'charge_automatically' | 'send_invoice'
+    paymentMethodId?: string
+  }
 }
 
 async function getSubscriptionSeatSyncState(subscriptionId: string) {
@@ -343,11 +348,27 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   // invoice (no subscription link) falls back to customer-level PM
   // only, which may not be set for customers onboarded via Checkout
   // Subscription flows.
-  const { paymentMethodId: defaultPaymentMethod, collectionMethod } =
-    await resolveDefaultPaymentMethod(stripe, payload.stripeSubscriptionId, payload.customerId)
-  if (!collectionMethod) {
-    throw new Error('Could not read the subscription collection method for an overage invoice')
+  //
+  // The first attempt fixes the collection settings: retries reuse the same Stripe idempotency
+  // keys, which reject changed parameters if the customer switches how they pay in between.
+  let collection = payload.collection
+  if (!collection) {
+    const resolved = await resolveDefaultPaymentMethod(
+      stripe,
+      payload.stripeSubscriptionId,
+      payload.customerId
+    )
+    if (!resolved.collectionMethod) {
+      throw new Error('Could not read the subscription collection method for an overage invoice')
+    }
+    collection = {
+      method: resolved.collectionMethod,
+      ...(resolved.paymentMethodId ? { paymentMethodId: resolved.paymentMethodId } : {}),
+    }
+    await ctx.checkpointPayload({ collection })
   }
+  const collectionMethod = collection.method
+  const defaultPaymentMethod = collection.paymentMethodId
   // A subscription paid by emailed invoice gets its overage the same way: charging automatically
   // with no method on file would leave the invoice open and never collected.
   const sendInvoice = collectionMethod === 'send_invoice'

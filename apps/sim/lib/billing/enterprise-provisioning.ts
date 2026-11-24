@@ -2688,10 +2688,18 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
     }
     await context.checkpointPayload({ deliveryState })
 
+    // Leaving self-serve also returns the contract to emailed invoices, in the same update: its
+    // customer loses the surface that manages the payment method automatic payment would charge.
+    const leavesSelfServe =
+      isSelfServeEnterpriseMetadata(stripeSubscription.metadata) &&
+      !isSelfServeEnterpriseMetadata(deliveredEnterpriseMetadata(latestPayload.data.metadata))
     const updatedSubscription = await stripe.subscriptions.update(
       stripeSubscriptionId,
       {
         metadata,
+        ...(leavesSelfServe
+          ? { collection_method: 'send_invoice', days_until_due: INVOICE_DAYS_UNTIL_DUE }
+          : {}),
       },
       {
         idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:delivery:${latestPayload.data.deliveryRevision}:attempt:${context.attempts}`,

@@ -170,6 +170,7 @@ describe('toDashboardConfigurationUpdate', () => {
         desiredTerms: null,
         hasUnappliedIntent: true,
         effectiveSeatCapacity: 20,
+        seatsUncapped: false,
         configurationUpdate: {
           id: 'config-2',
           status: 'pending',

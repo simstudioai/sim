@@ -1,12 +1,11 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
+import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { INVOICE_DAYS_UNTIL_DUE } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import {
   claimTerminalPeriod,
   closeElapsedPeriodBeforeDeletion,
@@ -16,6 +15,7 @@ import { restoreUserProSubscription } from '@/lib/billing/organizations/membersh
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBilledOverageForSubscription } from '@/lib/billing/webhooks/invoices'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -248,6 +248,57 @@ export async function handleSubscriptionCreated(
 }
 
 /**
+ * Spends an organization's prepaid credit on its final-period overage and returns the overage now
+ * covered: what threshold billing already collected plus the credit spent. The credit is recorded
+ * in the same billed-overage tracker threshold billing uses, under the same row locks, so a
+ * replayed deletion finds it already covered and spends nothing twice.
+ */
+async function spendFinalPrepaidCredit(
+  organizationId: string,
+  totalOverage: number
+): Promise<number> {
+  return db.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ userId: member.userId })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+      .limit(1)
+    if (!owner) {
+      logger.warn('Organization has no owner when settling final overage', { organizationId })
+      return 0
+    }
+    const [tracker] = await tx
+      .select({ billedOverageThisPeriod: userStats.billedOverageThisPeriod })
+      .from(userStats)
+      .where(eq(userStats.userId, owner.userId))
+      .for('update')
+      .limit(1)
+    const [org] = await tx
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    const billed = toNumber(toDecimal(tracker?.billedOverageThisPeriod))
+    const credit = Math.min(
+      Math.max(0, totalOverage - billed),
+      toNumber(toDecimal(org?.creditBalance))
+    )
+    if (credit <= 0 || !tracker) return billed
+    await tx
+      .update(organization)
+      .set({ creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${credit})` })
+      .where(eq(organization.id, organizationId))
+    await tx
+      .update(userStats)
+      .set({ billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${credit}` })
+      .where(eq(userStats.userId, owner.userId))
+    logger.info('Spent prepaid credit on final overage', { organizationId, credit })
+    return billed + credit
+  })
+}
+
+/**
  * Invoices a cancelled subscription's final-period overage, net of what threshold billing already
  * collected, and returns the amount invoiced. The invoice is collected the way the subscription
  * was: charged to the method on file, or emailed when the customer pays by invoice.
@@ -267,22 +318,19 @@ async function invoiceFinalOverage(params: {
   const { subscription, stripeSubscriptionId, totalOverage } = params
   if (totalOverage <= 0) return 0
 
-  // An Enterprise contract's prepaid credit is part of what it already paid for, so it covers
-  // the final period's usage before anything is invoiced. The balance is left in place: the
-  // organization goes dormant, and a replayed deletion must compute the same amount.
-  const [billedOverage, prepaidCredit] = await Promise.all([
-    params.markerWasCurrent ? getBilledOverageForSubscription(subscription) : 0,
-    isEnterprise(subscription.plan)
-      ? getCreditBalanceForEntity('organization', subscription.referenceId)
-      : 0,
-  ])
-  const remainingOverage = Math.max(0, totalOverage - billedOverage - prepaidCredit)
+  // An Enterprise contract's prepaid credit is part of what it already paid for, so it covers the
+  // final period's usage before anything is invoiced.
+  const billedOverage = !params.markerWasCurrent
+    ? 0
+    : isEnterprise(subscription.plan)
+      ? await spendFinalPrepaidCredit(subscription.referenceId, totalOverage)
+      : await getBilledOverageForSubscription(subscription)
+  const remainingOverage = Math.max(0, totalOverage - billedOverage)
 
   logger.info('Subscription deleted overage calculation', {
     subscriptionId: subscription.id,
     totalOverage,
     billedOverage,
-    prepaidCredit,
     remainingOverage,
   })
 

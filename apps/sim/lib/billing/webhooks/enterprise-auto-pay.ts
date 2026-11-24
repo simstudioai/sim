@@ -5,10 +5,7 @@ import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getCustomerId, getPaymentMethodId } from '@/lib/billing/stripe-payment-method'
-import {
-  hasUsableSubscriptionStatus,
-  isEnterpriseSelfServe,
-} from '@/lib/billing/subscriptions/utils'
+import { hasPaidSubscriptionStatus, isEnterpriseSelfServe } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('EnterpriseAutoPay')
 
@@ -36,6 +33,7 @@ export async function handleEnterpriseAutoPaySetup(session: Stripe.Checkout.Sess
   }
 
   // A session lives a day: the contract may have left self-serve or ended since it was opened.
+  // A past-due contract still qualifies, since a new payment method is how it recovers.
   const [contract] = await db
     .select()
     .from(subscription)
@@ -46,7 +44,7 @@ export async function handleEnterpriseAutoPaySetup(session: Stripe.Checkout.Sess
     contract.referenceId !== organizationId ||
     contract.stripeCustomerId !== getCustomerId(session.customer) ||
     !isEnterpriseSelfServe(contract) ||
-    !hasUsableSubscriptionStatus(contract.status)
+    !hasPaidSubscriptionStatus(contract.status)
   ) {
     logger.warn('Enterprise auto-pay session no longer matches a self-serve contract', {
       sessionId: session.id,
@@ -81,6 +79,6 @@ export async function handleEnterpriseAutoPaySetup(session: Stripe.Checkout.Sess
   logger.info('Enterprise contract switched to automatic payment', {
     organizationId,
     stripeSubscriptionId,
-    paymentMethodType: setupIntent.payment_method_types[0],
+    paymentMethodId,
   })
 }

@@ -51,9 +51,12 @@ function billsOverage(subscription: SubscriptionLike | null | undefined): boolea
 
 function isSelfServeEnterpriseMetadata(value: unknown): boolean {
   const metadata = toRecord(value)
+  const seatPriceCents = Number(metadata.seatPriceCents)
   return (
+    enterpriseSeats(value) > 0 &&
     metadata.selfServe === 'true' &&
-    Number(metadata.seatPriceCents) > 0 &&
+    Number.isInteger(seatPriceCents) &&
+    seatPriceCents > 0 &&
     metadata.reportingPeriodAnchorDate === undefined
   )
 }
@@ -72,11 +75,13 @@ function invoicesOverage(subscription: SubscriptionLike | null | undefined): boo
 
 function getOrgIncludedUsageDollars(subscription: SubscriptionLike): number {
   if (isEnterprise(subscription.plan)) {
+    if (enterpriseSeats(subscription.metadata) === 0) return 0
     const metadata = toRecord(subscription.metadata)
     const credits = Number(metadata.usageLimitCredits)
-    return Number.isFinite(credits)
-      ? credits / CREDIT_MULTIPLIER
-      : Number(metadata.invoiceAmountCents ?? 0) / 100
+    if (Number.isFinite(credits)) return Math.max(0, Math.round(credits)) / CREDIT_MULTIPLIER
+    return metadata.invoiceAmountCents !== undefined
+      ? Number(metadata.invoiceAmountCents) / 100
+      : Number(metadata.monthlyPrice)
   }
   return (subscription.seats || 1) * getPlanPricing(subscription.plan ?? '').basePrice
 }

@@ -8,7 +8,12 @@ interface EnterpriseSeatsSectionProps {
   billingInterval: 'month' | 'year'
 }
 
-function SeatRow({ label, value }: { label: string; value: string }) {
+interface SeatRowProps {
+  label: string
+  value: string
+}
+
+function SeatRow({ label, value }: SeatRowProps) {
   return (
     <div className='flex items-center justify-between gap-3'>
       <span className='text-[var(--text-body)] text-small'>{label}</span>

@@ -641,6 +641,7 @@ const organizationPlanSeatsResponseSchema = z.object({
     usedSeats: z.number().int().nonnegative(),
     membersTotal: z.number().int().nonnegative(),
     hasEnterprisePlan: z.boolean(),
+    seatCapKind: z.enum(['fixed', 'baseline', 'on-demand']).nullable(),
   }),
 })
 

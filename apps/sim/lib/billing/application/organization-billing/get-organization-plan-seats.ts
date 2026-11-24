@@ -8,6 +8,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import {
   countPendingSeatInvitations,
   resolveSeatCap,
+  type SeatCapKind,
 } from '@/lib/billing/validation/seat-management'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -23,6 +24,8 @@ interface OrganizationPlanSeatsResult {
   usedSeats: number
   membersTotal: number
   hasEnterprisePlan: boolean
+  /** How `totalSeats` bounds membership; only `fixed` refuses members past it. */
+  seatCapKind: SeatCapKind | null
 }
 
 /** Primary-backed plan, feature access, and seat reservations, independent of usage analytics. */
@@ -45,14 +48,16 @@ export const getOrganizationPlanSeats = defineAuthorizedOrganizationBillingUseCa
       ])
     if (!organizations[0]) throw new OrchestrationError('not_found', 'Organization not found')
     const membersTotal = memberCounts[0]?.total ?? 0
+    const seatCap = subscription ? await resolveSeatCap(subscription, db) : null
     return {
       organizationId,
       subscriptionPlan: subscription?.plan ?? null,
       subscriptionStatus: subscription?.status ?? null,
-      totalSeats: subscription ? (await resolveSeatCap(subscription, db)).seats : 0,
+      totalSeats: seatCap?.seats ?? 0,
       usedSeats: membersTotal + pendingSeats,
       membersTotal,
       hasEnterprisePlan,
+      seatCapKind: seatCap?.kind ?? null,
     }
   },
 })

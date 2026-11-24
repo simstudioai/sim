@@ -59,10 +59,16 @@ export interface OrganizationBillingSummaryResult {
     | null
 }
 
-/** The open true-up window's peak seats past the contract; 0 before its first sample. */
-async function getOpenTrueUpExtraSeats(subscriptionId: string): Promise<number> {
+/**
+ * The open true-up window's peak seats past the contract and the rate it bills them at, or null
+ * before its first sample.
+ */
+async function getOpenTrueUpWindow(subscriptionId: string) {
   const [window] = await dbReplica
-    .select({ peakExtraSeats: enterpriseSeatTrueUp.peakExtraSeats })
+    .select({
+      peakExtraSeats: enterpriseSeatTrueUp.peakExtraSeats,
+      seatPriceCents: enterpriseSeatTrueUp.seatPriceCents,
+    })
     .from(enterpriseSeatTrueUp)
     .where(
       and(
@@ -72,7 +78,7 @@ async function getOpenTrueUpExtraSeats(subscriptionId: string): Promise<number> 
     )
     .orderBy(desc(enterpriseSeatTrueUp.windowStart))
     .limit(1)
-  return window?.peakExtraSeats ?? 0
+  return window ?? null
 }
 
 function roundCurrency(value: number): number {
@@ -172,13 +178,18 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
     const selfServeTerms = entitledSubscription
       ? getEnterpriseSelfServeTerms(entitledSubscription)
       : null
-    const enterpriseSelfServe =
+    const openWindow =
       entitledSubscription && selfServeTerms
-        ? {
-            ...selfServeTerms,
-            peakExtraSeats: await getOpenTrueUpExtraSeats(entitledSubscription.id),
-          }
+        ? await getOpenTrueUpWindow(entitledSubscription.id)
         : null
+    // The open window bills at the rate it opened with, which a mid-window change does not move.
+    const enterpriseSelfServe = selfServeTerms
+      ? {
+          ...selfServeTerms,
+          seatPriceCents: openWindow?.seatPriceCents ?? selfServeTerms.seatPriceCents,
+          peakExtraSeats: openWindow?.peakExtraSeats ?? 0,
+        }
+      : null
     // A hard-capped Enterprise contract includes exactly its configured limit.
     const minimumBillingAmount = !entitledSubscription
       ? 0

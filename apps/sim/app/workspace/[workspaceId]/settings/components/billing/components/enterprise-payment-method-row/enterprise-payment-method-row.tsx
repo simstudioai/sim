@@ -28,10 +28,13 @@ export function EnterprisePaymentMethodRow({
   canManage,
 }: EnterprisePaymentMethodRowProps) {
   const [returnedFromSetup] = useQueryState(autoPayReturnParam.key, autoPayReturnParam.parser)
-  const { data, isPending, isFetching, isError } = useOrganizationPaymentMethod(organizationId, {
-    enabled: canManage,
-    confirmingAutoPay: returnedFromSetup,
-  })
+  const { data, isPending, isError, isConfirmingAutoPay } = useOrganizationPaymentMethod(
+    organizationId,
+    {
+      enabled: canManage,
+      confirmingAutoPay: returnedFromSetup,
+    }
+  )
   const startAutoPay = useStartOrganizationAutoPay()
 
   const autoPay = data?.collectionMethod === 'charge_automatically'
@@ -41,7 +44,7 @@ export function EnterprisePaymentMethodRow({
     if (isError) return 'Unavailable'
     if (isPending) return '—'
     if (autoPay) return `Auto-pay · ${data?.paymentMethod?.label ?? 'payment method on file'}`
-    if (returnedFromSetup && isFetching) return 'Confirming payment method…'
+    if (isConfirmingAutoPay) return 'Confirming payment method…'
     return 'Paid by invoice'
   }
 
