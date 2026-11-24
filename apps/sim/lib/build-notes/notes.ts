@@ -98,7 +98,10 @@ export function readBuildNotes(text: string): BuildNotesReading {
       operationsError = `The operations block is not valid JSON: ${getErrorMessage(error, 'unreadable')}`
     }
   }
-  const graph = blocks.length === 1 ? (blocks[0]?.[1] ?? '') : ''
+  // The parsed batch, written out again, is what a build applies; a JSON escape such as `\u003c`
+  // cannot hide a placeholder from it. The raw block is the fallback when it does not parse.
+  const graph =
+    batch !== null ? JSON.stringify(batch) : blocks.length === 1 ? (blocks[0]?.[1] ?? '') : ''
   const placeholders = [...new Set([...graph.matchAll(PLACEHOLDER)].map((match) => match[1] ?? ''))]
   const blockingOpenItems: BuildNotesReading['blockingOpenItems'] = []
   let assumedItems = 0

@@ -10,17 +10,17 @@ import { isBuildNotesEnabled, requireBuildNotesEnabled } from '@/lib/build-notes
 import {
   createBuildNotesFiles,
   readBaselineText,
-  readBuildNotesFileText,
+  readBuildNotesFile,
   writeBaseline,
 } from '@/lib/build-notes/files'
 import { batchHash, notesHash, readBuildNotes } from '@/lib/build-notes/notes'
 import { buildNotesPath } from '@/lib/build-notes/paths'
 import {
   type BuildNotesRow,
-  clearBuildNotesEvaluation,
   getLiveBuildNotesForWorkflow,
   readBuildNotesStates,
   recordBuildNotesEvaluation,
+  withdrawBuildNotesEvaluation,
 } from '@/lib/build-notes/repository'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -206,8 +206,8 @@ async function readAdmittedNotes(
   principal: Principal,
   context: ActiveWorkflowApplicationContext,
   notes: BuildNotesRow
-): Promise<string> {
-  return readBuildNotesFileText(context.workspaceId, notes.notesFileId, {
+): Promise<{ text: string; revision: Date | null }> {
+  return readBuildNotesFile(context.workspaceId, notes.notesFileId, {
     admit: (file) => requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete'),
   })
 }
@@ -223,7 +223,11 @@ export const evaluateBuildNotes = defineAuthorizedWorkflowUseCase({
   authorizeResource,
   async execute({ principal, context }): Promise<EvaluateBuildNotesResult> {
     const notes = await requireNotes(context)
-    const text = await readAdmittedNotes(principal, context, notes)
+    const { text, revision } = await readAdmittedNotes(principal, context, notes)
+    const evaluatedAgainst = {
+      baselineWorkflowUpdatedAt: notes.baselineWorkflowUpdatedAt,
+      notesRevision: revision,
+    }
     const reading = readBuildNotes(text)
     const { batch, problems } = parseBatch(reading)
     let dryRun: EvaluateBuildNotesResult['dryRun'] = null
@@ -274,15 +278,15 @@ export const evaluateBuildNotes = defineAuthorizedWorkflowUseCase({
       const recorded = await recordBuildNotesEvaluation(
         notes.id,
         { evaluatedNotesHash: notesHash(text), evaluatedOperationsHash: batchHash(batch) },
-        { baselineWorkflowUpdatedAt: notes.baselineWorkflowUpdatedAt }
+        evaluatedAgainst
       )
       if (!recorded) {
         passed = false
         problems.push(
-          'The workflow was built or rebased while this evaluation ran. Evaluate again against the current graph.'
+          'The notes or the workflow changed while this evaluation ran (an edit, a build or a rebase). Evaluate again.'
         )
       }
-    } else await clearBuildNotesEvaluation(notes.id)
+    } else await withdrawBuildNotesEvaluation(notes.id, evaluatedAgainst)
     return {
       workflowId: context.workflowId,
       notes: buildNotesPath(context.workflowId, 'notes'),
@@ -306,7 +310,7 @@ export const applyBuildNotes = defineAuthorizedWorkflowUseCase({
   authorizeResource,
   async execute({ principal, context }) {
     const notes = await requireNotes(context)
-    const text = await readAdmittedNotes(principal, context, notes)
+    const { text } = await readAdmittedNotes(principal, context, notes)
     const { batch, problems } = parseBatch(readBuildNotes(text))
     if (!batch) throw new OrchestrationError('validation', problems.join('; '))
     const result = await applyWorkflowOperations.execute({

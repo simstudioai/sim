@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflow, workflowBuildNotes, workspaceFiles } from '@sim/db/schema'
-import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
@@ -102,33 +102,67 @@ export async function setBuildNotesBaseline(
   return set.length === 1
 }
 
+/** What an evaluation read: the baseline it compared with and the notes revision it judged. */
+interface EvaluatedAgainst {
+  baselineWorkflowUpdatedAt: Date | null
+  notesRevision: Date | null
+}
+
+/** Holds while the notes row still has this baseline and its notes file this content revision. */
+function stillEvaluatedAgainst(notesId: string, against: EvaluatedAgainst) {
+  return and(
+    eq(workflowBuildNotes.id, notesId),
+    isNull(workflowBuildNotes.deletedAt),
+    against.baselineWorkflowUpdatedAt
+      ? eq(workflowBuildNotes.baselineWorkflowUpdatedAt, against.baselineWorkflowUpdatedAt)
+      : isNull(workflowBuildNotes.baselineWorkflowUpdatedAt),
+    exists(
+      db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.id, workflowBuildNotes.notesFileId),
+            against.notesRevision
+              ? eq(workspaceFiles.contentUpdatedAt, against.notesRevision)
+              : isNull(workspaceFiles.contentUpdatedAt)
+          )
+        )
+    )
+  )
+}
+
 /**
- * Records a passing evaluation only while the baseline it was evaluated against is still the
- * recorded one. A build or rebase that finished during the evaluation moved the baseline, so a
- * verdict reached on the older graph cannot revive an approval that build already spent.
+ * Records a passing evaluation only while what it evaluated is still current: the baseline it
+ * compared with (a build or rebase that finished meanwhile moved it, so a verdict on the older
+ * graph cannot revive an approval that build spent) and the notes revision it read (a slower
+ * evaluation of older notes cannot replace the verdict on newer ones).
  */
 export async function recordBuildNotesEvaluation(
   notesId: string,
   evaluation: { evaluatedNotesHash: string; evaluatedOperationsHash: string },
-  evaluatedAgainst: { baselineWorkflowUpdatedAt: Date | null }
+  evaluatedAgainst: EvaluatedAgainst
 ): Promise<boolean> {
   const recorded = await db
     .update(workflowBuildNotes)
     .set({ ...evaluation, updatedAt: new Date() })
-    .where(
-      and(
-        eq(workflowBuildNotes.id, notesId),
-        isNull(workflowBuildNotes.deletedAt),
-        evaluatedAgainst.baselineWorkflowUpdatedAt
-          ? eq(
-              workflowBuildNotes.baselineWorkflowUpdatedAt,
-              evaluatedAgainst.baselineWorkflowUpdatedAt
-            )
-          : isNull(workflowBuildNotes.baselineWorkflowUpdatedAt)
-      )
-    )
+    .where(stillEvaluatedAgainst(notesId, evaluatedAgainst))
     .returning({ id: workflowBuildNotes.id })
   return recorded.length === 1
+}
+
+/**
+ * Withdraws the recorded evaluation after a failing one, under the same condition as
+ * {@link recordBuildNotesEvaluation}, so a stale failure cannot erase a newer verdict.
+ */
+export async function withdrawBuildNotesEvaluation(
+  notesId: string,
+  evaluatedAgainst: EvaluatedAgainst
+): Promise<void> {
+  await db
+    .update(workflowBuildNotes)
+    .set({ evaluatedNotesHash: null, evaluatedOperationsHash: null, updatedAt: new Date() })
+    .where(stillEvaluatedAgainst(notesId, evaluatedAgainst))
 }
 
 /**

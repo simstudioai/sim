@@ -47,7 +47,10 @@ import {
   readBuildNotesFileText,
   writeBaseline,
 } from '@/lib/build-notes/files'
-import { recordBuildNotesEvaluation } from '@/lib/build-notes/repository'
+import {
+  recordBuildNotesEvaluation,
+  withdrawBuildNotesEvaluation,
+} from '@/lib/build-notes/repository'
 import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { deleteFolder, restoreFolder } from '@/lib/folders/orchestration'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
@@ -203,6 +206,15 @@ async function notesRow(workflowId: string) {
     .where(eq(workflowBuildNotes.workflowId, workflowId))
   if (!row) throw new Error('No build notes row')
   return row
+}
+
+/** The content revision a notes file is at, as an evaluation reads it. */
+async function notesRevision(notesFileId: string): Promise<Date | null> {
+  const [file] = await db
+    .select({ contentUpdatedAt: workspaceFiles.contentUpdatedAt })
+    .from(workspaceFiles)
+    .where(eq(workspaceFiles.id, notesFileId))
+  return file?.contentUpdatedAt ?? null
 }
 
 /** The agent's own write to a file, through the file tool's use case. */
@@ -580,6 +592,45 @@ check(
   }
 )
 
+check('a placeholder hidden by JSON escapes still blocks the build', async () => {
+  const { workflowId, startId } = await seedWorkflow()
+  await createNotes(workflowId)
+  const batch = JSON.stringify(functionBatch(startId, 'score', 'PLACEHOLDER'), null, 2).replace(
+    'PLACEHOLDER',
+    '\\u003c\\u003copen:scorer_name\\u003e\\u003e'
+  )
+  await writeNotes(workflowId, `## Graph\n\n\`\`\`json operations\n${batch}\n\`\`\`\n`)
+  const reading = await evaluate(workflowId)
+  expect(reading.placeholders).toEqual(['scorer_name'])
+  expect(reading.passed).toBe(false)
+})
+
+check(
+  'a verdict on older notes can neither replace nor erase the verdict on newer ones',
+  async () => {
+    const { workflowId, startId } = await seedWorkflow()
+    await createNotes(workflowId)
+    await writeNotes(workflowId, notesWith(functionBatch(startId, 'first')))
+    const older = await notesRow(workflowId)
+    const olderAgainst = {
+      baselineWorkflowUpdatedAt: older.baselineWorkflowUpdatedAt,
+      notesRevision: await notesRevision(older.notesFileId),
+    }
+    await writeNotes(workflowId, notesWith(functionBatch(startId, 'second')))
+    expect((await evaluate(workflowId)).passed).toBe(true)
+    const newer = (await notesRow(workflowId)).evaluatedNotesHash
+
+    const replaced = await recordBuildNotesEvaluation(
+      older.id,
+      { evaluatedNotesHash: 'older', evaluatedOperationsHash: 'older' },
+      olderAgainst
+    )
+    expect(replaced).toBe(false)
+    await withdrawBuildNotesEvaluation(older.id, olderAgainst)
+    expect((await notesRow(workflowId)).evaluatedNotesHash).toBe(newer)
+  }
+)
+
 check('notes written with Windows line endings evaluate like any other', async () => {
   const { workflowId, startId } = await seedWorkflow()
   await createNotes(workflowId)
@@ -642,7 +693,10 @@ check(
         evaluatedNotesHash: evaluatedOn.evaluatedNotesHash ?? '',
         evaluatedOperationsHash: evaluatedOn.evaluatedOperationsHash ?? '',
       },
-      { baselineWorkflowUpdatedAt: evaluatedOn.baselineWorkflowUpdatedAt }
+      {
+        baselineWorkflowUpdatedAt: evaluatedOn.baselineWorkflowUpdatedAt,
+        notesRevision: await notesRevision(evaluatedOn.notesFileId),
+      }
     )
     expect(revived).toBe(false)
     expect((await notesRow(workflowId)).evaluatedNotesHash).toBeNull()
@@ -663,7 +717,10 @@ check('a new baseline withdraws a verdict recorded between a build and its basel
         evaluatedNotesHash: evaluatedOn.evaluatedNotesHash ?? '',
         evaluatedOperationsHash: evaluatedOn.evaluatedOperationsHash ?? '',
       },
-      { baselineWorkflowUpdatedAt: evaluatedOn.baselineWorkflowUpdatedAt }
+      {
+        baselineWorkflowUpdatedAt: evaluatedOn.baselineWorkflowUpdatedAt,
+        notesRevision: await notesRevision(evaluatedOn.notesFileId),
+      }
     )
   ).toBe(true)
   await apply(person, workflowId, functionBatch(startId, 'committed'))
@@ -719,7 +776,10 @@ check(
     await recordBuildNotesEvaluation(
       rebased.id,
       { evaluatedNotesHash: 'notes', evaluatedOperationsHash: 'batch' },
-      { baselineWorkflowUpdatedAt: rebased.baselineWorkflowUpdatedAt }
+      {
+        baselineWorkflowUpdatedAt: rebased.baselineWorkflowUpdatedAt,
+        notesRevision: await notesRevision(rebased.notesFileId),
+      }
     )
 
     await writeBaseline(rebased, stale, { userId: ownerId, source: 'copilot' })

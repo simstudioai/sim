@@ -159,14 +159,15 @@ export async function writeBaseline(
 type BuildNotesFileRecord = NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
 
 /**
- * A build-notes file's text, never through the Files listing. `admit` runs on the record before
- * its bytes load; a use case returning content derived from them passes its content gate there.
+ * A build-notes file's text and the content revision it was read at, never through the Files
+ * listing. `admit` runs on the record before its bytes load; a use case returning content derived
+ * from them passes its content gate there.
  */
-export async function readBuildNotesFileText(
+export async function readBuildNotesFile(
   workspaceId: string,
   fileId: string,
   options: { maxBytes?: number; admit?: (file: BuildNotesFileRecord) => Promise<void> } = {}
-): Promise<string> {
+): Promise<{ text: string; revision: Date | null }> {
   const file = await getWorkspaceFile(workspaceId, fileId, {
     includeOwnedFiles: true,
     throwOnError: true,
@@ -176,7 +177,16 @@ export async function readBuildNotesFileText(
   const buffer = await fetchWorkspaceFileBuffer(file, {
     maxBytes: options.maxBytes ?? MAX_BUILD_NOTES_BYTES,
   })
-  return buffer.toString('utf-8')
+  return { text: buffer.toString('utf-8'), revision: file.contentUpdatedAt ?? null }
+}
+
+/** A build-notes file's text; see {@link readBuildNotesFile}. */
+export async function readBuildNotesFileText(
+  workspaceId: string,
+  fileId: string,
+  options: { maxBytes?: number; admit?: (file: BuildNotesFileRecord) => Promise<void> } = {}
+): Promise<string> {
+  return (await readBuildNotesFile(workspaceId, fileId, options)).text
 }
 
 /** A baseline file's text, allowing up to the baseline size limit rather than the notes limit. */
