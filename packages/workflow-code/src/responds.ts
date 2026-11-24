@@ -22,7 +22,7 @@ import {
   type BlockKey,
   type CanonicalBlock,
   type CanonicalWorkflow,
-  isSimNode,
+  isResource,
   type Port,
 } from './model'
 import { getOwn, setOwn } from './records'
@@ -126,9 +126,7 @@ export function childResultFields(
 export function calledWorkflowKey(block: CanonicalBlock): string | null {
   const param = getOwn(block.params, 'workflowId')
   const child = param?.kind === 'value' ? param.value : undefined
-  return isSimNode(child) && child.$sim === 'resource' && child.kind === 'workflow'
-    ? child.key
-    : null
+  return isResource(child, 'workflow') ? child.key : null
 }
 
 /** The keys of the workflows `workflow` runs as children, each once, in block order. */

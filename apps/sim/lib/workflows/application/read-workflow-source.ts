@@ -39,7 +39,10 @@ import {
 import { recordSourceRead } from '@/lib/workflows/application/source-analytics'
 import {
   type ChildResultsMemo,
-  loadChildResults,
+  loadChildGraphs,
+  loadChildResultsFrom,
+  type StoredGraphs,
+  storedChildWorkflowIds,
 } from '@/lib/workflows/application/source-child-results'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
@@ -237,6 +240,8 @@ interface LoadedSource {
   prefetched: PrefetchedStoredResources
   /** The child workflows read for this read, shared by the workflows a batched read prints. */
   childMemo: ChildResultsMemo
+  /** The graphs of the workflows this one may call ({@link storedChildWorkflowIds}), by id. */
+  childGraphs: StoredGraphs
 }
 
 /**
@@ -260,19 +265,17 @@ async function printLoadedSource(
     { organizationId: scope.workspaceOrganizationId, gate, prefetched, stored: loaded.stored },
     async ({ canonical, resources }, catalog) => {
       const canonicalHash = storedCanonicalHash(canonical, resources)
-      const called = calledWorkflowKeys(canonical.workflow)
-      const childResults =
-        called.length > 0
-          ? await loadChildResults(
-              {
-                workspaceId: scope.workspaceId,
-                workspaceOrganizationId: scope.workspaceOrganizationId,
-                gate,
-                memo: loaded.childMemo,
-              },
-              called
-            )
-          : undefined
+      const childResults = await loadChildResultsFrom(
+        {
+          workspaceId: scope.workspaceId,
+          workspaceOrganizationId: scope.workspaceOrganizationId,
+          gate,
+          memo: loaded.childMemo,
+        },
+        calledWorkflowKeys(canonical.workflow),
+        loaded.childGraphs,
+        (key) => resources.toId('workflow', key)
+      )
       const printed = printStoredSource({
         state,
         meta,
@@ -281,7 +284,7 @@ async function printLoadedSource(
         sourceMeta,
         functionCode,
         lockless: canonical,
-        ...(childResults ? { childResults } : {}),
+        childResults,
       })
       assertFitsSourceLimits(printed, counts)
       return {
@@ -319,8 +322,14 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readSource,
   resolveContext: resolvePrincipalWorkflowContext<GetWorkflowSourceInput>,
   async execute({ principal, input, context }): Promise<ReadWorkflowSourceResult> {
-    const [stored, gate, sourceMeta, prefetched] = await Promise.all([
-      loadStoredSource(context),
+    const [{ stored, childGraphs }, gate, sourceMeta, prefetched] = await Promise.all([
+      loadStoredSource(context).then(async (stored) => ({
+        stored,
+        childGraphs: await loadChildGraphs(
+          context.workspaceId,
+          storedChildWorkflowIds(Object.values(stored.state.blocks))
+        ),
+      })),
       resolveCatalogGate(principal, context, { customBlockInputs: true }),
       readWorkflowSourceMeta(db, context.workflowId),
       prefetchStoredResources({
@@ -331,7 +340,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       }),
     ])
     const read = await printLoadedSource(
-      { scope: context, stored, gate, sourceMeta, prefetched, childMemo: new Map() },
+      { scope: context, stored, gate, sourceMeta, prefetched, childMemo: new Map(), childGraphs },
       input.functionCode ?? 'files'
     )
     if (!input.plan) recordSourceRead(principal, context)
@@ -392,6 +401,13 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
         input.workflowIds
       ),
     ])
+    const childGraphs = await loadChildGraphs(
+      workspaceId,
+      [...graphs.values()].flatMap((loaded) =>
+        storedChildWorkflowIds(Object.values(loaded.graph.blocks))
+      ),
+      graphs
+    )
     const childMemo: ChildResultsMemo = new Map()
     const printed = await mapWithConcurrency(
       input.workflowIds,
@@ -416,6 +432,7 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
               sourceMeta: sourceMetas.get(workflowId) ?? null,
               prefetched: { ...prefetched, workflowId },
               childMemo,
+              childGraphs,
             },
             'files'
           )

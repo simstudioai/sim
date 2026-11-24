@@ -185,6 +185,16 @@ export function isSimNode(value: unknown): value is SimNode {
   )
 }
 
+/** Whether `value` is a resource node of `kind` (a {@link ResourceNode} with a string key). */
+export function isResource(value: Value | undefined, kind: ResourceKind): value is ResourceNode {
+  return (
+    isRecordLike(value) &&
+    value.$sim === 'resource' &&
+    value.kind === kind &&
+    typeof value.key === 'string'
+  )
+}
+
 /** Whether a value is an object literal: a record with no `$sim` key. */
 export function isPlainRecord(value: Value): value is { [key: string]: Value } {
   return isRecordLike(value) && !('$sim' in value)

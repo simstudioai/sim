@@ -42,11 +42,6 @@ interface SourceSubmission {
   lock: WorkflowLockV1
   /** Resources the enclosing workspace source apply creates or adopts first. */
   pendingResources?: readonly PendingResource[]
-  /**
-   * The files of each workflow folder the enclosing workspace source apply writes, by key: a child
-   * the source calls is typed as submitted there, not as stored.
-   */
-  childSources?: ReadonlyMap<string, Readonly<Record<string, string>>>
 }
 
 /**
@@ -275,7 +270,7 @@ export async function planSource(
       workspaceOrganizationId: scope.workspaceOrganizationId,
       gate: loaded.gate,
       memo: options.loads ? (options.loads.childResults ??= new Map()) : new Map(),
-      ...(submission.childSources ? { submitted: submission.childSources } : {}),
+      ...(options.loads?.childSources ? { submitted: options.loads.childSources } : {}),
     }
     const evaluation = await evaluateSource({
       principal,
