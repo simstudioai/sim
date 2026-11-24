@@ -186,10 +186,11 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
 // Validates the envelope shell (v, seq, ts, stream, trace?, scope?) and that
 // `type` is one of the known event types with a non-null payload object.
 // This is the one verdict on every stream frame: on Sim's server (worker ingest,
-// Redis buffer reads) and in the browser. The generated zod schema is not
-// enforced at runtime: the worker's emitter is only typed against it, and on
-// worker ingest it only shadows this verdict, counting disagreements
-// (contract-shadow.ts).
+// Redis buffer reads) and in the browser. Only a resource payload is checked
+// against its generated schema (ResourcePayload). The generated envelope schema
+// (MothershipStreamV1EventEnvelopeSchema) is not enforced at runtime: the
+// worker's emitter is only typed against it, and on worker ingest it only
+// shadows this verdict, counting disagreements (contract-shadow.ts).
 
 /** The event types the contract names; a frame of any other type is invalid. */
 export const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(
