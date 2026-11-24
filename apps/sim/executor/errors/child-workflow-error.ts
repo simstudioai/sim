@@ -8,6 +8,8 @@ interface ChildWorkflowErrorOptions {
   childTraceSpans?: TraceSpan[]
   executionResult?: ExecutionResult
   childWorkflowSnapshotId?: string
+  /** The deployment version a deployed workflow-block child ran; unset for draft and custom-block children. */
+  childDeploymentVersionId?: string
   childWorkflowInstanceId?: string
   /** Child workflow names from this invocation down to the failing run, outermost first. */
   workflowChain?: string[]
@@ -38,6 +40,7 @@ export class ChildWorkflowError extends Error {
   readonly childWorkflowName: string
   readonly executionResult?: ExecutionResult
   readonly childWorkflowSnapshotId?: string
+  readonly childDeploymentVersionId?: string
   /** Per-invocation unique ID used to correlate child block events with this workflow block. */
   readonly childWorkflowInstanceId?: string
   /**
@@ -59,6 +62,7 @@ export class ChildWorkflowError extends Error {
     this.childTraceSpans = options.childTraceSpans ?? []
     this.executionResult = options.executionResult
     this.childWorkflowSnapshotId = options.childWorkflowSnapshotId
+    this.childDeploymentVersionId = options.childDeploymentVersionId
     this.childWorkflowInstanceId = options.childWorkflowInstanceId
     this.workflowChain = options.workflowChain ?? [options.childWorkflowName]
     this.rootErrorMessage = options.rootErrorMessage ?? options.message

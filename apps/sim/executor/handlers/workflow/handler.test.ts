@@ -358,6 +358,73 @@ describe('WorkflowBlockHandler', () => {
     })
   })
 
+  describe('child deployment version', () => {
+    const inputs = { workflowId: 'child-workflow-id' }
+    const deployedCtx = () =>
+      ({
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        isDeployedContext: true,
+      }) as unknown as ExecutionContext
+
+    beforeEach(() => {
+      mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
+        workflow: { id: 'child-workflow-id', name: 'Score', variables: {} },
+        workspaceId: 'workspace-parent',
+        state: {
+          blocks: {},
+          edges: [],
+          loops: {},
+          parallels: {},
+          deploymentVersionId: 'dv-7',
+        },
+      })
+      mockResolveSnapshot.mockResolvedValue({ id: 'snapshot-1', workflowId: 'w', stateHash: 'h' })
+    })
+
+    it('records the version a deployed child ran', async () => {
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      const output = await handler.execute(deployedCtx(), mockBlock, inputs)
+
+      expect(output).toMatchObject({ childDeploymentVersionId: 'dv-7' })
+    })
+
+    it('records the version on a deployed child that reports a failure', async () => {
+      mockExecutorExecute.mockResolvedValue({ success: false, error: 'boom', output: {} })
+
+      const failure = await handler.execute(deployedCtx(), mockBlock, inputs).catch((e) => e)
+
+      expect(failure).toMatchObject({ childDeploymentVersionId: 'dv-7' })
+    })
+
+    it('records the version on a deployed child that throws', async () => {
+      mockExecutorExecute.mockRejectedValue(new Error('engine blew up'))
+
+      const failure = await handler.execute(deployedCtx(), mockBlock, inputs).catch((e) => e)
+
+      expect(failure).toMatchObject({ childDeploymentVersionId: 'dv-7' })
+    })
+
+    it('records no version for a draft child', async () => {
+      mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
+        workflow: { id: 'child-workflow-id', name: 'Score', variables: {} },
+        workspaceId: 'workspace-parent',
+        state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      const output = await handler.execute(
+        { ...mockContext, workspaceId: 'workspace-parent' } as unknown as ExecutionContext,
+        mockBlock,
+        inputs
+      )
+
+      expect(output).toMatchObject({ childWorkflowId: 'child-workflow-id' })
+      expect(output).not.toHaveProperty('childDeploymentVersionId')
+    })
+  })
+
   describe('workspace containment', () => {
     const inputs = { workflowId: 'child-workflow-id' }
 

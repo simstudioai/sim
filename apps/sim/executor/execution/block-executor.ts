@@ -760,6 +760,9 @@ export class BlockExecutor {
         if (error.childWorkflowSnapshotId) {
           errorOutput.childWorkflowSnapshotId = error.childWorkflowSnapshotId
         }
+        if (error.childDeploymentVersionId) {
+          errorOutput.childDeploymentVersionId = error.childDeploymentVersionId
+        }
       }
       // A custom block's consumer gets a machine-readable failure class and an
       // opaque handle to the failed run — enough to branch on and to quote in a
