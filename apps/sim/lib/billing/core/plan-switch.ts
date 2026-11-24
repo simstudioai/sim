@@ -1,23 +1,25 @@
 import { db } from '@sim/db'
 import { organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { type AnyColumn, eq, sql } from 'drizzle-orm'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import {
+  getOrgIncludedUsageDollars,
   getPlanPricing,
   isTrialingSubscription,
-  type PlanPricingInput,
+  type OrgAllowanceInput,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('PlanSwitch')
 
-interface SwitchedSubscription extends PlanPricingInput {
+interface SwitchedSubscription extends OrgAllowanceInput {
   id: string
   plan: string
   referenceId: string
   status: string | null
-  seats?: number | null
   trialEnd?: Date | null
 }
 
@@ -25,10 +27,11 @@ interface SwitchedSubscription extends PlanPricingInput {
  * Records a tier or billing-interval change Stripe has already applied: the plan, the interval,
  * and the payer's usage limit.
  *
- * A limit the payer never raised sits at the old plan's included usage plus prepaid credit. Left
- * there after a move to a cheaper plan or a monthly interval, it would read as on-demand usage the
- * payer never turned on and bill overage past the new plan's allowance, so it moves to the new
- * plan's included usage. A limit raised above the old allowance was the payer's choice and stays.
+ * The limit moves with the plan's included usage. A limit the payer never raised sits at the old
+ * allowance plus prepaid credit; left there after a move to a cheaper plan or a monthly interval,
+ * it would read as on-demand usage nobody turned on and bill overage past the new allowance. A
+ * limit the payer raised keeps its on-demand headroom above the allowance, rescaled to the new
+ * interval (a year's headroom becomes a month's twelfth), and an unlimited limit stays unlimited.
  * A trial keeps its fixed allowance.
  */
 export async function recordPlanSwitch(params: {
@@ -49,40 +52,36 @@ export async function recordPlanSwitch(params: {
 
   if (isTrialingSubscription(subscription)) return
 
-  const seats = orgScoped ? subscription.seats || 1 : 1
-  const previousBase = toDecimal(getPlanPricing(subscription).basePrice).times(seats).toString()
-  const nextBase = toDecimal(
-    getPlanPricing({ plan: targetPlanName, billingInterval: targetInterval }).basePrice
-  )
-    .times(seats)
-    .toString()
+  const previousInterval = resolveBillingInterval(subscription)
+  const target = { ...subscription, plan: targetPlanName, billingInterval: targetInterval }
+  const previousBase = orgScoped
+    ? getOrgIncludedUsageDollars(subscription)
+    : getPlanPricing(subscription).basePrice
+  const nextBase = orgScoped ? getOrgIncludedUsageDollars(target) : getPlanPricing(target).basePrice
+  const headroomScale =
+    previousInterval === targetInterval ? 1 : targetInterval === 'year' ? 12 : 1 / 12
+
+  const rebased = (limit: AnyColumn, creditBalance: AnyColumn) => {
+    const previousCovered = sql`${toDecimal(previousBase).toString()}::numeric + ${creditBalance}`
+    return sql`case when ${limit} >= ${ON_DEMAND_UNLIMITED} then ${limit} else ${toDecimal(nextBase).toString()}::numeric + ${creditBalance} + greatest(0, coalesce(${limit}, ${previousCovered}) - ${previousCovered}) * ${headroomScale}::numeric end`
+  }
 
   if (orgScoped) {
     await db
       .update(organization)
       .set({
-        orgUsageLimit: sql`${nextBase}::numeric + ${organization.creditBalance}`,
+        orgUsageLimit: rebased(organization.orgUsageLimit, organization.creditBalance),
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(organization.id, subscription.referenceId),
-          sql`coalesce(${organization.orgUsageLimit}, 0) <= ${previousBase}::numeric + ${organization.creditBalance}`
-        )
-      )
+      .where(eq(organization.id, subscription.referenceId))
   } else {
     await db
       .update(userStats)
       .set({
-        currentUsageLimit: sql`${nextBase}::numeric + ${userStats.creditBalance}`,
+        currentUsageLimit: rebased(userStats.currentUsageLimit, userStats.creditBalance),
         usageLimitUpdatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(userStats.userId, subscription.referenceId),
-          sql`coalesce(${userStats.currentUsageLimit}, 0) <= ${previousBase}::numeric + ${userStats.creditBalance}`
-        )
-      )
+      .where(eq(userStats.userId, subscription.referenceId))
   }
 
   logger.info('Recorded plan switch', {

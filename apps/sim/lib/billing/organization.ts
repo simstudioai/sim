@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
-import { getPlanPricing, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
+import { isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { assertNoCompetingEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
@@ -15,6 +15,7 @@ import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/errors'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
+  getOrgIncludedUsageDollars,
   SETTLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
@@ -33,6 +34,10 @@ type SubscriptionData = {
   status: string | null
   seats?: number | null
   billingInterval?: string | null
+  metadata?: unknown
+  periodStart?: Date | null
+  allowancePeriodStart?: Date | null
+  allowanceSeatMonths?: number | null
   /** Correlation copied from Stripe metadata by the generic webhook callback. */
   enterpriseOperationId?: string | null
 }
@@ -534,9 +539,8 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
     } else {
       /** Enterprise has custom pricing; other paid pools retain prepaid headroom when seats increase. */
       if (isPaid(subscription.plan) && !isEnterprise(subscription.plan)) {
-        const { basePrice } = getPlanPricing(subscription)
         const seats = subscription.seats || 1
-        const planBase = toDecimal(basePrice).times(seats).toString()
+        const planBase = toDecimal(getOrgIncludedUsageDollars(subscription)).toString()
         const liveMinimum = sql`${planBase}::numeric + ${organization.creditBalance}`
 
         await db
@@ -556,7 +560,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
           organizationId,
           plan: subscription.plan,
           seats,
-          basePrice,
+          planBase,
         })
       }
     }
@@ -570,49 +574,93 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
   }
 }
 
-/** Most annual subscriptions one sweep re-syncs; the rest follow on the next run. */
-const ANNUAL_LIMIT_SYNC_BATCH = 500
+/** Annual subscriptions read per page of the hourly sweep. */
+const ANNUAL_SWEEP_PAGE_SIZE = 200
+
+const MONTH_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
- * Re-applies the usage-limit floor of every settled annual Pro or Team subscription. An annual
- * plan includes twelve months of credits for its yearly period, and a limit written before that
- * rule (or by a missed webhook) would cap the payer at one month's worth. The sync only ever
- * raises a limit, so repeating it is safe. Returns how many subscriptions it synced.
+ * Seat-months left in a period at `now`, counting the current month: what Stripe prorates a seat
+ * added or removed at `now` against.
  */
-export async function syncAnnualPlanUsageLimits(): Promise<number> {
-  const annualSubscriptions = await db
-    .select({
-      id: subscriptionTable.id,
-      plan: subscriptionTable.plan,
-      referenceId: subscriptionTable.referenceId,
-      status: subscriptionTable.status,
-      seats: subscriptionTable.seats,
-      billingInterval: subscriptionTable.billingInterval,
-      metadata: subscriptionTable.metadata,
-    })
-    .from(subscriptionTable)
-    .where(
-      and(
-        inArray(subscriptionTable.status, SETTLED_SUBSCRIPTION_STATUSES),
-        ne(subscriptionTable.plan, 'enterprise'),
-        ne(subscriptionTable.plan, 'free'),
-        sql`coalesce(${subscriptionTable.billingInterval}, ${subscriptionTable.metadata}::jsonb->>'billingInterval') = 'year'`
-      )
-    )
-    .orderBy(subscriptionTable.id)
-    .limit(ANNUAL_LIMIT_SYNC_BATCH)
+function monthsRemaining(periodEnd: Date | null, now: Date): number {
+  if (!periodEnd) return 12
+  return Math.min(12, Math.max(0, Math.ceil((periodEnd.getTime() - now.getTime()) / MONTH_MS)))
+}
 
+/**
+ * The hourly upkeep of annual Pro and Team plans: an annual period includes twelve months of
+ * credits, and the stored usage limit must reflect it.
+ *
+ * For a Team plan it first keeps the period's seat-months in step with the seat count: a new
+ * period starts at `seats × 12`, and a seat added or removed since the last run adds or removes
+ * only the months left, as Stripe prorates the charge. It then re-applies the limit floor, which
+ * only ever raises a limit. Pages through every settled annual subscription. Returns how many it
+ * synced.
+ */
+export async function syncAnnualPlanUsageLimits(now: Date = new Date()): Promise<number> {
   let synced = 0
-  for (const annual of annualSubscriptions) {
-    try {
-      await syncSubscriptionUsageLimits({ ...annual, billingInterval: 'year' })
-      synced++
-    } catch (error) {
-      logger.error('Failed to sync an annual plan usage limit', {
-        subscriptionId: annual.id,
-        error,
-      })
+  let cursor = ''
+  for (;;) {
+    const page = await db
+      .select()
+      .from(subscriptionTable)
+      .where(
+        and(
+          inArray(subscriptionTable.status, SETTLED_SUBSCRIPTION_STATUSES),
+          ne(subscriptionTable.plan, 'enterprise'),
+          ne(subscriptionTable.plan, 'free'),
+          sql`coalesce(${subscriptionTable.billingInterval}, ${subscriptionTable.metadata}::jsonb->>'billingInterval') = 'year'`,
+          sql`${subscriptionTable.id} > ${cursor}`
+        )
+      )
+      .orderBy(subscriptionTable.id)
+      .limit(ANNUAL_SWEEP_PAGE_SIZE)
+    if (page.length === 0) return synced
+    cursor = page[page.length - 1].id
+
+    for (const annual of page) {
+      try {
+        const reconciled = isOrgPlan(annual.plan)
+          ? await reconcileAnnualSeatMonths(annual, now)
+          : annual
+        await syncSubscriptionUsageLimits(reconciled)
+        synced++
+      } catch (error) {
+        logger.error('Failed to sync an annual plan usage limit', {
+          subscriptionId: annual.id,
+          error,
+        })
+      }
     }
   }
-  return synced
+}
+
+/** Brings an annual Team subscription's seat-months up to date with its seat count. */
+async function reconcileAnnualSeatMonths(
+  annual: typeof subscriptionTable.$inferSelect,
+  now: Date
+): Promise<typeof subscriptionTable.$inferSelect> {
+  if (!annual.periodStart) return annual
+  const seats = annual.seats || 1
+  const samePeriod = annual.allowancePeriodStart?.getTime() === annual.periodStart.getTime()
+  if (samePeriod && annual.allowanceSeats === seats && annual.allowanceSeatMonths !== null) {
+    return annual
+  }
+
+  const allowanceSeatMonths =
+    samePeriod && annual.allowanceSeats !== null && annual.allowanceSeatMonths !== null
+      ? Math.max(
+          0,
+          annual.allowanceSeatMonths +
+            (seats - annual.allowanceSeats) * monthsRemaining(annual.periodEnd, now)
+        )
+      : seats * 12
+  const next = {
+    allowancePeriodStart: annual.periodStart,
+    allowanceSeats: seats,
+    allowanceSeatMonths,
+  }
+  await db.update(subscriptionTable).set(next).where(eq(subscriptionTable.id, annual.id))
+  return { ...annual, ...next }
 }

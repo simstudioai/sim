@@ -8,6 +8,7 @@ import { organization, subscription, usageLog, user, userStats } from '@sim/db/s
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getOrgUsageLimit, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -71,6 +72,19 @@ async function addSubscription(
   }
   await db.insert(subscription).values(row)
   return row
+}
+
+async function createOrganization(): Promise<string> {
+  const id = `allowance-org-${generateId()}`
+  await db.insert(organization).values({
+    id,
+    name: 'Allowance Org',
+    slug: id,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  organizationIds.push(id)
+  return id
 }
 
 async function readLimit(userId: string): Promise<number> {
@@ -137,15 +151,7 @@ describe('annual plan allowance', () => {
   })
 
   it('floors an annual Team organization at twelve months per seat', async () => {
-    const organizationId = `allowance-org-${generateId()}`
-    await db.insert(organization).values({
-      id: organizationId,
-      name: 'Allowance Org',
-      slug: organizationId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    organizationIds.push(organizationId)
+    const organizationId = await createOrganization()
 
     const { minimum } = await getOrgUsageLimit(organizationId, {
       plan: 'team_6000',
@@ -154,6 +160,28 @@ describe('annual plan allowance', () => {
     })
 
     expect(minimum).toBe(PRO_MONTHLY_DOLLARS * 12 * 3)
+  })
+
+  it('includes only the months left for a Team seat added partway through the year', async () => {
+    const organizationId = await createOrganization()
+    const sub = await addSubscription(organizationId, {
+      plan: 'team_6000',
+      billingInterval: 'year',
+      seats: 3,
+    })
+
+    await syncAnnualPlanUsageLimits()
+    // Two seats join with two months left in the year.
+    await db
+      .update(subscription)
+      .set({ seats: 5, periodEnd: new Date(Date.now() + 60 * DAY_MS) })
+      .where(eq(subscription.id, sub.id))
+    await syncAnnualPlanUsageLimits()
+
+    const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
+    expect(row?.allowanceSeatMonths).toBe(3 * 12 + 2 * 2)
+    const { minimum } = await getOrgUsageLimit(organizationId, row as NonNullable<typeof row>)
+    expect(minimum).toBe((3 * 12 + 2 * 2) * PRO_MONTHLY_DOLLARS)
   })
 
   it('raises annual subscriptions still capped at one month and leaves monthly ones alone', async () => {
@@ -186,7 +214,7 @@ describe('recordPlanSwitch', () => {
     expect(row?.plan).toBe('pro_6000')
   })
 
-  it('keeps a limit the payer raised above the old plan', async () => {
+  it('keeps the on-demand headroom a payer raised above the old plan', async () => {
     const userId = await createUser(500)
     const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })
 
@@ -197,7 +225,37 @@ describe('recordPlanSwitch', () => {
       orgScoped: false,
     })
 
-    expect(await readLimit(userId)).toBe(500)
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS + (500 - MAX_MONTHLY_DOLLARS))
+  })
+
+  it("rescales a year's on-demand headroom to a month on a switch to monthly billing", async () => {
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12 + 120)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'year' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS + 10)
+    const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
+    expect(row?.billingInterval).toBe('month')
+  })
+
+  it('keeps an unlimited limit unlimited', async () => {
+    const userId = await createUser(ON_DEMAND_UNLIMITED)
+    const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(ON_DEMAND_UNLIMITED)
   })
 
   it('moves an annual limit back to one month on a switch to monthly billing', async () => {

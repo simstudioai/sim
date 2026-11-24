@@ -125,16 +125,35 @@ export function invoicesOverage(
   return billsOverage(subscription) && !isHardCappedEnterprise(subscription)
 }
 
+/** The subscription fields that decide an organization's included usage. */
+export interface OrgAllowanceInput extends PlanPricingInput {
+  seats?: number | null
+  periodStart?: Date | null
+  allowancePeriodStart?: Date | null
+  allowanceSeatMonths?: number | null
+}
+
+/**
+ * Seat-months an annual Team period includes: the prorated count the hourly reconcile keeps for
+ * this period, or every seat for all twelve months until it has recorded one.
+ */
+function getAnnualSeatMonths(subscription: OrgAllowanceInput): number {
+  const recordedForThisPeriod =
+    subscription.allowanceSeatMonths != null &&
+    subscription.allowancePeriodStart != null &&
+    subscription.periodStart != null &&
+    subscription.allowancePeriodStart.getTime() === subscription.periodStart.getTime()
+  return recordedForThisPeriod
+    ? (subscription.allowanceSeatMonths ?? 0)
+    : (subscription.seats || 1) * 12
+}
+
 /**
  * The usage an organization subscription includes each period, in dollars, before overage: the
- * Enterprise contract allowance, or the plan's base price per seat.
+ * Enterprise contract allowance, or the plan's base price per seat. An annual Team period counts
+ * seat-months ({@link getAnnualSeatMonths}), so a seat added late includes only the months left.
  */
-export function getOrgIncludedUsageDollars(subscription: {
-  plan?: string | null
-  seats?: number | null
-  metadata?: unknown
-  billingInterval?: string | null
-}): number {
+export function getOrgIncludedUsageDollars(subscription: OrgAllowanceInput): number {
   if (isEnterprise(subscription.plan)) {
     const metadata = parseEnterpriseSubscriptionMetadata(subscription.metadata)
     if (!metadata) return 0
@@ -144,6 +163,10 @@ export function getOrgIncludedUsageDollars(subscription: {
         metadata.invoiceAmountUsd
       ) / CREDIT_MULTIPLIER
     )
+  }
+  if (resolveBillingInterval(subscription) === 'year') {
+    const monthly = getPlanPricing({ ...subscription, billingInterval: 'month', metadata: null })
+    return getAnnualSeatMonths(subscription) * monthly.basePrice
   }
   return (subscription.seats || 1) * getPlanPricing(subscription).basePrice
 }

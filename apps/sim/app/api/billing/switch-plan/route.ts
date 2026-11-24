@@ -13,7 +13,7 @@ import {
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
 import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
-import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
+import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
@@ -132,6 +132,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const currentInterval = subscriptionItem.price?.recurring?.interval
     const targetInterval = interval ?? currentInterval ?? 'month'
+
+    // An annual term's usage was covered by its tier's allowance; a lower tier mid-term would
+    // re-price that usage as overage, so the downgrade waits for renewal.
+    if (
+      currentInterval === 'year' &&
+      getPlanTierCredits(targetPlanName) < getPlanTierCredits(sub.plan)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'A lower tier is not available partway through an annual term. You can switch when your plan renews.',
+        },
+        { status: 400 }
+      )
+    }
 
     const targetPriceId =
       targetInterval === 'year' ? targetPlan.annualDiscountPriceId : targetPlan.priceId

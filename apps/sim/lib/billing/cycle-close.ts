@@ -451,12 +451,7 @@ export async function closeElapsedBillingPeriod(
   if (billsClosedOverage) {
     if (orgScoped) {
       const { totalOverage: computed } = await computeOrgOverageAmount({
-        subscription: {
-          plan: sub.plan,
-          seats: sub.seats ?? null,
-          metadata: sub.metadata,
-          billingInterval: sub.billingInterval,
-        },
+        subscription: { ...sub, seats: sub.seats ?? null },
         periodStart: closeFrom,
         periodEnd: periodStart,
         organizationId: sub.referenceId,

@@ -49,7 +49,8 @@ export interface HasPaidSubscriptionOptions {
 }
 
 /**
- * Merge a `billingInterval` value into a subscription's metadata JSON column.
+ * Write a subscription's billing interval to both places `resolveBillingInterval` reads: the column
+ * it prefers and the metadata fallback, so neither can contradict the other after a switch.
  */
 export async function writeBillingInterval(
   subscriptionId: string,
@@ -59,6 +60,7 @@ export async function writeBillingInterval(
   await db
     .update(subscription)
     .set({
+      billingInterval: interval,
       metadata: sql`(COALESCE(metadata::jsonb, '{}'::jsonb) || ${patch}::jsonb)::json`,
     })
     .where(eq(subscription.id, subscriptionId))

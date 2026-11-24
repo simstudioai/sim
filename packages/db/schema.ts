@@ -1834,6 +1834,16 @@ export const subscription = pgTable(
      * the marker is settled, and a later charge into one is refused.
      */
     lastClosedPeriodStart: timestamp('last_closed_period_start'),
+    /**
+     * Seat-months of usage an annual Team plan's current period includes. A seat added partway
+     * through the year includes only the months left, matching Stripe's prorated charge, so a late
+     * seat cannot buy a full year of credits. Valid only while `allowancePeriodStart` equals
+     * `periodStart`; otherwise the period includes `seats × 12`. The hourly billing reconcile keeps
+     * it in step with `seats` (`allowanceSeats` is the count it last accounted for).
+     */
+    allowancePeriodStart: timestamp('allowance_period_start'),
+    allowanceSeats: integer('allowance_seats'),
+    allowanceSeatMonths: integer('allowance_seat_months'),
   },
   (table) => ({
     referenceStatusIdx: index('subscription_reference_status_idx').on(

@@ -3,8 +3,12 @@ import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { PRO_TRIAL_USAGE_LIMIT_DOLLARS } from '@/lib/billing/constants'
-import { getPlanPricing } from '@/lib/billing/core/billing'
-import { isTrialingSubscription } from '@/lib/billing/subscriptions/utils'
+import {
+  getOrgIncludedUsageDollars,
+  getPlanPricing,
+  isTrialingSubscription,
+  type OrgAllowanceInput,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditPurchase')
@@ -17,19 +21,17 @@ const logger = createLogger('CreditPurchase')
 export async function setUsageLimitForCredits(
   entityType: 'user' | 'organization',
   entityId: string,
-  subscription: { plan: string; status: string | null; billingInterval?: string | null },
+  subscription: OrgAllowanceInput & { plan: string; status: string | null },
   seats: number | null,
   creditBalance: number
 ): Promise<void> {
   try {
-    const basePrice =
-      entityType === 'user' && isTrialingSubscription(subscription)
-        ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
-        : getPlanPricing(subscription).basePrice
-
-    const seatCount = seats || 1
     const planBase =
-      entityType === 'organization' ? Number(basePrice) * seatCount : Number(basePrice)
+      entityType === 'organization'
+        ? getOrgIncludedUsageDollars({ ...subscription, seats })
+        : isTrialingSubscription(subscription)
+          ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
+          : getPlanPricing(subscription).basePrice
     const creditBalanceNum = Number(creditBalance)
     const newLimit = planBase + creditBalanceNum
 

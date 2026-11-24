@@ -525,7 +525,7 @@ describe('checkAndBillOverageThreshold', () => {
     await checkAndBillOverageThreshold('user-1')
 
     expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
-      subscription: { plan: 'team', seats: 2, metadata: undefined },
+      subscription: expect.objectContaining({ plan: 'team', seats: 2, metadata: undefined }),
       periodStart: new Date('2026-05-01T00:00:00.000Z'),
       periodEnd: new Date('2026-06-01T00:00:00.000Z'),
       organizationId: userSubscription.referenceId,

@@ -3,7 +3,7 @@ import { member, organization, usageLog, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
-import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/reporting-period'
 import {
@@ -320,8 +320,6 @@ export async function getOrganizationBillingData(
       }
     }
 
-    const { basePrice: pricePerSeat } = getPlanPricing(subscription)
-
     // Stripe subscription quantity; `||` not `??` because 0 seats is
     // never valid for a paid sub — fall through to 1.
     const licensedSeats = subscription.seats || 1
@@ -339,7 +337,7 @@ export async function getOrganizationBillingData(
         : getOrgIncludedUsageDollars(subscription)
       totalUsageLimit = configuredLimit
     } else {
-      minimumBillingAmount = licensedSeats * pricePerSeat
+      minimumBillingAmount = getOrgIncludedUsageDollars(subscription)
 
       const configuredLimit = organizationData.orgUsageLimit
         ? toNumber(toDecimal(organizationData.orgUsageLimit))
@@ -498,9 +496,7 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    const { basePrice } = getPlanPricing(subscription)
-    const seatCount = subscription.seats || 1
-    const minimumLimit = seatCount * basePrice
+    const minimumLimit = getOrgIncludedUsageDollars(subscription)
 
     if (newLimit < minimumLimit) {
       return {

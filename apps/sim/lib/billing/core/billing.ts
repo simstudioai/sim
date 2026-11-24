@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { organization, subscription, userStats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
@@ -27,14 +28,11 @@ import {
   getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   isHardCappedEnterprise,
+  type OrgAllowanceInput,
   resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
-
-export { getPlanPricing }
-
-import { createLogger } from '@sim/logger'
 
 const logger = createLogger('Billing')
 
@@ -126,12 +124,7 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * All callers route through this to keep the overage math in one place.
  */
 export async function computeOrgOverageAmount(params: {
-  subscription: {
-    plan: string | null
-    seats: number | null
-    metadata: unknown
-    billingInterval?: string | null
-  }
+  subscription: OrgAllowanceInput & { plan: string | null; seats: number | null }
   periodStart: Date | null
   periodEnd: Date | null
   organizationId: string
@@ -178,6 +171,8 @@ export async function calculateSubscriptionOverage(sub: {
   periodStart?: Date | null
   periodEnd?: Date | null
   trialEnd?: Date | null
+  allowancePeriodStart?: Date | null
+  allowanceSeatMonths?: number | null
 }): Promise<number> {
   if (isHardCappedEnterprise(sub)) {
     logger.info('Enterprise plan has no overages', {
@@ -204,12 +199,7 @@ export async function calculateSubscriptionOverage(sub: {
         : 0
 
     const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
-      subscription: {
-        plan: sub.plan,
-        seats: sub.seats ?? null,
-        metadata: sub.metadata,
-        billingInterval: sub.billingInterval,
-      },
+      subscription: { ...sub, seats: sub.seats ?? null },
       periodStart: sub.periodStart ?? null,
       periodEnd: sub.periodEnd ?? null,
       organizationId: sub.referenceId,

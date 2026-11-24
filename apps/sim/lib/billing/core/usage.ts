@@ -25,14 +25,14 @@ import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/cor
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
 import { isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
-import type { PlanPricingInput } from '@/lib/billing/subscriptions/utils'
+import type { OrgAllowanceInput } from '@/lib/billing/subscriptions/utils'
 import {
   canEditUsageLimit,
   formatTrialEndDate,
   getFreeTierAllowance,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
   getPerUserMinimumLimit,
-  getPlanPricing,
   getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
@@ -126,7 +126,7 @@ export async function getOrgUsageLimit(
 }
 
 /** The subscription fields that decide an organization's usage-limit floor. */
-type OrgLimitSubscription = PlanPricingInput & { plan: string; seats?: number | null }
+type OrgLimitSubscription = OrgAllowanceInput & { plan: string }
 
 async function findOrgUsageLimit(
   organizationId: string,
@@ -163,10 +163,9 @@ function calculateOrgUsageLimit(
     return { limit: 0, minimum: 0 }
   }
 
-  const { basePrice } = getPlanPricing(subscription)
   // `||` not `??` — 0 is never a valid seat count for a paid sub.
   const seatCount = seats || 1
-  const minimum = seatCount * basePrice
+  const minimum = getOrgIncludedUsageDollars(subscription)
 
   if (configured !== null) {
     return { limit: Math.max(configured, minimum), minimum }

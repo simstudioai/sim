@@ -1247,7 +1247,11 @@ export class ExecutionLogger {
           const payerSubscription = billingAttribution.payerSubscription
           const [{ getDisplayPlanName }, { limit: orgLimit }, orgUsageBefore] = await Promise.all([
             import('@/lib/billing/plan-helpers'),
-            getOrgUsageLimit(organizationId, payerSubscription),
+            getOrgUsageLimit(organizationId, {
+              plan: payerSubscription.plan,
+              seats: payerSubscription.seats,
+              billingInterval: payerSubscription.billingInterval,
+            }),
             readSoftGateUsageCost(
               billingAttribution.billingEntity,
               exactBillingContext.billingPeriod
