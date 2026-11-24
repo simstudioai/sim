@@ -235,7 +235,7 @@ const METADATA_READERS: Record<TableColumnMetadataKey, MetadataReader> = {
     if (
       !Array.isArray(raw) ||
       raw.length === 0 ||
-      !raw.every((item) => typeof item === 'string' && item.length > 0)
+      !raw.every((item): item is string => typeof item === 'string' && item.length > 0)
     ) {
       report(
         'E_TABLE_OPTIONS',
@@ -244,7 +244,7 @@ const METADATA_READERS: Record<TableColumnMetadataKey, MetadataReader> = {
       )
       return
     }
-    const names = raw as string[]
+    const names = raw
     if (names.length > catalog.maxOptions) {
       report(
         'E_TABLE_OPTIONS',
@@ -557,7 +557,10 @@ const ABSENT: Record<TableColumnMetadataKey, Json> = {
  */
 export const tableLayout: KindLayout = {
   group: (paths) =>
-    groupByFile(KIND_DIRS.table, [DECLARATION_EXTENSION, TABLE_ROWS_EXTENSION], paths),
+    groupByFile(KIND_DIRS.table, DECLARATION_EXTENSION, paths, {
+      extension: TABLE_ROWS_EXTENSION,
+      holds: 'its rows',
+    }),
   budgetOf: (path) => (path.endsWith(TABLE_ROWS_EXTENSION) ? 'rows' : 'declaration'),
 }
 

@@ -28,6 +28,7 @@ import {
   type SourceSpan,
   sdkHeader,
 } from '@sim/workflow-code'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
   diagnostic,
   findingLimitReached,
@@ -39,8 +40,6 @@ import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 
 /** The module every declaration imports from. */
 export const WORKSPACE_SDK_MODULE = '@sim/workflow-sdk/workspace'
-/** The only SDK major declarations are written in. */
-export const DECLARATION_SDK_MAJOR = 1
 /** The key a helper call is read under; no declaration object may use it. */
 export const CALL_KEY = '$call'
 /** The key an `env.NAME` reference is read under; no declaration object may use it. */
@@ -97,6 +96,14 @@ const PARSER_OPTIONS: ParserOptions = {
 /** Whether a decoded value is a helper call the reader produced. */
 export function isDeclarationCall(value: unknown): value is DeclarationCall {
   return isRecordLike(value) && typeof value[CALL_KEY] === 'string' && Array.isArray(value.args)
+}
+
+/** The helper that keeps the value the server already holds: `stored()`. */
+export const STORED_CALL = 'stored'
+
+/** Whether a decoded value is `stored()`, with no arguments. */
+export function isStoredCall(value: unknown): boolean {
+  return isDeclarationCall(value) && value.$call === STORED_CALL && value.args.length === 0
 }
 
 /** Whether a decoded value is an `env.NAME` reference the reader produced. */
@@ -190,15 +197,11 @@ export function readDeclaration(
     return fail()
   }
   const header = sdkHeader(text)
-  if (header.sdkMajor !== DECLARATION_SDK_MAJOR) {
+  if (header.sdkMajor !== SDK_MAJOR) {
     diagnostics.push(
-      diagnostic(
-        'E_DECL_HEADER',
-        `The first line must be \`// @sim-sdk ${DECLARATION_SDK_MAJOR}\`.`,
-        {
-          ...at(0, Math.max(1, header.headerEnd)),
-        }
-      )
+      diagnostic('E_DECL_HEADER', `The first line must be \`// @sim-sdk ${SDK_MAJOR}\`.`, {
+        ...at(0, Math.max(1, header.headerEnd)),
+      })
     )
     return fail()
   }
@@ -266,12 +269,13 @@ export function readDeclaration(
         declaration.type === 'CallExpression' &&
         declaration.callee.type === 'Identifier' &&
         declaration.callee.name === options.callee &&
-        declaration.arguments.length === 1 &&
-        declaration.arguments[0].type !== 'SpreadElement' &&
-        declaration.arguments[0].type !== 'ArgumentPlaceholder'
+        declaration.arguments.length === 1
       ) {
-        exported = declaration.arguments[0] as Expression
-        continue
+        const [argument] = declaration.arguments
+        if (argument.type !== 'SpreadElement' && argument.type !== 'ArgumentPlaceholder') {
+          exported = argument
+          continue
+        }
       }
     }
     record(

@@ -44,9 +44,10 @@ import {
 } from '../declaration/fields'
 import { call, envRef, printDeclaration } from '../declaration/print'
 import {
-  isDeclarationCall,
   isDeclarationEnvRef,
+  isStoredCall,
   readDeclaration,
+  STORED_CALL,
   unstorableCharacter,
 } from '../declaration/read'
 import { diagnostic, resourceOf, type WorkspaceDiagnostic, wholeFile } from '../diagnostics'
@@ -94,7 +95,10 @@ export interface McpServerDecl {
   /** The display name; the key when the declaration leaves it out. */
   name: string
   description?: string
-  /** The server's URL. Its id derives from it, so a changed URL replaces the server. */
+  /**
+   * The server's URL. Its id derives from it, so a new host or path replaces the server; a new
+   * query string updates it in place.
+   */
   url: string
   transport?: (typeof MCP_TRANSPORTS)[number]
   headers?: Record<string, McpHeaderDecl>
@@ -106,7 +110,6 @@ export interface McpServerDecl {
 }
 
 const CALLEE = 'defineMcpServer'
-const STORED_CALL = 'stored'
 /** A whole value that is one env reference: `{{NAME}}`. */
 const WHOLE_ENV_REFERENCE = /^\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}$/
 /** An HTTP header name (RFC 9110 token). */
@@ -198,7 +201,7 @@ function readHeaderValue(
   report: Parameters<DeclField<unknown>['read']>[3]
 ): McpHeaderDecl | undefined {
   if (isDeclarationEnvRef(raw)) return `{{${raw.$env}}}`
-  if (isDeclarationCall(raw) && raw.$call === STORED_CALL && raw.args.length === 0) {
+  if (isStoredCall(raw)) {
     return { stored: null }
   }
   if (typeof raw !== 'string') {
@@ -355,7 +358,7 @@ function parseMcpServer(
 
 /** Reads and prints `mcp/<key>.ts`. */
 export const mcpCodec: KindCodec<McpServerDecl> = {
-  group: (paths) => groupByFile(KIND_DIRS['mcp-server'], [DECLARATION_EXTENSION], paths),
+  group: (paths) => groupByFile(KIND_DIRS['mcp-server'], DECLARATION_EXTENSION, paths),
   parse: (key, text) => parseMcpServer(key, text),
   print: (key, decl) => ({
     text: { [mcpDeclarationPath(key)]: printDeclaration(CALLEE, printFields(MCP_FIELDS, decl)) },

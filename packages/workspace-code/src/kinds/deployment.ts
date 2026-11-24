@@ -46,7 +46,12 @@ import {
   readObject,
 } from '../declaration/fields'
 import { call, envRef, printDeclaration } from '../declaration/print'
-import { isDeclarationCall, isDeclarationEnvRef, readDeclaration } from '../declaration/read'
+import {
+  isDeclarationEnvRef,
+  isStoredCall,
+  readDeclaration,
+  STORED_CALL,
+} from '../declaration/read'
 import { resourceOf, type WorkspaceDiagnostic } from '../diagnostics'
 import { KIND_DIRS, type KindCodec } from '../kind'
 import { DECLARATION_EXTENSION } from '../layout'
@@ -108,7 +113,6 @@ export const CHAT_DEFAULT_CUSTOMIZATIONS = {
 } as const
 
 const CALLEE = 'defineDeployment'
-const STORED_CALL = 'stored'
 
 /** `deployments/<key>.ts`. */
 export function deploymentDeclarationPath(key: string): string {
@@ -122,7 +126,7 @@ function canonicalSecret(secret: ChatSecretDecl): Json {
 
 function readSecret(raw: Json, pointer: string, report: FieldReport) {
   if (isDeclarationEnvRef(raw)) return { env: raw.$env }
-  if (isDeclarationCall(raw) && raw.$call === STORED_CALL && raw.args.length === 0) return 'stored'
+  if (isStoredCall(raw)) return 'stored'
   report(
     'E_DEPLOY_SECRET',
     pointer,
@@ -325,7 +329,7 @@ function parseDeployment(
 
 /** Reads and prints `deployments/<key>.ts`. */
 export const deploymentCodec: KindCodec<DeploymentDecl> = {
-  group: (paths) => groupByFile(KIND_DIRS.deployment, [DECLARATION_EXTENSION], paths),
+  group: (paths) => groupByFile(KIND_DIRS.deployment, DECLARATION_EXTENSION, paths),
   parse: (key, text) => parseDeployment(key, text),
   print: (key, decl) => ({
     text: {

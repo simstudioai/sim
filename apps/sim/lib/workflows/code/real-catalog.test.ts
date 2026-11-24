@@ -18,10 +18,12 @@ import {
   printWorkflow,
   type ResourceKeyResolver,
 } from '@sim/workflow-code'
+import { SDK_SPECIAL_BUILDERS } from '@sim/workflow-code/sdk'
 import {
+  builderSnippet,
   COOKBOOK_EXAMPLES,
+  describeBuilder,
   generateWorkspaceTypes,
-  SPECIAL_BUILDER_KEYS,
   WORKSPACE_COOKBOOK,
   type WorkspaceManifest,
 } from '@sim/workflow-sdk/codegen'
@@ -104,7 +106,9 @@ describe('canonicalize and codegen over the real block catalog', () => {
 
   it('maps every builder core.d.ts declares to the block type its signature is written for', () => {
     expect(
-      Object.fromEntries(SPECIAL_BUILDER_KEYS.map((key) => [key, catalogBuilder(catalog, key)]))
+      Object.fromEntries(
+        Object.keys(SDK_SPECIAL_BUILDERS).map((key) => [key, catalogBuilder(catalog, key)])
+      )
     ).toEqual({
       condition: { type: 'condition' },
       router: { type: 'router_v2' },
@@ -115,6 +119,11 @@ describe('canonicalize and codegen over the real block catalog', () => {
       setVariables: { type: 'variables' },
       note: { type: 'note' },
     })
+  })
+
+  it("fills an MCP server param of a builder's example call with mcp('<key>')", () => {
+    const reference = describeBuilder(catalog, 'mcpBlock.runOperation')
+    expect(reference && builderSnippet(reference)).toContain("mcp('<key>')")
   })
 
   it('projects a registry multiSelect dropdown or combobox as a multiple subBlock', () => {

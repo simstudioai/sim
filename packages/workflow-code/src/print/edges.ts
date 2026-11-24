@@ -205,22 +205,10 @@ export function wiringStatements(
         targets = targets.filter((edge) => !mismatched.includes(edge))
         if (targets.length === 0) continue
       }
-      if (kind.kind === 'subflowStart') {
-        for (const edge of targets) {
-          statements.push({ expr: raw(source, 'loop-start-source', edge.to), anchor, source })
-        }
-        continue
-      }
       if (kind.kind === 'raw' || (kind.kind === 'out' && (isContainer || hasBranches))) {
         const handle = kind.kind === 'raw' ? kind.handle : 'source'
         for (const edge of [...targets].sort(byTarget)) {
           statements.push({ expr: raw(source, handle, edge.to), anchor, source })
-        }
-        continue
-      }
-      if (kind.kind === 'subflowEnd' && !isContainer) {
-        for (const edge of [...targets].sort(byTarget)) {
-          statements.push({ expr: raw(source, 'loop-end-source', edge.to), anchor, source })
         }
         continue
       }

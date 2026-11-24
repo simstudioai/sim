@@ -1200,6 +1200,7 @@ describe('errors, each with its code, location and hint', () => {
     })
     const syntax = result.diagnostics.find((d) => d.code === 'E_SYNTAX')
     expect(syntax?.span).toMatchObject({ file: 'workflows/functions/bad.js', line: 1 })
+    expect(syntax?.message).not.toMatch(/\(\d+:\d+\)$/)
     expect(result.workflow).toBeNull()
   })
 

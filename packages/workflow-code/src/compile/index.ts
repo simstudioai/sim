@@ -594,6 +594,7 @@ function compileEntry(
     dynamicOutputRefs: [],
     unresolvedTags: [],
     errorOutputRefs: [],
+    unknownRefAt: new Set(),
     refusedBranches: new Map(),
     valueConsts: new Set(),
   }
@@ -705,9 +706,8 @@ function compileEntry(
     })
   }
 
-  const unread = input.stored === undefined ? input.storedUnread : undefined
-  const unreadRenames = unread
-    ? lockIdentRenames(hints, unread, (key) => Object.hasOwn(unread.blocks, key))
+  const unreadRenames = storedUnread
+    ? lockIdentRenames(hints, storedUnread, (key) => Object.hasOwn(storedUnread.blocks, key))
     : new Map<BlockKey, BlockKey>()
   const renamed = new Map([...unreadRenames, ...(input.renamedKeys ?? [])])
   checkCodeFileRefs(ctx, renamed)
@@ -745,9 +745,9 @@ function compileEntry(
   const edges = new EdgeCollector(
     ctx,
     compiled,
-    unread && {
+    storedUnread && {
       lockKeys: new Map([
-        ...Object.keys(unread.blocks).map((key) => [key, key] as const),
+        ...Object.keys(storedUnread.blocks).map((key) => [key, key] as const),
         ...[...unreadRenames].map(([lockKey, key]) => [key, lockKey] as const),
       ]),
       ...(input.storedUnreadEdges
@@ -774,9 +774,7 @@ function compileEntry(
   // one finding: whether text there would break the JSON is moot until the path is fixed. An input
   // the start does not declare is not: a caller may still pass text there.
   const unknownAt = new Set([
-    ...reporter.diagnostics
-      .filter((d) => d.code === 'W_UNKNOWN_OUTPUT_PATH' || d.code === 'W_UNRESOLVED_REF')
-      .map((d) => `${d.span.file}:${d.span.start}`),
+    ...ctx.unknownRefAt,
     ...ctx.errorOutputRefs
       .filter(({ target }) => !erroring.has(target.key))
       .map(({ at }) => `${at.file}:${at.start}`),

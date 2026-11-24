@@ -600,6 +600,20 @@ describe('typed references in JSON fields', () => {
     expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
   })
 
+  it('keeps a reference to an output the block lacks out of W_JSON_REF_UNTYPED past the warning cap', () => {
+    const fields = Array.from({ length: 25 }, (_, i) => `k${i}: a.missing${i}`).join(', ')
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        `const b = api('B', { url: 'https://x', body: { ${fields} } })`,
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
   it('still warns that an input the start does not declare is stored bare, as a caller may pass text', () => {
     const result = run(
       [

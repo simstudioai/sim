@@ -69,7 +69,7 @@ export function foldCodePath(path: string): string {
   return path.normalize('NFC').toLowerCase()
 }
 
-/** The context for printing `input`, with its parent tree built; `layout` fills the rest. */
+/** The context for printing `input`, with its parent tree built; `orderDeclarations` (print/scope.ts) fills the rest. */
 export function createPrintContext(input: PrintInput): PrintContext {
   const workflow = input.workflow
   const catalog = input.catalog

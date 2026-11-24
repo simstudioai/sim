@@ -16,7 +16,7 @@ import {
   type WorkflowBranchKind,
 } from '@sim/workflow-types/workflow'
 import { encodeAnchor } from '../anchors'
-import { babelErrorShape } from '../babel'
+import { babelErrorShape, babelMessage } from '../babel'
 import { isBranchExtraField } from '../canonicalize/branches'
 import {
   DEFAULT_LOOP_ITERATIONS,
@@ -34,6 +34,7 @@ import {
   declarationFor,
   type FieldIndex,
   isModalPair,
+  isModelField,
   isWrittenInSource,
   memberFor,
   typedForBuilder,
@@ -46,7 +47,12 @@ import {
   codeFileLanguage,
   fromCodeFile,
 } from '../code-files'
-import { isIdentifierName, LOOP_PROPERTIES, parseStoredPath } from '../code-files/ref-path'
+import {
+  ENV_VAR_NAME,
+  isIdentifierName,
+  LOOP_PROPERTIES,
+  parseStoredPath,
+} from '../code-files/ref-path'
 import { branchesAtTopLevel, ELSE_KEY, isElseTrue } from '../forms/condition'
 import { compileResponseParam, usesResponseForm } from '../forms/response'
 import { type ConfigField, type ContainerForm, loopForm, parallelForm } from '../forms/subflow'
@@ -84,7 +90,7 @@ import {
   unsupported,
 } from './context'
 import { closest, didYouMean } from './hints'
-import { babelMessage, bracketDepthOverflow } from './parse'
+import { bracketDepthOverflow } from './parse'
 import type { Range } from './report'
 import { compileToolList } from './tools'
 import {
@@ -522,9 +528,6 @@ function reportScriptRefSyntax(
   }
 }
 
-/** The name inside a `{{NAME}}` env token a run substitutes; other `{{…}}` text is left alone. */
-const ENV_TOKEN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
-
 /**
  * The `<key.path>` references a code file writes as text, found by the runtime's own scanner (a
  * JavaScript string, a Python or shell line): the run resolves each one, so compile checks them as
@@ -535,7 +538,7 @@ function referenceTags(text: string): CodeFileRef[] {
   for (const token of findWorkflowReferenceTokens(text)) {
     if (token.kind === 'environment') {
       const name = token.value.slice(2, -2).trim()
-      if (ENV_TOKEN_NAME.test(name)) {
+      if (ENV_VAR_NAME.test(name)) {
         tags.push({ kind: 'env', name, start: token.start, end: token.end })
       }
       continue
@@ -1490,7 +1493,7 @@ function unknownOption(
 ): { value: string; ids: string[] } | null {
   const options = sub.options
   if (!Array.isArray(options) || options.length === 0) return null
-  const isModel = sub.id === 'model' && sub.type === 'combobox'
+  const isModel = isModelField(sub)
   if (sub.type !== 'dropdown' && !isModel) return null
   const ids = options.map((option) => option.id)
   const known = new Set(ids)
@@ -1537,7 +1540,7 @@ function checkOption(
     )
     return
   }
-  if (sub.id === 'model' && sub.type === 'combobox') {
+  if (isModelField(sub)) {
     ctx.reporter.report(
       'W_UNKNOWN_MODEL',
       `${unknown.value} is not a model the catalog lists; it is kept as written.`,

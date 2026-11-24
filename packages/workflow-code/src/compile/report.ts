@@ -53,7 +53,7 @@ export interface Range {
   end: number
 }
 
-interface ReportExtras {
+export interface ReportExtras {
   /**
    * A function is called only when the diagnostic is recorded, so a costly did-you-mean is never
    * computed for a warning past {@link MAX_LISTED}; a withheld warning computes it when its

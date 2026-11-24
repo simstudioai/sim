@@ -21,7 +21,7 @@
 import type { ResourceFingerprint } from '../base'
 import { type DeclFields, stringField } from '../declaration/field-table'
 import type { KindCodec } from '../kind'
-import { isResourceKey } from '../layout'
+import { isResourceKey, RESOURCE_KEY_HINT } from '../layout'
 import { entryCodec, entryFingerprint } from './entries'
 
 /** One credential as `credentials.ts` declares it. */
@@ -48,12 +48,7 @@ export const credentialCodec: KindCodec<CredentialsDecl> = entryCodec<Credential
   fields: CREDENTIAL_FIELDS,
   checkKey(key, pointer, report) {
     if (isResourceKey(key)) return true
-    report(
-      'E_KEY_INVALID',
-      pointer,
-      `"${key}" is not a valid key.`,
-      'A key is lowercase letters, digits, `-` and `_`, starting with a letter, at most 64 characters.'
-    )
+    report('E_KEY_INVALID', pointer, `"${key}" is not a valid key.`, RESOURCE_KEY_HINT)
     return false
   },
   refused: Object.fromEntries(
