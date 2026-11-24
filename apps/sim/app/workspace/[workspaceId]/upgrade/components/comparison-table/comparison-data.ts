@@ -113,7 +113,7 @@ export const COMPARISON_SECTIONS: ComparisonSection[] = [
     rows: [
       {
         label: 'Workspaces',
-        values: ['1', '3', '10', 'Unlimited'],
+        values: ['1', '3 (unlimited on Teams)', '10 (unlimited on Teams)', 'Unlimited'],
       },
       {
         label: 'Invite teammates',
