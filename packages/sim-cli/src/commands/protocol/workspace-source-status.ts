@@ -157,7 +157,7 @@ function localPaths(local: LocalWorkspace): string[] {
 
 /**
  * The workspace a status or diff asks about: the one the directory was read from (a `--workspace`
- * naming another is refused), else the profile's.
+ * or `SIM_WORKSPACE` naming another is refused), else the resolved one.
  */
 function targetWorkspace(
   connection: Connection<'planWorkspaceSource' | 'getWorkspaceSource'>,
@@ -170,8 +170,8 @@ function targetWorkspace(
       dir,
       readFrom,
       profile,
-      (from, named) =>
-        `Run it without --workspace to compare with ${from}, or get ${named} into another directory.`
+      (from, named, setting) =>
+        `Run it without ${setting} to compare with ${from}, or get ${named} into another directory.`
     ) ?? undefined
   )
 }

@@ -583,7 +583,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
             options.dir,
             await recordedWorkspace(options.dir, profile),
             profile,
-            (from) => `Run it without --workspace to create it in ${from}.`
+            (from, _named, setting) => `Run it without ${setting} to create it in ${from}.`
           )
           const workspaceId = client.requireWorkspace(recorded ?? undefined)
           const files = await readSourceFiles(options.dir, null)

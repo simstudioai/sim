@@ -413,7 +413,8 @@ function foldOtherSpellings(
 /**
  * A 404 from a request scoped to the resolved workspace, stating which workspace was searched and
  * where that came from: a table or file that lives in another workspace answers only "not found",
- * and a workspace taken from the profile or `SIM_WORKSPACE` is not on the command line to check.
+ * and a workspace taken from the profile, `SIM_WORKSPACE` or the source directory the command runs
+ * in is not on the command line to check.
  */
 function withSearchedWorkspace(error: unknown, profile: ResolvedProfile): unknown {
   if (!(error instanceof SimApiError) || error.status !== 404 || !profile.workspaceId) return error
@@ -421,9 +422,11 @@ function withSearchedWorkspace(error: unknown, profile: ResolvedProfile): unknow
   const from =
     source === 'env'
       ? ', from SIM_WORKSPACE; pass -w <workspaceId> to search another'
-      : source === 'config'
-        ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
-        : ''
+      : source === 'directory'
+        ? `, the workspace of the source directory ${safeOneLine(profile.workspaceDirectory ?? '')}; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+        : source === 'config'
+          ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+          : ''
   const searched = `searched workspace ${safeOneLine(profile.workspaceId)}${from}`
   return new SimApiError(
     `${error.message} (${searched})`,

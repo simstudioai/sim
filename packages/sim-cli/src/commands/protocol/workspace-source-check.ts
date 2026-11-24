@@ -117,7 +117,8 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           options.dir,
           typeof base.workspaceId === 'string' ? base.workspaceId : null,
           profile,
-          (from) => `Run it without --workspace to check it against the catalog of ${from}.`
+          (from, _named, setting) =>
+            `Run it without ${setting} to check it against the catalog of ${from}.`
         )
         if (!workspaceId) {
           throw new CliUsageError(

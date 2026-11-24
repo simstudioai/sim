@@ -359,8 +359,8 @@ export function attachWorkspaceSourceGet(source: Command): void {
             options.dir,
             typeof recorded === 'string' ? recorded : null,
             profile,
-            (readFrom, named) =>
-              `Get ${named} into another directory, or run the get without --workspace to refresh ${readFrom}; to apply this directory to ${named}, use \`sim workspaces source apply --to ${named}\`.`
+            (readFrom, named, setting) =>
+              `Get ${named} into another directory, or run the get without ${setting} to refresh ${readFrom}; to apply this directory to ${named}, use \`sim workspaces source apply --to ${named}\`.`
           ) ?? undefined
         )
         const { data } = await client

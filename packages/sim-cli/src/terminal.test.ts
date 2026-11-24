@@ -11,13 +11,14 @@ import { runTerminalCli } from './terminal'
  */
 async function runAgainst(
   argv: string[],
-  response: Response
+  response: Response,
+  { workspace = 'ws_1' }: { workspace?: string } = {}
 ): Promise<{ stderr: string; exitCode: number }> {
   const configDir = mkdtempSync(join(tmpdir(), 'sim-cli-terminal-'))
   vi.stubEnv('SIM_CONFIG_DIR', configDir)
   vi.stubEnv('SIM_ENDPOINT', 'https://sim.example')
   vi.stubEnv('SIM_API_KEY', 'sk-test')
-  vi.stubEnv('SIM_WORKSPACE', 'ws_1')
+  vi.stubEnv('SIM_WORKSPACE', workspace)
   vi.stubEnv('SIM_NO_UPDATE_CHECK', '1')
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
 
@@ -174,6 +175,41 @@ describe('a refused source write in JSON output', () => {
       expect(document).not.toContain('frame')
     } finally {
       rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('a command run inside a source directory', () => {
+  const notFound = () =>
+    new Response(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Table not found' } }), {
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+    })
+  const requestedUrl = () => String(vi.mocked(fetch).mock.calls[0]?.[0])
+
+  it('acts on the workspace the directory was read from, unless SIM_WORKSPACE names one', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'sim-cli-source-dir-'))
+    mkdirSync(join(root, '.sim'))
+    writeFileSync(join(root, '.sim', 'base.json'), JSON.stringify({ workspaceId: 'ws_dir' }))
+    const folder = join(root, 'workflows', 'triage')
+    mkdirSync(folder, { recursive: true })
+    const cwd = process.cwd()
+    process.chdir(folder)
+    try {
+      const inDirectory = await runAgainst(['tables', 'rows', 'list', 'tbl_1'], notFound(), {
+        workspace: '',
+      })
+      expect(requestedUrl()).toContain('ws_dir')
+      expect(inDirectory.stderr).toContain(
+        'searched workspace ws_dir, the workspace of the source directory'
+      )
+
+      await runAgainst(['tables', 'rows', 'list', 'tbl_1'], notFound())
+      expect(requestedUrl()).toContain('ws_1')
+      expect(requestedUrl()).not.toContain('ws_dir')
+    } finally {
+      process.chdir(cwd)
+      rmSync(root, { recursive: true, force: true })
     }
   })
 })

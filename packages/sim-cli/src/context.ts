@@ -25,9 +25,15 @@ export function globalsOf(command: Command): GlobalOptions {
   return command.optsWithGlobals() as GlobalOptions
 }
 
+/**
+ * The profile a command runs with. It resolves from the working directory, so a command run inside
+ * a source directory acts on that directory's workspace unless `--workspace` or `SIM_WORKSPACE`
+ * names one; `extra.cwd: undefined` opts out.
+ */
 export function profileFrom(command: Command, extra: ProfileOverrides = {}): ResolvedProfile {
   const globals = globalsOf(command)
   return resolveProfile({
+    cwd: process.cwd(),
     profile: globals.profile,
     endpoint: globals.endpoint,
     workspaceId: globals.workspace,

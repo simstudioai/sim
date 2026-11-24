@@ -361,3 +361,50 @@ describe('OAuth logins in the credentials file', () => {
     await first
   })
 })
+
+describe('the workspace of the source directory a command runs in', () => {
+  const sourceDir = (base: unknown) => {
+    const root = join(dir, 'ws')
+    mkdirSync(join(root, '.sim'), { recursive: true })
+    writeFileSync(join(root, '.sim', 'base.json'), JSON.stringify(base))
+    const folder = join(root, 'workflows', 'triage')
+    mkdirSync(folder, { recursive: true })
+    return { root, folder }
+  }
+
+  it('ranks below --workspace and SIM_WORKSPACE and above the profile, found walking up', () => {
+    writeConfigProfile('default', { workspace: 'ws_profile' })
+    const { root, folder } = sourceDir({ workspaceId: 'ws_dir' })
+
+    expect(resolveProfile({ cwd: folder })).toMatchObject({
+      workspaceId: 'ws_dir',
+      workspaceDirectory: root,
+      sources: { workspaceId: 'directory' },
+    })
+    expect(resolveProfile()).toMatchObject({
+      workspaceId: 'ws_profile',
+      sources: { workspaceId: 'config' },
+    })
+    process.env.SIM_WORKSPACE = 'ws_env'
+    expect(resolveProfile({ cwd: folder })).toMatchObject({
+      workspaceId: 'ws_env',
+      sources: { workspaceId: 'env' },
+    })
+    expect(resolveProfile({ cwd: folder, workspaceId: 'ws_flag' })).toMatchObject({
+      workspaceId: 'ws_flag',
+      sources: { workspaceId: 'flag' },
+    })
+  })
+
+  it('lets the nearest base decide, so one without a workspace supplies none', () => {
+    writeConfigProfile('default', { workspace: 'ws_profile' })
+    const { folder } = sourceDir({ workspaceId: 'ws_dir' })
+    mkdirSync(join(folder, '.sim'))
+    writeFileSync(join(folder, '.sim', 'base.json'), '{ not json')
+
+    expect(resolveProfile({ cwd: folder })).toMatchObject({
+      workspaceId: 'ws_profile',
+      sources: { workspaceId: 'config' },
+    })
+  })
+})
