@@ -2079,13 +2079,23 @@ describe('table row writes against real PostgreSQL', () => {
         table,
         'lockless-batch'
       )
-    // Byte order, as migration 0228 sets on the column: `db:push` leaves the default collation.
     const orderedNames = async (tableId: string) =>
       (
         await control<{ name: string }[]>`
           SELECT data->>'name' AS name FROM user_table_rows
-          WHERE table_id = ${tableId} ORDER BY order_key COLLATE "C", id`
+          WHERE table_id = ${tableId} ORDER BY order_key, id`
       ).map((row) => row.name)
+
+    it('orders rows by order_key in byte order, the order fractional keys are minted in', async () => {
+      const table = await createTable(textColumns('name'))
+      await seedRows(table.id, [
+        { id: `${table.id}-a`, data: { name: 'a0' }, orderKey: 'a0' },
+        { id: `${table.id}-z`, data: { name: 'Zz' }, orderKey: 'Zz' },
+      ])
+
+      // Bytewise `Z` (0x5A) precedes `a` (0x61); a locale collation would put 'a0' first.
+      expect(await orderedNames(table.id)).toEqual(['Zz', 'a0'])
+    })
 
     it('lets every insert path commit while another transaction holds the retired row-order lock', async () => {
       const table = await createTable([
