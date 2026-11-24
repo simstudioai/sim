@@ -7,7 +7,7 @@ import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import {
   countPendingSeatInvitations,
-  resolveSeatCapacity,
+  resolveSeatCap,
 } from '@/lib/billing/validation/seat-management'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -49,7 +49,7 @@ export const getOrganizationPlanSeats = defineAuthorizedOrganizationBillingUseCa
       organizationId,
       subscriptionPlan: subscription?.plan ?? null,
       subscriptionStatus: subscription?.status ?? null,
-      totalSeats: subscription ? await resolveSeatCapacity(subscription, db) : 0,
+      totalSeats: subscription ? (await resolveSeatCap(subscription, db)).seats : 0,
       usedSeats: membersTotal + pendingSeats,
       membersTotal,
       hasEnterprisePlan,

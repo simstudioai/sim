@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  enterpriseSeatTrueUp,
   member,
   organization,
   organizationMemberUsageLimit,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/admin/organization-economics'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
+import { INVOICE_DAYS_UNTIL_DUE } from '@/lib/billing/constants'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   type ResolvedUsagePeriod,
@@ -34,6 +36,7 @@ import {
   resolveSubscriptionUsagePeriodOrDefault,
 } from '@/lib/billing/core/reporting-period'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { configuredEnterpriseUsageCredits } from '@/lib/billing/enterprise-credit-limits'
 import {
   enterpriseMetadataSyncPayloadSchema,
   resolveEnterpriseMetadataIntent,
@@ -56,12 +59,15 @@ import {
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getPerUserMinimumLimit,
   hasPaidSubscriptionStatus,
+  isEnterpriseSelfServe,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
+import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import { env } from '@/lib/core/config/env'
@@ -95,6 +101,17 @@ function metadataNumber(metadata: Record<string, unknown>, key: string): number 
   const numeric =
     typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
   return Number.isFinite(numeric) ? numeric : null
+}
+
+/**
+ * An Enterprise contract's included usage in credits. Never derived from the organization's
+ * enforced limit, which on a self-serve contract is the customer's own cap.
+ */
+function configuredEnterpriseUsageLimitCredits(metadata: Record<string, unknown>): number {
+  return configuredEnterpriseUsageCredits(
+    metadata.usageLimitCredits,
+    parseEnterpriseSubscriptionMetadata(metadata)?.invoiceAmountUsd ?? 0
+  )
 }
 
 async function enqueueEnterpriseMetadataIntent(
@@ -273,9 +290,23 @@ function buildDashboardOrganizationSummary({
   }
 }
 
+/**
+ * Whether an intent changes one key. Every intent carries the full desired metadata, and Stripe
+ * holds strings, so compare as delivered strings with an absent key and null alike.
+ */
+function changesMetadata(
+  requested: Record<string, unknown>,
+  applied: Record<string, unknown>,
+  key: string
+): boolean {
+  const asDelivered = (value: unknown) => (value == null || value === '' ? null : String(value))
+  return asDelivered(requested[key]) !== asDelivered(applied[key])
+}
+
 export function toDashboardConfigurationUpdate(
   intent: Awaited<ReturnType<typeof resolveEnterpriseMetadataIntent>> | null,
-  prepaidBalanceDollars = 0
+  prepaidBalanceDollars = 0,
+  appliedMetadata: Record<string, unknown> = {}
 ) {
   const update = intent?.configurationUpdate
   if (!update) return null
@@ -288,6 +319,9 @@ export function toDashboardConfigurationUpdate(
     metadata,
     'workflowExecutionTimeoutSeconds'
   )
+  const requestedSeatPriceCents = changesMetadata(metadata, appliedMetadata, 'seatPriceCents')
+    ? metadataNumber(metadata, 'seatPriceCents')
+    : null
 
   return {
     id: update.id,
@@ -307,6 +341,10 @@ export function toDashboardConfigurationUpdate(
         ? metadata.reportingPeriodAnchorDate
         : null,
     requestedSeats: seats === null ? null : Math.round(seats),
+    requestedSelfServe: changesMetadata(metadata, appliedMetadata, 'selfServe')
+      ? metadata.selfServe === 'true'
+      : null,
+    requestedSeatPriceUsd: requestedSeatPriceCents === null ? null : requestedSeatPriceCents / 100,
     requestedConcurrencyLimit: concurrencyLimit === null ? null : Math.round(concurrencyLimit),
     requestedWorkflowExecutionTimeoutSeconds:
       workflowExecutionTimeoutSeconds === null ? null : Math.round(workflowExecutionTimeoutSeconds),
@@ -605,6 +643,49 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
   }
 }
 
+/** Seat true-up windows the admin view lists, newest first. */
+const ADMIN_SEAT_TRUE_UP_HISTORY = 8
+
+/**
+ * An Enterprise contract's self-serve state for the admin view: whether it is on, its seat rate,
+ * the usage limit the customer chose, and its recent seat true-up windows.
+ */
+async function readDashboardEnterpriseSelfServe(
+  organizationId: string,
+  subscriptionRow: { id: string; plan: string; metadata: unknown }
+) {
+  const [orgRows, trueUps] = await Promise.all([
+    db
+      .select({ selfServeUsageLimit: organization.selfServeUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1),
+    db
+      .select()
+      .from(enterpriseSeatTrueUp)
+      .where(eq(enterpriseSeatTrueUp.subscriptionId, subscriptionRow.id))
+      .orderBy(desc(enterpriseSeatTrueUp.windowStart))
+      .limit(ADMIN_SEAT_TRUE_UP_HISTORY),
+  ])
+  const seatPriceCents = parseEnterpriseSubscriptionMetadata(
+    subscriptionRow.metadata
+  )?.seatPriceCents
+  const customerUsageLimit = orgRows[0]?.selfServeUsageLimit
+  return {
+    enabled: isEnterpriseSelfServe(subscriptionRow),
+    seatPriceUsd: seatPriceCents === undefined ? null : seatPriceCents / 100,
+    customerUsageLimitDollars: customerUsageLimit == null ? null : Number(customerUsageLimit),
+    seatTrueUps: trueUps.map((row) => ({
+      windowStart: row.windowStart.toISOString(),
+      windowEnd: row.windowEnd.toISOString(),
+      peakExtraSeats: row.peakExtraSeats,
+      seatPriceUsd: row.seatPriceCents / 100,
+      amountUsd: row.amountCents === null ? null : row.amountCents / 100,
+      billedAt: row.billedAt?.toISOString() ?? null,
+    })),
+  }
+}
+
 export async function getDashboardOrganization(
   organizationId: string,
   pagination: {
@@ -719,9 +800,12 @@ export async function getDashboardOrganization(
       historicalActorSpend,
     }
   }
-  const [workflowRuns, page] = await Promise.all([
+  const [workflowRuns, page, selfServe] = await Promise.all([
     readDashboardOrganizationWorkflowRuns(organizationId, usagePeriod),
     readPage(),
+    subscriptionRow?.plan === 'enterprise'
+      ? readDashboardEnterpriseSelfServe(organizationId, subscriptionRow)
+      : Promise.resolve(null),
   ])
   const limits = new Map(page.limitRows.map((row) => [row.userId, Number(row.limit)]))
   const usageByUser = page.spendByOrganization.get(organizationId) ?? new Map<string, number>()
@@ -734,8 +818,10 @@ export async function getDashboardOrganization(
     usage: { ...base.usage, workflowRuns: workflowRuns?.total ?? null },
     configurationUpdate: toDashboardConfigurationUpdate(
       page.configurationIntent,
-      base.prepaidBalanceDollars
+      base.prepaidBalanceDollars,
+      metadataRecord(subscriptionRow?.metadata)
     ),
+    selfServe,
     historicalActorUsage: {
       usedDollars: historicalUsedDollars,
       usedCredits: dollarsToCredits(historicalUsedDollars),
@@ -861,7 +947,8 @@ export async function updateDashboardEnterpriseSeats(
       .where(eq(member.organizationId, organizationId))
     const pendingSeats = await countPendingSeatInvitations(organizationId, tx)
     const requiredSeats = (memberCountRow?.value ?? 0) + pendingSeats
-    if (seats < requiredSeats) {
+    // A self-serve contract's seats are its committed baseline; members past it are trued up.
+    if (seats < requiredSeats && !isEnterpriseSelfServe(subscriptionRow)) {
       throw new Error(
         `Seat capacity cannot be below ${requiredSeats} occupied or reserved seats (${memberCountRow?.value ?? 0} members and ${pendingSeats} pending invitations)`
       )
@@ -971,6 +1058,11 @@ export async function updateDashboardEnterpriseReportingPeriod(
     if (!subscriptionRow?.stripeSubscriptionId) {
       throw new Error('Active Stripe-backed Enterprise subscription not found')
     }
+    if (isEnterpriseSelfServe(subscriptionRow)) {
+      throw new Error(
+        'Self-serve contracts measure usage on Stripe billing periods. Turn off self-serve to set a reporting period.'
+      )
+    }
     await enqueueEnterpriseMetadataIntent(tx, {
       subscriptionId: subscriptionRow.id,
       appliedMetadata: subscriptionRow.metadata,
@@ -1061,6 +1153,159 @@ export async function retryDashboardEnterpriseConfigurationUpdate(
   })
 }
 
+/**
+ * Turns an Enterprise contract's self-serve billing on or off. Enabling clears the reporting-period
+ * anchor (self-serve overage closes on Stripe billing periods), so a contract whose reporting
+ * interval differs must restate included usage for the billing interval. Disabling restores the
+ * hard caps and emailed invoices.
+ */
+export async function updateDashboardEnterpriseSelfServe(
+  organizationId: string,
+  values: { enabled: boolean; seatPriceUsd?: number; usageLimitDollars?: number },
+  actor: AdminMutationActor
+) {
+  const stripeSubscriptionId = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    const [org] = await tx
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    if (!org) throw new Error('Organization not found')
+    const [subscriptionRow] = await tx
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          eq(subscription.plan, 'enterprise'),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (!subscriptionRow) throw new Error('Active Enterprise subscription not found')
+
+    if (!values.enabled) {
+      // Off restores the hard seat cap, which the contract webhook refuses below occupied seats.
+      const [memberCountRow] = await tx
+        .select({ value: count() })
+        .from(member)
+        .where(eq(member.organizationId, organizationId))
+      const requiredSeats =
+        (memberCountRow?.value ?? 0) + (await countPendingSeatInvitations(organizationId, tx))
+      const contractSeats = metadataNumber(metadataRecord(subscriptionRow.metadata), 'seats') ?? 0
+      if (contractSeats < requiredSeats) {
+        throw new Error(
+          `Raise contracted seats to at least ${requiredSeats} occupied or reserved seats before turning off self-serve`
+        )
+      }
+    }
+
+    const prepaidBalanceDollars = Number(org.creditBalance ?? 0)
+    if (
+      values.usageLimitDollars !== undefined &&
+      values.usageLimitDollars < prepaidBalanceDollars
+    ) {
+      throw new Error('Enterprise usage limit cannot be below its prepaid balance')
+    }
+    await enqueueEnterpriseMetadataIntent(tx, {
+      subscriptionId: subscriptionRow.id,
+      appliedMetadata: subscriptionRow.metadata,
+      buildDesiredMetadata: (current) => {
+        if (!values.enabled) return { ...current, selfServe: null }
+        if (values.seatPriceUsd === undefined) {
+          throw new Error('A seat price is required to enable self-serve')
+        }
+        const reportingInterval = current.reportingPeriodInterval
+        if (
+          values.usageLimitDollars === undefined &&
+          typeof current.reportingPeriodAnchorDate === 'string' &&
+          reportingInterval !== undefined &&
+          reportingInterval !== subscriptionRow.billingInterval
+        ) {
+          throw new Error(
+            `Usage is reported each ${String(reportingInterval)} but billed each ${String(subscriptionRow.billingInterval)}. Restate the included usage per billing period to enable self-serve.`
+          )
+        }
+        const usageLimitCredits =
+          values.usageLimitDollars === undefined
+            ? configuredEnterpriseUsageLimitCredits(current)
+            : dollarsToCredits(values.usageLimitDollars - prepaidBalanceDollars)
+        return {
+          ...current,
+          selfServe: 'true',
+          seatPriceCents: Math.round(values.seatPriceUsd * 100),
+          usageLimitCredits,
+          reportingPeriodAnchorDate: null,
+          reportingPeriodInterval: null,
+        }
+      },
+    })
+    return subscriptionRow.stripeSubscriptionId
+  })
+  // A contract outside self-serve has no customer surface for its payment method, so it returns
+  // to emailed invoices rather than keep charging a method its customer can no longer replace.
+  if (!values.enabled && stripeSubscriptionId) {
+    await setEnterpriseInvoicePayment(stripeSubscriptionId)
+  }
+  recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: AuditAction.ORGANIZATION_UPDATED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: organizationId,
+    description: values.enabled
+      ? 'Admin requested Enterprise self-serve billing'
+      : 'Admin requested Enterprise self-serve billing off',
+    metadata: values,
+  })
+}
+
+/**
+ * Returns an Enterprise contract from automatic payment to emailed invoices due in 30 days. Only
+ * invoices created afterwards change; the saved payment method stays on file.
+ */
+async function setEnterpriseInvoicePayment(stripeSubscriptionId: string) {
+  await requireStripeClient().subscriptions.update(stripeSubscriptionId, {
+    collection_method: 'send_invoice',
+    days_until_due: INVOICE_DAYS_UNTIL_DUE,
+  })
+}
+
+/** Returns a self-serve Enterprise contract from automatic payment to emailed invoices. */
+export async function revertDashboardEnterpriseToInvoicing(
+  organizationId: string,
+  actor: AdminMutationActor
+) {
+  const [subscriptionRow] = await db
+    .select({ stripeSubscriptionId: subscription.stripeSubscriptionId })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.referenceId, organizationId),
+        eq(subscription.plan, 'enterprise'),
+        inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+      )
+    )
+    .limit(1)
+  if (!subscriptionRow?.stripeSubscriptionId) {
+    throw new Error('Active Enterprise subscription not found')
+  }
+  await setEnterpriseInvoicePayment(subscriptionRow.stripeSubscriptionId)
+  recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    actorEmail: actor.email,
+    action: AuditAction.ORGANIZATION_UPDATED,
+    resourceType: AuditResourceType.ORGANIZATION,
+    resourceId: organizationId,
+    description: 'Admin returned Enterprise contract to invoice payment',
+  })
+}
+
 export async function updateDashboardOrganizationLimits(
   organizationId: string,
   values: {
@@ -1118,12 +1363,7 @@ export async function updateDashboardOrganizationLimits(
         buildDesiredMetadata: (current) => {
           const configuredUsageLimit =
             values.usageLimitDollars === undefined
-              ? Math.round(
-                  metadataNumber(current, 'usageLimitCredits') ??
-                    dollarsToCredits(
-                      Math.max(0, Number(org.orgUsageLimit ?? 0) - prepaidBalanceDollars)
-                    )
-                )
+              ? configuredEnterpriseUsageLimitCredits(current)
               : dollarsToCredits(values.usageLimitDollars - prepaidBalanceDollars)
           return {
             ...current,

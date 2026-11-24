@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import {
   DEFAULT_ENTERPRISE_TIER_COST_LIMIT,
   DEFAULT_FREE_CREDITS,
@@ -6,6 +7,7 @@ import {
   PRO_TRIAL_USAGE_LIMIT_DOLLARS,
 } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import { configuredEnterpriseUsageCredits } from '@/lib/billing/enterprise-credit-limits'
 import {
   getPlanTierCredits,
   getPlanWeeklyRefreshDollars,
@@ -72,13 +74,102 @@ export function formatTrialEndDate(trialEnd: Date): string {
 }
 
 /**
- * Whether spend past the usage limit is billed as overage: a paid plan outside its trial. Every
- * other payer's limit is a hard cap.
+ * Whether a payer's limit admits spend past it: a paid plan outside its trial. Every other payer's
+ * limit is a hard cap. Whether that spend is then invoiced is {@link invoicesOverage}.
  */
 export function billsOverage(
   subscription: { plan?: string | null; status?: string | null } | null | undefined
 ): boolean {
   return isPaid(subscription?.plan) && !isTrialingSubscription(subscription)
+}
+
+/**
+ * Whether Enterprise subscription metadata opts the contract into self-serve billing. Self-serve
+ * overage closes on Stripe billing periods and seats past the contract are billed at its seat
+ * rate, so metadata that still carries a reporting-period anchor, or has no seat rate, fails
+ * closed to the hard-capped contract until an admin fixes it.
+ */
+export function isSelfServeEnterpriseMetadata(metadata: unknown): boolean {
+  const terms = parseEnterpriseSubscriptionMetadata(metadata)
+  return (
+    terms?.selfServe === true &&
+    terms.seatPriceCents !== undefined &&
+    terms.reportingPeriodAnchorDate === undefined
+  )
+}
+
+/** Whether a subscription is an Enterprise contract opted into self-serve billing. */
+export function isEnterpriseSelfServe(
+  subscription: { plan?: string | null; metadata?: unknown } | null | undefined
+): boolean {
+  return isEnterprise(subscription?.plan) && isSelfServeEnterpriseMetadata(subscription?.metadata)
+}
+
+/**
+ * Whether a subscription is an Enterprise contract outside self-serve: its seats and usage limit
+ * are hard caps the flat contract price covers, and it never bills overage.
+ */
+export function isHardCappedEnterprise(
+  subscription: { plan?: string | null; metadata?: unknown } | null | undefined
+): boolean {
+  return isEnterprise(subscription?.plan) && !isSelfServeEnterpriseMetadata(subscription?.metadata)
+}
+
+/** Whether spend past the plan's included usage is invoiced as overage. */
+export function invoicesOverage(
+  subscription:
+    | { plan?: string | null; status?: string | null; metadata?: unknown }
+    | null
+    | undefined
+): boolean {
+  return billsOverage(subscription) && !isHardCappedEnterprise(subscription)
+}
+
+/**
+ * The usage an organization subscription includes each period, in dollars, before overage: the
+ * Enterprise contract allowance, or the plan's base price per seat.
+ */
+export function getOrgIncludedUsageDollars(subscription: {
+  plan?: string | null
+  seats?: number | null
+  metadata?: unknown
+}): number {
+  if (isEnterprise(subscription.plan)) {
+    const metadata = parseEnterpriseSubscriptionMetadata(subscription.metadata)
+    if (!metadata) return 0
+    return (
+      configuredEnterpriseUsageCredits(
+        toRecord(subscription.metadata).usageLimitCredits,
+        metadata.invoiceAmountUsd
+      ) / CREDIT_MULTIPLIER
+    )
+  }
+  return (subscription.seats || 1) * getPlanPricing(subscription.plan ?? '').basePrice
+}
+
+/** What a self-serve Enterprise contract commits to, for the surfaces that explain its billing. */
+export interface EnterpriseSelfServeTerms {
+  /** Seats the contract price covers; members past it are trued up. */
+  contractSeats: number
+  /** The rate for each seat past the contract, in cents per seat per month. */
+  seatPriceCents: number
+  /** Usage the contract includes each billing period, in dollars, before overage. */
+  includedUsage: number
+}
+
+/** A subscription's self-serve Enterprise terms, or null when it is not a self-serve contract. */
+export function getEnterpriseSelfServeTerms(subscription: {
+  plan?: string | null
+  seats?: number | null
+  metadata?: unknown
+}): EnterpriseSelfServeTerms | null {
+  if (!isEnterpriseSelfServe(subscription)) return null
+  const metadata = parseEnterpriseSubscriptionMetadata(subscription.metadata)
+  return {
+    contractSeats: metadata?.seats ?? 0,
+    seatPriceCents: metadata?.seatPriceCents ?? 0,
+    includedUsage: getOrgIncludedUsageDollars(subscription),
+  }
 }
 
 /**
@@ -255,11 +346,8 @@ export function getPerUserMinimumLimit(subscription: any, freeTierEligible: bool
 }
 
 /**
- * Check if a user can edit their usage limits based on their subscription
- * Free, trialing, and Enterprise plans cannot edit limits
- * Pro and Team plans can increase their limits
- * @param subscription The subscription object
- * @returns Whether the user can edit their usage limits
+ * Whether a subscription's usage limit is customer-editable: Pro, Team, or self-serve Enterprise,
+ * active and outside a trial.
  */
 export function canEditUsageLimit(subscription: any): boolean {
   if (!subscription || !hasUsableSubscriptionStatus(subscription.status)) {
@@ -268,9 +356,9 @@ export function canEditUsageLimit(subscription: any): boolean {
 
   if (isTrialingSubscription(subscription)) return false
 
-  // Only Pro and Team plans can edit limits
-  // Enterprise has a fixed, administrator-controlled contract-period limit.
-  return isPro(subscription.plan) || isTeam(subscription.plan)
+  return (
+    isPro(subscription.plan) || isTeam(subscription.plan) || isEnterpriseSelfServe(subscription)
+  )
 }
 
 /**

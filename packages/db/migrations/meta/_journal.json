@@ -3305,6 +3305,13 @@
       "when": 1795516972777,
       "tag": "0472_trial_card_user_id_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 473,
+      "version": "7",
+      "when": 1795546763493,
+      "tag": "0473_enterprise_self_serve",
+      "breakpoints": true
     }
   ]
 }

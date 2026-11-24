@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
+import { INVOICE_DAYS_UNTIL_DUE } from '@/lib/billing/constants'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -342,11 +343,14 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   // invoice (no subscription link) falls back to customer-level PM
   // only, which may not be set for customers onboarded via Checkout
   // Subscription flows.
-  const { paymentMethodId: defaultPaymentMethod } = await resolveDefaultPaymentMethod(
-    stripe,
-    payload.stripeSubscriptionId,
-    payload.customerId
-  )
+  const { paymentMethodId: defaultPaymentMethod, collectionMethod } =
+    await resolveDefaultPaymentMethod(stripe, payload.stripeSubscriptionId, payload.customerId)
+  if (!collectionMethod) {
+    throw new Error('Could not read the subscription collection method for an overage invoice')
+  }
+  // A subscription paid by emailed invoice gets its overage the same way: charging automatically
+  // with no method on file would leave the invoice open and never collected.
+  const sendInvoice = collectionMethod === 'send_invoice'
 
   // Compose Stripe idempotency keys from caller-provided stem + outbox
   // event id so retries of the SAME outbox event collapse on Stripe's
@@ -355,6 +359,7 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   const itemIdemKey = `${payload.itemIdemKeyStem}:${ctx.eventId}`
   const finalizeIdemKey = `${payload.invoiceIdemKeyStem}:finalize:${ctx.eventId}`
   const payIdemKey = `${payload.invoiceIdemKeyStem}:pay:${ctx.eventId}`
+  const sendIdemKey = `${payload.invoiceIdemKeyStem}:send:${ctx.eventId}`
 
   // `auto_advance: false` + explicit finalize mirrors pre-refactor
   // behavior: we control exactly when the invoice finalizes, so it
@@ -363,11 +368,15 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   const invoice = await stripe.invoices.create(
     {
       customer: payload.customerId,
-      collection_method: 'charge_automatically',
       auto_advance: false,
       description: payload.description,
       metadata: payload.metadata,
-      ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
+      ...(sendInvoice
+        ? { collection_method: 'send_invoice', days_until_due: INVOICE_DAYS_UNTIL_DUE }
+        : {
+            collection_method: 'charge_automatically',
+            ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
+          }),
     },
     { idempotencyKey: invoiceIdemKey }
   )
@@ -394,7 +403,9 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
     { idempotencyKey: finalizeIdemKey }
   )
 
-  if (finalized.status === 'open' && finalized.id && defaultPaymentMethod) {
+  if (sendInvoice && finalized.status === 'open' && finalized.id) {
+    await stripe.invoices.sendInvoice(finalized.id, {}, { idempotencyKey: sendIdemKey })
+  } else if (finalized.status === 'open' && finalized.id && defaultPaymentMethod) {
     try {
       await stripe.invoices.pay(
         finalized.id,
@@ -415,6 +426,7 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
     customerId: payload.customerId,
     amountCents: payload.amountCents,
     billingPeriod: payload.billingPeriod,
+    collectionMethod,
     defaultPaymentMethod: defaultPaymentMethod ? 'resolved' : 'none',
   })
 }

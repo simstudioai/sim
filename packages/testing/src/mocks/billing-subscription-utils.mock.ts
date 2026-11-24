@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import { vi } from 'vitest'
 import {
   CREDIT_MULTIPLIER,
@@ -46,6 +47,48 @@ function formatTrialEndDate(trialEnd: Date): string {
 
 function billsOverage(subscription: SubscriptionLike | null | undefined): boolean {
   return isPaid(subscription?.plan) && !isTrialingSubscription(subscription)
+}
+
+function isSelfServeEnterpriseMetadata(value: unknown): boolean {
+  const metadata = toRecord(value)
+  return (
+    metadata.selfServe === 'true' &&
+    Number(metadata.seatPriceCents) > 0 &&
+    metadata.reportingPeriodAnchorDate === undefined
+  )
+}
+
+function isEnterpriseSelfServe(subscription: SubscriptionLike | null | undefined): boolean {
+  return isEnterprise(subscription?.plan) && isSelfServeEnterpriseMetadata(subscription?.metadata)
+}
+
+function isHardCappedEnterprise(subscription: SubscriptionLike | null | undefined): boolean {
+  return isEnterprise(subscription?.plan) && !isSelfServeEnterpriseMetadata(subscription?.metadata)
+}
+
+function invoicesOverage(subscription: SubscriptionLike | null | undefined): boolean {
+  return billsOverage(subscription) && !isHardCappedEnterprise(subscription)
+}
+
+function getOrgIncludedUsageDollars(subscription: SubscriptionLike): number {
+  if (isEnterprise(subscription.plan)) {
+    const metadata = toRecord(subscription.metadata)
+    const credits = Number(metadata.usageLimitCredits)
+    return Number.isFinite(credits)
+      ? credits / CREDIT_MULTIPLIER
+      : Number(metadata.invoiceAmountCents ?? 0) / 100
+  }
+  return (subscription.seats || 1) * getPlanPricing(subscription.plan ?? '').basePrice
+}
+
+function getEnterpriseSelfServeTerms(subscription: SubscriptionLike) {
+  if (!isEnterpriseSelfServe(subscription)) return null
+  const metadata = toRecord(subscription.metadata)
+  return {
+    contractSeats: Number(metadata.seats ?? 0),
+    seatPriceCents: Number(metadata.seatPriceCents ?? 0),
+    includedUsage: getOrgIncludedUsageDollars(subscription),
+  }
 }
 
 function getSubscriptionWeeklyRefreshDollars(
@@ -241,6 +284,12 @@ function canEditUsageLimit(subscription: SubscriptionLike | null | undefined): b
 export const billingSubscriptionUtilsMockFns = {
   mockIsTrialingSubscription: vi.fn(isTrialingSubscription),
   mockBillsOverage: vi.fn(billsOverage),
+  mockIsSelfServeEnterpriseMetadata: vi.fn(isSelfServeEnterpriseMetadata),
+  mockIsEnterpriseSelfServe: vi.fn(isEnterpriseSelfServe),
+  mockIsHardCappedEnterprise: vi.fn(isHardCappedEnterprise),
+  mockInvoicesOverage: vi.fn(invoicesOverage),
+  mockGetOrgIncludedUsageDollars: vi.fn(getOrgIncludedUsageDollars),
+  mockGetEnterpriseSelfServeTerms: vi.fn(getEnterpriseSelfServeTerms),
   mockFormatTrialEndDate: vi.fn(formatTrialEndDate),
   mockGetSubscriptionWeeklyRefreshDollars: vi.fn(getSubscriptionWeeklyRefreshDollars),
   mockHasPaidSubscriptionStatus: vi.fn(hasPaidSubscriptionStatus),
@@ -278,6 +327,12 @@ export const billingSubscriptionUtilsMock = {
   TERMINAL_SUBSCRIPTION_STATUSES,
   isTrialingSubscription: billingSubscriptionUtilsMockFns.mockIsTrialingSubscription,
   billsOverage: billingSubscriptionUtilsMockFns.mockBillsOverage,
+  isSelfServeEnterpriseMetadata: billingSubscriptionUtilsMockFns.mockIsSelfServeEnterpriseMetadata,
+  isEnterpriseSelfServe: billingSubscriptionUtilsMockFns.mockIsEnterpriseSelfServe,
+  isHardCappedEnterprise: billingSubscriptionUtilsMockFns.mockIsHardCappedEnterprise,
+  invoicesOverage: billingSubscriptionUtilsMockFns.mockInvoicesOverage,
+  getOrgIncludedUsageDollars: billingSubscriptionUtilsMockFns.mockGetOrgIncludedUsageDollars,
+  getEnterpriseSelfServeTerms: billingSubscriptionUtilsMockFns.mockGetEnterpriseSelfServeTerms,
   formatTrialEndDate: billingSubscriptionUtilsMockFns.mockFormatTrialEndDate,
   getSubscriptionWeeklyRefreshDollars:
     billingSubscriptionUtilsMockFns.mockGetSubscriptionWeeklyRefreshDollars,

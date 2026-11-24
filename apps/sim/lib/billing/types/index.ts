@@ -43,6 +43,13 @@ export const enterpriseSubscriptionMetadataSchema = z
       (value) => parseWorkflowExecutionTimeoutSeconds(value) ?? undefined,
       z.number().int().positive().max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS).optional()
     ),
+    /** Opts the contract into self-serve billing. Stripe metadata holds strings, so only `'true'` enables it. */
+    selfServe: z
+      .string()
+      .optional()
+      .transform((value) => value === 'true'),
+    /** The contract rate for each seat past `seats`, in cents per seat per month. */
+    seatPriceCents: z.coerce.number().int().positive().optional(),
   })
   .refine(
     (metadata) => metadata.invoiceAmountCents !== undefined || metadata.monthlyPrice !== undefined,

@@ -1862,6 +1862,45 @@ export const subscription = pgTable(
 )
 
 /**
+ * One seat true-up window of a self-serve Enterprise contract: a quarter of an annual term, or a
+ * monthly term. The seat sweep raises `peakExtraSeats` to the most members past the contract it
+ * sees while the window is open, priced at the rate in force when the window opened, then bills
+ * them once the window closes and stamps `billedAt`, so each window is invoiced at most once.
+ */
+export const enterpriseSeatTrueUp = pgTable(
+  'enterprise_seat_true_up',
+  {
+    id: text('id').primaryKey(),
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => subscription.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    windowStart: timestamp('window_start').notNull(),
+    windowEnd: timestamp('window_end').notNull(),
+    peakExtraSeats: integer('peak_extra_seats').notNull(),
+    /** The contract's rate per seat per month when the window opened. */
+    seatPriceCents: integer('seat_price_cents').notNull(),
+    /** What the closed window was invoiced; null while it is open. */
+    amountCents: integer('amount_cents'),
+    billedAt: timestamp('billed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    subscriptionWindowUnique: uniqueIndex('enterprise_seat_true_up_subscription_window_unique').on(
+      table.subscriptionId,
+      table.windowStart
+    ),
+    organizationIdx: index('enterprise_seat_true_up_organization_id_idx').on(table.organizationId),
+    unbilledIdx: index('enterprise_seat_true_up_unbilled_idx')
+      .on(table.windowEnd)
+      .where(sql`billed_at IS NULL`),
+  })
+)
+
+/**
  * Cards that have started a Pro free trial, keyed by Stripe's card fingerprint, so a card gets one
  * trial across every account. A row outlives its account (`user_id` is nulled), so deleting the
  * account and signing up again cannot reuse the card.
@@ -2058,6 +2097,12 @@ export const organization = pgTable('organization', {
   requireSso: boolean('require_sso').notNull().default(false),
   dataRetentionSettings: json('data_retention_settings').$type<DataRetentionSettings>(),
   orgUsageLimit: decimal('org_usage_limit'),
+  /**
+   * The usage limit an owner or admin chose on a self-serve Enterprise contract, in dollars. Kept
+   * apart from `orgUsageLimit`, which the contract webhook rederives on every reconcile, so the
+   * customer's choice survives allowance changes; null when the contract is not self-serve.
+   */
+  selfServeUsageLimit: decimal('self_serve_usage_limit'),
   /**
    * Storage upload/delete hot-path tracker for org-scoped plans.
    *

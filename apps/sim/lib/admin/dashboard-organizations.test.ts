@@ -190,6 +190,8 @@ describe('toDashboardConfigurationUpdate', () => {
       requestedReportingPeriodInterval: null,
       requestedReportingPeriodAnchorDate: null,
       requestedSeats: 20,
+      requestedSelfServe: null,
+      requestedSeatPriceUsd: null,
       requestedConcurrencyLimit: 50,
       requestedWorkflowExecutionTimeoutSeconds: null,
       providerAccepted: false,
