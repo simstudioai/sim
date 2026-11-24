@@ -38,6 +38,7 @@ const SITE_JSON_LD = {
         'https://github.com/simstudioai/sim',
         'https://www.linkedin.com/company/simdotai/',
         'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA',
+        'https://www.youtube.com/@simdotai',
       ],
       contactPoint: [
         {

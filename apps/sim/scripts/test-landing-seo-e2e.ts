@@ -27,6 +27,7 @@ import {
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
+import { HOME_FAQS } from '@/app/(landing)/components/home-faq/faqs'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -454,6 +455,29 @@ async function run() {
       assert(String(publisher?.['@id']).endsWith('#organization'), '#software has no publisher')
     }
   )
+
+  await check('home FAQPage lists the visible home FAQ in order', async () => {
+    const { body } = await get(HOME_PATH)
+    assert.deepEqual(
+      faqQuestions(body),
+      HOME_FAQS.map((faq) => faq.question)
+    )
+    const $ = load(body)
+    assert.deepEqual(
+      $('#faq h3')
+        .toArray()
+        .map((el) => $(el).text().trim()),
+      HOME_FAQS.map((faq) => faq.question),
+      'Home FAQ headings do not match the FAQPage questions'
+    )
+    const visibleText = $('#faq').text()
+    for (const { answer } of HOME_FAQS) {
+      assert(
+        visibleText.includes(answer),
+        `Home FAQ answer is not rendered: ${answer.slice(0, 40)}`
+      )
+    }
+  })
 
   await check('pricing declares its offers on the canonical product node', async () => {
     const { body } = await get('/pricing')

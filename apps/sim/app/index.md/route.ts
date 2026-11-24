@@ -1,5 +1,6 @@
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { DOCS_URL } from '@/lib/help-links'
+import { HOME_FAQS } from '@/app/(landing)/components/home-faq'
 import {
   HOME_FEATURES,
   HOME_HERO_HEADING,
@@ -52,6 +53,11 @@ export async function GET() {
       section(
         'What teams do in Sim',
         HOME_FEATURES.map((feature) => `- ${feature}`)
+      ),
+      section(
+        'Questions teams ask about Sim',
+        HOME_FAQS.map(({ question, answer }) => `### ${question}\n\n${answer}`),
+        '\n\n'
       ),
       section('Platform', navMenuLines(PLATFORM_MENU)),
       section('Solutions', SOLUTION_LINES),
