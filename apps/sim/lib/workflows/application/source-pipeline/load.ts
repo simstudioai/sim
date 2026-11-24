@@ -1,8 +1,4 @@
-import {
-  type Principal,
-  resolvePrincipalAttribution,
-  resolvePrincipalSubjectUserId,
-} from '@sim/auth/principal'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import type {
   BlockCatalog,
@@ -89,8 +85,6 @@ export interface LoadedTarget {
   /** The stored draft's fingerprint when loaded; a commit refuses a draft that moved off it. */
   storedFingerprint: SourceFingerprint
   envNames: string[]
-  /** Attribution for resource keys the write allocates. */
-  createdBy: string | null
   scope: SourceScope
 }
 
@@ -102,8 +96,8 @@ export function targetIds(target: CommitTarget): { workflowId: string; workspace
 }
 
 /**
- * Who and where a write to `target` acts: the human it is attributed to (the workspace's billing
- * owner for a workspace key) and the workflow's folder.
+ * Who and where a write to `target` acts: the human it is attributed to and the workflow's
+ * folder.
  */
 export function sourceScope(principal: Principal, target: CommitTarget): SourceScope {
   const context =
@@ -114,9 +108,8 @@ export function sourceScope(principal: Principal, target: CommitTarget): SourceS
     workflowId: context.workflowId,
     workspaceId: context.workspaceId,
     workspaceOrganizationId: context.workspaceOrganizationId,
-    subjectUserId: resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    }).attributedUserId,
+    // actorless-unsupported: workflows.source.apply, .plan and .create admit only session, personal-key, OAuth or Copilot principals, never an executor or workspace key.
+    subjectUserId: requirePrincipalSubjectUserId(principal),
     folderId: target.kind === 'existing' ? target.context.workflow.folderId : target.folderId,
   }
 }
@@ -134,7 +127,6 @@ export async function loadSourceTarget(
   options: { loads?: SourceLoads; allocate: boolean }
 ): Promise<LoadedTarget> {
   const scope = sourceScope(principal, target)
-  const createdBy = resolvePrincipalSubjectUserId(principal) ?? null
   const loads = options.loads ?? {}
   const context =
     target.kind === 'existing'
@@ -147,7 +139,7 @@ export async function loadSourceTarget(
     prefetchStoredResources({
       workflowId: scope.workflowId,
       workspaceId: scope.workspaceId,
-      createdBy,
+      createdBy: scope.subjectUserId,
       allocate: options.allocate,
     }),
     (loads.envNames ??= loadEnvNames(scope.workspaceId, scope.subjectUserId)),
@@ -175,7 +167,6 @@ export async function loadSourceTarget(
         storedCanonical.resources
       ),
       envNames,
-      createdBy,
       scope,
     }
   })

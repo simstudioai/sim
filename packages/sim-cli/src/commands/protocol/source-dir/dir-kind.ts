@@ -99,6 +99,23 @@ export async function readStarterWorkspace(dir: string): Promise<string | null> 
 }
 
 /**
+ * The workspace `dir` records it belongs to: the one its `.sim/base.json` was read from, else the
+ * workspace directory it is a workflow folder of, else the one its starter's types were written
+ * for (`null` when none). A starter yields to a `--workspace` flag, which chooses another; a base
+ * or workspace folder does not ({@link directoryWorkspace} refuses that flag).
+ */
+export async function recordedWorkspace(
+  dir: string,
+  profile: Pick<ResolvedProfile, 'sources'>
+): Promise<string | null> {
+  const base = toRecord(await readSourceJson(dir, SOURCE_BASE_FILE))
+  if (typeof base.workspaceId === 'string') return base.workspaceId
+  const folder = await workspaceFolderOf(dir)
+  if (folder) return folder.workspaceId
+  return profile.sources.workspaceId === 'flag' ? null : readStarterWorkspace(dir)
+}
+
+/**
  * A `workflows/<key>` folder of a workspace directory: `root` holds a workspace `.sim/base.json`.
  * The workspace's `.sim/written.json` and base are the folder's records too, so a single-workflow
  * write keeps them instead of writing a record of its own the workspace commands never read.

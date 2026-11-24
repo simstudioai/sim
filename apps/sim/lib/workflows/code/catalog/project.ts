@@ -2,7 +2,6 @@ import {
   type CatalogBlock,
   type CatalogBlockGraph,
   type CatalogCondition,
-  type CatalogLegacyId,
   type CatalogOption,
   type CatalogOutput,
   type CatalogSubBlock,
@@ -20,10 +19,6 @@ import { UNIFIED_START_OUTPUTS } from '@/lib/workflows/blocks/start-outputs'
 import { probeThunk, readsOnly } from '@/lib/workflows/code/catalog/probe'
 import { operationOptions } from '@/lib/workflows/code/catalog/sdk-names'
 import { deriveValueShape } from '@/lib/workflows/code/catalog/value-kind'
-import {
-  CANONICAL_ID_MIGRATIONS,
-  SUBBLOCK_ID_MIGRATIONS,
-} from '@/lib/workflows/migrations/subblock-migrations'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/types'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
@@ -563,20 +558,6 @@ function projectDynamicOutputs(block: BlockConfig): CatalogBlock['dynamicOutputs
     : { source: 'inputFormat', param: inputFormat.id }
 }
 
-function projectLegacyIds(type: string): CatalogLegacyId[] | undefined {
-  const migrations = SUBBLOCK_ID_MIGRATIONS[type]
-  if (!migrations?.length) return undefined
-  return migrations.map((migration) => {
-    const legacy: CatalogLegacyId = {
-      from: migration.from,
-      to: migration.to.startsWith('_removed_') ? null : migration.to,
-    }
-    if (migration.whenOperation) legacy.whenOperation = [...migration.whenOperation]
-    if (migration.whenValue) legacy.conditional = true
-    return legacy
-  })
-}
-
 /** A block's literal `model` options and static dropdown values, for model-condition probes. */
 function conditionChoices(block: BlockConfig): Pick<ConditionInputs, 'models' | 'choices'> {
   let models: string[] = []
@@ -652,12 +633,6 @@ export function projectBlock(block: BlockConfig): CatalogBlock {
   const dynamicOutputs = projectDynamicOutputs(block)
   if (dynamicOutputs) projected.dynamicOutputs = dynamicOutputs
   if (block.errorOutputs) projected.errorOutputs = Object.keys(block.errorOutputs)
-  const legacyIds = projectLegacyIds(block.type)
-  if (legacyIds) projected.legacyIds = legacyIds
-  const legacyCanonicalIds = CANONICAL_ID_MIGRATIONS[block.type]
-  if (legacyCanonicalIds?.length) {
-    projected.legacyCanonicalIds = legacyCanonicalIds.map(({ from, to }) => ({ from, to }))
-  }
   if (block.sourceWorkflowId !== undefined) {
     projected.custom = { sourceWorkflowId: block.sourceWorkflowId }
   }

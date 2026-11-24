@@ -122,8 +122,9 @@ interface CodeFileBudget {
   /** Bytes of the entry plus the distinct code files read so far. */
   bytes: number
   /**
-   * The `$ref` chains and `$env` names of each distinct JavaScript file read, checked against the declared blocks
-   * once every block is known (`checkCodeFileRefs`).
+   * The references of each distinct code file read: `$ref` chains and `$env` names (JavaScript)
+   * plus `<key.path>` tags (every language), checked once every block is known
+   * (`checkCodeFileRefs`).
    */
   chains: Array<{ path: string; blockKey: BlockKey; refs: CodeFileRef[] }>
   /**

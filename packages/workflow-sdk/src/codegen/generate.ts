@@ -23,6 +23,7 @@ import { type EditorDefault, subBlockEditorDefault } from '@sim/workflow-code/ca
 import {
   builderPins,
   hasDefaultValue,
+  isModelField,
   isWrittenInSource,
   onSurface,
   paramAliases,
@@ -736,7 +737,7 @@ function modelIds(catalog: BlockCatalog): string[] {
   const ids = new Set<string>()
   for (const type of catalogBlockTypes(catalog)) {
     for (const subBlock of catalogBlock(catalog, type)?.subBlocks ?? []) {
-      if (subBlock.id !== 'model' || subBlock.type !== 'combobox') continue
+      if (!isModelField(subBlock)) continue
       if (!Array.isArray(subBlock.options)) continue
       for (const option of subBlock.options) ids.add(option.id)
     }

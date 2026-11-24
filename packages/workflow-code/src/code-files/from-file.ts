@@ -1,7 +1,7 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { Expression, MemberExpression, Node } from '@babel/types'
 import { isLikelyWorkflowReferenceSegment } from '@sim/utils/workflow-references'
-import { babelErrorShape, childNodes, memberSegment } from '../babel'
+import { babelErrorShape, babelMessage, childNodes, memberSegment } from '../babel'
 import { ENV_VAR_NAME, formatStoredPath, type RefSegment } from './ref-path'
 import { type CodeFileLanguage, ENV_ROOT, REF_ROOT } from './to-file'
 
@@ -56,7 +56,7 @@ function toSyntaxError(error: unknown): CodeFileSyntaxError {
   const line = typeof shape.loc?.line === 'number' ? shape.loc.line : 1
   const column = typeof shape.loc?.column === 'number' ? shape.loc.column + 1 : 1
   return {
-    message: typeof shape.message === 'string' ? shape.message : 'Invalid JavaScript',
+    message: babelMessage(shape),
     start: typeof shape.pos === 'number' ? shape.pos : 0,
     line,
     column,

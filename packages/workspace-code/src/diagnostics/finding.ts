@@ -57,9 +57,10 @@ export function findingLimitReached(extras: DiagnosticExtras = {}): WorkspaceDia
 }
 
 /**
- * A workspace finding with its severity filled in from the code. Its message and hint are cut as
- * the compile cuts its own (`boundFindingText`): a limit that stops work, so a finding never holds
- * more of the source it quotes (a 50 KB key, a hundred times in one file) than an answer could show.
+ * A workspace finding with its severity filled in from the code. Its message and hint are cut with
+ * the same bound the answer edge applies (`boundFindingText`): a limit that stops work, so a finding
+ * never holds more of the source it quotes (a 50 KB key, a hundred times in one file) than an answer
+ * could show.
  */
 export function diagnostic<C extends WorkspaceDiagnosticCode>(
   code: C,

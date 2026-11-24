@@ -41,10 +41,7 @@ export const WORKSPACE_SOURCE_LIMITS = {
   maxWorkflows: 100,
   /** Planned changes one apply makes, no-ops excluded. */
   maxChanges: 1_000,
-  /**
-   * Rows one table's `tables/<key>.rows.jsonl` holds. Mirrors the most rows one replace writes
-   * (`MAX_REPLACE_TABLE_ROWS`, apps/sim/lib/table/application/rows.ts).
-   */
+  /** Rows one table's `tables/<key>.rows.jsonl` holds: the source's own cap per rows file. */
   maxTableRows: 10_000,
   /** UTF-8 bytes of every table rows file together, apart from the declaration budget. */
   maxRowsBytes: 16_000_000,

@@ -17,6 +17,12 @@ export function babelErrorShape(error: unknown): BabelErrorShape {
   return typeof error === 'object' && error !== null ? error : {}
 }
 
+/** A Babel error's message without its trailing `(line:column)`. */
+export function babelMessage(error: BabelErrorShape): string {
+  const message = typeof error.message === 'string' ? error.message : 'Invalid syntax'
+  return message.replace(/ \(\d+:\d+\)$/, '')
+}
+
 const SKIPPED_KEYS = new Set([
   'leadingComments',
   'trailingComments',

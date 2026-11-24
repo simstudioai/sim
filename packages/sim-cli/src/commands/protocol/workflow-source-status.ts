@@ -30,6 +30,7 @@ import {
   readPreviousLock,
   readSourceText,
   type Written,
+  withSourceCommandLock,
 } from './source-dir'
 import {
   baseUnavailable,
@@ -43,9 +44,9 @@ import {
   printDiffReport,
   printStatusReport,
   type ServerCheck,
-  STATUS_EXIT_CODES_HELP,
   type StatusReport,
   statusExitCode,
+  statusHelp,
   textDiff,
   unreachableReason,
 } from './source-status'
@@ -154,7 +155,6 @@ interface StatusOptions {
 export function attachWorkflowSourceStatus(source: Command): void {
   const [command, connect] = apiCommand(source, 'status', [
     'planWorkflowSource',
-    'applyWorkflowSource',
     'getSourceResources',
   ])
   absoluteDirOption(command)
@@ -165,89 +165,100 @@ export function attachWorkflowSourceStatus(source: Command): void {
     .option('--json', 'Print the machine-readable status (same as --output json)')
     .allowExcessArguments(false)
     .description('Show what changed locally and on the server since the directory was read')
-    .addHelpText('after', STATUS_EXIT_CODES_HELP)
+    .addHelpText('after', statusHelp('workflows source status'))
     .action(async (options: StatusOptions, invoked: Command) => {
       const output = options.json ? 'json' : profileFrom(invoked).output
-      const local = await readLocalWorkflow(options.dir)
-      const { workflowId } = local
-      const locals: LocalResourceChange[] =
-        local.changed.length > 0
-          ? [
-              {
-                kind: 'workflow',
-                key: workflowId,
-                change: resourceChange(local.changed),
-                files: local.changed,
-              },
-            ]
-          : []
-      let server: ServerCheck = options.offline ? 'offline' : 'checked'
-      let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
-      let data: PlanData | null = null
-      let serverChanges: ServerResourceChange[] = []
-      let login: string | null = null
-      if (!options.offline) {
-        const { client, profile } = connect()
-        const lock = await readLock(options.dir)
-        const files = await readSourceFiles(options.dir, lock)
-        try {
-          const body = { files, lock, base: local.base }
-          const response = await client.request<PlanWorkflowSourceResponse>('planWorkflowSource', {
-            params: { workflowId },
-            query: { allowDelete: true },
-            body,
-            retryRateLimited: true,
-          })
-          data = response.data
-          await refreshWorkflowWorkspaceTypes(client, options.dir, local.base.workspaceId)
-          if (data.diagnostics.some((finding) => finding.code === 'E_APPLY_STALE')) {
-            serverChanges = [{ kind: 'workflow', key: workflowId, server: 'changed' }]
+      // A status only reads, but holds the lock so it never reports a directory an apply or get is
+      // halfway through rewriting, nor refreshes its types meanwhile (exit 10 while one runs).
+      await withSourceCommandLock(
+        options.dir,
+        async () => {
+          const local = await readLocalWorkflow(options.dir)
+          const { workflowId } = local
+          const locals: LocalResourceChange[] =
+            local.changed.length > 0
+              ? [
+                  {
+                    kind: 'workflow',
+                    key: workflowId,
+                    change: resourceChange(local.changed),
+                    files: local.changed,
+                  },
+                ]
+              : []
+          let server: ServerCheck = options.offline ? 'offline' : 'checked'
+          let note: string | undefined = options.offline ? 'Skipped with --offline.' : undefined
+          let data: PlanData | null = null
+          let serverChanges: ServerResourceChange[] = []
+          let login: string | null = null
+          if (!options.offline) {
+            const { client, profile } = connect()
+            const lock = await readLock(options.dir)
+            const files = await readSourceFiles(options.dir, lock)
+            try {
+              const body = { files, lock, base: local.base }
+              const response = await client.request<PlanWorkflowSourceResponse>(
+                'planWorkflowSource',
+                {
+                  params: { workflowId },
+                  query: { allowDelete: true },
+                  body,
+                  retryRateLimited: true,
+                }
+              )
+              data = response.data
+              await refreshWorkflowWorkspaceTypes(client, options.dir, local.base.workspaceId)
+              if (data.diagnostics.some((finding) => finding.code === 'E_APPLY_STALE')) {
+                serverChanges = [{ kind: 'workflow', key: workflowId, server: 'changed' }]
+              }
+            } catch (error) {
+              if (error instanceof SimApiError && error.status === 404) {
+                serverChanges = [{ kind: 'workflow', key: workflowId, server: 'deleted' }]
+                note = 'The server has no workflow by this id that this profile can read.'
+              } else {
+                const reason = unreachableReason(error)
+                if (reason === null) throw withSourceExitCode(error)
+                login = loginCommand(error, profile.authProfile)
+                server = 'unreachable'
+                note = `${reason} Showing local changes only.`
+              }
+            }
           }
-        } catch (error) {
-          if (error instanceof SimApiError && error.status === 404) {
-            serverChanges = [{ kind: 'workflow', key: workflowId, server: 'deleted' }]
-            note = 'The server has no workflow by this id that this profile can read.'
-          } else {
-            const reason = unreachableReason(error)
-            if (reason === null) throw withSourceExitCode(error)
-            login = loginCommand(error, profile.authProfile)
-            server = 'unreachable'
-            note = `${reason} Showing local changes only.`
+          const status = sourceStatus(locals, serverChanges)
+          // A plan against a base the server moved past says nothing: applying it is refused as stale.
+          const plan = data && serverChanges.length === 0 ? planSummary(data) : null
+          const report: StatusReport<WorkflowPlanSummary> & { workflowId: string } = {
+            workflowId,
+            dir: options.dir,
+            server,
+            ...(note ? { note } : {}),
+            ...status,
+            ...(local.unnamed.length > 0 ? { unnamed: local.unnamed } : {}),
+            plan,
+            next: nextStep(status, {
+              prefix: PREFIX,
+              dir: options.dir,
+              getArgs: `${workflowId} `,
+              server,
+              errors: plan?.errors ?? 0,
+              deletes: (plan?.blocksRemoved ?? 0) + (plan?.variablesRemoved ?? 0) > 0,
+              scope: '',
+              summaryFile: options.summaryFile,
+              login,
+            }),
           }
-        }
-      }
-      const status = sourceStatus(locals, serverChanges)
-      // A plan against a base the server moved past says nothing: applying it is refused as stale.
-      const plan = data && serverChanges.length === 0 ? planSummary(data) : null
-      const report: StatusReport<WorkflowPlanSummary> & { workflowId: string } = {
-        workflowId,
-        dir: options.dir,
-        server,
-        ...(note ? { note } : {}),
-        ...status,
-        ...(local.unnamed.length > 0 ? { unnamed: local.unnamed } : {}),
-        plan,
-        next: nextStep(status, {
-          prefix: PREFIX,
-          dir: options.dir,
-          getArgs: `${workflowId} `,
-          server,
-          errors: plan?.errors ?? 0,
-          deletes: (plan?.blocksRemoved ?? 0) + (plan?.variablesRemoved ?? 0) > 0,
-          scope: '',
-          summaryFile: options.summaryFile,
-          login,
-        }),
-      }
-      printStatusReport(
-        output,
-        `Workflow ${workflowId} in ${options.dir}`,
-        report,
-        planLine,
-        data ? workflowPlanFindings(data) : [],
-        options.summaryFile
+          printStatusReport(
+            output,
+            `Workflow ${workflowId} in ${options.dir}`,
+            report,
+            planLine,
+            data ? workflowPlanFindings(data) : [],
+            options.summaryFile
+          )
+          setSoftExitCode(statusExitCode(status.state, login))
+        },
+        { readOnly: true }
       )
-      setSoftExitCode(statusExitCode(status.state, login))
     })
 }
 

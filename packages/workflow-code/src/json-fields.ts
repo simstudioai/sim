@@ -20,7 +20,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { blockOutputSchemas, errorOutputOf } from './catalog/activity'
 import type { BlockCatalog, CatalogOutput } from './catalog/types'
 import { catalogBlock } from './catalog/view'
-import { parseStoredPath, type RefSegment } from './code-files/ref-path'
+import { ENV_VAR_NAME, parseStoredPath, type RefSegment } from './code-files/ref-path'
 import { referencedResultKind } from './compile/function-returns'
 import {
   type BlockKey,
@@ -282,7 +282,9 @@ export function jsonFieldText(tree: JsonTree, isString: (token: string) => boole
 
 /** The single reference a whole JSON string holds (`"<a.b>"`, `"{{X}}"`), if any. */
 function wholeToken(text: string): string | null {
-  if (/^\{\{[A-Za-z_][A-Za-z0-9_]*\}\}$/.test(text)) return text
+  if (text.startsWith('{{') && text.endsWith('}}') && ENV_VAR_NAME.test(text.slice(2, -2))) {
+    return text
+  }
   if (!text.startsWith('<') || !text.endsWith('>')) return null
   return parseStoredPath(text.slice(1, -1)) ? text : null
 }

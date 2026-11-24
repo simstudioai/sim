@@ -6634,13 +6634,7 @@
       "dynamicOutputs": {
         "source": "responseFormat",
         "param": "responseFormat"
-      },
-      "legacyIds": [
-        {
-          "from": "previousInteractionId",
-          "to": null
-        }
-      ]
+      }
     },
     "api": {
       "type": "api",
@@ -10885,13 +10879,7 @@
         "trigger_sync": {
           "names": []
         }
-      },
-      "legacyIds": [
-        {
-          "from": "knowledgeBaseId",
-          "to": "knowledgeBaseSelector"
-        }
-      ]
+      }
     },
     "loop": {
       "type": "loop",
@@ -31542,12 +31530,6 @@
           "slack_oauth"
         ]
       },
-      "legacyIds": [
-        {
-          "from": "channelMaxPages",
-          "to": null
-        }
-      ],
       "paramAliases": {
         "action": {
           "oauthCredential": "credential"

@@ -62,9 +62,9 @@ import {
   printDiffReport,
   printStatusReport,
   type ServerCheck,
-  STATUS_EXIT_CODES_HELP,
   type StatusReport,
   statusExitCode,
+  statusHelp,
   textDiff,
   unreachableReason,
 } from './source-status'
@@ -160,7 +160,7 @@ function localPaths(local: LocalWorkspace): string[] {
  * naming another is refused), else the profile's.
  */
 function targetWorkspace(
-  connection: Connection<'planWorkspaceSource' | 'applyWorkspaceSource' | 'getWorkspaceSource'>,
+  connection: Connection<'planWorkspaceSource' | 'getWorkspaceSource'>,
   dir: string,
   readFrom: string | null
 ): string {
@@ -344,10 +344,7 @@ interface StatusOptions {
  * the server since: drift, and conflicts where both sides changed. Ends with the next command.
  */
 export function attachWorkspaceSourceStatus(source: Command): void {
-  const [command, connect] = apiCommand(source, 'status', [
-    'planWorkspaceSource',
-    'applyWorkspaceSource',
-  ])
+  const [command, connect] = apiCommand(source, 'status', ['planWorkspaceSource'])
   absoluteDirOption(command)
   summaryFileOption(command)
   command
@@ -357,7 +354,7 @@ export function attachWorkspaceSourceStatus(source: Command): void {
     .option('--json', 'Print the machine-readable status (same as --output json)')
     .allowExcessArguments(false)
     .description('Show what changed locally and on the server since the directory was read')
-    .addHelpText('after', `${STATUS_EXIT_CODES_HELP}\n${SOURCE_DIR_BUSY_HELP}`)
+    .addHelpText('after', statusHelp('workspaces source status'))
     .action(async (options: StatusOptions, invoked: Command) => {
       const only = parseKinds(options.only)
       const output = options.json ? 'json' : profileFrom(invoked).output

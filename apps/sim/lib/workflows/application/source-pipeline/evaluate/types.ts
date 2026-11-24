@@ -43,7 +43,7 @@ export interface SourceEvaluationInput {
   /** Env names the subject's runs resolve, for `env('…')` checks. */
   envNames: ReadonlySet<string>
   /** Attribution for resource keys a submitted reference allocates. */
-  createdBy: string | null
+  createdBy: string
   files: Record<string, string>
   lock: WorkflowLockV1
   /** Where and when the source was read, its fingerprint already matched; absent for a create. */

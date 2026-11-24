@@ -60,6 +60,23 @@ export function refusalClassifier(
 /** The class of a workflow source refusal with these error codes (see {@link refusalClassifier}). */
 export const refusalClass = refusalClassifier()
 
+/**
+ * The `details.code` of a refused source write, which a client tells refusals of one status apart
+ * by: the server sets it and the CLI branches on it.
+ */
+export const SOURCE_REFUSAL_CODES = {
+  /** Refused findings, with `details.diagnostics`. */
+  rejected: 'SOURCE_REJECTED',
+  /** A resource changed since the source was read (`409`). */
+  stale: 'SOURCE_STALE',
+  /** Another workspace apply is writing the workspace (`409`). */
+  busy: 'SOURCE_BUSY',
+  /** A workflow name another workflow holds (`409`). */
+  nameTaken: 'SOURCE_NAME_TAKEN',
+  /** The caller's staging area has no room (`413`). */
+  stagingFull: 'SOURCE_STAGING_FULL',
+} as const
+
 /** The error codes an edited block's warning is refused under. */
 export type EditRefusalCode =
   | 'E_APPLY_UNRESOLVED_REF'

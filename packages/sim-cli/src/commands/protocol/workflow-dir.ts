@@ -14,7 +14,7 @@ import {
   SOURCE_ENTRY_FILE,
   SOURCE_LOCK_FILE,
 } from '@sim/workflow-code/limits'
-import { SDK_GUIDE_FILE, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codegen'
+import { SDK_GUIDE_FILE, SDK_MAJOR, SOURCE_COMPILER_OPTIONS } from '@sim/workflow-sdk/codegen'
 import { SOURCE_PLANNED_EXIT_CODE, SOURCE_STALE_EXIT_CODE } from '../../exit-codes'
 import type { ApplyWorkflowSourceBody, GetWorkflowSourceResponse } from '../../generated/v2-api'
 import type { OperationClient } from '../../runtime/called-operations'
@@ -233,7 +233,7 @@ Editing the \`workflow('…')\` name or description renames or redescribes the w
 ## File shape
 
 \`\`\`ts
-// @sim-sdk 1
+// @sim-sdk ${SDK_MAJOR}
 import { response, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Workflow name', {}, () => {
@@ -244,7 +244,7 @@ export default workflow('Workflow name', {}, () => {
 })
 \`\`\`
 
-The \`// @sim-sdk 1\` header must be the first line, and the file has exactly one \`export default workflow(name, options, () => { ... })\`; \`options\` holds \`description\` and \`variables\` and may be \`{}\`.
+The \`// @sim-sdk ${SDK_MAJOR}\` header must be the first line, and the file has exactly one \`export default workflow(name, options, () => { ... })\`; \`options\` holds \`description\` and \`variables\` and may be \`{}\`.
 
 ## Finding a builder and its types
 
@@ -316,7 +316,7 @@ export const WORKFLOW_TREE: SourceTreeProfile = {
 }
 
 /** The `workflow.ts` a new directory starts from: the smallest workflow that compiles. */
-const STARTER_SOURCE = `// @sim-sdk 1
+const STARTER_SOURCE = `// @sim-sdk ${SDK_MAJOR}
 import { response, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('New workflow', { description: 'Describe what this workflow does.' }, () => {

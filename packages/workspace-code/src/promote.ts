@@ -17,7 +17,7 @@
  */
 import { isRecordLike } from '@sim/utils/object'
 import { compareStrings } from '@sim/utils/string'
-import { parseSourceBase, sha256Hex, stableStringify } from '@sim/workflow-code'
+import { parseSourceBase, type SourceBase, sha256Hex, stableStringify } from '@sim/workflow-code'
 import { SOURCE_BASE_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   type BaseResource,
@@ -152,17 +152,14 @@ function withFingerprint(text: string, fingerprint: string): string | null {
  * is not recorded, and a base naming a workflow the target no longer holds is never compiled.
  */
 function recordedFolderBase(promoted: PromotedWorkflow, workspaceId: string): string {
-  return `${JSON.stringify(
-    {
-      version: 1,
-      workflowId: promoted.workflowId,
-      workspaceId,
-      fingerprint: promoted.fingerprint,
-      catalogHash: '',
-    },
-    null,
-    2
-  )}\n`
+  const base: SourceBase = {
+    version: 1,
+    workflowId: promoted.workflowId,
+    workspaceId,
+    fingerprint: promoted.fingerprint,
+    catalogHash: '',
+  }
+  return `${JSON.stringify(base, null, 2)}\n`
 }
 
 /** The workflow a folder base's text names, or `null` if unreadable. */

@@ -54,7 +54,7 @@ import {
   writtenFiles,
   writtenRecord,
 } from './source-dir'
-import { SOURCE_WRITE_EXIT_CODES_HELP, sourceExitCodesHelp } from './source-exit-codes'
+import { sourceExitCodesHelp } from './source-exit-codes'
 import { destructiveChanges } from './source-status'
 import { cachedCatalog } from './source-tree'
 import {
@@ -721,10 +721,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workspace source directory')
-    .addHelpText(
-      'after',
-      `${sourceExitCodesHelp('workspaces source apply')}${SOURCE_WRITE_EXIT_CODES_HELP}`
-    )
+    .addHelpText('after', sourceExitCodesHelp('workspaces source apply'))
     .action(async (options: ApplyOptions) => {
       assertTargetOnlyDeletable(options)
       const mode = writeMode(options)

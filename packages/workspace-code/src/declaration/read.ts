@@ -23,11 +23,13 @@ import {
   babelErrorShape,
   babelMessage,
   bracketDepthOverflow,
+  ENV_VAR_NAME,
   type Json,
   pointerSegment,
   type SourceSpan,
   sdkHeader,
 } from '@sim/workflow-code'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
   diagnostic,
   findingLimitReached,
@@ -39,8 +41,6 @@ import { WORKSPACE_SOURCE_LIMITS } from '../limits'
 
 /** The module every declaration imports from. */
 export const WORKSPACE_SDK_MODULE = '@sim/workflow-sdk/workspace'
-/** The only SDK major declarations are written in. */
-export const DECLARATION_SDK_MAJOR = 1
 /** The key a helper call is read under; no declaration object may use it. */
 export const CALL_KEY = '$call'
 /** The key an `env.NAME` reference is read under; no declaration object may use it. */
@@ -65,9 +65,6 @@ interface DeclarationEnvRef {
 export function isDeclarableKey(key: string): boolean {
   return key !== CALL_KEY && key !== ENV_KEY && key !== '__proto__'
 }
-
-/** An environment variable name `env.NAME` may spell: an identifier. */
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 interface ReadDeclarationOptions {
   /** The function the file default-exports a call of: `defineTable`. */
@@ -99,9 +96,19 @@ export function isDeclarationCall(value: unknown): value is DeclarationCall {
   return isRecordLike(value) && typeof value[CALL_KEY] === 'string' && Array.isArray(value.args)
 }
 
+/** The helper that keeps the value the server already holds: `stored()`. */
+export const STORED_CALL = 'stored'
+
+/** Whether a decoded value is `stored()`, with no arguments. */
+export function isStoredCall(value: unknown): boolean {
+  return isDeclarationCall(value) && value.$call === STORED_CALL && value.args.length === 0
+}
+
 /** Whether a decoded value is an `env.NAME` reference the reader produced. */
 export function isDeclarationEnvRef(value: unknown): value is DeclarationEnvRef {
-  return isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_NAME.test(value[ENV_KEY])
+  return (
+    isRecordLike(value) && typeof value[ENV_KEY] === 'string' && ENV_VAR_NAME.test(value[ENV_KEY])
+  )
 }
 
 /**
@@ -190,15 +197,11 @@ export function readDeclaration(
     return fail()
   }
   const header = sdkHeader(text)
-  if (header.sdkMajor !== DECLARATION_SDK_MAJOR) {
+  if (header.sdkMajor !== SDK_MAJOR) {
     diagnostics.push(
-      diagnostic(
-        'E_DECL_HEADER',
-        `The first line must be \`// @sim-sdk ${DECLARATION_SDK_MAJOR}\`.`,
-        {
-          ...at(0, Math.max(1, header.headerEnd)),
-        }
-      )
+      diagnostic('E_DECL_HEADER', `The first line must be \`// @sim-sdk ${SDK_MAJOR}\`.`, {
+        ...at(0, Math.max(1, header.headerEnd)),
+      })
     )
     return fail()
   }
@@ -266,12 +269,13 @@ export function readDeclaration(
         declaration.type === 'CallExpression' &&
         declaration.callee.type === 'Identifier' &&
         declaration.callee.name === options.callee &&
-        declaration.arguments.length === 1 &&
-        declaration.arguments[0].type !== 'SpreadElement' &&
-        declaration.arguments[0].type !== 'ArgumentPlaceholder'
+        declaration.arguments.length === 1
       ) {
-        exported = declaration.arguments[0] as Expression
-        continue
+        const [argument] = declaration.arguments
+        if (argument.type !== 'SpreadElement' && argument.type !== 'ArgumentPlaceholder') {
+          exported = argument
+          continue
+        }
       }
     }
     record(
@@ -435,7 +439,7 @@ export function readDeclaration(
           )
           return undefined
         }
-        return ENV_NAME.test(node.property.name)
+        return ENV_VAR_NAME.test(node.property.name)
           ? { [ENV_KEY]: node.property.name }
           : unsupported(
               node.property,

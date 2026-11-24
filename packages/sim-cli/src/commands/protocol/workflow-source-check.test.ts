@@ -1,8 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SOURCE_BUSY_EXIT_CODE } from '../../exit-codes'
 import type { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
@@ -478,6 +479,23 @@ describe('sim workflows source check', () => {
 
     expect(result()).toMatchObject({ errors: 0, warnings: 0, catalogHash: 'fixture' })
     expect(process.exitCode).toBeUndefined()
+  })
+
+  it('refuses a workflow folder while another command holds the workspace directory, writing no types', async () => {
+    cacheCatalog()
+    writeWorkspace()
+    const folder = writeWorkflowFolder('notify', workspaceWorkflow())
+    mkdirSync(join(dir, '.sim/command.lock'))
+    writeFileSync(
+      join(dir, '.sim/command.lock/owner.json'),
+      JSON.stringify({ pid: process.pid, host: hostname() })
+    )
+
+    const error = (await checkIn(folder).catch((caught: unknown) => caught)) as SimApiError
+
+    expect(error.code).toBe('SOURCE_DIR_BUSY')
+    expect(error.exitCode).toBe(SOURCE_BUSY_EXIT_CODE)
+    expect(existsSync(join(dir, '.sim/sdk/workspace.d.ts'))).toBe(false)
   })
 
   it('refuses a table or credential key the workspace directory does not declare', async () => {
