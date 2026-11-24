@@ -30,6 +30,14 @@ export {
   expandBlockCatalog,
 } from './catalog/view'
 export {
+  type ChildResultNode,
+  type ChildResults,
+  canonicalResultNode,
+  compiledResultNode,
+  folderCompileInput,
+  resolveChildResults,
+} from './child-results'
+export {
   checkCodeFileBijection,
   createJsContextScanner,
   ENV_VAR_NAME,
@@ -120,7 +128,6 @@ export { getOwn, invertRecord, parseJsonContainer, setOrDelete, setOwn } from '.
 export {
   calledWorkflowKey,
   calledWorkflowKeys,
-  childResultFields,
   respondsOnEveryRun,
 } from './responds'
 export { JS_RESERVED_WORDS, RESPONSE_OUTPUTS, SDK_CORE_EXPORTS } from './sdk'

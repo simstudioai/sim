@@ -85,20 +85,24 @@ function responseFieldKind(value: JsonTree, scope: RefTypeScope): 'string' | 'ty
 /**
  * The top-level fields of the data `workflow` responds with when a Workflow block calls it, each
  * typed as its JSON field stores it: a quoted reference or a string is text, a literal or a
- * reference the workflow types otherwise is typed, and an untyped reference is left out. A field
- * counts only when every enabled Response block holds it typed the same way. `null` when a run
- * can end without responding ({@link respondsOnEveryRun}) or a Response block's data is not a JSON
- * object in the editor's JSON mode (what `response(name, { body: { … } })` stores).
+ * reference the workflow types otherwise is typed (a call of its own by `childResults`, the
+ * fields of the workflows it calls), and an untyped reference is left out. A field counts only
+ * when every enabled Response block holds it typed the same way. `null` when a run can end
+ * without responding ({@link respondsOnEveryRun}) or a Response block's data is not a JSON object
+ * in the editor's JSON mode (what `response(name, { body: { … } })` stores).
  */
 export function childResultFields(
   workflow: CanonicalWorkflow,
-  catalog: BlockCatalog
+  catalog: BlockCatalog,
+  childResults?: ReadonlyMap<string, ChildResultFields>
 ): ChildResultFields | null {
   if (!respondsOnEveryRun(workflow)) return null
+  const block = (key: BlockKey) => getOwn(workflow.blocks, key)
   const scope: RefTypeScope = {
     catalog,
-    block: (key) => getOwn(workflow.blocks, key),
+    block,
     variable: (key) => getOwn(workflow.variables, key),
+    childResult: childResultScope(block, childResults),
   }
   let fields: Map<string, 'string' | 'typed'> | null = null
   for (const block of Object.values(workflow.blocks)) {

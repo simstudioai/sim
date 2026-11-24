@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockCatalog, CatalogBlock } from './catalog/types'
+import {
+  type ChildResultNode,
+  canonicalResultNode,
+  compiledResultNode,
+  folderCompileInput,
+  resolveChildResults,
+} from './child-results'
 import { type CompileInput, compileWorkflow } from './compile'
 import { TEST_CATALOG } from './compile/catalog.test-helpers'
 import { refValueKind, valueTree } from './json-fields'
@@ -478,7 +485,7 @@ describe("a reference into a child workflow's Response data, in a JSON field", (
     },
   }
   const imports =
-    "import { api, childWorkflow, condition, js, response, runWorkflow, table, trigger, workflow } from '@sim/workflow-sdk'"
+    "import { api, childWorkflow, condition, js, response, runWorkflow, stored, table, trigger, workflow } from '@sim/workflow-sdk'"
 
   function compileText(body: string, childResults?: CompileInput['childResults']) {
     const text = `// @sim-sdk 1\n${imports}\n\nexport default workflow('Test', {}, () => {\n  ${body}\n})\n`
@@ -628,5 +635,148 @@ describe("a reference into a child workflow's Response data, in a JSON field", (
     expect(again.diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')).toEqual([])
 
     expect(printed()).toContain('v: t`${call.result.data.mobile}`')
+  })
+
+  function source(body: string) {
+    return `// @sim-sdk 1\n${imports}\n\nexport default workflow('Test', {}, () => {\n  ${body}\n})\n`
+  }
+
+  /** A lock binding `keys` in order, as a get writes one. */
+  function lockOf(...keys: string[]) {
+    return {
+      version: 1 as const,
+      blocks: Object.fromEntries(
+        keys.map((key, order) => [key, { id: `id-${key}`, parent: null, ident: key, order }])
+      ),
+      variables: {},
+    }
+  }
+
+  describe('a child whose blocks keep stored() values', () => {
+    const CHILD = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+      "const lookup = api('Lookup', { url: stored() })",
+      "const reply = response('Reply', { body: { mobile: start.phone } })",
+      'start.to(lookup)',
+      'lookup.to(reply)',
+    ].join('\n  ')
+
+    it('is typed when compiled under its lock, as a check and an apply read it', () => {
+      const input = folderCompileInput(
+        source(CHILD),
+        {},
+        lockOf('start', 'lookup', 'reply'),
+        catalog
+      )
+      const compiled = compileWorkflow(input)
+      expect(compiled.diagnostics.map((d) => d.code)).toEqual([])
+      expect(compiled.workflow?.blocks.lookup?.params.url).toBeUndefined()
+      expect(compiledResultNode(input, compiled)?.fields(new Map())).toEqual(
+        new Map([['mobile', 'string']])
+      )
+    })
+
+    it('is refused for a block the lock does not bind, or without a lock', () => {
+      for (const lock of [lockOf('start', 'reply'), undefined]) {
+        const compiled = compileWorkflow(folderCompileInput(source(CHILD), {}, lock, catalog))
+        expect(compiled.workflow).toBeNull()
+        expect(compiled.diagnostics.map((d) => d.code)).toContain('E_STORED_VALUE_MISSING')
+      }
+    })
+  })
+
+  describe('a chain of calls', () => {
+    const C = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+      "const reply = response('Reply', { body: { text: start.phone, n: start.n } })",
+      'start.to(reply)',
+    ].join('\n  ')
+    const B = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+      "const callC = runWorkflow('Call C', { workflowId: childWorkflow('c'), inputMapping: { phone: start.phone } })",
+      "const reply = response('Reply', { body: { text: callC.result.data.text, n: callC.result.data.n, own: 1 } })",
+      'start.to(callC)',
+      'callC.to(reply)',
+    ].join('\n  ')
+    const A = [
+      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+      "const callB = runWorkflow('Call B', { workflowId: childWorkflow('b'), inputMapping: { phone: start.phone } })",
+      "const row = table.insertRow('Row', { data: { text: callB.result.data.text, n: callB.result.data.n } })",
+      'start.to(callB)',
+      'callB.to(row)',
+    ].join('\n  ')
+
+    function node(body: string): ChildResultNode {
+      const compiled = compiledResultNode(folderCompileInput(source(body), {}, undefined, catalog))
+      if (!compiled) throw new Error('the workflow did not compile')
+      return compiled
+    }
+
+    it('types a field forwarded from a grandchild, whatever order the workflows are read in', () => {
+      const forward = resolveChildResults(
+        new Map([
+          ['a', node(A)],
+          ['b', node(B)],
+          ['c', node(C)],
+        ])
+      )
+      const backward = resolveChildResults(
+        new Map([
+          ['c', node(C)],
+          ['b', node(B)],
+          ['a', node(A)],
+        ])
+      )
+      const typed = new Map([
+        ['text', 'string'],
+        ['n', 'typed'],
+        ['own', 'typed'],
+      ])
+      expect(forward.get('b')).toEqual(typed)
+      expect(backward.get('b')).toEqual(typed)
+    })
+
+    it('reads the same fields from the stored workflow the typed compile writes', () => {
+      const resolved = resolveChildResults(
+        new Map([
+          ['b', node(B)],
+          ['c', node(C)],
+        ])
+      )
+      const calls = new Map([['c', resolved.get('c') ?? new Map()]])
+      const { workflow: stored } = compileText(B, calls)
+      if (!stored) throw new Error('b did not compile')
+      expect(canonicalResultNode(stored, catalog).fields(calls)).toEqual(resolved.get('b'))
+
+      const { workflow: parent, diagnostics } = compileText(A, resolved)
+      const data = parent?.blocks.row?.params.data
+      expect(data?.kind === 'value' && data.value).toBe(
+        '{\n  "text": "<callb.result.data.text>",\n  "n": <callb.result.data.n>\n}'
+      )
+      expect(diagnostics.filter((d) => d.code === 'W_JSON_REF_UNTYPED')).toEqual([])
+    })
+
+    it('leaves a field forwarded around a cycle untyped, whichever workflow is read first', () => {
+      const calling = (child: string, body: string) =>
+        [
+          "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+          `const call = runWorkflow('Call', { workflowId: childWorkflow('${child}'), inputMapping: { phone: start.phone } })`,
+          `const reply = response('Reply', { body: ${body} })`,
+          'start.to(call)',
+          'call.to(reply)',
+        ].join('\n  ')
+      const bodies: Record<string, string> = {
+        x: calling('y', "{ text: call.result.data.text, own: 'x' }"),
+        y: calling('x', "{ text: 'y', back: call.result.data.own }"),
+      }
+      for (const order of [
+        ['x', 'y'],
+        ['y', 'x'],
+      ]) {
+        const resolved = resolveChildResults(new Map(order.map((key) => [key, node(bodies[key])])))
+        expect(resolved.get('x')).toEqual(new Map([['own', 'string']]))
+        expect(resolved.get('y')).toEqual(new Map([['text', 'string']]))
+      }
+    })
   })
 })

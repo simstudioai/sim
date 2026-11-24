@@ -383,7 +383,7 @@ describe('sim workspaces source check', () => {
   function workflowFile(...lines: string[]): string {
     return [
       '// @sim-sdk 1',
-      "import { agent, childWorkflow, condition, env, fn, js, loop, response, runWorkflow, skill, t, trigger, workflow } from '@sim/workflow-sdk'",
+      "import { agent, api, childWorkflow, condition, env, fn, js, loop, response, runWorkflow, skill, stored, t, trigger, workflow } from '@sim/workflow-sdk'",
       "export default workflow('W', {}, () => {",
       ...lines.map((line) => `  ${line}`),
       '})',
@@ -605,6 +605,88 @@ describe('sim workspaces source check', () => {
         message: expect.stringContaining('<call.result.data.missing>'),
       }),
     ])
+  })
+
+  it("types a call by a field its child forwards from a grandchild's Response, through the chain", async () => {
+    writeFile(
+      'workflows/c/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })",
+        "const reply = response('Reply', { body: { text: start.phone, n: start.n } })",
+        'start.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/b/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const callC = runWorkflow('Call C', { workflowId: childWorkflow('c'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { text: callC.result.data.text, n: callC.result.data.n } })",
+        'start.to(callC)',
+        'callC.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/a/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const callB = runWorkflow('Call B', { workflowId: childWorkflow('b'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { text: callB.result.data.text, n: callB.result.data.n } })",
+        'start.to(callB)',
+        'callB.to(reply)'
+      )
+    )
+
+    await check()
+
+    const untyped = (stdoutJson().diagnostics as Array<Record<string, unknown>>).filter(
+      (finding) => finding.code === 'W_JSON_REF_UNTYPED'
+    )
+    expect(untyped).toEqual([])
+  })
+
+  it('types a call by a child whose blocks keep stored() values, compiled under its lock', async () => {
+    writeFile(
+      'workflows/normalize-phone/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const lookup = api('Lookup', { url: 'https://example.com', proxyUrl: stored() })",
+        "const reply = response('Reply', { body: { mobile: start.phone } })",
+        'start.to(lookup)',
+        'lookup.to(reply)'
+      )
+    )
+    writeFile(
+      'workflows/normalize-phone/.sim/lock.json',
+      JSON.stringify({
+        version: 1,
+        blocks: Object.fromEntries(
+          ['start', 'lookup', 'reply'].map((key, order) => [
+            key,
+            { id: `id-${key}`, parent: null, ident: key, order },
+          ])
+        ),
+        variables: {},
+      })
+    )
+    writeFile(
+      'workflows/parent/workflow.ts',
+      workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { mobile: call.result.data.mobile } })",
+        'start.to(call)',
+        'call.to(reply)'
+      )
+    )
+
+    await check()
+
+    const codes = (stdoutJson().diagnostics as Array<Record<string, unknown>>).map(
+      (finding) => finding.code
+    )
+    expect(codes).not.toContain('W_JSON_REF_UNTYPED')
+    expect(codes).not.toContain('E_STORED_VALUE_MISSING')
   })
 
   it.each(['a workspace get', 'a workflow get into its folder'])(

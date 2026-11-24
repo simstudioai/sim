@@ -51,7 +51,7 @@ function sharedRules(group: string, extraRenames = ''): string {
 
 const WORKFLOW_PRIMER = `# Sim workflow source: primer
 
-\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Run commands here: they read the workflow id from \`${SOURCE_BASE_FILE}\`, and each (table commands too) acts on its workspace, unless \`-w\` names another.
+\`${SOURCE_ENTRY_FILE}\` is a Sim workflow as TypeScript; the server compiles it statically and nothing in it runs. Run commands here: they read the workflow id from \`${SOURCE_BASE_FILE}\`, and each (table commands too) acts on its workspace; source commands refuse a \`-w\` naming another, the rest follow it.
 
 **Edit loop**: write every file, then run one chained command; fix what it reports next: \`sim workflows source check --dir . && sim workflows source apply --dir . --yes && sim workflows run <workflowId> --manual --input '{…}'\`. A non-zero exit stops the chain. \`check\` compiles and type-checks (no separate \`tsc\`). Apply re-checks, so \`apply --dry-run\` is only for review. Apply saves the draft in canonical form: read \`${SOURCE_ENTRY_FILE}\` again before the next edit.
 
@@ -66,13 +66,13 @@ const WORKSPACE_RENAMES =
 
 const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
-This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); nothing here runs. Run commands here: each (table commands too) acts on the workspace \`${SOURCE_BASE_FILE}\` names, unless \`-w\` names another. Every \`.ts\` file (\`deployments/\` too) starts with \`// @sim-sdk ${SDK_MAJOR}\`.
+This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); nothing here runs. Run commands here: each (table commands too) acts on the workspace \`${SOURCE_BASE_FILE}\` names; source commands refuse a \`-w\` naming another, the rest follow it. Every \`.ts\` file (\`deployments/\` too) starts with \`// @sim-sdk ${SDK_MAJOR}\`.
 
 **Edit loop**: write every file, then run one chained command; fix what it reports next: \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`; test with \`sim workflows run <workflowId> --manual --input '{…}'\`. \`check\` compiles and type-checks (no separate \`tsc\`). Apply re-checks, so \`apply --dry-run\` is only for review. Apply rewrites files: reread one before editing it.
 
-- **Deletes**: removing a file, folder, table column, workflow block or variable is a delete: refused without \`apply --allow-delete\`, and permanent.
+- **Deletes**: removing a file, folder, column, block or variable needs \`apply --allow-delete\` and is permanent.
 - **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply; without one, apply never deploys.
-- **Exit ${SOURCE_HELD_EXIT_CODE}**: written in part; changes using an unset secret or unbound credential were held back: set it, apply again.
+- **Exit ${SOURCE_HELD_EXIT_CODE}**: written in part; changes using an unset secret or unbound credential were held: set it, apply again.
 ${sharedRules('sim workspaces source', WORKSPACE_RENAMES)}
 `
 

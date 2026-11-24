@@ -10,17 +10,18 @@ import { collectStringLeaves, findWorkflowReferenceTokens } from '@sim/utils/wor
 import {
   type BlockCatalog,
   type CanonicalWorkflow,
-  type ChildResultFields,
+  type ChildResultNode,
   type CompileInput,
   calledWorkflowKey,
   catalogBlock,
-  childResultFields,
   codeFrame,
   codePointLabel,
+  compiledResultNode,
   compileWorkflow,
   didYouMean,
   EDIT_REFUSALS,
   encodeAnchor,
+  folderCompileInput,
   formatStoredPath,
   getOwn,
   parseJsonField,
@@ -30,6 +31,7 @@ import {
   raisedMessage,
   refuseEditedFindings,
   refusesEdited,
+  resolveChildResults,
   respondsOnEveryRun,
   scriptName,
   startInputs,
@@ -486,12 +488,7 @@ async function compileWorkflowDir(
   ])
   const catalog = printedWith ?? workspaceCatalog
   const input: CompileInput = {
-    entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
-    files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
-    catalog,
-    sdkMajor: catalog.sdkMajor,
-    knownKeys: new Set(Object.keys(lock?.blocks ?? {})),
-    storedUnread: lock ?? undefined,
+    ...folderCompileInput(files[SOURCE_ENTRY_FILE], files, lock, catalog),
     ...(storedEdges ? { storedUnreadEdges: storedEdges } : {}),
     ...(envNames ? { envNames, envDeclaredIn: KIND_DIRS.secret } : {}),
   }
@@ -537,7 +534,7 @@ async function compileWorkspaceWorkflows(
 ) {
   const workflowInputs = new Map<string, WorkflowInput[] | null>()
   const respondingWorkflows = new Set<string>()
-  const childResults = new Map<string, ChildResultFields>()
+  const nodes = new Map<string, ChildResultNode>()
   const compiledWorkflows = new Map<string, CompiledWorkflowDir>()
   for (const key of await workspaceWorkflowKeys(root)) {
     const dir = await compileWorkflowDir(join(root, KIND_DIRS.workflow, key), catalog, envNames)
@@ -546,9 +543,10 @@ async function compileWorkspaceWorkflows(
     if (!workflow) continue
     workflowInputs.set(key, startInputs(workflow))
     if (respondsOnEveryRun(workflow)) respondingWorkflows.add(key)
-    const fields = childResultFields(workflow, dir.catalog)
-    if (fields) childResults.set(key, fields)
+    const node = compiledResultNode(dir.input, dir.compiled)
+    if (node) nodes.set(key, node)
   }
+  const childResults = resolveChildResults(nodes)
   return { workflowInputs, respondingWorkflows, childResults, compiledWorkflows }
 }
 

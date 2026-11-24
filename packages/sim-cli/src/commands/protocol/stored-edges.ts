@@ -2,12 +2,15 @@ import { isRecordLike, toRecord } from '@sim/utils/object'
 import {
   type BlockCatalog,
   type CanonicalBlock,
-  type ChildResultFields,
+  type ChildResultNode,
+  type ChildResults,
   type CompileResult,
   calledWorkflowKeys,
-  childResultFields,
+  compiledResultNode,
   compileWorkflow,
+  folderCompileInput,
   parseWorkflowLock,
+  resolveChildResults,
   type StoredEdgeRef,
   setOwn,
   stableStringify,
@@ -32,8 +35,7 @@ export function blockDigest(block: CanonicalBlock): string {
 
 type CompileInput = Parameters<typeof compileWorkflow>[0]
 
-/** By child workflow key, the result fields that type a call's `<call.result.data.<field>>`. */
-export type ChildResults = ReadonlyMap<string, ChildResultFields>
+export type { ChildResults }
 
 /**
  * `compiled`, the compile of `input`, as `childResults` type it: the same compile when none types
@@ -56,15 +58,7 @@ export function compiledWithChildResults(
 function printedInput(answer: PrintedAnswer, catalog: BlockCatalog): CompileInput | null {
   const entry = answer.files[SOURCE_ENTRY_FILE]
   const { lock } = parseWorkflowLock(answer.lock)
-  if (entry === undefined || !lock) return null
-  return {
-    entry: { path: SOURCE_ENTRY_FILE, text: entry },
-    files: new Map(Object.entries(answer.files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
-    catalog,
-    sdkMajor: catalog.sdkMajor,
-    knownKeys: new Set(Object.keys(lock.blocks)),
-    storedUnread: lock,
-  }
+  return entry !== undefined && lock ? folderCompileInput(entry, answer.files, lock, catalog) : null
 }
 
 /**
@@ -156,10 +150,10 @@ export interface WorkflowFolderRecords {
 /**
  * The `.sim/stored-edges.json` write of each workflow folder a workspace get or apply answered
  * with, each compiled against the catalog its base names and typed as the server printed it: a
- * call by the result fields of the folder it calls ({@link childResultFields}), as a check
- * types it. A workflow holding a type the workspace catalog lacks was printed with its own
- * catalog: one not cached yet is fetched, once per distinct hash, and cached, so an offline check
- * compiles that folder against it too. The records are a cache fill, never part of the write: a
+ * call by the result fields of the folder it calls, resolved through chains
+ * ({@link resolveChildResults}), as a check types it. A workflow holding a type the workspace
+ * catalog lacks was printed with its own catalog: one not cached yet is fetched, once per
+ * distinct hash, and cached, so an offline check compiles that folder against it too. The records are a cache fill, never part of the write: a
  * catalog fetch that fails skips the folders printed with that catalog (named in `unrecorded`)
  * rather than failing a write the server already committed.
  */
@@ -188,7 +182,7 @@ export async function workflowFolderRecords(
     input: CompileInput
     compiled: CompileResult
   }> = []
-  const childResults = new Map<string, ChildResultFields>()
+  const nodes = new Map<string, ChildResultNode>()
   const unrecorded: string[] = []
   for (const [key, folder] of folders) {
     const { catalogHash } = toRecord(folder.base)
@@ -206,9 +200,10 @@ export async function workflowFolderRecords(
     if (!input) continue
     const compiled = compileWorkflow(input)
     compiledFolders.push({ key, folder, input, compiled })
-    const fields = compiled.workflow && childResultFields(compiled.workflow, input.catalog)
-    if (fields) childResults.set(key, fields)
+    const node = compiledResultNode(input, compiled)
+    if (node) nodes.set(key, node)
   }
+  const childResults = resolveChildResults(nodes)
   const records = compiledFolders.flatMap(({ key, folder, input, compiled }) => {
     const typed = compiledWithChildResults(input, compiled, childResults)
     const record = storedEdgesRecord(folder, typed, `${KIND_DIRS.workflow}/${key}/`)

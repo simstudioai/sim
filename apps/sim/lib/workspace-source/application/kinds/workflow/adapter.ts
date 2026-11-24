@@ -728,7 +728,9 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
     const pending = [...ctx.pending, ...creates.map(({ created }) => created)]
     ctx.loads.childSources = new Map(
       [...desired].flatMap(([key, decl]) =>
-        Object.keys(decl.files).length > 0 ? [[key, decl.files] as const] : []
+        Object.keys(decl.files).length > 0
+          ? [[key, { files: decl.files, lock: decl.lock }] as const]
+          : []
       )
     )
     const names = new Map<string, string>()
