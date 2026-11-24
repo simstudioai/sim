@@ -205,6 +205,39 @@ export const slackOAuthTrigger: TriggerConfig = {
       reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
     },
     {
+      id: 'streamTimelineSources',
+      title: 'Show progress from',
+      type: 'workflow-output-selector',
+      placeholder: 'Select Agent blocks',
+      outputFilter: { blockType: 'agent', path: 'content' },
+      description:
+        'Agent blocks, including ones in child workflows, whose tool steps appear in the reply while they run. Their text is never posted. No steps appear when PII block-output redaction is on.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: SLACK_STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamToolLabels',
+      title: 'Tool step labels',
+      type: 'table',
+      columns: ['Tool', 'Label'],
+      description:
+        'Optional names for tool steps, keyed by tool name (an MCP tool by its own name, like lc_cur). Unlisted tools use a generated name.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: SLACK_STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
       id: 'streamTaskTitle',
       title: 'Response status label',
       type: 'short-input',

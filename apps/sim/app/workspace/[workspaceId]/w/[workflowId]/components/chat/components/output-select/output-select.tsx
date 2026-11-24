@@ -42,6 +42,8 @@ interface OutputSelectProps {
   disabled?: boolean
   /** Placeholder text when no outputs are selected */
   placeholder?: string
+  /** Offers only this output path of blocks of this type */
+  outputFilter?: { blockType: string; path: string }
   /** Whether to emit internal IDs, display labels, or public dot selectors */
   valueMode?: 'id' | 'label' | 'public'
   /** Alignment of the dropdown relative to the trigger */
@@ -127,6 +129,7 @@ function OutputSelectContent({
   onOutputSelect,
   disabled = false,
   placeholder = 'Select outputs',
+  outputFilter,
   valueMode = 'id',
   align = 'start',
   maxHeight = 200,
@@ -206,14 +209,20 @@ function OutputSelectContent({
   const thirdLevelStates = useWorkflowStates(thirdLevelWorkflowIds)
 
   const workflowStates = new Map([...firstLevelStates, ...secondLevelStates, ...thirdLevelStates])
-  const workflowOutputs = workflowId
-    ? buildWorkflowOutputOptions({
-        rootWorkflowId: workflowId,
-        rootState,
-        workflowStates,
-        maxChildDepth: DEFAULTS.MAX_SSE_CHILD_DEPTH,
-      })
-    : []
+  const workflowOutputs = (
+    workflowId
+      ? buildWorkflowOutputOptions({
+          rootWorkflowId: workflowId,
+          rootState,
+          workflowStates,
+          maxChildDepth: DEFAULTS.MAX_SSE_CHILD_DEPTH,
+        })
+      : []
+  ).filter(
+    (output) =>
+      !outputFilter ||
+      (output.blockType === outputFilter.blockType && output.path === outputFilter.path)
+  )
   const outputMenu = buildWorkflowOutputMenu(workflowOutputs)
   const outputMenuRevision = JSON.stringify([
     workflowId,

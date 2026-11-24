@@ -1152,6 +1152,7 @@ function SubBlockComponent({
             previewValue={previewValue as string[] | null | undefined}
             disabled={isDisabled}
             placeholder={config.placeholder}
+            outputFilter={config.outputFilter}
           />
         )
 

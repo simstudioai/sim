@@ -49,6 +49,8 @@ const BASE_CONFIG: SlackStreamResponseConfig = {
   includeToolCalls: true,
   taskTitle: 'Running',
   taskDisplayMode: 'plan',
+  timelineSources: [],
+  toolLabels: {},
 }
 
 function createLoggingSession() {
@@ -727,6 +729,113 @@ describe('SlackExecutionStreamController', () => {
     expect(sentText()).toBe('Safe {{SECRET}}')
     expect(JSON.stringify(mockAppendSlackAgentStream.mock.calls)).not.toContain('private-token')
     controller.assertSucceeded()
+  })
+
+  describe('timeline sources', () => {
+    const TIMELINE_CONFIG: SlackStreamResponseConfig = {
+      ...BASE_CONFIG,
+      outputConfigs: [{ blockId: 'reply', path: 'result' }],
+      timelineSources: [{ workflowId: 'child-workflow', blockId: 'analyst' }],
+      toolLabels: { lc_cur: 'Reading AWS cost data' },
+    }
+    const TIMELINE_EVENTS: AgentStreamEvent[] = [
+      { type: 'tool_call_start', id: 'tool-1', name: 'mcp-6da535c1-lc_cur' },
+      { type: 'tool_call_end', id: 'tool-1', name: 'mcp-6da535c1-lc_cur', status: 'success' },
+      { type: 'tool_call_start', id: 'tool-2', name: 'mcp-6da535c1-lc_other' },
+      { type: 'tool_call_end', id: 'tool-2', name: 'mcp-6da535c1-lc_other', status: 'success' },
+      { type: 'text_delta', text: '{"secret":"analyst json"}', turn: 'pending' },
+      { type: 'turn_end', turn: 'final' },
+    ]
+
+    async function streamTimeline(
+      controller: SlackExecutionStreamController,
+      events: AgentStreamEvent[] = TIMELINE_EVENTS
+    ) {
+      await controller.callbacks.onStream?.({
+        blockId: 'child-workflow.analyst',
+        childWorkflowInstanceId: 'child-instance-1',
+        executionOrder: 2,
+        stream: createByteStream('{"secret":"analyst json"}'),
+        clientStreamTransformed: false,
+        subscribe: ({ onEvent }) => {
+          for (const event of events) void onEvent(event)
+          return vi.fn()
+        },
+      })
+    }
+
+    function allChunks(): SlackStreamChunk[] {
+      return [
+        ...mockStartSlackAgentStream.mock.calls.flatMap((call) => call[2]),
+        ...mockAppendSlackAgentStream.mock.calls.flatMap((call) => call[3]),
+        ...mockStopSlackAgentStream.mock.calls.flatMap((call) => call[6] ?? []),
+      ]
+    }
+
+    it('streams the source as a block selector so the executor streams it', async () => {
+      const { controller } = await createController(TIMELINE_CONFIG)
+      expect(controller.selectedOutputs).toEqual(['reply_result', 'child-workflow.analyst_content'])
+    })
+
+    it('shows tool steps without the source text and posts the answer in the same message', async () => {
+      const { controller } = await createController(TIMELINE_CONFIG)
+      await streamTimeline(controller)
+      await controller.callbacks.onBlockComplete?.('reply', 'Reply', 'function', {
+        output: { result: 'Reviewed answer' },
+        executionOrder: 3,
+        executionTime: 1,
+        startedAt: '2026-11-24T00:00:00Z',
+        endedAt: '2026-11-24T00:00:01Z',
+      })
+      await controller.finalize({ success: true, status: 'completed', output: {} })
+
+      controller.assertSucceeded()
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+      const text = allChunks()
+        .filter((chunk) => chunk.type === 'markdown_text')
+        .map((chunk) => (chunk.type === 'markdown_text' ? chunk.text : ''))
+        .join('')
+      expect(text).toBe('Reviewed answer')
+      const toolTitles = allChunks().flatMap((chunk) =>
+        chunk.type === 'task_update' && chunk.id.includes('-tool-') ? [chunk.title] : []
+      )
+      expect(new Set(toolTitles)).toEqual(new Set(['Reading AWS cost data', 'Lc Other']))
+      expect(mockStopSlackAgentStream.mock.calls[0][3]).toBe('processing')
+    })
+
+    it('stops a timeline-only message once with an error status when the run fails', async () => {
+      const { controller } = await createController(TIMELINE_CONFIG)
+      await streamTimeline(controller, [
+        { type: 'tool_call_start', id: 'tool-1', name: 'mcp-6da535c1-lc_cur' },
+      ])
+      await controller.finalize({ success: false, status: 'failed', output: {} })
+
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStopSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockStopSlackAgentStream.mock.calls[0][3]).toBe('suspended')
+      expect(mockStopSlackAgentStream.mock.calls[0][6]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'task_update', title: 'Running', status: 'error' }),
+          expect.objectContaining({
+            type: 'task_update',
+            id: expect.stringContaining('-tool-tool-1'),
+            status: 'error',
+          }),
+        ])
+      )
+    })
+
+    it('still rejects a stream from a block in neither list', async () => {
+      const { controller } = await createController(TIMELINE_CONFIG)
+      await expect(
+        controller.callbacks.onStream?.({
+          blockId: 'other',
+          executionOrder: 1,
+          stream: createByteStream(),
+        })
+      ).rejects.toThrow('unselected block')
+    })
   })
 
   it('rejects credentials that do not belong to the workflow workspace', async () => {
