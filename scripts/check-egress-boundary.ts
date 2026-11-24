@@ -18,6 +18,12 @@
  * containing a quote hid a real one — which is what a scanner that does not
  * understand the grammar will keep doing.
  *
+ * Test files (`*.test.ts`, `*.integration.ts`) and shared test fixtures
+ * (`*.test-helpers.ts`) are not scanned: they run only under the test runner and
+ * often stand up a loopback server to test against. Skipping a fixture would let
+ * production code reach a transport through it, so a scanned module may not load
+ * a `*.test-helpers` module at all.
+ *
  * Not checked: bare `fetch()`. It is used constantly for same-origin and
  * server-action calls where the guard does not apply, so flagging it would be
  * noise. The transports it can reach are covered by the rules below.
@@ -45,6 +51,16 @@ const SCAN_DIRS = [
 ]
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.next', '.turbo', 'coverage'])
+
+/** Test code, which runs only under the test runner and is not scanned. */
+const TEST_FILE = /\.(test|integration|test-helpers)\.tsx?$/
+
+/** A shared test fixture, which production code may not load. */
+const TEST_HELPER_SPECIFIER = /\.test-helpers(\.tsx?)?$/
+
+function isForbiddenSpecifier(specifier: string): boolean {
+  return TRANSPORTS.has(specifier) || TEST_HELPER_SPECIFIER.test(specifier)
+}
 
 /** Modules that can open a socket directly. */
 const TRANSPORTS = new Set([
@@ -95,8 +111,7 @@ function walk(dir: string, out: string[] = []): string[] {
     if (SKIP_DIRS.has(entry.name)) continue
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) walk(full, out)
-    else if (/\.(ts|tsx)$/.test(entry.name) && !/\.(test|integration)\.tsx?$/.test(entry.name))
-      out.push(full)
+    else if (/\.(ts|tsx)$/.test(entry.name) && !TEST_FILE.test(entry.name)) out.push(full)
   }
   return out
 }
@@ -145,15 +160,15 @@ function isElidedExport(node: ts.ExportDeclaration): boolean {
 }
 
 /**
- * Every runtime reference to a transport module. An import TypeScript elides is
- * skipped: it has no runtime presence and cannot open anything.
+ * Every runtime reference to a transport or test-helper module. An import
+ * TypeScript elides is skipped: it has no runtime presence and cannot open anything.
  */
-function findTransportLoads(file: string, source: string): Array<Omit<Violation, 'file'>> {
+export function findForbiddenLoads(file: string, source: string): Array<Omit<Violation, 'file'>> {
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false)
   const found: Array<Omit<Violation, 'file'>> = []
 
   const record = (node: ts.Node, specifier: string, kind: string) => {
-    if (!TRANSPORTS.has(specifier)) return
+    if (!isForbiddenSpecifier(specifier)) return
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
     found.push({ line: line + 1, kind, specifier })
   }
@@ -185,7 +200,8 @@ function findTransportLoads(file: string, source: string): Array<Omit<Violation,
   return found
 }
 
-export function mayLoadTransport(source: string): boolean {
+/** Cheap token prefilter: whether any string literal names a forbidden module. */
+export function mayLoadForbiddenModule(source: string): boolean {
   const scanner = ts.createScanner(
     ts.ScriptTarget.Latest,
     true,
@@ -196,7 +212,7 @@ export function mayLoadTransport(source: string): boolean {
     if (
       (token === ts.SyntaxKind.StringLiteral ||
         token === ts.SyntaxKind.NoSubstitutionTemplateLiteral) &&
-      TRANSPORTS.has(scanner.getTokenValue())
+      isForbiddenSpecifier(scanner.getTokenValue())
     ) {
       return true
     }
@@ -214,8 +230,8 @@ function main() {
       if (ALLOWED.has(rel)) continue
       scanned++
       const source = readFileSync(file, 'utf8')
-      if (!mayLoadTransport(source)) continue
-      for (const load of findTransportLoads(rel, source)) {
+      if (!mayLoadForbiddenModule(source)) continue
+      for (const load of findForbiddenLoads(rel, source)) {
         violations.push({ file: rel, ...load })
       }
     }
@@ -236,7 +252,9 @@ function main() {
       '  destination first, so a user- or model-supplied URL reaches the network\n' +
       '  unchecked. Use secureFetchWithValidation (or secureFetchWithPinnedIP with\n' +
       '  a validated address) from @/lib/core/security/input-validation.server and\n' +
-      '  pass the egress profile describing where the URL came from.\n'
+      '  pass the egress profile describing where the URL came from. A\n' +
+      '  *.test-helpers module is a test fixture outside this scan; production\n' +
+      '  code must not load it.\n'
   )
   process.exit(1)
 }
