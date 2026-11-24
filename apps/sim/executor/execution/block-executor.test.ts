@@ -736,6 +736,44 @@ describe('BlockExecutor', () => {
     )
   })
 
+  it.each([
+    [BlockType.WORKFLOW_INPUT, 'dv-7'],
+    ['custom_block_abc', undefined],
+  ])(
+    'records the child deployment version on a failed %s block only when it is a workflow block',
+    async (blockType, expected) => {
+      const block = { ...createBlock(), metadata: { id: blockType, name: 'Child' } }
+      const state = new ExecutionState()
+      const workflow: SerializedWorkflow = {
+        version: '1',
+        blocks: [block],
+        connections: [],
+        loops: {},
+        parallels: {},
+      }
+      const handler: BlockHandler = {
+        canHandle: () => true,
+        execute: async () => {
+          throw new ChildWorkflowError({
+            message: '"Child" failed: boom',
+            childWorkflowName: 'Child',
+            childDeploymentVersionId: 'dv-7',
+          })
+        },
+      }
+      const executor = new BlockExecutor(
+        [handler],
+        new VariableResolver(workflow, {}, state),
+        {},
+        state
+      )
+
+      await executor.execute(createContext(state), createNode(block), block).catch(() => undefined)
+
+      expect(state.getBlockOutput(block.id)?.childDeploymentVersionId).toBe(expected)
+    }
+  )
+
   it('does not soft-succeed non-agent blocks on user AbortError', async () => {
     const block = createBlock()
     const workflow: SerializedWorkflow = {

@@ -8066,6 +8066,7 @@ type GetLogResponseRef1 = {
   errorType?: string
   errorMessage?: string
   blockId?: string
+  childDeploymentVersionId?: string
   input?: unknown
   output?: unknown
   tokens?:
@@ -12335,6 +12336,7 @@ type ListLogsResponseRef2 = {
   errorType?: string
   errorMessage?: string
   blockId?: string
+  childDeploymentVersionId?: string
   input?: unknown
   output?: unknown
   tokens?:

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import type { ProviderTiming, TraceSpan } from '@/lib/logs/types'
 import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
@@ -16,6 +16,9 @@ import type {
 } from '@/executor/types'
 
 const logger = createLogger('SpanFactory')
+
+/** The Agent tool that runs a workflow in-process through the workflow block handler. */
+const WORKFLOW_TOOL_ID = 'workflow_executor'
 
 /** A BlockLog that has already passed the id/type validity check. */
 type ValidBlockLog = BlockLog & { blockType: string }
@@ -95,7 +98,7 @@ export function createSpanFromLog(log: BlockLog): TraceSpan | null {
 function createBaseSpan(log: ValidBlockLog): TraceSpan {
   const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
   const output = extractDisplayOutput(log)
-  const childIds = extractChildWorkflowIds(log.output)
+  const childIds = extractChildWorkflowIds(log)
 
   return {
     id: spanId,
@@ -141,22 +144,54 @@ function extractDisplayOutput(log: ValidBlockLog): Record<string, unknown> {
     childTraceSpans: _childTraceSpans,
     ...rest
   } = log.output ?? {}
-  return log.error ? { ...rest, error: log.error } : rest
+  const display = isWorkflowBlockType(log.blockType)
+    ? omit(rest, ['childDeploymentVersionId'])
+    : rest
+  return log.error ? { ...display, error: log.error } : display
 }
 
-/** Pulls child-workflow identifiers off the output so they can live on the span. */
-function extractChildWorkflowIds(
-  output: NormalizedBlockOutput | undefined
-): { childWorkflowSnapshotId?: string; childWorkflowId?: string } | undefined {
+type ChildWorkflowIds = Pick<
+  TraceSpan,
+  'childWorkflowSnapshotId' | 'childWorkflowId' | 'childDeploymentVersionId'
+>
+
+/**
+ * Pulls child-workflow identifiers off the output so they can live on the span. The deployment
+ * version is taken only from a workflow block, so no other block can claim one by returning the key.
+ */
+function extractChildWorkflowIds(log: ValidBlockLog): ChildWorkflowIds | undefined {
+  const output = log.output
   if (!output) return undefined
-  const ids: { childWorkflowSnapshotId?: string; childWorkflowId?: string } = {}
+  const ids: ChildWorkflowIds = {}
   if (typeof output.childWorkflowSnapshotId === 'string') {
     ids.childWorkflowSnapshotId = output.childWorkflowSnapshotId
   }
   if (typeof output.childWorkflowId === 'string') {
     ids.childWorkflowId = output.childWorkflowId
   }
-  return ids.childWorkflowSnapshotId || ids.childWorkflowId ? ids : undefined
+  if (isWorkflowBlockType(log.blockType)) {
+    Object.assign(ids, childDeploymentVersionOf(output))
+  }
+  return Object.keys(ids).length > 0 ? ids : undefined
+}
+
+/** The deployment version a child workflow run reports, as a span field. */
+function childDeploymentVersionOf(
+  output: Record<string, unknown> | undefined
+): Pick<TraceSpan, 'childDeploymentVersionId'> {
+  const versionId = output?.childDeploymentVersionId
+  return typeof versionId === 'string' ? { childDeploymentVersionId: versionId } : {}
+}
+
+/**
+ * The deployment version a workflow run as an Agent tool reported. Read only for
+ * `workflow_executor`, so another tool returning the same key records nothing.
+ */
+function workflowToolVersion(
+  toolName: string,
+  output: Record<string, unknown> | undefined
+): Pick<TraceSpan, 'childDeploymentVersionId'> {
+  return toolName === WORKFLOW_TOOL_ID ? childDeploymentVersionOf(output) : {}
 }
 
 /** Enriches a span with provider timing, cost, tokens, and model from block output. */
@@ -263,6 +298,7 @@ function buildChildrenFromTimeSegments(
         input: match?.arguments ?? match?.input,
         output: match?.error ? { error: match.error, ...output } : output,
         ...handle,
+        ...workflowToolVersion(normalizedName, output),
       }
       if (segment.toolCallId) toolChild.toolCallId = segment.toolCallId
       if (segment.errorType) toolChild.errorType = segment.errorType
@@ -330,9 +366,10 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
     const startTime = tc.startTime ?? log.startedAt
     const endTime = tc.endTime ?? log.endedAt
     const { output, handle } = liftChildTraceHandle(normalizeTraceOutput(tc.result ?? tc.output))
+    const name = stripCustomToolPrefix(tc.name ?? 'unnamed-tool')
     return {
       id: `${span.id}-tool-${index}`,
-      name: stripCustomToolPrefix(tc.name ?? 'unnamed-tool'),
+      name,
       type: 'tool',
       duration: tc.duration ?? 0,
       startTime,
@@ -341,6 +378,7 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
       input: tc.arguments ?? tc.input,
       output: tc.error ? { error: tc.error, ...output } : output,
       ...handle,
+      ...workflowToolVersion(name, output),
     }
   })
 }

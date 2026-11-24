@@ -1395,6 +1395,10 @@
             "type": "string",
             "description": "Workflow block associated with the span."
           },
+          "childDeploymentVersionId": {
+            "type": "string",
+            "description": "Deployment version of the child workflow this call ran, on a workflow block span or a workflow Agent tool span. Match it to the child workflow's versions list. Absent for draft children, custom blocks, failed Agent tool calls, and runs recorded before this field existed."
+          },
           "input": {
             "description": "Input captured for the traced operation."
           },

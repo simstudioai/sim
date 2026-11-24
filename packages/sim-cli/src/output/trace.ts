@@ -77,6 +77,8 @@ function renderSpan(value: unknown, depth: number): string[] {
   const lines = [summary, `${detailIndent}id: ${requiredText(span, 'id')}`]
   const blockId = optionalText(span, 'blockId')
   if (blockId) lines.push(`${detailIndent}block: ${blockId}`)
+  const childVersion = optionalText(span, 'childDeploymentVersionId')
+  if (childVersion) lines.push(`${detailIndent}child version: ${childVersion}`)
   const startTime = optionalText(span, 'startTime')
   const endTime = optionalText(span, 'endTime')
   if (startTime || endTime) {

@@ -213,6 +213,7 @@ export type LogTraceSpan = {
   errorType?: string
   errorMessage?: string
   blockId?: string
+  childDeploymentVersionId?: string
   input?: unknown
   output?: unknown
   tokens?: number | { total?: number; input?: number; output?: number }
@@ -244,6 +245,12 @@ export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
         errorType: z.string().describe('Recorded error type.').optional(),
         errorMessage: z.string().describe('Recorded error message.').optional(),
         blockId: z.string().describe('Workflow block associated with the span.').optional(),
+        childDeploymentVersionId: z
+          .string()
+          .describe(
+            "Deployment version of the child workflow this call ran, on a workflow block span or a workflow Agent tool span. Match it to the child workflow's versions list. Absent for draft children, custom blocks, failed Agent tool calls, and runs recorded before this field existed."
+          )
+          .optional(),
         input: z.unknown().describe('Input captured for the traced operation.').optional(),
         output: z.unknown().describe('Output captured for the traced operation.').optional(),
         tokens: z

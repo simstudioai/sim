@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import type { Variable, WorkflowState } from '@sim/workflow-types/workflow'
 import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
@@ -350,6 +350,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
 
     let childWorkflowSnapshotId: string | undefined
+    /** Unset for draft children, and for custom blocks so the consumer learns nothing of the source. */
+    let childDeploymentVersionId: string | undefined
     /** Set for custom blocks only: the child's own execution id / log row. */
     let childExecutionId: string | undefined
     let childSession: LoggingSession | undefined
@@ -444,6 +446,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       // skipped or every custom-block invocation from another workspace throws.
       if (!isCustomBlock) {
         this.assertChildWorkflowInWorkspace(workflowId, childWorkflow.workspaceId, ctx.workspaceId)
+        // Recorded only once the child is known to be this workspace's, so a refusal never names
+        // another workspace's version.
+        childDeploymentVersionId = childWorkflow.deploymentVersionId
       }
 
       childWorkflowName = childWorkflow.name || 'Unknown Workflow'
@@ -999,7 +1004,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childWorkflowName,
         instanceId,
         childTraceSpans,
-        childWorkflowSnapshotId,
+        { childWorkflowSnapshotId, childDeploymentVersionId },
         { executionId: ctx.executionId, blockId: block.id }
       )
 
@@ -1097,6 +1102,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         childTraceSpans,
         executionResult,
         childWorkflowSnapshotId,
+        childDeploymentVersionId,
         childWorkflowInstanceId: instanceId,
         cause: error instanceof Error ? error : undefined,
       })
@@ -1587,7 +1593,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     childWorkflowName: string,
     instanceId: string,
     childTraceSpans?: WorkflowTraceSpan[],
-    childWorkflowSnapshotId?: string,
+    childRun: { childWorkflowSnapshotId?: string; childDeploymentVersionId?: string } = {},
     parent?: { executionId?: string; blockId: string }
   ): BlockOutput {
     const success = childResult.success !== false
@@ -1606,7 +1612,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         workflowChain: chain,
         rootErrorMessage,
         childTraceSpans: childTraceSpans || [],
-        childWorkflowSnapshotId,
+        ...childRun,
         childWorkflowInstanceId: instanceId,
       })
       /** The warning above is this failure's log line. */
@@ -1618,7 +1624,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       success: true,
       childWorkflowName,
       childWorkflowId,
-      ...(childWorkflowSnapshotId ? { childWorkflowSnapshotId } : {}),
+      ...filterUndefined(childRun),
       result,
       childTraceSpans: childTraceSpans || [],
       _childWorkflowInstanceId: instanceId,
