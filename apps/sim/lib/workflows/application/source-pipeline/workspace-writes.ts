@@ -49,6 +49,11 @@ interface UpdatePlanInput {
   pendingResources: readonly PendingResource[]
   /** Loads shared by every workflow the workspace apply evaluates. */
   loads: SourceLoads
+  /**
+   * The files of each workflow folder the workspace apply writes, by key, which type a child call's
+   * result as submitted; absent, each child is read as stored.
+   */
+  childSources?: ReadonlyMap<string, Readonly<Record<string, string>>>
 }
 
 /** A workflow a workspace source apply creates, under the id it minted for it. */
@@ -58,6 +63,11 @@ interface CreatePlanInput {
   files: Record<string, string>
   pendingResources: readonly PendingResource[]
   loads: SourceLoads
+  /**
+   * The files of each workflow folder the workspace apply writes, by key, which type a child call's
+   * result as submitted; absent, each child is read as stored.
+   */
+  childSources?: ReadonlyMap<string, Readonly<Record<string, string>>>
 }
 
 /** The update target of a stored workflow's plan, under the workflow context resolved now. */
@@ -95,7 +105,12 @@ export const workflowSourceUpdate = {
       return planSource(
         principal,
         updateTarget(context, input),
-        { files: input.files, lock: input.lock, pendingResources: input.pendingResources },
+        {
+          files: input.files,
+          lock: input.lock,
+          pendingResources: input.pendingResources,
+          ...(input.childSources ? { childSources: input.childSources } : {}),
+        },
         { loads: input.loads, allocate: false }
       )
     },
@@ -166,7 +181,12 @@ export const workflowSourceCreate = {
       return planSource(
         principal,
         await createTarget(context, input.workflowId),
-        { files: input.files, lock: EMPTY_LOCK, pendingResources: input.pendingResources },
+        {
+          files: input.files,
+          lock: EMPTY_LOCK,
+          pendingResources: input.pendingResources,
+          ...(input.childSources ? { childSources: input.childSources } : {}),
+        },
         { loads: input.loads, allocate: false }
       )
     },

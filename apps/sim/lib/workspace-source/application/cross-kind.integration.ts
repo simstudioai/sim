@@ -74,8 +74,10 @@ import { setSecretUseCase } from '@/lib/secrets/application/use-cases'
 import { createSkillUseCase } from '@/lib/skills/application/use-cases'
 import { createTableUseCase, deleteTableUseCase } from '@/lib/table/application/tables'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { duplicateWorkflow } from '@/lib/workflows/application/duplicate-workflow'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { withBoundWorkspaceFindings } from '@/lib/workspace-source/api/route-policies'
@@ -1429,6 +1431,64 @@ export default workflow('Secret', {}, () => {
   })
 
   check(
+    "types a call's result.data fields by the child's Response data, as submitted or as stored",
+    async () => {
+      const workspaceId = await newWorkspace()
+      const files = {
+        'workflows/parent/workflow.ts': PHONE_PARENT,
+        'workflows/normalize/workflow.ts': PHONE_CHILD,
+      }
+
+      const dryRun = await apply(workspaceId, { files, blobs: {} }, { dryRun: true })
+      expect(codes(dryRun.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      const created = await apply(workspaceId, { files, blobs: {} })
+      expect(created.failed).toBeUndefined()
+      const parentId = created.base.resources['workflow:parent']?.id
+      if (!parentId) throw new Error('The parent was not created')
+      expect(await responseData(parentId)).toEqual({
+        mobile: '"<run.result.data.mobile>"',
+        digits: '<run.result.data.digits>',
+      })
+
+      const read = await get(workspaceId)
+      const printed = read.files['workflows/parent/workflow.ts']
+      expect(printed).toContain(
+        'body: { mobile: run.result.data.mobile, digits: run.result.data.digits }'
+      )
+      const single = await withPermissionGroupScope(() =>
+        readWorkflowSource.execute({ principal: owner, input: { workflowId: parentId } })
+      )
+      expect(single.files['workflow.ts']).toBe(printed)
+
+      // A single-workflow apply types the call by the child as stored.
+      const edited = await withPermissionGroupScope(() =>
+        applyWorkflowSource.execute({
+          principal: owner,
+          input: {
+            workflowId: parentId,
+            files: {
+              ...single.files,
+              'workflow.ts': printed.replace(
+                'digits: run.result.data.digits',
+                'digits: run.result.data.digits, again: run.result.data.mobile'
+              ),
+            },
+            lock: single.lock,
+            base: single.base,
+          },
+        })
+      )
+      expect(codes(edited.diagnostics, 'warning')).not.toContain('W_JSON_REF_UNTYPED')
+      expect(await responseData(parentId)).toEqual({
+        mobile: '"<run.result.data.mobile>"',
+        digits: '<run.result.data.digits>',
+        again: '"<run.result.data.mobile>"',
+      })
+      expect(edited.files['workflow.ts']).toContain('again: run.result.data.mobile,')
+    }
+  )
+
+  check(
     'renaming the key of a table or a tool is reported as a key rename, not a taken name',
     async () => {
       const { workspaceId, dir, base } = await setUp()
@@ -1483,6 +1543,49 @@ export default workflow('Child', {}, () => {
 })
 `,
   'workflows/keep/workflow.ts': TEXT['workflows/keep/workflow.ts'],
+}
+
+/** A child that always responds with a text `mobile` and a number `digits`. */
+const PHONE_CHILD = `// @sim-sdk 1
+import { response, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Normalize', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string', n: 'number' } })
+  const reply = response('Reply', { body: { mobile: start.phone, digits: start.n } })
+  start.to(reply)
+})
+`
+
+/** A parent that responds with the fields of what `normalize` responds with. */
+const PHONE_PARENT = `// @sim-sdk 1
+import { childWorkflow, response, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'
+
+export default workflow('Parent', {}, () => {
+  const start = trigger.start('Start', { inputFormat: { phone: 'string' } })
+  const run = runWorkflow('Run', {
+    workflowId: childWorkflow('normalize'),
+    inputMapping: { phone: start.phone },
+  })
+  const reply = response('Reply', {
+    body: { mobile: run.result.data.mobile, digits: run.result.data.digits },
+  })
+  start.to(run)
+  run.to(reply)
+})
+`
+
+/**
+ * The Response data workflow `workflowId` stores, each field's raw JSON text by key: a quoted
+ * reference keeps its quotes, a bare one is the reference alone.
+ */
+async function responseData(workflowId: string): Promise<Record<string, string>> {
+  const loaded = await loadWorkflowFromNormalizedTables(workflowId)
+  const reply = Object.values(loaded?.blocks ?? {}).find((block) => block.type === 'response')
+  const data = reply?.subBlocks.data?.value
+  if (typeof data !== 'string') throw new Error('The Response block stores no data')
+  return Object.fromEntries(
+    [...data.matchAll(/"(\w+)": ("?<[^>]+>"?)/g)].map(([, key, value]) => [key, value])
+  )
 }
 
 /** The workflow ids the Run Workflow blocks of workflow `workflowId` store. */

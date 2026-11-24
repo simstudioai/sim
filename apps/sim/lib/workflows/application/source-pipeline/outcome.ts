@@ -114,6 +114,7 @@ export function printPlanned(
     identity: plan.identity,
     codeFiles,
     ...(lockless ? { lockless } : {}),
+    ...(plan.childResults ? { childResults: plan.childResults } : {}),
   })
 }
 

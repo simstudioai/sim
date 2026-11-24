@@ -13,7 +13,12 @@ import { compareEdges } from '../canonicalize/edges'
 import type { BlockCatalog } from '../catalog/types'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
-import { jsonFieldText, type RefTypeScope, refValueKind } from '../json-fields'
+import {
+  type ChildResultFields,
+  jsonFieldText,
+  type RefTypeScope,
+  refValueKind,
+} from '../json-fields'
 import { lockIdentRenames, type SourceHints, type WorkflowLockV1 } from '../lock'
 import { renamedReferenceRewriter } from '../materialize/values'
 import type {
@@ -27,6 +32,7 @@ import type {
   VarKey,
 } from '../model'
 import { getOwn, setOwn } from '../records'
+import { childResultScope } from '../responds'
 import { SDK_MODULE } from '../sdk'
 import { compileBlock } from './blocks'
 import { checkStorableLiterals, checkStorableText } from './characters'
@@ -103,6 +109,13 @@ export interface CompileInput {
    * `W_ENV_UNKNOWN` hint points at; absent, the hint points at the workspace's env variables.
    */
   envDeclaredIn?: string
+  /**
+   * By child workflow key, the fields of the data that child responds with on every run
+   * (`childResultFields` of its compiled workflow). A call's `<call.result.data.<field>>` is then
+   * typed by that field, so a JSON field stores it quoted when it is text and bare otherwise
+   * instead of reporting `W_JSON_REF_UNTYPED`. Absent, such a reference is untyped.
+   */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /** The compiled workflow (or `null` after an error) with its diagnostics, spans and lock hints. */
@@ -717,6 +730,7 @@ function compileEntry(
     catalog: input.catalog,
     block: (key) => compiled.get(key),
     variable: (key) => ctx.variables.get(key),
+    childResult: childResultScope((key) => compiled.get(key), input.childResults),
   }
   const isString = (token: string) => refValueKind(token, refTypes) === 'string'
   /** Bare references nothing types, reported once the unknown paths are known (see below). */

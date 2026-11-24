@@ -1,6 +1,8 @@
 import {
   type CanonicalizeResult,
   type CanonicalWorkflowMeta,
+  type ChildResultFields,
+  calledWorkflowKeys,
   canonicalizeUnderLock,
   type Diagnostic,
   parseWorkflowLock,
@@ -33,11 +35,27 @@ export interface CompiledSubmission {
 
 /**
  * Parses the submitted lock and compiles the files against the live catalog and the stored graph
- * read under that lock. Refuses a lock that does not parse, or a source that does not compile
- * (noting a catalog that moved since the read, which can explain the errors).
+ * read under that lock, typing child calls' results by the fields of the children the compiled
+ * source calls (`input.loadChildResults`): a compile names its calls only once it has run, so a
+ * source calling a child that responds is compiled again with those fields. Refuses a lock that
+ * does not parse, or a source that does not compile (noting a catalog that moved since the read,
+ * which can explain the errors).
  */
-export function compileSubmission(
+export async function compileSubmission(
   input: SourceEvaluationInput
+): Promise<{ refused: WorkflowSourceDiagnostic[] } | CompiledSubmission> {
+  const untyped = compileUnder(input)
+  if ('refused' in untyped || !input.loadChildResults) return untyped
+  const called = calledWorkflowKeys(untyped.compiledWorkflow)
+  if (called.length === 0) return untyped
+  const childResults = await input.loadChildResults(called)
+  return childResults.size === 0 ? untyped : compileUnder(input, childResults)
+}
+
+/** {@link compileSubmission} with child calls' results typed by `childResults`. */
+function compileUnder(
+  input: SourceEvaluationInput,
+  childResults?: ReadonlyMap<string, ChildResultFields>
 ): { refused: WorkflowSourceDiagnostic[] } | CompiledSubmission {
   const { catalog, files } = input
 
@@ -64,6 +82,7 @@ export function compileSubmission(
       ...Object.keys(storedCanonical.identity.blocks),
     ]),
     envNames: input.envNames,
+    ...(childResults ? { childResults } : {}),
   }
   const compiled = compileSource({ ...compileInput, stored: storedCanonical.workflow, lock })
   const compiledWorkflow = compiled.workflow

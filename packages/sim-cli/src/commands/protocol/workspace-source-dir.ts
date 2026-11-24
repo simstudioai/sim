@@ -7,7 +7,7 @@
 import { realpath, stat } from 'node:fs/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
-import type { WorkflowInput } from '@sim/workflow-code'
+import type { ChildResultFields, WorkflowInput } from '@sim/workflow-code'
 import { SOURCE_CODE_DIR, SOURCE_ENTRY_FILE, SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
   SDK_MAJOR,
@@ -355,6 +355,11 @@ export interface WorkspaceDeclarations {
    * `result` is that block's output; set by a check, which compiles them.
    */
   respondingWorkflows?: ReadonlySet<string>
+  /**
+   * By key, the typed top-level fields of the data each of those workflows responds with
+   * (`childResultFields`), which type a call's `<call.result.data.<field>>`; set by a check.
+   */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /**

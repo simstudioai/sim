@@ -4,6 +4,7 @@ import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { compareStrings } from '@sim/utils/string'
 import {
   type CanonicalWorkflow,
+  calledWorkflowKeys,
   type Diagnostic,
   type SourceBase,
   type SourceFingerprint,
@@ -36,6 +37,10 @@ import {
   loadWorkflowGraphs,
 } from '@/lib/workflows/application/read-workflow-graph'
 import { recordSourceRead } from '@/lib/workflows/application/source-analytics'
+import {
+  type ChildResultsMemo,
+  loadChildResults,
+} from '@/lib/workflows/application/source-child-results'
 import type { WorkflowSourceDiagnostic } from '@/lib/workflows/application/source-error'
 import { buildSourceCatalog, storedCatalogTypes } from '@/lib/workflows/code/catalog/workspace'
 import {
@@ -230,11 +235,14 @@ interface LoadedSource {
   gate: CatalogGate
   sourceMeta: WorkflowSourceMetaV1 | null
   prefetched: PrefetchedStoredResources
+  /** The child workflows read for this read, shared by the workflows a batched read prints. */
+  childMemo: ChildResultsMemo
 }
 
 /**
  * Prints a loaded workflow as source: builds its catalog, canonicalizes the stored graph with its
- * resource keys and prints it with its source meta, refusing one over `SOURCE_LIMITS`.
+ * resource keys and prints it with its source meta and the result fields of the children it calls
+ * (as an apply of the printed source types them), refusing one over `SOURCE_LIMITS`.
  */
 async function printLoadedSource(
   loaded: LoadedSource,
@@ -252,6 +260,19 @@ async function printLoadedSource(
     { organizationId: scope.workspaceOrganizationId, gate, prefetched, stored: loaded.stored },
     async ({ canonical, resources }, catalog) => {
       const canonicalHash = storedCanonicalHash(canonical, resources)
+      const called = calledWorkflowKeys(canonical.workflow)
+      const childResults =
+        called.length > 0
+          ? await loadChildResults(
+              {
+                workspaceId: scope.workspaceId,
+                workspaceOrganizationId: scope.workspaceOrganizationId,
+                gate,
+                memo: loaded.childMemo,
+              },
+              called
+            )
+          : undefined
       const printed = printStoredSource({
         state,
         meta,
@@ -260,6 +281,7 @@ async function printLoadedSource(
         sourceMeta,
         functionCode,
         lockless: canonical,
+        ...(childResults ? { childResults } : {}),
       })
       assertFitsSourceLimits(printed, counts)
       return {
@@ -309,7 +331,7 @@ export const readWorkflowSource = defineAuthorizedWorkflowUseCase({
       }),
     ])
     const read = await printLoadedSource(
-      { scope: context, stored, gate, sourceMeta, prefetched },
+      { scope: context, stored, gate, sourceMeta, prefetched, childMemo: new Map() },
       input.functionCode ?? 'files'
     )
     if (!input.plan) recordSourceRead(principal, context)
@@ -370,6 +392,7 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
         input.workflowIds
       ),
     ])
+    const childMemo: ChildResultsMemo = new Map()
     const printed = await mapWithConcurrency(
       input.workflowIds,
       PRINT_CONCURRENCY,
@@ -392,6 +415,7 @@ export const readWorkflowSources = defineAuthorizedWorkflowUseCase({
               gate,
               sourceMeta: sourceMetas.get(workflowId) ?? null,
               prefetched: { ...prefetched, workflowId },
+              childMemo,
             },
             'files'
           )

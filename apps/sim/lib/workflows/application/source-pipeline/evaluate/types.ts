@@ -3,6 +3,7 @@ import type {
   BlockCatalog,
   CanonicalWorkflow,
   CanonicalWorkflowMeta,
+  ChildResultFields,
   LockIdentity,
   ResourceKeyResolver,
   ResourceKind,
@@ -62,6 +63,12 @@ export interface SourceEvaluationInput {
    * created in the same apply resolves instead of failing `E_MAT_UNKNOWN_RESOURCE`.
    */
   pendingResources?: readonly PendingResource[]
+  /**
+   * Reads the typed result fields of the child workflows the source calls, by key
+   * (`loadChildResults`), which type a call's `<call.result.data.<field>>`. Absent, those
+   * references are untyped.
+   */
+  loadChildResults?: (keys: readonly string[]) => Promise<ReadonlyMap<string, ChildResultFields>>
 }
 
 /**
@@ -128,6 +135,8 @@ export interface SourcePlan {
   references: SourceReference[]
   /** Every env name the submitted source reads, as the compiler read it. */
   envReferences: string[]
+  /** The child result fields the compile typed with, which every print of the plan types with. */
+  childResults?: ReadonlyMap<string, ChildResultFields>
 }
 
 /** What the submitted source references, as the compiler read it. */

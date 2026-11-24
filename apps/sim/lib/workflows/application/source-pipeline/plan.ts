@@ -9,6 +9,7 @@ import type {
 import { diagnostic } from '@sim/workflow-code/diagnostics'
 import { isEqual } from 'es-toolkit'
 import { withCatalogBlockScope } from '@/lib/catalog/application/context'
+import { loadChildResults } from '@/lib/workflows/application/source-child-results'
 import { assertCreateNameFree } from '@/lib/workflows/application/source-commit'
 import { emptyDiffSummary, type SourceDiffSummary } from '@/lib/workflows/application/source-diff'
 import {
@@ -41,6 +42,11 @@ interface SourceSubmission {
   lock: WorkflowLockV1
   /** Resources the enclosing workspace source apply creates or adopts first. */
   pendingResources?: readonly PendingResource[]
+  /**
+   * The files of each workflow folder the enclosing workspace source apply writes, by key: a child
+   * the source calls is typed as submitted there, not as stored.
+   */
+  childSources?: ReadonlyMap<string, Readonly<Record<string, string>>>
 }
 
 /**
@@ -264,6 +270,13 @@ export async function planSource(
       })
     }
 
+    const childScope = {
+      workspaceId: scope.workspaceId,
+      workspaceOrganizationId: scope.workspaceOrganizationId,
+      gate: loaded.gate,
+      memo: options.loads ? (options.loads.childResults ??= new Map()) : new Map(),
+      ...(submission.childSources ? { submitted: submission.childSources } : {}),
+    }
     const evaluation = await evaluateSource({
       principal,
       scope,
@@ -276,6 +289,7 @@ export async function planSource(
       files: submission.files,
       lock: submission.lock,
       ...(submission.pendingResources ? { pendingResources: submission.pendingResources } : {}),
+      loadChildResults: (keys) => loadChildResults(childScope, keys),
       ...(target.kind === 'existing'
         ? { base: target.base, allowDelete: target.allowDelete }
         : { create: target.create }),

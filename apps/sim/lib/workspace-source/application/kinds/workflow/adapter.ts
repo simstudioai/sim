@@ -420,6 +420,12 @@ function classifyFolder(
 }
 
 /**
+ * The files of every folder sent with them, by key: a workflow calling one is typed by the child's
+ * Response data as the folder holds it, as the directory's check types it, not as stored.
+ */
+type ChildSources = ReadonlyMap<string, Readonly<Record<string, string>>>
+
+/**
  * Evaluates an edited folder of a stored workflow (plan only, no write). `pending` holds the
  * resources this apply creates or adopts first, which the evaluation resolves.
  */
@@ -428,7 +434,8 @@ async function planUpdate(
   update: { workflowId: string; base: SourceBase },
   ctx: PlanContext,
   pending: readonly PendingResource[],
-  renamed: Map<string, string>
+  renamed: Map<string, string>,
+  childSources: ChildSources
 ): Promise<WorkflowChange> {
   const { key, decl } = change
   if (!decl) return change
@@ -447,6 +454,7 @@ async function planUpdate(
       allowDelete: ctx.allowDelete,
       pendingResources: pending,
       loads: ctx.loads,
+      childSources,
     },
   })
   const result = summarizePlan(outcome)
@@ -487,7 +495,8 @@ async function planCreate(
   change: WorkflowChange,
   created: PendingResource,
   ctx: PlanContext,
-  pending: readonly PendingResource[]
+  pending: readonly PendingResource[],
+  childSources: ChildSources
 ): Promise<{ change: WorkflowChange; name?: string }> {
   const { decl } = change
   if (!decl) return { change }
@@ -499,6 +508,7 @@ async function planCreate(
       files: decl.files,
       pendingResources: pending,
       loads: ctx.loads,
+      childSources,
     },
   })
   const result = summarizePlan(outcome)
@@ -726,11 +736,19 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
         : []
     )
     const pending = [...ctx.pending, ...creates.map(({ created }) => created)]
+    const childSources: ChildSources = new Map(
+      [...desired].flatMap(([key, decl]) =>
+        Object.keys(decl.files).length > 0 ? [[key, decl.files] as const] : []
+      )
+    )
     const names = new Map<string, string>()
     const evaluatedCreates = new Map<string, { change: WorkflowChange; name?: string }>()
     await mapWithConcurrency(creates, PLAN_CONCURRENCY, async ({ step, created }) => {
       try {
-        evaluatedCreates.set(step.change.key, await planCreate(step.change, created, ctx, pending))
+        evaluatedCreates.set(
+          step.change.key,
+          await planCreate(step.change, created, ctx, pending, childSources)
+        )
       } catch (error) {
         step.change.diagnostics.push(
           refusalDiagnostic(error, { kind: 'workflow', key: step.change.key })
@@ -764,7 +782,7 @@ export const workflowAdapter: KindAdapter<'workflow', StoredWorkflowState> = {
     const renamed = new Map<string, string>()
     await mapWithConcurrency(updates, PLAN_CONCURRENCY, async (step) => {
       const change = await refusing(step.change, () =>
-        planUpdate(step.change, step.update, ctx, pending, renamed)
+        planUpdate(step.change, step.update, ctx, pending, renamed, childSources)
       )
       planned.set(change.key, change)
     })
