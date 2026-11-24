@@ -4,11 +4,13 @@
 // The mothership-stream-v1 SSE wire: every `data:` frame the worker emits to Sim (each leg
 // ends with a literal `data: [DONE]` line), and the vocabulary Sim re-emits to the browser
 // (Sim adds `session` chat/title frames of its own).
-// The zod schemas below are the single source (D122): every type is inferred from them, so the
-// worker's emitter (apps/server/src/protocol/envelope.ts) fails typecheck on a frame that drifts,
-// and a reader can validate a frame at runtime against the same definition. Each discriminant
-// const below is checked against its payload union, because Sim's reader accepts exactly the
-// const's values. Objects strip unknown keys: a newer emitter's extra field never fails a reader.
+// The zod schemas below are the single source (D122): every payload type is inferred from them,
+// so the worker's emitter (apps/server/src/protocol/envelope.ts) fails typecheck on a frame that
+// drifts, and a reader can validate a frame at runtime against the same definition. Each
+// discriminant const below is checked against its payload union, because Sim's reader accepts
+// exactly the const's values. Objects strip unknown keys: a newer emitter's extra field never
+// fails a reader, except in a `resource` payload's `resource.search.nativeQueries` entries, which
+// reuse Sim's strict model tool-input schema.
 // Its own optional fields are `?: T` (`.exactOptional()`); the protocol.ts fields it spreads
 // are `?: T | undefined`.
 
