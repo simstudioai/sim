@@ -27,6 +27,7 @@ import {
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
+import { HOME_FAQS } from '@/app/(landing)/components/home-faq/faqs'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -454,6 +455,32 @@ async function run() {
       assert(String(publisher?.['@id']).endsWith('#organization'), '#software has no publisher')
     }
   )
+
+  await check('home FAQPage pairs each visible question with its answer', async () => {
+    const { body } = await get(HOME_PATH)
+    const faqPage = jsonLdNodes(body).find((node) => node['@type'] === 'FAQPage')
+    const entries = (faqPage?.mainEntity ?? []) as {
+      name?: string
+      acceptedAnswer?: { text?: string }
+    }[]
+    const expected = HOME_FAQS.map(({ question, answer }) => ({ question, answer }))
+    assert.deepEqual(
+      entries.map((entry) => ({ question: entry.name, answer: entry.acceptedAnswer?.text })),
+      expected,
+      'Home FAQPage does not match the home FAQ'
+    )
+    const $ = load(body)
+    assert.deepEqual(
+      $('#faq details')
+        .toArray()
+        .map((el) => ({
+          question: $(el).find('summary h3').text().trim(),
+          answer: $(el).children('p').text().trim(),
+        })),
+      expected,
+      'Rendered home FAQ does not match the FAQPage'
+    )
+  })
 
   await check('pricing declares its offers on the canonical product node', async () => {
     const { body } = await get('/pricing')

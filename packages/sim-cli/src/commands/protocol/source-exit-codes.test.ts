@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as exitCodes from '../../exit-codes'
-import { sourceExitCodesHelp } from './source-exit-codes'
+import { sourceExitCodesHelp, sourceExitCodesTable } from './source-exit-codes'
 import { WORKFLOW_TREE } from './workflow-dir'
 import { WORKSPACE_TREE } from './workspace-source-dir'
 
@@ -24,6 +24,23 @@ describe('the exit-code tables an agent or a reader relies on', () => {
   ])('%s lists every code a source command exits with', (_name, text) => {
     const listed = [...text.matchAll(/^\| (\d+) \|/gm)].map((match) => Number(match[1]))
     expect(listed).toEqual(SOURCE_EXIT_CODES)
+  })
+})
+
+describe('the locked row of a directory guide', () => {
+  const lockedRow = (prefix: Parameters<typeof sourceExitCodesTable>[0]) =>
+    sourceExitCodesTable(prefix)
+      .split('\n')
+      .find((row) => row.startsWith(`| ${exitCodes.SOURCE_LOCKED_EXIT_CODE} |`))
+
+  it('says where a workspace apply unlocks each kind of resource it can find locked', () => {
+    expect(lockedRow('sim workspaces source')).toMatch(/a table\b.*a table in its settings/)
+    expect(lockedRow('sim workspaces source')).toContain('a workflow in the workflow builder')
+  })
+
+  it('sends a workflow apply to the workflow builder', () => {
+    expect(lockedRow('sim workflows source')).toContain('unlock it in the workflow builder')
+    expect(lockedRow('sim workflows source')).not.toContain('table')
   })
 })
 

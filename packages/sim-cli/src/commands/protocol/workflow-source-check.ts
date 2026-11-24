@@ -15,6 +15,7 @@ import {
   strictHelp,
   strictMode,
   withWorkflowInputs,
+  writtenWorkspaceTypes,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -22,6 +23,7 @@ import {
   directoryWorkspace,
   readSourceJson,
   readStarterWorkspace,
+  type Written,
   workspaceFolderOf,
 } from './source-dir'
 import {
@@ -127,8 +129,14 @@ export function attachWorkflowSourceCheck(source: Command): void {
         }
         const types = await typeCheck(workspace ? workspace.root : options.dir, {
           enabled: options.types !== false,
-          ...(workspace ? { scope: `${KIND_DIRS.workflow}/${workspace.key}/` } : {}),
           compiled: findings,
+          ...(workspace && declarations
+            ? {
+                scope: `${KIND_DIRS.workflow}/${workspace.key}/`,
+                writtenTypes: (written: Written) =>
+                  writtenWorkspaceTypes(workspace.root, declarations.workflowInputs, written),
+              }
+            : {}),
         })
         reportCheck(
           profile.output,

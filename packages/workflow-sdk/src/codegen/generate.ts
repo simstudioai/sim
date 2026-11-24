@@ -123,9 +123,14 @@ const HEADER_PREFIX = '// @sim-sdk'
  * What a builder does at run time that its params cannot show, said in its doc comment and in
  * `sim workflows source params`. `table.upsertRow`: `upsertRow` in
  * `apps/sim/lib/table/rows/service.ts` writes the stored row's whole `data`, where the update
- * builders merge cells (`jsonbMergePatch`).
+ * builders merge cells (`jsonbMergePatch`). `table.queryRows`: `rowQueryBodySchema` in
+ * `apps/sim/lib/api/contracts/tables.ts` bounds `limit` below only, and `queryRows` in the same
+ * service cuts a page at `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES`, setting `nextCursor` while more
+ * rows match.
  */
 const BUILDER_NOTES: Readonly<Record<string, string>> = {
+  'table.queryRows':
+    '`limit` has no maximum and no default: omitted, every matching row comes back in one page, and the query fails past 5 MiB of rows. With a `limit`, a page can also end early at the byte budget, so page by passing `nextCursor` back as `cursor` until it is `null`; never stop on a short page.',
   'table.upsertRow':
     'Replaces the matched row: a column missing from `data` is cleared, not kept. To change some columns of existing rows, use `table.updateRowsByFilter` (or `table.updateRowById` for one row), which merge `data` into the stored row.',
 }
@@ -492,7 +497,20 @@ export function builderTypes(catalog: BlockCatalog, entry: BuilderEntry): Builde
   const genericArgs = plan ? `<${plan.typeParameter.name}>` : ''
   const outputGeneric = plan && Object.keys(plan.outputOverrides).length > 0
   const members = builderOutputs(outputs, context, plan?.outputOverrides ?? {}, nullable)
-  const paramsDeclaration = `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates, context.pinned)}`
+  const coreParams = entry.special?.coreParams ?? []
+  const paramsDoc =
+    coreParams.length > 0
+      ? jsdoc(
+          [
+            `\`${entry.key}()\` also takes ${coreParams.map((name) => `\`${name}\``).join(', ')}, typed on its declaration in core.d.ts.`,
+          ],
+          ''
+        )
+      : []
+  const paramsDeclaration = [
+    ...paramsDoc,
+    `export type ${paramsName}${generic} = ${renderParamsType(params, gate, candidates, context.pinned)}`,
+  ].join('\n')
   const output: BuilderOutput = {
     name: outputName,
     typeParameters: outputGeneric ? generic : '',

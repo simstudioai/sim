@@ -67,15 +67,22 @@ async function keyRows(wsId: string, kind: ResourceKind, resourceId: string) {
 
 /**
  * Holds a transaction open with one uncommitted key row, so a concurrent writer that collides on
- * a unique index blocks on it. Resolves `committed` once the row is committed.
+ * a unique index blocks on it. Resolves `inserted` once the row is written (start the competing
+ * write only then, or it can commit first; it rejects as `committed` does when the write fails)
+ * and `committed` once the row is committed.
  */
 function holdUncommittedKey(row: { key: string; resourceId: string }): {
+  inserted: Promise<void>
   committed: Promise<void>
   commit: () => void
 } {
   let commit = () => {}
   const released = new Promise<void>((resolve) => {
     commit = resolve
+  })
+  let markInserted = () => {}
+  const inserted = new Promise<void>((resolve) => {
+    markInserted = resolve
   })
   const committed = db.transaction(async (tx) => {
     const now = new Date()
@@ -90,9 +97,10 @@ function holdUncommittedKey(row: { key: string; resourceId: string }): {
       createdAt: now,
       updatedAt: now,
     })
+    markInserted()
     await released
   })
-  return { committed, commit }
+  return { inserted: Promise.race([inserted, committed]), committed, commit }
 }
 
 /** Waits until some backend is blocked on a lock while writing `workspace_resource_key`. */
@@ -423,6 +431,7 @@ describe('workspace resource keys against PostgreSQL', () => {
     await insertTable(holder, workspaceId, 'Race Holder', at(50))
     await insertTable(claimant, workspaceId, 'Race Claimant', at(51))
     const held = holdUncommittedKey({ key: 'race-leads', resourceId: holder })
+    await held.inserted
 
     const claim = claimResourceKey({
       workspaceId,
@@ -451,6 +460,7 @@ describe('workspace resource keys against PostgreSQL', () => {
     const id = generateId()
     await insertTable(id, workspaceId, 'Race Allocated', at(52))
     const held = holdUncommittedKey({ key: 'race-allocated', resourceId: id })
+    await held.inserted
 
     const claim = claimResourceKey({
       workspaceId,

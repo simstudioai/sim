@@ -4,6 +4,7 @@ import {
   FeaturedCustomer,
   Features,
   Hero,
+  HomeFAQ,
   HomeStructuredData,
   PlatformSuite,
   ProductDemo,
@@ -34,6 +35,7 @@ import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
  * 7. {@link Features} - the horizontal product rail.
  * 8. {@link WorkspaceControls} - the rail's six governance controls, untitled.
  * 9. {@link Security} - governance intro, Trust Center link, certification blocs.
+ * 10. {@link HomeFAQ} - category questions with matching FAQPage JSON-LD.
  *
  * `<main>` is a `flex flex-col` whose `gap` is the single source of truth for
  * major-section rhythm. Customer proof, platform media, and product controls
@@ -67,6 +69,7 @@ export default function Landing() {
         <WorkspaceControls />
       </div>
       <Security />
+      <HomeFAQ />
     </main>
   )
 }

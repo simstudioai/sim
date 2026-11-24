@@ -36,7 +36,7 @@ ${loopRows([
   ['edit ./wf/workflow.ts', 'every file first, then the one command below'],
   ['sim workflows source check --dir ./wf', 'compile + types: each error as file:line:column'],
   ['  && sim workflows source apply --dir ./wf --yes', 'save the draft (it re-checks)'],
-  ['  && sim workflows run <workflowId> --manual', 'test the saved draft'],
+  ["  && sim workflows run <workflowId> --manual --input '{…}'", 'test the saved draft'],
 ])}
 Run those three as one chained command: a non-zero exit stops it at the first failure, and the next
 step fixes what it reported. Check also type-checks with TypeScript (installed once, on its first
@@ -44,6 +44,8 @@ run; --no-types skips it). For review, \`apply --dry-run\` prints the plan and w
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
+A workflow's source holds that workflow alone: a table, its columns and rows, and every other
+workspace resource are edited with \`sim workspaces source\` (or the \`sim tables\` commands).
 ${WORKSPACE_LINE}
 ${RUN_LOGS_LINE}
 

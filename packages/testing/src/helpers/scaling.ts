@@ -1,7 +1,10 @@
 /**
  * Scaling checks. A case times the same step at `n` and `8n` and bounds the ratio: linear work
- * grows about 8x (n log n about 10x), quadratic work 64x. A ratio, not a wall-clock budget, so a
- * slow runner cannot fail it; the best of several runs absorbs a stray pause or GC.
+ * grows about 8x (n log n about 10x), quadratic work 64x. The time is the CPU time of the test's
+ * own thread, not wall clock: on a contended runner a long large-input call spans many scheduler
+ * slices and absorbs the whole slowdown while a short small-input call often fits in one, which
+ * skews a wall-clock ratio upward no matter how many runs it keeps the best of. The best of several
+ * runs absorbs a stray pause or GC.
  */
 import { expect } from 'vitest'
 
@@ -15,18 +18,35 @@ const SCALE = 8
 const MAX_GROWTH = 20
 const RUNS = 5
 
-/** Repeats `run` for at least `MIN_SAMPLE_MS`, so a millisecond clock still times a fast step. */
+/** Repeats `run` for at least `MIN_SAMPLE_MS` of CPU time, so a coarse clock still times a fast step. */
 const MIN_SAMPLE_MS = 100
+/** Wall-clock cap on one sample, so a starved runner takes fewer calls instead of hitting a timeout. */
+const MAX_SAMPLE_WALL_MS = 1_000
+
+/**
+ * `process.threadCpuUsage` (Node 22.19+, which CI runs), read through `globalThis` because this
+ * helper also compiles in packages without Node types. Elsewhere the clock is wall time.
+ */
+const nodeProcess = (
+  globalThis as { process?: { threadCpuUsage?: () => { user: number; system: number } } }
+).process
+
+/** Milliseconds of CPU this thread has used, or wall time where the runtime does not report it. */
+function now(): number {
+  const usage = nodeProcess?.threadCpuUsage?.()
+  return usage ? (usage.user + usage.system) / 1_000 : Date.now()
+}
 
 function perRunMs(run: () => void): number {
-  const start = Date.now()
+  const wallStart = Date.now()
+  const start = now()
   let runs = 0
   let elapsed = 0
   do {
     run()
     runs += 1
-    elapsed = Date.now() - start
-  } while (elapsed < MIN_SAMPLE_MS)
+    elapsed = now() - start
+  } while (elapsed < MIN_SAMPLE_MS && Date.now() - wallStart < MAX_SAMPLE_WALL_MS)
   return elapsed / runs
 }
 

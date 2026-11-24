@@ -49,13 +49,21 @@ import {
 
 export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
 
+/** Column types the server accepts but the public documents leave out. */
+const UNDOCUMENTED_COLUMN_TYPES: readonly string[] = ['ttl']
+
 /**
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
  * send arbitrary strings the server would reject downstream.
  */
 export const columnTypeSchema = z
   .enum(COLUMN_TYPES)
-  .meta({ omitEnumValuesFromOpenApi: ['ttl'] as const })
+  .meta({ omitEnumValuesFromOpenApi: UNDOCUMENTED_COLUMN_TYPES })
+
+/** The sentence naming the public column types, for the column inputs' help. */
+export const COLUMN_TYPES_HELP = `A column's type is one of ${COLUMN_TYPES.filter(
+  (type) => !UNDOCUMENTED_COLUMN_TYPES.includes(type)
+).join(', ')}; a select column also takes options.`
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({

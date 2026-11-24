@@ -133,6 +133,7 @@ const SOCIAL_LINKS: FooterItem[] = [
     href: 'https://github.com/simstudioai/sim',
     external: true,
   },
+  { label: 'YouTube', href: 'https://www.youtube.com/@simdotai', external: true },
 ]
 
 const LEGAL_LINKS: FooterItem[] = [

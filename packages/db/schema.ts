@@ -8336,7 +8336,8 @@ export const userTableRows = pgTable(
      *
      * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
      * matching the fractional-indexing library's ASCII ordering. drizzle can't
-     * express column collation, so the collation lives only in the migration.
+     * express column collation, so push-managed databases get it from
+     * `scripts/apply-dev-table-triggers.ts`.
      */
     orderKey: text('order_key'),
     secretProvenanceVersion: integer('secret_provenance_version'),

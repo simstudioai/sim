@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   existsSync,
@@ -25,6 +25,10 @@ import { blobBytes, blobDigests } from './workspace-source-blobs'
 import { kindFolders } from './workspace-source-dir'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return { ...actual, spawn: vi.fn(actual.spawn) }
+})
 
 const { mockRequest: request, mockRequestRaw: requestRaw } = contextMockFns
 const SOURCE_PATH = '/api/v2/workspaces/ws_local/source'
@@ -1432,6 +1436,184 @@ describe('the type check of workspaces source check', () => {
 
     expect(result().checked).toEqual(['compile', 'types'])
     expect(existsSync(join(dir, 'workflows/save/workflow.js'))).toBe(false)
+  })
+
+  describe('a type error in a file still as the get wrote it', () => {
+    const workflowSource = (...lines: string[]) =>
+      [
+        '// @sim-sdk 1',
+        "import { childWorkflow, runWorkflow, trigger, workflow } from '@sim/workflow-sdk'",
+        "export default workflow('W', {}, () => {",
+        ...lines.map((line) => `  ${line}`),
+        '})',
+        '',
+      ].join('\n')
+    const child = (type: string) =>
+      workflowSource(`trigger.start('Start', { inputFormat: { count: '${type}' } })`)
+    const PARENT = workflowSource(
+      "const start = trigger.start('Start', {})",
+      "const call = runWorkflow('Call', { workflowId: childWorkflow('child'), inputMapping: { count: 5 } })",
+      'start.to(call)'
+    )
+    /** The resource listing of a workspace whose stored child takes `count` as `type`. */
+    const manifestWith = (type: string) => ({
+      workspaceId: 'ws_local',
+      tables: [],
+      knowledgeBases: [],
+      credentials: [],
+      workflows: [
+        { key: 'child', inputs: [{ name: 'count', type }] },
+        { key: 'parent', inputs: [] },
+      ],
+      skills: [],
+      customTools: [],
+      mcpServers: [],
+      env: [],
+      truncated: false,
+    })
+    const tscRuns = () =>
+      vi
+        .mocked(spawn)
+        .mock.calls.filter(([, args]) => String(args?.[0]).endsWith(join('bin', 'tsc'))).length
+
+    beforeEach(() => {
+      vi.mocked(spawn).mockClear()
+    })
+
+    it.each([
+      ['workspaces', 'a kept resource listing', true],
+      ['workspaces', 'no resource listing', false],
+      ['workflows', 'a kept resource listing', true],
+      ['workflows', 'no resource listing', false],
+    ])(
+      "reports one another file's edit caused, after a %s check with %s",
+      async (command, _listing, listed) => {
+        serve(
+          {
+            'workflows/child/workflow.ts': child('number'),
+            'workflows/parent/workflow.ts': PARENT,
+          },
+          { kinds: ['workflow'], ...(listed ? { manifest: manifestWith('number') } : {}) }
+        )
+        await get()
+        writeFileSync(join(dir, 'workflows/child/workflow.ts'), child('boolean'))
+
+        if (command === 'workspaces') await runWorkspaceSource('check', dir)
+        else await runWorkflowSourceCheck(join(dir, 'workflows/parent'))
+
+        const file = command === 'workspaces' ? 'workflows/parent/workflow.ts' : 'workflow.ts'
+        expect(result().diagnostics).toEqual([
+          expect.objectContaining({
+            code: 'E_TYPE',
+            file,
+            line: 5,
+            message: expect.stringMatching(/^TS2322: Type 'number' is not assignable/),
+          }),
+        ])
+        expect(process.exitCode).toBe(1)
+        expect(tscRuns()).toBe(2)
+      }
+    )
+
+    it.each([
+      ['a kept resource listing', true],
+      ['no resource listing', false],
+    ])("reports one a table declaration's edit caused, with %s", async (_listing, listed) => {
+      const table = (type: string) =>
+        [
+          '// @sim-sdk 1',
+          "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+          `export default defineTable({ name: 'leads', columns: { score: column.${type}() } })`,
+          '',
+        ].join('\n')
+      serve(
+        {
+          'tables/leads.ts': table('number'),
+          'workflows/save/workflow.ts': [
+            '// @sim-sdk 1',
+            "import { table, trigger, workflow } from '@sim/workflow-sdk'",
+            "export default workflow('Save', {}, () => {",
+            "  const start = trigger.start('Start', {})",
+            "  const save = table.insertRow('Save', { tableId: table('leads'), data: { score: 5 } })",
+            '  start.to(save)',
+            '})',
+            '',
+          ].join('\n'),
+        },
+        {
+          kinds: ['table', 'workflow'],
+          ...(listed
+            ? {
+                manifest: {
+                  ...manifestWith('number'),
+                  workflows: [{ key: 'save', inputs: [] }],
+                  tables: [
+                    {
+                      key: 'leads',
+                      id: 'tbl-1',
+                      name: 'leads',
+                      columns: [{ name: 'score', type: 'number' }],
+                    },
+                  ],
+                },
+              }
+            : {}),
+        }
+      )
+      await get()
+      writeFileSync(join(dir, 'tables/leads.ts'), table('boolean'))
+
+      await runWorkspaceSource('check', dir)
+
+      expect(result().diagnostics).toEqual([
+        expect.objectContaining({ code: 'E_TYPE', file: 'workflows/save/workflow.ts', line: 5 }),
+      ])
+      expect(process.exitCode).toBe(1)
+    })
+
+    it.each([
+      ['a kept resource listing', true],
+      ['no resource listing', false],
+    ])(
+      'leaves out one the server accepted, on a fresh get with %s, running tsc once',
+      async (_listing, listed) => {
+        serve(
+          {
+            'workflows/child/workflow.ts': child('boolean'),
+            'workflows/parent/workflow.ts': PARENT,
+          },
+          { kinds: ['workflow'], ...(listed ? { manifest: manifestWith('boolean') } : {}) }
+        )
+        await get()
+
+        await runWorkspaceSource('check', dir)
+
+        expect(result()).toMatchObject({
+          checked: ['compile', 'types'],
+          errors: 0,
+          diagnostics: [],
+        })
+        expect(tscRuns()).toBe(1)
+        expect(typecheckDirectory()).toContain('TS2322')
+      }
+    )
+
+    it('leaves out one under a block the catalog withholds when an edit elsewhere changes the declarations', async () => {
+      serveWorkflow('router', ROUTER, ['start', 'isurgent', 'policy', 'logticket'], CATALOG.hash)
+      await get()
+      expect(typecheckDirectory()).toContain('workflows/router/workflow.ts')
+      mkdirSync(join(dir, 'workflows/extra'), { recursive: true })
+      writeFileSync(
+        join(dir, 'workflows/extra/workflow.ts'),
+        workflowSource("trigger.start('Start', { inputFormat: { note: 'string' } })")
+      )
+
+      await runWorkspaceSource('check', dir)
+
+      expect(result()).toMatchObject({ checked: ['compile', 'types'], errors: 0, diagnostics: [] })
+      expect(tscRuns()).toBe(2)
+      expect(readdirSync(join(dir, '.sim/cache'))).toEqual(['.gitignore'])
+    })
   })
 
   it('skips the type check with --no-types', async () => {

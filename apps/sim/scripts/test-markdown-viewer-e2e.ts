@@ -187,6 +187,25 @@ async function check(name: string, run: () => Promise<void>, page?: Page) {
   }
 }
 
+const CANCELLED_FETCH = / due to access control checks\.$/
+
+/**
+ * WebKit rejects a fetch the page cancels by navigating away, such as a Next.js RSC prefetch, with
+ * "<request> due to access control checks.", and the router leaves that rejection unhandled. For a
+ * same-origin RSC request that is a cancellation, never an access failure.
+ */
+function isCancelledRscFetch(message: string): boolean {
+  if (!CANCELLED_FETCH.test(message)) return false
+  // WebKit names the request as `/host:port/path?query`, without its scheme.
+  const target = message.replace(CANCELLED_FETCH, '').split(' ').pop() ?? ''
+  try {
+    const url = new URL(target.startsWith('/') ? `${base.protocol}/${target}` : target)
+    return url.origin === base.origin && url.searchParams.has('_rsc')
+  } catch {
+    return false
+  }
+}
+
 async function wideTableProof(page: Page) {
   const table = page.locator('.rich-markdown-prose table').filter({ hasText: 'Option Alpha' })
   await expect(table).toBeVisible({ timeout: 120_000 })
@@ -392,11 +411,24 @@ async function editLastCell(page: Page, marker: string) {
   await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeFocused()
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Shift+ArrowRight')
-  await expect
-    .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''), {
-      message: 'Keyboard selection did not select text',
+  try {
+    await expect
+      .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''))
+      .not.toBe('')
+  } catch {
+    // Rare in WebKit and not reproduced yet: name where the caret and focus ended up.
+    const state = await page.evaluate(() => {
+      const selection = getSelection()
+      return {
+        anchorText: selection?.anchorNode?.textContent?.slice(0, 40) ?? null,
+        anchorOffset: selection?.anchorOffset ?? null,
+        focusOffset: selection?.focusOffset ?? null,
+        rangeCount: selection?.rangeCount ?? 0,
+        activeElement: document.activeElement?.className ?? null,
+      }
     })
-    .not.toBe('')
+    throw new Error(`Keyboard selection did not select text: ${JSON.stringify(state)}`)
+  }
   await proveToolbar(page, page.getByRole('toolbar', { name: 'Text formatting' }))
   await page.keyboard.press('ArrowRight')
 }
@@ -419,6 +451,7 @@ async function provePastePersistence(page: Page, browserName: string) {
   const pastedShareToken = generateShortId()
   const readPasteSource = async () =>
     (await request(`/api/files/public/${pastedShareToken}/content`)).text()
+  let proved = false
   try {
     await sql`insert into public_share (id, resource_type, resource_id, entity_type, entity_id, workspace_id, created_by, token) values (${pastedShareId}, 'file', ${pastedFileId}, 'workspace', ${workspaceId}, ${workspaceId}, ${userId}, ${pastedShareToken})`
     await page.goto(new URL(`/workspace/${workspaceId}/files/${pastedFileId}`, base).href, {
@@ -563,8 +596,12 @@ async function provePastePersistence(page: Page, browserName: string) {
       afterLocalEdit.includes(`${marker} measure<br>`),
       'External update lost the pasted table'
     )
+    proved = true
   } finally {
     try {
+      // Leave the file before deleting it, or the open editor refetches it and the next check on
+      // this page records that 404 as its own. A failed proof keeps the page for its screenshot.
+      if (proved) await page.goto('about:blank')
       await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`, undefined, 'DELETE')
     } finally {
       await sql`delete from public_share where id=${pastedShareId}`
@@ -972,7 +1009,10 @@ try {
         { name: 'better-auth.session_token', value: cookie, url: base.origin },
       ])
       const page = await context.newPage()
-      page.on('pageerror', (error) => errors.push(`${browserName}: ${error.message}`))
+      page.on('pageerror', (error) => {
+        if (browserName === 'webkit' && isCancelledRscFetch(error.message)) return
+        errors.push(`${browserName}: ${error.message}`)
+      })
       for (const width of widths) {
         await page.setViewportSize({ width, height: 1000 })
         await page.goto(new URL(`/f/${shareToken}`, base).href, {

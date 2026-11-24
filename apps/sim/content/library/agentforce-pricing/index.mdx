@@ -1,0 +1,128 @@
+---
+slug: agentforce-pricing
+title: 'Salesforce Agentforce Pricing: What IT and Salesforce Owners Pay'
+seoTitle: 'Salesforce Agentforce Pricing and Total Cost'
+description: 'Salesforce Agentforce Flex Credits cost $500 per 100,000 credits. Estimate action, conversation, license, Data Cloud, and implementation costs.'
+date: 2026-11-24
+updated: 2026-11-24
+authors:
+  - andrew
+readingTime: 7
+tags: [Salesforce, Agentforce, AI Agents, Pricing, Sim]
+ogImage: /library/agentforce-pricing/cover.jpg
+draft: false
+faq:
+  - q: "What counts as a Salesforce Agentforce conversation?"
+    a: "Salesforce Agentforce treats a conversation as the applicable billable customer interaction defined by Salesforce’s usage rules and contract, so buyers should confirm session boundaries, channel behavior, and reconnect rules on their order form."
+  - q: "Is Salesforce Agentforce pricing predictable?"
+    a: "Salesforce Agentforce pricing is predictable only when the team can forecast conversations, actions per outcome, licensed users, and Data Cloud consumption with reasonable accuracy."
+  - q: "Is Salesforce Agentforce billed separately from model usage?"
+    a: "Salesforce Agentforce pricing should be reviewed with the complete Salesforce order form because Agentforce usage, Data Cloud services, prerequisite editions, and connected third-party APIs can create separate cost components."
+  - q: "Can Salesforce Agentforce and Sim be used together?"
+    a: "Salesforce Agentforce and Sim can be used together when Agentforce handles Salesforce-native experiences while Sim coordinates agents and workflows across Salesforce and other systems."
+  - q: "Can Sim replace Salesforce Agentforce?"
+    a: "Sim can replace Salesforce Agentforce for workflows where Salesforce is one connected system rather than the required agent runtime, but Agentforce may remain the better fit for deeply Salesforce-native experiences."
+  - q: "Does Sim support bring-your-own-key for Salesforce AI agents?"
+    a: "Sim supports workspace BYOK on every Sim Cloud plan, while organization-level model keys require Pro for Teams, Max for Teams, or Enterprise."
+  - q: "What is the best AI agent builder for Salesforce automation?"
+    a: "Sim fits Salesforce automation that prioritizes cross-system workflows, visual building, model choice, BYOK, and self-hosting, while Salesforce Agentforce fits predominantly Salesforce-native agent experiences."
+  - q: "Which AI agent tools offer a Salesforce MCP server for CRM data?"
+    a: "Salesforce provides the hosted Salesforce MCP server, and Sim can connect that server to an AI agent workflow so the agent can use authorized CRM tools alongside other systems."
+  - q: "Should IT compare Salesforce Agentforce by cost per conversation or cost per outcome?"
+    a: "IT should compare Salesforce Agentforce by cost per completed business outcome because one conversation can trigger multiple actions, data operations, integrations, and human review steps."
+  - q: "Are Salesforce Agentforce implementation costs included in the list price?"
+    a: "Salesforce Agentforce list prices do not provide one universal implementation allowance, so buyers should budget separately for design, integration, security review, testing, deployment, training, and ongoing evaluation."
+---
+
+## TL;DR
+
+[Salesforce Agentforce pricing](https://www.salesforce.com/agentforce/pricing/) uses a mix of usage-based and per-user models. Flex Credits cost $500 per 100,000 credits, eligible conversations cost $2 each, flat-fee access starts at $125 per user per month, and Agentforce 1 Editions start at $550 per user per month. As of November 2026, edition prerequisites, Data Cloud usage, implementation, and integrations can raise the total beyond those headline rates.
+
+IT teams should estimate the cost per completed business outcome, not compare actions, conversations, and user licenses as if they were interchangeable. Sim fits teams that need a cross-system AI workspace, workspace BYOK, or self-hosted infrastructure when Salesforce is one part of a broader agent workflow.
+
+## What are the key Salesforce Agentforce pricing facts at a glance?
+
+Salesforce Agentforce costs depend on whether a workload is billed by actions, conversations, or licensed users.
+
+- **Salesforce Agentforce:** Salesforce offers Agentforce through usage-based and per-user commercial models documented on its [pricing page](https://www.salesforce.com/agentforce/pricing/).
+- **Flex Credits:** Salesforce sells 100,000 Flex Credits for $500, and its [Agentforce pricing guidance](https://help.salesforce.com/s/articleView?id=004811240&language=en_US&type=1) says a standard action consumes 20 credits, producing a $0.10 list-price baseline per standard action.
+- **Conversations:** Salesforce lists eligible conversations at [$2 each](https://www.salesforce.com/agentforce/pricing/) for applicable use cases.
+- **Per-user access:** Salesforce lists flat-fee access at [$125 per user per month](https://www.salesforce.com/agentforce/pricing/) and Agentforce 1 Editions starting at $550 per user per month.
+- **Sim:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents across Salesforce and other systems. [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be self-hosted, while `apps/sim/ee` features are governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Workspace BYOK access works on every Sim Cloud plan.
+
+All Salesforce prices in this article are list prices as of November 2026 and exclude negotiated discounts, taxes, implementation, prerequisite products, and other metered services.
+
+## How is Salesforce Agentforce priced, and how much does it cost?
+
+[Salesforce publishes](https://www.salesforce.com/agentforce/pricing/) four primary commercial models, so buyers must match each agent use case to the billing unit Salesforce will apply.
+
+| Pricing model | Published list price as of November 2026 | What it covers | How to estimate it |
+|---|---:|---|---|
+| Flex Credits | [$500 per 100,000 credits](https://www.salesforce.com/agentforce/pricing/) | Metered agent actions | Standard actions use 20 credits, making the list-price baseline $0.10 per action |
+| Conversations | [$2 per conversation](https://www.salesforce.com/agentforce/pricing/) | Eligible conversational-agent usage | Multiply completed billable conversations by $2 |
+| Flat-fee access | [Starting at $125 per user per month](https://www.salesforce.com/agentforce/pricing/) | Per-user Agentforce access | Multiply licensed users by the applicable flat-fee rate |
+| Agentforce 1 Editions | [Starting at $550 per user per month](https://www.salesforce.com/agentforce/pricing/) | Bundled Salesforce editions that include Agentforce and other Salesforce products | Multiply licensed users by the applicable edition rate, then add metered services not included in the bundle |
+
+The models are not interchangeable units. One conversation can invoke multiple agent actions, while a per-user license can cover employee access without eliminating every Data Cloud, integration, or implementation cost. IT should obtain a Salesforce order form that identifies the billing model for each production agent rather than converting conversations directly into actions.
+
+A practical monthly estimate is:
+
+`Agentforce cost = Flex Credit packs + billable conversations + user licenses + prerequisite products + Data Cloud usage + integration and implementation costs`
+
+Salesforce may offer contract-specific terms or volume discounts, but those amounts are quote-based and should not be treated as public list prices.
+
+## What does Salesforce Agentforce cost at 10,000, 100,000, and 1 million actions per month?
+
+Based on Salesforce's published [$500 per 100,000 credits](https://www.salesforce.com/agentforce/pricing/) and [20 credits per standard action](https://help.salesforce.com/s/articleView?id=004811240&language=en_US&type=1), Agentforce costs approximately $1,000, $10,000, and $100,000 per month at those three standard-action volumes when credits are purchased in 100,000-credit packs.
+
+| Monthly usage | Flex Credits required | 100,000-credit packs | Flex Credit cost | Cost if the usage were instead billable conversations |
+|---:|---:|---:|---:|---:|
+| 10,000 standard actions | 200,000 | 2 | $1,000 | $20,000 |
+| 100,000 standard actions | 2,000,000 | 20 | $10,000 | $200,000 |
+| 1,000,000 standard actions | 20,000,000 | 200 | $100,000 | $2,000,000 |
+
+The final column applies Salesforce's separate [$2 conversation price](https://www.salesforce.com/agentforce/pricing/) to 10,000, 100,000, or 1 million conversations. These columns illustrate separate billing scenarios, not equivalent workloads. A conversation may trigger several actions, and actual credit consumption can vary with the metered action. The estimate also excludes user licenses, Data Cloud, Salesforce edition upgrades, implementation, support, and external API costs.
+
+For budgeting, IT should forecast actions per successful business outcome rather than actions per test run. A lead-handling agent that performs six Salesforce actions for each qualified lead has a different cost curve from an answer agent that resolves a request with one retrieval and one update.
+
+## Does Salesforce Agentforce require Data Cloud or a specific Salesforce edition?
+
+Agentforce prerequisites depend on the selected product and use case. Salesforce's setup documentation lists different [required editions and add-ons](https://help.salesforce.com/s/articleView?id=ai.agent_parent_setup.htm&language=en_US&type=5), so buyers should confirm edition eligibility and Data Cloud consumption on the Salesforce order form.
+
+The headline Agentforce rate is therefore not a complete total-cost estimate. IT and Salesforce owners should budget for five additional categories:
+
+1. **Salesforce edition eligibility.** An organization may need an eligible Salesforce edition, an Agentforce add-on, or an Agentforce 1 Edition. A required edition upgrade can affect every licensed user covered by that contract, not only the agent's usage.
+2. **Data Cloud consumption.** Grounding, retrieval, profile unification, and other data operations can create separate consumption. Salesforce publishes [Data 360 pricing](https://www.salesforce.com/data/pricing/), but the applicable services and volumes depend on the design.
+3. **Implementation and testing.** Data mapping, prompt design, actions, permissions, evaluation, deployment, and change management require internal staff or implementation partners. The [Agentforce pricing page](https://www.salesforce.com/agentforce/pricing/) does not publish one universal implementation price.
+4. **Integration infrastructure.** If the design uses MuleSoft, external APIs, middleware, or third-party systems, those components may have their own licenses or usage charges.
+5. **Operational controls.** Sandboxes, observability, security review, support, and ongoing agent evaluation add labor or product costs even when they are not Agentforce billing units.
+
+A defensible business case should show low, expected, and high usage; the assumed actions per outcome; the number of licensed employees; and every prerequisite product. It should also state whether unused capacity, overages, and renewal pricing are governed by the final contract.
+
+## When can a cross-system AI workspace cost less than Salesforce Agentforce?
+
+Sim can cost less for a particular workload when the agent spends substantial effort outside Salesforce and the team wants one cross-system workspace, its own model keys, or self-hosted infrastructure instead of routing every step through a Salesforce-priced agent. The result depends on actual model, infrastructure, integration, and operating costs.
+
+Salesforce Agentforce fits work where Salesforce is the center of the task, Salesforce-native context is essential, and the organization already owns the required editions and data services. Sim fits teams whose agents must coordinate Salesforce with databases, messaging, support, finance, internal APIs, or multiple model providers.
+
+Use this decision rule:
+
+- Choose Salesforce Agentforce when most actions occur inside Salesforce and the value of Salesforce-native administration outweighs its usage and licensing costs.
+- Choose Sim alongside Agentforce when Salesforce should remain the system of record but a cross-system agent needs to coordinate work across the rest of the stack.
+- Choose Sim instead of Agentforce for a workflow when Salesforce is only one endpoint and the projected Agentforce actions, conversations, prerequisites, or user licenses cost more than operating the workflow in a broader AI workspace.
+
+Sim provides a [native Salesforce integration](https://docs.sim.ai/integrations/salesforce), and Sim can connect to [Salesforce's hosted MCP servers](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html) for authorized CRM tools. Workspace BYOK works on every Sim Cloud plan; organization-level model keys require Pro for Teams, Max for Teams, or Enterprise. Self-hosted Sim can also use Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise.
+
+For governance, Sim offers enterprise capabilities including SSO, SCIM, access control, audit logs, session policies, credential groups, and data controls under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Production use of those `apps/sim/ee` capabilities requires an active Sim Enterprise subscription.
+
+The comparison should use total cost per completed business outcome, not only platform list price. Include platform fees, model and API usage, infrastructure, implementation, support, governance, and the number of actions required to finish each outcome.
+
+## Which Salesforce and AI agent guides should you read next?
+
+These related guides cover alternative platforms, Salesforce MCP connectivity, an applied Salesforce workflow, the broader platform market, and model-key options without repeating this pricing analysis.
+
+- Compare fit and switching considerations in [Salesforce Agentforce alternatives for enterprise IT](https://www.sim.ai/library/best-salesforce-agentforce-alternatives-enterprise-it-2026).
+- Follow the connection process in [Salesforce hosted MCP server setup for an AI agent in Sim](https://www.sim.ai/library/salesforce-mcp-server-ai-agent-sim-setup).
+- See an applied CRM workflow in [How to build a Salesforce AI lead-scoring agent with Sim](https://www.sim.ai/library/salesforce-ai-agent-lead-scoring-workflow).
+- Compare the broader market in [AI agent platforms and builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+- Review model-key options in [How Sim's bring-your-own-key works](https://www.sim.ai/library/byok-multi-model-ai-agent-builder).

@@ -22,7 +22,12 @@ import {
   projectToolDetail,
 } from '@/lib/catalog/projection/tool'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
-import { type BlockConfig, isHiddenFromDisplay, type SubBlockConfig } from '@/blocks/types'
+import {
+  type BlockConfig,
+  isHiddenFromDisplay,
+  type OutputFieldDefinition,
+  type SubBlockConfig,
+} from '@/blocks/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('CatalogBlockProjection')
@@ -46,11 +51,11 @@ export interface CatalogInputDefinition {
   schema?: unknown
 }
 
-/** A declared output of a block. */
-export interface CatalogBlockOutput {
-  type: string
-  description?: string
-}
+/** A declared output of a block, nesting the way a tool's output does. */
+export type CatalogBlockOutput = Pick<
+  CatalogToolOutput,
+  'type' | 'description' | 'properties' | 'items'
+>
 
 /** One operation a block exposes, resolved to the tool that performs it. */
 export interface CatalogBlockOperation {
@@ -328,23 +333,26 @@ export function resolveToolIdForOperation(
 
 /** Projects a block's declared outputs, dropping the ones hidden from display. */
 export function projectBlockOutputs(
-  outputs: BlockConfig['outputs'] | undefined
+  outputs: Record<string, OutputFieldDefinition> | undefined
 ): Record<string, CatalogBlockOutput> {
   const projected: Record<string, CatalogBlockOutput> = {}
   for (const [key, definition] of Object.entries(outputs ?? {})) {
     if (isHiddenFromDisplay(definition)) continue
-    if (typeof definition === 'string') {
-      projected[key] = { type: definition }
-      continue
-    }
-    if (!definition || typeof definition !== 'object') continue
-    const entry: CatalogBlockOutput = { type: String(definition.type ?? 'any') }
-    if ('description' in definition && typeof definition.description === 'string') {
-      entry.description = definition.description
-    }
-    projected[key] = entry
+    projected[key] = projectBlockOutput(definition)
   }
   return projected
+}
+
+function projectBlockOutput(definition: OutputFieldDefinition): CatalogBlockOutput {
+  if (typeof definition === 'string') return { type: definition }
+  const entry: CatalogBlockOutput = { type: definition.type }
+  if (definition.description !== undefined) entry.description = definition.description
+  if (definition.properties) entry.properties = projectBlockOutputs(definition.properties)
+  if (definition.items) {
+    const { items: _nested, ...element } = projectBlockOutput(definition.items)
+    entry.items = element
+  }
+  return entry
 }
 
 /**

@@ -67,7 +67,7 @@ runs:
     # under 300 MB, sat at 249 GB. Sticky disks bill at ~$0.51/GB-month.
     - name: Set up Blacksmith builder
       if: inputs.provider == '' || inputs.provider == 'blacksmith'
-      uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2
+      uses: useblacksmith/setup-docker-builder@9657a6e02ca6445e6d6ce5ffaf370f4828dea50d # v2
       with:
         cache-key: ${{ steps.cache-key.outputs.value }}
 
