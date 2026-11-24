@@ -1020,6 +1020,34 @@ describe('executeTool', () => {
     }
   )
 
+  it('waits for a tab still loading its first page instead of calling it blank', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('')
+    vi.mocked(contents.isLoading).mockReturnValue(true)
+    const loadListeners = () =>
+      vi
+        .mocked(contents.on)
+        .mock.calls.filter(([event]) => String(event) === 'did-stop-loading')
+        .map(([, listener]) => listener as () => void)
+    const registered = loadListeners().length
+    const evaluated = new Promise<void>((resolve) => {
+      vi.mocked(contents.executeJavaScript).mockImplementation(() => {
+        resolve()
+        return new Promise<never>(() => {})
+      })
+    })
+
+    void driver.executeTool('chat-test', 'browser_snapshot', {})
+    await vi.waitFor(() => expect(loadListeners().length).toBeGreaterThan(registered))
+    expect(contents.executeJavaScript).not.toHaveBeenCalled()
+
+    vi.mocked(contents.getURL).mockReturnValue('http://127.0.0.1/popup')
+    vi.mocked(contents.isLoading).mockReturnValue(false)
+    for (const onLoadComplete of loadListeners().slice(registered)) onLoadComplete()
+    await evaluated
+  })
+
   it('leaves no watchdog timer pending once a tool finishes', async () => {
     vi.useFakeTimers()
     try {

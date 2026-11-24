@@ -1385,8 +1385,13 @@ async function execInPage<Args extends unknown[], Result>(
   userGesture = false,
   notAfter?: number
 ): Promise<Result> {
-  const url = 'getURL' in target ? target.getURL() : target.url
-  if ('getURL' in target && (url === '' || url === 'about:blank')) {
+  const isBlank = (url: string) => url === '' || url === 'about:blank'
+  // A tab a link or popup just opened reports no URL until its first page commits.
+  if ('getURL' in target && isBlank(target.getURL()) && target.isLoading()) {
+    const remaining = notAfter === undefined ? NAVIGATION_TIMEOUT_MS : notAfter - Date.now()
+    await waitForLoadComplete(target, Math.max(0, Math.min(NAVIGATION_TIMEOUT_MS, remaining)))
+  }
+  if ('getURL' in target && isBlank(target.getURL())) {
     throw new ToolError(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
