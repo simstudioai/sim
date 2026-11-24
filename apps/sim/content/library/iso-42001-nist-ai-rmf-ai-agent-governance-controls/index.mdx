@@ -1,0 +1,170 @@
+---
+slug: iso-42001-nist-ai-rmf-ai-agent-governance-controls
+title: 'How Do You Map AI Agent Governance Controls to ISO 42001 and the NIST AI RMF?'
+description: 'Map AI agent governance controls to ISO 42001 and the NIST AI RMF, with practical evidence requirements for oversight, risk, monitoring, and change.'
+seoTitle: 'ISO 42001 and NIST AI RMF Agent Governance'
+date: 2026-11-24
+updated: 2026-11-24
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, AI Governance, Compliance, Risk Management, Sim]
+ogImage: /library/iso-42001-nist-ai-rmf-ai-agent-governance-controls/cover.jpg
+draft: false
+faq:
+  - q: "Does ISO 42001 apply to AI agents?"
+    a: "ISO/IEC 42001 can apply to organizations that develop, provide, or use AI agents when those agents fall within the organization’s AI management system scope. The organization determines and documents that scope, then applies the standard’s management-system requirements and relevant controls to the agents, their supporting processes, and their lifecycle."
+  - q: "Can an AI agent be ISO 42001 certified?"
+    a: "ISO/IEC 42001 certification applies to an organization’s AI management system within a defined scope, not to a standalone AI agent as an isolated product badge. An agent may be included within the certified scope, but describing the individual agent as certified can misrepresent what was assessed."
+  - q: "Is the NIST AI RMF mandatory for AI agents?"
+    a: "The NIST AI RMF is a voluntary framework unless a law, regulator, contract, customer, or internal policy makes its use a requirement for a particular organization. Its Govern, Map, Measure, and Manage functions can still provide a practical structure for agent risk management when formal adoption is not required."
+  - q: "Is NIST AI RMF compliance a certification?"
+    a: "The NIST AI RMF does not establish a NIST certification for organizations, platforms, or AI agents. Organizations should describe specific alignment, implementation, or assessment activities instead of claiming NIST certification."
+  - q: "Does SOC 2 prove alignment with ISO 42001 or the NIST AI RMF?"
+    a: "SOC 2 does not by itself prove alignment with ISO/IEC 42001 or the NIST AI RMF because the frameworks have different scopes and objectives. SOC 2 evidence may support controls such as access management, change management, logging, and incident response, but organizations still need AI-specific governance, impact assessment, oversight, evaluation, and lifecycle evidence."
+  - q: "What is the difference between ISO 42001 and the NIST AI RMF for AI agents?"
+    a: "ISO/IEC 42001 specifies requirements for an organizational AI management system, while the NIST AI RMF provides voluntary outcomes for governing, mapping, measuring, and managing AI risk. Organizations often use ISO/IEC 42001 to structure the management system and the NIST AI RMF to deepen operational risk activities."
+  - q: "Do audit logs make an AI agent compliant?"
+    a: "Audit logs alone do not make an AI agent or organization compliant with ISO/IEC 42001 or aligned with the NIST AI RMF. Logs are evidence for selected controls, but effective governance also requires ownership, risk assessment, access control, testing, human oversight, monitoring, incident response, and corrective action."
+  - q: "How often should AI agent risk assessments be updated?"
+    a: "AI agent risk assessments should be updated on a defined schedule and whenever a material change or incident alters the agent’s context or risk. Triggers should include changes to models, prompts, tools, permissions, data sources, autonomy, affected users, deployment environments, providers, or intended use."
+  - q: "What counts as a material change to an AI agent?"
+    a: "A material change to an AI agent is any modification that could alter its behavior, access, impact, risk, or evidence requirements. Common examples include changing the model, system instructions, tools, credentials, data sources, approval logic, user population, deployment environment, or permitted actions."
+  - q: "Can Sim guarantee ISO 42001 or NIST AI RMF compliance?"
+    a: "Sim cannot guarantee an organization’s ISO/IEC 42001 certification or NIST AI RMF alignment because those outcomes depend on the organization’s full management system, scope, configuration, processes, people, and evidence. Sim can provide technical capabilities that support selected controls when they are configured and operated within an appropriate governance program."
+---
+
+## TL;DR
+
+ISO/IEC 42001 and the NIST AI Risk Management Framework ask organizations running AI agents to establish accountable governance, assess risks, maintain human oversight, document system changes, monitor performance, and retain evidence. ISO/IEC 42001 defines a certifiable AI management system, while the NIST AI RMF organizes voluntary risk management around Govern, Map, Measure, and Manage.
+
+The practical goal is not to label an agent “compliant.” It is to operate an AI agent program with controls that produce reviewable evidence throughout each agent’s lifecycle.
+
+> This guide is an operational mapping, not an official ISO-to-NIST crosswalk or legal advice. Organizations should validate their implementation with qualified auditors, counsel, and risk professionals.
+
+## What are the key facts about ISO 42001 and the NIST AI RMF?
+
+ISO/IEC 42001 and the NIST AI RMF provide complementary ways to govern AI agents: ISO/IEC 42001 specifies management-system requirements, while the NIST AI RMF provides a voluntary risk-management structure.
+
+- **ISO/IEC 42001:** [ISO/IEC 42001:2023](https://www.iso.org/standard/42001) is an AI management system standard covering organizational context, leadership, planning, support, operation, performance evaluation, improvement, and AI-specific control themes.
+- **NIST AI RMF:** The [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework) is a voluntary framework organized around Govern, Map, Measure, and Manage.
+- **Certification:** Organizations can seek accredited certification against ISO/IEC 42001, but [ISO itself does not certify organizations](https://www.iso.org/conformity-assessment.html). The NIST AI RMF is not a certification standard.
+- **Agent governance:** Neither framework is an agent-builder checklist. Organizations must translate framework outcomes into controls for agent inventory, ownership, risk assessment, access, approvals, logs, releases, monitoring, and incident response.
+- **Evidence:** Policies alone are insufficient. Assessors need records showing that controls operated, including approvals, access reviews, test results, version records, execution logs, exceptions, incidents, and remediation.
+
+As of November 2026, ISO/IEC 42001:2023 remains the published ISO AI management system standard, and NIST continues to provide the AI RMF 1.0 and its supporting [AI RMF Playbook](https://airc.nist.gov/airmf-resources/playbook/).
+
+## How do you map AI agent governance controls to ISO 42001 and the NIST AI RMF?
+
+An AI agent governance program maps operational controls to both frameworks by connecting each control to an owner, a risk outcome, and retained evidence.
+
+| AI agent control | ISO/IEC 42001 area | NIST AI RMF function | What the control should do | Evidence an assessor may request |
+|---|---|---|---|---|
+| Agent inventory | Resources; AI system lifecycle; information for interested parties | Govern; Map | Record every production agent, purpose, owner, model, tools, data sources, deployment, users, and risk tier | Registry export, architecture record, data-flow record, owner attestation, retirement status |
+| Accountable ownership | Leadership; roles and responsibilities; internal organization | Govern | Assign business, technical, risk, and operational accountability for each agent | Responsibility matrix, approval record, access review, escalation contacts |
+| Risk and impact assessment | Planning; AI system impact assessment | Map; Measure | Assess intended use, affected people, data sensitivity, autonomy, failure modes, security threats, and impact severity before deployment | Completed assessment, threat model, test plan, residual-risk acceptance, review date |
+| Human oversight | Internal organization; lifecycle processes; information provided to users | Govern; Manage | Define when a person must review, approve, reject, pause, or override an agent action | Approval logs, reviewer identity, decision record, exception record, escalation test |
+| Role-based access and credential control | Resources; data controls; third-party relationships | Govern; Manage | Restrict who can create, modify, deploy, run, or administer agents and their credentials | Role assignments, access-review history, credential inventory, revocation evidence |
+| Execution logging and traceability | Lifecycle processes; data controls; performance evaluation | Measure; Manage | Record agent runs, tool calls, relevant inputs and outputs, errors, approvals, and administrative events at an appropriate level | Run logs, audit events, trace exports, retention settings, investigation records |
+| Testing and evaluation | Operational planning; lifecycle processes; performance evaluation | Map; Measure | Test task quality, safety boundaries, security, reliability, and foreseeable misuse before release and after material changes | Evaluation suite, test results, acceptance thresholds, failed-test disposition |
+| Change control and rollback | Lifecycle processes; operational control; improvement | Govern; Manage | Review material changes to prompts, models, tools, permissions, data, and workflow logic, with a recovery path | Version record, change request, reviewer approval, deployment record, rollback test |
+| Production monitoring | Performance evaluation; lifecycle processes; improvement | Measure; Manage | Monitor failures, unsafe outcomes, latency, cost, drift indicators, override rates, and control effectiveness | Dashboards, alerts, periodic review, threshold rationale, corrective-action record |
+| Incident and exception management | Nonconformity and corrective action; improvement | Manage; Govern | Triage incidents, contain harm, preserve evidence, notify owners, and track remediation | Incident ticket, timeline, impact analysis, corrective action, closure approval |
+| Third-party and model-provider governance | Supplier, customer, and third-party relationships | Govern; Map; Manage | Assess model providers, hosting vendors, tools, integrations, subprocessors, and contract dependencies | Due-diligence review, contract controls, provider inventory, service-change review |
+| Decommissioning | Lifecycle processes; data and resource controls | Govern; Manage | Disable retired agents, revoke credentials, preserve required records, and remove obsolete access paths | Retirement approval, credential revocation, retention record, inventory update |
+
+This mapping should be tailored to the organization’s scope and risk profile. The official [NIST AI RMF 1.0 publication](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf) provides the authoritative NIST outcomes, while the licensed ISO standard provides the authoritative ISO/IEC 42001 requirements and controls.
+
+## What evidence should an AI agent governance program retain?
+
+An AI agent governance program should retain evidence that identifies the agent, reconstructs important decisions, and demonstrates that required controls operated over time.
+
+A minimum evidence package for each production agent should include:
+
+1. **System record:** Purpose, owner, risk tier, deployment environment, users, model providers, tools, integrations, and data categories.
+2. **Risk record:** Initial impact assessment, security review, test results, residual risks, accepted exceptions, and reassessment dates.
+3. **Authorization record:** Deployment approval, role assignments, credential ownership, human-approval requirements, and access reviews.
+4. **Change record:** Versions, material changes, reviewer decisions, release dates, rollback procedures, and post-change validation.
+5. **Operational record:** Relevant execution logs, errors, human decisions, monitoring alerts, incidents, and corrective actions.
+6. **Retirement record:** Decommissioning approval, credential revocation, retained evidence, and inventory status.
+
+Retention should be risk-based. A low-impact internal summarization agent may not require the same evidence depth as an agent that changes customer records, initiates payments, handles health information, or modifies production infrastructure.
+
+## How should human oversight work for AI agents?
+
+Human oversight for AI agents should place an identified person at a defined decision point with enough context and authority to approve, reject, modify, pause, or escalate the action.
+
+A human-in-the-loop control is stronger when it specifies:
+
+- Which actions require review
+- Who is authorized to review them
+- What information the reviewer receives
+- What approve, reject, and escalation decisions mean
+- How long the agent may wait
+- What happens when nobody responds
+- How the decision and reviewer identity are logged
+- How the organization tests that the control cannot be bypassed
+
+In Sim, the Human in the Loop block pauses a run and resumes it with submitted form fields. An approve-or-reject choice is a field, so a downstream Condition must evaluate that field and route the workflow accordingly. This design makes the decision point explicit instead of treating the pause itself as an approval.
+
+For a deeper treatment, see [What Is Human-in-the-Loop in AI Agents?](https://www.sim.ai/library/what-is-human-in-the-loop-in-ai-agents).
+
+## How can Sim support evidence for ISO 42001 and NIST AI RMF alignment?
+
+Sim can support an organization’s governance evidence through controlled access, audit records, human decision points, execution records, retention controls, and operational data exports, but Sim does not make an organization ISO/IEC 42001 certified or NIST AI RMF compliant.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Sim Enterprise includes access control, access requests, audit logs, data retention, data drains, credential groups, and session policies under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). These capabilities can support evidence collection when the organization configures them within a documented governance process.
+
+| Governance need | How Sim can support it | Evidence to retain |
+|---|---|---|
+| Access governance | Sim Enterprise access control and access requests can separate authoring, administration, and approval responsibilities | Role assignments, access requests, approvals, periodic access-review records |
+| Administrative accountability | Sim Enterprise audit logs can record relevant workspace activity | Audit-log exports, investigation records, retention configuration |
+| Human oversight | Sim’s Human in the Loop block can pause a run, collect a reviewer’s decision, and pass the result to a downstream Condition | Reviewer identity, submitted fields, workflow route, execution record |
+| Operational visibility | Sim execution records, Enterprise data drains, and retention controls can support centralized review and evidence preservation | Run records, exported events, alert records, retention settings |
+| Credential governance | Sim Enterprise credential groups can support controlled credential access | Credential ownership, group membership, access-review and revocation records |
+| Change governance | Teams can combine platform version records with release approvals, tests, and rollback procedures | Version identifier, change ticket, test results, approval, recovery test |
+
+Platform evidence is only one layer of an AI management system. Organizations also need policies, assigned accountability, impact assessments, legal analysis, workforce training, supplier governance, incident procedures, internal reviews, and corrective-action processes.
+
+Related implementation guides include [How Do Enterprises Build an Internal AI Agent Registry?](https://www.sim.ai/library/internal-ai-agent-registry-enterprise-guide) and [AI Agent Version Control and Rollback: Platforms, Process, and Enterprise Checklist](https://www.sim.ai/library/ai-agent-version-control-rollback-platforms).
+
+## What should you require from an AI agent platform vendor?
+
+An AI agent platform vendor should demonstrate how its controls create exportable evidence rather than relying on broad claims about enterprise readiness or compliance.
+
+Require the vendor to demonstrate:
+
+- A complete inventory of deployed agents and responsible owners
+- Roles that separate building, administration, approval, and deployment where required
+- Credential scoping, rotation, revocation, and ownership
+- Logs for administrative events and relevant agent executions
+- Human-approval steps that cannot be bypassed by an unreviewed route
+- Version identification and reviewable change history
+- Tested rollback or recovery procedures
+- Monitoring and export options for security and operations teams
+- Configurable retention aligned with legal and audit requirements
+- Incident investigation and evidence-preservation workflows
+- Documentation for hosting, subprocessors, data handling, and deletion
+- Clear boundaries between platform controls and customer responsibilities
+
+The proof of concept should test these controls directly. Ask Sim, n8n, and any other shortlisted platform to perform the same governance scenarios, then compare the evidence each platform exports rather than comparing feature labels alone.
+
+Useful scenarios include attempting an unauthorized deployment, revoking a credential, requiring approval for a high-impact action, tracing a failed run, changing a model or tool, restoring a prior version, exporting audit evidence, and decommissioning an agent.
+
+For broader platform security and deployment requirements, see [Enterprise AI Agent Compliance and Deployment Guide: HIPAA, GDPR, Data Residency, On-Prem, and VPC](https://www.sim.ai/library/enterprise-ai-agent-compliance-deployment-guide) and [AI Agent Identity, Credential Management, and Audit Trails: Enterprise Guide](https://www.sim.ai/library/ai-agent-identity-credentials-audit-trails-enterprise-guide).
+
+## How should organizations implement this mapping?
+
+Organizations should implement the ISO/IEC 42001 and NIST AI RMF mapping as a lifecycle process that begins with scope and ownership, then adds controls according to agent risk.
+
+1. Inventory every production agent and assign accountable owners.
+2. Define risk tiers using autonomy, data sensitivity, affected parties, action impact, and reversibility.
+3. Map required controls and evidence to each risk tier.
+4. Assess every agent before deployment and after material changes.
+5. Configure access, credentials, approvals, logging, retention, and monitoring.
+6. Test both the agent and its governance controls.
+7. Review evidence periodically and after incidents or significant changes.
+8. Track exceptions with an owner, rationale, compensating controls, and expiration date.
+9. Retire agents through a documented process that revokes access and preserves required records.
+
+The result should be a living control system, not a one-time spreadsheet. Agent inventories, risks, models, tools, permissions, and operating conditions change, so the evidence must change with them.
