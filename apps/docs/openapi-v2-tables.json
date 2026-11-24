@@ -6422,7 +6422,7 @@
             },
             "required": ["columns"],
             "additionalProperties": false,
-            "description": "Initial table column definitions: {\"columns\":[{\"name\":\"email\",\"type\":\"string\"}]}. A column's type: string, number, currency, boolean, date, json, select (a select column takes options)."
+            "description": "Initial table column definitions: {\"columns\":[{\"name\":\"email\",\"type\":\"string\"}]}. A column's type is one of string, number, currency, boolean, date, json, select; a select column also takes options."
           },
           "folderPath": {
             "description": "Folder in which to create the table.",
@@ -6701,7 +6701,7 @@
             },
             "required": ["name", "type"],
             "additionalProperties": false,
-            "description": "Column definition to add: {\"name\":\"status\",\"type\":\"string\"}. type: string, number, currency, boolean, date, json, select (a select column takes options)."
+            "description": "Column definition to add: {\"name\":\"status\",\"type\":\"string\"}. A column's type is one of string, number, currency, boolean, date, json, select; a select column also takes options."
           }
         },
         "required": ["workspaceId", "column"],

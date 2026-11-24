@@ -20656,7 +20656,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Column definition to add: {"name":"status","type":"string"}. type: string, number, currency, boolean, date, json, select (a select column takes options).',
+          'Column definition to add: {"name":"status","type":"string"}. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
       },
     },
   },
@@ -22240,7 +22240,7 @@ export const V2_OPERATIONS = {
         kind: 'object',
         required: true,
         describe:
-          'Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. A column\'s type: string, number, currency, boolean, date, json, select (a select column takes options).',
+          'Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. A column\'s type is one of string, number, currency, boolean, date, json, select; a select column also takes options.',
       },
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },

@@ -519,7 +519,7 @@ export const v2CreateTableBodySchema = v1CreateTableBodySchema
       })
       .strict()
       .describe(
-        `Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. A column's ${COLUMN_TYPES_HELP}`
+        `Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. ${COLUMN_TYPES_HELP}`
       ),
     folderPath: v2FolderPathInputSchema.optional().describe('Folder in which to create the table.'),
   })

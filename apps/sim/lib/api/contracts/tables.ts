@@ -60,10 +60,10 @@ export const columnTypeSchema = z
   .enum(COLUMN_TYPES)
   .meta({ omitEnumValuesFromOpenApi: UNDOCUMENTED_COLUMN_TYPES })
 
-/** The column types a public description names, for the column inputs' help. */
-export const COLUMN_TYPES_HELP = `type: ${COLUMN_TYPES.filter(
+/** The sentence naming the public column types, for the column inputs' help. */
+export const COLUMN_TYPES_HELP = `A column's type is one of ${COLUMN_TYPES.filter(
   (type) => !UNDOCUMENTED_COLUMN_TYPES.includes(type)
-).join(', ')} (a select column takes options).`
+).join(', ')}; a select column also takes options.`
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
