@@ -233,7 +233,7 @@ Editing the \`workflow('…')\` name or description renames or redescribes the w
 ## File shape
 
 \`\`\`ts
-// @sim-sdk 1
+// @sim-sdk ${SDK_MAJOR}
 import { response, trigger, workflow } from '@sim/workflow-sdk'
 
 export default workflow('Workflow name', {}, () => {
