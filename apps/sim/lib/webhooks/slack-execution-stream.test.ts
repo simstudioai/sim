@@ -833,7 +833,7 @@ describe('SlackExecutionStreamController', () => {
       mockAppendSlackAgentStream.mockImplementation(async () => {
         inFlight++
         maxInFlight = Math.max(maxInFlight, inFlight)
-        await new Promise((resolve) => setTimeout(resolve, 5))
+        for (let tick = 0; tick < 20; tick++) await Promise.resolve()
         inFlight--
       })
       const { controller } = await createController({
