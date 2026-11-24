@@ -19,6 +19,7 @@ import {
   strictMode,
   withWorkflowInputs,
   workspaceWorkflowKeys,
+  writtenWorkspaceTypes,
 } from './source-check'
 import {
   absoluteDirOption,
@@ -177,6 +178,8 @@ export function attachWorkspaceSourceCheck(source: Command): void {
           const types = await typeCheck(options.dir, {
             enabled: options.types !== false,
             compiled: findings,
+            writtenTypes: (written) =>
+              writtenWorkspaceTypes(options.dir, declarations.workflowInputs, written),
           })
           reportCheck(
             profile.output,

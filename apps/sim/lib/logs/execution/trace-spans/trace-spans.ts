@@ -300,7 +300,7 @@ export function findFailedTraceBlock(spans: unknown, runError?: string): FailedT
 export interface TraceFailure extends FailedTraceBlock {
   /** The block's error as recorded: a Function's leads with the line and code that threw. */
   error: string | null
-  /** A Function's thrown message alone, null for any other block. */
+  /** The block's declared `errorMessage` output (a Function's thrown message alone), else null. */
   errorMessage: string | null
 }
 

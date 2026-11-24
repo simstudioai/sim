@@ -194,6 +194,8 @@ describe('GET /api/v2/logs/[runId]', () => {
             children: [failedBlock('a', 'Agent A'), failedBlock('b', 'Agent B')],
           },
         ],
+        finalizationPath: 'force_failed',
+        completionFailure: 'Agent B: timeout',
         finalOutput: { error: 'Agent B: timeout' },
       },
     })
@@ -291,6 +293,8 @@ describe('GET /api/v2/logs/[runId]', () => {
             output: { error: 'Score failed' },
           },
         ],
+        finalizationPath: 'force_failed',
+        completionFailure: 'upstream returned 500',
         finalOutput: { error: 'upstream returned 500' },
       },
     })
@@ -300,6 +304,44 @@ describe('GET /api/v2/logs/[runId]', () => {
     })
 
     expect((await response.json()).data.failure).toBeNull()
+  })
+
+  /**
+   * A run whose status comes from a block's error keeps the workflow's own `finalOutput`, which
+   * can hold an `error` field of its own: that is the workflow's data, not the run's error.
+   */
+  it('names the failed block of a run whose workflow output holds an error field of its own', async () => {
+    mocks.execute.mockResolvedValue({
+      log: { ...log, status: 'failed', level: 'error' },
+      workflowFolderPath: '/agents',
+      executionData: {
+        traceSpans: [
+          {
+            id: 'span-fn',
+            blockId: 'block-fn',
+            name: 'Score',
+            type: 'function',
+            duration: 10,
+            status: 'error',
+            startTime: '2026-08-06T00:00:00.010Z',
+            endTime: '2026-08-06T00:00:00.020Z',
+            output: { error: 'Line 1 - boom' },
+          },
+        ],
+        finalizationPath: 'completed',
+        finalOutput: { error: 'no matching customer' },
+      },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect((await response.json()).data.failure).toMatchObject({
+      blockId: 'block-fn',
+      blockName: 'Score',
+      error: 'Line 1 - boom',
+    })
   })
 
   it('reports no failure for a run whose trace has none', async () => {

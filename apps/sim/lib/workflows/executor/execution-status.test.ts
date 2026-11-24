@@ -778,6 +778,33 @@ describe('getWorkflowExecutionStatus once a pause has settled', () => {
       },
     })
   })
+
+  it.each([
+    [
+      'the message an error finalization recorded',
+      {
+        finalizationPath: 'force_failed',
+        completionFailure: 'Lookup: upstream returned 500',
+        finalOutput: { error: 'Lookup: upstream returned 500' },
+      },
+      'Lookup: upstream returned 500',
+    ],
+    [
+      "no error from a workflow output's own error field",
+      { finalizationPath: 'completed', finalOutput: { error: 'no matching customer' } },
+      null,
+    ],
+  ])('reports as a failed run its error %s', async (_, recorded, error) => {
+    queueFailedRunWithOpenPause({ 'wait-five': FAILED_TIME_POINT })
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: { ...recorded, traceSpans: [] },
+      blockOutputs: new Map(),
+    })
+
+    const projected = await getProjectedWorkflowExecutionStatus(input)
+
+    expect(projected?.status).toMatchObject({ status: 'failed', error })
+  })
 })
 
 describe('readPausedRunPoints cap', () => {
