@@ -11,8 +11,8 @@ const logger = createLogger('CreditPurchase')
 
 /**
  * Sets usage limit to planBase + creditBalance.
- * This ensures users can use their plan's included amount plus any prepaid credits. A trial's
- * base is its fixed allowance, not the plan's.
+ * This ensures users can use their plan's included amount plus any prepaid credits. A personal
+ * trial's base is its fixed allowance, not the plan's.
  */
 export async function setUsageLimitForCredits(
   entityType: 'user' | 'organization',
@@ -23,9 +23,10 @@ export async function setUsageLimitForCredits(
 ): Promise<void> {
   const { plan } = subscription
   try {
-    const basePrice = isTrialingSubscription(subscription)
-      ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
-      : getPlanPricing(plan).basePrice
+    const basePrice =
+      entityType === 'user' && isTrialingSubscription(subscription)
+        ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
+        : getPlanPricing(plan).basePrice
 
     const seatCount = seats || 1
     const planBase =

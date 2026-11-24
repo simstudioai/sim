@@ -72,7 +72,7 @@ describe('payerHasChatAccess', () => {
     const userId = await createUser()
     const payer = {
       billingEntity: { type: 'user' as const, id: userId },
-      payerSubscription: { plan: 'free' },
+      payerSubscription: { plan: 'free', status: null },
     }
 
     expect(await payerHasChatAccess(payer)).toBe(false)
@@ -88,7 +88,7 @@ describe('payerHasChatAccess', () => {
     expect(
       await payerHasChatAccess({
         billingEntity: { type: 'user', id: userId },
-        payerSubscription: { plan: 'pro_6000' },
+        payerSubscription: { plan: 'pro_6000', status: 'active' },
       })
     ).toBe(true)
   })

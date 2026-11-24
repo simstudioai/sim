@@ -6,28 +6,33 @@ import type { AttributedUsageLimitsResult } from '@/lib/billing/core/attribution
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
-import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { isOrgScopedSubscription, isTrialingSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('UsageUpgrade')
 
 const UPGRADE_PLAN_MESSAGE =
   "You've reached your usage limit. Please upgrade your plan to continue."
 
+const TRIAL_ALLOWANCE_MESSAGE =
+  "You've used the credits included in your free trial. Usage is paused until your trial ends, when your plan's full allowance starts."
+
 const MEMBER_CAP_MESSAGE =
   "You've reached the usage limit your organization set for you this billing period. Only an organization owner or admin can raise it — please ask them to continue."
 
 /**
  * The payer a run is billed to, as the upgrade card needs it: its billing entity and its
- * subscription's plan. An attribution snapshot is one; a direct-v1 run's mid-run verdict carries one.
+ * subscription's plan and status. An attribution snapshot is one; a direct-v1 run's mid-run
+ * verdict carries one.
  */
 export interface UsageUpgradePayer {
   readonly billingEntity: Readonly<BillingEntity>
-  readonly payerSubscription: { readonly plan: string } | null
+  readonly payerSubscription: { readonly plan: string; readonly status: string | null } | null
 }
 
 /**
  * The upgrade card for a payer over its usage limit: a plan upgrade for a free payer, a limit
- * increase for a paid one, with copy naming who can raise an organization's limit. A member
+ * increase for a paid one, with copy naming who can raise an organization's limit. A personal
+ * trial's allowance cannot be raised, so its card says usage resumes when the trial ends. A member
  * over the cap their organization set gets copy naming who can raise that cap. A known payer
  * decides the card without a query; otherwise the actor's current subscription decides, and a
  * lookup that fails falls back to the plan-upgrade card.
@@ -40,16 +45,16 @@ export async function resolveUsageUpgradePayload(
   if (scope === 'member') {
     return { reason: 'usage_limit', action: 'increase_limit', message: MEMBER_CAP_MESSAGE }
   }
-  let plan: string | undefined
+  let subscription: UsageUpgradePayer['payerSubscription'] = null
   let orgScoped = false
   try {
     if (payer) {
-      plan = payer.payerSubscription?.plan
+      subscription = payer.payerSubscription
       orgScoped = payer.billingEntity.type === 'organization'
     } else {
-      const subscription = await getHighestPrioritySubscription(userId)
-      plan = subscription?.plan
-      orgScoped = isOrgScopedSubscription(subscription, userId)
+      const current = await getHighestPrioritySubscription(userId)
+      subscription = current
+      orgScoped = isOrgScopedSubscription(current, userId)
     }
   } catch (error) {
     logger.warn('Failed to determine subscription plan, defaulting to upgrade_plan', {
@@ -57,8 +62,12 @@ export async function resolveUsageUpgradePayload(
     })
   }
 
+  const plan = subscription?.plan
   if (!plan || !isPaid(plan)) {
     return { reason: 'usage_limit', action: 'upgrade_plan', message: UPGRADE_PLAN_MESSAGE }
+  }
+  if (!orgScoped && isTrialingSubscription(subscription)) {
+    return { reason: 'usage_limit', action: 'upgrade_plan', message: TRIAL_ALLOWANCE_MESSAGE }
   }
   // Paid plans get `increase_limit`; the copy says who can raise it when the user cannot.
   const message = !orgScoped
