@@ -59,7 +59,7 @@ export const SECURITY_LINES = [
   linkLine(
     'Trust Center',
     'https://trust.sim.ai/',
-    'SOC 2 Type II, ISO 27001, and GDPR: reports, policies, and subprocessors'
+    'SOC 2 Type II (Security criterion), GDPR, and ISO 27001 certification in progress: reports, policies, and subprocessors'
   ),
   linkLine(
     'Single sign-on',

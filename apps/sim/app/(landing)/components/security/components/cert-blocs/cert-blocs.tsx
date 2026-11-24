@@ -15,11 +15,17 @@ const SCROLL_PORT_SELECTOR = '.overflow-y-auto'
 const MARK_STROKES = '[pathLength]'
 const CERT_MUTED = 'text-[var(--text-muted)]'
 
-const CERTIFICATIONS = [
+interface Certification {
+  title: string
+  status?: string
+  Mark: typeof Soc2TypeIiMark
+}
+
+const CERTIFICATIONS: readonly Certification[] = [
   { title: 'SOC 2 Type II', Mark: Soc2TypeIiMark },
-  { title: 'ISO 27001', Mark: Iso27001Mark },
+  { title: 'ISO 27001', status: 'Certification in progress', Mark: Iso27001Mark },
   { title: 'GDPR', Mark: GdprMark },
-] as const
+]
 
 interface CertBlocsProps {
   href: string
@@ -110,7 +116,7 @@ export function CertBlocs({ href }: CertBlocsProps) {
         drawn && styles.drawn
       )}
     >
-      {CERTIFICATIONS.map(({ title, Mark }) => (
+      {CERTIFICATIONS.map(({ title, status, Mark }) => (
         <li key={title}>
           <a
             href={href}
@@ -142,6 +148,9 @@ export function CertBlocs({ href }: CertBlocsProps) {
               />
             </span>
             <span className='text-[18px] text-[var(--text-primary)] leading-[1.3]'>{title}</span>
+            {status && (
+              <span className={cn('mt-1 text-[var(--text-muted)]', HOME_TYPE.meta)}>{status}</span>
+            )}
             <span
               className={cn(
                 'mt-2 inline-flex items-center gap-1 text-[var(--text-secondary)]',
