@@ -156,11 +156,12 @@ export interface WorkflowFolderRecords {
 /**
  * The `.sim/stored-edges.json` write of each workflow folder a workspace get or apply answered
  * with, each compiled against the catalog its base names and typed as the server printed it: a
- * call by the result fields of the folder it calls ({@link childResultFields}), as a check types it. A workflow holding a type the workspace
- * catalog lacks was printed with its own catalog: one not cached yet is fetched, once per distinct
- * hash, and cached, so an offline check compiles that folder against it too. The records are a
- * cache fill, never part of the write: a catalog fetch that fails skips the folders printed with
- * that catalog (named in `unrecorded`) rather than failing a write the server already committed.
+ * call by the result fields of the folder it calls ({@link childResultFields}), as a check
+ * types it. A workflow holding a type the workspace catalog lacks was printed with its own
+ * catalog: one not cached yet is fetched, once per distinct hash, and cached, so an offline check
+ * compiles that folder against it too. The records are a cache fill, never part of the write: a
+ * catalog fetch that fails skips the folders printed with that catalog (named in `unrecorded`)
+ * rather than failing a write the server already committed.
  */
 export async function workflowFolderRecords(
   client: OperationClient<'getSourceCatalog'>,

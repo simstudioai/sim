@@ -588,11 +588,9 @@ describe('sim workspaces source check', () => {
       workflowFile(
         "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
         "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
-        "const save = table.insertRow('Save', { tableId: table('contacts'), data: { email: call.result.data.mobile } })",
         "const reply = response('Reply', { body: { mobile: call.result.data.mobile, digits: call.result.data.digits, other: call.result.data.missing } })",
         'start.to(call)',
-        'call.to(save)',
-        'save.to(reply)'
+        'call.to(reply)'
       )
     )
 
