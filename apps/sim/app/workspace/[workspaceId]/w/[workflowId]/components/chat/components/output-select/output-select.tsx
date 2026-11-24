@@ -15,6 +15,7 @@ import {
   buildWorkflowOutputMenu,
   buildWorkflowOutputOptions,
   collectReferencedWorkflowIds,
+  selectBlockPathOptions,
   type WorkflowOutputMenuNode,
   type WorkflowOutputOption,
 } from '@/lib/workflows/streaming/nested-output-options'
@@ -42,6 +43,8 @@ interface OutputSelectProps {
   disabled?: boolean
   /** Placeholder text when no outputs are selected */
   placeholder?: string
+  /** Offers one option per block of this type, selecting this output path */
+  outputFilter?: { blockType: string; path: string }
   /** Whether to emit internal IDs, display labels, or public dot selectors */
   valueMode?: 'id' | 'label' | 'public'
   /** Alignment of the dropdown relative to the trigger */
@@ -127,6 +130,7 @@ function OutputSelectContent({
   onOutputSelect,
   disabled = false,
   placeholder = 'Select outputs',
+  outputFilter,
   valueMode = 'id',
   align = 'start',
   maxHeight = 200,
@@ -206,7 +210,7 @@ function OutputSelectContent({
   const thirdLevelStates = useWorkflowStates(thirdLevelWorkflowIds)
 
   const workflowStates = new Map([...firstLevelStates, ...secondLevelStates, ...thirdLevelStates])
-  const workflowOutputs = workflowId
+  const allWorkflowOutputs = workflowId
     ? buildWorkflowOutputOptions({
         rootWorkflowId: workflowId,
         rootState,
@@ -214,6 +218,9 @@ function OutputSelectContent({
         maxChildDepth: DEFAULTS.MAX_SSE_CHILD_DEPTH,
       })
     : []
+  const workflowOutputs = outputFilter
+    ? selectBlockPathOptions(allWorkflowOutputs, outputFilter.blockType, outputFilter.path)
+    : allWorkflowOutputs
   const outputMenu = buildWorkflowOutputMenu(workflowOutputs)
   const outputMenuRevision = JSON.stringify([
     workflowId,
