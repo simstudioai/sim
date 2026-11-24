@@ -1025,6 +1025,15 @@ export function validateValueForSubBlockType(
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
             suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+          const namespaceExamples = [
+            'azure/my-deployment',
+            'azure-anthropic/my-deployment',
+            'bedrock/my-inference-profile',
+            'vertex/my-model',
+            ...(isOllamaAvailable() ? ['ollama/llama3.1:8b'] : []),
+          ]
+            .map((example) => `"${example}"`)
+            .join(', ')
           return {
             valid: false,
             error: {
@@ -1032,7 +1041,7 @@ export function validateValueForSubBlockType(
               blockType,
               field: fieldName,
               value,
-              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. "azure/my-deployment", "azure-anthropic/my-deployment", "bedrock/my-inference-profile", "vertex/my-model", "ollama/llama3.1:8b", or "openrouter/provider/model".${suggestionText}`,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. ${namespaceExamples}, or "openrouter/provider/model".${suggestionText}`,
             },
           }
         }

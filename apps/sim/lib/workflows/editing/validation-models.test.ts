@@ -146,6 +146,23 @@ describe('model ids no provider declares', () => {
     const { errors } = validateModel('router_v2', 'llama3.1:8b')
     expect(errors[0]?.error).toContain('Unknown model id')
   })
+
+  it('offers an ollama/ namespace example only where Ollama can serve it', () => {
+    expect(validateModel('router_v2', 'best available model').errors[0]?.error).toContain(
+      '"ollama/llama3.1:8b"'
+    )
+
+    setEnvFlags({ isHosted: true })
+    expect(validateModel('router_v2', 'best available model').errors[0]?.error).not.toContain(
+      'ollama/'
+    )
+
+    setEnvFlags({ isHosted: false })
+    envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(['ollama'])
+    expect(validateModel('router_v2', 'best available model').errors[0]?.error).not.toContain(
+      'ollama/'
+    )
+  })
 })
 
 describe('fallback model rows', () => {

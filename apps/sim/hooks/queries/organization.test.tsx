@@ -77,6 +77,7 @@ const BILLING_A: OrganizationPlanSeatsResponse = {
     usedSeats: 2,
     membersTotal: 2,
     hasEnterprisePlan: true,
+    seatCapKind: 'fixed',
   },
 }
 

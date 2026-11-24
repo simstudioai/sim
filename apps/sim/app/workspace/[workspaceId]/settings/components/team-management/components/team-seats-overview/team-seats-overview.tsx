@@ -22,6 +22,8 @@ interface TeamSeatsOverviewProps {
   usedSeats: number
   /** Outstanding invites that have not been accepted yet (do not consume a seat). */
   pendingSeats?: number
+  /** A self-serve Enterprise contract, whose members may outgrow its seats and true up. */
+  seatsAreBaseline?: boolean
 }
 
 export function TeamSeatsOverview({
@@ -31,6 +33,7 @@ export function TeamSeatsOverview({
   totalSeats,
   usedSeats,
   pendingSeats = 0,
+  seatsAreBaseline = false,
 }: TeamSeatsOverviewProps) {
   if (isLoadingSubscription) {
     return null
@@ -58,7 +61,7 @@ export function TeamSeatsOverview({
 
   const isEnterprise = checkEnterprisePlan(subscriptionData)
   const isSeatDataPending = !isEnterprise && totalSeats === 0
-  const isOverLimit = totalSeats > 0 && usedSeats > totalSeats
+  const isOverLimit = !seatsAreBaseline && totalSeats > 0 && usedSeats > totalSeats
   const pillCount = Math.max(totalSeats, usedSeats, 1)
 
   if (isSeatDataPending) {

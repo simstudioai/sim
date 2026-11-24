@@ -31,22 +31,16 @@ import {
 } from '@/lib/auth/security-policy'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { createUserStatsIfMissing, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import {
-  assertNoUnresolvedEnterpriseIssuance,
-  resolveEnterpriseMetadataIntent,
-} from '@/lib/billing/enterprise-outbox'
+import { assertNoUnresolvedEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { reassignOrganizationSharedResourcesTx } from '@/lib/billing/organizations/resource-handoff'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { changeOrganizationWorkspaceBilledAccountsInTx } from '@/lib/billing/storage/payer-transfer'
-import {
-  ENTITLED_SUBSCRIPTION_STATUSES,
-  getEffectiveSeats,
-} from '@/lib/billing/subscriptions/utils'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
+import { resolveSeatCap, validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import {
   enqueueCancelAtPeriodEndSync,
@@ -768,17 +762,8 @@ export async function ensureUserInOrganizationTx(
       .select({ value: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
-    const canonicalSeats = getEffectiveSeats(organizationSubscription)
-    const metadataIntent =
-      organizationSubscription.plan === 'enterprise'
-        ? await resolveEnterpriseMetadataIntent(
-            tx,
-            organizationSubscription.id,
-            organizationSubscription.metadata
-          )
-        : null
-    const effectiveSeats = metadataIntent?.effectiveSeatCapacity ?? canonicalSeats
-    if ((memberCountRow?.value ?? 0) >= effectiveSeats) {
+    const seatCap = await resolveSeatCap(organizationSubscription, tx)
+    if (seatCap.kind !== 'baseline' && (memberCountRow?.value ?? 0) >= seatCap.seats) {
       return {
         success: false,
         alreadyMember: false,

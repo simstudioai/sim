@@ -6634,13 +6634,7 @@
       "dynamicOutputs": {
         "source": "responseFormat",
         "param": "responseFormat"
-      },
-      "legacyIds": [
-        {
-          "from": "previousInteractionId",
-          "to": null
-        }
-      ]
+      }
     },
     "api": {
       "type": "api",
@@ -10885,13 +10879,7 @@
         "trigger_sync": {
           "names": []
         }
-      },
-      "legacyIds": [
-        {
-          "from": "knowledgeBaseId",
-          "to": "knowledgeBaseSelector"
-        }
-      ]
+      }
     },
     "loop": {
       "type": "loop",
@@ -30207,6 +30195,54 @@
           }
         },
         {
+          "id": "streamTimelineSources",
+          "type": "workflow-output-selector",
+          "valueKind": "array",
+          "storage": "native",
+          "title": "Show progress from",
+          "mode": "trigger",
+          "surface": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false
+        },
+        {
+          "id": "streamToolLabels",
+          "type": "table",
+          "valueKind": "array",
+          "storage": "native",
+          "structured": "tableRows",
+          "title": "Tool step labels",
+          "mode": "trigger",
+          "surface": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false,
+          "valueShape": "json",
+          "columns": [
+            "Tool",
+            "Label"
+          ]
+        },
+        {
           "id": "streamTaskTitle",
           "type": "short-input",
           "valueKind": "string",
@@ -31494,12 +31530,6 @@
           "slack_oauth"
         ]
       },
-      "legacyIds": [
-        {
-          "from": "channelMaxPages",
-          "to": null
-        }
-      ],
       "paramAliases": {
         "action": {
           "oauthCredential": "credential"
@@ -33322,6 +33352,52 @@
               ]
             }
           }
+        },
+        {
+          "id": "streamTimelineSources",
+          "type": "workflow-output-selector",
+          "valueKind": "array",
+          "storage": "native",
+          "title": "Show progress from",
+          "mode": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false
+        },
+        {
+          "id": "streamToolLabels",
+          "type": "table",
+          "valueKind": "array",
+          "storage": "native",
+          "structured": "tableRows",
+          "title": "Tool step labels",
+          "mode": "trigger",
+          "condition": {
+            "field": "streamResponse",
+            "value": true,
+            "and": {
+              "field": "eventType",
+              "value": [
+                "message",
+                "app_mention"
+              ]
+            }
+          },
+          "required": false,
+          "valueShape": "json",
+          "columns": [
+            "Tool",
+            "Label"
+          ]
         },
         {
           "id": "streamTaskTitle",

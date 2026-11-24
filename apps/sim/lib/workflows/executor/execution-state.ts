@@ -233,7 +233,13 @@ export async function getHumanPauseResumeUrl(
   return waitsOnPerson ? buildResumeUiUrl(getBaseUrl(), workflowId, executionId) : null
 }
 
-/** A terminal run's failure message: its own `error`, else {@link forceFailedMessage}. */
+/**
+ * A terminal run's failure message: its own `error`, else {@link forceFailedMessage}. Unlike
+ * `runFailureMessage` it skips `completionFailure`: it reads completed and cancelled runs too, and
+ * a completion that fell back to a cost-only log records why there (`Failed to store trace
+ * spans: …`, `Run was cancelled`), which is a logging note, not the run's error. A failed run's
+ * error is already its own `error` or its forced finalization's message.
+ */
 function readFailureMessage(executionData: Record<string, unknown>): string | undefined {
   if (typeof executionData.error === 'string') return executionData.error
   return forceFailedMessage(executionData)

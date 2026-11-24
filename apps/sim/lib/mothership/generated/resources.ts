@@ -41,8 +41,11 @@ export const SearchResource = z.object({
 });
 export type SearchResource = z.infer<typeof SearchResource>;
 
+/** Resource frames and tool output cross versions, so an owner's unknown keys strip. */
+const ResourceOwner = z.object(FileOwner.shape);
+
 export const ResourceAddress = z.object({
-  owner: FileOwner.optional(),
+  owner: ResourceOwner.optional(),
   workspaceId: z.uuid().optional(),
   workspaceName: z.string().optional(),
   type: ResourceType,
@@ -93,7 +96,7 @@ export const ResourceChange = z.discriminatedUnion("op", [
     resource: z.union([
       z.object({
         type: ResourceType,
-        owner: FileOwner.optional(),
+        owner: ResourceOwner.optional(),
         workspaceId: z.uuid().optional(),
         id: z.string().regex(/\S/).optional(),
       }),

@@ -169,8 +169,7 @@ describe('closeElapsedBillingPeriod', () => {
     expect(result.overageBilled).toBe(70)
 
     expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
-      plan: 'team',
-      seats: null,
+      subscription: { plan: 'team', seats: null, metadata: null },
       periodStart: PREV_PERIOD_START,
       periodEnd: PERIOD_START,
       organizationId: 'org-1',
@@ -280,8 +279,7 @@ describe('closeElapsedBillingPeriod', () => {
     await closeElapsedBillingPeriod(subRow())
 
     expect(mockComputeOrgOverageAmount).toHaveBeenCalledWith({
-      plan: 'team',
-      seats: null,
+      subscription: { plan: 'team', seats: null, metadata: null },
       periodStart: PREV_PERIOD_START,
       periodEnd: PERIOD_START,
       organizationId: 'org-1',

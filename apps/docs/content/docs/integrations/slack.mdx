@@ -31,6 +31,9 @@ Custom-bot Slack triggers can stream workflow outputs directly back into the con
 - Loop and parallel invocations each create their own Slack response.
 - The response status label defaults to `Running` and can be customized in the trigger's advanced settings.
 - Optional thinking and tool-call updates appear as Slack tasks in a timeline or plan.
+- **Show progress from** (`streamTimelineSources`) shows an Agent's tool steps, and its thinking when enabled, without posting its text. Use it when an Agent's output is reviewed or reformatted by a later block: the steps and the first streamed answer share one Slack reply. Agents in child workflows can be selected. A block cannot be both an output to stream and a progress source.
+- **Tool step labels** (`streamToolLabels`) renames tool steps by tool name, for example `lc_cur` → `Reading AWS cost data`. Unlisted tools use a generated name. Steps never show tool arguments.
+- With PII block-output redaction on, Agent output is not streamed live, so no progress steps appear; selected outputs are still sent when their block completes.
 - Slack Agent Sessions remain in processing state for the run, return to active when it finishes, and the native Slack stop button cancels active workflow executions.
 
 Automatic trigger responses require a custom bot created by the Slack setup wizard. They are not available with the shared Sim Slack app. Where the deployment enables shared-app triggers, the Sim app can receive its subscribed event subset without automatic streaming.
@@ -3867,6 +3870,8 @@ Trigger from Slack events, interactions, and slash commands
 | `threads` | string | No | Include thread replies, exclude them \(top-level only\), or fire only on thread replies. |
 | `streamResponse` | boolean | No | Create a Slack agent session and stream selected workflow outputs into the conversation that started this run. Custom bots only. |
 | `streamOutputs` | workflow-output-selector | No | Use `&lt;blockName&gt;.&lt;outputPath&gt;` for this workflow or `&lt;childWorkflowId&gt;.&lt;blockName&gt;.&lt;outputPath&gt;` for a child workflow. Selecting a child workflow applies to every invocation of it. Agent outputs stream live; other outputs are sent when the block completes. |
+| `streamTimelineSources` | workflow-output-selector | No | Agent blocks, including ones in child workflows, whose tool steps appear in the reply while they run. Their text is never posted. No steps appear when PII block-output redaction is on. |
+| `streamToolLabels` | table | No | Optional names for tool steps, keyed by tool name \(an MCP tool by its own name, like lc_cur\). Unlisted tools use a generated name. |
 | `streamTaskTitle` | string | No | Optional status Slack shows while each selected response is being produced. Leave empty to use Running. |
 | `streamTaskDisplayMode` | string | No | Choose how Slack displays thinking and tool progress. |
 | `streamIncludeThinking` | boolean | No | Show agent thinking as Slack task updates while the response is generated. |

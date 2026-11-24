@@ -1,5 +1,5 @@
 export { decodeAnchor, encodeAnchor } from './anchors'
-export { babelErrorShape } from './babel'
+export { babelErrorShape, babelMessage } from './babel'
 export { type CanonicalizeResult, canonicalize, canonicalizeUnderLock } from './canonicalize'
 export { toolModes } from './canonicalize/modes'
 export { builderOutputSchemas, executableInactiveParams } from './catalog/activity'
@@ -11,7 +11,6 @@ export type {
   CatalogBuilder,
   CatalogCondition,
   CatalogDynamicOutputs,
-  CatalogLegacyId,
   CatalogOption,
   CatalogOutput,
   CatalogStructuredKind,
@@ -33,6 +32,7 @@ export {
 export {
   checkCodeFileBijection,
   createJsContextScanner,
+  ENV_VAR_NAME,
   formatStoredPath,
   fromCodeFile,
   isIdentifierName,
@@ -41,12 +41,7 @@ export {
 export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
 export { didYouMean, suggestBuilder } from './compile/hints'
-export {
-  babelMessage,
-  bracketDepthOverflow,
-  sdkHeader,
-  sourceDepthOverflow,
-} from './compile/parse'
+export { bracketDepthOverflow, sdkHeader, sourceDepthOverflow } from './compile/parse'
 export { LineIndex } from './compile/report'
 export {
   type ApplyDiagnosticCode,

@@ -13,6 +13,7 @@ import { pipeline } from 'node:stream/promises'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import { SOURCE_REFUSAL_CODES } from '@sim/workflow-code/diagnostics'
 import {
   APPLY_ORDER,
   type BlobEntry,
@@ -540,7 +541,7 @@ export async function stageBlobs(
  */
 function stagingTooLarge(error: unknown, batch: readonly BlobEntry[]): unknown {
   if (!(error instanceof SimApiError) || error.status !== 413) return error
-  if (toRecord(error.details).code === 'SOURCE_STAGING_FULL') return error
+  if (toRecord(error.details).code === SOURCE_REFUSAL_CODES.stagingFull) return error
   const bytes = batch.reduce((sum, blob) => sum + blob.size, 0)
   const largest = batch.reduce((top, blob) => (blob.size > top.size ? blob : top), batch[0])
   return new SimApiError(

@@ -39,7 +39,13 @@ import {
 } from '../declaration/field-table'
 import { fieldPointer, fieldReporter, readObject } from '../declaration/fields'
 import { call, printDeclaration } from '../declaration/print'
-import { isDeclarationCall, readDeclaration, unstorableCharacter } from '../declaration/read'
+import {
+  isDeclarationCall,
+  isStoredCall,
+  readDeclaration,
+  STORED_CALL,
+  unstorableCharacter,
+} from '../declaration/read'
 import {
   diagnostic,
   resourceOf,
@@ -88,7 +94,6 @@ export function toolLiteralSecret(printedStored: boolean): { message: string; hi
 
 const CALLEE = 'defineTool'
 const CODE_FILE_CALL = 'codeFile'
-const STORED_CALL = 'stored'
 /** The field the codec reads, prints and fingerprints itself: it may name the tool's code file. */
 const CODE_FIELD = 'code' satisfies keyof ToolDecl
 const CODE_EXTENSION = '.js'
@@ -255,11 +260,7 @@ function parseTool(
     rawCode.args[0] === expected
   ) {
     code = readCodeFile(key, text, diagnostics)
-  } else if (
-    isDeclarationCall(rawCode) &&
-    rawCode.$call === STORED_CALL &&
-    rawCode.args.length === 0
-  ) {
+  } else if (isStoredCall(rawCode)) {
     code = { stored: null }
     if (text[codePath(key)] !== undefined) {
       report(
@@ -295,7 +296,10 @@ function parseTool(
 /** Reads and prints `tools/<key>.ts` and `tools/<key>.js`. */
 export const toolCodec: KindCodec<ToolDecl> = {
   group: (paths) =>
-    groupByFile(KIND_DIRS['custom-tool'], [DECLARATION_EXTENSION, CODE_EXTENSION], paths),
+    groupByFile(KIND_DIRS['custom-tool'], DECLARATION_EXTENSION, paths, {
+      extension: CODE_EXTENSION,
+      holds: 'its code',
+    }),
   parse: (key, text) => parseTool(key, text),
   print(key, decl) {
     const code = decl.code

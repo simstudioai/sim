@@ -49,13 +49,13 @@ import {
 } from './source-dir'
 import { STRICT_FINDINGS } from './source-strict'
 import {
-  cachedCatalog,
   cachedSourceCatalog,
   type LocalDeclarations,
   refreshTsconfigs,
+  refreshWorkspaceTypes,
   workspaceTypesText,
 } from './source-tree'
-import type { TypeCheck } from './source-types'
+import { type TypeCheck, typeCheck } from './source-types'
 import { type Diagnostic, findingsOutput } from './source-ui'
 import { blockDigest, readStoredBlockDigests, readStoredEdges } from './stored-edges'
 import { lockRecoveryHint, readSourceFiles } from './workflow-dir'
@@ -177,7 +177,7 @@ function workflowEntry(key: string): string {
  * Points the workspace directory's tsconfig files at the blocks its workflows now use, keeping the
  * blocks they include.
  */
-export async function refreshWorkspaceTsconfigs(root: string, workspaceId: string): Promise<void> {
+async function refreshWorkspaceTsconfigs(root: string, workspaceId: string): Promise<void> {
   const keys = await workspaceWorkflowKeys(root)
   const sources = await Promise.all(keys.map((key) => readSourceText(root, workflowEntry(key))))
   await refreshTsconfigs(
@@ -502,6 +502,10 @@ async function compileWorkflowDir(
   }
 }
 
+/** What {@link readCheckDeclarations} reads: the declarations and the compiled workflows' facts. */
+type CheckDeclarations = WorkspaceDeclarations &
+  Awaited<ReturnType<typeof compileWorkspaceWorkflows>>
+
 /**
  * The workspace directory `root`'s declarations, with what a child workflow call is checked
  * against from compiling each of its workflows: the inputs of each workflow that compiles
@@ -512,7 +516,7 @@ async function compileWorkflowDir(
 export async function readCheckDeclarations(
   root: string,
   catalog: BlockCatalog
-): Promise<WorkspaceDeclarations & Awaited<ReturnType<typeof compileWorkspaceWorkflows>>> {
+): Promise<CheckDeclarations> {
   const [declared, workflows] = await Promise.all([
     readWorkspaceDeclarations(root),
     compileWorkspaceWorkflows(root, catalog),
@@ -535,7 +539,7 @@ async function compileWorkspaceWorkflows(root: string, catalog: BlockCatalog) {
 /**
  * The workflows of `local` typed with the inputs each declares (`inputs`), for `workspace.d.ts`.
  */
-export function withWorkflowInputs(
+function withWorkflowInputs(
   local: LocalDeclarations,
   inputs: ReadonlyMap<string, readonly WorkflowInput[] | null>
 ): LocalDeclarations {
@@ -549,13 +553,35 @@ export function withWorkflowInputs(
 }
 
 /**
+ * Type-checks the workspace directory `root` as a check leaves it: regenerates `workspace.d.ts`
+ * from `declarations` and points its tsconfig files at the blocks its workflows use, then runs
+ * {@link typeCheck} against them (`scope` keeps one workflow folder's errors).
+ */
+export async function typeCheckWorkspace(
+  root: string,
+  workspaceId: string,
+  declarations: CheckDeclarations,
+  options: { enabled: boolean; compiled: readonly Diagnostic[]; scope?: string }
+): Promise<TypeCheck> {
+  await refreshWorkspaceTypes(
+    root,
+    withWorkflowInputs(declarations.local, declarations.workflowInputs)
+  )
+  await refreshWorkspaceTsconfigs(root, workspaceId)
+  return typeCheck(root, {
+    ...options,
+    writtenTypes: (written) => writtenWorkspaceTypes(root, declarations.workflowInputs, written),
+  })
+}
+
+/**
  * `workspace.d.ts` as the last get or apply (`written`) left the workspace directory `root`: the
  * kept manifest, what the files that write recorded declare, and the `workflowInputs` of each
  * workflow whose `workflow.ts` is unchanged since. A workflow edited since keeps its stored inputs
  * (none without a kept manifest), so an error its edit causes in another workflow is not taken
  * for one that workflow's printed source already had.
  */
-export async function writtenWorkspaceTypes(
+async function writtenWorkspaceTypes(
   root: string,
   workflowInputs: ReadonlyMap<string, readonly WorkflowInput[] | null>,
   written: Written
@@ -845,9 +871,4 @@ export function cachedOrRefuse(
     `No block catalog is cached for workspace ${workspaceId}. Run ${get} once, then check again.`,
     { code: 'CATALOG_NOT_CACHED' }
   )
-}
-
-/** The cached catalog of `workspaceId`, or a refusal naming `get`, the command that caches one. */
-export function requireCachedCatalog(workspaceId: string, get: string): BlockCatalog {
-  return cachedOrRefuse(cachedCatalog(workspaceId), workspaceId, get)
 }

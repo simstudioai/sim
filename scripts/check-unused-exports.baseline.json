@@ -4027,7 +4027,6 @@
   "apps/sim/lib/billing/storage/limits.ts#getStorageLimits",
   "apps/sim/lib/billing/storage/payer-transfer.ts#WorkspaceStoragePayer",
   "apps/sim/lib/billing/stripe-client.ts#hasValidStripeCredentials",
-  "apps/sim/lib/billing/stripe-payment-method.ts#getCustomerId",
   "apps/sim/lib/billing/subscriptions/utils.ts#getEnterpriseTierLimitPerSeat",
   "apps/sim/lib/billing/subscriptions/utils.ts#getProTierLimit",
   "apps/sim/lib/billing/subscriptions/utils.ts#getTeamTierLimitPerSeat",

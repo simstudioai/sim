@@ -50,7 +50,7 @@ const {
   cleanupSourceOrganizationArtifactsTx,
   acquireInvitationMutationLocks,
   countPendingSeatInvitations,
-  resolveSeatCapacity,
+  resolveSeatCap,
   collectWorkspaceCredentialSummary,
   getSourceOrganization,
 } = vi.hoisted(() => ({
@@ -69,7 +69,9 @@ const {
   ),
   acquireInvitationMutationLocks: vi.fn(),
   countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
-  resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
+  resolveSeatCap: vi.fn((subscription: { plan: string }) =>
+    Promise.resolve({ seats: 10, kind: subscription.plan === 'enterprise' ? 'fixed' : 'on-demand' })
+  ),
   collectWorkspaceCredentialSummary: vi.fn(),
   getSourceOrganization: vi.fn(),
 }))
@@ -119,8 +121,7 @@ vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMo
 vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({
   countPendingSeatInvitations,
-  planHasFixedSeatCap: vi.fn((plan: string) => plan === 'enterprise'),
-  resolveSeatCapacity,
+  resolveSeatCap,
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
@@ -483,7 +484,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       },
     ])
     queueTableRows(invitationWorkspaceGrant, [{ invitationId: 'invitation-1', value: 1 }])
-    resolveSeatCapacity.mockResolvedValueOnce(1)
+    resolveSeatCap.mockResolvedValueOnce({ seats: 1, kind: 'fixed' })
 
     await expect(
       moveWorkspaceToOrganization({

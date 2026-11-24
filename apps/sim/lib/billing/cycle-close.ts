@@ -23,6 +23,7 @@ import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   getPlanPricing,
   getSubscriptionWeeklyRefreshDollars,
+  isHardCappedEnterprise,
   SETTLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -228,6 +229,8 @@ export async function claimTerminalPeriod(
   periodStart: Date | null
   periodEnd: Date | null
   markerWasCurrent: boolean
+  /** The row's contract metadata, which decides whether a self-serve Enterprise bills overage. */
+  metadata: unknown
 }> {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -235,6 +238,7 @@ export async function claimTerminalPeriod(
         periodStart: subscriptionTable.periodStart,
         periodEnd: subscriptionTable.periodEnd,
         lastClosedPeriodStart: subscriptionTable.lastClosedPeriodStart,
+        metadata: subscriptionTable.metadata,
       })
       .from(subscriptionTable)
       .where(eq(subscriptionTable.id, subscriptionId))
@@ -244,14 +248,18 @@ export async function claimTerminalPeriod(
     if (!row?.periodStart) {
       // Mirrors the threshold gate: a null `periodStart` cannot race a
       // rollover, so any tracked collections are legitimately current.
-      return { periodStart: null, periodEnd: null, markerWasCurrent: true }
+      return { periodStart: null, periodEnd: null, markerWasCurrent: true, metadata: row?.metadata }
     }
     const markerWasCurrent =
       !!row.lastClosedPeriodStart &&
       row.lastClosedPeriodStart.getTime() >= row.periodStart.getTime()
-    if (!markerWasCurrent && !options.sealLagging) {
-      return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
+    const claim = {
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
+      markerWasCurrent,
+      metadata: row.metadata,
     }
+    if (!markerWasCurrent && !options.sealLagging) return claim
     if (!markerWasCurrent) {
       logger.error(
         'Sealing an unclosed elapsed period at terminal claim; residual overage forgiven',
@@ -263,7 +271,7 @@ export async function claimTerminalPeriod(
       )
     }
     await claimCloseMarker(tx, subscriptionId, row.periodEnd ?? row.periodStart)
-    return { periodStart: row.periodStart, periodEnd: row.periodEnd, markerWasCurrent }
+    return claim
   })
 }
 
@@ -302,7 +310,8 @@ async function claimCloseMarker(
  *
  * 1. Sums the closed period's ledger usage per member from write-time period
  *    stamps (`getStampedPeriodRangeUsageCostByUser`) — never `created_at`.
- * 2. Collects final sub-threshold overage for non-enterprise plans: computed
+ * 2. Collects final sub-threshold overage for every plan but a hard-capped
+ *    Enterprise contract: computed
  *    overage minus what threshold billing already collected
  *    (`billedOverageThisPeriod`), credits applied first, remainder invoiced
  *    through the transaction-enlisted Stripe outbox with deterministic
@@ -313,8 +322,8 @@ async function claimCloseMarker(
  *    and marker commit atomically — a crash retries the whole close, and the
  *    outbox's Stripe idempotency keys collapse invoice replays.
  *
- * Enterprise subscriptions never collect money here (billing is contractual,
- * outside Stripe); they get bookkeeping + marker only, and orgs on reporting
+ * Enterprise contracts outside self-serve never collect money here (billing is
+ * contractual); they get bookkeeping + marker only, and orgs on reporting
  * anchors skip bookkeeping too because their windows derive live from the
  * anchor. A null marker initializes to the current `periodStart` without
  * billing, so historical periods are never retroactively closed.
@@ -433,16 +442,16 @@ export async function closeElapsedBillingPeriod(
     ? (memberRows.find((row) => row.role === 'owner')?.userId ?? null)
     : sub.referenceId
 
-  // Final overage for the closed period (enterprise never bills overage).
+  // Final overage for the closed period.
   // Refresh reads are scoped by the same entity/period stamps as the ledger
   // sums, so a departed member's org-attributed rows offset the overage
   // exactly like a current member's.
   let totalOverage = 0
-  if (!enterprise) {
+  const billsClosedOverage = !isHardCappedEnterprise(sub)
+  if (billsClosedOverage) {
     if (orgScoped) {
       const { totalOverage: computed } = await computeOrgOverageAmount({
-        plan: sub.plan,
-        seats: sub.seats ?? null,
+        subscription: { plan: sub.plan, seats: sub.seats ?? null, metadata: sub.metadata },
         periodStart: closeFrom,
         periodEnd: periodStart,
         organizationId: sub.referenceId,
@@ -468,7 +477,7 @@ export async function closeElapsedBillingPeriod(
   // Labels use the closed period's END month, matching threshold billing's
   // period-end labeling for overage invoices.
   const billingPeriodLabel = periodStart.toISOString().slice(0, 7)
-  const collectMoney = !enterprise && totalOverage > 0
+  const collectMoney = billsClosedOverage && totalOverage > 0
   if (collectMoney && (!sub.stripeCustomerId || !sub.stripeSubscriptionId)) {
     // Claiming the marker here would silently forgive the overage. Defer the
     // whole close — the sweep retries every run until the Stripe linkage is

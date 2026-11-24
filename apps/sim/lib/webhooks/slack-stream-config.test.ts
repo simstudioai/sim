@@ -33,6 +33,8 @@ describe('Slack stream response config', () => {
       includeToolCalls: false,
       taskTitle: 'Working',
       taskDisplayMode: 'plan',
+      timelineSources: [],
+      toolLabels: {},
     })
     expect(readSlackStreamResponseConfig(providerConfig)).toEqual(normalized)
     expect(providerConfig.streamResponse).toBeUndefined()
@@ -91,4 +93,91 @@ describe('Slack stream response config', () => {
       ).toThrow('Invalid Slack stream output selector')
     }
   )
+
+  describe('timeline sources', () => {
+    const blocks = {
+      'agent-1': { id: 'agent-1', name: 'Analyst', type: 'agent' },
+      'fn-1': { id: 'fn-1', name: 'Format Answer', type: 'function' },
+    }
+
+    it('normalizes block-level sources and tool labels, and reads them back', () => {
+      const providerConfig: Record<string, unknown> = {
+        eventType: 'message',
+        streamResponse: true,
+        streamOutputs: ['formatanswer.result'],
+        streamTimelineSources: ['analyst.content', `${CHILD_WORKFLOW_ID}.analyst`],
+        streamToolLabels: [
+          { id: 'r1', cells: { Tool: ' lc_cur ', Label: ' Reading AWS cost data ' } },
+          { id: 'r2', cells: { Tool: '', Label: 'ignored' } },
+        ],
+      }
+      const normalized = normalizeSlackStreamResponseConfig(providerConfig, blocks)
+      replaceSlackStreamAuthoringConfig(providerConfig, normalized)
+
+      expect(normalized?.timelineSources).toEqual([
+        { blockId: 'agent-1' },
+        { workflowId: CHILD_WORKFLOW_ID, blockId: 'analyst' },
+      ])
+      expect(normalized?.toolLabels).toEqual({ lc_cur: 'Reading AWS cost data' })
+      expect(readSlackStreamResponseConfig(providerConfig)).toEqual(normalized)
+      expect(providerConfig.streamTimelineSources).toBeUndefined()
+      expect(providerConfig.streamToolLabels).toBeUndefined()
+    })
+
+    it('reads configs deployed before timeline sources existed', () => {
+      const config = readSlackStreamResponseConfig({
+        streamResponseConfig: {
+          enabled: true,
+          outputConfigs: [{ blockId: 'block', path: 'content' }],
+          includeThinking: false,
+          includeToolCalls: true,
+          taskDisplayMode: 'timeline',
+        },
+      })
+      expect(config?.timelineSources).toEqual([])
+      expect(config?.toolLabels).toEqual({})
+    })
+
+    it('rejects a block that is both an answer output and a timeline source', () => {
+      expect(() =>
+        normalizeSlackStreamResponseConfig(
+          {
+            eventType: 'message',
+            streamResponse: true,
+            streamOutputs: ['analyst.content'],
+            streamTimelineSources: ['analyst'],
+          },
+          blocks
+        )
+      ).toThrow('both')
+    })
+
+    it('rejects a timeline source that is not an Agent block', () => {
+      expect(() =>
+        normalizeSlackStreamResponseConfig(
+          {
+            eventType: 'message',
+            streamResponse: true,
+            streamOutputs: ['analyst.content'],
+            streamTimelineSources: ['formatanswer'],
+          },
+          blocks
+        )
+      ).toThrow('must be an Agent block')
+    })
+
+    it('rejects a timeline source path other than the Agent content', () => {
+      expect(() =>
+        normalizeSlackStreamResponseConfig(
+          {
+            eventType: 'message',
+            streamResponse: true,
+            streamOutputs: ['formatanswer.result'],
+            streamTimelineSources: ['analyst.model'],
+          },
+          blocks
+        )
+      ).toThrow('timeline source')
+    })
+  })
 })

@@ -34,6 +34,7 @@ import { parseAdminInvitationOperationPayload } from '@/lib/admin/invitation-ope
 import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
+import { INVOICE_DAYS_UNTIL_DUE } from '@/lib/billing/constants'
 import { resolveEnterpriseReportingPeriod } from '@/lib/billing/core/reporting-period'
 import {
   getBillingPeriodUsageCost,
@@ -41,6 +42,7 @@ import {
 } from '@/lib/billing/core/usage-log'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
+  deliveredEnterpriseMetadata,
   deriveEnterpriseOperationStatus,
   type EnterpriseInvitePeoplePayload,
   type EnterpriseMetadataSyncPayload,
@@ -73,7 +75,10 @@ import {
   reapplyPaidOrgJoinBillingForExistingMemberTx,
 } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import {
+  isSelfServeEnterpriseMetadata,
+  TERMINAL_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
@@ -2522,7 +2527,7 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
         customer: customerId,
         items: [{ price: priceId, quantity: 1 }],
         collection_method: 'send_invoice',
-        days_until_due: 30,
+        days_until_due: INVOICE_DAYS_UNTIL_DUE,
         metadata,
       },
       { idempotencyKey: `enterprise:${context.eventId}:subscription` }
@@ -2671,7 +2676,8 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
     })
     if (
       !Number.isSafeInteger(desiredSeats) ||
-      desiredSeats < currentSeatRequirement.requiredSeats
+      (desiredSeats < currentSeatRequirement.requiredSeats &&
+        !isSelfServeEnterpriseMetadata(deliveredEnterpriseMetadata(latestPayload.data.metadata)))
     ) {
       throw new Error('Enterprise seat intent is below current occupied or reserved seats')
     }
@@ -2682,10 +2688,18 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
     }
     await context.checkpointPayload({ deliveryState })
 
+    // Leaving self-serve also returns the contract to emailed invoices, in the same update: its
+    // customer loses the surface that manages the payment method automatic payment would charge.
+    const leavesSelfServe =
+      isSelfServeEnterpriseMetadata(stripeSubscription.metadata) &&
+      !isSelfServeEnterpriseMetadata(deliveredEnterpriseMetadata(latestPayload.data.metadata))
     const updatedSubscription = await stripe.subscriptions.update(
       stripeSubscriptionId,
       {
         metadata,
+        ...(leavesSelfServe
+          ? { collection_method: 'send_invoice', days_until_due: INVOICE_DAYS_UNTIL_DUE }
+          : {}),
       },
       {
         idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:delivery:${latestPayload.data.deliveryRevision}:attempt:${context.attempts}`,

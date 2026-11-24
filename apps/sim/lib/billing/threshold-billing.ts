@@ -15,10 +15,9 @@ import {
 } from '@/lib/billing/core/subscription'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { isSubscriptionCycleCloseCurrent } from '@/lib/billing/cycle-close'
-import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
-  billsOverage,
   hasUsableSubscriptionAccess,
+  invoicesOverage,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -261,7 +260,7 @@ export async function checkAndBillOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
-    if (!billsOverage(userSubscription) || isEnterprise(userSubscription.plan)) {
+    if (!invoicesOverage(userSubscription)) {
       return noOp(options, 'plan-ineligible')
     }
 
@@ -547,7 +546,7 @@ async function checkAndBillOrganizationOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
-    if (isEnterprise(orgSubscription.plan) || isFree(orgSubscription.plan)) {
+    if (!invoicesOverage(orgSubscription)) {
       logger.debug('Organization plan not eligible for overage billing, skipping', {
         organizationId,
         plan: orgSubscription.plan,
@@ -634,8 +633,11 @@ async function checkAndBillOrganizationOverageThreshold(
       baseSubscriptionAmount: basePrice,
       effectiveUsage: effectiveTeamUsage,
     } = await computeOrgOverageAmount({
-      plan: orgSubscription.plan,
-      seats: orgSubscription.seats ?? null,
+      subscription: {
+        plan: orgSubscription.plan,
+        seats: orgSubscription.seats ?? null,
+        metadata: orgSubscription.metadata,
+      },
       periodStart: orgSubscription.periodStart ?? null,
       periodEnd: orgSubscription.periodEnd ?? null,
       organizationId,
@@ -853,8 +855,8 @@ async function checkAndBillOrganizationOverageThreshold(
           customerId,
           stripeSubscriptionId,
           amountCents,
-          description: `Team threshold overage billing – ${billingPeriod}`,
-          itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
+          description: `Organization threshold overage billing – ${billingPeriod}`,
+          itemDescription: `Organization usage overage ($${amountToBill.toFixed(2)})`,
           billingPeriod,
           invoiceIdemKeyStem: `threshold-overage-org-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
           itemIdemKeyStem: `threshold-overage-org-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,

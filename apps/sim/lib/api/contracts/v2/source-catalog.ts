@@ -376,33 +376,6 @@ const catalogBlockSchema = z
           .describe('The field lifted into named branches.'),
       })
       .describe('Edge rules for the block.'),
-    legacyIds: z
-      .array(
-        z
-          .object({
-            from: z.string().describe('Legacy field id.'),
-            to: z.string().nullable().describe('Current field id, or null when removed.'),
-            whenOperation: z
-              .array(z.string())
-              .optional()
-              .describe('Operations the rename applies to.'),
-            conditional: z.literal(true).optional().describe('Applies only to some values.'),
-          })
-          .describe('One field id rename.')
-      )
-      .optional()
-      .describe('Field id renames applied on load.'),
-    legacyCanonicalIds: z
-      .array(
-        z
-          .object({
-            from: z.string().describe('Legacy pair id.'),
-            to: z.string().describe('Current pair id.'),
-          })
-          .describe('One pair id rename.')
-      )
-      .optional()
-      .describe('Basic/advanced pair id renames applied on load.'),
     paramAliases: z
       .object({
         action: z.record(z.string(), z.string()).optional().describe('Action-surface aliases.'),

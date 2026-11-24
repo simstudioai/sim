@@ -34,7 +34,9 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   hasPaidSubscriptionStatus,
+  isSelfServeEnterpriseMetadata,
 } from '@/lib/billing/subscriptions/utils'
+import { Decimal, toDecimal } from '@/lib/billing/utils/decimal'
 import {
   assertEnterpriseReconciliationLeaseHeld,
   type EnterpriseReconciliationLease,
@@ -78,6 +80,23 @@ async function processManualEnterpriseSubscription(event: Stripe.Event) {
         typeof previousAttributes.status === 'string' ? previousAttributes.status : null,
     })
   )
+}
+
+/**
+ * The usage limit a self-serve customer keeps across a contract reconcile. It starts at the
+ * contract's limit when self-serve turns on, so prepaid credit spent on overage mid-period never
+ * shrinks it. Leaving self-serve drops it; metadata that still asks for self-serve but cannot run
+ * it (a hand-added reporting anchor) keeps it for when the contract is repaired.
+ */
+function resolveSelfServeUsageLimit(params: {
+  selfServe: boolean
+  requestsSelfServe: boolean
+  chosen: string | null
+  contractLimit: string
+}): string | null {
+  if (params.selfServe) return params.chosen ?? params.contractLimit
+  if (params.requestsSelfServe) return params.chosen
+  return null
 }
 
 async function reconcileManualEnterpriseSubscription(
@@ -139,6 +158,7 @@ async function reconcileManualEnterpriseSubscription(
   }
 
   const { seats, invoiceAmountUsd } = enterpriseMetadata
+  const selfServe = isSelfServeEnterpriseMetadata(metadata)
   // Get the first subscription item which contains the period information
   const referenceItem = stripeSubscription.items?.data?.[0]
   if (
@@ -196,7 +216,10 @@ async function reconcileManualEnterpriseSubscription(
     // whose lease was reclaimed cannot apply an older snapshot.
     await assertEnterpriseReconciliationLeaseHeld(tx, reconciliationLease)
     const [organizationRow] = await tx
-      .select({ creditBalance: organization.creditBalance })
+      .select({
+        creditBalance: organization.creditBalance,
+        selfServeUsageLimit: organization.selfServeUsageLimit,
+      })
       .from(organization)
       .where(eq(organization.id, referenceId))
       .for('update')
@@ -288,7 +311,8 @@ async function reconcileManualEnterpriseSubscription(
           ? correlatedOperation.request.invitations.map((invite) => invite.email)
           : [],
     })
-    if (isEntitled && seats < seatRequirement.requiredSeats) {
+    // A self-serve contract's seats are its committed baseline; members past it are trued up.
+    if (isEntitled && !selfServe && seats < seatRequirement.requiredSeats) {
       throw new Error(
         `Enterprise seat capacity ${seats} is below ${seatRequirement.requiredSeats} occupied or reserved seats`
       )
@@ -398,10 +422,22 @@ async function reconcileManualEnterpriseSubscription(
       invoiceAmountUsd,
       prepaidBalanceDollars: organizationRow.creditBalance,
     })
+    const selfServeUsageLimit = resolveSelfServeUsageLimit({
+      selfServe,
+      requestsSelfServe: metadata.selfServe === 'true',
+      chosen: organizationRow.selfServeUsageLimit,
+      contractLimit: creditLimits.effectiveUsageLimitDollars,
+    })
     await tx
       .update(organization)
       .set({
-        orgUsageLimit: creditLimits.effectiveUsageLimitDollars,
+        orgUsageLimit: selfServe
+          ? Decimal.max(
+              toDecimal(selfServeUsageLimit),
+              toDecimal(creditLimits.effectiveUsageLimitDollars)
+            ).toString()
+          : creditLimits.effectiveUsageLimitDollars,
+        selfServeUsageLimit,
         updatedAt: new Date(),
       })
       .where(eq(organization.id, referenceId))

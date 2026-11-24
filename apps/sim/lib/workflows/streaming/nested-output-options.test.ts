@@ -17,6 +17,7 @@ import {
   buildWorkflowOutputOptions,
   collectReferencedWorkflowIds,
   getWorkflowInvocationTarget,
+  selectBlockPathOptions,
 } from '@/lib/workflows/streaming/nested-output-options'
 
 function block(id: string, type: string, name: string, subBlocks = {}, data = {}) {
@@ -102,6 +103,40 @@ describe('nested workflow output options', () => {
             children: [],
           },
         ],
+      },
+    ])
+  })
+
+  it('offers an Agent whose response format replaces its content output', () => {
+    const option = (blockId: string, blockType: string, path: string, workflowId?: string) => ({
+      id: `${blockId}_${path}`,
+      label: `${blockId}.${path}`,
+      workflowId,
+      blockId,
+      blockName: blockId === 'a1' ? 'Analyst' : 'Formatter',
+      blockType,
+      groupKey: workflowId ? `invoke/${blockId}` : blockId,
+      groupLabel: blockId,
+      path,
+      menuPath: [],
+    })
+    const options = [
+      option('a1', 'agent', 'verdict', 'child-workflow'),
+      option('a1', 'agent', 'reasons', 'child-workflow'),
+      option('f1', 'function', 'result'),
+    ]
+
+    expect(
+      selectBlockPathOptions(options, 'agent', 'content').map(({ id, label, path }) => ({
+        id,
+        label,
+        path,
+      }))
+    ).toEqual([
+      {
+        id: 'child-workflow.a1_content',
+        label: 'child-workflow.analyst.content',
+        path: 'content',
       },
     ])
   })

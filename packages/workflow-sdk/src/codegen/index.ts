@@ -1,3 +1,4 @@
+export { SDK_MAJOR } from '@sim/workflow-code/sdk'
 export { COOKBOOK_EXAMPLES } from './cookbook-text.generated'
 export { CORE_DTS } from './core-text.generated'
 export {
@@ -16,8 +17,6 @@ export {
   SDK_INDEX_FILE,
   SDK_MODELS_FILE,
 } from './layout'
-export { SDK_MAJOR } from './major'
-export { SPECIAL_BUILDER_KEYS } from './names'
 export {
   type BuilderLookup,
   type BuilderReference,

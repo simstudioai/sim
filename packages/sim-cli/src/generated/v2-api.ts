@@ -9271,16 +9271,6 @@ export type GetSourceCatalogResponse = {
             kind: 'condition' | 'router'
           }
         }
-        legacyIds?: Array<{
-          from: string
-          to: string | null
-          whenOperation?: Array<string>
-          conditional?: true
-        }>
-        legacyCanonicalIds?: Array<{
-          from: string
-          to: string
-        }>
         paramAliases?: {
           action?: Record<string, string>
           trigger?: Record<string, string>

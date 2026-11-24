@@ -107,7 +107,7 @@ export async function waitWorkspaceOperation(
         0,
         'OPERATION_WAIT_TIMEOUT',
         { workspaceId, operationId },
-        4
+        STILL_RUNNING_EXIT_CODE
       )
     }
     try {
@@ -134,7 +134,7 @@ export async function waitWorkspaceOperation(
           0,
           'OPERATION_WAIT_TIMEOUT',
           { workspaceId, operationId },
-          4
+          STILL_RUNNING_EXIT_CODE
         )
       }
       const failure =

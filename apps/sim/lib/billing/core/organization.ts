@@ -12,12 +12,16 @@ import {
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   getEffectiveSeats,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
   getSubscriptionWeeklyRefreshDollars,
   hasUsableSubscriptionStatus,
+  isEnterpriseSelfServe,
+  isHardCappedEnterprise,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
@@ -329,7 +333,9 @@ export async function getOrganizationBillingData(
 
     if (isEnterprise(subscription.plan)) {
       const configuredLimit = toNumber(toDecimal(organizationData.orgUsageLimit))
-      minimumBillingAmount = configuredLimit
+      minimumBillingAmount = isHardCappedEnterprise(subscription)
+        ? configuredLimit
+        : getOrgIncludedUsageDollars(subscription)
       totalUsageLimit = configuredLimit
     } else {
       minimumBillingAmount = licensedSeats * pricePerSeat
@@ -393,6 +399,56 @@ export async function getOrganizationBillingData(
 }
 
 /**
+ * Sets a self-serve Enterprise customer's own usage limit. It may not fall below what the
+ * contract already covers (its allowance plus prepaid credit); usage past the allowance is billed
+ * as overage. The choice is stored apart from the enforced limit so the contract webhook keeps it.
+ */
+async function updateSelfServeEnterpriseUsageLimit(
+  organizationId: string,
+  newLimit: number
+): Promise<{ success: boolean; error?: string }> {
+  return db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    // The contract webhook takes the same lock, so these terms are the ones it last applied.
+    const subscription = await getOrganizationSubscription(organizationId, {
+      executor: tx,
+      onError: 'throw',
+    })
+    if (!subscription || !isEnterpriseSelfServe(subscription)) {
+      return {
+        success: false,
+        error: 'Enterprise plans have fixed usage limits that cannot be changed',
+      }
+    }
+    const includedUsage = getOrgIncludedUsageDollars(subscription)
+    const [row] = await tx
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    const minimumLimit = toNumber(toDecimal(includedUsage).plus(toDecimal(row?.creditBalance)))
+    if (newLimit < minimumLimit) {
+      return {
+        success: false,
+        error: `Usage limit cannot be less than $${roundCurrency(minimumLimit).toFixed(2)}, your contract's included usage plus prepaid credit`,
+      }
+    }
+    const limit = roundCurrency(newLimit).toFixed(2)
+    await tx
+      .update(organization)
+      .set({ orgUsageLimit: limit, selfServeUsageLimit: limit, updatedAt: new Date() })
+      .where(eq(organization.id, organizationId))
+    logger.info('Self-serve Enterprise usage limit updated', {
+      organizationId,
+      newLimit,
+      minimumLimit,
+    })
+    return { success: true }
+  })
+}
+
+/**
  * Update organization usage limit (cap)
  */
 export async function updateOrganizationUsageLimit(
@@ -425,10 +481,13 @@ export async function updateOrganizationUsageLimit(
     }
 
     if (isEnterprise(subscription.plan)) {
-      return {
-        success: false,
-        error: 'Enterprise plans have fixed usage limits that cannot be changed',
+      if (isHardCappedEnterprise(subscription)) {
+        return {
+          success: false,
+          error: 'Enterprise plans have fixed usage limits that cannot be changed',
+        }
       }
+      return await updateSelfServeEnterpriseUsageLimit(organizationId, newLimit)
     }
 
     if (!isPaid(subscription.plan)) {

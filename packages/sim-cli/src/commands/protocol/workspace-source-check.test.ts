@@ -182,21 +182,6 @@ describe('sim workspaces source check', () => {
     )
   })
 
-  it('refuses without a cached catalog or credentials, naming the workspace get that caches one', async () => {
-    rmSync(join(dir, 'config'), { recursive: true })
-    writeFile('workflows/first/workflow.ts', insertWorkflow())
-    contextMockFns.mockClientFrom.mockImplementationOnce(() => {
-      throw new Error('Not signed in')
-    })
-
-    const error = await check().catch((caught: unknown) => caught)
-
-    expect(error).toMatchObject({
-      code: 'CATALOG_NOT_CACHED',
-      message: expect.stringContaining('sim workspaces source get'),
-    })
-  })
-
   it('offline with no cached catalog, refuses naming the get; without a login, keeps exit 13', async () => {
     rmSync(join(dir, 'config'), { recursive: true })
     writeFile('workflows/first/workflow.ts', insertWorkflow())

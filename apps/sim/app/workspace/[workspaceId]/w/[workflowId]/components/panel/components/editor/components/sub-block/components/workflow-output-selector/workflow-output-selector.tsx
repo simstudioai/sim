@@ -11,6 +11,7 @@ interface WorkflowOutputSelectorProps {
   previewValue?: string[] | null
   disabled?: boolean
   placeholder?: string
+  outputFilter?: { blockType: string; path: string }
 }
 
 export function WorkflowOutputSelector({
@@ -20,6 +21,7 @@ export function WorkflowOutputSelector({
   previewValue,
   disabled = false,
   placeholder,
+  outputFilter,
 }: WorkflowOutputSelectorProps) {
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const [storedValue, setStoredValue] = useSubBlockValue<string[]>(blockId, subBlockId)
@@ -34,6 +36,7 @@ export function WorkflowOutputSelector({
       onOutputSelect={setStoredValue}
       disabled={disabled || isPreview}
       placeholder={placeholder}
+      outputFilter={outputFilter}
       valueMode='public'
       size='md'
       className='w-full'

@@ -28,15 +28,16 @@ import {
   absoluteDirOption,
   assertSendableCodeFiles,
   assertSourceDirKind,
+  directoryWorkspace,
   readSourceText,
-  readStarterWorkspace,
+  recordedWorkspace,
   SOURCE_AGENTS_FILE,
   SOURCE_STARTER_FILE,
   updateSourceDir,
   withSourceCommandLock,
   writeBack,
 } from './source-dir'
-import { SOURCE_WRITE_EXIT_CODES_HELP, sourceExitCodesHelp } from './source-exit-codes'
+import { sourceExitCodesHelp } from './source-exit-codes'
 import { cachedCatalogByHash, printTreeResult, refreshWorkflowWorkspaceTypes } from './source-tree'
 import {
   type CreatedResource,
@@ -101,7 +102,7 @@ function variableChangeList(variables: SourceApplyData['diff']['variables']): st
     ...(['added', 'removed', 'modified'] as const).flatMap((change) =>
       variables[change].length > 0 ? [`${change} ${variables[change].join(', ')}`] : []
     ),
-    ...renamedVariables(variables).map(({ from, to }) => `renamed ${from} → ${to}`),
+    ...variables.renamed.map(({ from, to }) => `renamed ${from} → ${to}`),
   ]
 }
 
@@ -443,7 +444,7 @@ export function attachWorkflowSourceApply(source: Command): void {
   command
     .argument(
       '[workflowId]',
-      'Workflow whose draft the source replaces (default: the workflowId in .sim/base.json)'
+      'Refuse unless .sim/base.json names this workflow (default: the workflowId there)'
     )
     .option('--dir <dir>', DIR_DESCRIPTION, '.')
     .option('--dry-run', 'Check the source and show the outcome without saving or writing files')
@@ -458,10 +459,7 @@ export function attachWorkflowSourceApply(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Apply a workflow source directory to a workflow draft')
-    .addHelpText(
-      'after',
-      `${sourceExitCodesHelp('workflows source apply')}${SOURCE_WRITE_EXIT_CODES_HELP}`
-    )
+    .addHelpText('after', sourceExitCodesHelp('workflows source apply'))
     .action(async (named: string | undefined, options: SourceWriteOptions) => {
       const mode = writeMode(options)
       await withSourceCommandLock(
@@ -547,10 +545,7 @@ export function attachWorkflowSourceCreate(source: Command): void {
     )
     .allowExcessArguments(false)
     .description('Create a workflow from a workflow source directory')
-    .addHelpText(
-      'after',
-      `${sourceExitCodesHelp('workflows source create')}${SOURCE_WRITE_EXIT_CODES_HELP}`
-    )
+    .addHelpText('after', sourceExitCodesHelp('workflows source create'))
     .action(async (options: SourceWriteOptions & { name?: string; folder?: string }) => {
       const mode = writeMode(options)
       await withSourceCommandLock(
@@ -582,11 +577,15 @@ export function attachWorkflowSourceCreate(source: Command): void {
           }
           assertDeployable(options)
           const { client, profile } = connectCreate()
-          // A starter is bound to the workspace its types were written for, as a get directory
-          // is to the one it was read from; --workspace still chooses another.
-          const starterWorkspace =
-            profile.sources.workspaceId === 'flag' ? null : await readStarterWorkspace(options.dir)
-          const workspaceId = client.requireWorkspace(starterWorkspace ?? undefined)
+          // A directory is bound to the workspace it records: a starter to the one its types were
+          // written for (--workspace still chooses another), a workspace folder to its workspace.
+          const recorded = directoryWorkspace(
+            options.dir,
+            await recordedWorkspace(options.dir, profile),
+            profile,
+            (from) => `Run it without --workspace to create it in ${from}.`
+          )
+          const workspaceId = client.requireWorkspace(recorded ?? undefined)
           const files = await readSourceFiles(options.dir, null)
           if (!isReadOnly(mode)) {
             await refreshWorkflowWorkspaceTypes(client, options.dir, workspaceId)
@@ -619,19 +618,12 @@ export function attachWorkflowSourceCreate(source: Command): void {
     })
 }
 
-/** The variables a diff renames, none when the answer lists none. */
-function renamedVariables(
-  variables: SourceApplyData['diff']['variables']
-): ReadonlyArray<{ from: string; to: string }> {
-  return variables.renamed ?? []
-}
-
 /** Whether a diff adds, removes or changes any workflow variable. */
 function variablesChanged(variables: SourceApplyData['diff']['variables']): boolean {
   return (
     variables.added.length > 0 ||
     variables.removed.length > 0 ||
-    renamedVariables(variables).length > 0 ||
+    variables.renamed.length > 0 ||
     variables.modified.length > 0
   )
 }

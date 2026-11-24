@@ -7,6 +7,14 @@
 import type { CatalogBlock, CatalogBuilder } from './catalog/types'
 import type { ResourceKind } from './model'
 
+/**
+ * The SDK major `core.d.ts` is written for, the one the server's block catalog serves, and the
+ * only one a workflow or declaration file's `// @sim-sdk N` header may name. A block catalog for
+ * another major describes builders these declarations cannot type, so a consumer bundling
+ * `CORE_DTS` refuses to write beside it.
+ */
+export const SDK_MAJOR = 1
+
 /** The module a workflow file imports the SDK from: the only import compile accepts. */
 export const SDK_MODULE = '@sim/workflow-sdk'
 

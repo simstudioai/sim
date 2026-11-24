@@ -82,7 +82,12 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?:
           modified: [] as Array<{ id: string; key: string; fields: string[] }>,
         },
         edges: { added: 1, removed: 0 },
-        variables: { added: [] as string[], removed: [] as string[], modified: [] as string[] },
+        variables: {
+          added: [] as string[],
+          removed: [] as string[],
+          renamed: [] as Array<{ from: string; to: string }>,
+          modified: [] as string[],
+        },
       },
       diagnostics: overrides.diagnostics ?? [],
       files: { 'workflow.ts': `${ENTRY}// stored\n` },
@@ -238,7 +243,12 @@ describe('sim workflows source apply', () => {
     const answer = outcome({ dryRun: true })
     answer.data.diff.blocks.added = []
     answer.data.diff.edges = { added: 0, removed: 0 }
-    answer.data.diff.variables = { added: ['limit'], removed: [], modified: ['region'] }
+    answer.data.diff.variables = {
+      added: ['limit'],
+      removed: [],
+      renamed: [],
+      modified: ['region'],
+    }
     request.mockResolvedValue(answer)
     const file = join(dir, 'plan.md')
 
@@ -636,7 +646,12 @@ describe('sim workflows source apply', () => {
   it('names each changed variable in the result and the preview', async () => {
     setTerminal(true)
     const changed = outcome({ dryRun: true })
-    changed.data.diff.variables = { added: ['retries'], removed: [], modified: ['threshold'] }
+    changed.data.diff.variables = {
+      added: ['retries'],
+      removed: [],
+      renamed: [],
+      modified: ['threshold'],
+    }
     request.mockResolvedValue(changed)
     prompt.question.mockResolvedValue('n')
 

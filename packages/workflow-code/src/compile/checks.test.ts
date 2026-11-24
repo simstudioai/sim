@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { BlockCatalog, CatalogBlock } from '../catalog/types'
+import { FINDING_LIMITS } from '../diagnostics/bound'
 import type { CanonicalWorkflow } from '../model'
 import { TEST_CATALOG } from './catalog.test-helpers'
 import type { CompileResult } from './index'
@@ -597,6 +598,25 @@ describe('typed references in JSON fields', () => {
       ].join('\n')
     )
     expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(1)
+    expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
+  })
+
+  it('keeps a reference to an output the block lacks out of W_JSON_REF_UNTYPED past the warning cap', () => {
+    const fields = Array.from(
+      { length: FINDING_LIMITS.warningsPerCode + 5 },
+      (_, i) => `k${i}: a.missing${i}`
+    ).join(', ')
+    const result = run(
+      [
+        START,
+        "const a = api('A', { url: 'https://x' })",
+        `const b = api('B', { url: 'https://x', body: { ${fields} } })`,
+        'start.to(a)',
+        'a.to(b)',
+      ].join('\n')
+    )
+    expect(findings(result, 'W_UNKNOWN_OUTPUT_PATH')).toHaveLength(FINDING_LIMITS.warningsPerCode)
+    expect(findings(result, 'I_FINDINGS_TRUNCATED')).toHaveLength(1)
     expect(findings(result, 'W_JSON_REF_UNTYPED')).toEqual([])
   })
 

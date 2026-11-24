@@ -14,7 +14,6 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useSession } from '@/lib/auth/client'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -167,11 +166,11 @@ export function InviteModal({
   const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const availableSeats = Math.max(0, totalSeats - usedSeats)
   /**
-   * Only Enterprise plans have a fixed seat cap that gates invites. Team seats
-   * are provisioned when an invitee accepts, and externals never take one.
+   * Only a fixed seat cap gates invites. Team seats are provisioned when an invitee accepts, a
+   * self-serve Enterprise contract trues up seats past its baseline, and externals never take one.
    */
-  const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-  const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
+  const hasFixedSeatCap = organizationBillingData?.data?.seatCapKind === 'fixed'
+  const hasSeatData = canViewOrganizationBilling && hasFixedSeatCap && totalSeats > 0
   /**
    * Advisory only. The server decides per email and does not charge a seat for
    * everyone: an existing organization member is granted access directly, and an

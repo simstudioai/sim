@@ -641,6 +641,7 @@ const organizationPlanSeatsResponseSchema = z.object({
     usedSeats: z.number().int().nonnegative(),
     membersTotal: z.number().int().nonnegative(),
     hasEnterprisePlan: z.boolean(),
+    seatCapKind: z.enum(['fixed', 'baseline', 'on-demand']).nullable(),
   }),
 })
 
@@ -676,9 +677,59 @@ export const organizationBillingSummarySchema = z.object({
   blockedByOrgOwner: z.boolean(),
   upgradeWorkspaceId: workspaceIdSchema.nullable(),
   userRole: z.enum(['admin', 'owner']),
+  enterpriseSelfServe: z
+    .object({
+      contractSeats: z.number().int().min(0),
+      seatPriceCents: z.number().int().positive(),
+      includedUsage: z.number().min(0),
+      peakExtraSeats: z.number().int().min(0),
+    })
+    .nullable(),
 })
 
 export type OrganizationBillingSummary = z.output<typeof organizationBillingSummarySchema>
+
+/**
+ * Marks the billing page Stripe returns to after the customer saves a payment method, so the page
+ * keeps checking until the webhook has switched the contract to automatic payment.
+ */
+export const AUTO_PAY_RETURN_PARAM = 'autopay'
+
+const enterprisePaymentMethodSchema = z.object({
+  collectionMethod: z.enum(['charge_automatically', 'send_invoice']),
+  paymentMethod: z
+    .object({
+      type: z.enum(['card', 'us_bank_account', 'other']),
+      label: z.string(),
+    })
+    .nullable(),
+})
+
+/** How a self-serve Enterprise contract pays; organization admins and owners only. */
+export const getOrganizationPaymentMethodContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/payment-method',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: enterprisePaymentMethodSchema,
+    }),
+  },
+})
+
+/** Opens Stripe's page that saves a payment method and turns on auto-pay for the contract. */
+export const startOrganizationAutoPayContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/organizations/[id]/payment-method',
+  params: organizationParamsSchema,
+  body: z.object({ returnUrl: z.string().url() }),
+  response: {
+    mode: 'json',
+    schema: z.object({ url: z.string().url() }),
+  },
+})
 
 export const getOrganizationBillingSummaryContract = defineRouteContract({
   method: 'GET',

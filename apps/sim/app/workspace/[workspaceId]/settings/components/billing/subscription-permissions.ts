@@ -7,6 +7,8 @@ export interface SubscriptionPermissions {
   canManageTeam: boolean
   /** Manage payment method and cancel or restore the plan. */
   canManageBilling: boolean
+  /** Save a payment method for automatic payment on a self-serve Enterprise contract. */
+  canManageEnterprisePayment: boolean
   /** Change the usage limit or on-demand usage; a trial's allowance is fixed. */
   canEditUsageLimit: boolean
   canCancelSubscription: boolean
@@ -28,6 +30,8 @@ export interface SubscriptionState {
    * transferred to an org are org-scoped even though `isTeam` is false.
    */
   isOrgScoped: boolean
+  /** An Enterprise contract an admin opted into self-serve usage limits, seats, and payment. */
+  isEnterpriseSelfServe: boolean
   plan: string
   status: string
 }
@@ -41,7 +45,7 @@ export function getSubscriptionPermissions(
   subscription: SubscriptionState,
   userRole: UserRole
 ): SubscriptionPermissions {
-  const { isFree, isPro, isEnterprise, isPaid, isOrgScoped } = subscription
+  const { isFree, isPro, isEnterprise, isPaid, isOrgScoped, isEnterpriseSelfServe } = subscription
   const isTrialing = isTrialingSubscription(subscription)
   const { isTeamAdmin } = userRole
 
@@ -52,6 +56,7 @@ export function getSubscriptionPermissions(
 
   const isEnterpriseMember = isEnterprise && !isTeamAdmin
   const canManageBilling = (isFree || (isPaid && !isEnterprise)) && orgAdminOrSolo
+  const canManageEnterprisePayment = isEnterpriseSelfServe && isTeamAdmin
   const canViewUsageInfo = !isEnterpriseMember
 
   return {
@@ -61,7 +66,8 @@ export function getSubscriptionPermissions(
     canViewEnterprise: !isEnterprise && !orgMemberOnly,
     canManageTeam: isOrgScoped && isTeamAdmin && !isEnterprise,
     canManageBilling,
-    canEditUsageLimit: canManageBilling && !isTrialing,
+    canManageEnterprisePayment,
+    canEditUsageLimit: (canManageBilling || canManageEnterprisePayment) && !isTrialing,
     canCancelSubscription: isPaid && !isEnterprise && orgAdminOrSolo,
     showTeamMemberView: orgMemberOnly,
     showUpgradePlans:

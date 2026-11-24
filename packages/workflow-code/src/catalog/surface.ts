@@ -33,6 +33,14 @@ export function isTriggerSurface(subBlock: SurfaceFields): boolean {
 }
 
 /**
+ * Whether a declaration is a block's model picker: the `model` combobox, whose options are the
+ * models the catalog lists but whose value may name any other.
+ */
+export function isModelField(subBlock: Pick<CatalogSubBlock, 'id' | 'type'>): boolean {
+  return subBlock.id === 'model' && subBlock.type === 'combobox'
+}
+
+/**
  * Trigger subBlocks source never states: the shared system set (setup text, sample payloads, the
  * webhook URL display, schedule info) minus the credential, which source writes, plus the
  * server-owned trigger path.

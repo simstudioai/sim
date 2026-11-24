@@ -170,6 +170,8 @@ export const adminDashboardOrganizationDetailSchema =
         requestedReportingPeriodInterval: adminDashboardBillingIntervalSchema.nullable(),
         requestedReportingPeriodAnchorDate: adminDashboardDateOnlySchema.nullable(),
         requestedSeats: z.number().int().positive().nullable(),
+        requestedSelfServe: z.boolean().nullable(),
+        requestedSeatPriceUsd: z.number().positive().nullable(),
         requestedConcurrencyLimit: z
           .number()
           .int()
@@ -185,6 +187,28 @@ export const adminDashboardOrganizationDetailSchema =
         providerAccepted: z.boolean(),
         retryable: z.boolean(),
         error: z.string().nullable(),
+      })
+      .nullable(),
+    /** Self-serve billing for an Enterprise contract; null for every other plan. */
+    selfServe: z
+      .object({
+        enabled: z.boolean(),
+        /** Rate for each seat past the contract, per seat per month. */
+        seatPriceUsd: z.number().positive().nullable(),
+        /** The usage limit the customer chose, above the contract's included usage. */
+        customerUsageLimitDollars: dollarAmountSchema.nullable(),
+        seatTrueUps: z.array(
+          z.object({
+            windowStart: z.string(),
+            windowEnd: z.string(),
+            /** Most members past the contract seen while the window was open. */
+            peakExtraSeats: z.number().int().min(0),
+            /** The seat rate the window opened with, per seat per month. */
+            seatPriceUsd: z.number().positive(),
+            amountUsd: z.number().min(0).nullable(),
+            billedAt: z.string().nullable(),
+          })
+        ),
       })
       .nullable(),
     historicalActorUsage: z.object({
@@ -391,6 +415,18 @@ export const adminDashboardLimitsBodySchema = z
       value.workflowExecutionTimeoutSeconds !== undefined,
     { error: 'At least one limit must be provided' }
   )
+
+const adminDashboardSelfServeBodySchema = z
+  .object({
+    enabled: z.boolean(),
+    /** Rate for each seat past the contract, per seat per month; required to enable. */
+    seatPriceUsd: adminDashboardInvoiceAmountSchema.optional(),
+    /** Included usage per billing period, restated when the reporting interval differs. */
+    usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
+  })
+  .refine((value) => !value.enabled || value.seatPriceUsd !== undefined, {
+    error: 'A seat price is required to enable self-serve',
+  })
 
 export const adminDashboardBalanceGrantBodySchema = z.object({
   operationId: z.string().uuid(),
@@ -915,6 +951,29 @@ export const adminDashboardUpdateLimitsContract = defineRouteContract({
   path: '/api/v1/admin/dashboard/organizations/[id]/limits',
   params: adminV1IdParamsSchema,
   body: adminDashboardLimitsBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardMutationResultSchema),
+  },
+})
+
+/** Turns an Enterprise contract's self-serve billing on (with its seat rate) or off. */
+export const adminDashboardUpdateSelfServeContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v1/admin/dashboard/organizations/[id]/self-serve',
+  params: adminV1IdParamsSchema,
+  body: adminDashboardSelfServeBodySchema,
+  response: {
+    mode: 'json',
+    schema: adminV1SingleResponseSchema(adminDashboardMutationResultSchema),
+  },
+})
+
+/** Returns a self-serve Enterprise contract from automatic payment to emailed invoices. */
+export const adminDashboardRevertToInvoicingContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/admin/dashboard/organizations/[id]/invoice-payment',
+  params: adminV1IdParamsSchema,
   response: {
     mode: 'json',
     schema: adminV1SingleResponseSchema(adminDashboardMutationResultSchema),

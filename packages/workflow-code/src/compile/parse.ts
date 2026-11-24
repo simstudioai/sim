@@ -1,7 +1,7 @@
 import { type ParserOptions, parse } from '@babel/parser'
 import type { File, Node } from '@babel/types'
 import { utf8ByteLength } from '@sim/utils/paste'
-import { type BabelErrorShape, babelErrorShape, childNodes } from '../babel'
+import { type BabelErrorShape, babelErrorShape, babelMessage, childNodes } from '../babel'
 import { codeFileLanguage } from '../code-files'
 import { createJsContextScanner } from '../code-files/lexer'
 import { SOURCE_LIMITS } from '../limits'
@@ -86,12 +86,6 @@ function depthOverflow(root: Node, maxDepth: number): Node | null {
     for (const child of childNodes(entry.node)) stack.push({ node: child, depth: entry.depth + 1 })
   }
   return null
-}
-
-/** A Babel error's message without its trailing `(line:column)`. */
-export function babelMessage(error: BabelErrorShape): string {
-  const message = typeof error.message === 'string' ? error.message : 'Invalid syntax'
-  return message.replace(/ \(\d+:\d+\)$/, '')
 }
 
 interface ParsedSource {

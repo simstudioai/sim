@@ -6,9 +6,9 @@
  */
 import { compareStrings } from '@sim/utils/string'
 import { type Json, printKey, printNumber, quoteString } from '@sim/workflow-code'
+import { SDK_MAJOR } from '@sim/workflow-code/sdk'
 import {
   CALL_KEY,
-  DECLARATION_SDK_MAJOR,
   ENV_KEY,
   isDeclarationCall,
   isDeclarationEnvRef,
@@ -110,7 +110,7 @@ export function printDeclaration(callee: string, value: Json): string {
   const imports = [...helperRoots(value, new Set([callee]))].sort(compareStrings)
   const exported = `export default ${callee}(`
   return [
-    `// @sim-sdk ${DECLARATION_SDK_MAJOR}`,
+    `// @sim-sdk ${SDK_MAJOR}`,
     `import { ${imports.join(', ')} } from '${WORKSPACE_SDK_MODULE}'`,
     '',
     `${exported}${printValue(value, '', exported.length)})`,

@@ -9,7 +9,7 @@ This walks through one change end to end: read a workflow as a file, edit it, ch
 
 - Workflows as code is [enabled](/workflows/code) for your workspace. Where it is not, step 2 answers `403`.
 - The Sim CLI is installed and you are signed in with a default workspace. See [Your first command](/cli#your-first-command).
-- Optional: Bun, for the type-check in step 4.
+- Optional: npm (Node.js), which the type check in step 4 uses once to install TypeScript; without it `check` reports `W_TYPES_UNCHECKED` and the compile still runs.
 
 ## 1. Find the workflow ID
 

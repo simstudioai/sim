@@ -393,6 +393,8 @@ export interface SubBlockConfig {
   min?: number
   max?: number
   columns?: string[]
+  /** Limits a `workflow-output-selector` to blocks of one type, each selecting `path`. */
+  outputFilter?: { blockType: string; path: string }
   placeholder?: string
   /**
    * Conceals the stored value in the editor until the field is focused.

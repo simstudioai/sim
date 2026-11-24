@@ -1,5 +1,5 @@
 {
-  "id": "292cba87-4e29-44d3-8a83-39f01e9d8f23",
+  "id": "d7f73adb-e313-44a8-b062-602efb9c582e",
   "prevId": "d7172d1c-a578-4f3e-b60f-74c9f4dfad41",
   "version": "7",
   "dialect": "postgresql",
@@ -9008,6 +9008,159 @@
       },
       "isRLSEnabled": false
     },
+    "public.enterprise_seat_true_up": {
+      "name": "enterprise_seat_true_up",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "window_end": {
+          "name": "window_end",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "peak_extra_seats": {
+          "name": "peak_extra_seats",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seat_price_cents": {
+          "name": "seat_price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "billed_at": {
+          "name": "billed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "enterprise_seat_true_up_subscription_window_unique": {
+          "name": "enterprise_seat_true_up_subscription_window_unique",
+          "columns": [
+            {
+              "expression": "subscription_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "window_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "enterprise_seat_true_up_organization_id_idx": {
+          "name": "enterprise_seat_true_up_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "enterprise_seat_true_up_unbilled_idx": {
+          "name": "enterprise_seat_true_up_unbilled_idx",
+          "columns": [
+            {
+              "expression": "window_end",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "billed_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "enterprise_seat_true_up_subscription_id_subscription_id_fk": {
+          "name": "enterprise_seat_true_up_subscription_id_subscription_id_fk",
+          "tableFrom": "enterprise_seat_true_up",
+          "tableTo": "subscription",
+          "columnsFrom": ["subscription_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "enterprise_seat_true_up_organization_id_organization_id_fk": {
+          "name": "enterprise_seat_true_up_organization_id_organization_id_fk",
+          "tableFrom": "enterprise_seat_true_up",
+          "tableTo": "organization",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.environment": {
       "name": "environment",
       "schema": "",
@@ -16635,6 +16788,12 @@
         },
         "org_usage_limit": {
           "name": "org_usage_limit",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "self_serve_usage_limit": {
+          "name": "self_serve_usage_limit",
           "type": "numeric",
           "primaryKey": false,
           "notNull": false
@@ -27034,201 +27193,6 @@
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.workflow_build_notes": {
-      "name": "workflow_build_notes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workflow_id": {
-          "name": "workflow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes_file_id": {
-          "name": "notes_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "baseline_file_id": {
-          "name": "baseline_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_notes_hash": {
-          "name": "evaluated_notes_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "evaluated_operations_hash": {
-          "name": "evaluated_operations_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "baseline_workflow_updated_at": {
-          "name": "baseline_workflow_updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "workflow_build_notes_workflow_unique": {
-          "name": "workflow_build_notes_workflow_unique",
-          "columns": [
-            {
-              "expression": "workflow_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workflow_build_notes\".\"deleted_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_build_notes_notes_file_unique": {
-          "name": "workflow_build_notes_notes_file_unique",
-          "columns": [
-            {
-              "expression": "notes_file_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_build_notes_baseline_file_unique": {
-          "name": "workflow_build_notes_baseline_file_unique",
-          "columns": [
-            {
-              "expression": "baseline_file_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workflow_build_notes_workspace_idx": {
-          "name": "workflow_build_notes_workspace_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workflow_build_notes_workspace_id_workspace_id_fk": {
-          "name": "workflow_build_notes_workspace_id_workspace_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_workflow_id_workflow_id_fk": {
-          "name": "workflow_build_notes_workflow_id_workflow_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workflow",
-          "columnsFrom": ["workflow_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_notes_file_id_workspace_files_id_fk": {
-          "name": "workflow_build_notes_notes_file_id_workspace_files_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workspace_files",
-          "columnsFrom": ["notes_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_baseline_file_id_workspace_files_id_fk": {
-          "name": "workflow_build_notes_baseline_file_id_workspace_files_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "workspace_files",
-          "columnsFrom": ["baseline_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "workflow_build_notes_created_by_user_id_user_id_fk": {
-          "name": "workflow_build_notes_created_by_user_id_user_id_fk",
-          "tableFrom": "workflow_build_notes",
-          "tableTo": "user",
-          "columnsFrom": ["created_by_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

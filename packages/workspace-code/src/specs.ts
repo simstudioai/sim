@@ -87,7 +87,7 @@ export const WORKSPACE_KIND_SPECS: { readonly [K in WorkspaceKind]: WorkspaceKin
     resourceKind: 'mcp-server',
     typeChecked: [`${KIND_DIRS['mcp-server']}/*.ts`],
     manifestKey: 'mcpServerDeclarations',
-    guide: `\`${KIND_DIRS['mcp-server']}/<key>.ts\`: \`export default defineMcpServer({ name?, url, headers?, auth?, timeout?, retries?, enabled? })\`. A credential header holds \`env.NAME\` or \`'Bearer {{NAME}}'\`, never a literal secret; \`stored()\` keeps the value the server holds. A changed \`url\` replaces the server. A workflow: \`mcp('<key>').tool('<name>')\`.`,
+    guide: `\`${KIND_DIRS['mcp-server']}/<key>.ts\`: \`export default defineMcpServer({ name?, url, headers?, auth?, timeout?, retries?, enabled? })\`. A credential header holds \`env.NAME\` or \`'Bearer {{NAME}}'\`, never a literal secret; \`stored()\` keeps the value the server holds. A new host or path in \`url\` replaces the server; a new query string updates it in place. A workflow: \`mcp('<key>').tool('<name>')\`.`,
   },
   table: {
     noun: 'table',

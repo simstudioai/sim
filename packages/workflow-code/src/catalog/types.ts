@@ -212,14 +212,6 @@ interface CatalogBlockLifecycle {
   sunset?: { status: 'legacy' | 'deprecated'; replacedBy?: string }
 }
 
-/** A registry `subBlocks` id rename applied by load-time migrations, for CLI hints. */
-export interface CatalogLegacyId {
-  from: SubBlockId
-  to: SubBlockId | null
-  whenOperation?: string[]
-  conditional?: true
-}
-
 /** Graph facts compile needs and the registry spreads over several helpers. */
 export interface CatalogBlockGraph {
   /** False for trigger-category blocks: nothing may connect into them (`E_TARGET_TRIGGER`). */
@@ -296,8 +288,6 @@ export interface CatalogBlock {
    */
   errorOutputs?: string[]
   graph: CatalogBlockGraph
-  legacyIds?: CatalogLegacyId[]
-  legacyCanonicalIds?: Array<{ from: CanonicalParamId; to: CanonicalParamId }>
   /**
    * The user-facing name source writes for a param, per surface: param name (a canonical id or a
    * subBlock id) → alias (`oauthCredential` → `credential`). Frozen in

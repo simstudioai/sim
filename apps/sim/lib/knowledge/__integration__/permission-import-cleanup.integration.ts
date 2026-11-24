@@ -75,9 +75,10 @@ describe('permission import reclamation through the PostgreSQL outbox', () => {
       manifest: {},
       expiresAt: options.expiresAt ?? new Date(0),
     })
+    // Zero-padded ids insert in index order, so both btrees append instead of splitting.
     await db.execute(sql`
       insert into ${grants} (import_id, project_path, user_id, group_key)
-      select ${id}, 'fixture/project', series::text, 'project'
+      select ${id}, 'fixture/project', lpad(series::text, ${String(count).length}::integer, '0'), 'project'
       from generate_series(1, ${count}) series`)
     if (options.active) {
       await db.insert(snapshots).values({

@@ -11,16 +11,6 @@ const { recordStreamContractDisagreement } = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/mothership/request/metrics', () => ({ recordStreamContractDisagreement }))
 
-vi.mock('@/lib/mothership/request/session/contract', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/mothership/request/session/contract')>(
-    '@/lib/mothership/request/session/contract'
-  )
-  return {
-    ...actual,
-    parsePersistedStreamEventEnvelope: vi.fn(actual.parsePersistedStreamEventEnvelope),
-  }
-})
-
 const logger = getMockLogger('StreamContractShadow')
 
 const shell = {
@@ -209,24 +199,25 @@ describe('parseIngestedStreamEventEnvelope', () => {
   )
 
   it('keeps a rejection the schema would accept and reports it', () => {
-    const value = frame('tool', { ...toolCall, toolCallId: 'tool-accepted' })
-    const rejection = {
-      ok: false as const,
-      reason: 'invalid_stream_event' as const,
-      message: 'A stream event failed validation.',
-      errors: ['hypothetical'],
-    }
-    vi.mocked(parsePersistedStreamEventEnvelope).mockReturnValueOnce(rejection)
+    // The validator rejects a null activityReceipt; the schema does not declare the key and
+    // strips it. This fails by design once the two are aligned: then pick another real split.
+    const value = frame('run', { kind: 'compaction_start', activityReceipt: null })
+    const result = parseIngestedStreamEventEnvelope(value)
 
-    expect(parseIngestedStreamEventEnvelope(value)).toBe(rejection)
+    expect(result.ok).toBe(false)
+    expect(result).toEqual(parsePersistedStreamEventEnvelope(value))
     expect(recordStreamContractDisagreement).toHaveBeenCalledExactlyOnceWith(
       'schema_accepts',
-      'tool',
-      'call'
+      'run',
+      'compaction_start'
     )
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
       'Stream contract schema disagrees with the stream validator',
-      expect.objectContaining({ direction: 'schema_accepts', validatorErrors: ['hypothetical'] })
+      expect.objectContaining({
+        direction: 'schema_accepts',
+        eventType: 'run',
+        variant: 'compaction_start',
+      })
     )
   })
 

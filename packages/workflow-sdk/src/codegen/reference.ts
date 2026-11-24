@@ -278,6 +278,9 @@ function exampleValue(type: string): string {
   if (/^TableData\b/.test(type)) return "{ column: '…' }"
   if (/^KnowledgeBaseRef\b/.test(type)) return "knowledgeBase('<key>')"
   if (/^WorkflowRef\b/.test(type)) return "childWorkflow('<key>')"
+  if (/^McpServerRef\b/.test(type)) return "mcp('<key>')"
+  if (/^FolderRef\b/.test(type)) return "folder('<key>')"
+  if (/^FileRef\b/.test(type)) return "file('<path>')"
   if (/^(?:Template|string|Value<string)\b/.test(type)) return "'…'"
   if (/^(?:number|Value<number)\b/.test(type)) return '1'
   if (/^(?:boolean|Value<boolean)\b/.test(type)) return 'true'

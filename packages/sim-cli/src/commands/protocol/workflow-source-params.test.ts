@@ -137,6 +137,20 @@ describe('sim workflows source params', () => {
     expect(error.message).toContain('Did you mean slack.sendMessage?')
   })
 
+  it('reads the catalog of the workspace a starter directory was written for', async () => {
+    cacheCatalogText(join(dir, 'config'), WORKSPACE_ID, FIXTURE_TEXT)
+    writeFileSync(join(dir, '.sim/starter.json'), JSON.stringify({ workspaceId: WORKSPACE_ID }))
+    contextMockFns.mockProfileFrom.mockReturnValue({
+      ...mockedProfile(),
+      workspaceId: null,
+      output: 'json',
+    })
+
+    await params('agent')
+
+    expect(stdoutJson()).toMatchObject({ builder: { key: 'agent' } })
+  })
+
   it('refuses without a cached catalog, making no request', async () => {
     writeBase()
 
