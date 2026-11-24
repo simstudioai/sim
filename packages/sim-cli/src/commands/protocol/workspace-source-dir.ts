@@ -253,8 +253,10 @@ export function localDeclarations(files: Readonly<Record<string, string>>): Loca
 
 /**
  * What the workspace directory `root` declared as the last get or apply wrote it: the paths that
- * write recorded (`written`), each folder kind's keys from them, and a root file's names only
- * while its text is unchanged since; an edited one's earlier text is gone, so it declares none.
+ * write recorded (`written`), each folder kind's keys from them. A file `workspace.d.ts` reads
+ * its types from (a root file, a table's declaration) counts only while its text is unchanged
+ * since: an edited one's earlier text is gone, so it declares nothing, and a table it declared
+ * types from the kept manifest instead.
  */
 export async function writtenLocalDeclarations(
   root: string,
@@ -264,14 +266,16 @@ export async function writtenLocalDeclarations(
   for (const path of Object.keys(written.digests)) {
     if (kindOfPath(path) !== null) files[path] = ''
   }
-  const rootFiles = APPLY_ORDER.filter(isFileKind)
-    .map((kind) => KIND_DIRS[kind])
-    .filter((file) => Object.hasOwn(files, file))
-  const unchanged = await unchangedTexts(root, rootFiles, written.digests)
-  for (const file of rootFiles) {
-    const text = unchanged.get(file)
-    if (text === undefined) delete files[file]
-    else files[file] = text
+  const rootFiles = new Set<string>(APPLY_ORDER.filter(isFileKind).map((kind) => KIND_DIRS[kind]))
+  const typedFrom = Object.keys(files).filter(
+    (path) =>
+      rootFiles.has(path) || (kindOfPath(path) === 'table' && path.endsWith(DECLARATION_EXTENSION))
+  )
+  const unchanged = await unchangedTexts(root, typedFrom, written.digests)
+  for (const path of typedFrom) {
+    const text = unchanged.get(path)
+    if (text === undefined) delete files[path]
+    else if (rootFiles.has(path)) files[path] = text
   }
   return localDeclarations(files)
 }

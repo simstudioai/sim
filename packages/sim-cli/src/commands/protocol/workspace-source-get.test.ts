@@ -1518,6 +1518,62 @@ describe('the type check of workspaces source check', () => {
     it.each([
       ['a kept resource listing', true],
       ['no resource listing', false],
+    ])("reports one a table declaration's edit caused, with %s", async (_listing, listed) => {
+      const table = (type: string) =>
+        [
+          '// @sim-sdk 1',
+          "import { column, defineTable } from '@sim/workflow-sdk/workspace'",
+          `export default defineTable({ name: 'leads', columns: { score: column.${type}() } })`,
+          '',
+        ].join('\n')
+      serve(
+        {
+          'tables/leads.ts': table('number'),
+          'workflows/save/workflow.ts': [
+            '// @sim-sdk 1',
+            "import { table, trigger, workflow } from '@sim/workflow-sdk'",
+            "export default workflow('Save', {}, () => {",
+            "  const start = trigger.start('Start', {})",
+            "  const save = table.insertRow('Save', { tableId: table('leads'), data: { score: 5 } })",
+            '  start.to(save)',
+            '})',
+            '',
+          ].join('\n'),
+        },
+        {
+          kinds: ['table', 'workflow'],
+          ...(listed
+            ? {
+                manifest: {
+                  ...manifestWith('number'),
+                  workflows: [{ key: 'save', inputs: [] }],
+                  tables: [
+                    {
+                      key: 'leads',
+                      id: 'tbl-1',
+                      name: 'leads',
+                      columns: [{ name: 'score', type: 'number' }],
+                    },
+                  ],
+                },
+              }
+            : {}),
+        }
+      )
+      await get()
+      writeFileSync(join(dir, 'tables/leads.ts'), table('boolean'))
+
+      await runWorkspaceSource('check', dir)
+
+      expect(result().diagnostics).toEqual([
+        expect.objectContaining({ code: 'E_TYPE', file: 'workflows/save/workflow.ts', line: 5 }),
+      ])
+      expect(process.exitCode).toBe(1)
+    })
+
+    it.each([
+      ['a kept resource listing', true],
+      ['no resource listing', false],
     ])(
       'leaves out one the server accepted, on a fresh get with %s, running tsc once',
       async (_listing, listed) => {
