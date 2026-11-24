@@ -654,7 +654,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               </div>
             )}
 
-            {isTrialing && canManageBilling && !isCancelledAtPeriodEnd && (
+            {isTrialing && !isOrganizationScope && canManageBilling && !isCancelledAtPeriodEnd && (
               <div className='flex items-center justify-between'>
                 <span className='text-[var(--text-body)] text-small'>
                   End the trial and start paying today

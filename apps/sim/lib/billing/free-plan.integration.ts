@@ -20,7 +20,7 @@ import { executeSearchTool } from '@/lib/internal/search/execute-tool'
 import { applyScheduleRunFailureUpdate } from '@/background/schedule-execution'
 
 const { stripeStub, mockSendEmail, mockNotifyScheduleAutoDisabled } = vi.hoisted(() => ({
-  stripeStub: { subscriptions: { update: vi.fn() } },
+  stripeStub: { subscriptions: { update: vi.fn() }, invoices: { createPreview: vi.fn() } },
   mockSendEmail: vi.fn(),
   mockNotifyScheduleAutoDisabled: vi.fn(),
 }))
@@ -144,6 +144,8 @@ beforeEach(() => {
   stripeStub.subscriptions.update.mockResolvedValue({})
   mockSendEmail.mockReset()
   mockSendEmail.mockResolvedValue({ success: true })
+  stripeStub.invoices.createPreview.mockReset()
+  stripeStub.invoices.createPreview.mockResolvedValue({ amount_due: 2500 })
   mockNotifyScheduleAutoDisabled.mockReset()
 })
 
@@ -237,6 +239,28 @@ describe('handleTrialWillEnd', () => {
     expect(mockSendEmail).toHaveBeenCalledWith(
       expect.objectContaining({ to: `${userId}@free-plan.test` })
     )
+  })
+
+  it('quotes the discounted charge from the invoice preview', async () => {
+    const userId = await createUser()
+    const stripeSubscriptionId = await addSubscription(userId, 'trialing')
+    stripeStub.invoices.createPreview.mockResolvedValue({ amount_due: 1250 })
+
+    await handleTrialWillEnd(trialWillEnd(stripeSubscriptionId))
+
+    expect(mockSendEmail.mock.calls[0]?.[0].html).toContain('$12.50/month')
+  })
+
+  it('retries a reminder whose email failed to send', async () => {
+    const userId = await createUser()
+    const stripeSubscriptionId = await addSubscription(userId, 'trialing')
+    const event = trialWillEnd(stripeSubscriptionId)
+    mockSendEmail.mockResolvedValueOnce({ success: false, message: 'Failed to send email' })
+
+    await expect(handleTrialWillEnd(event)).rejects.toThrow()
+    await handleTrialWillEnd(event)
+
+    expect(mockSendEmail).toHaveBeenCalledTimes(2)
   })
 
   it('sends nothing for a subscription that is no longer trialing', async () => {

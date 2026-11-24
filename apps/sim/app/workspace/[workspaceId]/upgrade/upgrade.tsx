@@ -67,11 +67,14 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
     ...upgradeUrlKeys,
   })
   const [showAllFeatures, setShowAllFeatures] = useState(false)
-  const { data: viewerBilling } = useSubscriptionData()
-  const proTrialEligible = viewerBilling?.data?.proTrialEligible === true
-
   const header = reason ? UPGRADE_REASON_COPY[reason].header : DEFAULT_UPGRADE_HEADER
   const canManageBilling = canManageWorkspaceBilling(hostContext, session?.user?.id)
+  // The trial is a personal checkout, so only a payer viewing their own workspace can start one.
+  const isPersonalWorkspace = !hostContext.hostOrganizationId
+  const { data: viewerBilling } = useSubscriptionData({
+    enabled: canManageBilling && isPersonalWorkspace,
+  })
+  const proTrialEligible = isPersonalWorkspace && viewerBilling?.data?.proTrialEligible === true
 
   const handleBack = useCallback(() => {
     router.replace(origin ?? `/workspace/${workspaceId}`)

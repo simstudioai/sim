@@ -31,7 +31,7 @@ export function CreditsExhaustedEmail({
       <ProFeaturesBox />
 
       <Text style={baseStyles.paragraph}>
-        New Pro subscribers start with a {PRO_TRIAL_DAYS}-day free trial.
+        If you haven't had a Sim trial, Pro starts with a {PRO_TRIAL_DAYS}-day free trial.
       </Text>
 
       <EmailButton href={upgradeLink}>Upgrade to Pro</EmailButton>

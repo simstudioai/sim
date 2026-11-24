@@ -1,9 +1,11 @@
 import { db } from '@sim/db'
 import { member, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getDisplayPlanName, isPaid } from '@/lib/billing/plan-helpers'
+import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { formatTrialEndDate, hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -32,14 +34,34 @@ export interface TrialEndingSubscription {
   }
 }
 
-/** What the card is charged when a trial converts, from the subscription's own Stripe price. */
-function formatRenewalPrice(stripeSubscription: TrialEndingSubscription): string | null {
-  const price = stripeSubscription.items?.data?.[0]?.price
-  if (!price?.unit_amount || !price.recurring) return null
-  const quantity = stripeSubscription.items.data[0]?.quantity ?? 1
-  const dollars = (price.unit_amount * quantity) / 100
-  const amount = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`
-  return `${amount}/${price.recurring.interval}`
+function formatDollars(cents: number): string {
+  const dollars = cents / 100
+  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`
+}
+
+/**
+ * What the card is charged when a trial converts. Stripe's invoice preview includes any discount a
+ * promotion code applied; the subscription's list price is the fallback if the preview fails.
+ */
+async function readRenewalCharge(
+  stripeSubscription: TrialEndingSubscription
+): Promise<string | null> {
+  const item = stripeSubscription.items?.data?.[0]
+  const interval = item?.price.recurring?.interval
+  if (!interval) return null
+  try {
+    const preview = await requireStripeClient().invoices.createPreview({
+      subscription: stripeSubscription.id,
+    })
+    return `${formatDollars(preview.amount_due)}/${interval}`
+  } catch (error) {
+    logger.warn('Invoice preview failed for the trial reminder; quoting the list price', {
+      stripeSubscriptionId: stripeSubscription.id,
+      error: getErrorMessage(error),
+    })
+  }
+  if (!item?.price.unit_amount) return null
+  return `${formatDollars(item.price.unit_amount * (item.quantity ?? 1))}/${interval}`
 }
 
 /**
@@ -50,7 +72,8 @@ function formatRenewalPrice(stripeSubscription: TrialEndingSubscription): string
 export async function handleTrialWillEnd(
   stripeSubscription: TrialEndingSubscription
 ): Promise<void> {
-  if (stripeSubscription.status !== 'trialing' || !stripeSubscription.trial_end) return
+  const trialEnd = stripeSubscription.trial_end
+  if (stripeSubscription.status !== 'trialing' || !trialEnd) return
 
   const [recorded] = await db
     .select({ plan: subscription.plan, referenceId: subscription.referenceId })
@@ -66,16 +89,16 @@ export async function handleTrialWillEnd(
 
   await stripeWebhookIdempotency.executeWithIdempotency(
     'trial-ending-reminder',
-    `${stripeSubscription.id}:${stripeSubscription.trial_end}`,
+    `${stripeSubscription.id}:${trialEnd}`,
     async () => {
       const recipient = await readRecipient(recorded.referenceId)
-      const price = formatRenewalPrice(stripeSubscription)
+      const price = await readRenewalCharge(stripeSubscription)
       if (!recipient || !price) return { sent: false }
 
       const { getTrialEndingSubject, renderTrialEndingEmail } = await import('@/components/emails')
       const { sendEmail } = await import('@/lib/messaging/email/mailer')
       const planName = getDisplayPlanName(recorded.plan)
-      const endsOn = formatTrialEndDate(new Date(stripeSubscription.trial_end * 1000))
+      const endsOn = formatTrialEndDate(new Date(trialEnd * 1000))
       const html = await renderTrialEndingEmail({
         planName,
         userName: recipient.name || undefined,
@@ -83,12 +106,14 @@ export async function handleTrialWillEnd(
         price,
         billingLink: `${getBaseUrl()}/account/settings/billing`,
       })
-      await sendEmail({
+      const result = await sendEmail({
         to: recipient.email,
         subject: getTrialEndingSubject(planName, endsOn),
         html,
         emailType: 'transactional',
       })
+      // Throwing leaves the reminder unrecorded, so Stripe's redelivery retries it.
+      if (!result.success) throw new Error('Trial reminder email failed to send')
       return { sent: true }
     }
   )
