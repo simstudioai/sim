@@ -11,6 +11,7 @@ import {
   type BlockCatalog,
   type CanonicalWorkflow,
   type ChildResultFields,
+  type CompileInput,
   calledWorkflowKey,
   catalogBlock,
   childResultFields,
@@ -484,7 +485,7 @@ async function compileWorkflowDir(
     cachedSourceCatalog(dir),
   ])
   const catalog = printedWith ?? workspaceCatalog
-  const input: Parameters<typeof compileWorkflow>[0] = {
+  const input: CompileInput = {
     entry: { path: SOURCE_ENTRY_FILE, text: files[SOURCE_ENTRY_FILE] },
     files: new Map(Object.entries(files).filter(([path]) => path !== SOURCE_ENTRY_FILE)),
     catalog,

@@ -38,7 +38,12 @@ export {
   isIdentifierName,
   parseStoredPath,
 } from './code-files'
-export { type CompileResult, compileWorkflow, type StoredEdgeRef } from './compile'
+export {
+  type CompileInput,
+  type CompileResult,
+  compileWorkflow,
+  type StoredEdgeRef,
+} from './compile'
 export { codePointLabel, scriptName } from './compile/characters'
 export { didYouMean, suggestBuilder } from './compile/hints'
 export { bracketDepthOverflow, sdkHeader, sourceDepthOverflow } from './compile/parse'
