@@ -37,7 +37,7 @@ n8n starts at €20 per month for Starter and €50 per month for Pro when bille
 - **n8n Cloud:** [Starter costs €20 per month and Pro costs €50 per month](https://n8n.io/pricing/) when billed annually as of November 2026. Pricing is based primarily on monthly workflow executions.
 - **Self-hosted n8n:** Community Edition has no subscription fee for uses allowed by the [Sustainable Use License](https://docs.n8n.io/n8n-community-license/), while the Business plan starts at €667 per month when billed annually, before infrastructure and operations costs.
 - **n8n Enterprise:** Pricing is custom for Cloud or self-hosted deployments, with terms based on deployment, scale, security, support, and commercial requirements.
-- **Sim:** Sim is the open-source AI workspace. [Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while [apps/sim/ee is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Self-hosted Sim can use local models, and workspace BYOK is available on every Sim Cloud plan.
+- **Sim:** Sim is the open-source AI workspace. [Sim’s core is licensed under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while [apps/sim/ee is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Self-hosted Sim can use local models, and workspace bring your own key (BYOK), which lets teams use their own model-provider keys, is available on every Sim Cloud plan.
 
 ## What are the key n8n and Sim pricing facts at a glance?
 
@@ -52,7 +52,7 @@ n8n and Sim differ most clearly in their billing models, self-hosting costs, and
 
 The following prices and limits come from [n8n’s official pricing page](https://n8n.io/pricing/) and reflect its public euro pricing for annual billing as of November 2026. Local currency, taxes, monthly billing, add-ons, and negotiated terms can change the total.
 
-| n8n plan | Hosting | Starting price | Included executions per month | Active workflows | Users | SSO | Notable features |
+| n8n plan | Hosting | Starting price | Included executions per month | Active workflows | Users | Single sign-on (SSO) | Notable features |
 |---|---|---:|---:|---:|---:|---|---|
 | Starter | n8n Cloud | €20/month, billed annually | 2,500 | Unlimited | Unlimited | No | Hosted service, integrations, and the workflow builder |
 | Pro | n8n Cloud | €50/month, billed annually | 10,000 | Unlimited | Unlimited | No | Higher execution allowance and added collaboration and administration features |
@@ -108,7 +108,7 @@ These are plan examples rather than universal total-cost estimates. A team that 
 
 Sim can fit teams that need a permissively licensed AI workspace, want to self-host the core without a core software license fee, or plan to use their own model keys or local models.
 
-[Sim’s core Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) permits use, modification, and redistribution subject to the license terms. The exception is [apps/sim/ee](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which includes enterprise capabilities such as SSO, SCIM, access control, audit logs, data retention, and credential groups. That code is free for development, testing, and internal non-production use, but production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted.
+[Sim’s core Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) permits use, modification, and redistribution subject to the license terms. The exception is [apps/sim/ee](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which includes enterprise capabilities such as single sign-on (SSO), System for Cross-domain Identity Management (SCIM) for automated user provisioning, access control, audit logs, data retention, and credential groups. That code is free for development, testing, and internal non-production use, but production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted.
 
 [Self-hosted Sim](https://docs.sim.ai/platform/self-hosting) can connect to Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise. Infrastructure and model costs still remain, so Apache 2.0 does not mean a production deployment has zero total cost.
 
@@ -121,6 +121,6 @@ Sim fits teams that specifically need Apache 2.0 rights for the core. n8n fits t
 Sim’s existing guides separate direct product comparison, alternative selection, and licensing analysis so buyers can examine each decision in detail.
 
 - [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](https://www.sim.ai/library/openai-vs-n8n-vs-sim) compares product capabilities and deployment choices.
-- [12 Best n8n Alternatives and Competitors for AI Agents in 2026](https://www.sim.ai/library/n8n-alternatives) covers broader replacement options.
+- [14 n8n Alternatives and Competitors: Choosing an n8n Alternative in 2026](https://www.sim.ai/library/n8n-alternatives) covers broader replacement options.
 - [Apache 2.0 vs Fair-Code: Why Sim’s Core License Differs From n8n’s for Self-Hosting](https://www.sim.ai/library/apache-2-0-vs-fair-code) explains the licensing distinction in depth.
 - [n8n vs Zapier vs Make: Which Automation Platform Is Best in 2026?](https://www.sim.ai/library/n8n-vs-zapier-vs-make) compares three established automation products.
