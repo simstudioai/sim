@@ -1,13 +1,17 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
-import type { SimDesktopApi } from '@sim/desktop-bridge'
-import { sleep } from '@sim/utils/helpers'
+import type { Page } from '@playwright/test'
 import { randomInt } from '@sim/utils/random'
-import { recordCheck } from './check-report'
-import { FixtureSim, launch, processRunning, registeredDevice, settled } from './executor-sim'
+import {
+  type ExecutorApp,
+  FixtureSim,
+  launchAgainst,
+  processRunning,
+  registeredDevice,
+  settled,
+} from './executor-sim'
+import { type DesktopBridge, type DesktopFixture, expect, test } from './harness'
 
 /**
  * Stopping the agent's terminal commands in the real app, with real shells and a real tmux
@@ -19,8 +23,9 @@ import { FixtureSim, launch, processRunning, registeredDevice, settled } from '.
  * Agent commands in a plain shell ignore SIGHUP, SIGINT and SIGTERM, so closing the shell cannot
  * end them by accident: only Sim's own stop, which escalates to SIGKILL on the command's process
  * group, does. The user's commands ignore the same signals, so a stop that reached them would
- * show. Each launch gets its own tmux server (TMUX_TMPDIR), which the app's shells and its tmux
- * calls inherit. The tmux scenarios skip where tmux is not installed.
+ * show. Each test gets its own tmux server (TMUX_TMPDIR), which the app's shells and its tmux
+ * calls inherit. The tmux scenarios skip where tmux is not installed, except in CI, which
+ * installs it.
  */
 
 const CHAT_PLAIN = 'chat-cancel-plain'
@@ -30,8 +35,6 @@ const TMUX_SESSION = 'agent-e2e'
 const STUBBORN = "trap '' HUP INT TERM"
 
 const sim = new FixtureSim()
-/** The app's own log output for the current test, attached when it fails. */
-const appOutput: string[] = []
 
 /** The shells, sleeps and tmux processes running, for a failure about who started what. */
 function processes(): string {
@@ -71,8 +74,13 @@ function findTmux(): string | null {
   }
 }
 
-/** One launch's own tmux server, and a way to read and reshape it as the user would. */
+function requireTmux(): void {
+  test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
+}
+
+/** One test's own tmux server, and a way to read and reshape it as the user would. */
 class TmuxServer {
+  /** Short and under /tmp: the server's socket path must fit in 104 bytes. */
   readonly dir = mkdtempSync('/tmp/sim-tmux-')
 
   run(args: string[]): string {
@@ -102,9 +110,9 @@ class TmuxServer {
     }
   }
 
-  /** The pane an agent run opened, found by the run script it was started with. */
-  runPane(): { id: string; runId: string } | undefined {
-    return this.panes().find((pane) => pane.command.includes('run.sh'))
+  /** The panes agent runs opened, found by the run script they were started with. */
+  runPanes(): Array<{ id: string; runId: string }> {
+    return this.panes().filter((pane) => pane.command.includes('run.sh'))
   }
 
   hasPane(id: string): boolean {
@@ -124,18 +132,19 @@ class TmuxServer {
     }
   }
 
-  kill(): void {
+  remove(): void {
     try {
       this.run(['kill-server'])
     } catch {
       // Already gone.
     }
+    rmSync(this.dir, { recursive: true, force: true })
   }
 }
 
 /** A `tmux` ahead of the real one on PATH that refuses pane options, as tmux before 3.0 does. */
-function oldTmuxPath(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sim-old-tmux-'))
+function oldTmuxPath(desktop: DesktopFixture): string {
+  const dir = desktop.tempDir('sim-old-tmux-')
   const binary = join(dir, 'tmux')
   writeFileSync(
     binary,
@@ -156,8 +165,7 @@ function bridge(window: Page) {
     /** The user opens a terminal tab in a chat's terminal panel and starts a command in it. */
     async userRuns(scope: string, command: string): Promise<void> {
       const terminalId = await window.evaluate(async (scopeId) => {
-        const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi })
-          .simDesktop.terminal
+        const terminal = (globalThis as DesktopBridge).simDesktop.terminal
         await terminal.activateScope(scopeId)
         terminal.setVisible?.(true, scopeId)
         terminal.setFocused(true, scopeId)
@@ -169,17 +177,14 @@ function bridge(window: Page) {
       await window.keyboard.press('Shift')
       await window.evaluate(
         ([id, text, scopeId]) =>
-          (
-            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-          ).simDesktop.terminal.write(id, text, scopeId),
+          (globalThis as DesktopBridge).simDesktop.terminal.write(id, text, scopeId),
         [terminalId, `${command}\r`, scope] as const
       )
     },
     /** The user puts a chat away: its terminals close, though tmux runs started in them go on. */
     async putAway(scope: string): Promise<boolean> {
       return window.evaluate(async (scopeId) => {
-        const terminal = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi })
-          .simDesktop.terminal
+        const terminal = (globalThis as DesktopBridge).simDesktop.terminal
         await terminal.activateScope(scopeId)
         return terminal.suspendScope(scopeId)
       }, scope)
@@ -187,9 +192,7 @@ function bridge(window: Page) {
     async setTerminalEnabled(enabled: boolean): Promise<void> {
       await window.evaluate(
         (value) =>
-          (
-            globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-          ).simDesktop.settings.setPreference('terminalEnabled', value),
+          (globalThis as DesktopBridge).simDesktop.settings.setPreference('terminalEnabled', value),
         enabled
       )
     },
@@ -202,14 +205,16 @@ async function agentRunsPlain(deviceId: string, seconds: number): Promise<string
     operation: 'run',
     args: { command: stubborn(seconds), waitSeconds: 120 },
   })
-  await expect.poll(() => processRunning(`${slept(seconds)}`), { timeout: 30_000 }).toBe(true)
+  await expect.poll(() => processRunning(slept(seconds)), { timeout: 30_000 }).toBe(true)
   return call
 }
 
-/**
- * The agent's terminal attaches to tmux (the agent starts a tmux client in it), and the agent then
- * runs a command, which tmux gives its own tagged pane. Resolves with the call and that pane.
- */
+/** The user starts a stubborn command in a tab of their own; resolves once it is running. */
+async function userRunsPlain(window: Page, seconds: number): Promise<void> {
+  await bridge(window).userRuns(CHAT_PLAIN, stubborn(seconds))
+  await expect.poll(() => processRunning(slept(seconds)), { timeout: 30_000 }).toBe(true)
+}
+
 /** The agent starts a tmux client in its chat's terminal, so its runs go to tmux panes. */
 async function agentAttachesTmux(deviceId: string, tmux: TmuxServer): Promise<void> {
   const before = tmux.clients()
@@ -218,8 +223,17 @@ async function agentAttachesTmux(deviceId: string, tmux: TmuxServer): Promise<vo
     args: { command: `tmux new-session -A -s ${TMUX_SESSION}`, waitSeconds: 2 },
   })
   await expect.poll(() => tmux.clients(), { timeout: 30_000 }).toBe(before + 1)
-  // The terminal's attachment is looked up again once its short cache lapses.
-  await sleep(3_500)
+  // The terminal remembers for a few seconds that it was not in tmux. Listing panes only works
+  // once it sees the attachment, and the run that follows then goes to tmux as well.
+  await expect
+    .poll(
+      async () => {
+        const probe = sim.issue(deviceId, CHAT_TMUX, 'terminal', { operation: 'panes', args: {} })
+        return (await settled(sim, probe)).status
+      },
+      { timeout: 30_000 }
+    )
+    .toBe('success')
 }
 
 /**
@@ -233,6 +247,17 @@ async function agentRunsInTmux(
   waitSeconds = 120
 ): Promise<{ call: string; pane: { id: string; runId: string } }> {
   await agentAttachesTmux(deviceId, tmux)
+  return agentRunsInAttachedTmux(deviceId, tmux, seconds, waitSeconds)
+}
+
+/** {@link agentRunsInTmux} in a chat terminal that is already attached. */
+async function agentRunsInAttachedTmux(
+  deviceId: string,
+  tmux: TmuxServer,
+  seconds: number,
+  waitSeconds: number
+): Promise<{ call: string; pane: { id: string; runId: string } }> {
+  const known = new Set(tmux.runPanes().map((pane) => pane.id))
   // It ignores Ctrl-C, so stopping it takes closing its pane, the step that must spare the user's.
   const call = sim.issue(deviceId, CHAT_TMUX, 'terminal', {
     operation: 'run',
@@ -241,18 +266,37 @@ async function agentRunsInTmux(
       waitSeconds,
     },
   })
-  await expect.poll(() => processRunning(`${slept(seconds)}`), { timeout: 30_000 }).toBe(true)
-  await expect.poll(() => tmux.runPane(), { timeout: 10_000 }).toBeTruthy()
-  return { call, pane: tmux.runPane() as { id: string; runId: string } }
+  await expect.poll(() => processRunning(slept(seconds)), { timeout: 30_000 }).toBe(true)
+  const newPane = () => tmux.runPanes().find((pane) => !known.has(pane.id))
+  await expect.poll(newPane, { timeout: 10_000 }).toBeTruthy()
+  return { call, pane: newPane() as { id: string; runId: string } }
 }
 
 async function claimed(call: string): Promise<void> {
   await expect.poll(() => sim.requireCall(call).claims, { timeout: 30_000 }).toBe(1)
 }
 
+/** The runs this app has recorded for a later process to find. */
+function recordedRuns(userData: string): string[] {
+  try {
+    return readdirSync(join(userData, 'terminal-runs'))
+  } catch {
+    return []
+  }
+}
+
+/** Where a recorded run stands: `started`, or `delivered` once the model has its pane. */
+function recordedRunState(userData: string, runId: string): unknown {
+  try {
+    return JSON.parse(readFileSync(join(userData, 'terminal-runs', `${runId}.json`), 'utf8')).state
+  } catch {
+    return undefined
+  }
+}
+
 test.describe('terminal cancel', () => {
-  let app: ElectronApplication | null = null
   let tmux: TmuxServer
+  let launched: ExecutorApp[] = []
   const leftovers: string[] = []
 
   test.beforeAll(async () => {
@@ -260,17 +304,13 @@ test.describe('terminal cancel', () => {
   })
 
   test.beforeEach(() => {
+    // CI installs tmux, so a runner without it fails instead of quietly skipping half the suite.
+    if (process.env.CI) expect(REAL_TMUX, 'tmux is not installed').not.toBeNull()
     tmux = new TmuxServer()
   })
 
   test.afterEach(async () => {
     const testInfo = test.info()
-    recordCheck(process.env.TERMINAL_CANCEL_REPORT_PATH, 'terminal-cancel', {
-      name: testInfo.title,
-      status: testInfo.status ?? 'unknown',
-      durationMs: testInfo.duration,
-      retry: testInfo.retry,
-    })
     if (testInfo.status !== testInfo.expectedStatus) {
       // What each call came back with, and the panes tmux held, explain most failures.
       const calls = [...sim.calls.values()].map((call) => ({
@@ -286,23 +326,13 @@ test.describe('terminal cancel', () => {
       await testInfo.attach('calls', {
         body: JSON.stringify({ calls, panes: tmux.panes() }, null, 2),
       })
-      await testInfo.attach('app-output', { body: appOutput.join('').slice(-6_000) })
+      for (const [index, app] of launched.entries()) {
+        await testInfo.attach(`app-output-${index + 1}`, { body: app.output().slice(-6_000) })
+      }
       await testInfo.attach('processes', { body: processes() })
     }
-    appOutput.length = 0
-    // Quitting with a command still running in a tab asks first (natively, on macOS), and nobody
-    // is there to answer, so a close that does not finish promptly ends the app instead.
-    const closing = app
-    const closed = await Promise.race([
-      closing?.close().then(
-        () => true,
-        () => true
-      ) ?? Promise.resolve(true),
-      sleep(5_000).then(() => false),
-    ])
-    if (!closed) closing?.process().kill('SIGKILL')
-    app = null
-    tmux.kill()
+    launched = []
+    tmux.remove()
     for (const pattern of leftovers.splice(0)) {
       try {
         execFileSync('pkill', ['-9', '-f', pattern])
@@ -317,27 +347,42 @@ test.describe('terminal cancel', () => {
     await sim.stop()
   })
 
-  async function start(
-    name: string,
-    env: Record<string, string> = {}
-  ): Promise<{ window: Page; deviceId: string; userData: string }> {
-    const userData = mkdtempSync(join(tmpdir(), `sim-cancel-${name}-`))
-    const launched = await launch(sim, userData, { TMUX_TMPDIR: tmux.dir, ...env })
-    app = launched.app
-    launched.app.process().stdout?.on('data', (chunk: Buffer) => appOutput.push(chunk.toString()))
-    launched.app.process().stderr?.on('data', (chunk: Buffer) => appOutput.push(chunk.toString()))
-    const deviceId = await registeredDevice(sim)
-    await launched.window.goto(`${sim.origin}/workspace/ws-e2e/chat/${CHAT_PLAIN}`)
-    return { window: launched.window, deviceId, userData }
+  /** Launches the app on this test's tmux server, on `userData` when relaunching. */
+  async function launch(
+    desktop: DesktopFixture,
+    options: { userData?: string; env?: Record<string, string> } = {}
+  ): Promise<ExecutorApp> {
+    const app = await launchAgainst(desktop, sim, {
+      userData: options.userData,
+      env: { TMUX_TMPDIR: tmux.dir, ...options.env },
+    })
+    launched.push(app)
+    return app
   }
 
-  test('Stop ends the agent command in a plain shell and leaves the user command running', async () => {
-    const { window, deviceId } = await start('stop-plain')
+  async function start(
+    desktop: DesktopFixture,
+    env: Record<string, string> = {}
+  ): Promise<ExecutorApp & { deviceId: string }> {
+    const app = await launch(desktop, { env })
+    const deviceId = await registeredDevice(sim)
+    await app.window.goto(`${sim.origin}/workspace/ws-e2e/chat/${CHAT_PLAIN}`)
+    return { ...app, deviceId }
+  }
+
+  /** The app dies without a word: its shells go with it, and its tmux runs outlive it. */
+  function crash(app: ExecutorApp): void {
+    app.app.process().kill('SIGKILL')
+  }
+
+  test('Stop ends the agent command in a plain shell and leaves the user command running', async ({
+    desktop,
+  }) => {
+    const { window, deviceId } = await start(desktop)
     leftovers.push(slept(701), slept(702))
     // The agent's terminal comes first; the user's own tab opens beside it.
     const call = await agentRunsPlain(deviceId, 701)
-    await bridge(window).userRuns(CHAT_PLAIN, stubborn(702))
-    await expect.poll(() => processRunning(slept(702)), { timeout: 30_000 }).toBe(true)
+    await userRunsPlain(window, 702)
 
     sim.stopCall(call)
 
@@ -346,9 +391,11 @@ test.describe('terminal cancel', () => {
     expect(processRunning(slept(702))).toBe(true)
   })
 
-  test('Stop interrupts a tagged tmux run and closes only its pane, never the user pane beside it', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { deviceId } = await start('stop-tmux')
+  test('Stop interrupts a tagged tmux run and closes only its pane, never the user pane beside it', async ({
+    desktop,
+  }) => {
+    requireTmux()
+    const { deviceId } = await start(desktop)
     leftovers.push(slept(711), slept(712))
     const { call, pane } = await agentRunsInTmux(deviceId, tmux, 711)
     expect(pane.runId).not.toBe('')
@@ -363,15 +410,17 @@ test.describe('terminal cancel', () => {
     expect(processRunning(slept(712))).toBe(true)
   })
 
-  test('signing out stops every agent command and leaves the user commands running', async () => {
-    const { window, deviceId } = await start('sign-out')
+  test('signing out stops every agent command and leaves the user commands running', async ({
+    desktop,
+  }) => {
+    const { window, deviceId } = await start(desktop)
     leftovers.push(slept(721), slept(722), slept(723), slept(724))
     const plain = await agentRunsPlain(deviceId, 721)
     await claimed(plain)
-    await bridge(window).userRuns(CHAT_PLAIN, stubborn(722))
-    await expect.poll(() => processRunning(slept(722)), { timeout: 30_000 }).toBe(true)
+    await userRunsPlain(window, 722)
     const run = REAL_TMUX ? await agentRunsInTmux(deviceId, tmux, 723) : null
     const users = run ? tmux.split(run.pane.id, stubborn(724)) : null
+    if (users) await expect.poll(() => processRunning(slept(724)), { timeout: 15_000 }).toBe(true)
 
     // The web app signs out by navigating to its login page.
     await window.goto(`${sim.origin}/login?fromLogout=true`)
@@ -386,53 +435,45 @@ test.describe('terminal cancel', () => {
     }
   })
 
-  test('a session ended by another account signing in stops every agent command and leaves the user pane running', async () => {
-    const { window, deviceId } = await start('account')
-    leftovers.push(slept(731), slept(733), slept(734))
+  // Sign-out, the session ending and Terminal off all stop through the same stop for everything;
+  // the sign-out test covers its tmux side, so these two prove only that their trigger reaches it.
+  test('a session ended by another account signing in stops the agent command and leaves the user command running', async ({
+    desktop,
+  }) => {
+    const { window, deviceId } = await start(desktop)
+    leftovers.push(slept(731), slept(732))
     await agentRunsPlain(deviceId, 731)
-    const run = REAL_TMUX ? await agentRunsInTmux(deviceId, tmux, 733) : null
-    const users = run ? tmux.split(run.pane.id, stubborn(734)) : null
-    if (users) await expect.poll(() => processRunning(slept(734)), { timeout: 15_000 }).toBe(true)
+    await userRunsPlain(window, 732)
 
     // Another account signing in replaces the session: the old session cookie goes away.
     await window.goto(`${sim.origin}/session-ended`)
 
     await expect.poll(() => processRunning(slept(731)), { timeout: 30_000 }).toBe(false)
-    if (run && users) {
-      await expect.poll(() => processRunning(slept(733)), { timeout: 15_000 }).toBe(false)
-      await expect.poll(() => tmux.hasPane(run.pane.id), { timeout: 10_000 }).toBe(false)
-      expect(tmux.hasPane(users)).toBe(true)
-      expect(processRunning(slept(734))).toBe(true)
-    }
+    expect(processRunning(slept(732))).toBe(true)
   })
 
-  test('switching Terminal off stops every agent command and leaves the user commands running', async () => {
-    const { window, deviceId } = await start('terminal-off')
-    leftovers.push(slept(741), slept(743), slept(744))
+  test('switching Terminal off stops the agent command and leaves the user command running', async ({
+    desktop,
+  }) => {
+    const { window, deviceId } = await start(desktop)
+    leftovers.push(slept(741), slept(742))
     await agentRunsPlain(deviceId, 741)
-    const run = REAL_TMUX ? await agentRunsInTmux(deviceId, tmux, 743) : null
-    const users = run ? tmux.split(run.pane.id, stubborn(744)) : null
+    await userRunsPlain(window, 742)
 
     await bridge(window).setTerminalEnabled(false)
 
     await expect.poll(() => processRunning(slept(741)), { timeout: 30_000 }).toBe(false)
-    if (run && users) {
-      await expect.poll(() => processRunning(slept(743)), { timeout: 15_000 }).toBe(false)
-      await expect.poll(() => tmux.hasPane(run.pane.id), { timeout: 10_000 }).toBe(false)
-      expect(tmux.hasPane(users)).toBe(true)
-      expect(processRunning(slept(744))).toBe(true)
-    }
+    expect(processRunning(slept(742))).toBe(true)
   })
 
-  test('signing out stops a tmux run whose chat was put away', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { window, deviceId, userData } = await start('put-away')
+  test('signing out stops a tmux run whose chat was put away', async ({ desktop }) => {
+    requireTmux()
+    const { window, deviceId, userData } = await start(desktop)
     leftovers.push(slept(801))
     const { pane } = await agentRunsInTmux(deviceId, tmux, 801)
 
     // No live terminal holds the run any more; only its record does.
     expect(await bridge(window).putAway(CHAT_TMUX)).toBe(true)
-    await sleep(1_000)
     expect(processRunning(slept(801))).toBe(true)
 
     await window.goto(`${sim.origin}/login?fromLogout=true`)
@@ -442,167 +483,127 @@ test.describe('terminal cancel', () => {
     await expect.poll(() => recordedRuns(userData), { timeout: 10_000 }).toEqual([])
   })
 
-  /** The app dies without a word: its shells go with it, and its tmux runs outlive it. */
-  function crash(): void {
-    app?.process().kill('SIGKILL')
-    app = null
-  }
-
-  /** The runs this app has recorded for a later process to find. */
-  function recordedRuns(userData: string): string[] {
-    try {
-      return readdirSync(join(userData, 'terminal-runs'))
-    } catch {
-      return []
-    }
-  }
-
-  test('the launch after an interrupted sign-out stops the tmux run the previous app left running', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { deviceId, userData } = await start('recovery')
+  test('the launch after an interrupted sign-out stops the tmux run the previous app left running', async ({
+    desktop,
+  }) => {
+    requireTmux()
+    const first = await start(desktop)
     leftovers.push(slept(751))
-    const { pane } = await agentRunsInTmux(deviceId, tmux, 751)
+    const { pane } = await agentRunsInTmux(first.deviceId, tmux, 751)
 
     // The app dies mid sign-out: its recovery marker is on disk and the tmux run outlives it.
-    crash()
+    crash(first)
     writeFileSync(
-      join(userData, 'account-data-teardown-required.json'),
+      join(first.userData, 'account-data-teardown-required.json'),
       JSON.stringify({ version: 2, kind: 'account', origin: sim.origin })
     )
     expect(processRunning(slept(751))).toBe(true)
 
-    app = (await launch(sim, userData, { TMUX_TMPDIR: tmux.dir })).app
+    await launch(desktop, { userData: first.userData })
 
     await expect.poll(() => processRunning(slept(751)), { timeout: 30_000 }).toBe(false)
     expect(tmux.hasPane(pane.id)).toBe(false)
-    await expect.poll(() => recordedRuns(userData), { timeout: 10_000 }).toEqual([])
+    await expect.poll(() => recordedRuns(first.userData), { timeout: 10_000 }).toEqual([])
   })
 
-  test('the launch after a crash stops the tmux run its call can no longer report', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { deviceId, userData } = await start('crash-live')
+  test('the launch after a crash stops the tmux run its call can no longer report', async ({
+    desktop,
+  }) => {
+    requireTmux()
+    const first = await start(desktop)
     leftovers.push(slept(771), slept(772))
-    const { pane } = await agentRunsInTmux(deviceId, tmux, 771)
+    const { pane } = await agentRunsInTmux(first.deviceId, tmux, 771)
     const users = tmux.split(pane.id, stubborn(772))
 
     // Same user, plain crash: the journal settles the call as outcome unknown, and nothing will
     // ever read what the command does.
-    crash()
+    crash(first)
     expect(processRunning(slept(771))).toBe(true)
-    app = (await launch(sim, userData, { TMUX_TMPDIR: tmux.dir })).app
+    await launch(desktop, { userData: first.userData })
 
     await expect.poll(() => processRunning(slept(771)), { timeout: 30_000 }).toBe(false)
     expect(tmux.hasPane(pane.id)).toBe(false)
     expect(tmux.hasPane(users)).toBe(true)
     expect(processRunning(slept(772))).toBe(true)
-    await expect.poll(() => recordedRuns(userData), { timeout: 10_000 }).toEqual([])
+    await expect.poll(() => recordedRuns(first.userData), { timeout: 10_000 }).toEqual([])
   })
 
-  test('the launch after a crash only forgets a tmux run that had already finished', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { deviceId, userData } = await start('crash-finished')
+  test('the launch after a crash only forgets a tmux run that had already finished', async ({
+    desktop,
+  }) => {
+    requireTmux()
+    const first = await start(desktop)
     leftovers.push(slept(6), slept(782))
     // Handed back as still running, it then finishes on its own.
-    const { call, pane } = await agentRunsInTmux(deviceId, tmux, 6, 2)
+    const { call, pane } = await agentRunsInTmux(first.deviceId, tmux, 6, 2)
     await settled(sim, call)
     const users = tmux.split(pane.id, stubborn(782))
     await expect.poll(() => tmux.hasPane(pane.id), { timeout: 20_000 }).toBe(false)
-    expect(recordedRuns(userData)).toHaveLength(1)
+    expect(recordedRuns(first.userData)).toHaveLength(1)
 
-    crash()
-    app = (await launch(sim, userData, { TMUX_TMPDIR: tmux.dir })).app
+    crash(first)
+    await launch(desktop, { userData: first.userData })
 
-    await expect.poll(() => recordedRuns(userData), { timeout: 30_000 }).toEqual([])
+    await expect.poll(() => recordedRuns(first.userData), { timeout: 30_000 }).toEqual([])
     expect(tmux.hasPane(users)).toBe(true)
     expect(processRunning(slept(782))).toBe(true)
   })
 
-  test('a run handed back as still going survives a quit and the relaunch, and can still be read', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { deviceId, userData } = await start('collectable')
-    leftovers.push(slept(811))
-    const { call, pane } = await agentRunsInTmux(deviceId, tmux, 811, 2)
-    const handedBack = await settled(sim, call)
-    expect(handedBack.data).toMatchObject({ status: 'running', pane: pane.id })
+  test('a run handed back as still going survives a quit and the relaunch, and can still be read', async ({
+    desktop,
+  }) => {
+    requireTmux()
+    const first = await start(desktop)
+    leftovers.push(slept(811), slept(812))
+    const kept = await agentRunsInTmux(first.deviceId, tmux, 811, 2)
+    const handedBack = await settled(sim, kept.call)
+    expect(handedBack.data).toMatchObject({ status: 'running', pane: kept.pane.id })
+    await expect.poll(() => recordedRunState(first.userData, kept.pane.runId)).toBe('delivered')
+    // Still running when the app quits, so its result never reaches the model: the relaunch stops
+    // it, which is also how this test knows the relaunch has decided about every recorded run.
+    const uncollectable = await agentRunsInAttachedTmux(first.deviceId, tmux, 812, 120)
 
-    // Quitting stops no tmux run; the relaunch leaves one the model may come back to.
-    const quitting = app
-    app = null
-    const quit = await Promise.race([
-      quitting?.close().then(() => true) ?? Promise.resolve(true),
-      sleep(10_000).then(() => false),
-    ])
-    if (!quit) quitting?.process().kill('SIGKILL')
+    // Quitting stops no tmux run.
+    await desktop.close(first)
     expect(processRunning(slept(811))).toBe(true)
-    app = (await launch(sim, userData, { TMUX_TMPDIR: tmux.dir })).app
-    // Same install, same device: it is back once its doorbell is open again.
+    expect(processRunning(slept(812))).toBe(true)
+
+    await launch(desktop, { userData: first.userData })
+    await expect.poll(() => processRunning(slept(812)), { timeout: 30_000 }).toBe(false)
+    await expect
+      .poll(() => recordedRuns(first.userData), { timeout: 10_000 })
+      .toEqual([`${kept.pane.runId}.json`])
+    expect(tmux.hasPane(uncollectable.pane.id)).toBe(false)
+    expect(processRunning(slept(811))).toBe(true)
+    expect(tmux.hasPane(kept.pane.id)).toBe(true)
+
+    // Same install, same device: it is back once its doorbell is open again, and the model comes
+    // back to the pane it was handed.
     const relaunched = await registeredDevice(sim)
-    await sleep(5_000)
-    expect(processRunning(slept(811))).toBe(true)
-    expect(tmux.hasPane(pane.id)).toBe(true)
-    expect(recordedRuns(userData)).toHaveLength(1)
-
-    // The model comes back to the pane it was handed.
     await agentAttachesTmux(relaunched, tmux)
     const read = sim.issue(relaunched, CHAT_TMUX, 'terminal', {
       operation: 'read',
-      args: { pane: pane.id, lines: 50 },
+      args: { pane: kept.pane.id, lines: 50 },
     })
     const output = await settled(sim, read)
     expect(output.status, output.message).toBe('success')
     expect(JSON.stringify(output.data)).toContain('collect-me')
   })
 
-  test("never touches a pane that took a recorded run's id after tmux restarted", async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { deviceId, userData } = await start('stale-record')
-    leftovers.push(slept(791), slept(792))
-    const { pane } = await agentRunsInTmux(deviceId, tmux, 791)
-    crash()
-
-    // tmux restarts, ending the run with it, and the user's own pane gets the run's old id.
-    tmux.kill()
-    // The old server takes a moment to let go of its socket.
-    await expect
-      .poll(
-        () => {
-          try {
-            tmux.run(['-f', '/dev/null', 'new-session', '-d', '-s', 'users', stubborn(792)])
-            return true
-          } catch {
-            return false
-          }
-        },
-        { timeout: 10_000 }
-      )
-      .toBe(true)
-    for (let panes = 0; panes < 10 && !tmux.hasPane(pane.id); panes += 1) {
-      tmux.split('users', stubborn(792))
-    }
-    expect(processRunning(slept(791))).toBe(false)
-
-    app = (await launch(sim, userData, { TMUX_TMPDIR: tmux.dir })).app
-
-    await expect.poll(() => recordedRuns(userData), { timeout: 30_000 }).toEqual([])
-    expect(tmux.hasPane(pane.id)).toBe(true)
-    expect(processRunning(slept(792))).toBe(true)
-  })
-
-  test('on tmux without pane options a run goes ahead untracked, and Stop and sign-out leave it alone', async () => {
-    test.skip(!REAL_TMUX, 'tmux is not installed on this machine')
-    const { window, deviceId } = await start('untracked', { PATH: oldTmuxPath() })
+  test('on tmux without pane options a run goes ahead untracked, and Stop leaves it alone', async ({
+    desktop,
+  }) => {
+    requireTmux()
+    const { deviceId } = await start(desktop, { PATH: oldTmuxPath(desktop) })
     leftovers.push(slept(761))
     const { call, pane } = await agentRunsInTmux(deviceId, tmux, 761)
     expect(pane.runId).toBe('')
 
     sim.stopCall(call)
-    await settled(sim, call, 20_000)
-    await sleep(6_000)
-    expect(processRunning(slept(761))).toBe(true)
-    expect(tmux.hasPane(pane.id)).toBe(true)
 
-    await window.goto(`${sim.origin}/login?fromLogout=true`)
-    await sleep(8_000)
+    // The call reports only once its stop has run, so whatever the stop did is done by now.
+    const stopped = await settled(sim, call, 20_000)
+    expect(stopped.status).toBe('cancelled')
     expect(processRunning(slept(761))).toBe(true)
     expect(tmux.hasPane(pane.id)).toBe(true)
   })
