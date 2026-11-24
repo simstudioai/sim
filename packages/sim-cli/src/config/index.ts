@@ -4,6 +4,7 @@ export {
   DEFAULT_OUTPUT_FORMAT,
   DEFAULT_PROFILE,
   deleteProfile,
+  explicitWorkspaceSetting,
   FORBIDDEN_IN_VALUE,
   listAuthenticationDependents,
   listProfiles,

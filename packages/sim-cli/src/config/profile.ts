@@ -9,10 +9,8 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { toRecord } from '@sim/utils/object'
+import { dirname } from 'node:path'
 import { stripTrailingSlashes } from '@sim/utils/string'
-import { SOURCE_BASE_FILE } from '@sim/workflow-code/limits'
 import { lock } from 'proper-lockfile'
 import { embeddedProfile } from '../embed-context'
 import {
@@ -160,7 +158,11 @@ export interface ResolvedProfile {
   apiKey: string | null
   oauth: StoredOAuthCredential | null
   workspaceId: string | null
-  /** The source directory whose `.sim/base.json` supplied {@link workspaceId}, when one did. */
+  /**
+   * The source directory the command runs in whose workspace {@link workspaceId} is, when that
+   * directory chose it rather than {@link sources} (set where a command's requests take their
+   * workspace, never by {@link resolveProfile}).
+   */
   workspaceDirectory?: string
   output: OutputFormat
   /**
@@ -179,14 +181,7 @@ export interface ResolvedProfile {
   }
 }
 
-export type SettingSource =
-  | 'flag'
-  | 'env'
-  | 'directory'
-  | 'config'
-  | 'credentials'
-  | 'default'
-  | 'unset'
+export type SettingSource = 'flag' | 'env' | 'config' | 'credentials' | 'default' | 'unset'
 
 export interface ProfileOverrides {
   profile?: string
@@ -194,12 +189,6 @@ export interface ProfileOverrides {
   apiKey?: string
   workspaceId?: string
   output?: OutputFormat
-  /**
-   * Where the command runs. The nearest source directory at or above it supplies the workspace
-   * its `.sim/base.json` was read from when neither `--workspace` nor `SIM_WORKSPACE` names one.
-   * Left out by a command that stores the resolved workspace as the profile's own (`sim login`).
-   */
-  cwd?: string
   /**
    * Skips the "does this profile exist?" check for the two commands that
    * legitimately name a profile before it exists — `sim login --profile x` and
@@ -686,11 +675,20 @@ export function normalizeWorkspaceId(workspaceId: string, source: string): strin
 }
 
 /**
+ * The setting that named a profile's workspace explicitly, `--workspace` or `SIM_WORKSPACE`, or
+ * `null` when it came from the profile or nowhere: only these outrank the source directory a
+ * command runs in or acts on.
+ */
+export function explicitWorkspaceSetting(profile: Pick<ResolvedProfile, 'sources'>): string | null {
+  const source = profile.sources.workspaceId
+  return source === 'flag' ? '--workspace' : source === 'env' ? 'SIM_WORKSPACE' : null
+}
+
+/**
  * Resolves one setting through the precedence chain, reporting where it landed.
  * Order is flags → environment → files → built-in default, the same order every
  * profile-based CLI uses: the more specific and more ephemeral the source, the
- * higher it wins. The workspace adds the source directory the command runs in
- * between the environment and the files.
+ * higher it wins.
  */
 function resolve<T>(
   candidates: Array<[SettingSource, T | null | undefined]>,
@@ -701,30 +699,6 @@ function resolve<T>(
     if (value !== null && value !== undefined && value !== '') return { value, source }
   }
   return { value: fallback, source: fallbackSource }
-}
-
-/**
- * The workspace the nearest source directory at or above `cwd` was read from: the first
- * directory up the tree holding a `.sim/base.json` decides, so a workflow folder of a workspace
- * directory takes the workspace directory's. A base without a usable `workspaceId` supplies none
- * rather than letting a directory further up speak for it.
- */
-function sourceDirectoryWorkspace(cwd: string): { workspaceId: string; dir: string } | null {
-  for (let dir = cwd; ; dir = dirname(dir)) {
-    const basePath = join(dir, SOURCE_BASE_FILE)
-    if (existsSync(basePath)) {
-      let workspaceId: unknown
-      try {
-        workspaceId = toRecord(JSON.parse(readFileSync(basePath, 'utf8'))).workspaceId
-      } catch {
-        return null
-      }
-      if (typeof workspaceId !== 'string') return null
-      const trimmed = workspaceId.trim()
-      return trimmed && !FORBIDDEN_IN_VALUE.test(trimmed) ? { workspaceId: trimmed, dir } : null
-    }
-    if (dirname(dir) === dir) return null
-  }
 }
 
 /** The root flag each override arrives from, for the refusal below to name. */
@@ -811,14 +785,10 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     )
   }
 
-  const explicitWorkspace = overrides.workspaceId || process.env.SIM_WORKSPACE
-  const directory =
-    !explicitWorkspace && overrides.cwd ? sourceDirectoryWorkspace(overrides.cwd) : null
   const workspaceId = resolve<string>(
     [
       ['flag', overrides.workspaceId],
       ['env', process.env.SIM_WORKSPACE],
-      ['directory', directory?.workspaceId],
       ['config', config.workspace],
     ],
     null,
@@ -847,7 +817,6 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
     apiKey: apiKey.value,
     oauth,
     workspaceId: workspaceId.value,
-    ...(directory ? { workspaceDirectory: directory.dir } : {}),
     output: output.value as OutputFormat,
     sources: {
       endpoint: endpoint.source,

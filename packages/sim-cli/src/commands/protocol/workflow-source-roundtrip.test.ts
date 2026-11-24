@@ -39,6 +39,7 @@ vi.mock('../../context', async () => {
   return {
     globalsOf: () => ({}),
     profileFrom: () => profile,
+    actingProfileFrom: () => profile,
     clientFrom: () => ({ client: new SimClient(profile), profile }),
   }
 })

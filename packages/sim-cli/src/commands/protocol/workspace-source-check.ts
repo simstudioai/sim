@@ -3,7 +3,7 @@ import { toRecord } from '@sim/utils/object'
 import { KIND_DIRS, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { WORKSPACE_BASE_FILE } from '@sim/workspace-code/layout'
 import type { Command } from 'commander'
-import { profileFrom } from '../../context'
+import { actingProfileFrom } from '../../context'
 import { AUTH_REQUIRED_EXIT_CODE } from '../../exit-codes'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
 import { CliUsageError, SourceDirError } from './local-errors'
@@ -110,7 +110,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
         options: { dir: string; verbose?: boolean } & StrictOptions & TypesOptions,
         command: Command
       ) => {
-        const profile = profileFrom(command)
+        const profile = actingProfileFrom(command)
         const base = toRecord(await readSourceJson(options.dir, WORKSPACE_BASE_FILE))
         await assertWorkspaceDir(options.dir)
         const workspaceId = directoryWorkspace(
@@ -139,6 +139,7 @@ export function attachWorkspaceSourceCheck(source: Command): void {
               {
                 declarations,
                 strict: strictMode(options),
+                key,
                 prefix: `${KIND_DIRS.workflow}/${key}/`,
               }
             )

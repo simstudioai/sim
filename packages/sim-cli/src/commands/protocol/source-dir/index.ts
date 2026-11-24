@@ -16,6 +16,8 @@ export {
   absoluteDirOption,
   assertSourceDirKind,
   directoryWorkspace,
+  enclosingWorkspace,
+  type NamedWorkspace,
   readStarterWorkspace,
   recordedWorkspace,
   workspaceFolderOf,

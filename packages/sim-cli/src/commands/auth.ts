@@ -106,7 +106,6 @@ function presentAuthentication(source: SettingSource): {
       return { configured: true, source: 'credentials' }
     case 'unset':
       return { configured: false, source: 'unset' }
-    case 'directory':
     case 'config':
     case 'default':
       throw new SimApiError(`Unexpected credential source "${source}".`, 0)
@@ -572,11 +571,8 @@ export function loginCommand(): Command {
     .option('--callback-port <port>', 'Pin the local port the browser returns to')
     .option('-y, --yes', 'Overwrite an existing API-key profile without prompting')
     .action(async (options: LoginOptions, command: Command) => {
-      /**
-       * Login may name the profile it is about to create. It stores the workspace the key defaults
-       * to as the profile's, so a source directory it runs in must not choose that workspace.
-       */
-      const profile = profileFrom(command, { allowUnknownProfile: true, cwd: undefined })
+      /** Login may name the profile it is about to create. */
+      const profile = profileFrom(command, { allowUnknownProfile: true })
       const authProfile = resolveAuthenticationProfileName(profile.name)
 
       if (authProfile !== profile.name) {
@@ -1144,7 +1140,7 @@ export function whoamiCommand(): Command {
           sources: {
             endpoint: sources.endpoint,
             authentication: authentication.source,
-            workspaceId: sources.workspaceId,
+            workspaceId: profile.workspaceDirectory ? 'directory' : sources.workspaceId,
             output: sources.output,
           },
           verification: {

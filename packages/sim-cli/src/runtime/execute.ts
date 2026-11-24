@@ -419,14 +419,13 @@ function foldOtherSpellings(
 function withSearchedWorkspace(error: unknown, profile: ResolvedProfile): unknown {
   if (!(error instanceof SimApiError) || error.status !== 404 || !profile.workspaceId) return error
   const source = profile.sources.workspaceId
-  const from =
-    source === 'env'
+  const from = profile.workspaceDirectory
+    ? `, the workspace of the source directory ${safeOneLine(profile.workspaceDirectory)}; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+    : source === 'env'
       ? ', from SIM_WORKSPACE; pass -w <workspaceId> to search another'
-      : source === 'directory'
-        ? `, the workspace of the source directory ${safeOneLine(profile.workspaceDirectory ?? '')}; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
-        : source === 'config'
-          ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
-          : ''
+      : source === 'config'
+        ? `, the workspace of profile "${safeOneLine(profile.name)}"; pass -w <workspaceId> or set SIM_WORKSPACE to search another`
+        : ''
   const searched = `searched workspace ${safeOneLine(profile.workspaceId)}${from}`
   return new SimApiError(
     `${error.message} (${searched})`,

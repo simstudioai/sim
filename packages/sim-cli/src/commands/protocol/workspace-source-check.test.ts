@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
 import { cacheCatalogText } from '../../test/catalog-cache'
 import { contextMockFns, mockedProfile } from '../../test/context-mock'
-import { storedEdgesWrite } from './stored-edges'
+import { folderChildResults } from './source-check'
+import { storedEdgesWrite, workflowFolderRecords } from './stored-edges'
 import { attachWorkspaceSourceCheck } from './workspace-source-check'
 
 vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
@@ -608,61 +609,90 @@ describe('sim workspaces source check', () => {
     ])
   })
 
-  it("counts a block the get printed as unchanged while a child's Response data types its call", async () => {
-    writeFile(
-      'workflows/normalize-phone/workflow.ts',
-      workflowFile(
+  it.each(['a workspace get', 'a workflow get into its folder'])(
+    "counts a block the get printed as unchanged while a child's Response data types its call, after %s",
+    async (get) => {
+      const child = workflowFile(
         "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
         "const reply = response('Reply', { body: { mobile: start.phone } })",
         'start.to(reply)'
       )
-    )
-    const printed = workflowFile(
-      "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
-      "const each = loop.for('Each', { count: 2 }, (p) => {",
-      "  const inner = fn('Inner', { code: 'return 1' })",
-      '  p.to(inner)',
-      '})',
-      "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
-      "const reply = response('Reply', { body: { mobile: call.result.data.mobile, at: '<loop.index>' } })",
-      'start.to(each)',
-      'each.to(call)',
-      'call.to(reply)'
-    )
-    const lock = {
-      version: 1,
-      blocks: Object.fromEntries(
-        ['start', 'each', 'inner', 'call', 'reply'].map((key, order) => [
-          key,
-          { id: `id-${key}`, parent: key === 'inner' ? 'each' : null, ident: key, order },
-        ])
-      ),
-      variables: {},
-    }
-    const base = {
-      version: 1,
-      workflowId: 'wf-parent',
-      workspaceId: WORKSPACE_ID,
-      fingerprint: 'sf1:a',
-      catalogHash: 'fixture',
-    }
-    writeFile('workflows/parent/workflow.ts', printed)
-    writeFile('workflows/parent/.sim/lock.json', JSON.stringify(lock))
-    writeFile('workflows/parent/.sim/base.json', JSON.stringify(base))
-    const record = storedEdgesWrite(
-      { files: { 'workflow.ts': printed }, lock, base },
-      JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
-    )
-    if (!record) throw new Error('no stored-edges record')
-    writeFile(`workflows/parent/${record[0]}`, record[1])
+      const printed = workflowFile(
+        "const start = trigger.start('Start', { inputFormat: { phone: 'string' } })",
+        "const each = loop.for('Each', { count: 2 }, (p) => {",
+        "  const inner = fn('Inner', { code: 'return 1' })",
+        '  p.to(inner)',
+        '})',
+        "const call = runWorkflow('Call', { workflowId: childWorkflow('normalize-phone'), inputMapping: { phone: start.phone } })",
+        "const reply = response('Reply', { body: { mobile: call.result.data.mobile, at: '<loop.index>' } })",
+        'start.to(each)',
+        'each.to(call)',
+        'call.to(reply)'
+      )
+      const lockOf = (keys: string[]) => ({
+        version: 1,
+        blocks: Object.fromEntries(
+          keys.map((key, order) => [
+            key,
+            { id: `id-${key}`, parent: key === 'inner' ? 'each' : null, ident: key, order },
+          ])
+        ),
+        variables: {},
+      })
+      const baseOf = (workflowId: string) => ({
+        version: 1,
+        workflowId,
+        workspaceId: WORKSPACE_ID,
+        fingerprint: 'sf1:a',
+        catalogHash: 'fixture',
+      })
+      const folders = {
+        'normalize-phone': {
+          text: child,
+          lock: lockOf(['start', 'reply']),
+          base: baseOf('wf-child'),
+        },
+        parent: {
+          text: printed,
+          lock: lockOf(['start', 'each', 'inner', 'call', 'reply']),
+          base: baseOf('wf-parent'),
+        },
+      }
+      const files: Record<string, string> = {}
+      for (const [key, folder] of Object.entries(folders)) {
+        files[`workflows/${key}/workflow.ts`] = folder.text
+        files[`workflows/${key}/.sim/lock.json`] = JSON.stringify(folder.lock)
+        files[`workflows/${key}/.sim/base.json`] = JSON.stringify(folder.base)
+      }
+      for (const [path, text] of Object.entries(files)) writeFile(path, text)
+      const catalog = JSON.parse(readFileSync(FIXTURE_CATALOG, 'utf8'))
+      if (get === 'a workspace get') {
+        const { records } = await workflowFolderRecords(
+          contextMockFns.mockClientFrom().client as never,
+          WORKSPACE_ID,
+          catalog,
+          files
+        )
+        for (const [path, text] of records) writeFile(path, text)
+      } else {
+        const folder = join(dir, 'workflows', 'parent')
+        const record = storedEdgesWrite(
+          { files: { 'workflow.ts': printed }, ...folders.parent },
+          catalog,
+          await folderChildResults(folder)
+        )
+        if (!record) throw new Error('no stored-edges record')
+        writeFile(`workflows/parent/${record[0]}`, record[1])
+      }
 
-    await check()
+      await check()
 
-    const findings = stdoutJson().diagnostics as Array<Record<string, unknown>>
-    expect(findings.filter((finding) => String(finding.code).includes('OUT_OF_SCOPE'))).toEqual([
-      expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning' }),
-    ])
-  })
+      const findings = stdoutJson().diagnostics as Array<Record<string, unknown>>
+      expect(findings.filter((finding) => String(finding.code).includes('OUT_OF_SCOPE'))).toEqual([
+        expect.objectContaining({ code: 'W_REF_OUT_OF_SCOPE', severity: 'warning' }),
+      ])
+    }
+  )
 
   it("checks the cookbook example's table writes clean against the cookbook workspace's tables", async () => {
     for (const [path, text] of Object.entries(WORKSPACE_COOKBOOK)) writeFile(path, text)

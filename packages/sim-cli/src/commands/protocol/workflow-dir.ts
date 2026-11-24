@@ -48,7 +48,7 @@ import {
   WORKSPACE_TYPES_FILE,
   type WorkspaceTypes,
 } from './source-tree'
-import { storedEdgesWrite } from './stored-edges'
+import { type ChildResults, storedEdgesWrite } from './stored-edges'
 
 type SourceBase = ApplyWorkflowSourceBody['base']
 
@@ -289,7 +289,8 @@ async function writeSourceTree(
   source: PrintedSource,
   catalog: BlockCatalog,
   workspaceTypes: WorkspaceTypes | null,
-  blockTypes: readonly string[]
+  blockTypes: readonly string[],
+  childResults: ChildResults | undefined
 ): Promise<SourceTree> {
   const [previousLock, tree] = await Promise.all([
     readPreviousLock(dir),
@@ -298,7 +299,7 @@ async function writeSourceTree(
       blockTypes,
     }),
   ])
-  const edges = storedEdgesWrite(source, catalog)
+  const edges = storedEdgesWrite(source, catalog, childResults)
   const written = await writeBack(
     dir,
     source,
@@ -359,13 +360,15 @@ export async function writeSourceScaffold(
  * Writes a printed source with everything that makes the directory editable: the declarations
  * for the workspace catalog and its resources, `tsconfig.json`, the agent guide and the LF lines.
  * Shared by `get --dir` and `create --dir`, so a created workflow's directory is the one a get
- * would have written.
+ * would have written. `childResults` type its calls as the server printed them
+ * (`folderChildResults` of `dir`).
  */
 export async function writeSourceDirectory(
   client: OperationClient<'getSourceCatalog' | 'getSourceResources'>,
   dir: string,
   source: PrintedSource,
-  blockTypes: readonly string[]
+  blockTypes: readonly string[],
+  childResults: ChildResults | undefined
 ): Promise<SourceTree> {
   const [catalog, workspaceTypes] = await Promise.all([
     loadCatalog(client, {
@@ -377,7 +380,7 @@ export async function writeSourceDirectory(
     loadWorkspaceTypes(client, source.workspaceId),
   ])
   assertSdkMajor(catalog)
-  return writeSourceTree(dir, source, catalog, workspaceTypes, blockTypes)
+  return writeSourceTree(dir, source, catalog, workspaceTypes, blockTypes, childResults)
 }
 
 /**
