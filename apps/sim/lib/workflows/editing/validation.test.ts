@@ -505,7 +505,13 @@ describe('validateInputsForBlock', () => {
     it('refuses sim-auto, evaluation models, unknown models, missing models, and non-arrays', () => {
       expect(validate([{ model: 'sim-auto' }]).valid).toBe(false)
       expect(validate([{ model: 'jev-latest' }]).valid).toBe(false)
-      expect(validate([{ model: 'definitely-not-a-model-9000' }]).valid).toBe(false)
+      // An unclaimed Ollama-shaped name is a possible local model wherever Ollama is reachable.
+      setEnvFlags({ isHosted: true })
+      try {
+        expect(validate([{ model: 'definitely-not-a-model-9000' }]).valid).toBe(false)
+      } finally {
+        setEnvFlags({ isHosted: false })
+      }
       expect(validate([{ apiKey: '{{KEY}}' }]).valid).toBe(false)
       expect(validate({ model: 'claude-sonnet-5' }).valid).toBe(false)
     })

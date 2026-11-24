@@ -147,3 +147,42 @@ describe('model ids no provider declares', () => {
     expect(errors[0]?.error).toContain('Unknown model id')
   })
 })
+
+describe('fallback model rows', () => {
+  function validateFallback(blockType: string, model: string) {
+    const result = validateInputsForBlock(
+      blockType,
+      { fallbackModels: [{ id: 'row-1', model }] },
+      `${blockType}-1`
+    )
+    return { errors: result.errors, rows: result.validInputs.fallbackModels }
+  }
+
+  it.each(['agent', 'router_v2', 'evaluator'])(
+    'accepts an installed Ollama model on %s where Ollama is reachable, as the model field does',
+    (blockType) => {
+      const { errors, rows } = validateFallback(blockType, 'mistral:latest')
+      expect(errors).toEqual([])
+      expect(rows).toEqual([expect.objectContaining({ model: 'mistral:latest' })])
+    }
+  )
+
+  it('rejects it on hosted Sim with no Ollama', () => {
+    setEnvFlags({ isHosted: true })
+    const { errors } = validateFallback('agent', 'mistral:latest')
+    expect(errors[0]?.error).toContain('unknown model id "mistral:latest"')
+  })
+
+  it('rejects it when the Ollama provider is blacklisted', () => {
+    envFlagsMockFns.getBlacklistedProvidersFromEnv.mockReturnValue(['ollama'])
+    const { errors } = validateFallback('agent', 'mistral:latest')
+    expect(errors[0]?.error).toContain('unknown model id "mistral:latest"')
+  })
+
+  it('still rejects sim-auto and free text', () => {
+    expect(validateFallback('agent', 'sim-auto').errors[0]?.error).toContain('sim-auto')
+    expect(validateFallback('agent', 'best available model').errors[0]?.error).toContain(
+      'unknown model id'
+    )
+  })
+})
