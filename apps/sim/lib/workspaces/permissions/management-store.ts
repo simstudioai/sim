@@ -18,7 +18,7 @@ import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
-import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
+import { assertWorkspaceAccessNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
 
@@ -309,13 +309,17 @@ export async function updateWorkspacePermissionRecords(
         lockedMembers.filter((row) => isOrgAdminRole(row.role)).map((row) => row.userId)
       )
       /**
-       * A directory that owns membership also owns the workspace role it set,
-       * so the change is refused here for the same reason an invitation is:
-       * the next sync would revert it. Checked under the member lock so a
-       * connection enabled mid-request cannot slip a change past it.
+       * A role the directory sets through one of the member's mapped groups is
+       * refused here for the same reason an invitation is: the next sync would
+       * revert it.
        */
       for (const userId of targetUserIds) {
-        await assertMembershipNotScimManaged({ organizationId, userId, executor: tx })
+        await assertWorkspaceAccessNotScimManaged({
+          organizationId,
+          userId,
+          workspaceIds: [workspaceId],
+          executor: tx,
+        })
       }
     }
 

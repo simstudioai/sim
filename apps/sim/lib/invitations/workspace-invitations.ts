@@ -54,6 +54,8 @@ import { validateInvitationsAllowed } from '@/ee/access-control/utils/permission
 import { isScimDeploymentEnabled } from '@/ee/scim/lib/entitlement'
 import {
   assertInviteeNotScimManaged,
+  assertMembershipNotScimManaged,
+  assertWorkspaceAccessNotScimManaged,
   scimManagedUserPredicate,
 } from '@/ee/scim/lib/managed-membership'
 
@@ -178,6 +180,10 @@ async function ensureExistingMemberOrganizationRole({
         status: 409,
         email,
       })
+    }
+    /** The directory owns a provisioned member's organization role. */
+    if (needsPromotion) {
+      await assertMembershipNotScimManaged({ organizationId, userId, executor: tx })
     }
     for (const workspaceId of context.targets.map((target) => target.workspaceId).sort()) {
       const workspaceDetails = await getWorkspaceWithOwner(workspaceId, {
@@ -563,17 +569,23 @@ export async function createWorkspaceInvitation({
     .where(eq(foldedEmail(user.email), normalizedEmail))
     .then((rows) => rows[0])
 
+  const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
+  const isExistingMember =
+    organizationId !== null && existingMembership?.organizationId === organizationId
+
   /**
    * When the organization has made its identity provider the source of truth for
-   * membership, a Sim invitation to someone the directory already provisions is
-   * redundant at best and reverted at worst. Read as part of the lookup above so
-   * the common case costs no extra query.
+   * membership, an invitation that would add someone the directory provisions to
+   * the organization is reverted by the next sync. Read as part of the lookup
+   * above so the common case costs no extra query. A provisioned member who
+   * already belongs is checked per workspace below, before any grant is written.
    */
   if (organizationId) {
-    await assertInviteeNotScimManaged({ organizationId, managed: existingUser?.scimManaged })
+    await assertInviteeNotScimManaged({
+      organizationId,
+      managed: existingUser?.scimManaged && !isExistingMember,
+    })
   }
-
-  const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
   let existingOrganizationRole = existingMembership?.role
   let organizationRoleUpdated = false
   if (
@@ -600,10 +612,7 @@ export async function createWorkspaceInvitation({
 
   let pendingTargets = context.targets
   if (existingUser) {
-    const inheritsWorkspaceAdmin =
-      organizationId !== null &&
-      existingMembership?.organizationId === organizationId &&
-      isOrgAdminRole(existingOrganizationRole)
+    const inheritsWorkspaceAdmin = isExistingMember && isOrgAdminRole(existingOrganizationRole)
     const accessibleRows = await db
       .select({ workspaceId: permissions.entityId, permission: permissions.permissionType })
       .from(permissions)
@@ -635,11 +644,7 @@ export async function createWorkspaceInvitation({
       (target) => !accessibleWorkspaceIds.has(target.workspaceId)
     )
     if (pendingTargets.length === 0) {
-      if (
-        existingAccessPolicy === 'ensure-at-least' &&
-        organizationId &&
-        existingMembership?.organizationId === organizationId
-      ) {
+      if (existingAccessPolicy === 'ensure-at-least' && isExistingMember) {
         return {
           id: existingUser.id,
           email: normalizedEmail,
@@ -663,7 +668,20 @@ export async function createWorkspaceInvitation({
      * Already in this organization: they hold a seat, so grant access directly
      * with no invitation or acceptance step.
      */
-    if (organizationId && existingMembership?.organizationId === organizationId) {
+    if (organizationId && isExistingMember) {
+      /**
+       * Refuse up front when any selected workspace's access is directory-owned,
+       * so a multi-workspace invite does not grant some and then fail. Each grant
+       * rechecks under its own locks.
+       */
+      if (existingUser.scimManaged) {
+        await assertWorkspaceAccessNotScimManaged({
+          organizationId,
+          userId: existingUser.id,
+          workspaceIds: pendingTargets.map((target) => target.workspaceId),
+          executor: db,
+        })
+      }
       let outcome: DirectGrantOutcome['outcome'] = organizationRoleUpdated ? 'updated' : 'unchanged'
       const grantedWorkspaceIds: string[] = []
       for (const target of pendingTargets) {
