@@ -135,6 +135,16 @@ describe('the SDK layout', () => {
     expect(index).not.toContain("import './blocks/slack'\n")
   })
 
+  it("names the params a special builder's core.d.ts declaration adds on its params type", () => {
+    const human = generateSdkTypes(loadCatalog()).find(
+      (file) => file.path === 'blocks/human_in_the_loop_v2.d.ts'
+    )
+
+    expect(human?.text).toMatch(
+      /\/\*\*[^/]*`inputFormat`[^/]*core\.d\.ts[^/]*\*\/\nexport type HumanParams = \{/
+    )
+  })
+
   it('lists the operations of a block in its namespace doc comment', () => {
     const slack = generateSdkTypes(loadCatalog()).find(
       (file) => file.path === 'blocks/slack_v2.d.ts'

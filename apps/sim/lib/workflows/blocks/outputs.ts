@@ -156,7 +156,7 @@ const CHAT_OUTPUTS: OutputDefinition = {
   files: { type: 'file[]', description: 'Uploaded files' },
 }
 
-const START_RUN_METADATA_OUTPUT = {
+const START_RUN_METADATA_OUTPUT: OutputFieldDefinition = {
   type: 'json',
   description: 'Trusted run metadata (server-injected)',
   properties: {
@@ -201,7 +201,7 @@ const START_RUN_METADATA_OUTPUT = {
     executionMode: { type: 'string', description: 'Execution mode: sync, stream, or async' },
     startTime: { type: 'string', description: 'ISO timestamp when the execution started' },
   },
-} as OutputFieldDefinition
+}
 
 function applyInputFormatFields(
   inputFormat: InputFormatField[],

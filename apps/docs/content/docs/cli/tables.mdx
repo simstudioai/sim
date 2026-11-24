@@ -68,7 +68,7 @@ sim tables create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Identifier: letters, numbers, and underscores; cannot start with a number. |
 | `--description <value>` | No | Optional table description. |
-| `--schema <json\|@file>` | Yes | Table schema: &#123;"columns":[&#123;"name":"email","type":"string"&#125;]&#125; (JSON, or @path / @- to read a file or stdin). |
+| `--schema <json\|@file>` | Yes | Initial table column definitions: &#123;"columns":[&#123;"name":"email","type":"string"&#125;]&#125;. A column's type: string, number, currency, boolean, date, json, select (a select column takes options). (JSON, or @path / @- to read a file or stdin). |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
@@ -624,7 +624,7 @@ sim tables columns create <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--column <json\|@file>` | Yes | Column definition to add. (JSON, or @path / @- to read a file or stdin). |
+| `--column <json\|@file>` | Yes | Column definition to add: &#123;"name":"status","type":"string"&#125;. type: string, number, currency, boolean, date, json, select (a select column takes options). (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 

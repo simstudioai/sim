@@ -146,4 +146,18 @@ export default workflow('Sync', {}, () => {
       "Save the token as a workspace credential and write credential: credential('<key>'), so the token never sits in the workflow."
     )
   })
+
+  it("names a table row's members when a cell is read off the row instead of its data", () => {
+    const result = compile(
+      probe('text: t`Answer: ${ask.content}`', 'text: t`Tier: ${save.row.tier}`')
+    )
+    expect(findings(result)).toEqual(['W_UNKNOWN_OUTPUT_PATH 21: Save has no output row.tier.'])
+    expect(only(result, 'W_UNKNOWN_OUTPUT_PATH')?.hint).toBe(
+      'row holds: id, data, position, createdAt, updatedAt.'
+    )
+    const cell = compile(
+      probe('text: t`Answer: ${ask.content}`', 'text: t`Tier: ${save.row.data.tier}`')
+    )
+    expect(findings(cell)).toEqual([])
+  })
 })

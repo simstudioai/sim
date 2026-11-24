@@ -32001,7 +32001,7 @@
         },
         "row": {
           "type": "json",
-          "description": "Single row data",
+          "description": "The row: its cells are row.data.<column name>",
           "condition": {
             "field": "operation",
             "value": [
@@ -32010,6 +32010,28 @@
               "upsert_row",
               "update_row"
             ]
+          },
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Row ID"
+            },
+            "data": {
+              "type": "json",
+              "description": "The row’s cells, keyed by column name"
+            },
+            "position": {
+              "type": "number",
+              "description": "Row position in the table"
+            },
+            "createdAt": {
+              "type": "string",
+              "description": "ISO timestamp when the row was created"
+            },
+            "updatedAt": {
+              "type": "string",
+              "description": "ISO timestamp when the row was last updated"
+            }
           }
         },
         "operation": {
@@ -32022,13 +32044,38 @@
         },
         "rows": {
           "type": "array",
-          "description": "Array of rows",
+          "description": "The rows: a cell is rows[i].data.<column name>",
           "condition": {
             "field": "operation",
             "value": [
               "query_rows",
               "batch_insert_rows"
             ]
+          },
+          "items": {
+            "type": "json",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Row ID"
+              },
+              "data": {
+                "type": "json",
+                "description": "The row’s cells, keyed by column name"
+              },
+              "position": {
+                "type": "number",
+                "description": "Row position in the table"
+              },
+              "createdAt": {
+                "type": "string",
+                "description": "ISO timestamp when the row was created"
+              },
+              "updatedAt": {
+                "type": "string",
+                "description": "ISO timestamp when the row was last updated"
+              }
+            }
           }
         },
         "rowCount": {

@@ -69,7 +69,9 @@ Edges:
   connections maps a source handle to its targets: {"source":"<id>"}, {"source":["<a>","<b>"]},
   or {"source":{"block":"<id>","handle":"<target handle>"}}; "success" is an alias of "source".
   An add's connections create the new block's edges. An edit's connections REPLACE every
-  outgoing edge of that block, on every handle: list again each edge to keep.
+  outgoing edge of that block, on every handle: list again each edge to keep; {} removes them all.
+  A block moved into or out of a loop or parallel (parentId) loses every edge that would cross the
+  container's boundary: to leave the loop, wire its loop-end-source (parallel-end-source).
   To remove one edge, edit its source block with
   {"removeEdges":[{"targetBlockId":"<id>","sourceHandle":"source"}]} (sourceHandle defaults to
   "source").
@@ -82,12 +84,14 @@ Source handles:
   parallel-start-source, parallel-end-source  the same for a parallel
 Renames:
   An edit's {"name":"New name"} also rewrites every <old key.field> reference to the block, in
-  other blocks' inputs and in a loop's or parallel's collection and condition.
+  other blocks' inputs and in a loop's or parallel's collection and condition. Edits run after the
+  batch's adds, so a block added in the same batch is rewritten too.
 Inputs:
   inputs takes the field ids \`sim blocks get <type>\` lists (inputSchema, operationInputSchema),
   or the name a pair of them shares (inputDefinitions: tableId for tableSelector and
   manualTableId; a string goes to the typed field). Add the type it answers with: \`blocks get
-  table\` answers table_v2, and an add of legacy table is refused.
+  table\` answers table_v2, and an add of legacy table is refused. An edit's inputs replace each
+  field they name whole (a responseFormat schema too) and keep the fields they do not name.
   conditions (condition): [{"title":"if","value":"<start.n> > 3"},{"title":"else if","value":"…"},
   {"title":"else","value":""}]; the last entry is the else. Each entry's id comes from its
   position (<block id>-if, <block id>-else-if-0, …, <block id>-else): an id you pass is replaced.
@@ -96,14 +100,16 @@ Inputs:
 Block settings, beside inputs in an add's or edit's params:
   "retry":{"enabled":true,"maxTries":3,"waitBetweenTriesMs":1000} retries a failed block; null
   clears it. An api block's retries input repeats the request after a timeout, reset, 429 or
-  5xx, not when the host does not resolve or refuses the connection; "retry" covers that.
+  5xx, not when the host does not resolve or refuses the connection; "retry" covers that. They
+  nest: every try of "retry" runs the request with its retries.
 Outputs:
   A block that fails outputs {"error":"<message>"}: connect its error handle and read
   <name.error> there (without one, the run fails). A Function's error leads with the line and
   code that threw; its <name.errorMessage> is the thrown message alone, the one to reply with.
   A Workflow block's result is the child's
   output; a child ending in a Response block gives {data, status, headers}, so read
-  <call.result.data.x>.
+  <call.result.data.x>. A Table block's row holds its cells under data: read a cell as
+  <name.row.data.column> (<name.rows[0].data.column>).
 References:
   Inside a loop or parallel body read <loop.currentItem> and <loop.index>, or
   <parallel.currentItem> and <parallel.index>; after it, <name.results>. A reference to a block
@@ -917,10 +923,7 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       name: { describe: TABLE_NAME_HELP },
       folderPath: FOLDER_PATH_FLAG,
-      schema: {
-        json: true,
-        describe: 'Table schema: {"columns":[{"name":"email","type":"string"}]}',
-      },
+      schema: { json: true },
     },
   },
   updateTable: {

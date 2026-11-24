@@ -22253,11 +22253,47 @@
                     "properties": {
                       "type": {
                         "type": "string",
-                        "description": "Value type of the output."
+                        "description": "Value type of the output field."
                       },
                       "description": {
-                        "description": "What the output holds.",
+                        "description": "What the field holds.",
                         "type": "string"
+                      },
+                      "properties": {
+                        "description": "Members of an object-typed output, keyed by field name.",
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "Nested output field, in this same shape."
+                        }
+                      },
+                      "items": {
+                        "description": "Element shape of an array-typed output.",
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "Element value type."
+                          },
+                          "description": {
+                            "description": "What an element holds.",
+                            "type": "string"
+                          },
+                          "properties": {
+                            "description": "Members of an object-typed element, keyed by field name.",
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "description": "Nested output field, in this same shape."
+                            }
+                          }
+                        },
+                        "required": ["type"],
+                        "additionalProperties": false
                       }
                     },
                     "required": ["type"],
@@ -22381,11 +22417,47 @@
               "properties": {
                 "type": {
                   "type": "string",
-                  "description": "Value type of the output."
+                  "description": "Value type of the output field."
                 },
                 "description": {
-                  "description": "What the output holds.",
+                  "description": "What the field holds.",
                   "type": "string"
+                },
+                "properties": {
+                  "description": "Members of an object-typed output, keyed by field name.",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "description": "Nested output field, in this same shape."
+                  }
+                },
+                "items": {
+                  "description": "Element shape of an array-typed output.",
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Element value type."
+                    },
+                    "description": {
+                      "description": "What an element holds.",
+                      "type": "string"
+                    },
+                    "properties": {
+                      "description": "Members of an object-typed element, keyed by field name.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "description": "Nested output field, in this same shape."
+                      }
+                    }
+                  },
+                  "required": ["type"],
+                  "additionalProperties": false
                 }
               },
               "required": ["type"],

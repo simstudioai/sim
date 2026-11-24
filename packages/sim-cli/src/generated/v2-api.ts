@@ -7598,6 +7598,12 @@ type GetBlockResponseRef6 = {
       {
         type: string
         description?: string
+        properties?: Record<string, unknown>
+        items?: {
+          type: string
+          description?: string
+          properties?: Record<string, unknown>
+        }
       }
     >
     configFields: Record<
@@ -7630,6 +7636,12 @@ type GetBlockResponseRef6 = {
     {
       type: string
       description?: string
+      properties?: Record<string, unknown>
+      items?: {
+        type: string
+        description?: string
+        properties?: Record<string, unknown>
+      }
     }
   >
 }
@@ -20640,7 +20652,12 @@ export const V2_OPERATIONS = {
     summary: 'Add column',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
-      column: { kind: 'object', required: true, describe: 'Column definition to add.' },
+      column: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Column definition to add: {"name":"status","type":"string"}. type: string, number, currency, boolean, date, json, select (a select column takes options).',
+      },
     },
   },
   addWorkflowGroup: {
@@ -22219,7 +22236,12 @@ export const V2_OPERATIONS = {
       name: { kind: 'string', required: true, describe: 'Table name.' },
       description: { kind: 'string', describe: 'Optional table description.' },
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
-      schema: { kind: 'object', required: true, describe: 'Initial table column definitions.' },
+      schema: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. A column\'s type: string, number, currency, boolean, date, json, select (a select column takes options).',
+      },
       folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },
   },

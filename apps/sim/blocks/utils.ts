@@ -942,6 +942,37 @@ export const TABLE_IGNORED_COLUMNS_OUTPUT = {
   },
 } satisfies OutputFieldDefinition
 
+/**
+ * One row as the Table blocks output it (`presentNamedTableRow` in
+ * `lib/internal/table/presentation.ts`): its cells sit under `data`, keyed by column name.
+ */
+const TABLE_ROW_PROPERTIES = {
+  id: { type: 'string', description: 'Row ID' },
+  data: { type: 'json', description: 'The row’s cells, keyed by column name' },
+  position: { type: 'number', description: 'Row position in the table' },
+  createdAt: { type: 'string', description: 'ISO timestamp when the row was created' },
+  updatedAt: { type: 'string', description: 'ISO timestamp when the row was last updated' },
+} satisfies Record<string, OutputFieldDefinition>
+
+/** The `row` output of the Table blocks: a cell reads as `row.data.<column>`. */
+export const TABLE_ROW_OUTPUT = {
+  type: 'json',
+  description: 'The row: its cells are row.data.<column name>',
+  condition: {
+    field: 'operation',
+    value: ['get_row', 'insert_row', 'upsert_row', 'update_row'],
+  },
+  properties: TABLE_ROW_PROPERTIES,
+} satisfies OutputFieldDefinition
+
+/** The `rows` output of the Table blocks: a cell reads as `rows[i].data.<column>`. */
+export const TABLE_ROWS_OUTPUT = {
+  type: 'array',
+  description: 'The rows: a cell is rows[i].data.<column name>',
+  condition: { field: 'operation', value: ['query_rows', 'batch_insert_rows'] },
+  items: { type: 'json', properties: TABLE_ROW_PROPERTIES },
+} satisfies OutputFieldDefinition
+
 /** Block input entry for {@link TABLE_OUTPUT_COLUMNS_SUBBLOCK}. */
 export const TABLE_OUTPUT_COLUMNS_INPUT = {
   type: 'array',
