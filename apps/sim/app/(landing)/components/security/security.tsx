@@ -10,8 +10,8 @@ import { CertBlocs } from '@/app/(landing)/components/security/components/cert-b
 
 /**
  * The governance beat: the certification claim, the Trust Center link, and the
- * confirmed certifications as three Carbon blocs on the page ground. SOC 2
- * lives only in this certification row. The operational controls grid is its
+ * compliance status as three Carbon blocs on the page ground (ISO 27001 is
+ * marked as certification in progress). SOC 2 lives only in this row. The operational controls grid is its
  * own section under the feature rail — see `WorkspaceControls`.
  */
 
