@@ -4,7 +4,7 @@
  * from start through conversion.
  */
 import { db } from '@sim/db'
-import { subscription, trialCard, user, userStats } from '@sim/db/schema'
+import { organization, subscription, trialCard, user, userStats } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import type Stripe from 'stripe'
@@ -17,6 +17,7 @@ import {
   enforceOneTrialPerCardForCheckout,
   getProTrialCheckoutParams,
 } from '@/lib/billing/trial'
+import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 
 const { stripeStub } = vi.hoisted(() => ({
   stripeStub: {
@@ -34,6 +35,7 @@ const PRO_PLAN = 'pro_6000'
 const PRO_BASE_DOLLARS = 30
 
 const userIds: string[] = []
+const organizationIds: string[] = []
 const fingerprints: string[] = []
 
 async function createUser(options: { freeTierEligible?: boolean } = {}): Promise<string> {
@@ -121,6 +123,9 @@ afterAll(async () => {
   if (userIds.length > 0) {
     await db.delete(subscription).where(inArray(subscription.referenceId, userIds))
     await db.delete(user).where(inArray(user.id, userIds))
+  }
+  if (organizationIds.length > 0) {
+    await db.delete(organization).where(inArray(organization.id, organizationIds))
   }
 })
 
@@ -487,6 +492,31 @@ describe('the trial usage limit', () => {
     expect(await readLimit(userId)).toBe(PRO_TRIAL_USAGE_LIMIT_DOLLARS + 1)
   })
 
+  it("raises an organization's limit for credits from its seat-priced plan base, even while Stripe reports it trialing", async () => {
+    const organizationId = `trial-org-${generateId()}`
+    await db.insert(organization).values({
+      id: organizationId,
+      name: 'Trial Org',
+      slug: organizationId,
+      orgUsageLimit: '0',
+    })
+    organizationIds.push(organizationId)
+
+    await setUsageLimitForCredits(
+      'organization',
+      organizationId,
+      { plan: PRO_PLAN, status: 'trialing' },
+      3,
+      1
+    )
+
+    const [org] = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+    expect(Number(org?.orgUsageLimit)).toBe(PRO_BASE_DOLLARS * 3 + 1)
+  })
+
   it('refuses to raise the limit during a trial', async () => {
     const userId = await createUser()
     await addSubscription(userId, { status: 'trialing', trialStart: new Date() })
@@ -497,5 +527,40 @@ describe('the trial usage limit', () => {
       error: 'Usage limits can be changed once your trial ends',
     })
     expect(await readLimit(userId)).toBe(PRO_TRIAL_USAGE_LIMIT_DOLLARS)
+  })
+})
+
+describe('the usage limit card', () => {
+  it('tells a trialing payer usage resumes when the trial ends instead of offering a limit increase', async () => {
+    const userId = `trial-payer-${generateId()}`
+
+    const card = await resolveUsageUpgradePayload(userId, {
+      billingEntity: { type: 'user', id: userId },
+      payerSubscription: { plan: PRO_PLAN, status: 'trialing' },
+    })
+
+    expect(card.action).toBe('upgrade_plan')
+    expect(card.message).toContain('free trial')
+  })
+
+  it("reads the trial from the account's subscription when the payer is not known", async () => {
+    const userId = await createUser()
+    await addSubscription(userId, { status: 'trialing', trialStart: new Date() })
+
+    const card = await resolveUsageUpgradePayload(userId)
+
+    expect(card.action).toBe('upgrade_plan')
+    expect(card.message).toContain('free trial')
+  })
+
+  it('still offers a converted Pro payer a limit increase', async () => {
+    const userId = `trial-payer-${generateId()}`
+
+    const card = await resolveUsageUpgradePayload(userId, {
+      billingEntity: { type: 'user', id: userId },
+      payerSubscription: { plan: PRO_PLAN, status: 'active' },
+    })
+
+    expect(card.action).toBe('increase_limit')
   })
 })

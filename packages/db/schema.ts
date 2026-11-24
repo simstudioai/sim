@@ -1866,12 +1866,18 @@ export const subscription = pgTable(
  * trial across every account. A row outlives its account (`user_id` is nulled), so deleting the
  * account and signing up again cannot reuse the card.
  */
-export const trialCard = pgTable('trial_card', {
-  fingerprint: text('fingerprint').primaryKey(),
-  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-  stripeSubscriptionId: text('stripe_subscription_id').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-})
+export const trialCard = pgTable(
+  'trial_card',
+  {
+    fingerprint: text('fingerprint').primaryKey(),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    stripeSubscriptionId: text('stripe_subscription_id').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('trial_card_user_id_idx').on(table.userId),
+  })
+)
 
 export const chat = pgTable(
   'chat',

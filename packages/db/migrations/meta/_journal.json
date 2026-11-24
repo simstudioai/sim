@@ -3298,6 +3298,13 @@
       "when": 1795435350407,
       "tag": "0471_pro_trial_card",
       "breakpoints": true
+    },
+    {
+      "idx": 472,
+      "version": "7",
+      "when": 1795516972777,
+      "tag": "0472_trial_card_user_id_idx",
+      "breakpoints": true
     }
   ]
 }
