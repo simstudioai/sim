@@ -827,6 +827,40 @@ describe('SlackExecutionStreamController', () => {
       )
     })
 
+    it('never overlaps appends from the timeline and the answer on the shared message', async () => {
+      let inFlight = 0
+      let maxInFlight = 0
+      mockAppendSlackAgentStream.mockImplementation(async () => {
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        inFlight--
+      })
+      const { controller } = await createController({
+        ...TIMELINE_CONFIG,
+        outputConfigs: [{ blockId: 'reply', path: 'content' }],
+      })
+      await Promise.all([
+        streamTimeline(controller),
+        controller.callbacks.onStream?.({
+          blockId: 'reply',
+          executionOrder: 3,
+          stream: createByteStream(),
+          execution: { success: true, output: {} },
+          clientStreamTransformed: false,
+          subscribe: ({ onEvent }) => {
+            void onEvent({ type: 'text_delta', text: 'Reviewed answer. ', turn: 'pending' })
+            void onEvent({ type: 'turn_end', turn: 'final' })
+            return vi.fn()
+          },
+        }),
+      ])
+
+      expect(mockStartSlackAgentStream).toHaveBeenCalledTimes(1)
+      expect(mockAppendSlackAgentStream.mock.calls.length).toBeGreaterThan(1)
+      expect(maxInFlight).toBe(1)
+    })
+
     it('still rejects a stream from a block in neither list', async () => {
       const { controller } = await createController(TIMELINE_CONFIG)
       await expect(

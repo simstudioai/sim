@@ -43,6 +43,8 @@ interface SlackMessageStream {
   textLength: number
   textComplete: boolean
   stopped: boolean
+  /** Settles after this message's latest append, so writers sharing it append in order. */
+  writes: Promise<void>
 }
 
 /** Prefer a nearby paragraph/sentence, then a whole word; only oversized words need hard cuts. */
@@ -173,6 +175,7 @@ async function openSlackMessage(
     textLength: markdownLength(chunks),
     textComplete: false,
     stopped: false,
+    writes: Promise.resolve(),
   }
 }
 
@@ -311,7 +314,11 @@ class SlackInvocationStream {
     const target = message ?? (await this.ensureStarted())
     const textLength = markdownLength(chunks)
     try {
-      await appendSlackAgentStream(this.token, target.channel, target.ts, chunks, this.signal)
+      const write = target.writes.then(() =>
+        appendSlackAgentStream(this.token, target.channel, target.ts, chunks, this.signal)
+      )
+      target.writes = write.catch(() => {})
+      await write
       target.textLength += textLength
     } catch (error) {
       logger.warn('Slack stream append failed', {
