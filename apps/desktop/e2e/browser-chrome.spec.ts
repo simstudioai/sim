@@ -1,107 +1,92 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { createServer, type Server } from 'node:http'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { _electron as electron, expect, test } from '@playwright/test'
-import type { SimDesktopApi } from '@sim/desktop-bridge'
+import type { Page } from '@playwright/test'
 import { build } from 'esbuild'
 import postcss from 'postcss'
 import loadPostcssConfig from 'postcss-load-config'
+import { type DesktopBridge, expect, focusFirstWindow, SIM_DIR, serve, test } from './harness'
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
-const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('./fixtures/browser-chrome.tsx', import.meta.url))
 const SCOPE = 'browser-chrome-fixture'
 
-test('crowded tabs and renderer overlays work with a real native browser page', async () => {
-  const testInfo = test.info()
-  let server: Server | undefined
-  let userData: string | undefined
-  let app: Awaited<ReturnType<typeof electron.launch>> | undefined
-  try {
-    const config = await loadPostcssConfig({}, SIM_DIR)
-    const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
-    const css = await postcss(config.plugins).process(
-      `${readFileSync(stylesheet, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
-      { from: stylesheet }
-    )
-    const hook = join(
-      SIM_DIR,
-      'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.ts'
-    )
-    const bundle = await build({
-      stdin: {
-        contents: `import { mountBrowserChromeFixture } from ${JSON.stringify(FIXTURE)};
+test('crowded tabs and renderer overlays work with a real native browser page', async ({
+  desktop,
+}, testInfo) => {
+  // Not `bundleSimFixture`: the fixture's own Tailwind classes need an `@source` for it, and the
+  // bundle's CSS output (emcn's imported styles) is served alongside Sim's stylesheet.
+  const config = await loadPostcssConfig({}, SIM_DIR)
+  const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
+  const css = await postcss(config.plugins).process(
+    `${readFileSync(stylesheet, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
+    { from: stylesheet }
+  )
+  const hook = join(
+    SIM_DIR,
+    'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.ts'
+  )
+  const bundle = await build({
+    stdin: {
+      contents: `import { mountBrowserChromeFixture } from ${JSON.stringify(FIXTURE)};
 import { useBrowserPanelOcclusion } from ${JSON.stringify(hook)};
 mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
-        resolveDir: SIM_DIR,
-        loader: 'tsx',
-      },
-      bundle: true,
-      write: false,
-      outfile: testInfo.outputPath('fixture.js'),
-      external: ['node:async_hooks'],
-      banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
-      format: 'iife',
-      platform: 'browser',
-      tsconfig: join(SIM_DIR, 'tsconfig.json'),
-      define: { 'process.env.NODE_ENV': '"development"' },
-    })
-    server = createServer((request, response) => {
-      const path = new URL(request.url ?? '/', 'http://localhost').pathname
-      if (path === '/fixture.js' || path === '/fixture.css') {
-        response.setHeader('Content-Type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
-        response.end(
-          path.endsWith('.js')
-            ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
-            : `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
-        )
-        return
-      }
-      if (path.startsWith('/api/')) {
-        response.setHeader('Content-Type', 'application/json')
-        response.end(
-          path === '/api/auth/get-session'
-            ? JSON.stringify({ user: { id: 'fixture-user' }, session: { id: 'fixture-session' } })
-            : '{}'
-        )
-        return
-      }
-      response.writeHead(200, {
-        'Content-Type': 'text/html',
-        'Set-Cookie': 'better-auth.session_token=fixture; HttpOnly; SameSite=Lax; Path=/',
-      })
+      resolveDir: SIM_DIR,
+      loader: 'tsx',
+    },
+    bundle: true,
+    write: false,
+    outfile: testInfo.outputPath('fixture.js'),
+    external: ['node:async_hooks'],
+    banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
+    format: 'iife',
+    platform: 'browser',
+    tsconfig: join(SIM_DIR, 'tsconfig.json'),
+    define: { 'process.env.NODE_ENV': '"development"' },
+  })
+  const server = await serve((_request, response, url) => {
+    const path = url.pathname
+    if (path === '/fixture.js' || path === '/fixture.css') {
+      response.setHeader('Content-Type', path.endsWith('.js') ? 'text/javascript' : 'text/css')
       response.end(
-        path === '/page'
-          ? '<!doctype html><html><body style="background:#192b40;color:white;font:24px system-ui;padding:25px"><h1>Browser fixture</h1><p>A live page behind the application chrome.</p><button>Page action</button></body></html>'
-          : '<!doctype html><html class="dark"><head><link rel="stylesheet" href="/fixture.css"></head><body style="margin:0;background:var(--bg);color:var(--text-primary)"><div id="root"></div><script src="/fixture.js"></script></body></html>'
+        path.endsWith('.js')
+          ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
+          : `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
       )
+      return
+    }
+    if (path.startsWith('/api/')) {
+      response.setHeader('Content-Type', 'application/json')
+      response.end(
+        path === '/api/auth/get-session'
+          ? JSON.stringify({ user: { id: 'fixture-user' }, session: { id: 'fixture-session' } })
+          : '{}'
+      )
+      return
+    }
+    response.writeHead(200, {
+      'Content-Type': 'text/html',
+      'Set-Cookie': 'better-auth.session_token=fixture; HttpOnly; SameSite=Lax; Path=/',
     })
-    await new Promise<void>((resolve) => server?.listen(0, resolve))
-    const address = server.address()
-    if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-    userData = mkdtempSync(join(tmpdir(), 'sim-browser-chrome-e2e-'))
-    app = await electron.launch({
-      args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
-      cwd: DESKTOP_DIR,
-      env: {
-        ...process.env,
-        SIM_DESKTOP_ORIGIN: `http://127.0.0.1:${address.port}`,
-        SIM_DESKTOP_USER_DATA: userData,
-      },
+    response.end(
+      path === '/page'
+        ? '<!doctype html><html><body style="background:#192b40;color:white;font:24px system-ui;padding:25px"><h1>Browser fixture</h1><p>A live page behind the application chrome.</p><button>Page action</button></body></html>'
+        : '<!doctype html><html class="dark"><head><link rel="stylesheet" href="/fixture.css"></head><body style="margin:0;background:var(--bg);color:var(--text-primary)"><div id="root"></div><script src="/fixture.js"></script></body></html>'
+    )
+  })
+  let shellPage: Page | undefined
+  try {
+    const { app } = await desktop.launch({
+      origin: server.origin,
+      main: process.env.SIM_DESKTOP_E2E_MAIN,
     })
-    const shell = app
-    const page = await shell.firstWindow()
-    await shell.evaluate(({ app, BrowserWindow }) => {
-      const window = BrowserWindow.getAllWindows()[0]
-      window.setContentSize(1100, 750)
-      window.webContents.setBackgroundThrottling(false)
-      app.focus({ steal: true })
-      window.focus()
-    })
+    const page = await app.firstWindow()
+    shellPage = page
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].setContentSize(1100, 750)
+    )
+    await focusFirstWindow(app)
     const nativeVisible = () =>
-      shell.evaluate(({ BrowserWindow, WebContentsView }) =>
+      app.evaluate(({ BrowserWindow, WebContentsView }) =>
         BrowserWindow.getAllWindows()[0]
           .contentView.children.find(
             (view) => view instanceof WebContentsView && view.webContents.getURL().endsWith('/page')
@@ -118,7 +103,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       )
       expect(geometry.every((tab) => tab.width < 160)).toBe(true)
       expect(geometry.at(-1)?.right).toBeLessThan(1070)
-      await page.screenshot({ path: testInfo.outputPath('tabs.png') })
     })
     await test.step('Crowded tabs keep readable labels when selected, hovered, and focused', async () => {
       await page.locator('#many-tabs').click()
@@ -165,17 +149,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       await expect
         .poll(() => label.evaluate((element) => element.getBoundingClientRect().width))
         .toBeGreaterThanOrEqual(48)
-      await page.mouse.move(200, 180)
-      await page.screenshot({
-        path: testInfo.outputPath('crowded-tabs.png'),
-        animations: 'disabled',
-      })
-      await page.evaluate(() => document.documentElement.classList.remove('dark'))
-      await page.screenshot({
-        path: testInfo.outputPath('crowded-tabs-light.png'),
-        animations: 'disabled',
-      })
-      await page.evaluate(() => document.documentElement.classList.add('dark'))
       await page.keyboard.press('Home')
       await expect(page.getByRole('tab').first()).toBeInViewport({ ratio: 1 })
       await page.locator('#eight-tabs').click()
@@ -218,7 +191,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
             )
           })
         ).toBe(true)
-        await page.screenshot({ path: testInfo.outputPath('crowded-tabs-touch.png') })
         const beforeSelection = await attention.evaluate(
           (element: HTMLElement) => element.offsetWidth
         )
@@ -228,11 +200,16 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           beforeSelection
         )
         await page.locator('#toggle-activity').click()
+        await expect(indicator).toHaveCount(0)
         expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
           beforeSelection
         )
         await page.locator('#toggle-activity').click()
+        await expect(indicator).toHaveCount(1)
         await page.locator('#medium-tabs').click()
+        await expect(page.locator('[data-tab-strip-item] [data-overflow-text]')).toHaveText(
+          Array(4).fill('Medium title')
+        )
         await page.getByRole('tab').first().click()
         const intrinsicWidth = await attention.evaluate(
           (element: HTMLElement) => element.offsetWidth
@@ -244,10 +221,12 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           intrinsicWidth
         )
         await page.locator('#toggle-activity').click()
+        await expect(indicator).toHaveCount(0)
         expect(await attention.evaluate((element: HTMLElement) => element.offsetWidth)).toBe(
           intrinsicWidth
         )
         await page.locator('#toggle-activity').click()
+        await expect(indicator).toHaveCount(1)
       } finally {
         await session.send('Emulation.setTouchEmulationEnabled', { enabled: false })
         await session.detach()
@@ -256,6 +235,9 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
     })
     await test.step('Short labels stay below the maximum tab width', async () => {
       await page.locator('#short-tabs').click()
+      await expect(page.locator('[data-tab-strip-item] [data-overflow-text]')).toHaveText(
+        Array(8).fill('A')
+      )
       const widths = await page
         .locator('[data-tab-strip-item]')
         .evaluateAll((tabs) => tabs.map((tab) => tab.getBoundingClientRect().width))
@@ -268,9 +250,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       expect(
         await page.evaluate(
           (scope) =>
-            (
-              globalThis as typeof globalThis & { simDesktop: SimDesktopApi }
-            ).simDesktop.browserAgent.capturePanelSnapshot(scope),
+            (globalThis as DesktopBridge).simDesktop.browserAgent.capturePanelSnapshot(scope),
           SCOPE
         )
       ).toBeNull()
@@ -289,7 +269,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       await expect(page.getByRole('tooltip')).toBeVisible()
       await expect.poll(nativeVisible).toBe(false)
       await expect(page.locator('#snapshot')).toBeVisible()
-      await page.screenshot({ path: testInfo.outputPath('tooltip.png') })
     })
     await test.step('Leaving the tooltip restores the native browser', async () => {
       await page.mouse.move(200, 180)
@@ -309,7 +288,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       await expect(page.locator('#snapshot')).toBeVisible()
     })
     await test.step('Resizing with an open menu refreshes the captured viewport', async () => {
-      await shell.evaluate(({ BrowserWindow }) =>
+      await app.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0].setContentSize(1000, 750)
       )
       await expect
@@ -318,7 +297,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
         )
         .toBe(450)
       await expect.poll(nativeVisible).toBe(false)
-      await page.screenshot({ path: testInfo.outputPath('menu.png') })
     })
     await test.step('Escape dismisses the menu and restores the native browser', async () => {
       await page.keyboard.press('Escape')
@@ -327,7 +305,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       await expect(page.locator('#snapshot')).toHaveCount(0)
     })
   } catch (error) {
-    const page = app?.windows()[0]
+    const page = shellPage
     if (page && !page.isClosed()) {
       await page.screenshot({ path: testInfo.outputPath('failure.png') })
       const overlays = await page.locator('[data-native-surface-overlay]').evaluateAll((elements) =>
@@ -345,13 +323,6 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
     }
     throw error
   } finally {
-    await app?.close()
-    if (server?.listening) {
-      const listener = server
-      await new Promise<void>((resolve, reject) =>
-        listener.close((error) => (error ? reject(error) : resolve()))
-      )
-    }
-    if (userData) rmSync(userData, { recursive: true, force: true })
+    await server.close()
   }
 })
