@@ -39,7 +39,7 @@ import {
   type WorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
 import type { WorkspaceInvitePolicy } from '@/lib/workspaces/policy'
-import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
+import { assertWorkspaceAccessNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('InvitationDirectGrant')
 
@@ -152,10 +152,11 @@ export async function grantWorkspaceAccessDirectly(
           userId: input.userId,
           organizationIds: [input.organizationId],
         })
-        /** A member the directory manages gets workspace access from the directory, not by hand. */
-        await assertMembershipNotScimManaged({
+        /** Access to a workspace a directory group is mapped to comes from the directory, not by hand. */
+        await assertWorkspaceAccessNotScimManaged({
           organizationId: input.organizationId,
           userId: input.userId,
+          workspaceIds: [input.workspaceId],
           executor: tx,
         })
 

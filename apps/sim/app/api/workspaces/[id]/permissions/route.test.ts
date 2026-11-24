@@ -24,12 +24,12 @@ import {
 } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertMembershipNotScimManaged } = vi.hoisted(() => ({
-  mockAssertMembershipNotScimManaged: vi.fn(),
+const { mockAssertWorkspaceAccessNotScimManaged } = vi.hoisted(() => ({
+  mockAssertWorkspaceAccessNotScimManaged: vi.fn(),
 }))
 
 vi.mock('@/ee/scim/lib/managed-membership', () => ({
-  assertMembershipNotScimManaged: mockAssertMembershipNotScimManaged,
+  assertWorkspaceAccessNotScimManaged: mockAssertWorkspaceAccessNotScimManaged,
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -441,7 +441,7 @@ describe('workspace permissions route', () => {
 
     it('refuses a role change for a member the directory manages', async () => {
       queueOrgWorkspace([], [permissionRow(MEMBER_ID, 'read')])
-      mockAssertMembershipNotScimManaged.mockRejectedValueOnce(
+      mockAssertWorkspaceAccessNotScimManaged.mockRejectedValueOnce(
         new ForbiddenOperationError('SCIM_MANAGED_MEMBERSHIP', 'Managed by the directory')
       )
 
@@ -452,8 +452,12 @@ describe('workspace permissions route', () => {
 
       expect(response.status).toBe(403)
       await expect(response.json()).resolves.toMatchObject({ error: 'Managed by the directory' })
-      expect(mockAssertMembershipNotScimManaged).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: ORG_ID, userId: MEMBER_ID })
+      expect(mockAssertWorkspaceAccessNotScimManaged).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: ORG_ID,
+          userId: MEMBER_ID,
+          workspaceIds: [WORKSPACE_ID],
+        })
       )
       expect(dbChainMockFns.update).not.toHaveBeenCalled()
     })
