@@ -15,6 +15,7 @@ import {
   type UpgradeCardId,
 } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
+import { formatMonthlyPlanPrice } from '@/lib/billing/plan-helpers'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -186,12 +187,8 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
   const maxBanner = state.isOnMax ? 'Your plan' : undefined
 
   const discountPct = Math.round(ANNUAL_DISCOUNT_RATE * 100)
-  const proPrice = state.isAnnual
-    ? Math.round(state.proTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
-    : state.proTier.dollars
-  const maxPrice = state.isAnnual
-    ? Math.round(state.maxTier.dollars * (1 - ANNUAL_DISCOUNT_RATE))
-    : state.maxTier.dollars
+  const proPrice = formatMonthlyPlanPrice(state.proTier.dollars, state.isAnnual)
+  const maxPrice = formatMonthlyPlanPrice(state.maxTier.dollars, state.isAnnual)
   const priceSubtext = state.isAnnual
     ? 'per user/month, billed annually'
     : 'per user/month, billed monthly'
@@ -220,7 +217,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
               <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
                 <UpgradePlanCard
                   name='Pro'
-                  price={`$${proPrice}`}
+                  price={proPrice}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
                   priceSubtext={priceSubtext}
                   segmentLabel='For growing teams'
@@ -236,7 +233,7 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
                 <UpgradePlanCard
                   name='Max'
-                  price={`$${maxPrice}`}
+                  price={maxPrice}
                   discountLabel={state.isAnnual ? `${discountPct}% off` : undefined}
                   priceSubtext={priceSubtext}
                   segmentLabel='For scaling businesses'
@@ -275,8 +272,8 @@ export function Upgrade({ workspaceId }: UpgradeProps) {
 
                 {showAllFeatures && (
                   <ComparisonTable
-                    proPrice={`$${proPrice}`}
-                    maxPrice={`$${maxPrice}`}
+                    proPrice={proPrice}
+                    maxPrice={maxPrice}
                     isAnnual={state.isAnnual}
                     onIsAnnualChange={state.setIsAnnual}
                     ctas={comparisonCtas}
