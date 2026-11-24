@@ -118,22 +118,26 @@ export function blockOutputSchemas(
  * every block (`BlockExecutor`'s `errorOutput`), or one of the `errorOutputs` its catalog entry
  * declares (a Function's `errorMessage`). Each is text, read exactly where `error` is.
  */
-function isErrorOutputName(block: CatalogBlock | undefined, name: string): boolean {
-  return name === 'error' || (block?.errorOutputs?.includes(name) ?? false)
+function isErrorOutputName(block: CatalogBlock, name: string): boolean {
+  return name === 'error' || (block.errorOutputs?.includes(name) ?? false)
 }
 
 /**
  * The failure output a path names (`x.error`, or a Function's `x.errorMessage`;
  * `isErrorOutputName`): what a failed block outputs when an error edge (`x.onError(y)`) leaves it,
  * which the executor returns as the block's output instead of failing the run
- * (`BlockExecutor`'s `errorOutput`). Any other block fails the run, so nothing reads it.
+ * (`BlockExecutor`'s `errorOutput`). Any other block fails the run, so nothing reads it. A block
+ * with no error port (a Start trigger) has none, so on it the path is an ordinary output.
  */
 export function errorOutputOf(
   block: CatalogBlock | undefined,
   segments: readonly RefSegment[]
 ): string | null {
   const [first] = segments
-  return segments.length === 1 && first?.kind === 'name' && isErrorOutputName(block, first.name)
+  return block?.graph.errorPort === true &&
+    segments.length === 1 &&
+    first?.kind === 'name' &&
+    isErrorOutputName(block, first.name)
     ? first.name
     : null
 }

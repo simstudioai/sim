@@ -10,9 +10,10 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, posix } from 'node:path'
 import { mapWithConcurrency } from '@sim/utils/concurrency'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { codeFrame } from '@sim/workflow-code'
 import { SOURCE_TYPESCRIPT_VERSION } from '@sim/workflow-sdk/codegen'
 import type { Command } from 'commander'
@@ -20,7 +21,17 @@ import { configDir } from '../../config/paths'
 import { embedStore } from '../../embed-context'
 import { childProcessEnv } from '../../environment'
 import { printError } from '../../output/io'
-import { digest, FILE_CONCURRENCY, readSourceText, readWritten } from './source-dir'
+import {
+  digest,
+  FILE_CONCURRENCY,
+  readSourceText,
+  readWritten,
+  SOURCE_CACHE_DIR,
+  SOURCE_CACHE_IGNORE,
+  updateSourceDir,
+  type Written,
+} from './source-dir'
+import { TSCONFIG_FILE, WORKSPACE_TYPES_FILE } from './source-tree'
 import type { Diagnostic } from './source-ui'
 
 /** The `--types` / `--no-types` pair: absent runs the type check. */
@@ -31,8 +42,9 @@ export interface TypesOptions {
 /** What both check commands' help says of the type check. */
 export const TYPES_HELP = `Then it type-checks the directory with TypeScript ${SOURCE_TYPESCRIPT_VERSION} (the release the
 declarations are built for) over tsconfig.json. Each type error is an E_TYPE error, its message
-starting with TypeScript's code; one on a line the compile already reports an error on, or in a
-file still as the last get or apply wrote it, is left out. The first check installs that release
+starting with TypeScript's code. One is left out on a line the compile already reports an error
+on, and in a file still as the last get or apply wrote it when that file had the same error then
+(against the declarations as that get or apply left them). The first check installs that release
 with npm into the CLI's cache, once; when it cannot (offline, no npm), the check warns
 W_TYPES_UNCHECKED and passes or fails on the compile alone. --no-types skips the type check.`
 
@@ -256,16 +268,17 @@ export interface TypeCheck {
 }
 
 /**
- * Runs the pinned tsc over `root`'s `tsconfig.json` and returns its errors; a {@link
- * TypesUnavailable} when it cannot be installed, does not start, or stops without saying why.
+ * Runs the pinned tsc over `root`'s `tsconfig.json` (or `project`, a config under `root`) and
+ * returns its errors, each file relative to `root`; a {@link TypesUnavailable} when it cannot be
+ * installed, does not start, or stops without saying why.
  */
-async function tscErrors(root: string): Promise<ReturnType<typeof parseTscOutput>> {
+async function tscErrors(root: string, project = '.'): Promise<ReturnType<typeof parseTscOutput>> {
   const tsc = await installedTsc()
   const finished = await run(
     'TypeScript',
     process.execPath,
     // --noEmit: a tsconfig.json the person wrote may emit, and a check writes nothing.
-    [tsc, '-p', '.', '--pretty', 'false', '--noEmit'],
+    [tsc, '-p', project, '--pretty', 'false', '--noEmit'],
     {
       cwd: root,
     }
@@ -291,20 +304,96 @@ async function tscErrors(root: string): Promise<ReturnType<typeof parseTscOutput
   return errors
 }
 
+/** An error's identity across two runs over the same file text. */
+function errorKey({ file, line, column, message }: LocatedTscError): string {
+  return `${file}:${line}:${column}:${message}`
+}
+
+/**
+ * The errors tsc reports with `workspace.d.ts` replaced by `types` (`null`: none), as `root`'s
+ * `tsconfig.json` otherwise reads the directory: a config extending it, and `types`, are written
+ * for the run into the cache folder, which ignores itself. That folder sits as deep as the SDK
+ * folder, so the file's imports of the directory's declarations (`../../tables/<key>`) resolve.
+ */
+async function errorsWithWorkspaceTypes(
+  root: string,
+  types: string | null
+): Promise<LocatedTscError[]> {
+  const id = generateShortId()
+  const typesFile = `${SOURCE_CACHE_DIR}/workspace-${id}.d.ts`
+  const project = `${SOURCE_CACHE_DIR}/tsconfig-${id}.json`
+  const fromCache = (path: string) => posix.relative(SOURCE_CACHE_DIR, path)
+  const typesFiles = types === null ? [] : [[typesFile, types] as const]
+  const tsconfig = {
+    extends: fromCache(TSCONFIG_FILE),
+    exclude: [fromCache(WORKSPACE_TYPES_FILE)],
+    files: typesFiles.map(([path]) => fromCache(path)),
+  }
+  const written = [project, ...typesFiles.map(([path]) => path)]
+  await updateSourceDir(root, {
+    write: [
+      SOURCE_CACHE_IGNORE,
+      [project, `${JSON.stringify(tsconfig, null, 2)}\n`],
+      ...typesFiles,
+    ],
+  })
+  try {
+    return (await tscErrors(root, project)).located
+  } catch (error) {
+    // A run that fails says nothing of the earlier errors, so none is taken as one.
+    if (error instanceof TypesUnavailable) return []
+    throw error
+  } finally {
+    await updateSourceDir(root, { write: [], remove: written })
+  }
+}
+
+/**
+ * Which of `errors`, each in a file still as the last get or apply wrote it, that file already had
+ * then: all of them when the declarations are as that get or apply left them, else those a second
+ * run against `writtenTypes` (`workspace.d.ts` as it was) reports too. A workflow file depends on
+ * the declarations alone, never on another workflow file, so an error of an unchanged file that
+ * the edited declarations alone cause is kept.
+ */
+async function errorsAsWritten(
+  root: string,
+  errors: readonly LocatedTscError[],
+  written: Written | null,
+  writtenTypes: ((written: Written) => Promise<string | null>) | undefined
+): Promise<ReadonlySet<string>> {
+  const all = new Set(errors.map(errorKey))
+  if (errors.length === 0 || written === null || writtenTypes === undefined) return all
+  const [types, current] = await Promise.all([
+    writtenTypes(written),
+    readSourceText(root, WORKSPACE_TYPES_FILE),
+  ])
+  if (types === current) return all
+  const before = new Set((await errorsWithWorkspaceTypes(root, types)).map(errorKey))
+  return new Set([...all].filter((key) => before.has(key)))
+}
+
 /**
  * Type-checks the source directory `root` with its `tsconfig.json`, unless `enabled` is false
  * (`--no-types`). `scope` (a folder under `root`, such as `workflows/<key>/`) keeps only that
  * folder's errors, with files relative to it, as a check of one workflow folder of a workspace
  * reports them. Two kinds of type error are left out: one on a line where `compiled` (the
  * compile's findings) already has an error, the same mistake, which the compile says better; and
- * one in a file still as the last get or apply wrote it (`.sim/written.json`), printed source the
- * server accepted, where the declarations can lag (a block the workspace's catalog withholds from
- * the caller while a stored workflow holds it). An embedded run reads files through its host,
+ * one that a file still as the last get or apply wrote it (`.sim/written.json`) had then: printed
+ * source the server accepted, where the declarations can lag (a block the workspace's catalog
+ * withholds from the caller while a stored workflow holds it). A workspace directory's check
+ * regenerates `workspace.d.ts` from the files, so `writtenTypes` gives the file as that get or
+ * apply left it, and an error of an unchanged file is left out only when it occurs against that
+ * too; without it the declarations are as written. An embedded run reads files through its host,
  * which no subprocess can, so it does not type-check.
  */
 export async function typeCheck(
   root: string,
-  options: { enabled: boolean; scope?: string; compiled: readonly Diagnostic[] }
+  options: {
+    enabled: boolean
+    scope?: string
+    compiled: readonly Diagnostic[]
+    writtenTypes?: (written: Written) => Promise<string | null>
+  }
 ): Promise<TypeCheck> {
   if (!options.enabled || embedStore.getStore()) return { checked: false, findings: [] }
   let errors: Awaited<ReturnType<typeof tscErrors>>
@@ -346,14 +435,21 @@ export async function typeCheck(
       return [file, { text, printed }] as const
     })
   )
+  const asWritten = await errorsAsWritten(
+    root,
+    located.filter(({ file }) => sources.get(file)?.printed),
+    written,
+    options.writtenTypes
+  )
   const findings: Diagnostic[] = errors.project.map((message) => ({
     code: 'E_TYPE',
     severity: 'error',
     message,
   }))
-  for (const { file, line, column, message } of located) {
+  for (const error of located) {
+    const { file, line, column, message } = error
     const source = sources.get(file)
-    if (source?.printed) continue
+    if (asWritten.has(errorKey(error))) continue
     findings.push({
       code: 'E_TYPE',
       severity: 'error',

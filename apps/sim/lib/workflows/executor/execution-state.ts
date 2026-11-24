@@ -4,6 +4,7 @@ import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
+import { forceFailedMessage } from '@/lib/workflows/executor/failure-message'
 import { buildResumeUiUrl } from '@/executor/constants'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint } from '@/executor/types'
@@ -232,17 +233,10 @@ export async function getHumanPauseResumeUrl(
   return waitsOnPerson ? buildResumeUiUrl(getBaseUrl(), workflowId, executionId) : null
 }
 
-/**
- * The message an error finalization (`force_failed`) stored as the run's `finalOutput.error`.
- * Any other run's `finalOutput.error` is the workflow's own data, not a failure message.
- */
+/** A terminal run's failure message: its own `error`, else {@link forceFailedMessage}. */
 function readFailureMessage(executionData: Record<string, unknown>): string | undefined {
   if (typeof executionData.error === 'string') return executionData.error
-  if (executionData.finalizationPath !== 'force_failed') return undefined
-  const { finalOutput } = executionData
-  return isRecordLike(finalOutput) && typeof finalOutput.error === 'string'
-    ? finalOutput.error
-    : undefined
+  return forceFailedMessage(executionData)
 }
 
 /** Loads a terminal workflow result only when its server-persisted Copilot binding matches. */

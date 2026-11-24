@@ -40,13 +40,20 @@ import type { Command } from 'commander'
 import { setSoftExitCode } from '../../embed-context'
 import { SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
-import { digest, readFolderWritten, readSourceText } from './source-dir'
+import {
+  digest,
+  readFolderWritten,
+  readSourceText,
+  unchangedTexts,
+  type Written,
+} from './source-dir'
 import { STRICT_FINDINGS } from './source-strict'
 import {
   cachedCatalog,
   cachedSourceCatalog,
   type LocalDeclarations,
   refreshTsconfigs,
+  workspaceTypesText,
 } from './source-tree'
 import type { TypeCheck } from './source-types'
 import { type Diagnostic, findingsOutput } from './source-ui'
@@ -58,6 +65,7 @@ import {
   readWorkspaceDeclarations,
   WORKSPACE_TREE,
   type WorkspaceDeclarations,
+  writtenLocalDeclarations,
 } from './workspace-source-dir'
 
 /**
@@ -538,6 +546,30 @@ export function withWorkflowInputs(
     }
   }
   return { ...local, workflows }
+}
+
+/**
+ * `workspace.d.ts` as the last get or apply (`written`) left the workspace directory `root`: the
+ * kept manifest, what the files that write recorded declare, and the `workflowInputs` of each
+ * workflow whose `workflow.ts` is unchanged since. A workflow edited since keeps its stored inputs
+ * (none without a kept manifest), so an error its edit causes in another workflow is not taken
+ * for one that workflow's printed source already had.
+ */
+export async function writtenWorkspaceTypes(
+  root: string,
+  workflowInputs: ReadonlyMap<string, readonly WorkflowInput[] | null>,
+  written: Written
+): Promise<string | null> {
+  const unchanged = await unchangedTexts(
+    root,
+    [...workflowInputs.keys()].map(workflowEntry),
+    written.digests
+  )
+  const inputs = new Map([...workflowInputs].filter(([key]) => unchanged.has(workflowEntry(key))))
+  return workspaceTypesText(
+    root,
+    withWorkflowInputs(await writtenLocalDeclarations(root, written), inputs)
+  )
 }
 
 /**

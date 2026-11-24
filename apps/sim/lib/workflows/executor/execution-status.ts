@@ -25,6 +25,7 @@ import {
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
 import { normalizePausePoints } from '@/lib/workflows/executor/execution-state'
+import { runFailureMessage } from '@/lib/workflows/executor/failure-message'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { namePausePoints, pauseBaseBlockId } from '@/lib/workflows/executor/pause-block-names'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
@@ -42,9 +43,7 @@ import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 interface ExecutionDataShape {
-  finalOutput?: { error?: string } & Record<string, unknown>
-  error?: { message?: string } | string
-  completionFailure?: string
+  finalOutput?: unknown
   traceSpans?: unknown
 }
 
@@ -86,18 +85,6 @@ function pickEarliestPausePoint(points: PausePoint[]): PausePoint | null {
 /** A point no resume can act on any more: it resumed, or its resumed execution failed. */
 function isSettledPausePoint(point: PausePoint): boolean {
   return point.resumeStatus === 'resumed' || point.resumeStatus === 'failed'
-}
-
-function extractError(executionData: unknown): string | null {
-  if (!executionData || typeof executionData !== 'object') return null
-  const data = executionData as ExecutionDataShape
-  if (typeof data.error === 'string') return data.error
-  if (data.error && typeof data.error === 'object' && typeof data.error.message === 'string') {
-    return data.error.message
-  }
-  if (typeof data.finalOutput?.error === 'string') return data.finalOutput.error
-  if (typeof data.completionFailure === 'string') return data.completionFailure
-  return null
 }
 
 function extractJobFinalOutput(output: unknown): unknown | null {
@@ -603,7 +590,7 @@ async function readWorkflowExecutionStatus(
   )
   const executionData = materialized.executionData as ExecutionDataShape
 
-  const error = status === 'failed' ? extractError(executionData) : null
+  const error = status === 'failed' ? (runFailureMessage(executionData) ?? null) : null
 
   const finalOutput =
     includeOutput && status === 'completed' && executionData

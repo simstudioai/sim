@@ -56,7 +56,8 @@ import {
 import { AGENTS_POINTER_MARKER, agentsPointer, type PrimerKind, primerFor } from './source-primer'
 import { shellWord } from './source-ui'
 
-const TSCONFIG_FILE = 'tsconfig.json'
+/** The CLI's `tsconfig.json`, which a check type-checks the directory with. */
+export const TSCONFIG_FILE = 'tsconfig.json'
 /** Where agents look first: the nearest `AGENTS.md` above the file they edit. */
 const ROOT_AGENTS_FILE = 'AGENTS.md'
 /**
@@ -374,6 +375,33 @@ export async function loadWorkspaceTypes(
 }
 
 /**
+ * The stored manifest the last get kept beside `workspace.d.ts`: `null` when it kept none (the get
+ * could not list the workspace's resources), `undefined` when the file does not parse.
+ */
+async function readKeptManifest(dir: string): Promise<WorkspaceManifest | null | undefined> {
+  const manifest = await readSourceText(dir, WORKSPACE_MANIFEST_FILE)
+  if (manifest === null) return null
+  try {
+    const parsed: unknown = JSON.parse(manifest)
+    return isRecordLike(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * `workspace.d.ts` for the kept stored manifest and `local`, as {@link refreshWorkspaceTypes}
+ * would write it, without writing it; `null` for no file. A manifest that does not parse counts
+ * as none kept.
+ */
+export async function workspaceTypesText(
+  dir: string,
+  local: LocalDeclarations
+): Promise<string | null> {
+  return workspaceTypesFrom((await readKeptManifest(dir)) ?? null, local)?.text ?? null
+}
+
+/**
  * Regenerates `workspace.d.ts` from the stored manifest the last get kept beside it and what the
  * directory declares now (`local`), so a check types a key added since without a request. Without
  * a kept manifest (the get could not list the workspace's resources), it types what the directory
@@ -381,21 +409,11 @@ export async function loadWorkspaceTypes(
  * not parse leaves the file as it is.
  */
 export async function refreshWorkspaceTypes(dir: string, local: LocalDeclarations): Promise<void> {
-  const [manifest, current] = await Promise.all([
-    readSourceText(dir, WORKSPACE_MANIFEST_FILE),
+  const [stored, current] = await Promise.all([
+    readKeptManifest(dir),
     readSourceText(dir, WORKSPACE_TYPES_FILE),
   ])
-  let stored: WorkspaceManifest | null = null
-  if (manifest !== null) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(manifest)
-    } catch {
-      return
-    }
-    if (!isRecordLike(parsed)) return
-    stored = parsed
-  }
+  if (stored === undefined) return
   const types = workspaceTypesFrom(stored, local)
   if (types === null) {
     if (current !== null) await updateSourceDir(dir, { write: [], remove: [WORKSPACE_TYPES_FILE] })

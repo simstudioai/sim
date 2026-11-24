@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 import { type CostLedger, traceSpansSchema } from '@/lib/api/contracts/logs'
 import { type V2LogDetail, v2GetLogContract, v2LogStatusSchema } from '@/lib/api/contracts/v2/logs'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
@@ -7,6 +6,7 @@ import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { logOperations } from '@/lib/logs/application/operations'
 import { findTraceFailure, withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { projectLogFiles } from '@/lib/logs/files'
+import { runFailureMessage } from '@/lib/workflows/executor/failure-message'
 
 export const revalidate = 0
 
@@ -27,17 +27,6 @@ function buildCostProjection(
   return null
 }
 
-/** The error string a run recorded for itself, when it recorded one. */
-function runErrorOf(executionData: Record<string, unknown>): string | undefined {
-  const { error, finalOutput } = executionData
-  const candidates = [
-    error,
-    isRecordLike(error) ? error.message : undefined,
-    isRecordLike(finalOutput) ? finalOutput.error : undefined,
-  ]
-  return candidates.find((value): value is string => typeof value === 'string' && value !== '')
-}
-
 /**
  * Where a failed run failed. The run's own error names the block when several failed in the same
  * instant; one that names none of them yields no failure rather than an unrelated block, as the
@@ -45,7 +34,7 @@ function runErrorOf(executionData: Record<string, unknown>): string | undefined 
  */
 function failureOf(status: string, executionData: Record<string, unknown>): V2LogDetail['failure'] {
   if (status !== 'failed') return null
-  return findTraceFailure(executionData.traceSpans, runErrorOf(executionData))
+  return findTraceFailure(executionData.traceSpans, runFailureMessage(executionData))
 }
 
 /**

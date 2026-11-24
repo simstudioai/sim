@@ -336,7 +336,7 @@ export function errorBullets(errors: ReadonlyArray<Diagnostic>): string[] {
 /** The first line of a summary file for `dir`: stable per directory (every character outside `A-Za-z0-9._/` percent-encoded, so two names never share one and no `--` ends the comment). */
 export function summaryMarker(dir: string): string {
   const name = relative(process.cwd(), dir) || '.'
-  const encoded = name.replace(/[^A-Za-z0-9._/]/g, (char) =>
+  const encoded = name.replace(/[^A-Za-z0-9._/]/gu, (char) =>
     [...Buffer.from(char)]
       .map((byte) => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`)
       .join('')
