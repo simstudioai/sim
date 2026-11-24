@@ -184,10 +184,14 @@ export function sourceExitCodeRows(prefix: SourceCommandGroup): SourceExitCodeRo
           "rate limited (HTTP 429) after the CLI's retries, so nothing was created: wait a minute and run it again",
         'workflows source get':
           "rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again",
+        'workflows source status':
+          "rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again",
         'workspaces source apply':
           "rate limited (HTTP 429) after the CLI's retries, before anything was written: wait a minute and apply again (binary files already uploaded are not sent again)",
         'workspaces source get':
           "rate limited (HTTP 429) after the CLI's retries: nothing was written, the binary files already downloaded are kept in .sim/downloads, and running the get again downloads only the rest",
+        'workspaces source status':
+          "rate limited (HTTP 429) after the CLI's retries: wait a minute and run it again",
       },
     },
     {
