@@ -7,9 +7,11 @@ import postgres from 'postgres'
  * table's `row_count` and `rows_version` sat at 0 forever there. This applies the CURRENT
  * definitions idempotently: the statement-level INSERT/DELETE row-count triggers (0224, bodies
  * from 0402), the deferred UPDATE trigger that bumps `rows_version` once per transaction (0390,
- * body from 0402) and the deferred `table_id` foreign key (0390). Each logs to
- * `user_table_row_changes`. It then reconciles the stored counts so stored + unfolded log matches
- * reality. On a migrated database every statement replaces an object with its identical self.
+ * body from 0402), the deferred `table_id` foreign key (0390) and the bytewise `order_key`
+ * collation (0228), without which rows sort out of their fractional-key order. Each trigger logs
+ * to `user_table_row_changes`. It then reconciles the stored counts so stored + unfolded log
+ * matches reality. On a migrated database every statement replaces an object with its identical
+ * self, and the collation is left untouched.
  */
 const logger = createLogger('DevTableTriggers')
 
@@ -89,6 +91,18 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS user_table_rows_version_update_trigger ON user_table_rows;
+
+-- Between the drop and the create: the trigger's WHEN reads order_key, which blocks retyping it.
+-- Only when the column still has the default collation, since the ALTER rebuilds its index.
+DO $$
+BEGIN
+    IF (SELECT collation_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'user_table_rows'
+          AND column_name = 'order_key') IS DISTINCT FROM 'C' THEN
+        ALTER TABLE user_table_rows ALTER COLUMN order_key SET DATA TYPE text COLLATE "C";
+    END IF;
+END $$;
+
 CREATE CONSTRAINT TRIGGER user_table_rows_version_update_trigger
     AFTER UPDATE OF data, order_key ON user_table_rows
     DEFERRABLE INITIALLY DEFERRED
