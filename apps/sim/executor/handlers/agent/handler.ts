@@ -63,7 +63,13 @@ import {
   validateBlockType,
   validateModelProvider,
 } from '@/ee/access-control/utils/permission-check'
-import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
+import {
+  AGENT,
+  BlockType,
+  DEFAULTS,
+  isCustomTool,
+  stripCustomToolPrefix,
+} from '@/executor/constants'
 import {
   getMemoryMessageAppendKey,
   getMemoryMessageTurnId,
@@ -3227,6 +3233,7 @@ export class AgentBlockHandler implements BlockHandler {
 
   private formatToolCall(tc: any) {
     const toolName = stripCustomToolPrefix(tc.name)
+    const result = tc.result || tc.output
 
     return {
       ...tc,
@@ -3235,7 +3242,12 @@ export class AgentBlockHandler implements BlockHandler {
       endTime: tc.endTime,
       duration: tc.duration,
       arguments: tc.arguments || tc.input || {},
-      result: tc.result || tc.output,
+      // The span factory trusts this key only on a `workflow_executor` call. Stripping the prefix
+      // would let a custom tool titled `workflow_executor` claim a child version it never ran.
+      result:
+        isCustomTool(tc.name) && isRecordLike(result)
+          ? omit(result, ['childDeploymentVersionId'])
+          : result,
     }
   }
 }

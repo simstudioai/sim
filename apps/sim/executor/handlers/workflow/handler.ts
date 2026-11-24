@@ -430,7 +430,6 @@ export class WorkflowBlockHandler implements BlockHandler {
           }
         : { workflowId, mode: 'draft' as const }
       if (!isCustomBlock) {
-        childDeploymentVersionId = childWorkflow.deploymentVersionId
         if (!childExecutorDelegationOrigin) {
           throw new Error('Child workflow execution is missing its delegation origin')
         }
@@ -447,6 +446,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       // skipped or every custom-block invocation from another workspace throws.
       if (!isCustomBlock) {
         this.assertChildWorkflowInWorkspace(workflowId, childWorkflow.workspaceId, ctx.workspaceId)
+        // Recorded only once the child is known to be this workspace's, so a refusal never names
+        // another workspace's version.
+        childDeploymentVersionId = childWorkflow.deploymentVersionId
       }
 
       childWorkflowName = childWorkflow.name || 'Unknown Workflow'

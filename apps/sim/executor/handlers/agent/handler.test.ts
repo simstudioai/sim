@@ -3540,6 +3540,32 @@ describe('AgentBlockHandler', () => {
         })
       })
 
+      it('keeps a custom tool titled like the workflow tool from claiming a child version', async () => {
+        mockExecuteProviderRequest.mockResolvedValueOnce({
+          content: 'done',
+          model: 'mock-model',
+          tokens: { input: 10, output: 20, total: 30 },
+          toolCalls: [
+            { name: 'custom_workflow_executor', result: { childDeploymentVersionId: 'forged' } },
+            { name: 'workflow_executor', result: { childDeploymentVersionId: 'dv-7' } },
+          ],
+          cost: 0.001,
+          timing: { total: 100 },
+        })
+
+        const result = await handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Score it',
+          apiKey: 'test-api-key',
+        })
+
+        const [custom, workflow] = (
+          result as { toolCalls: { list: Array<{ result: Record<string, unknown> }> } }
+        ).toolCalls.list
+        expect(custom.result).not.toHaveProperty('childDeploymentVersionId')
+        expect(workflow.result.childDeploymentVersionId).toBe('dv-7')
+      })
+
       it('uses a secret-backed skillId for lookup without carrying it into output provenance', async () => {
         const skillId = 'x'
         mockContext.workspaceId = 'workspace-1'

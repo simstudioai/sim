@@ -406,6 +406,19 @@ describe('WorkflowBlockHandler', () => {
       expect(failure).toMatchObject({ childDeploymentVersionId: 'dv-7' })
     })
 
+    it('records no version for a deployed child refused by the workspace check', async () => {
+      mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
+        workflow: { id: 'child-workflow-id', name: 'Score', variables: {} },
+        workspaceId: 'workspace-other',
+        state: { blocks: {}, edges: [], loops: {}, parallels: {}, deploymentVersionId: 'dv-7' },
+      })
+
+      const failure = await handler.execute(deployedCtx(), mockBlock, inputs).catch((e) => e)
+
+      expect(failure.message).toContain('belongs to a different workspace')
+      expect(failure).not.toHaveProperty('childDeploymentVersionId', 'dv-7')
+    })
+
     it('records no version for a draft child', async () => {
       mockReadWorkflowDefinitionAsExecutor.mockResolvedValue({
         workflow: { id: 'child-workflow-id', name: 'Score', variables: {} },
