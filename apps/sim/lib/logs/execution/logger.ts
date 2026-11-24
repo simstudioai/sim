@@ -1248,6 +1248,7 @@ export class ExecutionLogger {
           const [{ getDisplayPlanName }, { limit: orgLimit }, orgUsageBefore] = await Promise.all([
             import('@/lib/billing/plan-helpers'),
             getOrgUsageLimit(organizationId, {
+              id: payerSubscription.id,
               plan: payerSubscription.plan,
               seats: payerSubscription.seats,
               billingInterval: payerSubscription.billingInterval,

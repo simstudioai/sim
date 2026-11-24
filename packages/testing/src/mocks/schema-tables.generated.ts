@@ -443,6 +443,9 @@ export const GENERATED_SCHEMA_TABLES = {
     'stripeScheduleId',
     'metadata',
     'lastClosedPeriodStart',
+    'allowancePeriodStart',
+    'allowanceSeats',
+    'allowanceSeatMonths',
   ],
   enterpriseSeatTrueUp: [
     'id',

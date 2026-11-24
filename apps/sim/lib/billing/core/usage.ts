@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
@@ -24,7 +24,7 @@ import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isFree, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import type { OrgAllowanceInput } from '@/lib/billing/subscriptions/utils'
 import {
   canEditUsageLimit,
@@ -38,6 +38,7 @@ import {
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
   isTrialingSubscription,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import type { UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -125,8 +126,11 @@ export async function getOrgUsageLimit(
   )
 }
 
-/** The subscription fields that decide an organization's usage-limit floor. */
-type OrgLimitSubscription = OrgAllowanceInput & { plan: string }
+/**
+ * The subscription fields that decide an organization's usage-limit floor. A caller holding only a
+ * snapshot passes `id`, and an annual Team's recorded seat-months are read from the row.
+ */
+type OrgLimitSubscription = OrgAllowanceInput & { plan: string; id?: string }
 
 async function findOrgUsageLimit(
   organizationId: string,
@@ -141,9 +145,26 @@ async function findOrgUsageLimit(
 
   if (!orgData) return null
 
+  const needsRecordedAllowance =
+    subscription.id !== undefined &&
+    subscription.allowanceSeatMonths === undefined &&
+    isTeam(subscription.plan) &&
+    resolveBillingInterval(subscription) === 'year'
+  const [recordedAllowance] = needsRecordedAllowance
+    ? await executor
+        .select({
+          periodStart: subscriptionTable.periodStart,
+          allowancePeriodStart: subscriptionTable.allowancePeriodStart,
+          allowanceSeatMonths: subscriptionTable.allowanceSeatMonths,
+        })
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.id, subscription.id ?? ''))
+        .limit(1)
+    : []
+
   return calculateOrgUsageLimit(
     organizationId,
-    subscription,
+    { ...subscription, ...recordedAllowance },
     orgData.orgUsageLimit ? toNumber(toDecimal(orgData.orgUsageLimit)) : null
   )
 }

@@ -24,15 +24,51 @@ interface SwitchedSubscription extends OrgAllowanceInput {
 }
 
 /**
+ * Moves a usage pool's limit from one included-usage amount to another. A limit at or below what
+ * either amount covers (with prepaid credit) lands on the new one, so an untouched limit never
+ * reads as on-demand usage nobody turned on, even when a webhook already raised it to the new
+ * amount. A limit raised above both keeps that headroom, scaled by `headroomScale` (an interval
+ * change turns a year's headroom into a month's twelfth). An unlimited limit stays unlimited.
+ */
+export async function rebaseUsageLimit(params: {
+  pool: { type: 'user' | 'organization'; id: string }
+  previousIncluded: number
+  nextIncluded: number
+  headroomScale?: number
+}): Promise<void> {
+  const { pool, previousIncluded, nextIncluded, headroomScale = 1 } = params
+  const rebased = (limit: AnyColumn, creditBalance: AnyColumn) => {
+    const covered = sql`(${toDecimal(Math.max(previousIncluded, nextIncluded)).toString()}::numeric + ${creditBalance})`
+    const headroom = sql`greatest(0, coalesce(${limit}, ${covered}) - ${covered})`
+    return sql`case when ${limit} >= ${ON_DEMAND_UNLIMITED} then ${limit} else ${toDecimal(nextIncluded).toString()}::numeric + ${creditBalance} + ${headroom} * ${headroomScale}::numeric end`
+  }
+
+  if (pool.type === 'organization') {
+    await db
+      .update(organization)
+      .set({
+        orgUsageLimit: rebased(organization.orgUsageLimit, organization.creditBalance),
+        updatedAt: new Date(),
+      })
+      .where(eq(organization.id, pool.id))
+  } else {
+    await db
+      .update(userStats)
+      .set({
+        currentUsageLimit: rebased(userStats.currentUsageLimit, userStats.creditBalance),
+        usageLimitUpdatedAt: new Date(),
+      })
+      .where(eq(userStats.userId, pool.id))
+  }
+}
+
+/**
  * Records a tier or billing-interval change Stripe has already applied: the plan, the interval,
  * and the payer's usage limit.
  *
- * The limit moves with the plan's included usage. A limit the payer never raised sits at the old
- * allowance plus prepaid credit; left there after a move to a cheaper plan or a monthly interval,
- * it would read as on-demand usage nobody turned on and bill overage past the new allowance. A
- * limit the payer raised keeps its on-demand headroom above the allowance, rescaled to the new
- * interval (a year's headroom becomes a month's twelfth), and an unlimited limit stays unlimited.
- * A personal trial keeps its fixed allowance.
+ * The limit moves with the plan's included usage ({@link rebaseUsageLimit}): an untouched limit
+ * left at a pricier allowance would read as on-demand usage nobody turned on. A personal trial
+ * keeps its fixed allowance.
  */
 export async function recordPlanSwitch(params: {
   subscription: SwitchedSubscription
@@ -61,28 +97,14 @@ export async function recordPlanSwitch(params: {
   const headroomScale =
     previousInterval === targetInterval ? 1 : targetInterval === 'year' ? 12 : 1 / 12
 
-  const rebased = (limit: AnyColumn, creditBalance: AnyColumn) => {
-    const previousCovered = sql`${toDecimal(previousBase).toString()}::numeric + ${creditBalance}`
-    return sql`case when ${limit} >= ${ON_DEMAND_UNLIMITED} then ${limit} else ${toDecimal(nextBase).toString()}::numeric + ${creditBalance} + greatest(0, coalesce(${limit}, ${previousCovered}) - ${previousCovered}) * ${headroomScale}::numeric end`
-  }
-
-  if (orgScoped) {
-    await db
-      .update(organization)
-      .set({
-        orgUsageLimit: rebased(organization.orgUsageLimit, organization.creditBalance),
-        updatedAt: new Date(),
-      })
-      .where(eq(organization.id, subscription.referenceId))
-  } else {
-    await db
-      .update(userStats)
-      .set({
-        currentUsageLimit: rebased(userStats.currentUsageLimit, userStats.creditBalance),
-        usageLimitUpdatedAt: new Date(),
-      })
-      .where(eq(userStats.userId, subscription.referenceId))
-  }
+  await rebaseUsageLimit({
+    pool: orgScoped
+      ? { type: 'organization', id: subscription.referenceId }
+      : { type: 'user', id: subscription.referenceId },
+    previousIncluded: previousBase,
+    nextIncluded: nextBase,
+    headroomScale,
+  })
 
   logger.info('Recorded plan switch', {
     subscriptionId: subscription.id,

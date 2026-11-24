@@ -28,7 +28,7 @@ const MAX_MONTHLY_DOLLARS = 125
 const userIds: string[] = []
 const organizationIds: string[] = []
 
-async function createUser(usageLimit: number | null = null): Promise<string> {
+async function createUser(usageLimit: number | null = null, creditBalance = 0): Promise<string> {
   const id = `allowance-user-${generateId()}`
   const now = new Date()
   await db.insert(user).values({
@@ -43,6 +43,7 @@ async function createUser(usageLimit: number | null = null): Promise<string> {
     id: generateId(),
     userId: id,
     currentUsageLimit: usageLimit === null ? null : String(usageLimit),
+    creditBalance: String(creditBalance),
   })
   userIds.push(id)
   return id
@@ -186,6 +187,28 @@ describe('annual plan allowance', () => {
     expect(minimum).toBe((3 * 12 + 2 * 2) * PRO_MONTHLY_DOLLARS)
   })
 
+  it('lowers an untouched Team limit when a seat leaves partway through the year', async () => {
+    const organizationId = await createOrganization()
+    const sub = await addSubscription(organizationId, {
+      plan: 'team_6000',
+      billingInterval: 'year',
+      seats: 2,
+    })
+    await syncAnnualPlanUsageLimits()
+    await db
+      .update(subscription)
+      .set({ seats: 1, periodEnd: new Date(Date.now() + 182 * DAY_MS) })
+      .where(eq(subscription.id, sub.id))
+
+    await syncAnnualPlanUsageLimits()
+
+    const [org] = await db
+      .select({ orgUsageLimit: organization.orgUsageLimit })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+    expect(Number(org?.orgUsageLimit)).toBe((2 * 12 - 6) * PRO_MONTHLY_DOLLARS)
+  })
+
   it('raises annual subscriptions still capped at one month and leaves monthly ones alone', async () => {
     const annualUser = await createUser(PRO_MONTHLY_DOLLARS)
     await addSubscription(annualUser, { plan: 'pro_6000', billingInterval: 'year' })
@@ -287,6 +310,35 @@ describe('recordPlanSwitch', () => {
     expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS + 10)
     const [row] = await db.select().from(subscription).where(eq(subscription.id, sub.id))
     expect(row?.billingInterval).toBe('month')
+  })
+
+  it('counts prepaid credit once when rebasing an untouched limit', async () => {
+    const userId = await createUser(MAX_MONTHLY_DOLLARS + 50, 50)
+    const sub = await addSubscription(userId, { plan: 'pro_25000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'month',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS + 50)
+  })
+
+  it('does not read a limit the webhook already raised as chosen headroom', async () => {
+    // The checkout webhook raised the monthly limit to the annual floor before the switch recorded.
+    const userId = await createUser(PRO_MONTHLY_DOLLARS * 12)
+    const sub = await addSubscription(userId, { plan: 'pro_6000', billingInterval: 'month' })
+
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName: 'pro_6000',
+      targetInterval: 'year',
+      orgScoped: false,
+    })
+
+    expect(await readLimit(userId)).toBe(PRO_MONTHLY_DOLLARS * 12)
   })
 
   it('keeps an unlimited limit unlimited', async () => {

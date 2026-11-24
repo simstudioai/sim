@@ -194,7 +194,7 @@ export function InviteModal({
   const seatChargeHint =
     billingEnabled && canInvite && membership !== 'external'
       ? seatCapKind === 'baseline'
-        ? 'New members past your contracted seats are billed at the next quarterly true-up.'
+        ? 'New members past your contracted seats are billed at the next seat true-up.'
         : seatCapKind === 'on-demand'
           ? "Each new member who accepts adds a paid seat, prorated for this period. Existing members don't add one."
           : null
