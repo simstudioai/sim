@@ -52,8 +52,9 @@ export async function resolveUsageUpgradePayload(
       subscription = payer.payerSubscription
       orgScoped = payer.billingEntity.type === 'organization'
     } else {
-      subscription = await getHighestPrioritySubscription(userId)
-      orgScoped = isOrgScopedSubscription(subscription, userId)
+      const current = await getHighestPrioritySubscription(userId)
+      subscription = current
+      orgScoped = isOrgScopedSubscription(current, userId)
     }
   } catch (error) {
     logger.warn('Failed to determine subscription plan, defaulting to upgrade_plan', {
