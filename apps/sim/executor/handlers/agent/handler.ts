@@ -3245,7 +3245,7 @@ export class AgentBlockHandler implements BlockHandler {
       // The span factory trusts this key only on a `workflow_executor` call. Stripping the prefix
       // would let a custom tool titled `workflow_executor` claim a child version it never ran.
       result:
-        isCustomTool(tc.name) && isRecordLike(result)
+        isCustomTool(tc.name) && toolName === 'workflow_executor' && isRecordLike(result)
           ? omit(result, ['childDeploymentVersionId'])
           : result,
     }

@@ -3548,6 +3548,7 @@ describe('AgentBlockHandler', () => {
           toolCalls: [
             { name: 'custom_workflow_executor', result: { childDeploymentVersionId: 'forged' } },
             { name: 'workflow_executor', result: { childDeploymentVersionId: 'dv-7' } },
+            { name: 'custom_lookup', result: { childDeploymentVersionId: 'user-data' } },
           ],
           cost: 0.001,
           timing: { total: 100 },
@@ -3559,11 +3560,12 @@ describe('AgentBlockHandler', () => {
           apiKey: 'test-api-key',
         })
 
-        const [custom, workflow] = (
+        const [custom, workflow, otherCustom] = (
           result as { toolCalls: { list: Array<{ result: Record<string, unknown> }> } }
         ).toolCalls.list
         expect(custom.result).not.toHaveProperty('childDeploymentVersionId')
         expect(workflow.result.childDeploymentVersionId).toBe('dv-7')
+        expect(otherCustom.result.childDeploymentVersionId).toBe('user-data')
       })
 
       it('uses a secret-backed skillId for lookup without carrying it into output provenance', async () => {
