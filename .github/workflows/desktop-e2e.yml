@@ -157,6 +157,9 @@ jobs:
       # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
       - name: Install tmux
         run: brew install tmux
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
@@ -244,6 +247,9 @@ jobs:
       # The terminal-cancel suite drives a real tmux server; without tmux its tmux scenarios skip.
       - name: Install tmux
         run: brew install tmux
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
       - name: Run Playwright _electron smoke suite
         working-directory: apps/desktop
