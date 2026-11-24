@@ -27,8 +27,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import {
   countPendingSeatInvitations,
-  planHasFixedSeatCap,
-  resolveSeatCapacity,
+  resolveSeatCap,
 } from '@/lib/billing/validation/seat-management'
 import {
   addOutboxEventSourceOperationId,
@@ -690,12 +689,11 @@ export async function getWorkspaceMovePreflight(
   ])
 
   const organizationSubscription = subscriptionRows[0]
-  const seatCapacity =
-    organizationSubscription &&
-    hasPaidSubscriptionStatus(organizationSubscription.status) &&
-    planHasFixedSeatCap(organizationSubscription.plan)
-      ? await resolveSeatCapacity(organizationSubscription)
+  const seatCap =
+    organizationSubscription && hasPaidSubscriptionStatus(organizationSubscription.status)
+      ? await resolveSeatCap(organizationSubscription)
       : null
+  const seatCapacity = seatCap?.kind === 'fixed' ? seatCap.seats : null
   const currentMembers = memberCountRows[0]?.value ?? 0
   const projectedPendingInternalSeats =
     seatCapacity === null
@@ -1189,8 +1187,8 @@ export async function moveWorkspaceToOrganization(params: {
           )
           .limit(1)
         if (enterpriseSubscription && hasPaidSubscriptionStatus(enterpriseSubscription.status)) {
-          const [capacity, memberRows, movedWorkspaceInvitations] = await Promise.all([
-            resolveSeatCapacity(enterpriseSubscription, tx),
+          const [seatCap, memberRows, movedWorkspaceInvitations] = await Promise.all([
+            resolveSeatCap(enterpriseSubscription, tx),
             tx
               .select({ value: count() })
               .from(member)
@@ -1203,9 +1201,9 @@ export async function moveWorkspaceToOrganization(params: {
             executor: tx,
           })
           const currentMembers = memberRows[0]?.value ?? 0
-          if (currentMembers + projectedPendingSeats > capacity) {
+          if (seatCap.kind === 'fixed' && currentMembers + projectedPendingSeats > seatCap.seats) {
             throw new WorkspaceMoveError(
-              `Moving this workspace would require ${currentMembers + projectedPendingSeats} occupied or reserved seats, above the ${capacity}-seat Enterprise capacity`,
+              `Moving this workspace would require ${currentMembers + projectedPendingSeats} occupied or reserved seats, above the ${seatCap.seats}-seat Enterprise capacity`,
               'seat-capacity-exceeded'
             )
           }

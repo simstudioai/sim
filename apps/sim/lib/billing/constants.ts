@@ -120,3 +120,9 @@ export const ON_DEMAND_UNLIMITED = 999999
 /** Shown when usage could not be read, instead of a limit the read never measured. */
 export const USAGE_UNAVAILABLE_MESSAGE =
   'Usage could not be verified right now. Please try again in a moment.'
+
+/**
+ * Payment terms, in days, for every invoice emailed to a customer who pays by invoice: Enterprise
+ * contracts, and the overage, true-up, and final invoices billed on top of them.
+ */
+export const INVOICE_DAYS_UNTIL_DUE = 30

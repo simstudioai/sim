@@ -143,7 +143,7 @@ describe('Cumulative billing with PostgreSQL', () => {
       CREATE TABLE driver_probe (id text PRIMARY KEY);
       CREATE TABLE subscription (
         id text PRIMARY KEY, period_start timestamp, period_end timestamp,
-        last_closed_period_start timestamp
+        last_closed_period_start timestamp, metadata json
       )
     `)
     transaction.mockImplementation(async (callback: (tx: Transaction) => Promise<unknown>) => {

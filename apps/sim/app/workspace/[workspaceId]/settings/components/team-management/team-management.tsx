@@ -443,6 +443,7 @@ export function TeamManagement({
               totalSeats={totalSeats}
               usedSeats={usedSeats}
               pendingSeats={pendingSeats}
+              seatsAreBaseline={organizationBillingData?.data?.seatCapKind === 'baseline'}
             />
           ))}
 

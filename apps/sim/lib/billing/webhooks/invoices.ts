@@ -15,6 +15,7 @@ import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/bal
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getCustomerId } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
@@ -67,6 +68,7 @@ const METADATA_SUBSCRIPTION_INVOICE_TYPES = new Set<string>([
   'overage_billing',
   'overage_threshold_billing',
   'overage_threshold_billing_org',
+  'enterprise_seat_true_up',
 ])
 
 type InvoiceSubscriptionResolutionSource =
@@ -591,6 +593,34 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
  * Handle invoice payment succeeded webhook.
  * Handles both credit purchases and subscription payments.
  */
+/**
+ * Whether the same subscription still has another open, automatically charged invoice that failed:
+ * its renewals and its metadata-linked overage and seat true-up invoices. A Stripe customer can
+ * pay for several subscriptions, so invoices for any other one never hold this one's access.
+ */
+async function hasOtherFailedInvoice(
+  invoice: Stripe.Invoice,
+  stripeSubscriptionId: string
+): Promise<boolean> {
+  const customerId = getCustomerId(invoice.customer)
+  if (!customerId) return false
+  for await (const open of requireStripeClient().invoices.list({
+    customer: customerId,
+    status: 'open',
+    limit: 100,
+  })) {
+    if (
+      open.id !== invoice.id &&
+      open.collection_method === 'charge_automatically' &&
+      (open.attempt_count ?? 0) > 0 &&
+      resolveInvoiceSubscriptionContext(open).stripeSubscriptionId === stripeSubscriptionId
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
 export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
@@ -616,7 +646,12 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
         const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
 
         const isProrationInvoice = invoice.billing_reason === 'subscription_update'
-        const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+        // A paid invoice restores access only when no other charge is still failing: overage and
+        // seat true-up invoices are separate from renewals, so one can stay unpaid while another
+        // succeeds.
+        const shouldUnblock =
+          (!isProrationInvoice || (invoice.amount_paid ?? 0) > 0) &&
+          !(await hasOtherFailedInvoice(invoice, resolvedInvoice.stripeSubscriptionId))
 
         if (shouldUnblock) {
           if (subIsOrgScoped) {

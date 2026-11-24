@@ -35,6 +35,14 @@ export const organizationBillingOperations = {
     principalKinds: ['session', 'organization_delegated'],
     capability: 'none',
   }),
+  // permission-group-exempt: saving the organization's payment method requires current organization administrator authority.
+  managePaymentMethod: defineOrganizationBillingOperation({
+    id: 'organization_billing.payment_method.manage',
+    organizationRoles: ['admin', 'owner'],
+    workspaceApiKey: 'deny',
+    principalKinds: ['session', 'organization_delegated'],
+    capability: 'none',
+  }),
   // permission-group-exempt: an organization-admin surface — admins and owners sit above every group, and no group key names organization billing
   read: defineOrganizationBillingOperation({
     id: 'organization_billing.summary.read',

@@ -117,6 +117,7 @@ import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-manag
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
+import { handleEnterpriseAutoPaySetup } from '@/lib/billing/webhooks/enterprise-auto-pay'
 import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
@@ -1917,6 +1918,7 @@ export const auth = betterAuth({
                   }
                   case 'checkout.session.completed': {
                     await enforceOneTrialPerCardForCheckout(event.data.object)
+                    await handleEnterpriseAutoPaySetup(event.data.object)
                     break
                   }
                   case 'checkout.session.expired': {

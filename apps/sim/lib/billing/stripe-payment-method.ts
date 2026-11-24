@@ -9,7 +9,7 @@ const logger = createLogger('StripePaymentMethod')
  * for a `default_payment_method` field (id string, full object, null,
  * or undefined).
  */
-function getPaymentMethodId(
+export function getPaymentMethodId(
   pm: string | Stripe.PaymentMethod | null | undefined
 ): string | undefined {
   return typeof pm === 'string' ? pm : pm?.id

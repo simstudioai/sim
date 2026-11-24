@@ -8,6 +8,7 @@ export const organizationKeys = {
   billing: (id: string) => [...organizationKeys.detail(id), 'billing'] as const,
   planSeats: (id: string) => [...organizationKeys.billing(id), 'plan-seats'] as const,
   billingSummary: (id: string) => [...organizationKeys.billing(id), 'summary'] as const,
+  paymentMethod: (id: string) => [...organizationKeys.billing(id), 'payment-method'] as const,
   members: (id: string) => [...organizationKeys.detail(id), 'members'] as const,
   memberUsage: (id: string) => [...organizationKeys.detail(id), 'member-usage'] as const,
   memberUsageLimit: (id: string, userId: string) =>

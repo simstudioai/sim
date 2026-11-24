@@ -4,11 +4,13 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { z } from 'zod'
 import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
+import { INVOICE_DAYS_UNTIL_DUE } from '@/lib/billing/constants'
 import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
 } from '@/lib/billing/enterprise-outbox-events'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
+import { isSelfServeEnterpriseMetadata } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_INVITE_EMAILS } from '@/lib/invitations/limits'
 
@@ -159,7 +161,7 @@ export function enterpriseMetadataIntentMatchesStripeSubscription(
   return (
     !stripeSubscription.schedule &&
     stripeSubscription.collection_method === 'send_invoice' &&
-    stripeSubscription.days_until_due === 30 &&
+    stripeSubscription.days_until_due === INVOICE_DAYS_UNTIL_DUE &&
     items.length === 1 &&
     (items[0]?.quantity ?? 1) === 1 &&
     price?.currency === 'usd' &&
@@ -273,7 +275,7 @@ export function enterpriseOperationMatchesStripeSubscription(
     items.length === 1 &&
     (item?.quantity ?? 1) === 1 &&
     stripeSubscription.collection_method === 'send_invoice' &&
-    stripeSubscription.days_until_due === 30 &&
+    stripeSubscription.days_until_due === INVOICE_DAYS_UNTIL_DUE &&
     price?.currency === 'usd' &&
     price.unit_amount === request.invoiceAmountCents &&
     price.recurring?.interval === request.billingInterval &&
@@ -360,12 +362,25 @@ function positiveInteger(value: unknown): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+/** The metadata Stripe holds once an intent is delivered: a null value clears its key. */
+export function deliveredEnterpriseMetadata(
+  metadata: Record<string, unknown>
+): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(metadata).filter(([, value]) => value != null))
+}
+
 export interface EnterpriseMetadataIntentState {
   latestRevision: number
   desiredMetadata: Record<string, unknown>
   desiredTerms: EnterpriseMetadataSyncPayload['terms'] | null
   hasUnappliedIntent: boolean
   effectiveSeatCapacity: number | null
+  /**
+   * Whether the contract's seats are a baseline members may outgrow (self-serve, trued up) rather
+   * than a cap. Holds only when both the applied terms and any pending change are self-serve, so a
+   * change turning self-serve off caps seats from the moment it is requested.
+   */
+  seatsUncapped: boolean
   configurationUpdate: {
     id: string
     status: 'pending' | 'processing' | 'failed'
@@ -412,6 +427,7 @@ export async function resolveEnterpriseMetadataIntent(
     )
     .limit(1)
 
+  const appliedSelfServe = isSelfServeEnterpriseMetadata(appliedMetadata)
   if (!latest) {
     return {
       latestRevision: appliedRevision,
@@ -419,6 +435,7 @@ export async function resolveEnterpriseMetadataIntent(
       desiredTerms: null,
       hasUnappliedIntent: false,
       effectiveSeatCapacity: appliedSeats,
+      seatsUncapped: appliedSelfServe,
       configurationUpdate: null,
     }
   }
@@ -455,6 +472,10 @@ export async function resolveEnterpriseMetadataIntent(
     desiredTerms: hasUnappliedIntent ? (parsed.data.terms ?? null) : null,
     hasUnappliedIntent,
     effectiveSeatCapacity,
+    seatsUncapped:
+      appliedSelfServe &&
+      (!hasUnappliedIntent ||
+        isSelfServeEnterpriseMetadata(deliveredEnterpriseMetadata(parsed.data.metadata))),
     configurationUpdate: operationApplied
       ? null
       : {

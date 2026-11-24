@@ -1,9 +1,13 @@
 import { db, dbReplica } from '@sim/db'
-import { organization, subscription as subscriptionTable } from '@sim/db/schema'
-import { desc, eq } from 'drizzle-orm'
+import {
+  enterpriseSeatTrueUp,
+  organization,
+  subscription as subscriptionTable,
+} from '@sim/db/schema'
+import { and, desc, eq, gt, isNull } from 'drizzle-orm'
 import { defineAuthorizedOrganizationBillingUseCase } from '@/lib/billing/application/organization-billing/authorized-organization-billing-use-case'
 import { organizationBillingOperations } from '@/lib/billing/application/organization-billing/operations'
-import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import {
   getOrganizationBillingBlockState,
   getUpgradeWorkspaceId,
@@ -12,10 +16,14 @@ import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/repo
 import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
+import { isPaid } from '@/lib/billing/plan-helpers'
 import {
+  type EnterpriseSelfServeTerms,
   getEffectiveSeats,
+  getEnterpriseSelfServeTerms,
+  getOrgIncludedUsageDollars,
   getSubscriptionWeeklyRefreshDollars,
+  isHardCappedEnterprise,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -42,6 +50,37 @@ export interface OrganizationBillingSummaryResult {
   blockedByOrgOwner: boolean
   upgradeWorkspaceId: string | null
   userRole: 'admin' | 'owner'
+  /** The contract terms when the organization's Enterprise contract is self-serve, else null. */
+  enterpriseSelfServe:
+    | (EnterpriseSelfServeTerms & {
+        /** The most seats past the contract so far in the open true-up window. */
+        peakExtraSeats: number
+      })
+    | null
+}
+
+/**
+ * The open true-up window's peak seats past the contract and the rate it bills them at, or null
+ * before its first sample.
+ */
+async function getOpenTrueUpWindow(subscriptionId: string) {
+  const [window] = await dbReplica
+    .select({
+      peakExtraSeats: enterpriseSeatTrueUp.peakExtraSeats,
+      seatPriceCents: enterpriseSeatTrueUp.seatPriceCents,
+    })
+    .from(enterpriseSeatTrueUp)
+    .where(
+      and(
+        eq(enterpriseSeatTrueUp.subscriptionId, subscriptionId),
+        isNull(enterpriseSeatTrueUp.billedAt),
+        // A closed window awaiting the hourly sweep is not the open one.
+        gt(enterpriseSeatTrueUp.windowEnd, new Date())
+      )
+    )
+    .orderBy(desc(enterpriseSeatTrueUp.windowStart))
+    .limit(1)
+  return window ?? null
 }
 
 function roundCurrency(value: number): number {
@@ -133,19 +172,32 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
       : [0, 0]
 
     const totalCurrentUsage = Math.max(0, ledgerUsage - weeklyRefreshConsumed)
-    const { basePrice: pricePerSeat } = getPlanPricing(entitledSubscription?.plan ?? 'free')
-    const licensedSeats = entitledSubscription?.seats || 1
     const totalSeats = entitledSubscription ? getEffectiveSeats(entitledSubscription) : 0
     const configuredLimit =
       entitledSubscription && organizationRecord.orgUsageLimit
         ? toNumber(toDecimal(organizationRecord.orgUsageLimit))
         : null
-    const minimumBillingAmount =
-      entitledSubscription && isEnterprise(entitledSubscription.plan)
+    const selfServeTerms = entitledSubscription
+      ? getEnterpriseSelfServeTerms(entitledSubscription)
+      : null
+    const openWindow =
+      entitledSubscription && selfServeTerms
+        ? await getOpenTrueUpWindow(entitledSubscription.id)
+        : null
+    // The open window bills at the rate it opened with, which a mid-window change does not move.
+    const enterpriseSelfServe = selfServeTerms
+      ? {
+          ...selfServeTerms,
+          seatPriceCents: openWindow?.seatPriceCents ?? selfServeTerms.seatPriceCents,
+          peakExtraSeats: openWindow?.peakExtraSeats ?? 0,
+        }
+      : null
+    // A hard-capped Enterprise contract includes exactly its configured limit.
+    const minimumBillingAmount = !entitledSubscription
+      ? 0
+      : isHardCappedEnterprise(entitledSubscription)
         ? (configuredLimit ?? 0)
-        : entitledSubscription
-          ? licensedSeats * pricePerSeat
-          : 0
+        : getOrgIncludedUsageDollars(entitledSubscription)
     const totalUsageLimit =
       configuredLimit === null
         ? minimumBillingAmount
@@ -167,6 +219,7 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
       ...billingStatus,
       upgradeWorkspaceId,
       userRole,
+      enterpriseSelfServe,
     }
   },
 })

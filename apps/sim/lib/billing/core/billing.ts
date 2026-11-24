@@ -24,9 +24,11 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getFreeTierAllowance,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
   getPlanPricing,
   getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
+  isHardCappedEnterprise,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
@@ -125,8 +127,7 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * All callers route through this to keep the overage math in one place.
  */
 export async function computeOrgOverageAmount(params: {
-  plan: string | null
-  seats: number | null
+  subscription: { plan: string | null; seats: number | null; metadata: unknown }
   periodStart: Date | null
   periodEnd: Date | null
   organizationId: string
@@ -140,20 +141,20 @@ export async function computeOrgOverageAmount(params: {
   const totalUsage = params.pooledLedgerUsage
 
   let weeklyRefreshDeduction = 0
-  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(params.plan)
+  const { plan, seats } = params.subscription
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(plan)
   if (weeklyRefreshDollars > 0 && params.periodStart) {
     weeklyRefreshDeduction = await computeWeeklyRefreshConsumed({
       billingEntity: { type: 'organization', id: params.organizationId },
       periodStart: params.periodStart,
       periodEnd: params.periodEnd ?? null,
       weeklyRefreshDollars,
-      seats: params.seats || 1,
+      seats: seats || 1,
     })
   }
 
   const effectiveUsage = Math.max(0, totalUsage - weeklyRefreshDeduction)
-  const { basePrice } = getPlanPricing(params.plan ?? '')
-  const baseSubscriptionAmount = (params.seats || 1) * basePrice
+  const baseSubscriptionAmount = getOrgIncludedUsageDollars(params.subscription)
   const totalOverage = Math.max(0, effectiveUsage - baseSubscriptionAmount)
 
   return { effectiveUsage, baseSubscriptionAmount, weeklyRefreshDeduction, totalOverage }
@@ -168,12 +169,12 @@ export async function calculateSubscriptionOverage(sub: {
   plan: string | null
   referenceId: string
   seats?: number | null
+  metadata?: unknown
   periodStart?: Date | null
   periodEnd?: Date | null
   trialEnd?: Date | null
 }): Promise<number> {
-  // Enterprise plans have no overages
-  if (isEnterprise(sub.plan)) {
+  if (isHardCappedEnterprise(sub)) {
     logger.info('Enterprise plan has no overages', {
       subscriptionId: sub.id,
       plan: sub.plan,
@@ -198,8 +199,7 @@ export async function calculateSubscriptionOverage(sub: {
         : 0
 
     const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
-      plan: sub.plan,
-      seats: sub.seats ?? null,
+      subscription: { plan: sub.plan, seats: sub.seats ?? null, metadata: sub.metadata },
       periodStart: sub.periodStart ?? null,
       periodEnd: sub.periodEnd ?? null,
       organizationId: sub.referenceId,

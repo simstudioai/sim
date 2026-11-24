@@ -48,6 +48,8 @@ import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AwsMarketplaceSubscriptionSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/aws-marketplace-subscription-section/aws-marketplace-subscription-section'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
+import { EnterprisePaymentMethodRow } from '@/app/workspace/[workspaceId]/settings/components/billing/components/enterprise-payment-method-row/enterprise-payment-method-row'
+import { EnterpriseSeatsSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/enterprise-seats-section/enterprise-seats-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -167,6 +169,9 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const openBillingPortal = useOpenBillingPortal()
 
   const organizationBilling = organizationBillingData?.data
+  const enterpriseSelfServe = isOrganizationScope
+    ? (organizationBilling?.enterpriseSelfServe ?? null)
+    : null
   const upgradeWorkspaceId = isOrganizationScope
     ? organizationBilling?.upgradeWorkspaceId
     : subscriptionData?.data?.upgradeWorkspaceId
@@ -296,6 +301,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
       isOrgScoped: subscription.isOrgScoped,
+      isEnterpriseSelfServe: enterpriseSelfServe !== null,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -498,16 +504,19 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
 
   const canManageBilling = permissions.canManageBilling
   const canExplorePlans = permissions.showUpgradePlans
-  const showUsageLimit = subscription.isPaid && !subscription.isEnterprise
-  const showOnDemand = hasUsablePaidAccess && !subscription.isEnterprise && !isTrialing
+  const hasEditableLimit = !subscription.isEnterprise || enterpriseSelfServe !== null
+  const showUsageLimit = subscription.isPaid && hasEditableLimit
+  const showOnDemand = hasUsablePaidAccess && hasEditableLimit && !isTrialing
 
   const usageLimitCurrent =
     subscription.isOrgScoped && organizationBilling
       ? organizationBilling.totalUsageLimit
       : usage.limit
 
-  const usageLimitMinimum =
-    subscription.isOrgScoped && organizationBilling
+  // A self-serve Enterprise limit cannot fall below what the contract already covers.
+  const usageLimitMinimum = enterpriseSelfServe
+    ? covered
+    : subscription.isOrgScoped && organizationBilling
       ? organizationBilling.minimumBillingAmount
       : getPlanTierDollars(subscription.plan)
   const explorePlansLabel = isOrganizationScope
@@ -587,7 +596,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               <Switch
                 id='on-demand-usage'
                 checked={isOnDemandActive}
-                disabled={isTogglingOnDemand || !canManageBilling}
+                disabled={isTogglingOnDemand || !permissions.canEditUsageLimit}
                 onCheckedChange={handleToggleOnDemand}
               />
             )}
@@ -639,15 +648,22 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               </div>
             )}
 
-            <div className='flex items-center justify-between'>
-              <span className='text-[var(--text-body)] text-small'>Payment method</span>
-              <Chip
-                disabled={!canManageBilling || openBillingPortal.isPending}
-                onClick={handleOpenBillingPortal}
-              >
-                Manage in Stripe
-              </Chip>
-            </div>
+            {enterpriseSelfServe && billingOrganizationId ? (
+              <EnterprisePaymentMethodRow
+                organizationId={billingOrganizationId}
+                canManage={permissions.canManageEnterprisePayment}
+              />
+            ) : (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>Payment method</span>
+                <Chip
+                  disabled={!canManageBilling || openBillingPortal.isPending}
+                  onClick={handleOpenBillingPortal}
+                >
+                  Manage in Stripe
+                </Chip>
+              </div>
+            )}
 
             {!subscription.isEnterprise && (
               <div className='flex items-center justify-between'>
@@ -675,6 +691,13 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             )}
           </div>
         </SettingsSection>
+      )}
+
+      {enterpriseSelfServe && (
+        <EnterpriseSeatsSection
+          terms={enterpriseSelfServe}
+          billingInterval={billingInterval ?? 'year'}
+        />
       )}
 
       <AwsMarketplaceSubscriptionSection organizationId={billingOrganizationId} />
