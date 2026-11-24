@@ -179,6 +179,7 @@ export async function readBuildNotesFileText(
   return buffer.toString('utf-8')
 }
 
+/** A baseline file's text, allowing up to the baseline size limit rather than the notes limit. */
 export function readBaselineText(
   workspaceId: string,
   baselineFileId: string,

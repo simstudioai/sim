@@ -10,6 +10,7 @@ const policy = {
   delegatedServices: ['copilot'],
 } as const
 
+/** The `workflows.build_notes.*` operations, one per `build_notes` action plus the inventory listing. */
 export const buildNotesOperations = {
   // permission-group-exempt: which listed workflows have build notes is workflow metadata, governed by workspace role
   list: defineWorkspaceOperation({

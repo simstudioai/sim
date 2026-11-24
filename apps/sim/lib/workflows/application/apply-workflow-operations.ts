@@ -321,7 +321,10 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
        * block whose credential or API key was silently stripped — the opposite of
        * what all-or-nothing promises.
        */
-      if (input.atomic && (genuineSkippedItems.length > 0 || validationErrors.length > 0)) {
+      // A build from evaluated notes is all or nothing: anything the evaluation did not foresee
+      // (a credential gone since) refuses it rather than saving part of the batch as the baseline.
+      const atomic = input.atomic || buildNotes !== null
+      if (atomic && (genuineSkippedItems.length > 0 || validationErrors.length > 0)) {
         throw new WorkflowOperationsNotAppliedError(genuineSkippedItems, validationErrors)
       }
 

@@ -6,12 +6,15 @@ const NOTES_SUFFIX = '.md'
 const BASELINE_SUFFIX = '.baseline.json'
 const WORKFLOW_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/
 
+/** The two files a workflow's build notes keep. */
 export type BuildNotesFile = 'notes' | 'baseline'
 
+/** The file's name in the `build-notes` namespace: `<workflowId>.md` or `<workflowId>.baseline.json`. */
 export function buildNotesFileName(workflowId: string, file: BuildNotesFile): string {
   return `${workflowId}${file === 'notes' ? NOTES_SUFFIX : BASELINE_SUFFIX}`
 }
 
+/** The path the agent reads the file at: `build-notes/<file name>`. */
 export function buildNotesPath(workflowId: string, file: BuildNotesFile): string {
   return `${BUILD_NOTES_PREFIX}${buildNotesFileName(workflowId, file)}`
 }
@@ -37,6 +40,7 @@ export function parseBuildNotesReference(reference: string): string | null {
   return null
 }
 
+/** Splits an owner key from {@link parseBuildNotesReference} back into its workflow and file. */
 export function parseBuildNotesKey(key: string): { workflowId: string; file: BuildNotesFile } {
   const separator = key.lastIndexOf(':')
   return {

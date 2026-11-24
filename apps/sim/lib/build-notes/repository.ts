@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
+/** One workflow's build-notes row. */
 export type BuildNotesRow = typeof workflowBuildNotes.$inferSelect
 
 function fileIdsOf(rows: readonly { notesFileId: string; baselineFileId: string | null }[]) {
@@ -15,6 +16,7 @@ function fileIdsOf(rows: readonly { notesFileId: string; baselineFileId: string 
 /** Live notes belong to a live row on a workflow that is not archived. */
 const liveOwner = and(isNull(workflowBuildNotes.deletedAt), isNull(workflow.archivedAt))
 
+/** Inserts the notes row inside the notes file's own insert transaction. */
 export async function insertBuildNotesInTx(
   tx: DbTransaction,
   values: typeof workflowBuildNotes.$inferInsert
@@ -23,6 +25,7 @@ export async function insertBuildNotesInTx(
   return row
 }
 
+/** A workflow's live notes, or null when it has none or is archived. */
 export async function getLiveBuildNotesForWorkflow(
   workspaceId: string,
   workflowId: string,
@@ -143,6 +146,7 @@ export async function requireLiveWorkflowInTx(tx: DbOrTx, workflowId: string): P
   if (!live) throw new OrchestrationError('not_found', 'Workflow not found')
 }
 
+/** Whether a workflow was saved since its notes' baseline, as the inventory reports it. */
 export type BuildNotesState = 'current' | 'changed'
 
 /**

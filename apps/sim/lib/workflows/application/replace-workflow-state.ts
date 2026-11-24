@@ -140,14 +140,13 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
   async execute({ principal, input, context }): Promise<ReplaceWorkflowStateResult> {
     await requireMutableWorkflow(context.workflowId)
     // Refuses Copilot outright on a workflow with build notes: a replace has no evaluated batch.
-    if (!input.dryRun) {
-      await assertBuildNotesAllowWrite({
-        principal,
-        workflowId: context.workflowId,
-        workspaceId: context.workspaceId,
-        workspaceOrganizationId: context.workspaceOrganizationId,
-      })
-    }
+    // A dry run is refused too, so its preview matches the write it stands for.
+    await assertBuildNotesAllowWrite({
+      principal,
+      workflowId: context.workflowId,
+      workspaceId: context.workspaceId,
+      workspaceOrganizationId: context.workspaceOrganizationId,
+    })
 
     return withWorkflowBlockScope(context, async () => {
       const candidate = {

@@ -22,8 +22,10 @@ const PLACEHOLDER = /<<open:([^>\n]{1,200})>>/g
 const OPEN_ITEM =
   /^\s*(?:[-*+]|\d+[.)])\s+(?:\*\*|__)?\[(gather|ask|assume)\](?:\*\*|__)?:?\s*(.*)$/i
 
+/** The largest notes file a write accepts. */
 export const MAX_BUILD_NOTES_BYTES = 256 * 1024
 
+/** The notes `create` writes: every section the loop fills in, with an empty operations block. */
 export function buildNotesTemplate(workflowName: string): string {
   return `# Build notes: ${workflowName}
 
@@ -63,6 +65,7 @@ Each with its value, the block field it sets, why it was chosen, what would chan
 `
 }
 
+/** What evaluation reads from the notes text. */
 export interface BuildNotesReading {
   /** The apply body the block holds, or null when it is missing or not JSON. */
   batch: unknown
@@ -74,6 +77,10 @@ export interface BuildNotesReading {
   assumedItems: number
 }
 
+/**
+ * Reads the operations block (exactly one), the placeholders inside it, and the items under
+ * `## Open items`. Never throws: a missing or malformed block is reported in `operationsError`.
+ */
 export function readBuildNotes(notes: string): BuildNotesReading {
   const blocks = [...notes.matchAll(OPERATIONS_FENCE)]
   let batch: unknown = null
@@ -114,10 +121,12 @@ function openItemsSection(notes: string): string[] {
   return end < 0 ? rest : rest.slice(0, end)
 }
 
+/** The identity of the notes text an evaluation passed. */
 export function notesHash(notes: string): string {
   return sha256Hex(notes)
 }
 
+/** What a build writes, as evaluation and the apply check compare it. */
 export interface BuildNotesBatch {
   operations: readonly unknown[]
   blockEnabledChanges?: readonly { blockId: string; enabled: boolean }[]

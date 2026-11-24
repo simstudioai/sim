@@ -520,7 +520,7 @@ check(
   async () => {
     const { workflowId, startId } = await seedWorkflow()
     await createNotes(workflowId)
-    const replace = (principal: typeof agent | typeof person) =>
+    const replace = (principal: typeof agent | typeof person, dryRun = false) =>
       withPermissionGroupScope(() =>
         replaceWorkflowState.execute({
           principal,
@@ -529,9 +529,11 @@ check(
             assertedWorkspaceId: workspaceId,
             blocks: { [startId]: block(startId, 'start_trigger', 'Start') },
             edges: [],
+            dryRun,
           },
         })
       )
+    await expect(replace(agent, true)).rejects.toThrow(/whole-graph replace is refused/)
     await expect(replace(agent)).rejects.toThrow(/whole-graph replace is refused/)
     await expect(replace(person)).resolves.toBeDefined()
   }

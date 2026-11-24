@@ -124,6 +124,7 @@ export const getBuildNotesStatus = defineAuthorizedWorkflowUseCase({
   },
 })
 
+/** What `evaluate` reports: whether the notes may be built from, and each problem that blocks it. */
 export interface EvaluateBuildNotesResult {
   workflowId: string
   notes: string

@@ -20,6 +20,7 @@ const availabilityOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot'],
 })
 
+/** Whether build notes are rolled out for the workspace's organization; decides the `build_notes` entitlement. */
 export const readBuildNotesAvailability = defineAuthorizedWorkspaceUseCase({
   operation: availabilityOperation,
   resolveContext: ({ input }: { input: { workspaceId: string } }) =>

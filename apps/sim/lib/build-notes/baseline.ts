@@ -36,6 +36,7 @@ export interface BaselineGraph {
   clearedFields: ClearedFieldHashes
 }
 
+/** A baseline with the workflow `updatedAt` it was read at, which orders baselines. */
 export interface BaselineSnapshot extends BaselineGraph {
   workflowUpdatedAt: Date
 }
@@ -121,6 +122,7 @@ export async function loadCurrentBaselineState(
   })
 }
 
+/** The baseline file's text: the graph and the withheld-value hashes, keys sorted, so equal baselines serialize identically. */
 export function serializeBaseline(baseline: BaselineGraph): string {
   return `${JSON.stringify(
     sortObjectKeysDeep({ ...baseline.state, clearedFields: baseline.clearedFields }),
@@ -129,6 +131,10 @@ export function serializeBaseline(baseline: BaselineGraph): string {
   )}\n`
 }
 
+/**
+ * Reads a baseline file back. Throws `internal` when the text is not JSON or not a workflow
+ * graph; malformed withheld-value hashes are dropped rather than trusted.
+ */
 export function parseBaseline(content: string): BaselineGraph {
   let parsed: unknown
   try {
