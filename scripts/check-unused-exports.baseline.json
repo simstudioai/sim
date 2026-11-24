@@ -3979,8 +3979,6 @@
   "apps/sim/lib/billing/core/attribution.ts#resolveOrganizationBillingPayer",
   "apps/sim/lib/billing/core/organization.ts#getOrgMemberLedgerByUser",
   "apps/sim/lib/billing/core/reporting-period.ts#ENTERPRISE_REPORTING_PERIOD_INTERVAL_METADATA_KEY",
-  "apps/sim/lib/billing/core/subscription.ts#SubscriptionMetadata",
-  "apps/sim/lib/billing/core/subscription.ts#getBillingInterval",
   "apps/sim/lib/billing/core/subscription.ts#isEnterpriseOrgAdminOrOwner",
   "apps/sim/lib/billing/core/subscription.ts#isTeamPlan",
   "apps/sim/lib/billing/core/usage-analytics.ts#MAX_CUSTOM_RANGE_DAYS",

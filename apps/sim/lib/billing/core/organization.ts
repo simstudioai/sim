@@ -11,6 +11,7 @@ import {
   getBillingPeriodUsageCostByUser,
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
@@ -319,7 +320,7 @@ export async function getOrganizationBillingData(
       }
     }
 
-    const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
+    const { basePrice: pricePerSeat } = getPlanPricing(subscription)
 
     // Stripe subscription quantity; `||` not `??` because 0 seats is
     // never valid for a paid sub — fall through to 1.
@@ -431,7 +432,7 @@ async function updateSelfServeEnterpriseUsageLimit(
     if (newLimit < minimumLimit) {
       return {
         success: false,
-        error: `Usage limit cannot be less than $${roundCurrency(minimumLimit).toFixed(2)}, your contract's included usage plus prepaid credit`,
+        error: `Usage limit cannot be less than ${formatCredits(minimumLimit)} credits, your contract's included usage plus prepaid credit`,
       }
     }
     const limit = roundCurrency(newLimit).toFixed(2)
@@ -497,14 +498,14 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    const { basePrice } = getPlanPricing(subscription.plan)
+    const { basePrice } = getPlanPricing(subscription)
     const seatCount = subscription.seats || 1
     const minimumLimit = seatCount * basePrice
 
     if (newLimit < minimumLimit) {
       return {
         success: false,
-        error: `Usage limit cannot be less than minimum billing amount of $${roundCurrency(minimumLimit).toFixed(2)}`,
+        error: `Usage limit cannot be less than your plan's ${formatCredits(minimumLimit)} included credits`,
       }
     }
 

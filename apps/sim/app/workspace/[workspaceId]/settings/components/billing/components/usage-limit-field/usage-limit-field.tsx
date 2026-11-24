@@ -18,13 +18,13 @@ const AUTOSAVE_DELAY_MS = 1000
 const USAGE_LIMIT_INFO = (
   <Info side='top' className='text-[var(--text-muted)]'>
     {
-      "Max usage to consume per month, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage, but you can set it beyond."
+      "Max usage to consume per billing period, set in credits — Sim's usage unit (1,000 credits = $5). By default, it's your plan's included usage (a year's worth on annual billing, or the trial allowance during a trial), but you can set it beyond."
     }
   </Info>
 )
 
 interface UsageLimitFieldProps {
-  /** Current monthly usage limit, in dollars. */
+  /** Current usage limit for the billing period, in dollars. */
   currentLimit: number
   /** Lowest limit the plan allows, in dollars. */
   minimumLimit: number
@@ -37,7 +37,7 @@ interface UsageLimitFieldProps {
 }
 
 /**
- * Editable monthly usage-limit field. Seeds from the resolved limit and
+ * Editable usage-limit field. Seeds from the resolved limit and
  * auto-saves a debounced, validated value to either the user or the
  * organization — matching the Subscription tab's edit logic. When the viewer
  * cannot edit (e.g. a non-admin team member) the resolved value is shown

@@ -13,7 +13,6 @@ import {
   getUpgradeWorkspaceId,
 } from '@/lib/billing/core/payer-context'
 import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/reporting-period'
-import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
 import { isPaid } from '@/lib/billing/plan-helpers'
@@ -24,6 +23,7 @@ import {
   getOrgIncludedUsageDollars,
   getSubscriptionWeeklyRefreshDollars,
   isHardCappedEnterprise,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

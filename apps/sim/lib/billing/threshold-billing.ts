@@ -300,6 +300,8 @@ export async function checkAndBillOverageThreshold(
       plan: userSubscription.plan,
       referenceId: userSubscription.referenceId,
       seats: userSubscription.seats,
+      metadata: userSubscription.metadata,
+      billingInterval: userSubscription.billingInterval,
       periodStart: userSubscription.periodStart,
       periodEnd: userSubscription.periodEnd,
     })
@@ -637,6 +639,7 @@ async function checkAndBillOrganizationOverageThreshold(
         plan: orgSubscription.plan,
         seats: orgSubscription.seats ?? null,
         metadata: orgSubscription.metadata,
+        billingInterval: orgSubscription.billingInterval,
       },
       periodStart: orgSubscription.periodStart ?? null,
       periodEnd: orgSubscription.periodEnd ?? null,

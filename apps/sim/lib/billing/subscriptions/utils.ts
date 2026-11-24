@@ -133,6 +133,7 @@ export function getOrgIncludedUsageDollars(subscription: {
   plan?: string | null
   seats?: number | null
   metadata?: unknown
+  billingInterval?: string | null
 }): number {
   if (isEnterprise(subscription.plan)) {
     const metadata = parseEnterpriseSubscriptionMetadata(subscription.metadata)
@@ -144,7 +145,7 @@ export function getOrgIncludedUsageDollars(subscription: {
       ) / CREDIT_MULTIPLIER
     )
   }
-  return (subscription.seats || 1) * getPlanPricing(subscription.plan ?? '').basePrice
+  return (subscription.seats || 1) * getPlanPricing(subscription).basePrice
 }
 
 /** What a self-serve Enterprise contract commits to, for the surfaces that explain its billing. */
@@ -332,11 +333,7 @@ export function getPerUserMinimumLimit(subscription: any, freeTierEligible: bool
 
   if (isTrialingSubscription(subscription)) return PRO_TRIAL_USAGE_LIMIT_DOLLARS
 
-  if (isPro(subscription.plan)) {
-    const tierCredits = getPlanTierCredits(subscription.plan)
-    if (tierCredits > 0) return tierCredits / CREDIT_MULTIPLIER
-    return getProTierLimit()
-  }
+  if (isPro(subscription.plan)) return getPlanPricing(subscription).basePrice
 
   if (isOrgPlan(subscription.plan)) {
     return 0
@@ -362,17 +359,48 @@ export function canEditUsageLimit(subscription: any): boolean {
 }
 
 /**
- * Get pricing info for a plan. Supports both legacy names (`'pro'`, `'team'`)
- * and new credit-tier names (`'pro_4000'`, `'team_8000'`).
+ * Resolves a subscription's effective billing interval. Prefers the Stripe-synced
+ * `billingInterval` column — the only source populated on enterprise/manual
+ * subscriptions, which skip the checkout flow that writes the metadata value — and
+ * falls back to `metadata.billingInterval` (the column is often null on
+ * checkout-created subs), defaulting to monthly. Where both are set they agree.
  */
-export function getPlanPricing(plan: string): { basePrice: number } {
+export function resolveBillingInterval(
+  sub: { billingInterval?: string | null; metadata?: unknown } | null | undefined
+): 'month' | 'year' {
+  const column = sub?.billingInterval
+  if (column === 'year' || column === 'month') return column
+  return toRecord(sub?.metadata).billingInterval === 'year' ? 'year' : 'month'
+}
+
+/** The billing fields that decide a plan's included usage per period. */
+export interface PlanPricingInput {
+  plan: string | null | undefined
+  billingInterval?: string | null
+  metadata?: unknown
+}
+
+/**
+ * A plan's included usage per seat for one billing period, in dollars. Supports both legacy names
+ * (`'pro'`, `'team'`) and credit-tier names (`'pro_6000'`, `'team_25000'`).
+ *
+ * An annual Pro or Team plan includes twelve months of credits, pooled across its yearly billing
+ * period, since its usage window is that whole year. Enterprise contracts set their own allowance.
+ */
+export function getPlanPricing(subscription: PlanPricingInput): { basePrice: number } {
+  const plan = subscription.plan ?? ''
   if (isFree(plan)) return { basePrice: 0 }
   if (isEnterprise(plan)) return { basePrice: getEnterpriseTierLimitPerSeat() }
 
   if (isPro(plan) || isTeam(plan)) {
     const tierCredits = getPlanTierCredits(plan)
-    if (tierCredits > 0) return { basePrice: tierCredits / CREDIT_MULTIPLIER }
-    return { basePrice: isPro(plan) ? getProTierLimit() : getTeamTierLimitPerSeat() }
+    const monthly =
+      tierCredits > 0
+        ? tierCredits / CREDIT_MULTIPLIER
+        : isPro(plan)
+          ? getProTierLimit()
+          : getTeamTierLimitPerSeat()
+    return { basePrice: resolveBillingInterval(subscription) === 'year' ? monthly * 12 : monthly }
   }
 
   return { basePrice: 0 }

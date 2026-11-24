@@ -74,7 +74,7 @@ export async function reconcileOrganizationSeats({
         previousSeats: number
         seats: number
         outboxEventId: string
-        sync: { id: string; plan: string; status: string | null }
+        sync: { id: string; plan: string; status: string | null; billingInterval: string | null }
       }
 
   const outcome = await db.transaction<ReconcileOutcome>(async (tx) => {
@@ -138,6 +138,7 @@ export async function reconcileOrganizationSeats({
         id: orgSubscription.id,
         plan: orgSubscription.plan,
         status: orgSubscription.status,
+        billingInterval: orgSubscription.billingInterval,
       },
     }
   })
@@ -156,6 +157,7 @@ export async function reconcileOrganizationSeats({
       referenceId: organizationId,
       status: outcome.sync.status,
       seats: outcome.seats,
+      billingInterval: outcome.sync.billingInterval,
     })
   } catch (error) {
     // Seats already committed in the transaction above; a failure here must not

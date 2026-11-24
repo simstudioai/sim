@@ -32,6 +32,8 @@ export interface SubscriptionState {
   isOrgScoped: boolean
   /** An Enterprise contract an admin opted into self-serve usage limits, seats, and payment. */
   isEnterpriseSelfServe: boolean
+  /** Active or trialing and not billing-blocked; a past-due or blocked plan cannot change limits. */
+  hasUsableAccess: boolean
   plan: string
   status: string
 }
@@ -67,7 +69,10 @@ export function getSubscriptionPermissions(
     canManageTeam: isOrgScoped && isTeamAdmin && !isEnterprise,
     canManageBilling,
     canManageEnterprisePayment,
-    canEditUsageLimit: (canManageBilling || canManageEnterprisePayment) && !isTrialing,
+    canEditUsageLimit:
+      (canManageBilling || canManageEnterprisePayment) &&
+      !isTrialing &&
+      subscription.hasUsableAccess,
     canCancelSubscription: isPaid && !isEnterprise && orgAdminOrSolo,
     showTeamMemberView: orgMemberOnly,
     showUpgradePlans:

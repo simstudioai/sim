@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { memberUsageLimitOperations } from '@/lib/billing/application/member-usage-limits/operations'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   getOrgMemberUsageForCurrentPeriod,
@@ -12,6 +11,7 @@ import {
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
+import { resolveBillingInterval } from '@/lib/billing/subscriptions/utils'
 import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,

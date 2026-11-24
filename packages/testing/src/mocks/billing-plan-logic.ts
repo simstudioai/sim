@@ -39,7 +39,7 @@ export function isPaid(plan: Plan): boolean {
   return isPro(plan) || isTeam(plan) || isEnterprise(plan)
 }
 
-export function getPlanTierCredits(plan: Plan): number {
+function getPlanTierCredits(plan: Plan): number {
   if (!plan) return 0
   const match = plan.match(/_(\d+)$/)
   if (match) return Number.parseInt(match[1], 10)
@@ -48,16 +48,38 @@ export function getPlanTierCredits(plan: Plan): number {
   return 0
 }
 
+/** Faithful port of the real `resolveBillingInterval`: column first, then metadata, then monthly. */
+export function resolveBillingInterval(
+  sub: { billingInterval?: string | null; metadata?: unknown } | null | undefined
+): 'month' | 'year' {
+  const column = sub?.billingInterval
+  if (column === 'year' || column === 'month') return column
+  const metadata = sub?.metadata
+  const fromMetadata =
+    typeof metadata === 'object' && metadata !== null
+      ? (metadata as { billingInterval?: unknown }).billingInterval
+      : undefined
+  return fromMetadata === 'year' ? 'year' : 'month'
+}
+
 /** Faithful port of the real `getPlanPricing` with env overrides unset. */
-export function getPlanPricing(plan: string): { basePrice: number } {
+export function getPlanPricing(subscription: {
+  plan: string | null | undefined
+  billingInterval?: string | null
+  metadata?: unknown
+}): { basePrice: number } {
+  const plan = subscription.plan ?? ''
   if (isFree(plan)) return { basePrice: 0 }
   if (isEnterprise(plan)) return { basePrice: DEFAULT_ENTERPRISE_TIER_COST_LIMIT }
   if (isPro(plan) || isTeam(plan)) {
     const tierCredits = getPlanTierCredits(plan)
-    if (tierCredits > 0) return { basePrice: tierCredits / CREDIT_MULTIPLIER }
-    return {
-      basePrice: isPro(plan) ? DEFAULT_PRO_TIER_COST_LIMIT : DEFAULT_TEAM_TIER_COST_LIMIT,
-    }
+    const monthly =
+      tierCredits > 0
+        ? tierCredits / CREDIT_MULTIPLIER
+        : isPro(plan)
+          ? DEFAULT_PRO_TIER_COST_LIMIT
+          : DEFAULT_TEAM_TIER_COST_LIMIT
+    return { basePrice: resolveBillingInterval(subscription) === 'year' ? monthly * 12 : monthly }
   }
   return { basePrice: 0 }
 }

@@ -451,7 +451,12 @@ export async function closeElapsedBillingPeriod(
   if (billsClosedOverage) {
     if (orgScoped) {
       const { totalOverage: computed } = await computeOrgOverageAmount({
-        subscription: { plan: sub.plan, seats: sub.seats ?? null, metadata: sub.metadata },
+        subscription: {
+          plan: sub.plan,
+          seats: sub.seats ?? null,
+          metadata: sub.metadata,
+          billingInterval: sub.billingInterval,
+        },
         periodStart: closeFrom,
         periodEnd: periodStart,
         organizationId: sub.referenceId,
@@ -469,7 +474,7 @@ export async function closeElapsedBillingPeriod(
           weeklyRefreshDollars,
         })
       }
-      const { basePrice } = getPlanPricing(sub.plan)
+      const { basePrice } = getPlanPricing(sub)
       totalOverage = Math.max(0, closedLedgerUsage - refreshConsumed - basePrice)
     }
   }

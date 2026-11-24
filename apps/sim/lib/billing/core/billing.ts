@@ -2,10 +2,7 @@ import { db } from '@sim/db'
 import { organization, subscription, userStats } from '@sim/db/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
-import {
-  getHighestPriorityPersonalSubscription,
-  resolveBillingInterval,
-} from '@/lib/billing/core/subscription'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { ensureUserStatsExists } from '@/lib/billing/core/usage'
 import {
   COPILOT_USAGE_SOURCES,
@@ -25,10 +22,12 @@ import {
   getFreeTierAllowance,
   getFreeTierLimit,
   getOrgIncludedUsageDollars,
+  getPerUserMinimumLimit,
   getPlanPricing,
   getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   isHardCappedEnterprise,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
@@ -127,7 +126,12 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * All callers route through this to keep the overage math in one place.
  */
 export async function computeOrgOverageAmount(params: {
-  subscription: { plan: string | null; seats: number | null; metadata: unknown }
+  subscription: {
+    plan: string | null
+    seats: number | null
+    metadata: unknown
+    billingInterval?: string | null
+  }
   periodStart: Date | null
   periodEnd: Date | null
   organizationId: string
@@ -170,6 +174,7 @@ export async function calculateSubscriptionOverage(sub: {
   referenceId: string
   seats?: number | null
   metadata?: unknown
+  billingInterval?: string | null
   periodStart?: Date | null
   periodEnd?: Date | null
   trialEnd?: Date | null
@@ -199,7 +204,12 @@ export async function calculateSubscriptionOverage(sub: {
         : 0
 
     const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
-      subscription: { plan: sub.plan, seats: sub.seats ?? null, metadata: sub.metadata },
+      subscription: {
+        plan: sub.plan,
+        seats: sub.seats ?? null,
+        metadata: sub.metadata,
+        billingInterval: sub.billingInterval,
+      },
       periodStart: sub.periodStart ?? null,
       periodEnd: sub.periodEnd ?? null,
       organizationId: sub.referenceId,
@@ -244,7 +254,7 @@ export async function calculateSubscriptionOverage(sub: {
       }
     }
 
-    const { basePrice } = getPlanPricing(sub.plan || 'free')
+    const { basePrice } = getPlanPricing(sub)
     totalOverageDecimal = Decimal.max(
       0,
       toDecimal(ledgerUsage).minus(toDecimal(weeklyRefreshDeduction)).minus(basePrice)
@@ -356,6 +366,7 @@ export async function getPersonalBillingSummary(userId: string, executor: DbClie
       isExceeded,
       daysRemaining,
       creditBalance: toNumber(toDecimal(stats.creditBalance)),
+      includedUsage: getPerUserMinimumLimit(personalSubscription, stats.freeTierEligible),
       billingInterval: resolveBillingInterval(personalSubscription),
       isPaid: hasPaidEntitlement && isPaid(plan),
       isPro: hasPaidEntitlement && isPro(plan),
@@ -413,6 +424,7 @@ function getDefaultBillingSummary(type: 'individual' | 'organization') {
     isExceeded: false,
     daysRemaining: 0,
     creditBalance: 0,
+    includedUsage: 0,
     billingInterval: 'month' as const,
     // Subscription details
     isPaid: false,

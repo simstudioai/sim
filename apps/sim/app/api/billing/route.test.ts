@@ -4,10 +4,7 @@ import {
   billingOrganizationMock,
   billingOrganizationMockFns,
 } from '@sim/testing/mocks/billing-organization.mock'
-import {
-  billingSubscriptionMock,
-  billingSubscriptionMockFns,
-} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetCreditBalanceForEntity } = vi.hoisted(() => ({
@@ -30,7 +27,6 @@ const mockGetSession = authMockFns.mockGetSession
 const mockGetOrganizationBillingData = billingOrganizationMockFns.mockGetOrganizationBillingData
 const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
 const mockGetPersonalBillingSummary = billingCoreMockFns.mockGetPersonalBillingSummary
-const mockResolveBillingInterval = billingSubscriptionMockFns.mockResolveBillingInterval
 
 const PERSONAL_SUMMARY = {
   type: 'individual',
@@ -146,10 +142,6 @@ describe('GET /api/billing', () => {
     mockGetOrganizationBillingData.mockResolvedValue(ACTIVE_ORG_BILLING)
     mockGetOrganizationSubscription.mockResolvedValue(ACTIVE_ORG_SUBSCRIPTION)
     mockGetCreditBalanceForEntity.mockResolvedValue(17)
-    mockResolveBillingInterval.mockImplementation(
-      (subscription: { billingInterval?: string | null } | null) =>
-        subscription?.billingInterval === 'year' ? 'year' : 'month'
-    )
   })
 
   it('keeps account billing personal even when an organization ID is supplied', async () => {

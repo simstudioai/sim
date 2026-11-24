@@ -13,7 +13,10 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/iden
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { SubscriptionReferenceNotFoundError } from '@/lib/billing/subscriptions/errors'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  SETTLED_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -29,6 +32,7 @@ type SubscriptionData = {
   referenceId: string
   status: string | null
   seats?: number | null
+  billingInterval?: string | null
   /** Correlation copied from Stripe metadata by the generic webhook callback. */
   enterpriseOperationId?: string | null
 }
@@ -530,7 +534,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
     } else {
       /** Enterprise has custom pricing; other paid pools retain prepaid headroom when seats increase. */
       if (isPaid(subscription.plan) && !isEnterprise(subscription.plan)) {
-        const { basePrice } = getPlanPricing(subscription.plan)
+        const { basePrice } = getPlanPricing(subscription)
         const seats = subscription.seats || 1
         const planBase = toDecimal(basePrice).times(seats).toString()
         const liveMinimum = sql`${planBase}::numeric + ${organization.creditBalance}`
@@ -564,4 +568,51 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
     })
     throw error
   }
+}
+
+/** Most annual subscriptions one sweep re-syncs; the rest follow on the next run. */
+const ANNUAL_LIMIT_SYNC_BATCH = 500
+
+/**
+ * Re-applies the usage-limit floor of every settled annual Pro or Team subscription. An annual
+ * plan includes twelve months of credits for its yearly period, and a limit written before that
+ * rule (or by a missed webhook) would cap the payer at one month's worth. The sync only ever
+ * raises a limit, so repeating it is safe. Returns how many subscriptions it synced.
+ */
+export async function syncAnnualPlanUsageLimits(): Promise<number> {
+  const annualSubscriptions = await db
+    .select({
+      id: subscriptionTable.id,
+      plan: subscriptionTable.plan,
+      referenceId: subscriptionTable.referenceId,
+      status: subscriptionTable.status,
+      seats: subscriptionTable.seats,
+      billingInterval: subscriptionTable.billingInterval,
+      metadata: subscriptionTable.metadata,
+    })
+    .from(subscriptionTable)
+    .where(
+      and(
+        inArray(subscriptionTable.status, SETTLED_SUBSCRIPTION_STATUSES),
+        ne(subscriptionTable.plan, 'enterprise'),
+        ne(subscriptionTable.plan, 'free'),
+        sql`coalesce(${subscriptionTable.billingInterval}, ${subscriptionTable.metadata}::jsonb->>'billingInterval') = 'year'`
+      )
+    )
+    .orderBy(subscriptionTable.id)
+    .limit(ANNUAL_LIMIT_SYNC_BATCH)
+
+  let synced = 0
+  for (const annual of annualSubscriptions) {
+    try {
+      await syncSubscriptionUsageLimits({ ...annual, billingInterval: 'year' })
+      synced++
+    } catch (error) {
+      logger.error('Failed to sync an annual plan usage limit', {
+        subscriptionId: annual.id,
+        error,
+      })
+    }
+  }
+  return synced
 }

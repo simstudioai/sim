@@ -44,37 +44,8 @@ const logger = createLogger('SubscriptionCore')
 
 export { getHighestPriorityPersonalSubscription, getHighestPrioritySubscription }
 
-export interface SubscriptionMetadata {
-  billingInterval?: 'month' | 'year'
-  [key: string]: unknown
-}
-
 export interface HasPaidSubscriptionOptions {
   onError?: 'assume-active' | 'throw'
-}
-
-/**
- * Extract the billing interval from subscription metadata, defaulting to 'month'.
- */
-export function getBillingInterval(
-  metadata: SubscriptionMetadata | null | undefined
-): 'month' | 'year' {
-  return metadata?.billingInterval === 'year' ? 'year' : 'month'
-}
-
-/**
- * Resolves a subscription's effective billing interval. Prefers the Stripe-synced
- * `billingInterval` column — the only source populated on enterprise/manual
- * subscriptions, which skip the checkout flow that writes the metadata value — and
- * falls back to `metadata.billingInterval` (the column is often null on
- * checkout-created subs), defaulting to monthly. Where both are set they agree.
- */
-export function resolveBillingInterval(
-  sub: { billingInterval?: string | null; metadata?: unknown } | null | undefined
-): 'month' | 'year' {
-  const column = sub?.billingInterval
-  if (column === 'year' || column === 'month') return column
-  return getBillingInterval((sub?.metadata ?? null) as SubscriptionMetadata | null)
 }
 
 /**

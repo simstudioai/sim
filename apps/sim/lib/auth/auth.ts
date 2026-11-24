@@ -1734,9 +1734,11 @@ export const auth = betterAuth({
                   await handleSubscriptionCreated(resolvedSubscription, event.id)
                 }
 
-                await syncSubscriptionUsageLimits(resolvedSubscription)
+                const billingInterval = isAnnual ? 'year' : 'month'
+                // The interval decides the included usage, so it is written before the limit sync.
+                await writeBillingInterval(resolvedSubscription.id, billingInterval)
 
-                await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
+                await syncSubscriptionUsageLimits({ ...resolvedSubscription, billingInterval })
 
                 await sendPlanWelcomeEmail(resolvedSubscription, {
                   trialEnd:

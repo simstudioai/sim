@@ -106,7 +106,8 @@ export const CREDITS_PER_DOLLAR = 200
 
 /**
  * Annual subscribers pay 15% less than the equivalent monthly plan
- * but receive the same included credits. The Stripe annual price is
+ * but receive the same included credits: twelve months of them for the yearly
+ * billing period (see `getPlanPricing`). The Stripe annual price is
  * `monthlyDollars * 12 * (1 - ANNUAL_DISCOUNT_RATE)`.
  */
 export const ANNUAL_DISCOUNT_RATE = 0.15

@@ -257,7 +257,7 @@ describe('the customer usage limit', () => {
     const result = await updateOrganizationUsageLimit(org.id, 1_000)
 
     expect(result).toMatchObject({ success: false })
-    expect(result.error).toContain('1050.00')
+    expect(result.error).toContain('210,000 credits')
   })
 
   it('is stored apart from the enforced limit once a self-serve customer raises it', async () => {

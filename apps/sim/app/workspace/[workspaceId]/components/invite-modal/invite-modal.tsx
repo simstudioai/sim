@@ -183,6 +183,13 @@ export function InviteModal({
   const seatLimitReason = mayExceedSeatCapacity
     ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available — invites beyond that may fail. External collaborators and existing members do not use seats.`
     : null
+  /** Tells the inviter what accepting costs, since the seat is charged then rather than now. */
+  const seatChargeHint =
+    billingEnabled && canInvite && membership !== 'external' && !hasFixedSeatCap
+      ? organizationBillingData?.data?.seatCapKind === 'baseline'
+        ? 'Members past your contracted seats are billed at the next quarterly true-up.'
+        : 'Each member who accepts adds a paid seat to your plan, prorated for this period.'
+      : null
 
   const validateEmail = useCallback(
     (email: string): string | null => {
@@ -270,7 +277,7 @@ export function InviteModal({
           value={emails}
           onChange={handleEmailsChange}
           validate={validateEmail}
-          hint={inviteDisabledReason ?? seatLimitReason}
+          hint={inviteDisabledReason ?? seatLimitReason ?? seatChargeHint}
           placeholder={
             canInvite
               ? 'Enter emails'

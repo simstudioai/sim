@@ -1,21 +1,18 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
 import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -84,7 +81,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       ? hostContext.ownerBilling.billingBlocked
       : (await getEffectiveBillingStatus(userId)).billingBlocked
     if (!hasUsableSubscriptionAccess(sub.status, billingBlocked)) {
-      return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
+      return NextResponse.json(
+        {
+          error:
+            'Your last payment failed. Update your payment method under Settings > Billing, then change your plan.',
+        },
+        { status: 400 }
+      )
     }
 
     if (isEnterprise(sub.plan) || isEnterprise(targetPlanName)) {
@@ -173,14 +176,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    if (!alreadyInDb) {
-      await db
-        .update(subscriptionTable)
-        .set({ plan: targetPlanName })
-        .where(eq(subscriptionTable.id, sub.id))
-    }
-
-    await writeBillingInterval(sub.id, targetInterval as 'month' | 'year')
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName,
+      targetInterval: targetInterval as 'month' | 'year',
+      orgScoped: await isSubscriptionOrgScoped(sub),
+    })
 
     logger.info('Subscription switched successfully', {
       userId,

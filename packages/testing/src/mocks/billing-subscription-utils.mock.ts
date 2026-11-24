@@ -7,7 +7,6 @@ import {
   DEFAULT_PRO_TIER_COST_LIMIT,
   DEFAULT_TEAM_TIER_COST_LIMIT,
   getPlanPricing,
-  getPlanTierCredits,
   getPlanWeeklyRefreshDollars,
   isEnterprise,
   isOrgPlan,
@@ -15,6 +14,7 @@ import {
   isPro,
   isTeam,
   PRO_TRIAL_USAGE_LIMIT_DOLLARS,
+  resolveBillingInterval,
 } from './billing-plan-logic'
 
 type Status = string | null | undefined
@@ -25,6 +25,7 @@ interface SubscriptionLike {
   seats?: number | null
   metadata?: unknown
   referenceId?: string | null
+  billingInterval?: string | null
 }
 
 const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'] as const
@@ -83,7 +84,7 @@ function getOrgIncludedUsageDollars(subscription: SubscriptionLike): number {
       ? Number(metadata.invoiceAmountCents) / 100
       : Number(metadata.monthlyPrice)
   }
-  return (subscription.seats || 1) * getPlanPricing(subscription.plan ?? '').basePrice
+  return (subscription.seats || 1) * getPlanPricing(subscription).basePrice
 }
 
 function getEnterpriseSelfServeTerms(subscription: SubscriptionLike) {
@@ -253,11 +254,7 @@ function getPerUserMinimumLimit(
     return getFreeTierAllowance(freeTierEligible)
   }
   if (isTrialingSubscription(subscription)) return PRO_TRIAL_USAGE_LIMIT_DOLLARS
-  if (isPro(subscription.plan)) {
-    const tierCredits = getPlanTierCredits(subscription.plan)
-    if (tierCredits > 0) return tierCredits / CREDIT_MULTIPLIER
-    return getProTierLimit()
-  }
+  if (isPro(subscription.plan)) return getPlanPricing(subscription).basePrice
   if (isOrgPlan(subscription.plan)) return 0
   return getFreeTierAllowance(freeTierEligible)
 }
@@ -314,6 +311,7 @@ export const billingSubscriptionUtilsMockFns = {
   mockGetPerUserMinimumLimit: vi.fn(getPerUserMinimumLimit),
   mockCanEditUsageLimit: vi.fn(canEditUsageLimit),
   mockGetPlanPricing: vi.fn(getPlanPricing),
+  mockResolveBillingInterval: vi.fn(resolveBillingInterval),
 }
 
 /**
@@ -358,4 +356,5 @@ export const billingSubscriptionUtilsMock = {
   getPerUserMinimumLimit: billingSubscriptionUtilsMockFns.mockGetPerUserMinimumLimit,
   canEditUsageLimit: billingSubscriptionUtilsMockFns.mockCanEditUsageLimit,
   getPlanPricing: billingSubscriptionUtilsMockFns.mockGetPlanPricing,
+  resolveBillingInterval: billingSubscriptionUtilsMockFns.mockResolveBillingInterval,
 }

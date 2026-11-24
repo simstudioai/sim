@@ -18,9 +18,9 @@ import {
   getOrganizationBillingBlockState,
   getUpgradeWorkspaceId,
 } from '@/lib/billing/core/payer-context'
-import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import { resolveBillingInterval } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedBillingAPI')

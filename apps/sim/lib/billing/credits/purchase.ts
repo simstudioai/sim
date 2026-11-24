@@ -17,16 +17,15 @@ const logger = createLogger('CreditPurchase')
 export async function setUsageLimitForCredits(
   entityType: 'user' | 'organization',
   entityId: string,
-  subscription: { plan: string; status: string | null },
+  subscription: { plan: string; status: string | null; billingInterval?: string | null },
   seats: number | null,
   creditBalance: number
 ): Promise<void> {
-  const { plan } = subscription
   try {
     const basePrice =
       entityType === 'user' && isTrialingSubscription(subscription)
         ? PRO_TRIAL_USAGE_LIMIT_DOLLARS
-        : getPlanPricing(plan).basePrice
+        : getPlanPricing(subscription).basePrice
 
     const seatCount = seats || 1
     const planBase =
@@ -51,7 +50,7 @@ export async function setUsageLimitForCredits(
 
         logger.info('Set org usage limit to planBase + credits', {
           organizationId: entityId,
-          plan,
+          plan: subscription.plan,
           seats,
           planBase,
           creditBalance,
@@ -77,7 +76,7 @@ export async function setUsageLimitForCredits(
 
         logger.info('Set user usage limit to planBase + credits', {
           userId: entityId,
-          plan,
+          plan: subscription.plan,
           planBase,
           creditBalance,
           previousLimit: currentLimit,
