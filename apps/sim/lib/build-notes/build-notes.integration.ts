@@ -52,7 +52,9 @@ import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { deleteFolder, restoreFolder } from '@/lib/folders/orchestration'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
+import { applyWorkflowSource } from '@/lib/workflows/application/apply-workflow-source'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
+import { readWorkflowSource } from '@/lib/workflows/application/read-workflow-source'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
@@ -538,6 +540,54 @@ check(
     await expect(replace(person)).resolves.toBeDefined()
   }
 )
+
+check(
+  'a source write is refused for the agent on a workflow with notes, preview included',
+  async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+      async (flag: string) => flag === 'build-notes' || flag === 'workflow-code'
+    )
+    const functionId = generateId()
+    const { workflowId } = await seedWorkflow({
+      [functionId]: block(functionId, 'function', 'Compute', {
+        code: { id: 'code', type: 'code', value: 'return 1' },
+      }),
+    })
+    await createNotes(workflowId)
+    const source = await withPermissionGroupScope(() =>
+      readWorkflowSource.execute({
+        principal: agent,
+        input: { workflowId, functionCode: 'inline' },
+      })
+    )
+    const workflowFile = source.files['workflow.ts'] ?? ''
+    expect(workflowFile).toContain('return 1')
+    const applySource = (dryRun: boolean) =>
+      withPermissionGroupScope(() =>
+        applyWorkflowSource.execute({
+          principal: agent,
+          input: {
+            workflowId,
+            files: { ...source.files, 'workflow.ts': workflowFile.replace('return 1', 'return 2') },
+            lock: source.lock,
+            base: source.base,
+            dryRun,
+          },
+        })
+      )
+    await expect(applySource(true)).rejects.toThrow(/whole-graph replace is refused/)
+    await expect(applySource(false)).rejects.toThrow(/whole-graph replace is refused/)
+  }
+)
+
+check('notes written with Windows line endings evaluate like any other', async () => {
+  const { workflowId, startId } = await seedWorkflow()
+  await createNotes(workflowId)
+  await writeNotes(workflowId, notesWith(functionBatch(startId, 'score')).replace(/\n/g, '\r\n'))
+  const reading = await evaluate(workflowId)
+  expect(reading.problems).toEqual([])
+  expect(reading).toMatchObject({ passed: true, assumedItems: 1 })
+})
 
 check(
   'a credential switched in the editor is a change, without the baseline keeping either value',

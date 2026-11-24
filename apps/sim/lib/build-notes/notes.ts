@@ -81,7 +81,9 @@ export interface BuildNotesReading {
  * Reads the operations block (exactly one), the placeholders inside it, and the items under
  * `## Open items`. Never throws: a missing or malformed block is reported in `operationsError`.
  */
-export function readBuildNotes(notes: string): BuildNotesReading {
+export function readBuildNotes(text: string): BuildNotesReading {
+  // Windows and old Mac line endings read like any other notes.
+  const notes = text.replace(/\r\n?/g, '\n')
   const blocks = [...notes.matchAll(OPERATIONS_FENCE)]
   let batch: unknown = null
   let operationsError: string | null = null
