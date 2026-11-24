@@ -159,3 +159,36 @@ describe('a field publishes the value type its block declares, never a guessed o
     expect(field(detail.operationInputSchema.read ?? [], 'rowLimit')?.valueType).toBe('number')
   })
 })
+
+describe('a block output publishes its nested shape', () => {
+  it("keeps a json output's members and an array output's element shape", () => {
+    const row = { id: { type: 'string' }, data: { type: 'json', description: 'Cells' } } as const
+    const declared = { ...row, internal: { type: 'string', hiddenFromDisplay: true } } as const
+    const config = block({
+      type: 'rows',
+      outputs: {
+        row: {
+          type: 'json',
+          description: 'One row',
+          condition: { field: 'operation', value: 'get_row' },
+          properties: declared,
+        },
+        rows: { type: 'array', items: { type: 'json', properties: declared } },
+      },
+    })
+    expect(projectBlockDetail(config, { deployment: { hostedKeys: false } }).outputs).toEqual({
+      row: {
+        type: 'json',
+        description: 'One row',
+        properties: row,
+      },
+      rows: {
+        type: 'array',
+        items: {
+          type: 'json',
+          properties: row,
+        },
+      },
+    })
+  })
+})

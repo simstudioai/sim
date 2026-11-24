@@ -7,6 +7,7 @@ import {
 import {
   addWorkflowGroupBodySchema,
   archivedTableIdParamsSchema,
+  COLUMN_TYPES_HELP,
   cancelTableRunsBodyBaseSchema,
   columnNameSchema,
   columnTypeSchema,
@@ -517,7 +518,9 @@ export const v2CreateTableBodySchema = v1CreateTableBodySchema
           .describe('Initial table columns.'),
       })
       .strict()
-      .describe('Initial table column definitions.'),
+      .describe(
+        `Initial table column definitions: {"columns":[{"name":"email","type":"string"}]}. ${COLUMN_TYPES_HELP}`
+      ),
     folderPath: v2FolderPathInputSchema.optional().describe('Folder in which to create the table.'),
   })
   .strict()
@@ -742,7 +745,9 @@ export const v2CreateTableColumnBodySchema = z
       })
       .strict()
       .superRefine(refineColumnOptions)
-      .describe('Column definition to add.'),
+      .describe(
+        `Column definition to add: {"name":"status","type":"string"}. ${COLUMN_TYPES_HELP}`
+      ),
   })
   .strict()
 

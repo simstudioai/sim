@@ -44,6 +44,8 @@ run; --no-types skips it). For review, \`apply --dry-run\` prints the plan and w
 A new workflow: \`sim workflows source create --dir ./new --workspace <workspaceId>\` writes a
 starter that records its workspace; edit and check it, then \`create --dir ./new --yes\` creates the
 workflow there, and the loop above goes on from there.
+A workflow's source holds that workflow alone: a table, its columns and rows, and every other
+workspace resource are edited with \`sim workspaces source\` (or the \`sim tables\` commands).
 ${WORKSPACE_LINE}
 ${RUN_LOGS_LINE}
 

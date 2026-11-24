@@ -303,11 +303,6 @@ export const v2BlockSummarySchema = z
   })
 export type V2BlockSummary = z.output<typeof v2BlockSummarySchema>
 
-const v2BlockOutputSchema = z.object({
-  type: z.string().describe('Value type of the output.'),
-  description: z.string().optional().describe('What the output holds.'),
-})
-
 /** Block-level input definition. */
 const v2BlockInputDefinitionSchema = z.object({
   type: z
@@ -400,6 +395,14 @@ export const v2ToolOutputSchema = z
     description: 'One declared output field of a built-in tool.',
   })
 export type V2ToolOutput = z.output<typeof v2ToolOutputSchema>
+
+/** One declared output of a block, nesting the way a tool's output does. */
+const v2BlockOutputSchema = v2ToolOutputSchema.pick({
+  type: true,
+  description: true,
+  properties: true,
+  items: true,
+})
 
 const v2HostedApiKeySchema = z
   .enum(['always', 'conditional', 'none'])

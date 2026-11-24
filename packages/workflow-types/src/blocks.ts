@@ -90,6 +90,10 @@ export type OutputFieldDefinition =
        * Workflow source stores a bare reference to it in JSON text as untyped.
        */
       mayBeText?: boolean
+      /** The members of a `json` output, keyed by field name. */
+      properties?: Record<string, OutputFieldDefinition>
+      /** The element shape of an `array` output. */
+      items?: OutputFieldDefinition
     }
 
 export function isHiddenFromDisplay(def: unknown): boolean {
