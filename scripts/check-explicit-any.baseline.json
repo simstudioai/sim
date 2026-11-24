@@ -1030,7 +1030,6 @@
     "scripts/generate-v2-cli-api.ts": 3
   },
   "nonNullAssertion": {
-    "apps/desktop/e2e/password-autofill.spec.ts": 11,
     "apps/desktop/e2e/source-connect.spec.ts": 2,
     "apps/desktop/src/main/browser-agent/cdp.test.ts": 1,
     "apps/desktop/src/main/browser-agent/context-menu.test.ts": 2,

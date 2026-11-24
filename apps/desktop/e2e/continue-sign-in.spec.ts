@@ -1,13 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { createServer, type Server } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { type ElectronApplication, _electron as electron, expect, test } from '@playwright/test'
-import type { SimDesktopApi } from '@sim/desktop-bridge'
-import { recordCheck } from './check-report'
+import type { ElectronApplication, Page } from '@playwright/test'
+import { type DesktopBridge, expect, type FixtureServer, test } from './harness'
+import { serveSignedIn } from './session-fixture'
 
-const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 const SCOPE = 'continue-sign-in-fixture'
 
 /**
@@ -20,38 +14,13 @@ const SCOPE = 'continue-sign-in-fixture'
  * covered by the importer's fixture-database tests instead.
  */
 test.describe('continue a sign-in in another browser', () => {
-  let server: Server
-  let origin: string
-  let site: string
-  let home: string
-  let userData: string
-  let app: ElectronApplication | undefined
+  let fixture: FixtureServer
+  let app: ElectronApplication
+  let page: Page
 
   test.beforeAll(async () => {
-    server = createServer((request, response) => {
-      const path = new URL(request.url ?? '/', 'http://localhost').pathname
-      if (path === '/api/auth/get-session') {
-        response.writeHead(200, { 'Content-Type': 'application/json' })
-        response.end(
-          JSON.stringify({ user: { id: 'fixture-user' }, session: { id: 'fixture-session' } })
-        )
-        return
-      }
-      if (path.startsWith('/api/')) {
-        response.writeHead(200, { 'Content-Type': 'application/json' })
-        response.end('{}')
-        return
-      }
-      if (request.headers.host?.startsWith('localhost')) {
-        response.writeHead(200, { 'Content-Type': 'text/html' })
-        response.end('<!doctype html><title>Sign in</title><h1>Sign in</h1>')
-        return
-      }
-      response.writeHead(200, {
-        'Content-Type': 'text/html',
-        'Set-Cookie': 'better-auth.session_token=fixture; HttpOnly; SameSite=Lax; Path=/',
-      })
-      response.end(`<!doctype html><title>Sim fixture</title><h1>Continue fixture</h1>
+    fixture = await serveSignedIn({
+      page: `<!doctype html><title>Sim fixture</title><h1>Continue fixture</h1>
 <button id="open">Open</button><button id="continue">Continue</button><button id="back">Back</button>
 <script>
   const api = globalThis.simDesktop
@@ -64,106 +33,72 @@ test.describe('continue a sign-in in another browser', () => {
     api.browserImport.continueSignIn('chrome:Default', scope).then(record('continued'))
   document.getElementById('back').onclick = () =>
     api.browserImport.bringSignInBack(scope).then(record('broughtBack'))
-</script>`)
-    })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    const address = server.address()
-    if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-    origin = `http://127.0.0.1:${address.port}`
-    site = `http://localhost:${address.port}`
-  })
-
-  test.beforeEach(async () => {
-    home = mkdtempSync(join(tmpdir(), 'sim-continue-home-'))
-    userData = mkdtempSync(join(tmpdir(), 'sim-continue-e2e-'))
-    app = await electron.launch({
-      args: [process.env.SIM_DESKTOP_E2E_MAIN ?? '.'],
-      cwd: DESKTOP_DIR,
-      env: {
-        ...process.env,
-        HOME: home,
-        SIM_DESKTOP_ORIGIN: origin,
-        SIM_DESKTOP_USER_DATA: userData,
+</script>`,
+      handle: (request, response, url) => {
+        if (url.pathname.startsWith('/api/') || !request.headers.host?.startsWith('localhost')) {
+          return false
+        }
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end('<!doctype html><title>Sign in</title><h1>Sign in</h1>')
+        return true
       },
     })
-    const page = await app.firstWindow()
+  })
+
+  test.afterAll(async () => {
+    await fixture.close()
+  })
+
+  test.beforeEach(async ({ desktop }) => {
+    ;({ app } = await desktop.launch({
+      origin: fixture.origin,
+      main: process.env.SIM_DESKTOP_E2E_MAIN,
+      env: { HOME: desktop.tempDir('sim-continue-home-') },
+    }))
+    page = await app.firstWindow()
     await expect(page.getByRole('heading')).toHaveText('Continue fixture')
     await page.evaluate(async (scope) => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      const api = (globalThis as DesktopBridge).simDesktop
       await api.browserAgent.activateScope(scope)
       api.browserAgent.setPanelBounds({ x: 0, y: 120, width: 800, height: 400 }, null, scope)
     }, SCOPE)
   })
 
-  test.afterEach(async () => {
-    const testInfo = test.info()
-    recordCheck(process.env.CONTINUE_SIGN_IN_REPORT_PATH, 'continue-sign-in', {
-      name: testInfo.title,
-      status: testInfo.status ?? 'unknown',
-      durationMs: testInfo.duration,
-      retry: testInfo.retry,
-    })
-    await app?.close()
-    app = undefined
-    rmSync(userData, { recursive: true, force: true })
-    rmSync(home, { recursive: true, force: true })
-  })
-
-  test.afterAll(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve()))
-    )
-  })
-
-  test('advertises the capability, but offers no browser when none is installed', async () => {
-    const page = await app?.firstWindow()
-    const surface = await page?.evaluate(async () => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+  test('advertises the capability without a browser to offer, and refuses calls without the user', async () => {
+    const surface = await page.evaluate(async (scope) => {
+      const api = (globalThis as DesktopBridge).simDesktop
       return {
         continueSignIn: typeof api.browserImport?.continueSignIn,
         bringSignInBack: typeof api.browserImport?.bringSignInBack,
-        pending: await api.browserImport?.getPendingSignIn?.('continue-sign-in-fixture'),
+        pending: await api.browserImport?.getPendingSignIn?.(scope),
         profiles: await api.browserImport?.listChromeProfiles(),
+        // Page script calling straight in, with no user gesture behind it.
+        continued: await api.browserImport?.continueSignIn?.('chrome:Default', scope),
+        broughtBack: await api.browserImport?.bringSignInBack?.(scope),
       }
-    })
+    }, SCOPE)
 
     expect(surface).toEqual({
       continueSignIn: 'function',
       bringSignInBack: 'function',
       pending: null,
       profiles: [],
-    })
-  })
-
-  test('refuses page script that acts without the user', async () => {
-    const page = await app?.firstWindow()
-    const results = await page?.evaluate(async (scope) => {
-      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
-      return {
-        continued: await api.browserImport?.continueSignIn?.('chrome:Default', scope),
-        broughtBack: await api.browserImport?.bringSignInBack?.(scope),
-      }
-    }, SCOPE)
-
-    expect(results).toEqual({
       continued: { error: 'unknown' },
       broughtBack: { cookiesImported: 0, cookiesSkipped: 0, error: 'unknown' },
     })
   })
 
   test('reads the page from the tab itself and hands over only https', async () => {
-    const page = await app?.firstWindow()
-    if (!page || !app) throw new Error('App did not launch')
     const read = (key: string) => page.evaluate((name) => Reflect.get(globalThis, name), key)
 
     await page.locator('#open').click()
     await expect.poll(() => read('opened')).toMatchObject({ activeTabId: expect.any(String) })
     await expect
       .poll(() =>
-        app?.evaluate(
+        app.evaluate(
           ({ webContents }, target) =>
             webContents.getAllWebContents().some((contents) => contents.getURL() === target),
-          `${site}/login`
+          `${fixture.site}/login`
         )
       )
       .toBe(true)
