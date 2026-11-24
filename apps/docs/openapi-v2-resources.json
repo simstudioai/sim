@@ -33005,65 +33005,6 @@
                       "additionalProperties": false,
                       "description": "Edge rules for the block."
                     },
-                    "legacyIds": {
-                      "description": "Field id renames applied on load.",
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "from": {
-                            "type": "string",
-                            "description": "Legacy field id."
-                          },
-                          "to": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ],
-                            "description": "Current field id, or null when removed."
-                          },
-                          "whenOperation": {
-                            "description": "Operations the rename applies to.",
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "conditional": {
-                            "description": "Applies only to some values.",
-                            "type": "boolean",
-                            "const": true
-                          }
-                        },
-                        "required": ["from", "to"],
-                        "additionalProperties": false,
-                        "description": "One field id rename."
-                      }
-                    },
-                    "legacyCanonicalIds": {
-                      "description": "Basic/advanced pair id renames applied on load.",
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "from": {
-                            "type": "string",
-                            "description": "Legacy pair id."
-                          },
-                          "to": {
-                            "type": "string",
-                            "description": "Current pair id."
-                          }
-                        },
-                        "required": ["from", "to"],
-                        "additionalProperties": false,
-                        "description": "One pair id rename."
-                      }
-                    },
                     "paramAliases": {
                       "description": "The name source writes for a param, by param name: oauthCredential → credential.",
                       "type": "object",

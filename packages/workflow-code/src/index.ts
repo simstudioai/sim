@@ -11,7 +11,6 @@ export type {
   CatalogBuilder,
   CatalogCondition,
   CatalogDynamicOutputs,
-  CatalogLegacyId,
   CatalogOption,
   CatalogOutput,
   CatalogStructuredKind,

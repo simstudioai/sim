@@ -71,7 +71,8 @@ Beside the resources:
 | Path | What it is | In git |
 | --- | --- | --- |
 | `.sim/base.json` | The workspace the directory was read from and the version of every resource | Commit |
-| `workflows/<key>/.sim/` | Each workflow's `lock.json`, `base.json` and `written.json`, as above | Commit |
+| `workflows/<key>/.sim/` | Each workflow's `lock.json`, `base.json` and `stored-edges.json`, as above | Commit |
+| `.sim/written.json` | A digest of each file as the CLI last wrote it, so `status` and `get` tell your edits from the CLI's | Commit |
 | `.sim/targets/<workspaceId>.json` | What each [promotion](/workflows/code/promote) left in that workspace | Commit |
 | `.sim/skipped.json` | Documents and files a get left out, with the reason | Optional |
 | `.sim/AGENTS.md`, `.sim/GUIDE-advanced.md`, `.sim/examples/`, `.sim/sdk/` | The agent guide with deletes, Git and CI, and promotion in depth; examples of every kind; type declarations including `.sim/sdk/workspace.d.ts` | Optional, written again by `get` |

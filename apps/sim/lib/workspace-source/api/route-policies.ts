@@ -1,5 +1,5 @@
 import { utf8ByteLength } from '@sim/utils/paste'
-import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
+import { boundAnswerFindings, SOURCE_REFUSAL_CODES } from '@sim/workflow-code/diagnostics'
 import { type BlobEntry, budgetOfPath, WORKSPACE_ANSWER_BOUND } from '@sim/workspace-code'
 import { KIND_LAYOUTS } from '@sim/workspace-code/kinds/registry'
 import { workflowCodec, workflowFolder } from '@sim/workspace-code/kinds/workflow'
@@ -29,15 +29,17 @@ export const v2WorkspaceSourceErrorPolicy = createV2ResourceConcealmentPolicy({
     if (busy) return busy
     if (error instanceof WorkspaceSourceRejectedError) {
       return v2ErrorForOrchestration(error.code, error.message, {
-        code: error.stale ? 'SOURCE_STALE' : 'SOURCE_REJECTED',
+        code: error.stale ? SOURCE_REFUSAL_CODES.stale : SOURCE_REFUSAL_CODES.rejected,
         diagnostics: boundAnswerFindings(error.diagnostics, WORKSPACE_ANSWER_BOUND),
       })
     }
     if (error instanceof WorkspaceSourceBusyError) {
-      return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_BUSY' })
+      return v2ErrorForOrchestration(error.code, error.message, { code: SOURCE_REFUSAL_CODES.busy })
     }
     if (error instanceof SourceStagingFullError) {
-      return v2ErrorForOrchestration(error.code, error.message, { code: 'SOURCE_STAGING_FULL' })
+      return v2ErrorForOrchestration(error.code, error.message, {
+        code: SOURCE_REFUSAL_CODES.stagingFull,
+      })
     }
     return v2CaughtOrchestrationError(error)
   },

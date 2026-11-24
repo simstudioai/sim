@@ -21,5 +21,7 @@ export {
   refusalClassifier,
   refuseEditedFindings,
   refusesEdited,
+  SOURCE_REFUSAL_CODES,
+  type SourceRefusalCode,
 } from './refusals'
 export type { DiagnosticSeverity, SeverityOf } from './severity'

@@ -4,7 +4,8 @@ import type {
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
 } from '@sim/auth/principal'
-import { boundAnswerFindings } from '@sim/workflow-code/diagnostics'
+import { boundAnswerFindings, SOURCE_REFUSAL_CODES } from '@sim/workflow-code/diagnostics'
+import type { NextResponse } from 'next/server'
 import { v2CancelWorkflowRunDataSchema } from '@/lib/api/contracts/v2/workflows'
 import {
   createInternalResourceConcealmentPolicy,
@@ -62,6 +63,29 @@ function v2CancelRunErrorResponse(error: unknown) {
   return v2CaughtOrchestrationError(error)
 }
 
+/**
+ * The refusals a source apply and a source create share: no slot answers `429` with
+ * `Retry-After`, refused source answers `400` (`413` for a size limit) with its line-pinned
+ * diagnostics, and a name taken in the folder answers `409` with `SOURCE_NAME_TAKEN`.
+ */
+function renderWorkflowSourceRefusal(error: unknown): NextResponse | undefined {
+  const busy = renderSourceSlotBusy(error)
+  if (busy) return busy
+  if (error instanceof WorkflowSourceRejectedError) {
+    return v2ErrorForOrchestration(error.code, error.message, {
+      code: SOURCE_REFUSAL_CODES.rejected,
+      diagnostics: boundAnswerFindings(error.diagnostics),
+    })
+  }
+  if (error instanceof WorkflowSourceNameTakenError) {
+    return v2ErrorForOrchestration(error.code, error.message, {
+      code: SOURCE_REFUSAL_CODES.nameTaken,
+      name: error.workflowName,
+    })
+  }
+  return undefined
+}
+
 export const v2WorkflowErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   import: {
@@ -101,8 +125,8 @@ export const v2WorkflowErrorPolicies = {
   concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
     render(error) {
-      const busy = renderSourceSlotBusy(error)
-      if (busy) return busy
+      const refusal = renderWorkflowSourceRefusal(error)
+      if (refusal) return refusal
       if (error instanceof WorkflowOperationsNotAppliedError) {
         return v2ErrorForOrchestration(error.code, error.message, {
           code: 'OPERATIONS_NOT_APPLIED',
@@ -110,22 +134,10 @@ export const v2WorkflowErrorPolicies = {
           droppedInputs: error.droppedInputs,
         })
       }
-      if (error instanceof WorkflowSourceRejectedError) {
-        return v2ErrorForOrchestration(error.code, error.message, {
-          code: 'SOURCE_REJECTED',
-          diagnostics: boundAnswerFindings(error.diagnostics),
-        })
-      }
       if (error instanceof WorkflowSourceStaleError) {
         return v2ErrorForOrchestration(error.code, error.message, {
-          code: 'SOURCE_STALE',
+          code: SOURCE_REFUSAL_CODES.stale,
           currentFingerprint: error.currentFingerprint,
-        })
-      }
-      if (error instanceof WorkflowSourceNameTakenError) {
-        return v2ErrorForOrchestration(error.code, error.message, {
-          code: 'SOURCE_NAME_TAKEN',
-          name: error.workflowName,
         })
       }
       return v2CaughtOrchestrationError(error)
@@ -141,21 +153,7 @@ export const v2WorkflowErrorPolicies = {
   concealWorkspaceSourceCreate: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workspace not found',
     render(error) {
-      const busy = renderSourceSlotBusy(error)
-      if (busy) return busy
-      if (error instanceof WorkflowSourceRejectedError) {
-        return v2ErrorForOrchestration(error.code, error.message, {
-          code: 'SOURCE_REJECTED',
-          diagnostics: boundAnswerFindings(error.diagnostics),
-        })
-      }
-      if (error instanceof WorkflowSourceNameTakenError) {
-        return v2ErrorForOrchestration(error.code, error.message, {
-          code: 'SOURCE_NAME_TAKEN',
-          name: error.workflowName,
-        })
-      }
-      return v2CaughtOrchestrationError(error)
+      return renderWorkflowSourceRefusal(error) ?? v2CaughtOrchestrationError(error)
     },
   }),
   concealRunAuthorization: createV2ResourceConcealmentPolicy({

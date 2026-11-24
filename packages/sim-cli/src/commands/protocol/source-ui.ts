@@ -5,7 +5,12 @@
  */
 import { relative } from 'node:path'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { boundFindingText, type RefusalClass } from '@sim/workflow-code/diagnostics'
+import {
+  boundFindingText,
+  type RefusalClass,
+  SOURCE_REFUSAL_CODES,
+  type SourceRefusalCode,
+} from '@sim/workflow-code/diagnostics'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import { type FlatDiagnostic, refusalClass } from '@sim/workspace-code'
 import type { Command } from 'commander'
@@ -360,10 +365,10 @@ export async function confirm(question: string): Promise<boolean> {
 }
 
 /** The exit status of each `409` the server tells apart by `details.code`; any other exits 1. */
-const CONFLICT_EXIT_CODES: Readonly<Record<string, number>> = {
-  SOURCE_STALE: SOURCE_STALE_EXIT_CODE,
-  SOURCE_BUSY: SOURCE_BUSY_EXIT_CODE,
-}
+const CONFLICT_EXIT_CODES: ReadonlyMap<string, number> = new Map<SourceRefusalCode, number>([
+  [SOURCE_REFUSAL_CODES.stale, SOURCE_STALE_EXIT_CODE],
+  [SOURCE_REFUSAL_CODES.busy, SOURCE_BUSY_EXIT_CODE],
+])
 
 /**
  * The exit status of a refused write. A `409` is stale only when the server says so
@@ -373,7 +378,7 @@ const CONFLICT_EXIT_CODES: Readonly<Record<string, number>> = {
  */
 function refusalExitCode(error: SimApiError, detailCode: unknown): number {
   if (error.status === 409) {
-    return typeof detailCode === 'string' ? (CONFLICT_EXIT_CODES[detailCode] ?? 1) : 1
+    return typeof detailCode === 'string' ? (CONFLICT_EXIT_CODES.get(detailCode) ?? 1) : 1
   }
   return REFUSAL_EXIT_CODES[error.status] ?? error.exitCode
 }
@@ -419,7 +424,7 @@ export function printRefusal(
   const message = machine
     ? error.message
     : error.message.replace(DETAILS_REFERENCE, printed ? ' Each finding is printed above.' : '')
-  const nameTaken = error.status === 409 && details.code === 'SOURCE_NAME_TAKEN'
+  const nameTaken = error.status === 409 && details.code === SOURCE_REFUSAL_CODES.nameTaken
   const hint = nameTaken
     ? 'Pass --name to create it under another name, or apply to that workflow.'
     : ifAnswerLost && answerLost(error)
