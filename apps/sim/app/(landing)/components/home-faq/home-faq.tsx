@@ -52,13 +52,13 @@ export function HomeFAQ() {
           {HOME_FAQS.map(({ question, answer }, index) => (
             <details key={question} open={index === 0} className='group'>
               <summary className='flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-[var(--text-body)] transition-colors hover:text-[var(--text-primary)] group-open:text-[var(--text-primary)] [&::-webkit-details-marker]:hidden'>
-                <h3 className='text-[15px] leading-snug tracking-[-0.02em]'>{question}</h3>
+                <h3 className='text-base leading-snug tracking-[-0.02em]'>{question}</h3>
                 <ChevronDown
                   className='size-3 shrink-0 text-[var(--text-muted)] transition-transform duration-200 group-open:rotate-180'
                   aria-hidden='true'
                 />
               </summary>
-              <p className='pb-4 text-[14px] text-[var(--text-body)] leading-[1.75]'>{answer}</p>
+              <p className='pb-4 text-[var(--text-body)] text-sm leading-[1.75]'>{answer}</p>
             </details>
           ))}
         </div>
