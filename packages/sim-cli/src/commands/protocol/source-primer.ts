@@ -99,7 +99,11 @@ Exit codes: 0 ok, 1 errors, ${SOURCE_STALE_EXIT_CODE} stale (get a fresh copy an
 `
 }
 
-/** The primer for a `kind` directory, without builder snippets. */
+/**
+ * The primer for a `kind` directory, without builder snippets. The mothership worker preloads the
+ * same text as its `workflow-source` skill (`scripts/print-source-primers.ts`), so an edit here
+ * shows up as worker drift until the next grammar sync.
+ */
 export function sourcePrimer(kind: PrimerKind): string {
   return kind === 'workflow' ? WORKFLOW_PRIMER : WORKSPACE_PRIMER
 }
