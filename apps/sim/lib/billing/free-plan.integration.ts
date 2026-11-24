@@ -182,7 +182,9 @@ describe('web search', () => {
 
     const response = await search(userId, workspaceId)
 
-    expect(response.status).not.toBe(402)
+    // Past the plan gate, the request reaches the provider step, which has no key under test.
+    expect(response.status).toBe(503)
+    expect((await response.json()).error).toBe('Search service not configured')
   })
 })
 

@@ -162,12 +162,16 @@ export async function sendPlanEndedEmail(ended: {
       userName: recipient.name || undefined,
       upgradeLink: `${getBaseUrl()}/account/settings/billing`,
     })
-    await sendEmail({
+    const result = await sendEmail({
       to: recipient.email,
       subject: getPlanEndedSubject(planName),
       html,
       emailType: 'transactional',
     })
+    // A notice must not fail the deletion it follows; the error log is the alert.
+    if (!result.success) {
+      logger.error('Plan ended email failed to send', { referenceId: ended.referenceId })
+    }
   } catch (error) {
     logger.error('Failed to send plan ended email', { referenceId: ended.referenceId, error })
   }
