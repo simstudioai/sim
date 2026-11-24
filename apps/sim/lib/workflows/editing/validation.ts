@@ -560,7 +560,7 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
   if (isEvaluationModel(model)) {
     return `${where}: ${model} is an evaluation model and cannot serve as a chat fallback`
   }
-  if (!isKnownModelId(model) && !isCustomModelId(model)) {
+  if (!isRunnableModelId(model)) {
     const suggestions = suggestModelIdsForUnknownModel(model)
     const suggestionText =
       suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
@@ -583,6 +583,23 @@ function validateFallbackModelEntry(item: any, index: number): string | null {
     }
   }
   return null
+}
+
+/**
+ * Whether Sim can run `model`: a catalogued or namespaced id, or a local Ollama name. An id no
+ * provider claims runs on Ollama (`getProviderFromModel`'s default), so wherever an Ollama server
+ * is reachable an Ollama-shaped name may be a locally installed model. The server cannot list
+ * what is installed, so a mistyped name of that shape fails at execution instead. sim-auto is
+ * never one: it never reaches a provider as itself.
+ */
+function isRunnableModelId(model: string): boolean {
+  if (isKnownModelId(model) || isCustomModelId(model)) return true
+  return (
+    !isAutoModel(model) &&
+    OLLAMA_MODEL_NAME.test(model) &&
+    findProviderFromModel(model) === null &&
+    isOllamaAvailable()
+  )
 }
 
 /** A file object as the file-upload editor stores it: at least its name and serve path. */
@@ -1001,22 +1018,10 @@ export function validateValueForSubBlockType(
         }
         // sim-auto is valid only where the source offers Auto, which it does on hosted Sim
         // only; writes of it anywhere else are rejected as unknown.
-        const isAuto = isAutoModel(trimmed)
-        if (isAuto && modelSource.auto && isHostedDeployment) {
+        if (isAutoModel(trimmed) && modelSource.auto && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
         }
-        // An id no provider claims runs on Ollama (`getProviderFromModel`'s default), so
-        // wherever an Ollama server is reachable an Ollama-shaped name may be a locally
-        // installed model. The server cannot list what is installed, so a mistyped name of
-        // that shape fails at execution instead. sim-auto is never one: it never reaches a
-        // provider as itself.
-        const isUnknown = !isKnownModelId(trimmed) && !isCustomModelId(trimmed)
-        const mayBeLocalModel =
-          !isAuto &&
-          OLLAMA_MODEL_NAME.test(trimmed) &&
-          findProviderFromModel(trimmed) === null &&
-          isOllamaAvailable()
-        if (trimmed !== '' && isUnknown && !mayBeLocalModel) {
+        if (trimmed !== '' && !isRunnableModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
             suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''

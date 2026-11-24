@@ -98,9 +98,9 @@ export async function openRunReplay(params: {
 }
 
 /**
- * The end a `replay_end` frame reports: its reason, `closed` for a frame this build
- * cannot parse (an unknown reason, a missing length), or `null` for any other frame. It is worker-to-Sim control, never a
- * stream event, whatever reason it carries.
+ * The end a `replay_end` frame reports: its reason, `closed` for a frame this build cannot
+ * parse (an unknown reason, a missing length), or `null` for any other frame. It is
+ * worker-to-Sim control, never a stream event, whatever reason it carries.
  */
 function replayEnd(value: unknown): RunReplayEnd | null {
   if (!isRecordLike(value) || value.type !== MothershipStreamV1EventType.run) return null

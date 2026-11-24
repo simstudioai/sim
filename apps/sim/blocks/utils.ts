@@ -265,8 +265,8 @@ export function getAgentModelOptions() {
  * catalog, and whether each offers Auto (so accepts sim-auto on hosted Sim).
  *
  * {@link getAgentModelOptions} is deliberately absent: the agent's model field also takes
- * bare Ollama names, free-typed ids (Bedrock inference profiles, fine-tunes) and retired
- * ids, so validation passes its values through unchanged.
+ * free-typed ids (Bedrock inference profiles, fine-tunes) and retired ids, so validation
+ * passes its values through unchanged.
  */
 export const MODEL_OPTION_SOURCES: ReadonlyMap<unknown, { auto: boolean }> = new Map([
   [getModelOptions, { auto: false }],
@@ -352,12 +352,12 @@ function getProviderFromStore(model: string): string | null {
 }
 
 /**
- * Whether an Ollama instance is available. `isOllamaConfigured` reads the
+ * Whether this browser knows of an Ollama instance. `isOllamaConfigured` reads the
  * server-only `OLLAMA_URL` env var, which is always undefined in the browser —
  * there the providers store (populated from the server's model list, which is
  * non-empty only when Ollama is configured) is the signal.
  */
-function isOllamaAvailable(): boolean {
+function hasOllamaInstance(): boolean {
   if (isOllamaConfigured) return true
   return useProvidersStore.getState().providers.ollama.models.length > 0
 }
@@ -417,7 +417,7 @@ export function shouldRequireApiKeyForModel(model: string): boolean {
     return false
   if (storeProvider) return true
 
-  if (isOllamaAvailable()) {
+  if (hasOllamaInstance()) {
     if (normalizedModel.includes('/')) return true
     if (normalizedModel in getBaseModelProviders()) return true
     return false

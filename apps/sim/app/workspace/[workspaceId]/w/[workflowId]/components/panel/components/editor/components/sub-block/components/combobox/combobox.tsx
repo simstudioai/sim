@@ -19,13 +19,13 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { DEFAULT_BLOCK_MODEL } from '@/providers/default-model'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'claude-sonnet-5-5'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
@@ -308,7 +308,7 @@ export const ComboBox = memo(function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > DEFAULT_MODEL for model field > first option
+   * Priority: explicit defaultValue > DEFAULT_BLOCK_MODEL for model field > first option
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
@@ -322,7 +322,7 @@ export const ComboBox = memo(function ComboBox({
 
     if (subBlockId === 'model') {
       const defaultModelOption = evaluatedOptions.find(
-        (opt) => getOptionValue(opt) === DEFAULT_MODEL
+        (opt) => getOptionValue(opt) === DEFAULT_BLOCK_MODEL
       )
       if (defaultModelOption) {
         return getOptionValue(defaultModelOption)
