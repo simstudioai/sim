@@ -187,6 +187,19 @@ async function check(name: string, run: () => Promise<void>, page?: Page) {
   }
 }
 
+/**
+ * WebKit rejects a fetch the page cancels by navigating away, such as a Next.js RSC prefetch, with
+ * "... due to access control checks.", and the router leaves that rejection unhandled. For a
+ * same-origin RSC request that is a cancellation, never an access failure.
+ */
+function isCancelledRscFetch(message: string): boolean {
+  return (
+    message.endsWith(' due to access control checks.') &&
+    message.includes(`${base.host}/`) &&
+    message.includes('_rsc=')
+  )
+}
+
 async function wideTableProof(page: Page) {
   const table = page.locator('.rich-markdown-prose table').filter({ hasText: 'Option Alpha' })
   await expect(table).toBeVisible({ timeout: 120_000 })
@@ -392,11 +405,24 @@ async function editLastCell(page: Page, marker: string) {
   await expect(page.locator('.rich-markdown-prose[contenteditable="true"]')).toBeFocused()
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('Shift+ArrowRight')
-  await expect
-    .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''), {
-      message: 'Keyboard selection did not select text',
+  try {
+    await expect
+      .poll(() => page.evaluate(() => getSelection()?.toString().trim() ?? ''))
+      .not.toBe('')
+  } catch {
+    // Rare in WebKit and not reproduced yet: name where the caret and focus ended up.
+    const state = await page.evaluate(() => {
+      const selection = getSelection()
+      return {
+        anchorText: selection?.anchorNode?.textContent?.slice(0, 40) ?? null,
+        anchorOffset: selection?.anchorOffset ?? null,
+        focusOffset: selection?.focusOffset ?? null,
+        rangeCount: selection?.rangeCount ?? 0,
+        activeElement: document.activeElement?.className ?? null,
+      }
     })
-    .not.toBe('')
+    throw new Error(`Keyboard selection did not select text: ${JSON.stringify(state)}`)
+  }
   await proveToolbar(page, page.getByRole('toolbar', { name: 'Text formatting' }))
   await page.keyboard.press('ArrowRight')
 }
@@ -565,6 +591,9 @@ async function provePastePersistence(page: Page, browserName: string) {
     )
   } finally {
     try {
+      // An editor left open on the file refetches it after the delete, and the next check on this
+      // page would record that 404 as its own browser error.
+      await page.goto('about:blank')
       await request(`/api/workspaces/${workspaceId}/files/${pastedFileId}`, undefined, 'DELETE')
     } finally {
       await sql`delete from public_share where id=${pastedShareId}`
@@ -972,7 +1001,10 @@ try {
         { name: 'better-auth.session_token', value: cookie, url: base.origin },
       ])
       const page = await context.newPage()
-      page.on('pageerror', (error) => errors.push(`${browserName}: ${error.message}`))
+      page.on('pageerror', (error) => {
+        if (browserName === 'webkit' && isCancelledRscFetch(error.message)) return
+        errors.push(`${browserName}: ${error.message}`)
+      })
       for (const width of widths) {
         await page.setViewportSize({ width, height: 1000 })
         await page.goto(new URL(`/f/${shareToken}`, base).href, {
