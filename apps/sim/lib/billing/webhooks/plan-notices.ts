@@ -143,7 +143,7 @@ export async function sendPlanEndedEmail(ended: {
   try {
     if (!isPaid(ended.plan)) return
     const ownerId = await resolvePlanOwnerId(ended.referenceId)
-    const current = await getHighestPrioritySubscription(ownerId)
+    const current = await getHighestPrioritySubscription(ownerId, { onError: 'throw' })
     const stillPaid =
       current &&
       current.id !== ended.id &&
