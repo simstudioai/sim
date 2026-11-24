@@ -153,7 +153,7 @@ export default workflow('Sync', {}, () => {
     )
     expect(findings(result)).toEqual(['W_UNKNOWN_OUTPUT_PATH 21: Save has no output row.tier.'])
     expect(only(result, 'W_UNKNOWN_OUTPUT_PATH')?.hint).toBe(
-      'row holds: id, data, position, createdAt, updatedAt.'
+      'row holds: id, data, position, orderKey, executions, createdAt, updatedAt.'
     )
     const cell = compile(
       probe('text: t`Answer: ${ask.content}`', 'text: t`Tier: ${save.row.data.tier}`')

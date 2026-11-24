@@ -32024,6 +32024,14 @@
               "type": "number",
               "description": "Row position in the table"
             },
+            "orderKey": {
+              "type": "string",
+              "description": "Sort key (query and insert results only)"
+            },
+            "executions": {
+              "type": "json",
+              "description": "Workflow run state per column group (query and insert results only)"
+            },
             "createdAt": {
               "type": "string",
               "description": "ISO timestamp when the row was created"
@@ -32066,6 +32074,14 @@
               "position": {
                 "type": "number",
                 "description": "Row position in the table"
+              },
+              "orderKey": {
+                "type": "string",
+                "description": "Sort key (query and insert results only)"
+              },
+              "executions": {
+                "type": "json",
+                "description": "Workflow run state per column group (query and insert results only)"
               },
               "createdAt": {
                 "type": "string",

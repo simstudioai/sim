@@ -943,13 +943,18 @@ export const TABLE_IGNORED_COLUMNS_OUTPUT = {
 } satisfies OutputFieldDefinition
 
 /**
- * One row as the Table blocks output it (`presentNamedTableRow` in
- * `lib/internal/table/presentation.ts`): its cells sit under `data`, keyed by column name.
+ * One row as the Table blocks output it (`presentNamedTableRow` and `presentNamedTableQueryRow`
+ * in `lib/internal/table/presentation.ts`): its cells sit under `data`, keyed by column name.
  */
 const TABLE_ROW_PROPERTIES = {
   id: { type: 'string', description: 'Row ID' },
   data: { type: 'json', description: 'The row’s cells, keyed by column name' },
   position: { type: 'number', description: 'Row position in the table' },
+  orderKey: { type: 'string', description: 'Sort key (query and insert results only)' },
+  executions: {
+    type: 'json',
+    description: 'Workflow run state per column group (query and insert results only)',
+  },
   createdAt: { type: 'string', description: 'ISO timestamp when the row was created' },
   updatedAt: { type: 'string', description: 'ISO timestamp when the row was last updated' },
 } satisfies Record<string, OutputFieldDefinition>
