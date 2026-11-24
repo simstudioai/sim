@@ -270,6 +270,8 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
             ?.getURL() ?? null,
         site
       )
+    const focusedContentsUrl = () =>
+      shellApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
     /** Trusted input into the page, the way the user's own mouse and keys arrive. */
     const userInput = (selector: string, text = '') =>
       shellApp.evaluate(
@@ -436,6 +438,9 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
 
     await check('Escape keeps the draft and returns typing to the page', async () => {
       await userInput('#draft')
+      // The click is queued input: reloading before the page takes focus lets that focus land
+      // after the modal's, leaving the Sim window without keyboard focus.
+      await expect.poll(focusedContentsUrl).toBe(`${site}/form`)
       await panelAction({ action: 'reload' })
       await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
       await shell.getByRole('dialog').screenshot({
@@ -451,11 +456,7 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
           message: `dialog ${shown?.requestId} was showing when Escape was pressed`,
         })
         .toBeNull()
-      await expect
-        .poll(() =>
-          shellApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getURL())
-        )
-        .toBe(`${site}/form`)
+      await expect.poll(focusedContentsUrl).toBe(`${site}/form`)
       await shellApp.evaluate(({ webContents }) => {
         const contents = webContents.getFocusedWebContents()
         if (!contents) throw new Error('Missing focused page')
