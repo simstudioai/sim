@@ -4,7 +4,7 @@ import {
   organization,
   subscription as subscriptionTable,
 } from '@sim/db/schema'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull } from 'drizzle-orm'
 import { defineAuthorizedOrganizationBillingUseCase } from '@/lib/billing/application/organization-billing/authorized-organization-billing-use-case'
 import { organizationBillingOperations } from '@/lib/billing/application/organization-billing/operations'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
@@ -73,7 +73,9 @@ async function getOpenTrueUpWindow(subscriptionId: string) {
     .where(
       and(
         eq(enterpriseSeatTrueUp.subscriptionId, subscriptionId),
-        isNull(enterpriseSeatTrueUp.billedAt)
+        isNull(enterpriseSeatTrueUp.billedAt),
+        // A closed window awaiting the hourly sweep is not the open one.
+        gt(enterpriseSeatTrueUp.windowEnd, new Date())
       )
     )
     .orderBy(desc(enterpriseSeatTrueUp.windowStart))

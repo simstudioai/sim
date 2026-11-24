@@ -14,6 +14,7 @@ import {
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { getPaymentMethodId } from '@/lib/billing/stripe-payment-method'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
@@ -249,13 +250,16 @@ export async function handleSubscriptionCreated(
 
 /**
  * Spends an organization's prepaid credit on its final-period overage and returns the overage now
- * covered: what threshold billing already collected plus the credit spent. The credit is recorded
- * in the same billed-overage tracker threshold billing uses, under the same row locks, so a
- * replayed deletion finds it already covered and spends nothing twice.
+ * covered: what threshold billing already collected this period plus the credit spent. The tracker
+ * ends holding exactly that sum, under the same row locks threshold billing takes, so a replayed
+ * deletion finds the credit already counted and spends nothing twice. When the tracker belongs to
+ * an elapsed, forgiven period (`trackerIsCurrent` false) its collections count for nothing here and
+ * are replaced, but the credit still covers the final period.
  */
 async function spendFinalPrepaidCredit(
   organizationId: string,
-  totalOverage: number
+  totalOverage: number,
+  trackerIsCurrent: boolean
 ): Promise<number> {
   return db.transaction(async (tx) => {
     const [owner] = await tx
@@ -279,22 +283,22 @@ async function spendFinalPrepaidCredit(
       .where(eq(organization.id, organizationId))
       .for('update')
       .limit(1)
-    const billed = toNumber(toDecimal(tracker?.billedOverageThisPeriod))
+    const collected = trackerIsCurrent ? toNumber(toDecimal(tracker?.billedOverageThisPeriod)) : 0
     const credit = Math.min(
-      Math.max(0, totalOverage - billed),
+      Math.max(0, totalOverage - collected),
       toNumber(toDecimal(org?.creditBalance))
     )
-    if (credit <= 0 || !tracker) return billed
+    if (credit <= 0 || !tracker) return collected
     await tx
       .update(organization)
       .set({ creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${credit})` })
       .where(eq(organization.id, organizationId))
     await tx
       .update(userStats)
-      .set({ billedOverageThisPeriod: sql`${userStats.billedOverageThisPeriod} + ${credit}` })
+      .set({ billedOverageThisPeriod: String(collected + credit) })
       .where(eq(userStats.userId, owner.userId))
     logger.info('Spent prepaid credit on final overage', { organizationId, credit })
-    return billed + credit
+    return collected + credit
   })
 }
 
@@ -320,11 +324,11 @@ async function invoiceFinalOverage(params: {
 
   // An Enterprise contract's prepaid credit is part of what it already paid for, so it covers the
   // final period's usage before anything is invoiced.
-  const billedOverage = !params.markerWasCurrent
-    ? 0
-    : isEnterprise(subscription.plan)
-      ? await spendFinalPrepaidCredit(subscription.referenceId, totalOverage)
-      : await getBilledOverageForSubscription(subscription)
+  const billedOverage = isEnterprise(subscription.plan)
+    ? await spendFinalPrepaidCredit(subscription.referenceId, totalOverage, params.markerWasCurrent)
+    : params.markerWasCurrent
+      ? await getBilledOverageForSubscription(subscription)
+      : 0
   const remainingOverage = Math.max(0, totalOverage - billedOverage)
 
   logger.info('Subscription deleted overage calculation', {
@@ -343,6 +347,7 @@ async function invoiceFinalOverage(params: {
   const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
   const billingPeriod = new Date(endedAt * 1000).toISOString().slice(0, 7)
   const sendInvoice = stripeSubscription.collection_method === 'send_invoice'
+  const subscriptionPaymentMethod = getPaymentMethodId(stripeSubscription.default_payment_method)
 
   const itemIdemKey = `final-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
   const invoiceIdemKey = `final-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
@@ -354,7 +359,13 @@ async function invoiceFinalOverage(params: {
       customer: customerId,
       ...(sendInvoice
         ? { collection_method: 'send_invoice', days_until_due: INVOICE_DAYS_UNTIL_DUE }
-        : { collection_method: 'charge_automatically' }),
+        : {
+            collection_method: 'charge_automatically',
+            // An unlinked invoice otherwise falls back to the customer's default method only.
+            ...(subscriptionPaymentMethod
+              ? { default_payment_method: subscriptionPaymentMethod }
+              : {}),
+          }),
       auto_advance: true,
       description: `Final overage charges for ${subscription.plan} subscription (${billingPeriod})`,
       metadata: {
