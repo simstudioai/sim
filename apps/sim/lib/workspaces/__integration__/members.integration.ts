@@ -10,6 +10,7 @@ import {
   permissions,
   scimConnection,
   scimGroupMapping,
+  scimProjectionGrant,
   scimUser,
   session,
   user,
@@ -457,6 +458,27 @@ describe('v2 workspace member management against PostgreSQL', () => {
       .where(eq(scimUser.userId, f.users.managed))
     await addGroupMember(db, { groupId: group.id, scimUserId: managed.id })
     const response = await call(key('admin'), 'PATCH', f.users.managed, { body: { role: 'read' } })
+    expect(response).toMatchObject({
+      status: 403,
+      body: { error: { code: 'FORBIDDEN', details: { code: 'SCIM_MANAGED_MEMBERSHIP' } } },
+    })
+    expect(await roleOf(f.users.managed)).toBe('write')
+  })
+
+  it('refuses a role change while a removed mapping’s grant awaits withdrawal', async () => {
+    const [managed] = await db
+      .select({ id: scimUser.id })
+      .from(scimUser)
+      .where(eq(scimUser.userId, f.users.managed))
+    await db.insert(scimProjectionGrant).values({
+      id: generateId(),
+      connectionId: f.scimConnectionId,
+      scimUserId: managed.id,
+      targetKind: 'workspace',
+      targetId: f.workspaceId,
+      permissionType: 'write',
+    })
+    const response = await call(key('admin'), 'PATCH', f.users.managed, { body: { role: 'admin' } })
     expect(response).toMatchObject({
       status: 403,
       body: { error: { code: 'FORBIDDEN', details: { code: 'SCIM_MANAGED_MEMBERSHIP' } } },

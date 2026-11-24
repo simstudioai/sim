@@ -3,8 +3,8 @@ import { type AnyColumn, and, Column, eq, getTableName, is, type SQL, sql } from
 import { ForbiddenOperationError } from '@/lib/core/application'
 import type { DbOrTx } from '@/lib/db/types'
 import { isScimDeploymentEnabled, isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
+import { currentGrants, loadMappingRows } from '@/ee/scim/lib/projection/directory-grants'
 import { resolveDesiredGrants } from '@/ee/scim/lib/projection/grants'
-import { loadMappingRows } from '@/ee/scim/lib/projection/mapping-rows'
 
 /**
  * Refusing membership edits that the organization's directory owns.
@@ -131,9 +131,10 @@ export async function assertInviteeNotScimManaged(params: {
 
 /**
  * Refuses a manual change to workspace access the directory owns: access that
- * reconciliation sets and withdraws because one of the user's groups in this
- * organization's locked connection is mapped to the workspace. Derived from the
- * same mapping rows and rules reconciliation uses, so the two cannot disagree.
+ * reconciliation sets because one of the user's groups in this organization's
+ * locked connection is mapped to the workspace, or that it applied and has not
+ * yet withdrawn. Derived from the same rows reconciliation reads, so the two
+ * cannot disagree.
  */
 export async function assertWorkspaceAccessNotScimManaged(params: {
   organizationId: string
@@ -156,16 +157,26 @@ export async function assertWorkspaceAccessNotScimManaged(params: {
     )
     .limit(1)
   if (!provisioned) return
-  const requested = new Set(params.workspaceIds)
-  const owned = resolveDesiredGrants(
+  /**
+   * Owned while a mapping calls for the grant, and until reconciliation has
+   * withdrawn one it still tracks: a mapping removal commits before its members
+   * are reconciled, and a manual change in that gap would be undone by the
+   * pending withdrawal.
+   */
+  const mapped = resolveDesiredGrants(
     await loadMappingRows(params.executor, provisioned.scimUserId)
-  ).some((grant) => grant.targetKind === 'workspace' && requested.has(grant.targetId))
+  )
+  const tracked = await currentGrants(params.executor, provisioned.scimUserId)
+  const requested = new Set(params.workspaceIds)
+  const owned = [...mapped, ...tracked].some(
+    (grant) => grant.targetKind === 'workspace' && requested.has(grant.targetId)
+  )
   if (!owned) return
   /** Read only once an owned workspace is found, so the common case costs nothing. */
   if (!(await isScimEntitledForOrganization(params.organizationId, params.executor))) return
   const target = params.workspaceIds.length === 1 ? 'this workspace' : 'a selected workspace'
   throw new ForbiddenOperationError(
     'SCIM_MANAGED_MEMBERSHIP',
-    `This person’s access to ${target} comes from a directory group mapped to it, so the organization’s identity provider manages it. Change their group membership there, or remove the workspace’s group mapping.`
+    `This person’s access to ${target} is managed by the organization’s identity provider through a directory group mapping. Change their group membership there, or remove the mapping and let the next directory sync finish.`
   )
 }

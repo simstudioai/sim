@@ -36,14 +36,12 @@ import {
   revokeWorkspaceAccessTx,
   stopRunsWithoutWorkspaceAccessTx,
 } from '@/lib/workspaces/access/workspace-access'
+import { currentGrants, loadMappingRows } from '@/ee/scim/lib/projection/directory-grants'
 import {
   type ProjectionGrant,
-  type ProjectionGrantOrigin,
-  type ProjectionTargetKind,
   planGrantChanges,
   resolveDesiredGrants,
 } from '@/ee/scim/lib/projection/grants'
-import { loadMappingRows } from '@/ee/scim/lib/projection/mapping-rows'
 
 const logger = createLogger('ScimProjection')
 
@@ -83,26 +81,6 @@ function addChanges(total: ProjectionChanges, changes: ProjectionChanges): void 
 
 /** Users per transaction when projecting outside a request's own transaction; the organization lock is held for the batch. */
 export const PROJECTION_BATCH_SIZE = 25
-
-async function currentGrants(tx: DbOrTx, scimUserId: string): Promise<ProjectionGrant[]> {
-  const rows = await tx
-    .select({
-      targetKind: scimProjectionGrant.targetKind,
-      targetId: scimProjectionGrant.targetId,
-      permissionType: scimProjectionGrant.permissionType,
-      origin: scimProjectionGrant.origin,
-      baselinePermission: scimProjectionGrant.baselinePermission,
-    })
-    .from(scimProjectionGrant)
-    .where(eq(scimProjectionGrant.scimUserId, scimUserId))
-  return rows.map((row) => ({
-    targetKind: row.targetKind as ProjectionTargetKind,
-    targetId: row.targetId,
-    origin: row.origin as ProjectionGrantOrigin,
-    baselinePermission: row.baselinePermission ?? null,
-    ...(row.permissionType ? { permissionType: row.permissionType } : {}),
-  }))
-}
 
 /** Reads access independently of provenance so a reconcile can repair real drift. */
 async function actualGrants(
