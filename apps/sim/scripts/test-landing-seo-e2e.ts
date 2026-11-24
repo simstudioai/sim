@@ -456,27 +456,30 @@ async function run() {
     }
   )
 
-  await check('home FAQPage lists the visible home FAQ in order', async () => {
+  await check('home FAQPage pairs each visible question with its answer', async () => {
     const { body } = await get(HOME_PATH)
+    const faqPage = jsonLdNodes(body).find((node) => node['@type'] === 'FAQPage')
+    const entries = (faqPage?.mainEntity ?? []) as {
+      name?: string
+      acceptedAnswer?: { text?: string }
+    }[]
+    const expected = HOME_FAQS.map(({ question, answer }) => ({ question, answer }))
     assert.deepEqual(
-      faqQuestions(body),
-      HOME_FAQS.map((faq) => faq.question)
+      entries.map((entry) => ({ question: entry.name, answer: entry.acceptedAnswer?.text })),
+      expected,
+      'Home FAQPage does not match the home FAQ'
     )
     const $ = load(body)
     assert.deepEqual(
-      $('#faq h3')
+      $('#faq details')
         .toArray()
-        .map((el) => $(el).text().trim()),
-      HOME_FAQS.map((faq) => faq.question),
-      'Home FAQ headings do not match the FAQPage questions'
+        .map((el) => ({
+          question: $(el).find('summary h3').text().trim(),
+          answer: $(el).children('p').text().trim(),
+        })),
+      expected,
+      'Rendered home FAQ does not match the FAQPage'
     )
-    const visibleText = $('#faq').text()
-    for (const { answer } of HOME_FAQS) {
-      assert(
-        visibleText.includes(answer),
-        `Home FAQ answer is not rendered: ${answer.slice(0, 40)}`
-      )
-    }
   })
 
   await check('pricing declares its offers on the canonical product node', async () => {
