@@ -7,9 +7,12 @@ import {
 import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetCreditBalanceForEntity } = vi.hoisted(() => ({
+const { mockGetCreditBalanceForEntity, mockIsProTrialEligible } = vi.hoisted(() => ({
   mockGetCreditBalanceForEntity: vi.fn(),
+  mockIsProTrialEligible: vi.fn(),
 }))
+
+vi.mock('@/lib/billing/trial', () => ({ isProTrialEligible: mockIsProTrialEligible }))
 
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
@@ -142,6 +145,7 @@ describe('GET /api/billing', () => {
     mockGetOrganizationBillingData.mockResolvedValue(ACTIVE_ORG_BILLING)
     mockGetOrganizationSubscription.mockResolvedValue(ACTIVE_ORG_SUBSCRIPTION)
     mockGetCreditBalanceForEntity.mockResolvedValue(17)
+    mockIsProTrialEligible.mockResolvedValue(false)
   })
 
   it('keeps account billing personal even when an organization ID is supplied', async () => {

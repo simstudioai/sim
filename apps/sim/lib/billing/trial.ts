@@ -7,6 +7,7 @@ import { PRO_CREDIT_TIER, PRO_TRIAL_DAYS } from '@/lib/billing/constants'
 import { buildPlanName } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('ProTrial')
 
@@ -22,10 +23,41 @@ type TrialCheckoutParams = Pick<
 >
 
 /**
+ * Whether an account may start a Pro free trial: it has never trialed or held a subscription and
+ * still holds its free allowance (an account reusing a deleted one's identity does not). Abandoned
+ * checkouts do not count. The card check runs later, at checkout ({@link enforceOneTrialPerCard}).
+ */
+export async function isProTrialEligible(
+  userId: string,
+  executor: DbClient = db
+): Promise<boolean> {
+  const [[stats], [earlierSubscription]] = await Promise.all([
+    executor
+      .select({ freeTierEligible: userStats.freeTierEligible })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1),
+    executor
+      .select({ id: subscription.id })
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, userId),
+          or(
+            isNotNull(subscription.trialStart),
+            notInArray(subscription.status, NEVER_STARTED_STATUSES)
+          )
+        )
+      )
+      .limit(1),
+  ])
+  return Boolean(stats?.freeTierEligible) && !earlierSubscription
+}
+
+/**
  * The Checkout parameters that start a new subscriber's Pro free trial, or none when the checkout
- * does not qualify. Only a personal checkout of the Pro tier qualifies, for an account that has
- * never trialed or held a subscription and still holds its free allowance (an account reusing a
- * deleted one's identity does not). The card is collected up front and must be a card, so its
+ * does not qualify. Only a personal checkout of the Pro tier qualifies, for an account
+ * {@link isProTrialEligible} admits. The card is collected up front and must be a card, so its
  * fingerprint can hold it to one trial ({@link enforceOneTrialPerCard}); a trial left without a
  * payment method cancels instead of invoicing.
  */
@@ -36,28 +68,7 @@ export async function getProTrialCheckoutParams(params: {
 }): Promise<TrialCheckoutParams | null> {
   if (params.referenceId !== params.userId) return null
   if (params.planName !== TRIAL_PLAN) return null
-
-  const [[stats], [earlierSubscription]] = await Promise.all([
-    db
-      .select({ freeTierEligible: userStats.freeTierEligible })
-      .from(userStats)
-      .where(eq(userStats.userId, params.userId))
-      .limit(1),
-    db
-      .select({ id: subscription.id })
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, params.userId),
-          or(
-            isNotNull(subscription.trialStart),
-            notInArray(subscription.status, NEVER_STARTED_STATUSES)
-          )
-        )
-      )
-      .limit(1),
-  ])
-  if (!stats?.freeTierEligible || earlierSubscription) return null
+  if (!(await isProTrialEligible(params.userId))) return null
 
   return {
     payment_method_types: ['card'],

@@ -108,6 +108,15 @@ export function getPlanWelcomeSubject(planDisplayName: string, isTrial = false):
     : `Your ${planDisplayName} plan is now active on Sim`
 }
 
+/** Names the date so the reminder reads as a deadline in the inbox. */
+export function getTrialEndingSubject(planDisplayName: string, endsOn: string): string {
+  return `Your ${planDisplayName} free trial ends ${endsOn}`
+}
+
+export function getPlanEndedSubject(planDisplayName: string): string {
+  return `Your ${planDisplayName} plan has ended on Sim`
+}
+
 /** Echoes the sender's own subject line so the reply threads correctly. */
 export function getRequestConfirmationSubject(userSubject: string, requestType?: string): string {
   return requestType

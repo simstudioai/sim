@@ -15,7 +15,9 @@ import {
   FreeTierUpgradeEmail,
   LimitThresholdEmail,
   PaymentFailedEmail,
+  PlanEndedEmail,
   PlanWelcomeEmail,
+  TrialEndingEmail,
   UsageLimitReachedEmail,
   UsageThresholdEmail,
 } from '@/components/emails/billing'
@@ -223,6 +225,24 @@ export async function renderPlanWelcomeEmail(params: {
   trial?: { endsOn: string; credits: string }
 }): Promise<string> {
   return await render(PlanWelcomeEmail(params))
+}
+
+export async function renderTrialEndingEmail(params: {
+  planName: string
+  userName?: string
+  endsOn: string
+  price: string
+  billingLink: string
+}): Promise<string> {
+  return await render(TrialEndingEmail(params))
+}
+
+export async function renderPlanEndedEmail(params: {
+  planName: string
+  userName?: string
+  upgradeLink: string
+}): Promise<string> {
+  return await render(PlanEndedEmail(params))
 }
 
 export async function renderWelcomeEmail(userName?: string): Promise<string> {

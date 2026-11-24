@@ -19,6 +19,7 @@ import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/util
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBilledOverageForSubscription } from '@/lib/billing/webhooks/invoices'
+import { sendPlanEndedEmail } from '@/lib/billing/webhooks/plan-notices'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
@@ -602,6 +603,7 @@ export async function handleSubscriptionDeleted(
           plan: subscription.plan ?? 'unknown',
           reference_id: subscription.referenceId,
         })
+        await sendPlanEndedEmail(subscription)
 
         return { totalOverage, remainingOverage, restoredProCount, workspacesDetached }
       }

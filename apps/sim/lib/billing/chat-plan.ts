@@ -1,3 +1,5 @@
+import { PRO_TRIAL_DAYS } from '@/lib/billing/constants'
+
 /** The upgrade card's `reason` for a payer whose plan does not include Chat. */
 export const CHAT_PLAN_REQUIRED_REASON = 'plan_required' as const
 
@@ -10,5 +12,5 @@ export const CHAT_PLAN_REQUIRED_REASON = 'plan_required' as const
 export const CHAT_PLAN_REQUIRED_UPGRADE = {
   reason: CHAT_PLAN_REQUIRED_REASON,
   action: 'upgrade_plan',
-  message: 'Chat is included on paid plans. Upgrade your plan to talk to Sim.',
+  message: `Chat is included on paid plans, and Pro starts with a ${PRO_TRIAL_DAYS}-day free trial for new subscribers. Upgrade your plan to talk to Sim.`,
 } as const

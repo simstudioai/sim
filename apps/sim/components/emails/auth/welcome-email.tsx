@@ -37,7 +37,7 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
       <div style={baseStyles.divider} />
 
       <Text style={baseStyles.footnote}>
-        You're on the Community plan with 1,000 credits to get started.
+        You're on the Free plan with 1,000 credits to get started.
       </Text>
     </EmailLayout>
   )

@@ -122,6 +122,7 @@ import {
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
+import { handleTrialWillEnd } from '@/lib/billing/webhooks/plan-notices'
 import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
@@ -1925,6 +1926,10 @@ export const auth = betterAuth({
                   }
                   case 'checkout.session.expired': {
                     await handleAbandonedCheckout(event)
+                    break
+                  }
+                  case 'customer.subscription.trial_will_end': {
+                    await handleTrialWillEnd(event.data.object)
                     break
                   }
                   case 'charge.dispute.created': {

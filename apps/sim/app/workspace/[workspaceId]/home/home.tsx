@@ -21,6 +21,7 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { ChatPlanNotice } from '@/app/workspace/[workspaceId]/home/components/chat-plan-notice'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
@@ -441,6 +442,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
               <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
+              <ChatPlanNotice />
               <div ref={initialViewInputRef} className='relative w-full max-w-chat'>
                 <ChatSurfaceProvider
                   userId={userId}

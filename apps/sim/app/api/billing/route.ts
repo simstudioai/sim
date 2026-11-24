@@ -21,6 +21,7 @@ import {
 import { getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { resolveBillingInterval } from '@/lib/billing/subscriptions/utils'
+import { isProTrialEligible } from '@/lib/billing/trial'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnifiedBillingAPI')
@@ -59,9 +60,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (context === 'user') {
-      const [personalBilling, upgradeWorkspaceId] = await Promise.all([
+      const [personalBilling, upgradeWorkspaceId, proTrialEligible] = await Promise.all([
         getPersonalBillingSummary(session.user.id, dbReplica),
         getUpgradeWorkspaceId({ type: 'user', id: session.user.id }),
+        isProTrialEligible(session.user.id, dbReplica),
       ])
       let organizationMembership: { id: string; role: 'owner' | 'admin' | 'member' } | undefined
 
@@ -89,6 +91,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         data: {
           ...personalBilling,
           upgradeWorkspaceId,
+          proTrialEligible,
           ...(organizationMembership ? { organization: organizationMembership } : {}),
         },
       })

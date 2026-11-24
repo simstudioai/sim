@@ -2,6 +2,7 @@ import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
+import { PRO_TRIAL_DAYS } from '@/lib/billing/constants'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 
 interface CreditsExhaustedEmailProps {
@@ -28,6 +29,10 @@ export function CreditsExhaustedEmail({
       </Text>
 
       <ProFeaturesBox />
+
+      <Text style={baseStyles.paragraph}>
+        New Pro subscribers start with a {PRO_TRIAL_DAYS}-day free trial.
+      </Text>
 
       <EmailButton href={upgradeLink}>Upgrade to Pro</EmailButton>
 
