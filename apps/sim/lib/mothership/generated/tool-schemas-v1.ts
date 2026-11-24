@@ -8190,6 +8190,55 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  build_notes: {
+    parameters: {
+      $schema: 'http://json-schema.org/draft-07/schema#',
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 100,
+        },
+        workflowId: {
+          type: 'string',
+          pattern: '^[A-Za-z0-9_-]{1,100}$',
+          description: 'The workflow the notes belong to.',
+        },
+        action: {
+          anyOf: [
+            {
+              type: 'string',
+              const: 'create',
+            },
+            {
+              type: 'string',
+              const: 'status',
+            },
+            {
+              type: 'string',
+              const: 'evaluate',
+            },
+            {
+              type: 'string',
+              const: 'apply',
+            },
+            {
+              type: 'string',
+              const: 'changes',
+            },
+            {
+              type: 'string',
+              const: 'rebase',
+            },
+          ],
+        },
+      },
+      required: ['workflowId', 'action'],
+      additionalProperties: false,
+    },
+    resultSchema: undefined,
+  },
   workspaces: {
     parameters: {
       $schema: 'http://json-schema.org/draft-07/schema#',
