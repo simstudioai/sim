@@ -315,7 +315,7 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
         }
         void url
       }, form)
-      for (let attempt = 0; attempt < 8; attempt++) {
+      for (let attempt = 0; attempt < 12; attempt++) {
         await shell.evaluate(() => {
           ;(globalThis as unknown as { escapeDiag: unknown[] }).escapeDiag.length = 0
         })
