@@ -17,6 +17,9 @@
  */
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { db } from '@sim/db'
 import {
   agentMemoryTurn,
@@ -531,7 +534,7 @@ describe('a dry run', () => {
       score: 82,
       email: 'a@b.co',
       note: 'key={{DRY_SECRET}}',
-      notified: 42,
+      notified: 900_000_001,
     })
     expect(JSON.stringify(result)).not.toContain(SECRET)
     const [save, sent] = result.sideEffects?.stubbed ?? []
@@ -551,11 +554,11 @@ describe('a dry run', () => {
         createdAt: '1970-01-01T00:00:00.000Z',
         updatedAt: '1970-01-01T00:00:00.000Z',
       },
-      operation: 'mock_operation',
+      operation: 'dry_run_operation_1',
       ignoredColumns: [],
-      message: 'mock_message',
+      message: 'dry_run_message_1',
     })
-    expect(sent).toMatchObject({ tool: 'http_request', returned: { status: 42 } })
+    expect(sent).toMatchObject({ tool: 'http_request', returned: { status: 900_000_001 } })
   })
 
   it('masks a run secret wherever it appears, though a secret-named column holds part of it', async () => {
@@ -644,7 +647,7 @@ describe('a dry run', () => {
         success: true,
         row: { ...placeholderRow('dry_run_row_1', { email: 'a@b.co' }, 0), executions: {} },
         ignoredColumns: [],
-        message: 'mock_message',
+        message: 'dry_run_message_1',
       },
       table_batch_insert_rows: {
         success: true,
@@ -654,21 +657,21 @@ describe('a dry run', () => {
         ],
         insertedCount: 2,
         ignoredColumns: [],
-        message: 'mock_message',
+        message: 'dry_run_message_1',
       },
       table_update_row: {
         success: true,
         row: placeholderRow('row_named', { score: 7 }, 0),
         ignoredColumns: [],
-        message: 'mock_message',
+        message: 'dry_run_message_1',
       },
       file_write: {
-        id: 'mock_id',
+        id: 'dry_run_id_1',
         name: 'report.txt',
         size: 6,
-        url: 'mock_url',
-        version: 42,
-        revision: 'mock_revision',
+        url: 'dry_run_url_1',
+        version: 900_000_002,
+        revision: 'dry_run_revision_1',
       },
     })
   })
@@ -696,10 +699,10 @@ describe('a dry run', () => {
     expect(batch.request).toMatchObject({ rows: { email: 'a@b.co' } })
     expect(batch.returned).toEqual({
       success: true,
-      rows: [{ id: 'item_1', name: 'Sample Item', value: 'Sample Value' }],
-      insertedCount: 42,
-      ignoredColumns: ['mock_ignoredColumns_item'],
-      message: 'mock_message',
+      rows: [{ id: 'dry_run_id_1', name: 'dry_run_name_1', value: 'dry_run_value_1' }],
+      insertedCount: 900_000_001,
+      ignoredColumns: ['dry_run_ignored_columns_1'],
+      message: 'dry_run_message_1',
     })
   })
 
@@ -740,6 +743,7 @@ describe('a dry run', () => {
         blockId: parent.idOf('save'),
         block: 'save',
         tool: 'table_upsert_row',
+        mcp: null,
       },
     ])
     expect(allowed.sideEffects?.stubbed.map((entry) => entry.block)).toEqual([
@@ -980,8 +984,12 @@ describe('a dry run', () => {
     expect(write).toMatchObject({
       tool: 'knowledge_create_document',
       returned: {
-        message: 'mock_message',
-        data: { documentId: 'mock_documentId', documentName: 'notes.txt', type: 'mock_type' },
+        message: 'dry_run_message_1',
+        data: {
+          documentId: 'dry_run_document_id_1',
+          documentName: 'notes.txt',
+          type: 'dry_run_type_1',
+        },
       },
     })
     const [document] = toArray<unknown>(toRecord(write.request).documents)
@@ -1275,6 +1283,9 @@ describe('a dry run', () => {
               blockId: fixture.idOf('save'),
               block: 'save',
               tool: 'table_upsert_row',
+              mcp: null,
+              dependsOnStub: false,
+              readOnlyHint: false,
               count: 1,
             },
           ],
@@ -1375,6 +1386,300 @@ async function pausedExecutionsOf(workflowId: string) {
     .from(pausedExecutions)
     .where(eq(pausedExecutions.workflowId, workflowId))
 }
+
+/**
+ * Tools of the MCP fixture: a read the server declares read-only, a write it declares nothing for,
+ * and a call it declares read-only but destructive. Each declares the reply shape it sends.
+ */
+const MCP_TOOLS = [
+  {
+    name: 'read_file',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+    outputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' }, size: { type: 'number' } },
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'delete_file',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+    outputSchema: { type: 'object', properties: { deleted: { type: 'boolean' } } },
+  },
+  {
+    name: 'purge_cache',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+    annotations: { readOnlyHint: true, destructiveHint: true },
+  },
+]
+
+/** The tool calls the MCP fixture received, in order. */
+const mcpCalls: Array<{ name: string; arguments: unknown }> = []
+
+/** A stateless Streamable HTTP MCP server listing {@link MCP_TOOLS}, answering every call. */
+function mcpFixture(): Server {
+  return createServer(async (request, response) => {
+    const server = new McpServer(
+      { name: 'dry-run-fixture', version: '1.0.0' },
+      { capabilities: { tools: {} } }
+    )
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: MCP_TOOLS }))
+    server.setRequestHandler(CallToolRequestSchema, async (call) => {
+      mcpCalls.push({ name: call.params.name, arguments: call.params.arguments })
+      const reply = { path: String(call.params.arguments?.path), size: 12 }
+      return { content: [{ type: 'text', text: JSON.stringify(reply) }], structuredContent: reply }
+    })
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
+    response.on('close', () => {
+      void transport.close()
+      void server.close()
+    })
+    await server.connect(transport)
+    await transport.handleRequest(request, response)
+  })
+}
+
+/** An MCP block running `tool` of `serverId` with `args`. */
+function mcpCall(name: string, serverId: string, tool: string, args: Record<string, unknown>) {
+  return block(name, 'mcp', {
+    operation: 'run',
+    serverSelector: serverId,
+    serverReference: serverId,
+    toolSelector: tool,
+    toolReference: tool,
+    arguments: args,
+  })
+}
+
+describe('a dry run’s reads', () => {
+  let fixture: Server
+  let serverId = ''
+
+  beforeAll(async () => {
+    fixture = mcpFixture()
+    const port = await new Promise<number>((resolve, reject) => {
+      fixture.listen(0, '127.0.0.1', () => {
+        const address = fixture.address()
+        if (address === null || typeof address === 'string') reject(new Error('No port'))
+        else resolve(address.port)
+      })
+    })
+    serverId = generateId()
+    await db.insert(mcpServers).values({
+      id: serverId,
+      workspaceId,
+      createdBy: ownerId,
+      name: 'Files',
+      transport: 'streamable-http',
+      url: `http://127.0.0.1:${port}/mcp`,
+      connectionStatus: 'connected',
+      statusConfig: { consecutiveFailures: 0 },
+    })
+  })
+
+  afterEach(() => {
+    mcpCalls.length = 0
+  })
+
+  afterAll(async () => {
+    await new Promise((resolve) => fixture.close(resolve))
+  })
+
+  it('sends no MCP call, even one its server declares read-only, until its block is allowed', async () => {
+    const { state, idOf } = graph(
+      [
+        block('start', 'start_trigger'),
+        mcpCall('read', serverId, 'read_file', { path: '/reports/q3.csv' }),
+        mcpCall('remove', serverId, 'delete_file', { path: '/reports/q3.csv' }),
+        mcpCall('purge', serverId, 'purge_cache', { path: '/reports' }),
+      ],
+      [
+        ['start', 'read'],
+        ['read', 'remove'],
+        ['remove', 'purge'],
+      ]
+    )
+    const workflowId = await saveWorkflow(state)
+
+    const result = await run(workflowId, {
+      dry: true,
+      selectedOutputs: ['read.structuredContent', 'remove.structuredContent'],
+    })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(mcpCalls).toEqual([])
+    const stubbed = result.sideEffects?.stubbed ?? []
+    expect(
+      stubbed.map((entry) => [entry.block, entry.mcp, entry.readOnlyHint, entry.dependsOnStub])
+    ).toEqual([
+      ['read', { server: serverId, tool: 'read_file' }, true, false],
+      ['remove', { server: serverId, tool: 'delete_file' }, false, false],
+      ['purge', { server: serverId, tool: 'purge_cache' }, false, false],
+    ])
+    expect(result.blockOutputs?.['read.structuredContent']).toEqual({
+      path: 'dry_run_path_1',
+      size: 900_000_001,
+    })
+    expect(result.blockOutputs?.['remove.structuredContent']).toEqual({ deleted: true })
+
+    const allowed = await run(workflowId, {
+      dry: true,
+      allowBlocks: ['read'],
+      selectedOutputs: ['read.structuredContent'],
+    })
+    expect(allowed.status, JSON.stringify(allowed.error)).toBe('completed')
+    expect(mcpCalls).toEqual([{ name: 'read_file', arguments: { path: '/reports/q3.csv' } }])
+    expect(allowed.blockOutputs?.['read.structuredContent']).toEqual({
+      path: '/reports/q3.csv',
+      size: 12,
+    })
+    expect(allowed.sideEffects?.allowed).toEqual([
+      {
+        workflowId,
+        blockId: idOf('read'),
+        block: 'read',
+        tool: 'mcp_run_operation',
+        mcp: { server: serverId, tool: 'read_file' },
+      },
+    ])
+  })
+
+  it('answers a read that would send a stubbed write’s placeholder id, through a chain of reads', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          upsertLead('save', tableId, 'a@b.co'),
+          block('fetch', 'table', {
+            operation: 'get_row',
+            tableSelector: tableId,
+            rowId: '<save.row.id>',
+          }),
+          block('refetch', 'table', {
+            operation: 'get_row',
+            tableSelector: tableId,
+            rowId: '<fetch.row.id>',
+          }),
+          mcpCall('read', serverId, 'read_file', { path: '/rows/file_<save.row.id>_copy.json' }),
+          queryLeads('lookup', tableId),
+        ],
+        [
+          ['start', 'save'],
+          ['save', 'fetch'],
+          ['fetch', 'refetch'],
+          ['refetch', 'read'],
+          ['read', 'lookup'],
+        ]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true, selectedOutputs: ['lookup.totalCount'] })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(await tableRows(tableId)).toEqual([])
+    expect(mcpCalls).toEqual([])
+    const stubbed = result.sideEffects?.stubbed ?? []
+    expect(stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])).toEqual([
+      ['save', 'table_upsert_row', false],
+      ['fetch', 'table_get_row', true],
+      ['refetch', 'table_get_row', true],
+      ['read', 'mcp_run_operation', true],
+    ])
+    expect(stubbed[1].request).toMatchObject({ rowId: 'dry_run_row_1' })
+    expect(result.blockOutputs?.['lookup.totalCount']).toBe(0)
+
+    const live = await run(workflowId, { selectedOutputs: ['refetch.row'] })
+    expect(live.status, JSON.stringify(live.error)).toBe('completed')
+    expect(live.sideEffects).toBeUndefined()
+    expect(JSON.stringify(live.blockOutputs?.['refetch.row'])).toContain('a@b.co')
+    expect(mcpCalls.map((call) => call.name)).toEqual(['read_file'])
+  })
+
+  it('answers a read by the number a stubbed create would have assigned', async () => {
+    const github = (name: string, values: Record<string, unknown>) =>
+      block(name, 'github', {
+        owner: 'octo',
+        repo: 'tracker',
+        apiKey: 'ghp_dry_run_fixture',
+        ...values,
+      })
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          github('file', { operation: 'github_create_issue', title: 'Broken build' }),
+          github('reread', {
+            operation: 'github_get_issue',
+            issue_number: '<file.metadata.number>',
+          }),
+        ],
+        [
+          ['start', 'file'],
+          ['file', 'reread'],
+        ]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    const stubbed = result.sideEffects?.stubbed ?? []
+    expect(stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])).toEqual([
+      ['file', 'github_create_issue', false],
+      ['reread', 'github_get_issue', true],
+    ])
+    expect(JSON.stringify(stubbed[1].request)).toMatch(/\/issues\/9000000\d\d/)
+  })
+
+  it('sends a read of a row a stubbed write was given, which exists', async () => {
+    const tableId = await createTable()
+    const seeded = await run(
+      await saveWorkflow(
+        graph(
+          [block('start', 'start_trigger'), upsertLead('seed', tableId, 'a@b.co')],
+          [['start', 'seed']]
+        ).state
+      )
+    )
+    expect(seeded.status, JSON.stringify(seeded.error)).toBe('completed')
+    const [row] = await db
+      .select({ id: userTableRows.id })
+      .from(userTableRows)
+      .where(eq(userTableRows.tableId, tableId))
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('rescore', 'table', {
+            operation: 'update_row',
+            tableSelector: tableId,
+            rowId: row.id,
+            data: JSON.stringify({ score: 99 }),
+          }),
+          block('fetch', 'table', {
+            operation: 'get_row',
+            tableSelector: tableId,
+            rowId: '<rescore.row.id>',
+          }),
+        ],
+        [
+          ['start', 'rescore'],
+          ['rescore', 'fetch'],
+        ]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true, selectedOutputs: ['fetch.row'] })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(result.sideEffects?.stubbed.map((entry) => entry.block)).toEqual(['rescore'])
+    expect(result.blockOutputs?.['fetch.row']).toMatchObject({
+      id: row.id,
+      data: { email: 'a@b.co', score: 82 },
+    })
+  })
+})
 
 describe('a test run', () => {
   it('is not the source of a Copilot run from a block, named or as the latest run', async () => {
@@ -1966,6 +2271,55 @@ return created.id.toString()`
     expect(result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool])).toEqual([
       ['write', 'http_request'],
       ['override', 'http_request'],
+    ])
+  })
+
+  it('sends no GET that would carry a stubbed write’s placeholder id, from code or an API block', async () => {
+    const prefix = `/${generateId()}`
+    const tableId = await createTable()
+    const fixture = graph(
+      [
+        block('start', 'start_trigger'),
+        upsertLead('save', tableId, 'a@b.co'),
+        block('code', 'function', {
+          language: 'javascript',
+          code: `const res = await fetch('${server.url}${prefix}/code/' + <save.row.id>)
+return { status: res.status, stubbed: res.headers.get('x-sim-dry-run') }`,
+        }),
+        block('header', 'function', {
+          language: 'javascript',
+          code: `const res = await fetch('${server.url}${prefix}/header', { headers: { 'X-Record-Id': <save.row.id> } })
+return res.headers.get('x-sim-dry-run')`,
+        }),
+        block('fetch', 'api', { url: `${server.url}${prefix}/api/<save.row.id>`, method: 'GET' }),
+        block('real', 'api', { url: `${server.url}${prefix}/api/row_8f3a2c`, method: 'GET' }),
+      ],
+      [
+        ['start', 'save'],
+        ['save', 'code'],
+        ['code', 'header'],
+        ['header', 'fetch'],
+        ['fetch', 'real'],
+      ]
+    )
+    const workflowId = await saveWorkflow(fixture.state)
+
+    const result = await run(workflowId, {
+      dry: true,
+      selectedOutputs: ['code.result', 'header.result'],
+    })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}/api/row_8f3a2c`])
+    expect(result.blockOutputs?.['code.result']).toEqual({ status: 200, stubbed: 'stubbed' })
+    expect(result.blockOutputs?.['header.result']).toBe('stubbed')
+    expect(
+      result.sideEffects?.stubbed.map((entry) => [entry.block, entry.tool, entry.dependsOnStub])
+    ).toEqual([
+      ['save', 'table_upsert_row', false],
+      ['code', 'function_execute', true],
+      ['header', 'function_execute', true],
+      ['fetch', 'http_request', true],
     ])
   })
 })

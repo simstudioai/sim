@@ -2,11 +2,48 @@ import { isPlainRecord } from '@sim/utils/object'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import { isRunControlledOutputField } from '@/executor/utils/mock-output'
+import { dryRunId, dryRunNumber } from '@/tools/dry-run'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 
+/** A field name as a placeholder token's kind: `rowId` is `row_id`. */
+function tokenKind(field: string): string {
+  const kind = field
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return kind || 'value'
+}
+
 /**
- * Placeholder output shaped like a block's real one, for the operation its params configure.
- * Data only, like a mock: no field the run's execution, trace or billing reads.
+ * `sample` with every string a placeholder token (`dry_run_<field>_<n>`, numbered per field) and
+ * every number a placeholder number (`dryRunNumber`), so a value the sample made up is
+ * recognisably not real wherever it flows, and a read that would send it is known to depend on a
+ * stub. An array item's fields are named by their own keys.
+ */
+function mintPlaceholders(sample: Record<string, unknown>): Record<string, unknown> {
+  const counts = new Map<string, number>()
+  let numbers = 0
+  const mint = (field: string): string => {
+    const kind = tokenKind(field)
+    const n = (counts.get(kind) ?? 0) + 1
+    counts.set(kind, n)
+    return dryRunId(kind, n)
+  }
+  const visit = (value: unknown, field: string): unknown => {
+    if (typeof value === 'string') return mint(field)
+    if (typeof value === 'number') return dryRunNumber(++numbers)
+    if (Array.isArray(value)) return value.map((item) => visit(item, field))
+    if (!isPlainRecord(value)) return value
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, visit(item, key)]))
+  }
+  return Object.fromEntries(Object.entries(sample).map(([key, item]) => [key, visit(item, key)]))
+}
+
+/**
+ * Placeholder output shaped like a block's real one, for the operation its params configure, its
+ * strings and numbers placeholders. Data only, like a mock: no field the run's execution, trace or
+ * billing reads.
  */
 export function sampleBlockOutput(block: {
   type: string
@@ -15,7 +52,10 @@ export function sampleBlockOutput(block: {
   const subBlocks: Record<string, { value: unknown }> = {}
   for (const [key, value] of Object.entries(block.params)) subBlocks[key] = { value }
   const outputs = getEffectiveBlockOutputs(block.type, subBlocks)
-  const sample = withEmptyFileLists(outputs, generateMockPayloadFromOutputsDefinition(outputs))
+  const sample = withEmptyFileLists(
+    outputs,
+    mintPlaceholders(generateMockPayloadFromOutputsDefinition(outputs))
+  )
   return Object.fromEntries(
     Object.entries(sample).filter(([field]) => !isRunControlledOutputField(field))
   )
@@ -89,17 +129,79 @@ function overlayFields(
   )
 }
 
+/** Nesting of a discovered JSON Schema an output declaration follows. */
+const MAX_SCHEMA_DEPTH = 10
+
 /**
- * Placeholder output shaped like a tool's declared outputs; empty for a tool that declares none.
- * `echoed`, the tool's `dryRunOutput`, is laid over the sample by the declared schema (see
- * `ToolConfig.dryRunOutput`).
+ * A discovered JSON Schema (an MCP tool's `outputSchema`) as an output declaration the sample
+ * reads: `integer` is a `number`, a union reads as its first non-null member, and a field whose
+ * type cannot be told is left out rather than sampled as a guess.
+ */
+function outputFromJsonSchema(schema: unknown, depth = 0): Record<string, unknown> | undefined {
+  if (!isPlainRecord(schema) || depth > MAX_SCHEMA_DEPTH) return undefined
+  const variants = Array.isArray(schema.anyOf) ? schema.anyOf : schema.oneOf
+  if (Array.isArray(variants)) {
+    const member = variants.find((variant) => !(isPlainRecord(variant) && variant.type === 'null'))
+    return outputFromJsonSchema(member, depth + 1)
+  }
+  const declared = Array.isArray(schema.type)
+    ? schema.type.find((type) => type !== 'null')
+    : schema.type
+  const type =
+    typeof declared === 'string'
+      ? declared
+      : isPlainRecord(schema.properties)
+        ? 'object'
+        : schema.items !== undefined
+          ? 'array'
+          : undefined
+  switch (type) {
+    case 'object': {
+      const properties: Record<string, unknown> = {}
+      for (const [field, child] of Object.entries(
+        isPlainRecord(schema.properties) ? schema.properties : {}
+      )) {
+        const output = outputFromJsonSchema(child, depth + 1)
+        if (output) properties[field] = output
+      }
+      return { type: 'object', properties }
+    }
+    case 'array': {
+      const items = outputFromJsonSchema(schema.items, depth + 1)
+      return items ? { type: 'array', items } : undefined
+    }
+    case 'integer':
+    case 'number':
+      return { type: 'number' }
+    case 'string':
+    case 'boolean':
+      return { type }
+    default:
+      return undefined
+  }
+}
+
+/**
+ * Placeholder output shaped like a tool's declared outputs, and the `discovered` outputs a call
+ * learned beside them as JSON Schemas (an MCP tool's `outputSchema`, as `structuredContent`), its
+ * strings and numbers placeholders; empty for a tool that declares none. `echoed`, the tool's
+ * `dryRunOutput`, is laid over the sample by the declared schema (see `ToolConfig.dryRunOutput`).
  */
 export function sampleToolOutput(
   toolId: string,
-  echoed: Record<string, unknown> | null = null
+  echoed: Record<string, unknown> | null = null,
+  discovered?: Record<string, unknown>
 ): Record<string, unknown> {
-  const outputs = getToolOutputsMetadata(toolId)
-  if (!outputs) return {}
-  const sample = withEmptyFileLists(outputs, generateMockPayloadFromOutputsDefinition(outputs))
+  const declared = getToolOutputsMetadata(toolId)
+  if (!declared && !discovered) return {}
+  const outputs: Record<string, unknown> = { ...declared }
+  for (const [field, schema] of Object.entries(discovered ?? {})) {
+    const output = outputFromJsonSchema(schema)
+    if (output) outputs[field] = output
+  }
+  const sample = withEmptyFileLists(
+    outputs,
+    mintPlaceholders(generateMockPayloadFromOutputsDefinition(outputs))
+  )
   return echoed ? overlayFields(outputs, sample, echoed) : sample
 }

@@ -136,12 +136,13 @@ import {
 } from '@/tools/request-transport'
 import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import {
-  answerUnsentMcpWrite,
-  answerUnsentWrite,
+  answerCheckedMcpCall,
+  answerUnsentCall,
   type CodeNetwork,
   codeNetworkFor,
   describeMcpToolRequest,
   describeToolRequest,
+  unsentReadFor,
   unsentWriteFor,
 } from '@/tools/side-effects'
 import type {
@@ -1960,19 +1961,18 @@ async function executeToolImplementation(
         logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
-      // An MCP tool declares no effect, so a run's side-effect policy decides every one. An unsent
-      // one is still authorized and checked against the server's tools, so it fails as live would.
-      const unsentMcpWrite = unsentWriteFor({ toolId: normalizedToolId, params, executionContext })
+      // An MCP tool declares no effect, so a run's side-effect policy decides every one.
+      const unsentMcpCall = unsentWriteFor({ toolId: normalizedToolId, params, executionContext })
       const response = await executeMcpTool(
         normalizedToolId,
         params,
-        unsentMcpWrite ? checkOnlyContext(operationContext) : operationContext,
+        unsentMcpCall ? checkOnlyContext(operationContext) : operationContext,
         requestId,
         startTimeISO,
         effectiveSignal
       )
-      if (!unsentMcpWrite || !response.success) return response
-      return await answerUnsentMcpWrite(unsentMcpWrite, {
+      if (!unsentMcpCall) return response
+      return await answerCheckedMcpCall(unsentMcpCall, response, {
         params,
         registry: resolvedSecretTraceRegistry,
         describe: describeMcpToolRequest,
@@ -2015,13 +2015,15 @@ async function executeToolImplementation(
     await resolveToolEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
 
     /**
-     * Decided before a hosted key is drawn, so a write the run's side-effect policy will not send
+     * Decided before a hosted key is drawn, so a call the run's side-effect policy will not send
      * spends no rate-limit slot.
      */
-    const unsentWrite =
-      tool.effect !== 'read' && !(executionContext?.sideEffects && tool.readsWhen?.(contextParams))
-        ? unsentWriteFor({ toolId: normalizedToolId, params: contextParams, executionContext })
-        : null
+    const readsOnly =
+      tool.effect === 'read' ||
+      Boolean(executionContext?.sideEffects && tool.readsWhen?.(contextParams))
+    const unsentCall = readsOnly
+      ? unsentReadFor({ tool, params: contextParams, executionContext })
+      : unsentWriteFor({ toolId: normalizedToolId, params: contextParams, executionContext })
 
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
       tool,
@@ -2029,7 +2031,7 @@ async function executeToolImplementation(
       executionContext,
       requestId,
       effectiveSignal,
-      { drawKey: !unsentWrite }
+      { drawKey: !unsentCall }
     )
 
     if (hostedKeyInfo.isUsingHostedKey) {
@@ -2264,7 +2266,7 @@ async function executeToolImplementation(
     }
 
     // After credentials resolve, so an unsent write still proves them.
-    if (unsentWrite) {
+    if (unsentCall) {
       const unsentTool = tool
       const unsent = {
         params: contextParams,
@@ -2274,11 +2276,11 @@ async function executeToolImplementation(
         echo: unsentTool.dryRunOutput,
       }
       if (normalizedToolId !== mcpRunOperationTool.id || !tool.operation) {
-        return await answerUnsentWrite(unsentWrite, unsent)
+        return await answerUnsentCall(unsentCall, unsent)
       }
-      // The MCP block's operation is authorized and checked against the server's tools first, so
-      // an unusable one fails as live would; a failed check throws like a failed call.
-      await executeDeclaredInternalOperation({
+      // The MCP block's operation is checked like an MCP tool's; a failed check throws like a
+      // failed call.
+      const checked = await executeDeclaredInternalOperation({
         toolId: normalizedToolId,
         tool,
         params: contextParams,
@@ -2290,7 +2292,7 @@ async function executeToolImplementation(
         internalSandboxProfile,
         authorizedServiceAccountCredential,
       })
-      return await answerUnsentMcpWrite(unsentWrite, unsent)
+      return await answerCheckedMcpCall(unsentCall, checked, unsent)
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.

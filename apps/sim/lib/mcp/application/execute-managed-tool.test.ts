@@ -326,7 +326,7 @@ describe('executeManagedMcpToolUseCase', () => {
 
     await expect(
       executeManagedMcpToolUseCase.execute({ principal, input: { ...input, checkOnly: true } })
-    ).resolves.toEqual({ success: true, checked: true })
+    ).resolves.toMatchObject({ success: true, checked: true })
 
     expect(mocks.executeTool).not.toHaveBeenCalled()
     expect(mocks.saveToolSnapshot).not.toHaveBeenCalled()
@@ -340,5 +340,42 @@ describe('executeManagedMcpToolUseCase', () => {
     expect(mocks.executeTool).toHaveBeenCalledOnce()
     expect(mocks.saveToolSnapshot).toHaveBeenCalledOnce()
     expect(auditWrites.some((write) => write.mock.calls.length > 0)).toBe(true)
+  })
+
+  it('reports a checked call’s discovered hints, never sending a destructive or read-only one', async () => {
+    const outputSchema = { type: 'object', properties: { total: { type: 'number' } } }
+    const input = {
+      workspaceId: context.workspaceId,
+      credentialId: context.credentialId,
+      toolName: 'search_transcripts',
+      checkOnly: true,
+    }
+    const discovered = (annotations: Record<string, boolean>) => [
+      {
+        name: 'search_transcripts',
+        inputSchema: { type: 'object', properties: {} },
+        outputSchema,
+        annotations,
+      },
+    ]
+
+    mocks.discoverTools.mockResolvedValue(discovered({ readOnlyHint: true }))
+    await expect(executeManagedMcpToolUseCase.execute({ principal, input })).resolves.toEqual({
+      success: true,
+      checked: true,
+      tool: { name: 'search_transcripts', outputSchema, readOnlyHint: true },
+    })
+    mocks.discoverTools.mockResolvedValue(discovered({ readOnlyHint: true, destructiveHint: true }))
+    const savedWorkflow = await mocks.loadWorkflow()
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    queueTableRows(schemaMock.workflowDeploymentVersion, [{ state: savedWorkflow }])
+    await expect(executeManagedMcpToolUseCase.execute({ principal, input })).resolves.toMatchObject(
+      {
+        tool: { readOnlyHint: false },
+      }
+    )
+
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+    for (const write of auditWrites) expect(write).not.toHaveBeenCalled()
   })
 })

@@ -1,8 +1,10 @@
 /**
  * Where a run's side-effect policy (a dry run, or a workflow test's unmocked writes) meets a tool
- * call: `executeTool` asks {@link unsentWriteFor} about every call not declared `read` before a
- * hosted key is drawn for it, and answers an unsent one with {@link answerUnsentWrite} after
- * credentials resolve and before anything is sent.
+ * call: `executeTool` asks {@link unsentWriteFor} about every call not declared `read`, and
+ * {@link unsentReadFor} about every read, before a hosted key is drawn for it, and answers an
+ * unsent one with {@link answerUnsentCall} after credentials resolve and before anything is sent.
+ * An MCP call declares no effect, so a held one is checked against the server's tools first and
+ * answered with {@link answerCheckedMcpCall}.
  */
 import { createLogger } from '@sim/logger'
 import { isPlainRecord, toRecord } from '@sim/utils/object'
@@ -12,13 +14,20 @@ import {
   REDACTED_MARKER,
   redactExactSensitiveValues,
 } from '@/lib/core/security/redaction'
+import { isReadRequest } from '@/lib/core/utils/http-methods'
 import type { IsolatedFetchPolicy } from '@/lib/execution/isolated-vm'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
+import { readMcpToolOutputSchema } from '@/lib/mcp/output-schema'
 import { parseMcpToolArguments, RUN_CONTEXT_PARAMS } from '@/lib/mcp/tool-arguments'
 import { getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
-import type { SideEffectPolicy, SideEffectSite } from '@/executor/execution/types'
+import type {
+  SideEffectPolicy,
+  SideEffectSite,
+  StubbedToolCall,
+  ToolCallSite,
+} from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
@@ -47,11 +56,30 @@ function sideEffectSite(
   }
 }
 
-/** A write tool call the run's policy answers instead of sending. */
-interface UnsentWrite {
+/** A tool call the run's policy answers instead of sending. */
+interface UnsentCall {
   policy: SideEffectPolicy
   executionContext: ExecutionContext
-  call: SideEffectSite & { toolId: string }
+  call: Omit<StubbedToolCall, 'request' | 'echoed' | 'discoveredOutputs'>
+}
+
+/**
+ * A tool call of the executing workflow, at the block that made it; the MCP block's operation
+ * also by the MCP server and tool it names.
+ */
+function toolCallSite(
+  executionContext: ExecutionContext,
+  toolId: string,
+  params: Record<string, unknown>
+): ToolCallSite {
+  const { server, tool } = params
+  const namesMcpTool =
+    toolId === 'mcp_run_operation' && typeof server === 'string' && typeof tool === 'string'
+  return {
+    ...sideEffectSite(executionContext, params),
+    toolId,
+    mcp: namesMcpTool ? { server, tool } : null,
+  }
 }
 
 /**
@@ -62,12 +90,37 @@ export function unsentWriteFor(input: {
   toolId: string
   params: Record<string, unknown>
   executionContext: ExecutionContext | undefined
-}): UnsentWrite | null {
+}): UnsentCall | null {
   const { executionContext } = input
   const policy = executionContext?.sideEffects
   if (!executionContext || !policy) return null
-  const call = { ...sideEffectSite(executionContext, input.params), toolId: input.toolId }
-  return policy.decideWrite(call) === 'stub' ? { policy, executionContext, call } : null
+  const call = toolCallSite(executionContext, input.toolId, input.params)
+  return policy.decideWrite(call) === 'stub'
+    ? { policy, executionContext, call: { ...call, dependsOnStub: false, readOnlyHint: false } }
+    : null
+}
+
+/**
+ * The read the run's side-effect policy will not send because a param the tool declares holds a
+ * value one of the run's placeholders returned, so it would read what a stubbed write never made;
+ * null when the run has no policy (at no cost) or the read is sent.
+ */
+export function unsentReadFor(input: {
+  tool: ExecutableToolConfig
+  params: Record<string, unknown>
+  executionContext: ExecutionContext | undefined
+}): UnsentCall | null {
+  const { executionContext, tool, params } = input
+  const policy = executionContext?.sideEffects
+  if (!executionContext || !policy) return null
+  const sent = Object.entries(params).filter(([key]) => Object.hasOwn(tool.params, key))
+  if (!policy.sendsPlaceholder(Object.fromEntries(sent))) return null
+  const call = toolCallSite(executionContext, tool.id, params)
+  return {
+    policy,
+    executionContext,
+    call: { ...call, dependsOnStub: true, readOnlyHint: false },
+  }
 }
 
 /** A string body as the JSON it carries, when it carries JSON. */
@@ -308,7 +361,7 @@ export async function redactSideEffectPayload(input: {
 }
 
 /**
- * The response answering a write tool call the run's side-effect policy does not send, after the
+ * The response answering a tool call the run's side-effect policy does not send, after the
  * policy recorded the request it would have sent: `describe` builds it, and `echo` (a tool's
  * `dryRunOutput`) the output that request determines, both from params whose secrets are already
  * masked ({@link maskRequestParams}). Both are redacted again in one {@link redactSideEffectPayload}
@@ -317,13 +370,15 @@ export async function redactSideEffectPayload(input: {
  * masked params. The write is answered either way, its placeholder the sample alone without an
  * echo.
  */
-export async function answerUnsentWrite(
-  write: UnsentWrite,
+export async function answerUnsentCall(
+  write: UnsentCall,
   input: {
     params: Record<string, unknown>
     registry: ResolvedSecretTraceRegistry | undefined
     describe: (maskedParams: Record<string, unknown>) => unknown
     echo?: (maskedParams: Record<string, unknown>) => Record<string, unknown>
+    /** Outputs the call learned beside the tool's declared ones (see `StubbedToolCall`). */
+    discoveredOutputs?: Record<string, unknown>
   }
 ): Promise<ToolResponse> {
   const { call } = write
@@ -356,10 +411,11 @@ export async function answerUnsentWrite(
       : null
   return {
     success: true,
-    output: write.policy.stubWrite({
+    output: write.policy.stubCall({
       ...call,
       request: isPlainRecord(redacted?.request) ? redacted.request : null,
       echoed: isPlainRecord(redacted?.echoed) ? redacted.echoed : null,
+      discoveredOutputs: input.discoveredOutputs,
     }),
   }
 }
@@ -386,22 +442,39 @@ function buildFromMaskedParams(
 }
 
 /**
- * {@link answerUnsentWrite} for a call that reaches an MCP server (a workspace MCP tool, or the MCP
- * block's operation): a JSON-string `arguments` param is read first, so a secret nested in it is
- * found and masked like any other.
+ * {@link answerUnsentCall} for an MCP call (a workspace MCP tool, or the MCP block's operation)
+ * once `checked`, the response of checking it against the server's tools without sending it,
+ * succeeded; a failed check is the answer itself, as a live call would fail. The placeholder is
+ * shaped by the tool's `outputSchema`, and a tool its server declares read-only is still held back,
+ * since Sim cannot verify that claim: its entry says so, for the author to allow its block. A
+ * JSON-string `arguments` param is read first, so a secret nested in it is masked like any other.
  */
-export function answerUnsentMcpWrite(
-  write: UnsentWrite,
-  input: Parameters<typeof answerUnsentWrite>[1]
+export async function answerCheckedMcpCall(
+  unsent: UnsentCall,
+  checked: ToolResponse,
+  input: Omit<Parameters<typeof answerUnsentCall>[1], 'discoveredOutputs'>
 ): Promise<ToolResponse> {
+  if (!checked.success) return checked
   const { params } = input
-  return answerUnsentWrite(write, {
-    ...input,
-    params:
-      typeof params.arguments === 'string'
-        ? { ...params, arguments: parseMcpToolArguments(params) }
-        : params,
-  })
+  const tool = checked.output.checked === true ? toRecord(checked.output.tool) : {}
+  const readOnlyHint = tool.readOnlyHint === true
+  const outputSchema = readMcpToolOutputSchema(tool.outputSchema)
+  const args = parseMcpToolArguments(params)
+  return answerUnsentCall(
+    {
+      ...unsent,
+      call: {
+        ...unsent.call,
+        readOnlyHint,
+        dependsOnStub: readOnlyHint && unsent.policy.sendsPlaceholder(args),
+      },
+    },
+    {
+      ...input,
+      params: typeof params.arguments === 'string' ? { ...params, arguments: args } : params,
+      discoveredOutputs: outputSchema ? { structuredContent: outputSchema } : undefined,
+    }
+  )
 }
 
 /** The longest URL and body a stubbed network request of code is recorded with. */
@@ -470,6 +543,9 @@ export function codeNetworkFor(input: {
       const decision = await code.onRequest({
         method: request.method,
         headerNames: request.headerNames,
+        url: request.url,
+        headerValues: request.headerValues,
+        body: request.body,
         describe: async () => {
           const redacted = await redactSideEffectPayload({
             payload: {
@@ -493,7 +569,7 @@ export function codeNetworkFor(input: {
           )
         },
       })
-      if (decision === 'stub') stubbed++
+      if (decision === 'stub' && !isReadRequest(request.method, request.headerNames)) stubbed++
       return decision
     },
     failureHint: () =>

@@ -234,10 +234,12 @@ async function resolveWorkflowRunSelection(
 }
 
 /**
- * A dry run's side effects in a few lines on stderr, for the human formats: each write that was
- * not sent, sent because its block was allowed, or code in a remote sandbox the run cannot see,
- * and a note for an allowed block whose writes all stayed stubbed (an Agent's call to a custom
- * block). The request payloads are in the result itself (`--output json`).
+ * A dry run's side effects in a few lines on stderr, for the human formats: each call that was
+ * not sent (a read that depends on a stubbed write marked as such, and an MCP call its server
+ * declares read-only with how to send it), sent because its block was allowed, or code in a remote
+ * sandbox the run cannot see, and a note for an allowed block whose writes all stayed stubbed (an
+ * Agent's call to a custom block). The request payloads are in the result itself
+ * (`--output json`).
  */
 function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
   if (!isRecordLike(sideEffects)) return
@@ -252,11 +254,21 @@ function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
     return typeof count === 'number' ? count : 0
   }
   const total = (key: string, entries: unknown[]) => entries.length + omittedOf(key)
-  const label = (entry: Record<string, unknown>) =>
-    safeOneLine(`${String(entry.block)}${typeof entry.tool === 'string' ? ` → ${entry.tool}` : ''}`)
+  /** An MCP block's call is named by the MCP tool it called, any other by its tool. */
+  const label = (entry: Record<string, unknown>) => {
+    const mcpTool = toRecord(entry.mcp).tool
+    const tool = typeof mcpTool === 'string' ? mcpTool : entry.tool
+    return safeOneLine(`${String(entry.block)}${typeof tool === 'string' ? ` → ${tool}` : ''}`)
+  }
+  const why = (entry: Record<string, unknown>) => {
+    if (entry.dependsOnStub === true) return ' (reads a placeholder from a stubbed write)'
+    if (entry.readOnlyHint !== true) return ''
+    const block = safeOneLine(String(entry.block ?? entry.blockId))
+    return ` (server says read-only: --allow '${block}' sends it)`
+  }
   const lines = [
     `Dry run: ${total('stubbed', stubbed)} not sent, ${total('allowed', allowed)} sent (allowed), ${total('unchecked', unchecked)} unchecked`,
-    ...stubbed.map((entry) => `  not sent   ${label(entry)}`),
+    ...stubbed.map((entry) => `  not sent   ${label(entry)}${why(entry)}`),
     ...allowed.map((entry) => `  sent       ${label(entry)}`),
     ...unchecked.map(
       (entry) => `  unchecked  ${label(entry)}: ${safeOneLine(String(entry.reason))}`
@@ -784,19 +796,24 @@ OAuth token with api:write); the child workflows it calls still run their own ac
 --dry runs the saved draft without its side effects: every tool call not declared read (sends,
 table writes, HTTP calls other than GET/HEAD/OPTIONS, custom and MCP tools) returns a
 placeholder and is listed in sideEffects.stubbed with the request it would have sent; check
-those payloads. Code (a Function block's, a Condition's expressions, a While or Do While loop's
-condition, or code an Agent's model writes) runs: its GET/HEAD/OPTIONS fetches are sent (an API
-that writes on a GET is not stubbed), and any other fetch, or one with a method-override header,
-gets an empty 200 and is listed in sideEffects.stubbed. Code in a remote sandbox (shell, Python,
-imports) is listed in sideEffects.unchecked, since its network cannot be seen. Child workflows
-run dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never
-pauses. Agents read memory but write none, and the run raises no workspace event. --allow
-<block> sends that block's writes (a Function's fetches included) for real (use a test
-resource); allowing an Agent sends only its own tool calls, not a workflow or custom block it
-calls. --mock <block>=<json> answers a block with fixed output, to steer a branch; a locked block
-cannot be mocked, and a mock is data, so it cannot set a field the run's execution, trace or
-billing reads (such as cost, tokens, model or a field starting with _). A dry run is the
---source-run only of another dry run, and is never resumed.
+those payloads. Placeholder ids are distinctive (dry_run_row_1, numbers above 900000000); a read
+(a GET included, a Function's fetch too) that would send one (a row a stubbed insert never made,
+or text quoting one) is not sent either and is listed there with dependsOnStub. MCP calls are
+stubbed even when the server declares the tool read-only, which Sim cannot verify: such an entry
+has readOnlyHint, and --allow <block> sends it. Code (a Function block's, a Condition's
+expressions, a While or Do While loop's condition, or code an Agent's model writes) runs: its
+other GET/HEAD/OPTIONS fetches are sent (an API that writes on a GET is not stubbed), and any
+other fetch, or one with a method-override header, gets an empty 200 and is listed in
+sideEffects.stubbed. Code in a remote sandbox (shell, Python, imports) is listed in
+sideEffects.unchecked, since its network cannot be seen. Child workflows run dry too; custom,
+Human in the loop and Wait blocks are answered whole, so the run never pauses. Agents read
+memory but write none, and the run raises no workspace event. --allow <block> sends that block's
+writes (a Function's fetches included) for real (use a test resource); allowing an Agent sends
+only its own tool calls, not a workflow or custom block it calls. --mock <block>=<json> answers a
+block with fixed output, to steer a branch; a locked block cannot be mocked, and a mock is data,
+so it cannot set a field the run's execution, trace or billing reads (such as cost, tokens, model
+or a field starting with _). A dry run is the --source-run only of another dry run, and is never
+resumed.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:

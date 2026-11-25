@@ -12,6 +12,7 @@ import {
 } from '@/lib/credentials/managed-mcp'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
+  checkedMcpToolCall,
   coerceToolArguments,
   type ExecuteMcpToolResult,
   transformToolResult,
@@ -119,6 +120,8 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       name: discovered.name,
       ...(discovered.description ? { description: discovered.description } : {}),
       inputSchema: requireToolSchema(discovered.inputSchema),
+      ...(discovered.outputSchema ? { outputSchema: discovered.outputSchema } : {}),
+      ...(discovered.annotations ? { annotations: discovered.annotations } : {}),
       serverId: runtime.credentialId,
       serverName: runtime.mcpServerName,
     }
@@ -156,7 +159,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       context,
       credentialOperations.useManagedMcp.resourcePolicy
     )
-    if (input.checkOnly) return { success: true, checked: true }
+    if (input.checkOnly) return checkedMcpToolCall(tool)
     const providerResult = await mcpService.executeManagedMcpTool({
       connectionId: runtime.credentialId,
       serverId: runtime.mcpServerId,
@@ -170,8 +173,8 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     return transformToolResult(providerResult)
   },
-  projectAudit: ({ input, context }) =>
-    input.checkOnly
+  projectAudit: ({ input, context, result }) =>
+    'checked' in result
       ? []
       : {
           action: AuditAction.CREDENTIAL_ACCESSED,

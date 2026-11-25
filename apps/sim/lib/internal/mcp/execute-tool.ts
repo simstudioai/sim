@@ -196,12 +196,15 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       result = await executeManagedMcpToolUseCase.execute({ principal, input })
     }
     request.signal?.throwIfAborted()
+    /** A checked call's output is what the check learned, for the executor's placeholder. */
     const body =
-      request.toolId === 'mcp_run_operation' || 'checked' in result
-        ? result
-        : result.success
-          ? { success: true, data: { success: true, output: result.output } }
-          : { success: false, error: result.error }
+      'checked' in result
+        ? { success: true, output: result }
+        : request.toolId === 'mcp_run_operation'
+          ? result
+          : result.success
+            ? { success: true, data: { success: true, output: result.output } }
+            : { success: false, error: result.error }
     return createResponse(
       body,
       result.success ? 200 : 400,

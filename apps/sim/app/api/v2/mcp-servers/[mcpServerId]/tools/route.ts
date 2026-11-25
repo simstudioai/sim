@@ -30,5 +30,16 @@ export const GET = defineV2JsonRoute({
     refresh: query.refresh,
   }),
   useCase: discoverMcpServerToolsUseCase,
-  present: ({ tools }) => ({ data: tools, nextCursor: null }),
+  /** Only the fields the contract publishes: a discovered tool also carries hints Sim reads. */
+  present: ({ tools }) => ({
+    data: tools.map(({ name, description, inputSchema, outputSchema, serverId, serverName }) => ({
+      name,
+      description,
+      inputSchema,
+      outputSchema,
+      serverId,
+      serverName,
+    })),
+    nextCursor: null,
+  }),
 })

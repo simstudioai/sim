@@ -7534,6 +7534,48 @@ describe('MCP Tool Execution', () => {
     expect(allowed.summary().stubbed).toEqual([])
   })
 
+  it('stubs an MCP tool its server declares read-only, marking it and answering from its outputSchema', async () => {
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({
+        success: true,
+        output: {
+          success: true,
+          checked: true,
+          tool: {
+            name: 'count_files',
+            outputSchema: {
+              type: 'object',
+              properties: {
+                total: { type: 'integer' },
+                label: { type: ['null', 'string'] },
+                owner: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+                untyped: {},
+              },
+            },
+            readOnlyHint: true,
+          },
+        },
+      })
+    )
+
+    const held = await executeTool(
+      'mcp-123-count_files',
+      { path: '/test', _context: { blockId: 'agent-1' } },
+      {
+        executionContext: createToolExecutionContext({ sideEffects: dryRun }),
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      }
+    )
+
+    expect(held.output).toEqual({
+      structuredContent: { total: 900_000_001, label: 'dry_run_label_1', owner: 'dry_run_owner_1' },
+    })
+    expect(dryRun.summary().stubbed).toMatchObject([
+      { tool: 'mcp-123-count_files', readOnlyHint: true, dependsOnStub: false },
+    ])
+  })
+
   it('fails an MCP write in a dry run as it would live when its server refuses the call', async () => {
     const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
