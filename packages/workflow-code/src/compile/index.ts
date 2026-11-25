@@ -784,7 +784,7 @@ function compileEntry(
   }
   checkErrorOutputRefs(ctx, erroring)
   // A reference to an output that does not exist, or to `x.error` where nothing errors, is that
-  // one finding: whether text there would break the JSON is moot until the path is fixed. An input
+  // one finding: whether text there stays text is moot until the path is fixed. An input
   // the start does not declare is not: a caller may still pass text there.
   const unknownAt = new Set([
     ...reporter.reportedAt('W_UNKNOWN_OUTPUT_PATH'),
@@ -797,7 +797,7 @@ function compileEntry(
     if (unknownAt.has(`${ref.range.file}:${ref.range.start}`)) continue
     reporter.report(
       'W_JSON_REF_UNTYPED',
-      `Nothing declares the type of ${ref.token}; it is stored bare, so a string value would break the JSON.`,
+      `Nothing declares the type of ${ref.token}; it is stored bare, so text that reads as JSON (123, true) would become that value, not text.`,
       ref.range,
       {
         hint: `Leave it bare when it holds an array, object, number or boolean (it is spliced in as JSON); only when it holds text write t\`\${${text.slice(ref.range.start, ref.range.end)}}\`.`,
