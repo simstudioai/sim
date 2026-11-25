@@ -40,8 +40,9 @@ const PARAMS_COMMAND = 'sim workflows source params'
 
 /** The rules every source directory shares, after the kind's own edit loop. */
 function sharedRules(group: string, extraRenames = ''): string {
-  return `- **Identity**: a block is its entry in \`${SOURCE_LOCK_FILE}\`, bound by its const or its display name. Rename display names (first argument) or consts, any number per apply: apply rewrites every reference, a function file's \`$ref.<key>\` too (leave those). Renaming both (one block per apply) keeps it only if settings, neighbours or references still tie it to the old block, else it is a delete (\`E_APPLY_BLOCK_DELETE\`).
-- **References**: in \`${SOURCE_ENTRY_FILE}\` read an output as \`x.content\`, a loop or parallel item as \`p.currentItem\` (\`p.index\`), a child's response field as \`c.result.data.<field>\` (typed by its \`response\`), text as \`\` t\`…\` \`\`, env as \`env.NAME\`. In a function file (\`codeFile('./functions/x.js')\`) read an output as \`$ref.<key>.<path>\`, the key: the display name lowercased, no whitespace or dots ("Triage Agent" → \`$ref.triageagent.content\`); in a loop body \`$ref.loop.currentItem\` / \`$ref.loop.index\` (a parallel: \`$ref.parallel.…\`); env as \`$env.NAME\`. In \`.py\`/\`.sh\` files write \`<key.path>\` and \`{{NAME}}\`, not \`$ref\`/\`$env\`. Read an index or item only inside its container (\`E_APPLY_REF_OUT_OF_SCOPE\`), after it its \`.results\`. A \`$ref\` naming no block errors in a function file you edited (\`E_APPLY_UNRESOLVED_REF\`).${extraRenames}
+  return `- **Identity**: a block is its entry in \`${SOURCE_LOCK_FILE}\`, bound by its const or its display name. Rename display names (first argument) or consts, any number per apply: apply rewrites each reference, \`$ref.<key>\` in function files too. Renaming both (one block per apply) keeps it only if settings, neighbours or references still tie it to the old block, else it is a delete (\`E_APPLY_BLOCK_DELETE\`).
+- **References**: in \`${SOURCE_ENTRY_FILE}\` read an output as \`x.content\`, a loop or parallel item as \`p.currentItem\` (\`p.index\`), a child's response field as \`c.result.data.<field>\` (typed by its \`response\`), text as \`\` t\`…\` \`\`, env as \`env.NAME\`. In a function file (\`codeFile('./functions/x.js')\`) read an output as \`$ref.<key>.<path>\`, the key: the display name lowercased, no whitespace or dots ("Triage Agent" → \`$ref.triageagent.content\`); in a loop body \`$ref.loop.currentItem\` / \`$ref.loop.index\` (a parallel: \`$ref.parallel.…\`); env as \`$env.NAME\`. In \`.py\`/\`.sh\` files write \`<key.path>\` and \`{{NAME}}\`, not \`$ref\`/\`$env\`. Read an index or item only inside its container (\`E_APPLY_REF_OUT_OF_SCOPE\`), after it its \`.results\`. A \`$ref\` naming no block errors in a function file you edited (\`E_APPLY_UNRESOLVED_REF\`).
+- **Renames**: one workflow variable per apply (two at once: delete + add).${extraRenames}
 - **Builders**: \`${PARAMS_COMMAND} <builder>\` (a namespace lists its builders).
 - **Credentials**: \`sim credentials connect <provider> --name "<Name>"\`, give the owner its link, then \`credential('<key>')\` (\`sim workflows source resources\`).
 - **Failures**: \`x.onError(y)\` runs \`y\` when \`x\` fails, reading the message as \`x.error\` (a Function's \`x.errorMessage\` drops the line and code: reply with it). Retry is block meta (third argument): \`agent('Name', {…}, { retry: { enabled: true, maxTries: 3, waitBetweenTriesMs: 2000 } })\` reruns the block after a failure; an \`api\` block's \`retries\` repeat only the request (timeout, reset, 429, 5xx) inside each try. A reference to a block that did not run is \`null\` (a whole value, function code, a condition) or \`''\` in text. Branches may rejoin before one \`response\` (a function picks the value with \`??\`: \`.sim/examples/cookbook.ts\`); branches that end apart each need one.
@@ -62,17 +63,17 @@ ${sharedRules('sim workflows source')}
 
 /** What a rename in a workspace directory rewrites beyond a workflow's own blocks. */
 const WORKSPACE_RENAMES =
-  "\n- **Renames**: a column or file: change its \`name\`, keep its key (cells stay; a file's never changes: \`E_KEY_RENAMED\`). Table blocks (\`data\`, \`conflictColumn\`, filters) use the column name, not the key, and keep old names (\`W_TABLE_COLUMN_RENAMED_IN_USE\`)."
+  " A column or file: change its \`name\`, keep its key (cells stay; a file's never changes: \`E_KEY_RENAMED\`). Table blocks (\`data\`, \`conflictColumn\`, filters) use the column name, not the key, and keep old names (\`W_TABLE_COLUMN_RENAMED_IN_USE\`)."
 
 const WORKSPACE_PRIMER = `# Sim workspace source: primer
 
-This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/workflow.ts\`, …); nothing here runs. Run commands here: each (table commands too) acts on the workspace \`${SOURCE_BASE_FILE}\` names; source commands refuse a \`-w\` naming another, the rest follow it. Every \`.ts\` file (\`deployments/\` too) starts with \`// @sim-sdk ${SDK_MAJOR}\`.
+This directory is a Sim workspace as files (\`tables/\`, \`workflows/<key>/\`); nothing here runs. Run commands here: each (table commands too) acts on the workspace \`${SOURCE_BASE_FILE}\` names; source commands refuse a \`-w\` naming another, the rest follow it. Every \`.ts\` file starts with \`// @sim-sdk ${SDK_MAJOR}\`.
 
 **Edit loop**: write every file, then run one chained command; fix what it reports next: \`sim workspaces source check --dir . && sim workspaces source apply --dir . --yes\`; test with \`sim workflows run <workflowId> --manual --input '{…}'\`. \`check\` compiles and type-checks (no separate \`tsc\`). Apply re-checks, so \`apply --dry-run\` is only for review. Apply rewrites files: reread one before editing it.
 
 - **Deletes**: removing a file, folder, column, block or variable needs \`apply --allow-delete\` and is permanent.
-- **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys that workflow on apply; without one, apply never deploys.
-- **Exit ${SOURCE_HELD_EXIT_CODE}**: written in part; changes using an unset secret or unbound credential were held: set it, apply again.
+- **Deploy**: \`deployments/<workflow key>.ts\` (\`defineDeployment({ live: 'draft' })\`) deploys it on apply; without one, apply never deploys.
+- **Exit ${SOURCE_HELD_EXIT_CODE}**: partly written; changes needing an unset secret or unbound credential were held: set it, apply again.
 ${sharedRules('sim workspaces source', WORKSPACE_RENAMES)}
 `
 
