@@ -101,12 +101,17 @@ describe('installMainProcessFailureObservers', () => {
     ;(handler as () => void)()
   }
 
-  it('exits without prompting when the failure arrives after quitting has begun', () => {
+  async function settlePrompt() {
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve()
+  }
+
+  it('exits without prompting when the failure arrives once the quit is committed', () => {
     const events = { filePath: '/tmp/events.log', record: vi.fn() }
     const { handlers, source } = createProcessSource()
     installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
 
     emitAppEvent('before-quit')
+    emitAppEvent('will-quit')
     handlers.get('uncaughtException')?.(new Error('during shutdown') as never)
 
     expect(events.record).toHaveBeenCalledWith('main_uncaught_exception', { valueType: 'Error' })
@@ -115,7 +120,24 @@ describe('installMainProcessFailureObservers', () => {
     expect(app.exit).toHaveBeenCalledWith(1)
   })
 
-  it('answers an open recovery prompt as Quit when the app starts quitting', async () => {
+  it('still offers recovery after a quit request another listener cancelled', () => {
+    vi.mocked(dialog.showMessageBox).mockImplementationOnce(() => new Promise(() => {}))
+    const events = { filePath: '/tmp/events.log', record: vi.fn() }
+    const { handlers, source } = createProcessSource()
+    installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
+
+    emitAppEvent('before-quit')
+    handlers.get('uncaughtException')?.(new Error('after a cancelled quit') as never)
+
+    expect(dialog.showMessageBox).toHaveBeenCalledOnce()
+    const [options] = vi.mocked(dialog.showMessageBox).mock.calls[0] as unknown as [
+      { signal?: AbortSignal },
+    ]
+    expect(options.signal?.aborted).toBe(false)
+    expect(app.exit).not.toHaveBeenCalled()
+  })
+
+  it('answers an open recovery prompt as Quit when a quit is requested', async () => {
     vi.mocked(dialog.showMessageBox).mockImplementationOnce(
       (options: { cancelId?: number; signal?: AbortSignal }) =>
         new Promise((resolve) => {
@@ -132,9 +154,10 @@ describe('installMainProcessFailureObservers', () => {
     expect(dialog.showMessageBox).toHaveBeenCalledOnce()
     expect(app.exit).not.toHaveBeenCalled()
 
-    emitAppEvent('will-quit')
+    emitAppEvent('before-quit')
+    await settlePrompt()
 
-    await vi.waitFor(() => expect(app.exit).toHaveBeenCalledWith(1))
+    expect(app.exit).toHaveBeenCalledWith(1)
     expect(app.relaunch).not.toHaveBeenCalled()
   })
 })
