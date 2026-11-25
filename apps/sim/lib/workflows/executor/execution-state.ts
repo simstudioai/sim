@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
-import { filterUndefined, isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
 import { forceFailedMessage } from '@/lib/workflows/executor/failure-message'
 import { buildResumeUiUrl } from '@/executor/constants'
-import type { SerializableExecutionState } from '@/executor/execution/types'
+import type { DryRunOptions, SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint } from '@/executor/types'
 import {
   isResolvedSecretTraceProvenanceV1,
@@ -156,6 +156,61 @@ export async function getWorkflowExecutionLogStatus(
     )
     .limit(1)
   return row?.status
+}
+
+/** The trigger an execution's workflow log recorded, or `undefined` when it never started one. */
+export async function getWorkflowExecutionLogTrigger(
+  executionId: string,
+  workflowId: string
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ trigger: workflowExecutionLogs.trigger })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return row?.trigger
+}
+
+/**
+ * A dry run's allowed and mocked blocks, as its log's trigger recorded them; null for any other
+ * run, or a record not in the shape a dry run writes.
+ */
+export async function getWorkflowExecutionDryRun(
+  executionId: string,
+  workflowId: string
+): Promise<DryRunOptions | null> {
+  const [row] = await db
+    .select({
+      dryRun: sql<unknown>`${workflowExecutionLogs.executionData} #> '{trigger,data,dryRun}'`,
+    })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  const dryRun = row?.dryRun
+  if (!isPlainRecord(dryRun) || !isPlainRecord(dryRun.mocks)) return null
+  const { allowBlocks } = dryRun
+  if (!Array.isArray(allowBlocks)) return null
+  const allowed: string[] = []
+  for (const blockId of allowBlocks) {
+    if (typeof blockId !== 'string') return null
+    allowed.push(blockId)
+  }
+  const mocks: DryRunOptions['mocks'] = {}
+  for (const [blockId, output] of Object.entries(dryRun.mocks)) {
+    if (!isPlainRecord(output)) return null
+    mocks[blockId] = output
+  }
+  return { allowBlocks: allowed, mocks }
 }
 
 /** The log's own correlation wins; older logs carried it only on the trigger data. */

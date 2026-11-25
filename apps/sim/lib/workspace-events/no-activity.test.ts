@@ -25,7 +25,7 @@ vi.mock('@/lib/workspace-events/subscriptions', () => ({
 }))
 
 vi.mock('@/lib/workspace-events/rules', () => ({
-  excludeSimExecutionsCondition: vi.fn(() => ({ type: 'ne', right: 'sim' })),
+  excludeEventlessExecutionsCondition: vi.fn(() => ({ type: 'ne', right: 'sim' })),
 }))
 
 import {

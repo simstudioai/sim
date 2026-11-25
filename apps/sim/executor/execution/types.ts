@@ -87,6 +87,8 @@ export interface ExecutionMetadata {
   allowLargeValueWorkflowScope?: boolean
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
+  /** A dry run's allowed and mocked blocks, recorded on its log so a rerun can pass them again. */
+  dryRun?: DryRunOptions
   executionMode?: 'sync' | 'stream' | 'async'
   /**
    * Deployed-chat thinking policy half of the SSE dual gate. Persisted so HITL
@@ -318,10 +320,23 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
+/** The blocks of the workflow a dry run started that it sent and mocked, by id. */
+export interface DryRunOptions {
+  allowBlocks: string[]
+  mocks: Record<string, NormalizedBlockOutput>
+}
+
 /** Where a call that may change state outside the run was made: a block of one executing workflow. */
 export interface SideEffectSite {
   workflowId: string
-  /** The workflow block id, never a parallel-branch clone id; empty when the caller named none. */
+  /** The workflow block id, never a parallel-branch clone id; null when the caller named none. */
+  blockId: string | null
+  blockName: string | null
+  blockType: string | null
+}
+
+/** A block of one executing workflow, which the block executor always knows. */
+export interface SideEffectBlockSite extends SideEffectSite {
   blockId: string
   blockName: string
   blockType: string
@@ -330,32 +345,40 @@ export interface SideEffectSite {
 /** A write tool call the run answers instead of sending, with the request it would have sent. */
 export interface StubbedToolCall extends SideEffectSite {
   toolId: string
-  /** The request with credentials and resolved secrets redacted; null when it could not be. */
+  /** The request with credentials, secrets and PII redacted; null when that cannot be vouched for. */
   request: Record<string, unknown> | null
 }
 
-/** A block the run answers instead of running its handler, with the inputs its log shows. */
-export interface StubbedBlockCall extends SideEffectSite {
-  input: Record<string, unknown>
+/** A block the run answers instead of running its handler. */
+export interface AnsweredBlockCall extends SideEffectBlockSite {
+  /**
+   * The inputs its log shows, redacted like a stubbed write's request (null when that cannot be
+   * vouched for); built only when the block is recorded as stubbed rather than mocked.
+   */
+  input: () => Promise<Record<string, unknown> | null>
 }
 
 /**
  * How a run treats work that may change state outside it: a dry run, or a workflow test's
  * unmocked writes. Unlike {@link ExecutionTestHooks}, every child execution inherits it, including
- * a custom block's source workflow and a workflow or custom block an Agent calls as a tool, so a
- * child's writes follow the run that started it. `tools/index.ts` consults it for every tool call
- * not declared `read` (an MCP tool declares nothing, so every one), after credentials resolve and
- * before anything is sent; the block executor consults it before each block's handler.
+ * a workflow an Agent calls as a tool, so a child's writes follow the run that started it.
+ * `tools/index.ts` consults it for every tool call not declared `read` (an MCP tool declares
+ * nothing, so every one) before a hosted key is drawn, and answers a stubbed call after
+ * credentials resolve and before anything is sent; the block executor consults it before each
+ * block's handler.
  */
 export interface SideEffectPolicy {
-  /** Whether this write tool call is sent for real; a sent call is recorded with why it was. */
-  sendsWrite(call: SideEffectSite & { toolId: string }): boolean
+  /**
+   * Whether this write tool call is sent or answered with {@link stubWrite}. Records a sent call
+   * the run should report: an allowed block's write, or code that runs unchecked.
+   */
+  decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub'
   /** Records a write that was not sent and returns the placeholder output answering it. */
   stubWrite(call: StubbedToolCall): Record<string, unknown>
-  /** Whether this block is answered with a placeholder instead of running its handler. */
-  stubsBlock(block: SideEffectSite): boolean
-  /** Records a block that did not run and returns the placeholder output answering it. */
-  stubBlock(call: StubbedBlockCall): NormalizedBlockOutput
+  /** Whether this block is answered with {@link answerBlock} instead of running its handler. */
+  answersBlock(block: SideEffectBlockSite): boolean
+  /** The output answering a block that does not run: its mock, or a recorded placeholder. */
+  answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput>
 }
 
 export interface ContextExtensions {

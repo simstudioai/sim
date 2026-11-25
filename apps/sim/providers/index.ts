@@ -394,32 +394,45 @@ export async function executeProviderRequest(
       )
     }
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)
-    await uploadLargeFilesToProvider(modelSafeRequest, providerId, runtimeContext?.executionContext)
-    if (final && session) {
-      modelSafeRequest.abortSignal?.throwIfAborted()
-      const usage = session.getUsage()
-      cachedFinalResponse = {
-        ...final,
-        tokens: {
-          ...usage.tokens,
-          total:
-            usage.tokens.input +
-            usage.tokens.output +
-            (usage.tokens.cacheRead ?? 0) +
-            (usage.tokens.cacheWrite ?? 0),
-        },
-        cost: {
-          ...usage.cost,
-          pricing: getModelPricing(final.model) ?? {
-            input: 0,
-            output: 0,
-            updatedAt: new Date(0).toISOString(),
+    const uploads = await uploadLargeFilesToProvider(
+      modelSafeRequest,
+      providerId,
+      runtimeContext?.executionContext
+    )
+    /**
+     * A run under a side-effect policy (a dry run, or a workflow test) leaves nothing on the
+     * provider account: its uploads are deleted once the call settles. Such a run waits for its
+     * result and never streams, so the call has settled when it returns here.
+     */
+    try {
+      if (final && session) {
+        modelSafeRequest.abortSignal?.throwIfAborted()
+        const usage = session.getUsage()
+        cachedFinalResponse = {
+          ...final,
+          tokens: {
+            ...usage.tokens,
+            total:
+              usage.tokens.input +
+              usage.tokens.output +
+              (usage.tokens.cacheRead ?? 0) +
+              (usage.tokens.cacheWrite ?? 0),
           },
-        },
+          cost: {
+            ...usage.cost,
+            pricing: getModelPricing(final.model) ?? {
+              input: 0,
+              output: 0,
+              updatedAt: new Date(0).toISOString(),
+            },
+          },
+        }
+        return cachedFinalResponse
       }
-      return cachedFinalResponse
+      return await provider.executeRequest(modelSafeRequest)
+    } finally {
+      if (runtimeContext?.executionContext?.sideEffects) await uploads.remove()
     }
-    return provider.executeRequest(modelSafeRequest)
   })
 
   if (cachedFinalResponse) return cachedFinalResponse

@@ -77,7 +77,7 @@ import { executeVantaTool } from '@/lib/internal/vanta/execute-tool'
 import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
 import { buildFalVideoRequest } from '@/lib/internal/video/fal-request'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
-import { DryRunSideEffects } from '@/lib/workflows/dry-run'
+import { WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { VideoGeneratorV2Block, VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
@@ -7491,20 +7491,40 @@ describe('MCP Tool Execution', () => {
     })
   })
 
-  it('stubs an MCP tool in a dry run, since it declares no effect', async () => {
-    const dryRun = new DryRunSideEffects({ allowBlockIds: new Set(), pausingBlocks: 'stub' })
+  it('stubs an MCP tool in a dry run, recording only its arguments, and sends an allowed one', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow', pausingBlocks: 'stub' })
+    const params = {
+      path: '/test',
+      envVars: { UNREFERENCED_SECRET: 'workspace-secret-value' },
+      _context: { blockId: 'agent-1' },
+    }
 
-    const result = await executeTool(
-      'mcp-123-delete_file',
-      { path: '/test', _context: { blockId: 'agent-1' } },
-      { executionContext: createToolExecutionContext({ sideEffects: dryRun }) }
-    )
+    const result = await executeTool('mcp-123-delete_file', params, {
+      executionContext: createToolExecutionContext({ sideEffects: dryRun }),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
 
     expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
     expect(result.success).toBe(true)
-    expect(dryRun.summary().stubbed).toEqual([
-      expect.objectContaining({ blockId: 'agent-1', tool: 'mcp-123-delete_file' }),
-    ])
+    const [stubbed] = dryRun.summary().stubbed
+    expect(stubbed).toMatchObject({ blockId: 'agent-1', tool: 'mcp-123-delete_file' })
+    expect(stubbed.request).toEqual({ arguments: { path: '/test' } })
+
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, data: { output: { deleted: true } } })
+    )
+    const allowed = new WriteStubPolicy({
+      workflowId: 'test-workflow',
+      allowBlockIds: new Set(['agent-1']),
+      pausingBlocks: 'stub',
+    })
+    await executeTool('mcp-123-delete_file', params, {
+      executionContext: createToolExecutionContext({ sideEffects: allowed }),
+    })
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledTimes(1)
+    expect(allowed.summary().stubbed).toEqual([])
   })
 
   it('preserves MCP operation error envelopes', async () => {

@@ -166,7 +166,7 @@ Apply without `dryRun`. Set `atomic: true` in the body to write nothing when any
 
 ## 7. Test the draft [#test-run]
 
-Run the saved draft with `run.source: "manual"` and `run.dry: true`. A dry run sends no writes: every tool call not declared `read` (table writes, sends, HTTP calls, custom and MCP tools) returns a placeholder shaped like the tool's output, and the result lists it under `sideEffects.stubbed` with the request it would have sent, credentials and secrets redacted. Check those payloads instead of cleaning up test data. Reads, model calls and conditions run for real, child workflows run dry too, and Function blocks run for real and are listed under `sideEffects.unchecked`. Dry runs are logged under the `test` trigger. Manual runs are synchronous or streamed, never `async`; a dry run is synchronous only.
+Run the saved draft with `run.source: "manual"` and `run.dry: true`. A dry run sends no writes: every tool call not declared `read` (table writes, sends, HTTP calls, custom and MCP tools) returns a placeholder shaped like the tool's output, and the result lists it under `sideEffects.stubbed` with the request it would have sent, credentials, secrets and password fields redacted. Check those payloads instead of cleaning up test data. Reads, model calls and conditions run for real, child workflows run dry too, and custom blocks are answered whole. Code runs for real (a Function block's, or code an Agent's model writes) and is listed under `sideEffects.unchecked`. A dry run keeps nothing beyond its own log, which is under the `test` trigger: Agents read their memory but write none, and it raises no workspace event and does not count as a run of the workflow. A failed dry run still returns its `sideEffects`, and only another dry run can use it as `run.entry.sourceRunId`. Manual runs are synchronous or streamed, never `async`; a dry run is synchronous only.
 
 <Tabs items={['curl', 'CLI']}>
   <Tab value="curl">
@@ -194,7 +194,7 @@ Narrow a test run with these options:
 | Rerun from a block, reusing an earlier run's upstream outputs | `run.entry: {type: "block", blockId, sourceRunId}` | `--from-block <blockId> --source-run <runId>` |
 | Rerun one block only | Block entry plus `stopAfterBlockId` naming the same block | `--from-block` and `--stop-after` with the same block |
 | Send one block's writes for real during a dry run | `run.allowBlocks: ["<block>"]` | `--allow <block>` |
-| Answer a block with a fixed output, to steer a branch | `run.mocks: {"<block>": {...}}` | `--mock <block>='{...}'` |
+| Answer a block with a fixed output during a dry run, to steer a branch | `run.mocks: {"<block>": {...}}` | `--mock <block>='{...}'` |
 | Run everything for real | omit `run.dry` | `--manual` |
 
 `stopAfterBlockId` cannot name a block inside a loop or parallel. A run that routes away from the stop block fails as soon as that is decided.

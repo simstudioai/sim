@@ -301,7 +301,7 @@ export class PiBlockHandler implements BlockHandler {
       const usePrivateKey = inputs.authMethod === 'privateKey'
       const port = parseOptionalNumberInput(inputs.port, 'port', { integer: true, min: 1 }) ?? 22
       const sandboxCost: SandboxCostSink = { total: 0 }
-      const tools = await buildSimToolSpecs(ctx, inputs.tools, sandboxCost)
+      const tools = await buildSimToolSpecs(ctx, block.id, inputs.tools, sandboxCost)
       const params: PiLocalRunParams = {
         ...contextualBase,
         mode: 'local',

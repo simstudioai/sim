@@ -59,6 +59,7 @@ import type {
   ChildWorkflowContext,
   ContextExtensions,
   ExecutionCallbacks,
+  ExecutionMetadata,
   ExecutionTestHooks,
   IterationContext,
   SerializableExecutionState,
@@ -314,6 +315,18 @@ export function wasExecutionFinalizedByCore(error: unknown, executionId?: string
 }
 
 /**
+ * What a run records on its log's trigger: its correlation, and a dry run's allowed and mocked
+ * blocks, which a rerun of it reads back.
+ */
+function logTriggerData(metadata: ExecutionMetadata): Record<string, unknown> | undefined {
+  if (!metadata.correlation && !metadata.dryRun) return undefined
+  return {
+    ...(metadata.correlation ? { correlation: metadata.correlation } : {}),
+    ...(metadata.dryRun ? { dryRun: metadata.dryRun } : {}),
+  }
+}
+
+/**
  * Counts a settled run — completed, failed, or cancelled alike — on the
  * workflow and stamps `lastRunAt`. Paused runs are not settled and are counted
  * when they finish. Awaited from the finalization path rather than fired and
@@ -356,6 +369,14 @@ function buildTraceSpansForLog(
   }
 }
 
+/**
+ * Whether a settled run counts on its workflow. A test run (a dry run or a workflow test) changes
+ * nothing beyond its own log, so it does not.
+ */
+function countsAsRun(triggerType: string): boolean {
+  return triggerType !== 'test'
+}
+
 async function finalizeExecutionOutcome(params: {
   result: ExecutionResult
   loggingSession: LoggingSession
@@ -364,9 +385,18 @@ async function finalizeExecutionOutcome(params: {
   requestId: string
   workflowInput: unknown
   abortSignal?: AbortSignal
+  triggerType: string
 }): Promise<void> {
-  const { result, loggingSession, workflowId, executionId, requestId, workflowInput, abortSignal } =
-    params
+  const {
+    result,
+    loggingSession,
+    workflowId,
+    executionId,
+    requestId,
+    workflowInput,
+    abortSignal,
+    triggerType,
+  } = params
   const { traceSpans, totalDuration } = buildTraceSpansForLog(
     result,
     loggingSession,
@@ -434,7 +464,7 @@ async function finalizeExecutionOutcome(params: {
   }
 
   // Every non-paused outcome above is a settled run; the paused branch returned.
-  await recordSettledRun(workflowId, requestId, loggingSession)
+  if (countsAsRun(triggerType)) await recordSettledRun(workflowId, requestId, loggingSession)
 }
 
 async function finalizeExecutionError(params: {
@@ -445,8 +475,10 @@ async function finalizeExecutionError(params: {
   requestId: string
   /** The input the executor ran with; absent when the run failed before its input stage finished. */
   workflowInput: unknown
+  triggerType: string
 }): Promise<boolean> {
-  const { error, loggingSession, workflowId, executionId, requestId, workflowInput } = params
+  const { error, loggingSession, workflowId, executionId, requestId, workflowInput, triggerType } =
+    params
   const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
   const { traceSpans } = executionResult
     ? buildTraceSpansForLog(executionResult, loggingSession, requestId, executionId)
@@ -479,7 +511,7 @@ async function finalizeExecutionError(params: {
   }
 
   // A run that threw after starting is a failed run, and failed runs count.
-  await recordSettledRun(workflowId, requestId, loggingSession)
+  if (countsAsRun(triggerType)) await recordSettledRun(workflowId, requestId, loggingSession)
   return finalized
 }
 
@@ -892,7 +924,7 @@ async function executeWorkflowCoreImpl(
       billingAttribution: metadata.billingAttribution,
       workspaceId: providedWorkspaceId,
       variables,
-      triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
+      triggerData: logTriggerData(metadata),
       skipLogCreation,
       deploymentVersionId,
       workflowState: loadedWorkflow && {
@@ -1408,6 +1440,7 @@ async function executeWorkflowCoreImpl(
             requestId,
             workflowInput: processedInput,
             abortSignal,
+            triggerType,
           })
         } catch (postExecError) {
           logger.error(
@@ -1450,7 +1483,7 @@ async function executeWorkflowCoreImpl(
         billingAttribution: metadata.billingAttribution,
         workspaceId: providedWorkspaceId,
         variables: {},
-        triggerData: metadata.correlation ? { correlation: metadata.correlation } : undefined,
+        triggerData: logTriggerData(metadata),
         skipLogCreation,
         deploymentVersionId,
       })
@@ -1467,6 +1500,7 @@ async function executeWorkflowCoreImpl(
                 executionId,
                 requestId,
                 workflowInput: executorInput,
+                triggerType,
               })
             : false
 

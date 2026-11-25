@@ -1,5 +1,4 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import { isPlainRecord } from '@sim/utils/object'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
@@ -12,16 +11,15 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ExecuteWorkflowInput } from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import {
-  createBlockMockHooks,
-  DryRunSideEffects,
-  PAUSING_BLOCK_TYPES,
-} from '@/lib/workflows/dry-run'
+import { PAUSING_BLOCK_TYPES, runsAnotherWorkflow, WriteStubPolicy } from '@/lib/workflows/dry-run'
 import {
   type ExecuteWorkflowServiceResult,
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
-import { getExecutionStateForWorkflow } from '@/lib/workflows/executor/execution-state'
+import {
+  getExecutionStateForWorkflow,
+  getWorkflowExecutionLogTrigger,
+} from '@/lib/workflows/executor/execution-state'
 import {
   loadWorkflowFromNormalizedTables,
   type NormalizedWorkflowData,
@@ -39,8 +37,8 @@ interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mod
   dry?: boolean
   /** Blocks, by selector, whose writes a dry run sends for real (`run.allowBlocks`). */
   allowBlocks?: string[]
-  /** Block selector to the output that answers the block instead of its handler (`run.mocks`). */
-  mocks?: Record<string, unknown>
+  /** Block selector to the output that answers the block in a dry run (`run.mocks`). */
+  mocks?: Record<string, Record<string, unknown>>
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -167,15 +165,29 @@ function resolveStopAfterBlock(
 }
 
 /**
- * The dry run and block mocks a manual run asked for, their blocks resolved like
+ * The dry run a manual run asked for, its allowed and mocked blocks resolved like
  * {@link resolveBlockSelector}. A dry run is logged under the `test` trigger, never as a manual
  * run, and returns its side effects with the result it waits for, so it cannot stream or detach.
+ * Mocks need a dry run: a fixed output must never drive a run's real writes.
  */
-function resolveRunOverrides(state: ManualWorkflowState, input: ManualExecutionInput) {
-  if (input.allowBlocks?.length && !input.dry) {
-    throw new OrchestrationError('validation', 'run.allowBlocks requires run.dry')
+function resolveRunOverrides(
+  state: ManualWorkflowState,
+  input: ManualExecutionInput,
+  workflowId: string
+) {
+  if (!input.dry) {
+    if (input.allowBlocks?.length) {
+      throw new OrchestrationError('validation', 'run.allowBlocks requires run.dry')
+    }
+    if (input.mocks && Object.keys(input.mocks).length > 0) {
+      throw new OrchestrationError(
+        'validation',
+        'run.mocks requires run.dry: a mocked block must never steer a run that sends its writes'
+      )
+    }
+    return { triggerType: 'manual' as const }
   }
-  if (input.dry && (input.mode === 'stream' || input.detachable)) {
+  if (input.mode === 'stream' || input.detachable) {
     throw new OrchestrationError(
       'validation',
       'run.dry returns its side effects with the run result, so it cannot be combined with stream or waitTimeoutSeconds'
@@ -184,32 +196,37 @@ function resolveRunOverrides(state: ManualWorkflowState, input: ManualExecutionI
   const allowBlockIds = new Set<string>()
   for (const selector of input.allowBlocks ?? []) {
     const blockId = resolveBlockSelector(state, selector, 'run.allowBlocks')
-    if (PAUSING_BLOCK_TYPES.has(state.blocks[blockId].type)) {
+    const blockType = state.blocks[blockId].type
+    if (PAUSING_BLOCK_TYPES.has(blockType)) {
       throw new OrchestrationError(
         'validation',
         `run.allowBlocks "${selector}" pauses the run, which would resume without the dry run; mock its output with run.mocks instead.`
       )
     }
-    allowBlockIds.add(blockId)
-  }
-  const mocks = new Map<string, Record<string, unknown>>()
-  for (const [selector, output] of Object.entries(input.mocks ?? {})) {
-    if (!isPlainRecord(output)) {
+    if (runsAnotherWorkflow(blockType)) {
       throw new OrchestrationError(
         'validation',
-        `run.mocks "${selector}" must be an object, the output the block returns`
+        `run.allowBlocks "${selector}" runs another workflow (a Workflow or custom block), whose writes a dry run never sends; mock its output with run.mocks instead.`
       )
     }
+    allowBlockIds.add(blockId)
+  }
+  const blockMocks = new Map<string, Record<string, unknown>>()
+  for (const [selector, output] of Object.entries(input.mocks ?? {})) {
     const blockId = resolveBlockSelector(state, selector, 'run.mocks')
-    if (mocks.has(blockId)) {
+    if (blockMocks.has(blockId)) {
       throw new OrchestrationError('validation', `run.mocks names block "${blockId}" twice`)
     }
-    mocks.set(blockId, output)
+    blockMocks.set(blockId, output)
   }
   return {
-    triggerType: input.dry ? ('test' as const) : ('manual' as const),
-    dryRun: input.dry ? new DryRunSideEffects({ allowBlockIds, pausingBlocks: 'stub' }) : undefined,
-    testHooks: mocks.size > 0 ? createBlockMockHooks(mocks) : undefined,
+    triggerType: 'test' as const,
+    sideEffectPolicy: new WriteStubPolicy({
+      workflowId,
+      allowBlockIds,
+      blockMocks,
+      pausingBlocks: 'stub',
+    }),
   }
 }
 
@@ -226,7 +243,7 @@ function executionServiceInput(params: {
   stopAfterBlockId: string | undefined
 }) {
   return {
-    ...resolveRunOverrides(params.draftState, params.input),
+    ...resolveRunOverrides(params.draftState, params.input, params.context.workflowId),
     workflowId: params.context.workflowId,
     principal: params.principal,
     userId: requirePrincipalSubjectUserId(params.principal),
@@ -326,6 +343,15 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
       throw new OrchestrationError(
         'not_found',
         `No execution state found for source run "${input.sourceRunId}" in this workflow.`
+      )
+    }
+    if (
+      !input.dry &&
+      (await getWorkflowExecutionLogTrigger(input.sourceRunId, context.workflowId)) === 'test'
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        `run.entry.sourceRunId "${input.sourceRunId}" is a test run (a dry run or a workflow test): its upstream outputs include placeholders for writes it did not send. Add run.dry to rerun it dry, or rerun from a run that was not a test.`
       )
     }
 

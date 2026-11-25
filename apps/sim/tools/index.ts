@@ -41,6 +41,7 @@ import {
   validateAndPinProxyUrl,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { waitWithAbort } from '@/lib/core/utils/concurrency'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -133,7 +134,12 @@ import {
   readRequestedDeadline,
 } from '@/tools/request-transport'
 import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
-import { answerUnsentWrite, describeToolRequest } from '@/tools/side-effects'
+import {
+  answerUnsentWrite,
+  describeMcpToolRequest,
+  describeToolRequest,
+  unsentWriteFor,
+} from '@/tools/side-effects'
 import type {
   BYOKProviderId,
   CredentialParamSource,
@@ -648,13 +654,18 @@ function applyCredentialParams(
  * Checks BYOK workspace keys first, refuses Sim's key to a payer without paid access, then uses the
  * HostedKeyRateLimiter for round-robin key selection.
  * Returns whether a hosted (billable) key was injected and which env var it came from.
+ *
+ * `drawKey: false` is a call that will not be sent (a run's side-effect policy answers it): it
+ * passes every check a sent call does but draws no key, so it spends no rate-limit slot, and its
+ * key param holds the redaction marker instead.
  */
 async function injectHostedKeyIfNeeded(
   tool: ToolDefinition,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
   requestId: string,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  { drawKey }: { drawKey: boolean }
 ): Promise<HostedKeyInjectionResult> {
   if (!tool.hosting || !hostedKeyMayFill(tool, params)) return { isUsingHostedKey: false }
 
@@ -687,6 +698,11 @@ async function injectHostedKeyIfNeeded(
 
   if (!(await mayUseHostedKey(workspaceId, billingAttribution))) {
     throw new HostedKeyRequiresPaidPlanError(tool.name)
+  }
+
+  if (!drawKey) {
+    params[apiKeyParam] = REDACTED_MARKER
+    return { isUsingHostedKey: false }
   }
 
   const rateLimiter = getHostedKeyRateLimiter()
@@ -1796,18 +1812,30 @@ async function executeToolImplementation(
     : suppliedOperationContext
       ? { ...suppliedOperationContext, resolvedSecretTraceRegistry }
       : undefined
+  /**
+   * A tool's own follow-up calls (a `postProcess` that writes again) run in its caller's
+   * `_context`, so they act for the same block: a run's side-effect policy decides them as it
+   * decided the call that made them.
+   */
+  const callerContext = isPlainRecord(params._context) ? params._context : undefined
   const executeNestedTool: typeof executeTool = (nestedToolId, nestedParams, nestedOptions = {}) =>
-    executeTool(nestedToolId, nestedParams, {
-      ...nestedOptions,
-      ...(operationContext?.requestMode === 'assistant' ? { operationContext } : {}),
-      executionContext:
-        operationContext?.requestMode === 'assistant'
-          ? undefined
-          : (nestedOptions.executionContext ?? executionContext),
-      signal: nestedOptions.signal ?? effectiveSignal,
-      resolvedSecretTraceRegistry:
-        nestedOptions.resolvedSecretTraceRegistry ?? resolvedSecretTraceRegistry,
-    })
+    executeTool(
+      nestedToolId,
+      callerContext
+        ? { ...nestedParams, _context: { ...callerContext, ...toRecord(nestedParams._context) } }
+        : nestedParams,
+      {
+        ...nestedOptions,
+        ...(operationContext?.requestMode === 'assistant' ? { operationContext } : {}),
+        executionContext:
+          operationContext?.requestMode === 'assistant'
+            ? undefined
+            : (nestedOptions.executionContext ?? executionContext),
+        signal: nestedOptions.signal ?? effectiveSignal,
+        resolvedSecretTraceRegistry:
+          nestedOptions.resolvedSecretTraceRegistry ?? resolvedSecretTraceRegistry,
+      }
+    )
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
   const requestId = generateRequestId()
@@ -1917,16 +1945,15 @@ async function executeToolImplementation(
         logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
-      // An MCP tool declares no effect, so a dry run never sends one.
-      const unsent = answerUnsentWrite({
-        toolId: normalizedToolId,
-        params,
-        executionContext,
-        registry: resolvedSecretTraceRegistry,
-        describeRequest: () =>
-          Object.fromEntries(Object.entries(params).filter(([key]) => !key.startsWith('_'))),
-      })
-      if (unsent) return unsent
+      // An MCP tool declares no effect, so a run's side-effect policy decides every one.
+      const unsentMcpWrite = unsentWriteFor({ toolId: normalizedToolId, params, executionContext })
+      if (unsentMcpWrite) {
+        return await answerUnsentWrite(unsentMcpWrite, {
+          params,
+          registry: resolvedSecretTraceRegistry,
+          describeRequest: () => describeMcpToolRequest(params),
+        })
+      }
       return await executeMcpTool(
         normalizedToolId,
         params,
@@ -1972,12 +1999,22 @@ async function executeToolImplementation(
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveToolEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
 
+    /**
+     * Decided before a hosted key is drawn, so a write the run's side-effect policy will not send
+     * spends no rate-limit slot. A workflow a tool runs decides its own writes.
+     */
+    const unsentWrite =
+      tool.effect !== 'read' && normalizedToolId !== 'workflow_executor'
+        ? unsentWriteFor({ toolId: normalizedToolId, params: contextParams, executionContext })
+        : null
+
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
       tool,
       contextParams,
       executionContext,
       requestId,
-      effectiveSignal
+      effectiveSignal,
+      { drawKey: !unsentWrite }
     )
 
     if (hostedKeyInfo.isUsingHostedKey) {
@@ -2211,6 +2248,17 @@ async function executeToolImplementation(
       contextParams.sessionToken = session.sessionToken
     }
 
+    // After credentials resolve, so an unsent write still proves them.
+    if (unsentWrite) {
+      const unsentTool = tool
+      return await answerUnsentWrite(unsentWrite, {
+        params: contextParams,
+        registry: resolvedSecretTraceRegistry,
+        describeRequest: () =>
+          describeToolRequest(unsentTool, contextParams, resolvedSecretTraceRegistry),
+      })
+    }
+
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
     // The runner is dynamic-imported from a server-only module so the client-bundled
     // tool registry never pulls in the executor/db dependency graph (a static or
@@ -2299,7 +2347,6 @@ async function executeToolImplementation(
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
           principal: executionContext?.principal,
-          sideEffects: executionContext?.sideEffects,
         }
       )
       const endTime = new Date()
@@ -2314,20 +2361,6 @@ async function executeToolImplementation(
           duration: endTime.getTime() - startTime.getTime(),
         },
       }
-    }
-
-    // After the workflow-running tools above, whose children decide their own writes.
-    if (tool.effect !== 'read') {
-      const unsentTool = tool
-      const unsent = answerUnsentWrite({
-        toolId: normalizedToolId,
-        params: contextParams,
-        executionContext,
-        registry: resolvedSecretTraceRegistry,
-        describeRequest: () =>
-          describeToolRequest(unsentTool, contextParams, resolvedSecretTraceRegistry),
-      })
-      if (unsent) return unsent
     }
 
     if (tool.operation) {

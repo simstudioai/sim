@@ -16,7 +16,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { resolveTriggerExecution } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { DryRunSideEffects } from '@/lib/workflows/dry-run'
+import { WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionTestHooks } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
@@ -138,7 +138,7 @@ export async function runWorkflowForTest(
         abortSignal: input.abortSignal,
         billingAttribution,
         testHooks: input.testHooks,
-        sideEffects: new DryRunSideEffects({ allowBlockIds: new Set(), pausingBlocks: 'run' }),
+        sideEffects: new WriteStubPolicy({ workflowId: context.workflowId, pausingBlocks: 'run' }),
       },
       executionId
     )

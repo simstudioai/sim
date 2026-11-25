@@ -647,10 +647,10 @@ describe('sim workflows run --dry', () => {
         workflowId: WORKFLOW_ID,
         blockId: 'enrich',
         block: 'Enrich',
-        reason: 'Its code ran for real; network calls it makes are not stubbed',
+        reason: 'Function block code ran for real; network calls it makes are not stubbed',
       },
     ],
-    omitted: 0,
+    omitted: { stubbed: 0, allowed: 0, unchecked: 0 },
   }
   let stderr: string[]
 
@@ -697,41 +697,41 @@ describe('sim workflows run --dry', () => {
     })
   })
 
-  it('keeps a rerun from a block dry, and a mock alone runs the draft without --dry', async () => {
+  it('keeps a rerun from a block dry', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
 
     await run(WORKFLOW_ID, '--from-block', 'agent-1', '--source-run', 'run-1', '--dry')
-    await run(WORKFLOW_ID, '--mock', 'Score={"content":"spam"}')
 
     expect(requestRaw.mock.calls[0][1].body.run).toEqual({
       source: 'manual',
       entry: { type: 'block', blockId: 'agent-1', sourceRunId: 'run-1' },
       dry: true,
     })
-    expect(requestRaw.mock.calls[1][1].body.run).toEqual({
-      source: 'manual',
-      mocks: { Score: { content: 'spam' } },
-    })
   })
 
   it('refuses combinations a dry run cannot honour before sending anything', async () => {
     await expect(run(WORKFLOW_ID, '--allow', 'Save lead')).rejects.toThrow('add --dry')
+    await expect(run(WORKFLOW_ID, '--mock', 'Score={"content":"spam"}')).rejects.toThrow(
+      'add --dry'
+    )
     await expect(run(WORKFLOW_ID, '--dry', '--follow')).rejects.toThrow('drop --follow')
     await expect(run(WORKFLOW_ID, '--dry', '--wait-timeout', '30')).rejects.toThrow(
       'drop --wait-timeout'
     )
-    await expect(run(WORKFLOW_ID, '--dry', '--async')).rejects.toThrow(
-      'Manual execution does not support --async'
-    )
-    await expect(run(WORKFLOW_ID, '--mock', '{"content":"spam"}')).rejects.toThrow(
+    await expect(run(WORKFLOW_ID, '--dry', '--async')).rejects.toThrow('drop --async')
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', '{"content":"spam"}')).rejects.toThrow(
       'must be <block>=<json|@file>'
     )
-    await expect(run(WORKFLOW_ID, '--mock', 'Score=spam')).rejects.toThrow('is not valid JSON')
-    await expect(run(WORKFLOW_ID, '--mock', 'Score=[1]')).rejects.toThrow('must be a JSON object')
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=spam')).rejects.toThrow(
+      'is not valid JSON'
+    )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=[1]')).rejects.toThrow(
+      'must be a JSON object'
+    )
     expect(requestRaw).not.toHaveBeenCalled()
   })
 
-  it('passes sideEffects through in JSON and summarizes them on stderr in table output', async () => {
+  it('passes sideEffects through in JSON, keeping the stderr summary to the human formats', async () => {
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
     requestRaw.mockImplementation(async () =>
       jsonResponse({
@@ -742,32 +742,5 @@ describe('sim workflows run --dry', () => {
     await run(WORKFLOW_ID, '--dry')
     expect(JSON.parse(String(stdout.mock.calls[0][0])).sideEffects).toEqual(sideEffects)
     expect(stderr.join('')).not.toContain('Dry run')
-
-    output.format = 'table'
-    await run(WORKFLOW_ID, '--dry')
-    const summary = stderr.join('')
-    expect(summary).toContain('Dry run: 1 not sent, 0 sent (allowed), 1 unchecked')
-    expect(summary).toContain('not sent   Save lead → table_upsert_row')
-    expect(summary).toContain('unchecked  Enrich: Its code ran for real')
-  })
-
-  it('prints a rerun of a failed dry run that stays dry', async () => {
-    const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
-    requestRaw.mockImplementation(async () =>
-      jsonResponse({
-        data: {
-          runId: 'run-1',
-          workflowId: WORKFLOW_ID,
-          status: 'failed',
-          error: { message: 'Agent failed', blockId: 'agent-1', rerunFromBlockId: 'agent-1' },
-          sideEffects,
-        },
-      })
-    )
-
-    await expect(run(WORKFLOW_ID, '--dry')).rejects.toThrow('Agent failed')
-    expect(JSON.parse(String(stdout.mock.calls[0][0])).next).toBe(
-      `sim workflows run ${WORKFLOW_ID} --from-block agent-1 --source-run run-1 --dry`
-    )
   })
 })

@@ -45,19 +45,40 @@ export function resumeCommandFor(
 }
 
 /**
+ * The flags that keep a rerun of a test run a test: `--dry`, with a dry run's own `--allow` and
+ * `--mock` blocks (`dryRun`), so following `next` never sends what the run held back or drops the
+ * outputs it was steered by. A workflow test's run (`trigger: test`) has no `dryRun` but held its
+ * writes back all the same. Null when a block id is not in the format the server issues.
+ */
+function dryRerunFlags(record: Record<string, unknown>): string | null {
+  const dryRun = toRecordOrNull(record.dryRun)
+  if (!dryRun) return record.trigger === 'test' ? ' --dry' : ''
+  const flags = [' --dry']
+  for (const blockId of Array.isArray(dryRun.allowBlocks) ? dryRun.allowBlocks : []) {
+    if (!issuedId(blockId)) return null
+    flags.push(` --allow ${shellArgument(blockId)}`)
+  }
+  for (const [blockId, output] of Object.entries(toRecordOrNull(dryRun.mocks) ?? {})) {
+    if (!issuedId(blockId)) return null
+    flags.push(` --mock ${shellArgument(`${blockId}=${JSON.stringify(output)}`)}`)
+  }
+  return flags.join('')
+}
+
+/**
  * The exact command that reruns a failed run from where the server says a rerun of its failure
  * starts (`error.rerunFromBlockId`: the failed block, or the outermost loop or parallel holding
  * it, which a rerun cannot start inside), with the run as the source of every upstream output, so
- * a fix applied to that block's source is tested without repeating the blocks before it; a dry
- * run's rerun adds `--dry`. Null
- * when the server names no start block or an id is not in the format the server issues.
+ * a fix applied to that block's source is tested without repeating the blocks before it; a test
+ * run's rerun stays one ({@link dryRerunFlags}). Null when the server names no start block or an
+ * id is not in the format the server issues.
  */
 function rerunCommandFor(record: Record<string, unknown>, workflowId: string): string | null {
   const startBlockId = toRecordOrNull(record.error)?.rerunFromBlockId
   const { runId } = record
   if (!issuedId(startBlockId) || !issuedId(runId) || !issuedId(workflowId)) return null
-  // A dry run's rerun stays dry, so following `next` never sends what the run held back.
-  const dry = isRecordLike(record.sideEffects) ? ' --dry' : ''
+  const dry = dryRerunFlags(record)
+  if (dry === null) return null
   return `sim workflows run ${shellArgument(workflowId)} --from-block ${shellArgument(startBlockId)} --source-run ${shellArgument(runId)}${dry}`
 }
 

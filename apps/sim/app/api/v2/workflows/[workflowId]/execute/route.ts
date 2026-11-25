@@ -139,6 +139,7 @@ function presentRun(result: ExecuteWorkflowServiceRun) {
     durationMs: result.durationMs,
     executionTimeoutSeconds: executionTimeoutSeconds(result.executionTimeoutMs),
     ...(result.sideEffects ? { sideEffects: result.sideEffects } : {}),
+    ...(result.dryRun ? { dryRun: result.dryRun } : {}),
     output: result.output ?? null,
     blockOutputs: result.blockOutputs ?? null,
     paused: presentV2RunPause(result.paused),

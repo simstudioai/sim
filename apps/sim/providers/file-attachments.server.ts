@@ -132,6 +132,15 @@ export async function attachLargeFileRemoteUrls(
   }
 }
 
+/** The files one request uploaded to a provider's Files API. */
+export interface ProviderFileUploads {
+  /**
+   * Deletes them from the provider account. Best effort: a failure is logged, and the files
+   * expire on their own (OpenAI's after {@link OPENAI_FILE_EXPIRY_SECONDS}, Gemini's in 48 hours).
+   */
+  remove(): Promise<void>
+}
+
 /**
  * For `files-api` providers, uploads each large attachment (already carrying a signed
  * `remoteUrl` from {@link attachLargeFileRemoteUrls}) to the provider Files API and records
@@ -142,11 +151,17 @@ export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
   providerId: ProviderId | string,
   executionContext?: ExecutionContext
-): Promise<void> {
-  if (getProviderFileStrategy(providerId) !== 'files-api') return
+): Promise<ProviderFileUploads> {
+  const removals: Array<() => Promise<void>> = []
+  const uploads: ProviderFileUploads = {
+    remove: async () => {
+      for (const removal of removals.splice(0)) await removal()
+    },
+  }
+  if (getProviderFileStrategy(providerId) !== 'files-api') return uploads
 
   const groups = groupUploadableFiles(request.messages)
-  if (groups.length === 0) return
+  if (groups.length === 0) return uploads
 
   const maxBytes = getProviderAttachmentMaxBytes(providerId)
   const ai =
@@ -158,15 +173,23 @@ export async function uploadLargeFilesToProvider(
     const [representative] = group
     await assertFileAccessForUpload(representative, request.userId, executionContext)
     if (providerId === 'openai') {
-      await uploadOpenAIFile(representative, request.apiKey, maxBytes, request.abortSignal)
+      const fileId = await uploadOpenAIFile(
+        representative,
+        request.apiKey,
+        maxBytes,
+        request.abortSignal
+      )
+      removals.push(() => deleteOpenAIFile(fileId, request.apiKey))
     } else if (ai) {
-      await uploadGeminiFile(representative, ai, maxBytes, request.abortSignal)
+      const name = await uploadGeminiFile(representative, ai, maxBytes, request.abortSignal)
+      removals.push(() => deleteGeminiFile(name, ai))
     }
     for (const file of group) {
       file.providerFileId = representative.providerFileId
       file.providerFileUri = representative.providerFileUri
     }
   }
+  return uploads
 }
 
 /**
@@ -244,7 +267,7 @@ async function uploadOpenAIFile(
   apiKey: string | undefined,
   maxBytes: number,
   signal?: AbortSignal
-): Promise<void> {
+): Promise<string> {
   const mimeType = inferAttachmentMimeType(file)
   const blob = await downloadFileForUpload(file, maxBytes)
 
@@ -271,6 +294,22 @@ async function uploadOpenAIFile(
   }
   file.providerFileId = uploaded.id
   logger.info(`Uploaded "${file.name}" to OpenAI Files API`, { fileId: uploaded.id })
+  return uploaded.id
+}
+
+async function deleteOpenAIFile(fileId: string, apiKey: string | undefined): Promise<void> {
+  try {
+    const response = await outboundFetch(`${OPENAI_FILES_ENDPOINT}/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${apiKey}` },
+    })
+    if (!response.ok) throw new Error(`OpenAI answered ${response.status}`)
+  } catch (error) {
+    logger.warn('Failed to delete an uploaded file from OpenAI', {
+      fileId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 async function uploadGeminiFile(
@@ -278,7 +317,7 @@ async function uploadGeminiFile(
   ai: GoogleGenAI,
   maxBytes: number,
   signal?: AbortSignal
-): Promise<void> {
+): Promise<string> {
   const mimeType = inferAttachmentMimeType(file)
   const blob = await downloadFileForUpload(file, maxBytes)
 
@@ -304,4 +343,16 @@ async function uploadGeminiFile(
   }
   file.providerFileUri = uploaded.uri
   logger.info(`Uploaded "${file.name}" to Gemini File API`, { fileUri: uploaded.uri })
+  return uploadedName
+}
+
+async function deleteGeminiFile(name: string, ai: GoogleGenAI): Promise<void> {
+  try {
+    await ai.files.delete({ name })
+  } catch (error) {
+    logger.warn('Failed to delete an uploaded file from Gemini', {
+      name,
+      error: getErrorMessage(error),
+    })
+  }
 }

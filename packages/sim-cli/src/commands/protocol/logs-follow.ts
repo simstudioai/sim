@@ -19,6 +19,7 @@ import {
   visibleWidth,
 } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { collectRepeated } from '../../runtime/options'
 import { encodeFolderPath } from '../../runtime/request'
 
 /** One run, as `GET /api/v2/logs` returns it. */
@@ -94,11 +95,6 @@ interface FollowOptions {
   details: string
   lines: string
   interval: string
-}
-
-/** Collects a repeatable flag, as the generated `list` flags do. */
-function collect(value: string, previous: string[]): string[] {
-  return [...previous, value]
 }
 
 function at(row: unknown, path: string): unknown {
@@ -499,14 +495,24 @@ export function attachLogsFollow(logs: Command): void {
   const [follow, connectFollow] = apiCommand(logs, 'follow', ['listLogs'])
   follow
     .description('Watch runs live as they arrive, printing each new run once')
-    .option('--workflow <id>', 'Only follow runs of this workflow (repeatable)', collect, [])
+    .option(
+      '--workflow <id>',
+      'Only follow runs of this workflow (repeatable)',
+      collectRepeated,
+      []
+    )
     .option(
       '--folder <path>',
       'Only follow runs of workflows in this folder (repeatable)',
-      collect,
+      collectRepeated,
       []
     )
-    .option('--trigger <type>', 'Only follow runs with this trigger type (repeatable)', collect, [])
+    .option(
+      '--trigger <type>',
+      'Only follow runs with this trigger type (repeatable)',
+      collectRepeated,
+      []
+    )
     .addOption(
       new Option('--level <level>', 'Only follow runs at this severity').choices([
         ...V2_OPERATIONS.listLogs.query.level.values,

@@ -60,7 +60,7 @@ describe('buildSimToolSpecs', () => {
       })
     mockExecuteTool.mockResolvedValue({ success: true, output: 'sent' })
 
-    const specs = await buildSimToolSpecs(executionContext(undefined), [
+    const specs = await buildSimToolSpecs(executionContext(undefined), 'pi-1', [
       { type: 'gmail', operation: 'send', usageControl: 'auto' },
       { type: 'gmail', operation: 'send', usageControl: 'auto' },
     ])
@@ -95,7 +95,7 @@ describe('buildSimToolSpecs', () => {
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     } as ExecutionContext
 
-    const [spec] = await buildSimToolSpecs(trustedCtx, [
+    const [spec] = await buildSimToolSpecs(trustedCtx, 'pi-1', [
       { type: 'exa', operation: 'exa_search', usageControl: 'auto' },
     ])
     // An attacker-influenced tool arg tries to spoof the execution context.
@@ -127,6 +127,7 @@ describe('buildSimToolSpecs', () => {
     const functionToolCost = { total: 0 }
     const [functionSpec, searchSpec] = await buildSimToolSpecs(
       executionContext(undefined),
+      'pi-1',
       [
         { type: 'function', operation: 'execute', usageControl: 'auto' },
         { type: 'exa', operation: 'exa_search', usageControl: 'auto' },
@@ -179,7 +180,7 @@ describe('buildSimToolSpecs', () => {
     ])
     registry.recordResolved('API_KEY', 'secret-value')
 
-    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
+    const [spec] = await buildSimToolSpecs(executionContext(registry), 'pi-1', toolInput)
 
     await expect(spec.execute({})).resolves.toEqual({
       text: JSON.stringify({ authorization: 'Bearer {{API_KEY}}' }),
@@ -216,7 +217,7 @@ describe('buildSimToolSpecs', () => {
     registry.recordResolvedAtInputPath('UNRELATED', 'Test', ['task'])
     registry.recordResolvedInputProjection(['task'], 'Test', '{{UNRELATED}}')
 
-    const [spec] = await buildSimToolSpecs(executionContext(registry), tools)
+    const [spec] = await buildSimToolSpecs(executionContext(registry), 'pi-1', tools)
 
     await expect(spec.execute({ query: 'pi' })).resolves.toEqual({
       text: JSON.stringify({ selected: '{{API_KEY}}', unrelated: 'Test' }),
@@ -236,7 +237,7 @@ describe('buildSimToolSpecs', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
-    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
+    const [spec] = await buildSimToolSpecs(executionContext(registry), 'pi-1', toolInput)
 
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
       await options.resolvedSecretTraceRegistry.importProvenance(
@@ -283,7 +284,7 @@ describe('buildSimToolSpecs', () => {
     })
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete('unspecified')
-    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
+    const [spec] = await buildSimToolSpecs(executionContext(registry), 'pi-1', toolInput)
 
     const result = await spec.execute({})
 

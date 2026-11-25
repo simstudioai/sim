@@ -1686,7 +1686,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
                 .string()
                 .min(1, 'run.entry.sourceRunId cannot be empty')
                 .describe(
-                  'Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404.'
+                  'Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404. A test run (a dry run, or a workflow test) holds placeholders for the writes it did not send, so it is the source only of a `dry` run.'
                 ),
             })
             .strict(),
@@ -1706,26 +1706,28 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .boolean()
         .optional()
         .describe(
-          "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials and secrets redacted. Reads, model calls, conditions and credential resolution run for real, and so do Function blocks, listed in `sideEffects.unchecked`. Child workflows inherit it. Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
+          "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls, conditions and credential resolution run for real, and so does code (a Function block's, or code an Agent's model writes), listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
         ),
       allowBlocks: z
         .array(z.string().min(1, 'run.allowBlocks entries cannot be empty'))
         .max(50)
         .optional()
         .describe(
-          'Blocks (id, display name or reference key) whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block cannot be allowed.'
+          'Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed.'
         ),
       mocks: z
         .record(
           z.string(),
-          z.unknown().describe('Output object that answers the block instead of its handler.')
+          z
+            .record(z.string(), z.unknown().describe('Output field.'))
+            .describe('Output object that answers the block instead of its handler.')
         )
         .optional()
         .refine((mocks) => mocks === undefined || Object.keys(mocks).length <= 50, {
           message: 'run.mocks names at most 50 blocks',
         })
         .describe(
-          'Blocks (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. With or without `dry`.'
+          'Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`.'
         ),
     })
     .strict(),
@@ -1980,8 +1982,11 @@ const sideEffectBlockFields = {
   workflowId: z
     .string()
     .describe('Workflow whose block it was: the run workflow, or a child workflow it called.'),
-  blockId: z.string().describe('Block id in that workflow; empty when the call named no block.'),
-  block: z.string().describe('Block display name.'),
+  blockId: z
+    .string()
+    .nullable()
+    .describe('Block id in that workflow; null when the call named no block.'),
+  block: z.string().nullable().describe('Block display name; null when the call named no block.'),
 }
 
 const v2RunSideEffectsSchema = z
@@ -2000,7 +2005,7 @@ const v2RunSideEffectsSchema = z
             .record(z.string(), z.unknown().describe('Request field.'))
             .nullable()
             .describe(
-              "What the call would have sent: an in-process operation's input, or an HTTP call's `method`, `url` and `body` (never headers). For a block answered whole, its logged inputs. Credentials and resolved secrets are redacted; null when the run could not prove none remain."
+              "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never headers), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain."
             ),
           returned: z
             .record(z.string(), z.unknown().describe('Placeholder field.'))
@@ -2015,23 +2020,46 @@ const v2RunSideEffectsSchema = z
           tool: z.string().nullable().describe('Tool sent; null when the whole block ran.'),
         })
       )
-      .describe('Writes sent for real because `run.allowBlocks` named their block.'),
+      .describe(
+        'Writes sent for real because `run.allowBlocks` named their block, once per block and tool.'
+      ),
     unchecked: z
       .array(
         z.object({
           ...sideEffectBlockFields,
-          reason: z.string().describe('Why the run cannot see what this block changed.'),
+          reason: z.string().describe('Why the run cannot see what this code changed.'),
         })
       )
       .describe(
-        'Blocks that ran for real whose own effects the run cannot see: Function blocks, whose code may make network calls.'
+        "Blocks whose code ran for real, once per block: a Function block's code, or code an Agent's model wrote, which may make network calls the run cannot see."
       ),
-    omitted: z.number().int().nonnegative().describe('Entries left out once a list held 50.'),
+    omitted: z
+      .object({
+        stubbed: z.number().int().nonnegative().describe('Writes left out of `stubbed`.'),
+        allowed: z.number().int().nonnegative().describe('Writes left out of `allowed`.'),
+        unchecked: z.number().int().nonnegative().describe('Blocks left out of `unchecked`.'),
+      })
+      .describe('Entries each list left out once it held 50.'),
   })
   .meta({
     id: 'WorkflowRunSideEffects',
     title: 'Workflow run side effects',
     description: 'What a dry run did with each write it reached.',
+  })
+
+const v2RunDryRunSchema = z
+  .object({
+    allowBlocks: z
+      .array(z.string().describe('Block id.'))
+      .describe('Blocks whose writes the run sent (`run.allowBlocks`), by id.'),
+    mocks: z
+      .record(z.string(), z.record(z.string(), z.unknown().describe('Output field.')))
+      .describe('Blocks the run answered with fixed outputs (`run.mocks`), keyed by id.'),
+  })
+  .meta({
+    id: 'WorkflowDryRun',
+    title: 'Workflow dry run',
+    description: 'The blocks a dry run sent and mocked, which a rerun of it passes again.',
   })
 
 /**
@@ -2082,7 +2110,12 @@ export const v2ExecuteWorkflowDataSchema = z
       .describe('Where the run waits when `status` is `paused`; null otherwise.'),
     sideEffects: v2RunSideEffectsSchema
       .optional()
-      .describe('What a dry run (`run.dry`) did with each write it reached; absent otherwise.'),
+      .describe(
+        'What a dry run (`run.dry`) did with each write it reached, whatever its status; absent otherwise.'
+      ),
+    dryRun: v2RunDryRunSchema
+      .optional()
+      .describe("A dry run's allowed and mocked blocks (`run.dry`); absent for any other run."),
   })
   .meta({
     id: 'WorkflowRunResult',
@@ -2176,7 +2209,7 @@ export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
 export const v2ResumeWorkflowDataSchema = v2ExecuteWorkflowDataSchema
-  .omit({ executionTimeoutSeconds: true, sideEffects: true })
+  .omit({ executionTimeoutSeconds: true, sideEffects: true, dryRun: true })
   .extend({
     error: v2ExecutionErrorSchema
       .omit({ rerunFromBlockId: true })
@@ -2473,6 +2506,11 @@ export const v2WorkflowRunStatusSchema = z
       .nullable()
       .describe(
         'Run-produced files when `includeOutput=true`, or null when not requested or execution data is hidden by organization permission groups.'
+      ),
+    dryRun: v2RunDryRunSchema
+      .nullable()
+      .describe(
+        "A failed dry run's allowed and mocked blocks, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
       ),
   })
   .meta({

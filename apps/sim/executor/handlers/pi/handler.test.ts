@@ -229,7 +229,12 @@ describe('PiBlockHandler', () => {
 
   it('adds successful Function tool cost once to a non-streaming Local Dev result', async () => {
     mockBuildSimToolSpecs.mockImplementation(
-      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+      async (
+        _ctx: unknown,
+        _blockId: string,
+        _tools: unknown,
+        functionToolCost: { total: number }
+      ) => {
         functionToolCost.total += 0.125
         return []
       }
@@ -553,7 +558,12 @@ describe('PiBlockHandler', () => {
 
   it('streams text when the block is selected for streaming output', async () => {
     mockBuildSimToolSpecs.mockImplementation(
-      async (_ctx: unknown, _tools: unknown, functionToolCost: { total: number }) => {
+      async (
+        _ctx: unknown,
+        _blockId: string,
+        _tools: unknown,
+        functionToolCost: { total: number }
+      ) => {
         functionToolCost.total += 0.25
         return []
       }

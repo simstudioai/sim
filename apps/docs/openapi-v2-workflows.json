@@ -4976,7 +4976,8 @@
                             "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a/files/file_1a2b3c",
                             "base64": null
                           }
-                        ]
+                        ],
+                        "dryRun": null
                       }
                     }
                   }
@@ -17217,12 +17218,26 @@
                   "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
                 },
                 "blockId": {
-                  "type": "string",
-                  "description": "Block id in that workflow; empty when the call named no block."
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block id in that workflow; null when the call named no block."
                 },
                 "block": {
-                  "type": "string",
-                  "description": "Block display name."
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block display name; null when the call named no block."
                 },
                 "tool": {
                   "anyOf": [
@@ -17250,7 +17265,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "What the call would have sent: an in-process operation's input, or an HTTP call's `method`, `url` and `body` (never headers). For a block answered whole, its logged inputs. Credentials and resolved secrets are redacted; null when the run could not prove none remain."
+                  "description": "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never headers), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain."
                 },
                 "returned": {
                   "type": "object",
@@ -17278,12 +17293,26 @@
                   "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
                 },
                 "blockId": {
-                  "type": "string",
-                  "description": "Block id in that workflow; empty when the call named no block."
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block id in that workflow; null when the call named no block."
                 },
                 "block": {
-                  "type": "string",
-                  "description": "Block display name."
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block display name; null when the call named no block."
                 },
                 "tool": {
                   "anyOf": [
@@ -17300,7 +17329,7 @@
               "required": ["workflowId", "blockId", "block", "tool"],
               "additionalProperties": false
             },
-            "description": "Writes sent for real because `run.allowBlocks` named their block."
+            "description": "Writes sent for real because `run.allowBlocks` named their block, once per block and tool."
           },
           "unchecked": {
             "type": "array",
@@ -17312,34 +17341,101 @@
                   "description": "Workflow whose block it was: the run workflow, or a child workflow it called."
                 },
                 "blockId": {
-                  "type": "string",
-                  "description": "Block id in that workflow; empty when the call named no block."
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block id in that workflow; null when the call named no block."
                 },
                 "block": {
-                  "type": "string",
-                  "description": "Block display name."
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Block display name; null when the call named no block."
                 },
                 "reason": {
                   "type": "string",
-                  "description": "Why the run cannot see what this block changed."
+                  "description": "Why the run cannot see what this code changed."
                 }
               },
               "required": ["workflowId", "blockId", "block", "reason"],
               "additionalProperties": false
             },
-            "description": "Blocks that ran for real whose own effects the run cannot see: Function blocks, whose code may make network calls."
+            "description": "Blocks whose code ran for real, once per block: a Function block's code, or code an Agent's model wrote, which may make network calls the run cannot see."
           },
           "omitted": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991,
-            "description": "Entries left out once a list held 50."
+            "type": "object",
+            "properties": {
+              "stubbed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Writes left out of `stubbed`."
+              },
+              "allowed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Writes left out of `allowed`."
+              },
+              "unchecked": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Blocks left out of `unchecked`."
+              }
+            },
+            "required": ["stubbed", "allowed", "unchecked"],
+            "additionalProperties": false,
+            "description": "Entries each list left out once it held 50."
           }
         },
         "required": ["stubbed", "allowed", "unchecked", "omitted"],
         "additionalProperties": false,
         "title": "Workflow run side effects",
         "description": "What a dry run did with each write it reached."
+      },
+      "WorkflowDryRun": {
+        "type": "object",
+        "properties": {
+          "allowBlocks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Block id."
+            },
+            "description": "Blocks whose writes the run sent (`run.allowBlocks`), by id."
+          },
+          "mocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "description": "Output field."
+              }
+            },
+            "description": "Blocks the run answered with fixed outputs (`run.mocks`), keyed by id."
+          }
+        },
+        "required": ["allowBlocks", "mocks"],
+        "additionalProperties": false,
+        "title": "Workflow dry run",
+        "description": "The blocks a dry run sent and mocked, which a rerun of it passes again."
       },
       "WorkflowRunResult": {
         "type": "object",
@@ -17464,8 +17560,12 @@
             "description": "Where the run waits when `status` is `paused`; null otherwise."
           },
           "sideEffects": {
-            "description": "What a dry run (`run.dry`) did with each write it reached; absent otherwise.",
+            "description": "What a dry run (`run.dry`) did with each write it reached, whatever its status; absent otherwise.",
             "$ref": "#/components/schemas/WorkflowRunSideEffects"
+          },
+          "dryRun": {
+            "description": "A dry run's allowed and mocked blocks (`run.dry`); absent for any other run.",
+            "$ref": "#/components/schemas/WorkflowDryRun"
           }
         },
         "required": [
@@ -17652,7 +17752,7 @@
                           "sourceRunId": {
                             "type": "string",
                             "minLength": 1,
-                            "description": "Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404."
+                            "description": "Run in this workflow whose persisted execution state supplies upstream block results. Missing or expired state returns 404. A test run (a dry run, or a workflow test) holds placeholders for the writes it did not send, so it is the source only of a `dry` run."
                           }
                         },
                         "required": ["type", "blockId", "sourceRunId"],
@@ -17666,11 +17766,11 @@
                     "minLength": 1
                   },
                   "dry": {
-                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials and secrets redacted. Reads, model calls, conditions and credential resolution run for real, and so do Function blocks, listed in `sideEffects.unchecked`. Child workflows inherit it. Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
+                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls, conditions and credential resolution run for real, and so does code (a Function block's, or code an Agent's model writes), listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
                     "type": "boolean"
                   },
                   "allowBlocks": {
-                    "description": "Blocks (id, display name or reference key) whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block cannot be allowed.",
+                    "description": "Blocks (id, display name or reference key) of this workflow whose writes a dry run sends for real, listed in `sideEffects.allowed`. Requires `dry`. A Human in the loop or Wait block, or a block that runs another workflow (a Workflow or custom block), cannot be allowed.",
                     "maxItems": 50,
                     "type": "array",
                     "items": {
@@ -17679,12 +17779,19 @@
                     }
                   },
                   "mocks": {
-                    "description": "Blocks (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. With or without `dry`.",
+                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
                     },
                     "additionalProperties": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "description": "Output field."
+                      },
                       "description": "Output object that answers the block instead of its handler."
                     }
                   }
@@ -18567,6 +18674,17 @@
               }
             ],
             "description": "Run-produced files when `includeOutput=true`, or null when not requested or execution data is hidden by organization permission groups."
+          },
+          "dryRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowDryRun"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A failed dry run's allowed and mocked blocks, which a rerun of it passes again; null for any other run, or when execution data is hidden by organization permission groups."
           }
         },
         "required": [
@@ -18583,7 +18701,8 @@
           "error",
           "output",
           "blockOutputs",
-          "files"
+          "files",
+          "dryRun"
         ],
         "additionalProperties": false,
         "title": "Workflow run status",
@@ -18630,7 +18749,8 @@
                   "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/run_8f14e45f-ceea-467f-a/files/file_1a2b3c",
                   "base64": null
                 }
-              ]
+              ],
+              "dryRun": null
             }
           }
         ]

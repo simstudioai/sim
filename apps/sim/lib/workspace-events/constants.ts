@@ -9,6 +9,13 @@
 /** Provider string recorded on webhook rows and execution logs for Sim trigger runs. */
 export const SIM_TRIGGER_PROVIDER = 'sim'
 
+/**
+ * Triggers whose runs raise no workspace event and count toward no rule: a Sim trigger's own runs
+ * (loop prevention), and test runs (a dry run or a workflow test), which change nothing beyond
+ * their own log.
+ */
+export const EVENTLESS_EXECUTION_TRIGGERS: readonly string[] = [SIM_TRIGGER_PROVIDER, 'test']
+
 /** Trigger ID in the trigger registry. Must equal the block type for pure trigger blocks. */
 export const SIM_WORKSPACE_EVENT_TRIGGER_ID = 'sim_workspace_event'
 

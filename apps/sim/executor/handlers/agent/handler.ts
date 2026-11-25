@@ -183,6 +183,15 @@ interface IndexedToolInput {
 }
 
 /**
+ * Whether this Agent writes its turn to memory. It reads memory either way; under a run's
+ * side-effect policy (a dry run, or a workflow test) it writes nothing, so a conversation is left
+ * as the run found it.
+ */
+function persistsMemory(ctx: ExecutionContext, inputs: AgentInputs): boolean {
+  return Boolean(inputs.memoryType && inputs.memoryType !== 'none' && !ctx.sideEffects)
+}
+
+/**
  * Removes the sim-auto identity preamble from the system messages built for a
  * routed primary. A fallback the builder named is not a pool model, so it must
  * not be told to hide which model it is. Messages are built once per block run
@@ -519,8 +528,7 @@ export class AgentBlockHandler implements BlockHandler {
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
       const agentConversation =
-        filteredInputs.memoryType &&
-        filteredInputs.memoryType !== 'none' &&
+        persistsMemory(ctx, filteredInputs) &&
         filteredInputs.conversationId &&
         nodeMetadata &&
         nodeMetadata.executionOrder !== undefined
@@ -641,7 +649,7 @@ export class AgentBlockHandler implements BlockHandler {
       if (this.isStreamingExecution(result)) {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
-        if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+        if (persistsMemory(ctx, filteredInputs)) {
           return this.wrapStreamForMemoryPersistence(
             ctx,
             filteredInputs,
@@ -653,7 +661,7 @@ export class AgentBlockHandler implements BlockHandler {
         return streamingResult
       }
 
-      if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+      if (persistsMemory(ctx, filteredInputs)) {
         await this.persistResponseToMemory(
           ctx,
           filteredInputs,
@@ -1608,6 +1616,7 @@ export class AgentBlockHandler implements BlockHandler {
     const attachedUserMessage = messagesWithFiles
       ?.filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       .at(-1)
+    if (!persistsMemory(ctx, inputs)) return messagesWithFiles
     const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
       model === lastUserMessage && attachedUserMessage?.files
         ? { ...raw, files: attachedUserMessage.files }

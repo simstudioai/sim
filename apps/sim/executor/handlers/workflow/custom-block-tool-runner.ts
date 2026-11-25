@@ -148,7 +148,6 @@ export async function runCustomBlockTool(
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     principal?: WorkflowExecutionPrincipal
-    sideEffects?: SideEffectPolicy
   } = {}
 ): Promise<ToolResponse> {
   if (!params.blockType) {
@@ -160,7 +159,6 @@ export async function runCustomBlockTool(
     abortSignal: options.abortSignal,
     resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
     principal: options.principal,
-    sideEffects: options.sideEffects,
   })
   const block: SerializedBlock = {
     id: generateId(),

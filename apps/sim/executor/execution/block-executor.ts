@@ -93,6 +93,7 @@ import {
 import { createAgentStreamPump } from '@/providers/stream-pump'
 import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { SerializedBlock } from '@/serializer/types'
+import { redactSideEffectPayload } from '@/tools/side-effects'
 
 const logger = createLogger('BlockExecutor')
 
@@ -292,7 +293,7 @@ export class BlockExecutor {
       blockName: block.metadata?.name ?? mockedBlockId,
       blockType: block.metadata?.id ?? '',
     }
-    const isStubbed = !isSentinel && !isMocked && sideEffects?.stubsBlock(site) === true
+    const isAnswered = !isSentinel && !isMocked && sideEffects?.answersBlock(site) === true
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
@@ -311,8 +312,18 @@ export class BlockExecutor {
             inputDisplayRegistry
           )
         }
-        if (isStubbed && sideEffects) {
-          return Promise.resolve(sideEffects.stubBlock({ ...site, input: blockLog?.input ?? {} }))
+        if (isAnswered && sideEffects) {
+          return sideEffects.answerBlock({
+            ...site,
+            input: () =>
+              redactSideEffectPayload({
+                payload: blockLog?.input ?? {},
+                params: inputsForLog,
+                blockTypes: [site.blockType],
+                executionContext: blockCtx,
+                registry: inputDisplayRegistry,
+              }),
+          })
         }
         const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
         return handler.executeWithNode

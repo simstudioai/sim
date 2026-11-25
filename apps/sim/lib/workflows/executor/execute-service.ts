@@ -22,7 +22,7 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import type { TraceSpan } from '@/lib/logs/types'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
-import type { DryRunSideEffects, SideEffectsSummary } from '@/lib/workflows/dry-run'
+import type { SideEffectsSummary, WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -54,8 +54,8 @@ import { workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
+  DryRunOptions,
   ExecutionMetadata,
-  ExecutionTestHooks,
   SerializableExecutionState,
 } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
@@ -160,13 +160,12 @@ export interface ExecuteWorkflowServiceParams {
   /** Saved block after which execution stops, validated by the application use case. */
   stopAfterBlockId?: string
   /**
-   * A dry run: writes are answered with placeholders, and what each would have sent is returned
-   * as the run's `sideEffects`. Requires `useDraftState` and a `sync` or non-detachable
-   * `sync-result-stream` run, the modes that return the run's result.
+   * A dry run's side-effect policy, built by the application use case: writes are answered with
+   * placeholders, and what each would have sent is returned as the run's `sideEffects`, failed
+   * runs included. Requires `useDraftState` and a `sync` or non-detachable `sync-result-stream`
+   * run, the modes that return the run's result.
    */
-  dryRun?: DryRunSideEffects
-  /** Blocks answered with fixed outputs instead of running, built by the application use case. */
-  testHooks?: ExecutionTestHooks
+  sideEffectPolicy?: WriteStubPolicy
 }
 
 export interface ExecuteWorkflowServiceFailure {
@@ -204,6 +203,8 @@ export interface ExecuteWorkflowServiceRun {
   paused?: RunPause | null
   /** What a dry run did with each write it reached; absent for any other run. */
   sideEffects?: SideEffectsSummary
+  /** The blocks a dry run sent and mocked, which a rerun of it passes again; absent otherwise. */
+  dryRun?: DryRunOptions
 }
 
 /** A run's result before the applied timeout is stamped onto it. */
@@ -349,8 +350,7 @@ export async function executeWorkflowService(
     runFromBlock,
     stopAfterBlockId,
     detachable = false,
-    dryRun,
-    testHooks,
+    sideEffectPolicy,
   } = params
 
   let reqLogger = logger.withMetadata({ requestId, workflowId, userId })
@@ -374,10 +374,10 @@ export async function executeWorkflowService(
   if (draftState && !useDraftState) {
     throw new Error('A preloaded draft state requires manual execution state')
   }
-  if ((dryRun || testHooks) && !useDraftState) {
-    throw new Error('Dry runs and block mocks require manual execution state')
+  if (sideEffectPolicy && !useDraftState) {
+    throw new Error('A dry run requires manual execution state')
   }
-  if (dryRun && (mode === 'stream' || detachable)) {
+  if (sideEffectPolicy && (mode === 'stream' || detachable)) {
     throw new Error('A dry run returns its side effects with the result it waits for')
   }
   if (detachable && (mode !== 'sync-result-stream' || abortSignal)) {
@@ -696,7 +696,6 @@ export async function executeWorkflowService(
               pinnedDeploymentVersionId: deploymentVersionId,
               runFromBlock,
               stopAfterBlockId,
-              testHooks,
               onStream,
               onBlockComplete: (blockId, data) =>
                 onBlockComplete(blockId, data.output, data.outputBlockId),
@@ -757,6 +756,7 @@ export async function executeWorkflowService(
       allowLargeValueWorkflowScope: false,
       callChain,
       executionMode: 'sync',
+      ...(sideEffectPolicy ? { dryRun: sideEffectPolicy.runOptions() } : {}),
     }
 
     const executionTimeoutMs = preprocessResult.executionTimeout?.[executionType] ?? 0
@@ -802,8 +802,7 @@ export async function executeWorkflowService(
           runFromBlock,
           stopAfterBlockId,
           draftState,
-          testHooks,
-          sideEffects: dryRun,
+          sideEffects: sideEffectPolicy,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
@@ -1007,20 +1006,57 @@ export async function executeWorkflowService(
       }
     }
 
-    const pending = runSynchronousWorkflow().then(
-      async (result): Promise<ExecuteWorkflowServiceTerminalResult> =>
-        result.ok
-          ? {
-              ...result,
-              executionTimeoutMs,
-              ...(dryRun
-                ? {
-                    sideEffects: await compactServiceOutput(dryRun.summary(), compactionContext),
-                  }
-                : {}),
-            }
-          : result
-    )
+    /**
+     * A dry run's side effects on its result, whatever its status: a failed run's allowed writes
+     * were sent all the same. Compacted like the run's output, and mapped the same way when too
+     * large; a summary that cannot be compacted otherwise keeps every entry without its request.
+     */
+    const withSideEffects = async (
+      result: UnstampedTerminalResult
+    ): Promise<UnstampedTerminalResult> => {
+      if (!sideEffectPolicy || !result.ok) return result
+      const summary = sideEffectPolicy.summary()
+      const dryRun = sideEffectPolicy.runOptions()
+      try {
+        return {
+          ...result,
+          sideEffects: await compactServiceOutput(summary, compactionContext),
+          dryRun,
+        }
+      } catch (error) {
+        if (
+          error instanceof PayloadSizeLimitError &&
+          rejectLargeInlineOutput &&
+          error.label === 'Workflow execution response'
+        ) {
+          return failure({
+            kind: 'output_too_large',
+            message: 'Workflow execution response exceeds maximum size',
+            statusCode: 413,
+            code: 'workflow_response_too_large',
+            executionId,
+          })
+        }
+        reqLogger.warn('Failed to compact dry-run side effects; returning them without requests', {
+          error: getErrorMessage(error),
+        })
+        return {
+          ...result,
+          sideEffects: {
+            ...summary,
+            stubbed: summary.stubbed.map((entry) => ({ ...entry, request: null })),
+          },
+          dryRun,
+        }
+      }
+    }
+
+    const pending = runSynchronousWorkflow()
+      .then(withSideEffects)
+      .then(
+        (result): ExecuteWorkflowServiceTerminalResult =>
+          result.ok ? { ...result, executionTimeoutMs } : result
+      )
     if (mode === 'sync-result-stream') {
       /** Keep the claim until the pending run can prove whether durable ownership exists. */
       executionIdClaimTransferred = true
