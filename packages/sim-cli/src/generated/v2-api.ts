@@ -1041,6 +1041,7 @@ export type ApplyWorkflowSourceResponse = {
     }
     mintedIds: Record<string, string>
     notes: Array<string>
+    deployedVersion: number | null
     needsRedeployment: boolean
   }
 }
@@ -5520,6 +5521,7 @@ export type CreateWorkflowFromSourceResponse = {
     }
     mintedIds: Record<string, string>
     notes: Array<string>
+    deployedVersion: number | null
     needsRedeployment: boolean
   }
 }
@@ -14746,6 +14748,7 @@ export type PlanWorkflowSourceResponse = {
     }
     mintedIds: Record<string, string>
     notes: Array<string>
+    deployedVersion: number | null
     needsRedeployment: boolean
   }
 }

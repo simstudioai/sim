@@ -205,6 +205,7 @@ const applied = {
   base: source.base,
   mintedIds: {},
   notes: [],
+  deployedVersion: 3,
   needsRedeployment: true,
   sdkMajor: 1,
 }

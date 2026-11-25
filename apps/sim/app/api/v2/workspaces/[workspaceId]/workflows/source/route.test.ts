@@ -74,6 +74,7 @@ const created = {
   },
   mintedIds: { start: 'b-1' },
   notes: [],
+  deployedVersion: null,
   needsRedeployment: false,
   sdkMajor: 1,
 }

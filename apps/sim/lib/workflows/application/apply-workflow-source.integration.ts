@@ -81,9 +81,9 @@ vi.mock('@/lib/workflows/deployment-status', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/workflows/deployment-status')>()
   return {
     ...actual,
-    checkNeedsRedeployment: (workflowId: string) => {
+    readDeploymentDrift: (workflowId: string) => {
       draftDeploymentChecks.count += 1
-      return actual.checkNeedsRedeployment(workflowId)
+      return actual.readDeploymentDrift(workflowId)
     },
   }
 })
@@ -2530,7 +2530,7 @@ export default workflow('Fresh', {}, () => {
       await db.insert(workflowDeploymentVersion).values({
         id: generateId(),
         workflowId,
-        version: 1,
+        version: 2,
         state: deployed,
         isActive: true,
       })
@@ -2546,17 +2546,37 @@ export default workflow('Fresh', {}, () => {
       expect(draftDeploymentChecks.count).toBe(1)
       const applied = await apply(source, changed)
 
-      expect(unchangedDryRun.needsRedeployment).toBe(false)
-      expect(changedDryRun.needsRedeployment).toBe(true)
-      expect(applied.needsRedeployment).toBe(true)
+      // Each answer names the live version it compared the draft against.
+      expect(unchangedDryRun).toMatchObject({ deployedVersion: 2, needsRedeployment: false })
+      expect(changedDryRun).toMatchObject({ deployedVersion: 2, needsRedeployment: true })
+      expect(applied).toMatchObject({ deployedVersion: 2, needsRedeployment: true })
 
       const edited = await getSource(workflowId)
       const reverted = edit(edited.files, 'return 2', 'return 1')
       const revertDryRun = await apply(edited, reverted, { dryRun: true })
       const revert = await apply(edited, reverted)
 
-      expect(revertDryRun.needsRedeployment).toBe(false)
-      expect(revert.needsRedeployment).toBe(false)
+      expect(revertDryRun).toMatchObject({ deployedVersion: 2, needsRedeployment: false })
+      expect(revert).toMatchObject({ deployedVersion: 2, needsRedeployment: false })
+    }
+  )
+
+  check(
+    'a workflow never deployed reports no live version, which is not a draft matching one',
+    async () => {
+      const start = seedBlock('start_trigger', 'Start')
+      const score = seedBlock('function', 'Score', { code: ['code', 'return 1'] })
+      const workflowId = await seedGraph([start, score])
+      const source = await getSource(workflowId)
+      const changed = edit(source.files, 'return 1', 'return 2')
+
+      for (const answer of [
+        await apply(source, source.files, { dryRun: true }),
+        await apply(source, changed, { dryRun: true }),
+        await apply(source, changed),
+      ]) {
+        expect(answer).toMatchObject({ deployedVersion: null, needsRedeployment: false })
+      }
     }
   )
 

@@ -24,6 +24,7 @@ export function presentSourceOutcome(outcome: SourceOutcome): SourceOutcomeData 
     base: outcome.base,
     mintedIds: outcome.mintedIds,
     notes: outcome.notes,
+    deployedVersion: outcome.deployedVersion,
     needsRedeployment: outcome.needsRedeployment,
   }
 }
