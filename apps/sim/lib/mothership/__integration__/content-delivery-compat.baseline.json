@@ -790,6 +790,7 @@
       "data": {
         "blockOutputs": null,
         "cost": null,
+        "dryRun": null,
         "durationMs": null,
         "endedAt": "<time>",
         "error": null,
