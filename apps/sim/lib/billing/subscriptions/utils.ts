@@ -166,7 +166,8 @@ export function getOrgIncludedUsageDollars(subscription: OrgAllowanceInput): num
   }
   if (resolveBillingInterval(subscription) === 'year') {
     const monthly = getPlanPricing({ ...subscription, billingInterval: 'month', metadata: null })
-    return getAnnualSeatMonths(subscription) * monthly.basePrice
+    // Fractional seat-months price to the cent, the precision every limit is stored and edited in.
+    return Math.round(getAnnualSeatMonths(subscription) * monthly.basePrice * 100) / 100
   }
   return (subscription.seats || 1) * getPlanPricing(subscription).basePrice
 }

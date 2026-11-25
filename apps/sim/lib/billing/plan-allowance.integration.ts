@@ -185,7 +185,7 @@ describe('annual plan allowance', () => {
     const recorded = Number(row?.allowanceSeatMonths)
     expect(recorded).toBeCloseTo(3 * 12 + 2 * (60 / 30.44), 3)
     const { minimum } = await getOrgUsageLimit(organizationId, row as NonNullable<typeof row>)
-    expect(minimum).toBeCloseTo(recorded * PRO_MONTHLY_DOLLARS, 2)
+    expect(minimum).toBe(Math.round(recorded * PRO_MONTHLY_DOLLARS * 100) / 100)
   })
 
   it('credits a seat added in the last days of the year for the days left', async () => {
