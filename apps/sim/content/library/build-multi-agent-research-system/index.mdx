@@ -108,7 +108,7 @@ The reviewer should evaluate evidence before the writer sees it. For high-stakes
 
 7. **Add the source reviewer.** Give a reviewer Agent block the research plan and normalized evidence. The reviewer should approve, reject, or return each finding for another search based on authority, recency, relevance, contradiction, and whether the excerpt supports the claim.
 
-8. **Add bounded retries.** Route rejected findings back to the responsible researcher with the reviewer’s reason. Set a finite retry count and return an explicit evidence gap when the limit is reached.
+8. **Add bounded retries.** Place the responsible researcher and reviewer inside a [Loop](https://docs.sim.ai/workflows/blocks/loop) configured as Do While, initialize an attempt counter at zero, and update the counter, review status, and rejection reason after each review. Continue only while the status is rejected and the counter is below three; after the loop, use a Condition to send approved evidence to the writer or return an explicit evidence gap when all three attempts are rejected.
 
 9. **Add the writer.** Give the writer only approved evidence, the original request, and the required format. Instruct it to preserve source references, state uncertainty, and avoid filling evidence gaps with unsupported claims.
 
