@@ -11,6 +11,7 @@ import { edgeTupleKey, encodeAnchor, portKey } from '../anchors'
 import { literalText } from '../babel'
 import { compareEdges } from '../canonicalize/edges'
 import type { BlockCatalog } from '../catalog/types'
+import { parseStoredPath } from '../code-files/ref-path'
 import type { CompileDiagnosticCode } from '../diagnostics/codes'
 import type { LocatedDiagnostic, SourceSpan } from '../diagnostics/frame'
 import {
@@ -492,21 +493,31 @@ function emptyResult(reporter: Reporter, sdkMajor: number | null): CompileResult
 
 const BYTE_ORDER_MARK = '\uFEFF'
 
+/** The display name of the block a stored reference (`<score.result.v>`) reads, if it names one. */
+function readBlockName(ctx: CompileContext, token: string): string | null {
+  const [head] = parseStoredPath(token.slice(1, -1)) ?? []
+  return head?.kind === 'name' ? (ctx.declsByKey.get(head.name)?.name ?? null) : null
+}
+
+/** What the stored workflow says of a bare reference nothing types: see {@link untypedRefHeld}. */
+type UntypedRefHistory = 'held' | 'retyped' | 'new'
+
 /**
- * Whether a bare reference nothing types (`token`, in JSON field `param` of source block `key`,
- * which now stores `value`) is one the stored workflow already holds that way, through the block
- * renames of the apply (`renamed`, stored key → source key), whose reference rewrites are no edit
- * of the source. Against `stored`, the field stores `value` already and the reference reads no
- * Function whose stored code typed it: one that now returns something unreadable where it returned
- * a number makes the same bare token break the JSON. Against what an offline check recorded of the
- * printed source (`unread`), the field held `value` and this reference, untyped, when the lock was
- * written.
+ * What the stored workflow says of a bare reference nothing types (`token`, in JSON field `param`
+ * of source block `key`, which now stores `value`), through the block renames of the apply
+ * (`renamed`, stored key → source key), whose reference rewrites are no edit of the source:
+ * `held` when it already holds it that way, `retyped` when the field is unchanged but the
+ * Function it reads typed it before this edit, else `new`. Against `stored`, the field stores
+ * `value` already and the stored code of the Function it reads typed it or not: one that now
+ * returns something unreadable where it returned a number makes the same bare token break the
+ * JSON. Against what an offline check recorded of the printed source (`unread`), the field held
+ * `value` and this reference, untyped or not, when the lock was written.
  */
 function untypedRefHeld(
   stored: CanonicalWorkflow | undefined,
   unread: ReadonlyArray<UntypedJsonField> | undefined,
   renamed: ReadonlyMap<BlockKey, BlockKey>
-): (key: BlockKey, param: SubBlockId, value: string, token: string) => boolean {
+): (key: BlockKey, param: SubBlockId, value: string, token: string) => UntypedRefHistory {
   const storedKeyOf = new Map([...renamed].map(([from, to]) => [to, from]))
   const rewrite = renamedReferenceRewriter([...renamed].map(([from, to]) => ({ from, to })))
   /** `lookup` of the source key, else of the stored key it was renamed from. */
@@ -520,12 +531,14 @@ function untypedRefHeld(
     return (key, param, value, token) => {
       const held = block(key)
       const storedParam = held ? getOwn(held.params, param) : undefined
-      return (
-        storedParam?.kind === 'value' &&
-        typeof storedParam.value === 'string' &&
-        rewrite(storedParam.value) === value &&
-        referencedResultKind(token, block) === undefined
-      )
+      if (
+        storedParam?.kind !== 'value' ||
+        typeof storedParam.value !== 'string' ||
+        rewrite(storedParam.value) !== value
+      ) {
+        return 'new'
+      }
+      return referencedResultKind(token, block) === undefined ? 'held' : 'retyped'
     }
   }
   const fields = new Map(
@@ -533,11 +546,8 @@ function untypedRefHeld(
   )
   return (key, param, value, token) => {
     const field = throughRenames(key, (candidate) => fields.get(`${candidate}\u0000${param}`))
-    return (
-      field !== undefined &&
-      rewrite(field.value) === value &&
-      field.refs.some((ref) => rewrite(ref) === token)
-    )
+    if (field === undefined || rewrite(field.value) !== value) return 'new'
+    return field.refs.some((ref) => rewrite(ref) === token) ? 'held' : 'retyped'
   }
 }
 
@@ -771,7 +781,7 @@ function compileEntry(
   }
   const isString = (token: string) => refValueKind(token, refTypes) === 'string'
   /** Bare references nothing types, reported once the unknown paths are known (see below). */
-  const untyped: Array<{ token: string; range: Range; blockKey: BlockKey }> = []
+  const untyped: Array<{ token: string; range: Range; blockKey: BlockKey; retyped: boolean }> = []
   const untypedJsonFields: UntypedJsonField[] = []
   for (const { params, id, tree, refs } of ctx.jsonFields) {
     const value = jsonFieldText(tree, isString)
@@ -786,8 +796,14 @@ function compileEntry(
       refs: untypedRefs.map((ref) => ref.token),
     })
     for (const ref of untypedRefs) {
-      if (heldUntyped(ref.blockKey, id, value, ref.token)) continue
-      untyped.push({ token: ref.token, range: ref.range, blockKey: ref.blockKey })
+      const history = heldUntyped(ref.blockKey, id, value, ref.token)
+      if (history === 'held') continue
+      untyped.push({
+        token: ref.token,
+        range: ref.range,
+        blockKey: ref.blockKey,
+        retyped: history === 'retyped',
+      })
     }
   }
 
@@ -833,12 +849,13 @@ function compileEntry(
   ])
   for (const ref of untyped) {
     if (unknownAt.has(`${ref.range.file}:${ref.range.start}`)) continue
+    const reads = ref.retyped ? readBlockName(ctx, ref.token) : null
     reporter.report(
       'W_JSON_REF_UNTYPED',
-      `Nothing declares the type of ${ref.token}; it is stored bare, so text that reads as JSON (123, true) would become that value, not text.`,
+      `${reads ? `${reads} no longer declares what ${ref.token} holds (its code did before this edit)` : `Nothing declares the type of ${ref.token}`}; it is stored bare, so text that reads as JSON (123, true) would become that value, not text.`,
       ref.range,
       {
-        hint: `Leave it bare when it holds an array, object, number or boolean (it is spliced in as JSON); only when it holds text write t\`\${${text.slice(ref.range.start, ref.range.end)}}\`.`,
+        hint: `Text: write t\`\${${text.slice(ref.range.start, ref.range.end)}}\` to keep it text. An array, object, number or boolean: leave it bare, and make its source say so to drop this warning (a Function returning Number(…) or a literal, an agent responseFormat field).`,
         blockKey: ref.blockKey,
       }
     )

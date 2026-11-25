@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createBlock } from '@sim/testing/factories/block.factory'
 import {
+  builderProducedOutputs,
   canonicalEquals,
   canonicalize,
   catalogBlock,
@@ -102,6 +103,23 @@ describe('canonicalize and codegen over the real block catalog', () => {
     }
     expect(corpus.length).toBeGreaterThan(registryBlocks.length)
     expect(failures).toEqual([])
+  })
+
+  it("lets compile read every output each builder's tool returns", () => {
+    const missing = Object.keys(catalog.builders).flatMap((key) => {
+      const builder = catalogBuilder(catalog, key)
+      const block = builder && catalogBlock(catalog, builder.type)
+      const returned =
+        builder?.operation === undefined || builder.triggerMode
+          ? undefined
+          : block?.operationOutputs?.[builder.operation]
+      if (!builder || !block || !returned) return []
+      const produced = builderProducedOutputs(catalog, block, builder)
+      return returned.names
+        .filter((name) => Object.hasOwn(block.outputs, name) && !Object.hasOwn(produced, name))
+        .map((name) => `${key}.${name}`)
+    })
+    expect(missing).toEqual([])
   })
 
   it('maps every builder core.d.ts declares to the block type its signature is written for', () => {
