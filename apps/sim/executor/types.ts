@@ -431,6 +431,11 @@ export interface BlockState {
   executionTime: number
   /** Encrypted candidates active in this block call. Consumers filter them to the selected value. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /**
+   * A dry run answered this block, or a call it made, with a placeholder, so its output may hold
+   * made-up values; a later dry run never replays it as a recorded output (`run.mocksFrom`).
+   */
+  answeredWithPlaceholder?: true
 }
 
 /**

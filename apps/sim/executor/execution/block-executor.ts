@@ -464,7 +464,13 @@ export class BlockExecutor {
       const stateOutput = outputForState as NormalizedBlockOutput
       const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
       const stateProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue(stateOutput)
-      this.setNodeOutput(node, stateOutput, duration, stateProvenance)
+      this.setNodeOutput(
+        node,
+        stateOutput,
+        duration,
+        stateProvenance,
+        site !== undefined && sideEffects?.answeredWithPlaceholder(site) === true
+      )
 
       if (!isSentinel && blockLog) {
         const childWorkflowInstanceId =
@@ -548,9 +554,16 @@ export class BlockExecutor {
     node: DAGNode,
     output: NormalizedBlockOutput,
     duration = 0,
-    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    answeredWithPlaceholder = false
   ): void {
-    this.state.setBlockOutput(node.id, output, duration, resolvedSecretTraceProvenance)
+    this.state.setBlockOutput(
+      node.id,
+      output,
+      duration,
+      resolvedSecretTraceProvenance,
+      answeredWithPlaceholder
+    )
 
     const originalBlockId = node.metadata.originalBlockId
     const branchIndex = node.metadata.branchIndex
@@ -566,14 +579,16 @@ export class BlockExecutor {
           globalBranchNodeId,
           output,
           duration,
-          resolvedSecretTraceProvenance
+          resolvedSecretTraceProvenance,
+          answeredWithPlaceholder
         )
       }
       this.state.setBlockOutput(
         buildOuterBranchScopedId(originalBlockId, branchIndex),
         output,
         duration,
-        resolvedSecretTraceProvenance
+        resolvedSecretTraceProvenance,
+        answeredWithPlaceholder
       )
     }
   }

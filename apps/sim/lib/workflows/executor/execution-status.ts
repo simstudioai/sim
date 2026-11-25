@@ -278,6 +278,11 @@ export interface ProjectedWorkflowExecutionStatus {
    * permission-group-enforced: logs.trace_spans
    */
   dryRun: DryRunOptions | null
+  /**
+   * The blocks named by `selectedOutputs` that a dry run answered, or a call of which it answered,
+   * with a placeholder, so their outputs may hold made-up values; empty for any other run.
+   */
+  placeholderBlockIds: string[]
 }
 
 /**
@@ -311,6 +316,7 @@ export async function getProjectedWorkflowExecutionStatus(
     pausePoints: resolved.pausePoints,
     failedBlock: projection.hideTraceSpans ? null : resolved.failedBlock,
     dryRun: projection.hideTraceSpans ? null : resolved.dryRun,
+    placeholderBlockIds: resolved.placeholderBlockIds,
   }
 }
 
@@ -377,6 +383,8 @@ interface ResolvedExecutionStatus {
   failedBlock: FailedTraceBlock | null
   /** A dry run's allowed and mocked blocks, as its log's trigger recorded them, when execution data was read. */
   dryRun: DryRunOptions | null
+  /** The selected blocks a dry run answered, or a call of which it answered, with a placeholder. */
+  placeholderBlockIds: string[]
 }
 
 async function readWorkflowExecutionStatus(
@@ -467,6 +475,7 @@ async function readWorkflowExecutionStatus(
         pausePoints: null,
         failedBlock: null,
         dryRun: null,
+        placeholderBlockIds: [],
       }
     }
   }
@@ -495,6 +504,7 @@ async function readWorkflowExecutionStatus(
       pausePoints: null,
       failedBlock: null,
       dryRun: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -513,6 +523,7 @@ async function readWorkflowExecutionStatus(
       failedBlock:
         status.status === 'failed' && run.status.status === 'failed' ? run.failedBlock : null,
       dryRun: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -598,6 +609,7 @@ async function readWorkflowExecutionStatus(
       pausePoints: paused ? pausedRow?.pausePoints : null,
       failedBlock: null,
       dryRun: null,
+      placeholderBlockIds: [],
     }
   }
 
@@ -633,6 +645,7 @@ async function readWorkflowExecutionStatus(
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
     dryRun: logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
+    placeholderBlockIds: [...materialized.placeholderBlockIds],
   }
 }
 

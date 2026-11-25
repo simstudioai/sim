@@ -2373,6 +2373,45 @@ return res.headers.get('x-sim-dry-run')`,
       ['fetch', 'http_request', true],
     ])
   })
+
+  it('is the source of a mock only for a block that ran: a sent GET replays, a read that would carry a placeholder does not', async () => {
+    const prefix = `/${generateId()}`
+    const tableId = await createTable()
+    const fixture = graph(
+      [
+        block('start', 'start_trigger'),
+        upsertLead('save', tableId, 'a@b.co'),
+        block('code', 'function', {
+          language: 'javascript',
+          code: `const res = await fetch('${server.url}${prefix}/code/' + <save.row.id>)
+return { status: res.status }`,
+        }),
+        block('real', 'api', { url: `${server.url}${prefix}/api/row_8f3a2c`, method: 'GET' }),
+      ],
+      [
+        ['start', 'save'],
+        ['save', 'code'],
+        ['code', 'real'],
+      ]
+    )
+    const workflowId = await saveWorkflow(fixture.state)
+    const source = await run(workflowId, { dry: true })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}/api/row_8f3a2c`])
+
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: source.executionId, blocks: ['real'] },
+    })
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
+    expect(arrivalsUnder(prefix)).toEqual([`GET ${prefix}/api/row_8f3a2c`])
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['code'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('with a placeholder'),
+    })
+  })
 })
 
 /** Start → a Workflow block calling `childId`. */
@@ -2852,7 +2891,7 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
       run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['save'] } })
     ).rejects.toMatchObject({
       ...validationError,
-      message: expect.stringContaining('answered this block with a placeholder'),
+      message: expect.stringContaining('with a placeholder'),
     })
     const replayed = await run(workflowId, {
       dry: true,
@@ -2880,7 +2919,7 @@ describe('a dry run’s mocks from an earlier run, read as that run shows them',
       run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['save'] } })
     ).rejects.toMatchObject({
       ...validationError,
-      message: expect.stringContaining('answered this block with a placeholder'),
+      message: expect.stringContaining('with a placeholder'),
     })
     const replayed = await run(workflowId, {
       dry: true,

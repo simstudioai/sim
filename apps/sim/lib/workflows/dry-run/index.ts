@@ -5,7 +5,6 @@ export {
   overrideKey,
   PAUSING_BLOCK_TYPES,
   runsAnotherWorkflow,
-  SELF_DIRECTED_BLOCK_TYPES,
   type SideEffectsSummary,
   WriteStubPolicy,
 } from './side-effects'

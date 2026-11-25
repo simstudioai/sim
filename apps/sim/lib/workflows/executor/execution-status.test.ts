@@ -41,6 +41,8 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map(),
+
+      placeholderBlockIds: new Set(),
     })
   })
 
@@ -69,6 +71,8 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
       executionData: { finalOutput: { token: '[REDACTED]' } },
       blockOutputs: new Map([['block-1', { token: '[REDACTED]' }]]),
+
+      placeholderBlockIds: new Set(),
     })
     const status = await getWorkflowExecutionStatus({
       ...input,
@@ -442,6 +446,8 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockImplementation(async (executionData) => ({
       executionData,
       blockOutputs: new Map(),
+
+      placeholderBlockIds: new Set(),
     }))
   })
 
@@ -643,6 +649,8 @@ describe('getWorkflowExecutionStatus polls that read no execution data', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map([['block-1', { content: 'partial' }]]),
+
+      placeholderBlockIds: new Set(),
     })
 
     await expect(
@@ -725,6 +733,8 @@ describe('getWorkflowExecutionStatus once a pause has settled', () => {
         ],
       },
       blockOutputs: new Map(),
+
+      placeholderBlockIds: new Set(),
     })
   })
 
@@ -799,6 +809,8 @@ describe('getWorkflowExecutionStatus once a pause has settled', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: { ...recorded, traceSpans: [] },
       blockOutputs: new Map(),
+
+      placeholderBlockIds: new Set(),
     })
 
     const projected = await getProjectedWorkflowExecutionStatus(input)

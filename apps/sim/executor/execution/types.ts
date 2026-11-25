@@ -463,6 +463,11 @@ export interface SideEffectPolicy {
   sendsPlaceholder(sent: unknown): boolean
   /** Whether this block is answered with {@link answerBlock} instead of running its handler. */
   answersBlock(block: SideEffectBlockSite): boolean
+  /**
+   * Whether the run has answered this block, or a call it made, with a placeholder (its mock is
+   * not one), so its output may hold made-up values.
+   */
+  answeredWithPlaceholder(block: SideEffectBlockSite): boolean
   /** The output answering a block that does not run: its mock, or a recorded placeholder. */
   answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput>
 }
@@ -618,7 +623,8 @@ export interface BlockStateWriter {
     blockId: string,
     output: NormalizedBlockOutput,
     executionTime?: number,
-    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1,
+    answeredWithPlaceholder?: boolean
   ): void
   setBlockState(blockId: string, state: BlockState): void
   deleteBlockState(blockId: string): void

@@ -26,10 +26,7 @@ const MAX_RECORDED = 50
 const CODE_TOOL_ID = 'function_execute'
 
 /** Blocks whose handlers change state outside the tool seam, so a policy answers them whole. */
-export const SELF_DIRECTED_BLOCK_TYPES: ReadonlySet<string> = new Set([
-  BlockType.MOTHERSHIP,
-  BlockType.PI,
-])
+const SELF_DIRECTED_BLOCK_TYPES: ReadonlySet<string> = new Set([BlockType.MOTHERSHIP, BlockType.PI])
 
 /**
  * Blocks that pause the run. A test run is never resumed, so a policy answers them whole and the
@@ -216,6 +213,8 @@ export class WriteStubPolicy implements SideEffectPolicy {
   /** Keys of the allowed and mocked blocks the run reached. */
   private readonly reached = new Set<string>()
   private readonly placeholders = new PlaceholderTokens()
+  /** Keys of the blocks answered, or with a call answered, with a placeholder. */
+  private readonly answeredSites = new Set<string>()
 
   constructor(
     private readonly options: {
@@ -293,6 +292,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
           )
           return 'send'
         }
+        this.answeredSites.add(overrideKey(site))
         this.stubbed.add({
           ...recordedSite(site),
           tool: CODE_TOOL_ID,
@@ -310,6 +310,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
   stubCall(call: StubbedToolCall): Record<string, unknown> {
     const returned = sampleToolOutput(call.toolId, call.echoed, call.discoveredOutputs)
     this.placeholders.register(returned, call.echoed)
+    this.answeredSites.add(overrideKey(call))
     this.stubbed.add({
       ...recordedSite(call),
       tool: call.toolId,
@@ -341,12 +342,17 @@ export class WriteStubPolicy implements SideEffectPolicy {
     return false
   }
 
+  answeredWithPlaceholder(block: SideEffectBlockSite): boolean {
+    return this.answeredSites.has(overrideKey(block))
+  }
+
   async answerBlock(call: AnsweredBlockCall): Promise<NormalizedBlockOutput> {
     const mock = this.mockOf(call)
     if (mock) return structuredClone(mock)
     const input = await call.input()
     const returned = sampleBlockOutput({ type: call.blockType, params: input ?? {} })
     this.placeholders.register(returned)
+    this.answeredSites.add(overrideKey(call))
     this.stubbed.add({
       ...recordedSite(call),
       tool: null,

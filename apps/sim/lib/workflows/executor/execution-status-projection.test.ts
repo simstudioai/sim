@@ -68,6 +68,8 @@ function queueCompletedRun(): void {
   mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
     executionData: { finalOutput: { answer: 'a customer address' } },
     blockOutputs: new Map([[BLOCK_ID, { answer: 'a customer address' }]]),
+
+    placeholderBlockIds: new Set(),
   })
 }
 
@@ -124,6 +126,8 @@ function queueFailedRun(): void {
       ],
     },
     blockOutputs: new Map(),
+
+    placeholderBlockIds: new Set(),
   })
 }
 
@@ -146,6 +150,8 @@ describe('run-detail field projection', () => {
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map(),
+
+      placeholderBlockIds: new Set(),
     })
   })
 

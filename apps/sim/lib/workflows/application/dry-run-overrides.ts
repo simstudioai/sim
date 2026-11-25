@@ -17,7 +17,6 @@ import {
   overrideKey,
   PAUSING_BLOCK_TYPES,
   runsAnotherWorkflow,
-  SELF_DIRECTED_BLOCK_TYPES,
   WriteStubPolicy,
 } from '@/lib/workflows/dry-run'
 import {
@@ -32,7 +31,6 @@ import { getBlock } from '@/blocks/registry'
 import { BlockType } from '@/executor/constants'
 import { isRunControlledOutputField, mockOutputRefusal } from '@/executor/utils/mock-output'
 import { TEST_TRIGGER } from '@/stores/logs/filters/types'
-import { getToolMetadata } from '@/tools/metadata'
 
 /** The blocks a manual run asks a dry run to send or answer. */
 export interface DryRunRequest {
@@ -72,9 +70,6 @@ const DYNAMIC_OUTPUT_BLOCK_TYPES: ReadonlySet<string> = new Set([
 ])
 
 const CONTAINER_BLOCK_TYPES: ReadonlySet<string> = new Set([BlockType.LOOP, BlockType.PARALLEL])
-
-/** Tools a dry run sends whatever the block, as `WriteStubPolicy.decideWrite` does. */
-const ALWAYS_SENT_TOOLS: ReadonlySet<string> = new Set(['function_execute', 'workflow_executor'])
 
 function overrideTarget(workflow: OverrideWorkflow, blockId: string): OverrideTarget {
   return {
@@ -329,36 +324,6 @@ function undeclaredOutputFields(block: BlockState, output: Record<string, unknow
   return Object.keys(output).filter((field) => !known.has(field))
 }
 
-/**
- * Whether a test run answered this block with a placeholder unless it allowed or mocked it: a
- * block answered whole, one that runs another workflow (whose writes were placeholders too), or
- * one whose tool, for the operation it is configured with, is not declared `read`. An Agent's and
- * a Function's own output is real, whatever their tool calls returned.
- */
-function answeredWithPlaceholder(block: BlockState): boolean {
-  if (
-    PAUSING_BLOCK_TYPES.has(block.type) ||
-    SELF_DIRECTED_BLOCK_TYPES.has(block.type) ||
-    runsAnotherWorkflow(block.type)
-  ) {
-    return true
-  }
-  if (DYNAMIC_OUTPUT_BLOCK_TYPES.has(block.type)) return false
-  const tools = getBlock(block.type)?.tools
-  if (!tools?.access?.length) return false
-  const params = Object.fromEntries(
-    Object.entries(block.subBlocks).map(([key, subBlock]) => [key, subBlock.value])
-  )
-  let toolId: string | undefined
-  try {
-    toolId = tools.config?.tool ? tools.config.tool(params) : tools.access[0]
-  } catch {
-    return true
-  }
-  if (!toolId) return true
-  return !ALWAYS_SENT_TOOLS.has(toolId) && getToolMetadata(toolId)?.effect !== 'read'
-}
-
 interface RecordedMock {
   label: string
   blockId: string
@@ -372,8 +337,9 @@ interface RecordedMock {
  * withholds execution data. Fields only a block's handler may set (its cost, tokens, model, tool
  * calls or child traces, and `_` fields) are left out and reported, as `run.mocks` refuses them.
  * Refused: a block the run did not execute; one inside a loop or parallel, whose recorded output
- * is one iteration's, unless the run mocked it (every iteration answered alike); and, when the
- * run was itself a test run, a block it answered with a placeholder rather than mocked or allowed.
+ * is one iteration's, unless the run mocked it (every iteration answered alike); and a block the
+ * run answered, or a call of which it answered, with a placeholder, as the run recorded, or, when
+ * it was a test run, one that runs another workflow, whose writes there were placeholders too.
  * Each block is judged as that run's snapshot holds it, not as the draft has since been edited.
  */
 async function readRecordedOutputs(
@@ -444,7 +410,7 @@ async function readRecordedOutputs(
     ...(run.dryRun?.mockedBlocks ?? []),
     ...(run.dryRun?.mocksFrom?.blockIds ?? []),
   ])
-  const sourceAllowed = new Set(run.dryRun?.allowBlocks ?? [])
+  const sourcePlaceholders = new Set(run.placeholderBlockIds)
   return selected.map(({ label, blockId }) => {
     const mockedThere = sourceMocked.has(blockId)
     const sourceBlock = sourceBlocks[blockId]
@@ -470,14 +436,12 @@ async function readRecordedOutputs(
       )
     }
     if (
-      sourceIsTestRun &&
-      !mockedThere &&
-      !sourceAllowed.has(blockId) &&
-      answeredWithPlaceholder(sourceBlock)
+      sourcePlaceholders.has(blockId) ||
+      (sourceIsTestRun && !mockedThere && runsAnotherWorkflow(sourceBlock.type))
     ) {
       throw new OrchestrationError(
         'validation',
-        `${label}: run "${runId}" is a test run, which answered this block with a placeholder instead of running it; mock from a run that ran it, or pass its output with run.mocks.`
+        `${label}: run "${runId}" answered this block, or a call it made, with a placeholder instead of running it; mock from a run that ran it, or pass its output with run.mocks.`
       )
     }
     const kept = Object.entries(output).filter(([field]) => !isRunControlledOutputField(field))
