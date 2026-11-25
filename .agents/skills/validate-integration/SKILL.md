@@ -79,10 +79,11 @@ For **every** tool file, check:
 
 ### Effect
 - [ ] Every tool declares `effect`, and the label matches the API docs, not the name: `read` only
-      when the operation changes nothing outside Sim (no create, update, delete, send, charge, or
-      trigger); a param-dependent effect (method param, raw SQL, generic command), a GET whose
-      `transformResponse`/`postProcess` writes, a consuming read, and anything uncertain are `write`
-      (rules: `add-tools` → Declaring the effect)
+      when the call changes nothing outside Sim (no create, update, delete, send, trigger, consume,
+      or mark-read, and no job, run, conversation, history item, or other resource left in the
+      provider account); a param-dependent effect (method param, raw SQL, generic command), a GET
+      whose `transformResponse`/`postProcess` writes, and anything uncertain are `write` (rules:
+      `add-tools` → Declaring the effect)
 - [ ] Any `// tool-effect: <reason>` sits on a genuine verb/label exception, and
       `bun run check:tool-effects` passes
 

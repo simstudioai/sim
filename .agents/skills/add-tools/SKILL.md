@@ -188,19 +188,27 @@ fallback, or caller-controlled `_context` authority.
 ## Declaring the effect
 
 Every tool declares `effect: 'read' | 'write'` (required by `ToolConfig`; `bun run check:tool-effects`
-fails a registered tool without one). It is public catalog metadata: dry runs execute `read` tools
-for real and stub `write` ones, Assistant applies its read or write policy by it, and `sim blocks get`
-and `sim workflows source params` show it to agents. Labelling a write `read` is the one unsafe
-mistake, so classify from the provider's documented semantics, never the name alone:
+fails a registered tool without one). It is public catalog metadata: Assistant applies its read or
+write policy by it, and `sim blocks get` and `sim workflows source params` show it to agents.
+Labelling a write `read` is the one unsafe mistake, so classify from the provider's documented
+semantics, never the name alone.
 
-- `read`: no externally visible change, so no create, update, delete, send, charge, or trigger.
-  GET/HEAD reads, and POST endpoints the docs define as search, query, list, get, lookup, enrich, or
-  verify; LLM, embedding, transcription, TTS, and media-generation calls that persist nothing;
-  queries the server enforces as read-only.
-- `write`: everything else, including an effect that depends on the params (a `method` param, a
-  function-valued `request.method`, raw SQL or Cypher the server does not restrict to reads, a
-  generic RPC or command), a GET whose `transformResponse` or `postProcess` then writes, a read
-  that consumes or acknowledges (a queue receive, mark-as-read), and anything that saves to the
+`read` means the call changes nothing outside Sim: no create, update, delete, send, post, trigger,
+enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in
+an account; no credit-funded reveal; no external delivery. Usage billing for the call itself does
+not count. `write` is anything else.
+
+- `read`: GET/HEAD reads, and POST endpoints the docs define as search, query, list, get, lookup, or
+  verify; LLM, embedding, transcription, TTS, and media-generation calls that leave nothing in the
+  provider account; enrichment that only spends lookup credits; queries the server enforces as
+  read-only.
+- `write`: an effect that depends on the params (a `method` param or function-valued
+  `request.method` that can pick PUT/PATCH/DELETE or a mutating POST, raw SQL or Cypher the server
+  does not restrict to reads, a generic RPC or command); a GET whose `transformResponse` or
+  `postProcess` then writes; a read that consumes or acknowledges (a queue receive, mark-as-read);
+  media generation, transcription, crawls, exports, and research or agent runs that leave a job,
+  run, asset, or history item in the provider account; a chat that keeps a conversation; a reveal or
+  enrichment that creates a resource or delivers to a webhook; anything that saves to the
   workspace. When unsure, `write`.
 - PUT/PATCH/DELETE are `write`. A static GET/HEAD labelled `write`, or PUT/PATCH/DELETE labelled
   `read`, fails the audit unless the `effect` line carries `// tool-effect: <reason>` on one of the

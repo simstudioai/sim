@@ -28,7 +28,7 @@ export const fivetranRunConnectionSetupTestsTool: ToolConfig<
   description:
     'Run the setup tests of a Fivetran connection without changing its configuration, and return each test result.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   errorExtractor: FIVETRAN_ERROR_EXTRACTOR,
   oauth: FIVETRAN_OAUTH,
 

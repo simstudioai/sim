@@ -14,7 +14,7 @@ export const apolloPeopleBulkEnrichTool: ToolConfig<
   name: 'Apollo Bulk People Enrichment',
   description: 'Enrich data for up to 10 people at once using Apollo',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {

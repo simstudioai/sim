@@ -21950,7 +21950,7 @@
           "effect": {
             "type": "string",
             "enum": ["read", "write"],
-            "description": "What running the tool does outside Sim: `read` changes nothing (no create, update, delete, send, charge, or trigger), so a dry run executes it; `write` is anything else, including an effect that depends on the input."
+            "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in an account; no credit-funded reveal; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input."
           },
           "hostedApiKey": {
             "type": "string",
@@ -22676,7 +22676,7 @@
           "effect": {
             "type": "string",
             "enum": ["read", "write"],
-            "description": "What running the tool does outside Sim: `read` changes nothing (no create, update, delete, send, charge, or trigger), so a dry run executes it; `write` is anything else, including an effect that depends on the input."
+            "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in an account; no credit-funded reveal; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input."
           },
           "hostedApiKey": {
             "type": "string",
@@ -32956,7 +32956,7 @@
                       }
                     },
                     "effect": {
-                      "description": "`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block that runs no tool.",
+                      "description": "`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block with no `tools.access`.",
                       "type": "string",
                       "enum": ["read", "write"]
                     },
@@ -32969,7 +32969,7 @@
                       "additionalProperties": {
                         "type": "string",
                         "enum": ["read", "write"],
-                        "description": "What running the tool does outside Sim: `read` changes nothing (no create, update, delete, send, charge, or trigger), so a dry run executes it; `write` is anything else, including an effect that depends on the input."
+                        "description": "What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in an account; no credit-funded reveal; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input."
                       }
                     },
                     "dynamicOutputs": {

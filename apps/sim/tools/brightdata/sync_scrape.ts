@@ -14,7 +14,7 @@ export const brightDataSyncScrapeTool: ToolConfig<
   description:
     'Scrape URLs synchronously using a Bright Data pre-built scraper and get structured results directly. Supports up to 20 URLs with a 1-minute timeout.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {

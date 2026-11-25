@@ -42,7 +42,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   name: 'Firecrawl Crawl',
   description: 'Crawl entire websites and extract structured content from all accessible pages',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   params: {
     url: {
       type: 'string',

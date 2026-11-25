@@ -20,7 +20,7 @@ export const youComResearchTool: ToolConfig<YouComResearchParams, YouComResearch
   description:
     'Run multi-step web research on a question and get a thorough, cited answer, or start it as a background task.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: YOUCOM_CREDENTIAL_OAUTH,
 
   params: {

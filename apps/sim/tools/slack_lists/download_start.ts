@@ -7,7 +7,7 @@ export const slackListsDownloadStartTool = createSlackWebApiTool({
   name: 'Slack Start List Export',
   description:
     'Start an asynchronous CSV or JSON List export. Use the returned job_id with Get List Export and the same format options.',
-  effect: 'read',
+  effect: 'write',
   endpoint: 'slackLists.download.start',
   method: 'POST',
   oauth: {

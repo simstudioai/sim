@@ -17,7 +17,7 @@ export const elevenLabsAudioIsolationTool: InternalToolConfig<
   name: 'ElevenLabs Audio Isolation',
   description: 'Remove background noise from an audio file, isolating the speech using ElevenLabs',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {

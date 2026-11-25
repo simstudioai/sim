@@ -414,7 +414,7 @@ const v2HostedApiKeySchema = z
 export const v2ToolEffectSchema = z
   .enum(['read', 'write'])
   .describe(
-    'What running the tool does outside Sim: `read` changes nothing (no create, update, delete, send, charge, or trigger), so a dry run executes it; `write` is anything else, including an effect that depends on the input.'
+    'What running the tool does outside Sim. `read` changes nothing there: no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other resource left in an account; no credit-funded reveal; no external delivery. Usage billing for the call itself does not count. `write` is anything else, including an effect that depends on the input.'
   )
 
 const v2ToolOAuthSchema = z.object({

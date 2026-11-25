@@ -9,7 +9,7 @@ export const pulseParserTool: InternalToolConfig<PulseParserInput, PulseParserOu
   name: 'Pulse Document Parser',
   description: 'Parse documents (PDF, images, Office docs) using Pulse OCR API',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: PULSE_CREDENTIAL_OAUTH,
 
   params: {

@@ -13,7 +13,7 @@ export const reductoParserTool: InternalToolConfig<ReductoParserInput, ReductoPa
   name: 'Reducto PDF Parser',
   description: 'Parse PDF documents using Reducto OCR API',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: REDUCTO_CREDENTIAL_OAUTH,
 
   params: {

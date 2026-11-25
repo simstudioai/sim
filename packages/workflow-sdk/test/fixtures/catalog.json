@@ -6631,6 +6631,7 @@
         "container": null,
         "annotationOnly": false
       },
+      "effect": "write",
       "dynamicOutputs": {
         "source": "responseFormat",
         "param": "responseFormat"
@@ -15671,7 +15672,8 @@
           "subBlockId": "routes",
           "kind": "router"
         }
-      }
+      },
+      "effect": "write"
     },
     "schedule": {
       "type": "schedule",
@@ -31553,7 +31555,6 @@
       },
       "effect": "write",
       "operationEffects": {
-        "read": "read",
         "get_message": "read",
         "get_thread": "read",
         "get_thread_replies": "read",
@@ -31572,7 +31573,6 @@
         "list_items": "read",
         "get_list_item": "read",
         "list_scheduled_messages": "read",
-        "start_list_export": "read",
         "get_list_export": "read",
         "lookup_user_by_email": "read",
         "list_user_conversations": "read",

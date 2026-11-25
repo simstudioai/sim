@@ -9,7 +9,8 @@ export const upstashRedisIncrTool: ToolConfig<UpstashRedisIncrParams, UpstashRed
   description:
     'Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing.',
   version: '1.0.0',
-  effect: 'read',
+  // tool-effect: the Upstash REST API takes every command as a GET; INCR changes the stored value
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {

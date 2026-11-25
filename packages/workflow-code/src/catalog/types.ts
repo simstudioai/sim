@@ -280,9 +280,8 @@ export interface CatalogBlock {
    */
   operationOutputs?: Record<string, CatalogOperationOutputs>
   /**
-   * What running the block does outside Sim, from its tools' declared effect: `read` (changes
-   * nothing, so a dry run executes it) only when every tool it can run is `read`, else `write`.
-   * Absent for a block that runs no registered tool (triggers, model-only blocks, annotations).
+   * What running the block does outside Sim, from its tools' declared effect: `read` only when
+   * every tool it can run is `read`, else `write`. Absent for a block with no `tools.access`.
    */
   effect?: CatalogEffect
   /** Per operation id, the effect of the tool the operation runs, where it differs from `effect`. */

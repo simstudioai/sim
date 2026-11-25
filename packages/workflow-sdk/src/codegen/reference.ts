@@ -36,7 +36,8 @@ export interface BuilderReference {
   operation?: string
   /**
    * What running the builder's block does outside Sim (`CatalogBlock.effect`, per operation where
-   * it differs): `read` changes nothing, `write` may. Absent for a builder that runs no tool.
+   * it differs): `read` changes nothing, `write` may. Absent for a trigger builder and for a block
+   * with no `tools.access`.
    */
   effect?: 'read' | 'write'
   /** An older block version's builder, kept so stored workflows print; write the current one. */

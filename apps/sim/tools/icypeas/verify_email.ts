@@ -59,7 +59,7 @@ export const icypeasVerifyEmailTool: ToolConfig<
   description:
     'Verify whether an email address is valid and deliverable. Submits the verification and polls until a result is available. Costs 0.1 credit per verification (https://www.icypeas.com/pricing).',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
 
   hosting: icypeasHosting<IcypeasVerifyEmailParams>((_params, output) => {
     // 0.1 credit per verification that consumed credits: FOUND/DEBITED (verdict

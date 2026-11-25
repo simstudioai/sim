@@ -7,7 +7,7 @@ export const runwayVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   name: 'Runway Video',
   description: 'Generate videos using Runway models with optional visual references',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
 
   params: {
     provider: {

@@ -2,25 +2,25 @@
 /**
  * Keeps every tool's declared `effect` present and consistent with its HTTP verb.
  *
- * `effect` (`apps/sim/tools/types.ts`) is public catalog metadata: `read` promises that running
- * the tool changes nothing outside Sim, so a dry run may execute it for real, and Assistant applies
- * its read policy to it. A `write` mislabelled `read` is the one unsafe mistake, because whoever
- * trusts the label executes a real change. So this audit fails when:
+ * `effect` (`apps/sim/tools/types.ts` `ToolEffect`) is public catalog metadata: `read` promises
+ * that running the tool changes nothing outside Sim, and Assistant applies its read policy to it.
+ * A `write` mislabelled `read` is the one unsafe mistake, because whoever trusts the label runs a
+ * real change. So this audit fails when:
  *
  *   - a registered tool declares no `effect`, or one other than `read` | `write`. The registry is
  *     loaded rather than the source scanned, so tools built by factories and `...spread` aliases
  *     are judged by the value they actually carry;
  *   - a tool's static HTTP verb contradicts its label: GET/HEAD labelled `write`, or
- *     PUT/PATCH/DELETE labelled `read`. Some are genuine (a GET that reads an event and then writes
+ *     PUT/PATCH/DELETE labelled `read`, or a `read` tool's function-valued verb can return
+ *     PUT/PATCH/DELETE. Some are genuine (a GET that reads an event and then writes
  *     it back in `transformResponse` or `postProcess`), so the contradiction passes when the
  *     tool's `effect` property carries `// tool-effect: <reason>` on one of the two lines above it;
  *   - a `// tool-effect:` annotation sits on a tool whose verb agrees with its label, or on a
  *     definition whose id is not a string literal, so stale or unattributable justifications do
  *     not accumulate.
  *
- * POST, function-valued verbs, and in-process operations are not judged here: their effect comes
- * from the tool's documented semantics (search and inference are `read`; anything that persists or
- * sends, or depends on its params, is `write`). The `add-tools` skill lists the rules.
+ * POST, the rest of function-valued verbs, and in-process operations are not judged here: their
+ * effect comes from the tool's documented semantics. The `add-tools` skill lists the rules.
  *
  * The tree was classified when this landed, so there is no baseline.
  *
@@ -94,15 +94,17 @@ export function findToolEffectJustifications(
   return found
 }
 
-function staticVerb(tool: ExecutableToolConfig): string | undefined {
-  if (isInternalToolConfig(tool)) return undefined
-  const method = tool.request.method
-  return typeof method === 'string' ? method.toUpperCase() : undefined
-}
+const WRITE_VERB_LITERAL = /['"`](PUT|PATCH|DELETE)['"`]/i
 
 function contradictsVerb(tool: ExecutableToolConfig): string | undefined {
-  const verb = staticVerb(tool)
-  if (!verb) return undefined
+  if (isInternalToolConfig(tool)) return undefined
+  const method = tool.request.method
+  if (typeof method === 'function') {
+    if (tool.effect !== 'read') return undefined
+    const verb = WRITE_VERB_LITERAL.exec(String(method))?.[1]
+    return verb ? `${verb.toUpperCase()} from its function-valued method` : undefined
+  }
+  const verb = method.toUpperCase()
   if (tool.effect === 'write' && READ_VERBS.has(verb)) return verb
   if (tool.effect === 'read' && WRITE_VERBS.has(verb)) return verb
   return undefined
@@ -185,9 +187,11 @@ async function main() {
   console.error('✗ check-tool-effects\n')
   for (const { toolId, reason } of violations) console.error(`    ${toolId} — ${reason}`)
   console.error(
-    '\n  `read` means the tool changes nothing outside Sim (no create, update, delete, send, charge,\n' +
-      '  or trigger), so a dry run executes it for real. Anything else, or anything whose effect\n' +
-      '  depends on its params, is `write`. When unsure, declare `write`.\n'
+    '\n  `read` means the call changes nothing outside Sim: no create, update, delete, send, post,\n' +
+      '  trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other\n' +
+      '  resource left in an account; no credit-funded reveal; no external delivery. Usage billing\n' +
+      '  for the call itself does not count. Anything else, including an effect that depends on the\n' +
+      '  params, is `write`. When unsure, declare `write`.\n'
   )
   process.exit(1)
 }

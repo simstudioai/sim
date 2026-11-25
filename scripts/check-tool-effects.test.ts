@@ -1,6 +1,3 @@
-import { spawnSync } from 'node:child_process'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { ExecutableToolConfig, HttpMethod, ToolEffect } from '../apps/sim/tools/types'
 import {
@@ -8,8 +5,6 @@ import {
   findToolEffectViolations,
   type ToolEffectJustification,
 } from './check-tool-effects'
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 function httpTool(
   id: string,
@@ -75,12 +70,25 @@ describe('tool effect audit', () => {
     ])
   })
 
-  it('leaves POST, function-valued verbs, and in-process operations to the declared semantics', () => {
+  it('rejects a read whose function-valued verb can return PUT, PATCH, or DELETE', () => {
+    expect(
+      reasons({
+        dynamic_delete: httpTool('dynamic_delete', 'read', () => 'DELETE'),
+        dynamic_write: httpTool('dynamic_write', 'write', () => 'DELETE'),
+      })
+    ).toEqual([
+      expect.stringMatching(
+        /^dynamic_delete: sends DELETE from its function-valued method but declares effect 'read'/
+      ),
+    ])
+  })
+
+  it('leaves POST, other function-valued verbs, and in-process operations to the declared semantics', () => {
     expect(
       reasons({
         search: httpTool('search', 'read', 'POST'),
         send: httpTool('send', 'write', 'POST'),
-        dynamic: httpTool('dynamic', 'read', () => 'DELETE'),
+        dynamic: httpTool('dynamic', 'read', () => 'GET'),
         query: internalTool('query', 'read'),
       })
     ).toEqual([])
@@ -152,14 +160,5 @@ const other = {
       'factory.ts:4: // tool-effect: annotation is not on the effect of a registered tool with a literal id',
       'stale: has a // tool-effect: annotation but its verb agrees with its effect; remove it',
     ])
-  })
-
-  it('passes the real tool registry', () => {
-    const run = spawnSync('bun', [path.join(ROOT, 'scripts', 'check-tool-effects.ts')], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    })
-    expect(run.stderr).toBe('')
-    expect(run.status).toBe(0)
   })
 })

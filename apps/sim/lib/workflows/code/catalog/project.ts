@@ -490,17 +490,18 @@ function projectOperationOutputs(
 }
 
 /**
- * The block's effect from its registered tools' declared effects, and, when the operation picks the
- * tool, each operation whose tool differs from it. Ids that are not registered tools (the model
- * providers an Agent calls) do not count.
+ * The block's effect from its tools' declared effects, and, when the operation picks the tool, each
+ * operation whose tool differs from it. An id that is not a registered tool (the model providers an
+ * Agent, Router, or Evaluator calls) counts as `write`. An opaque selector cannot be probed, so its
+ * operations inherit the block effect.
  */
 function projectEffects(
   block: BlockConfig,
   operations: readonly string[],
   selector: CatalogBlock['tools']['selector']
 ): Pick<CatalogBlock, 'effect' | 'operationEffects'> {
-  const effects = block.tools.access.flatMap((toolId) => getToolMetadata(toolId)?.effect ?? [])
-  if (effects.length === 0) return {}
+  if (block.tools.access.length === 0) return {}
+  const effects = block.tools.access.map((toolId) => getToolMetadata(toolId)?.effect ?? 'write')
   const effect = effects.every((entry) => entry === 'read') ? 'read' : 'write'
   const selectTool = block.tools.config?.tool
   if (effect === 'read' || selector !== 'operation' || !selectTool) return { effect }
@@ -508,8 +509,8 @@ function projectEffects(
   for (const operation of operations) {
     const probe = probeThunk(selectTool, { operation })
     if (!probe.ok || typeof probe.result !== 'string') continue
-    const operationEffect = getToolMetadata(probe.result)?.effect
-    if (operationEffect && operationEffect !== effect) operationEffects[operation] = operationEffect
+    const operationEffect = getToolMetadata(probe.result)?.effect ?? 'write'
+    if (operationEffect !== effect) operationEffects[operation] = operationEffect
   }
   return Object.keys(operationEffects).length > 0 ? { effect, operationEffects } : { effect }
 }

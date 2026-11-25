@@ -347,7 +347,7 @@ const catalogBlockSchema = z
     effect: v2ToolEffectSchema
       .optional()
       .describe(
-        '`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block that runs no tool.'
+        '`read` when every tool the block can run changes nothing outside Sim, else `write`. Absent for a block with no `tools.access`.'
       ),
     operationEffects: z
       .record(z.string(), v2ToolEffectSchema)

@@ -227,10 +227,12 @@ export interface ToolParameterItemSchema {
 }
 
 /**
- * What running a tool does outside Sim. `read` causes no externally visible change (no create,
- * update, delete, send, charge, or trigger), so it is safe to run in a dry run; `write` is
- * everything else, including a tool whose effect depends on its params. Public catalog metadata,
- * audited by `check:tool-effects`.
+ * What running a tool does outside Sim. `read` means the call changes nothing outside Sim: it
+ * creates, updates, deletes, sends, posts, triggers, enqueues, consumes, and marks read nothing,
+ * leaves no job, run, conversation, history item, or other resource in an account, makes no
+ * credit-funded reveal, and delivers nothing elsewhere. Usage billing for the call itself does not
+ * count. `write` is anything else, including an effect that depends on the params. Public catalog
+ * metadata, audited by `check:tool-effects`.
  */
 export type ToolEffect = 'read' | 'write'
 

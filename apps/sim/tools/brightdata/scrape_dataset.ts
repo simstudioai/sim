@@ -14,7 +14,7 @@ export const brightDataScrapeDatasetTool: ToolConfig<
   description:
     'Trigger a Bright Data pre-built scraper to extract structured data from URLs. Supports 660+ scrapers for platforms like Amazon, LinkedIn, Instagram, and more.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
   oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {

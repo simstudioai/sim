@@ -17,7 +17,7 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
   description:
     'Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs.',
   version: '1.0.0',
-  effect: 'read',
+  effect: 'write',
 
   params: {
     prompt: {

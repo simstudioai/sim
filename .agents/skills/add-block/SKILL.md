@@ -1083,7 +1083,7 @@ Validate the block against every tool in `tools.access`:
    same-origin `/api/...` hop or a `directExecution` property from the block.
 8. **Verify every tool declares `effect`** — the block's catalog `effect` (and its per-operation
    `operationEffects`) is derived from them, so a mislabelled tool misreports the block to agents
-   and dry runs. Fix the tool with the `add-tools` rules (Declaring the effect), never the block.
+   and Assistant. Fix the tool with the `add-tools` rules (Declaring the effect), never the block.
 
 ## Option Lists: `selectorKey` or `options`, never a per-block fetcher
 

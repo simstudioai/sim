@@ -11,7 +11,8 @@ export const upstashRedisExpireTool: ToolConfig<
   name: 'Upstash Redis EXPIRE',
   description: 'Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted.',
   version: '1.0.0',
-  effect: 'read',
+  // tool-effect: the Upstash REST API takes every command as a GET; EXPIRE sets a TTL that deletes the key
+  effect: 'write',
   oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
