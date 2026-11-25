@@ -429,6 +429,49 @@ describe('sim workflows run --follow', () => {
     expect(requestRaw).not.toHaveBeenCalled()
   })
 
+  it('runs a pinned deployment version, synchronously and queued', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    request.mockResolvedValue({ data: { runId: 'run-2', statusUrl: '/runs/run-2' } })
+
+    await run(WORKFLOW_ID, '--deployment-version', '6')
+    await run(WORKFLOW_ID, '--deployment-version', '6', '--async', '--input', '{"a":1}')
+
+    expect(requestRaw.mock.calls[0][1].body).toEqual({ run: { source: 'deployment', version: 6 } })
+    expect(request.mock.calls[0][1].body).toEqual({
+      async: true,
+      input: { a: 1 },
+      run: { source: 'deployment', version: 6 },
+    })
+  })
+
+  it.each(['0', '-1', '1.5', 'v6', '06'])(
+    'refuses --deployment-version %s, which is not a version number',
+    async (version) => {
+      await expect(run(WORKFLOW_ID, '--deployment-version', version)).rejects.toThrow(
+        '--deployment-version must be a positive integer'
+      )
+      expect(requestRaw).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    ['--manual'],
+    ['--dry'],
+    ['--trigger', 'slack-trigger'],
+    ['--mock-payload'],
+    ['--stop-after', 'agent-1'],
+    ['--from-block', 'agent-1', '--source-run', 'run-1'],
+    ['--source-run', 'run-1'],
+    ['--allow', 'agent-1'],
+    ['--mock', 'agent-1={}'],
+  ])('refuses --deployment-version beside %s, which runs the draft', async (...flags) => {
+    await expect(run(WORKFLOW_ID, '--deployment-version', '6', ...flags)).rejects.toThrow(
+      `--deployment-version runs a deployed version; ${flags[0]} runs the draft: drop one`
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('selects a run only through its flags, not as raw JSON', async () => {
     await expect(run(WORKFLOW_ID, '--run', '{"source":"manual"}')).rejects.toThrow(
       "unknown option '--run'"

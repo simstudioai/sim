@@ -6197,6 +6197,7 @@
                         },
                         "mintedIds": {},
                         "notes": [],
+                        "deployedVersion": 3,
                         "needsRedeployment": false
                       }
                     }
@@ -6393,6 +6394,7 @@
                         },
                         "mintedIds": {},
                         "notes": [],
+                        "deployedVersion": 3,
                         "needsRedeployment": false
                       }
                     }
@@ -6583,6 +6585,7 @@
                           "start": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
                         },
                         "notes": [],
+                        "deployedVersion": null,
                         "needsRedeployment": false
                       }
                     }
@@ -20468,9 +20471,22 @@
                 },
                 "description": "Non-fatal notes about the write."
               },
+              "deployedVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed."
+              },
               "needsRedeployment": {
                 "type": "boolean",
-                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+                "description": "Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`."
               }
             },
             "required": [
@@ -20485,6 +20501,7 @@
               "base",
               "mintedIds",
               "notes",
+              "deployedVersion",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -20546,6 +20563,7 @@
               },
               "mintedIds": {},
               "notes": [],
+              "deployedVersion": 3,
               "needsRedeployment": false
             }
           }
@@ -21435,9 +21453,22 @@
                 },
                 "description": "Non-fatal notes about the write."
               },
+              "deployedVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed."
+              },
               "needsRedeployment": {
                 "type": "boolean",
-                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+                "description": "Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`."
               }
             },
             "required": [
@@ -21452,6 +21483,7 @@
               "base",
               "mintedIds",
               "notes",
+              "deployedVersion",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -21513,6 +21545,7 @@
               },
               "mintedIds": {},
               "notes": [],
+              "deployedVersion": 3,
               "needsRedeployment": false
             }
           }
@@ -22378,9 +22411,22 @@
                 },
                 "description": "Non-fatal notes about the write."
               },
+              "deployedVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed."
+              },
               "needsRedeployment": {
                 "type": "boolean",
-                "description": "Whether the draft now differs from the live deployment; apply never deploys."
+                "description": "Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`."
               }
             },
             "required": [
@@ -22395,6 +22441,7 @@
               "base",
               "mintedIds",
               "notes",
+              "deployedVersion",
               "needsRedeployment"
             ],
             "additionalProperties": false,
@@ -22464,6 +22511,7 @@
                 "start": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
               },
               "notes": [],
+              "deployedVersion": null,
               "needsRedeployment": false
             }
           }

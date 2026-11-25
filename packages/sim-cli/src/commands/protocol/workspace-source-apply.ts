@@ -1,5 +1,7 @@
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { mapWithConcurrency } from '@sim/utils/concurrency'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { SOURCE_LOCK_FILE } from '@sim/workflow-code/limits'
 import {
@@ -30,12 +32,15 @@ import { SOURCE_HELD_EXIT_CODE, SOURCE_PARTIAL_EXIT_CODE } from '../../exit-code
 import type {
   ApplyWorkspaceSourceBody,
   ApplyWorkspaceSourceResponse,
+  GetWorkflowDeploymentResponse,
   GetWorkspaceSourceResponse,
 } from '../../generated/v2-api'
-import { SimApiError } from '../../http/client'
+import { isRequestCancelled, SimApiError } from '../../http/client'
+import { sanitize } from '../../output/render'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
+import { draftIsLive, liveDeploymentStatus } from '../../runtime/deployment-live'
 import { searchTasks } from '../search'
-import { type DeployedUrl, deployedUrls, deployedUrlsText, lockBlockNames } from './deployed-urls'
+import { type DeployedUrl, deployedUrlsText, lockBlockNames, namedUrls } from './deployed-urls'
 import { gitProvenance } from './git-provenance'
 import { CliUsageError, SourceDirError } from './local-errors'
 import { printProtocolResult } from './result'
@@ -839,7 +844,11 @@ export function attachWorkspaceSourceApply(source: Command): void {
           const notSent = notSentFindings(submission.ignored)
           findings.print(notSent)
           /** Prints `data` as the result, with the findings about files the CLI did not send. */
-          const report = (data: ApplyData, next?: NextStep, urls: WorkflowUrl[] = []) => {
+          const report = (
+            data: ApplyData,
+            next?: NextStep,
+            { workflows, urls }: WrittenWorkflows = { workflows: [], urls: [] }
+          ) => {
             const diagnostics = [...notSent, ...data.diagnostics]
             publishSummary(
               () => planMarkdown({ ...data, diagnostics }, options.to ?? workspaceId),
@@ -847,6 +856,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
             )
             const result = {
               ...summarize({ ...data, diagnostics }),
+              ...(workflows.length > 0 ? { workflows } : {}),
               ...(urls.length > 0 ? { urls } : {}),
               ...(next ? { next } : {}),
             }
@@ -855,6 +865,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
               { ...result, ...findings.result(diagnostics) },
               {
                 created: createdText(result.created),
+                ...(workflows.length > 0 ? { workflows: writtenWorkflowsText(workflows) } : {}),
                 ...(urls.length > 0 ? { urls: workflowUrlsText(urls) } : {}),
                 ...(next ? { next: next.command } : {}),
               }
@@ -922,7 +933,7 @@ export function attachWorkspaceSourceApply(source: Command): void {
           report(
             data,
             undefined,
-            await deploymentUrls(
+            await writtenWorkflows(
               client,
               data,
               promotion ? undefined : (path) => readSourceText(options.dir, path)
@@ -973,6 +984,28 @@ interface WorkflowUrl extends DeployedUrl {
   workflow: string
 }
 
+/**
+ * A workflow a written apply created, updated, deployed or undeployed, and what is live for it:
+ * the id an agent would otherwise read out of `.sim/base.json`, and whether the draft serves.
+ */
+interface WrittenWorkflow {
+  key: string
+  workflowId: string
+  /** The live version, or null when nothing is deployed. */
+  deployedVersion: number | null
+  /** Whether that version is the draft: deployed, nothing activating, and no undeployed change. */
+  liveMatchesDraft: boolean
+  live: string
+}
+
+interface WrittenWorkflows {
+  workflows: WrittenWorkflow[]
+  urls: WorkflowUrl[]
+}
+
+/** Deployment reads one apply runs at once. */
+const DEPLOYMENT_READ_CONCURRENCY = 8
+
 /** The URLs as one display line: `lead-intake: leadin (hook) https://…; …`. */
 function workflowUrlsText(urls: readonly WorkflowUrl[]): string {
   const byWorkflow = new Map<string, DeployedUrl[]>()
@@ -984,34 +1017,75 @@ function workflowUrlsText(urls: readonly WorkflowUrl[]): string {
     .join('; ')
 }
 
+/** The workflows as one display line: `lead-intake <id>: version 3, matches the draft; …`. */
+function writtenWorkflowsText(workflows: readonly WrittenWorkflow[]): string {
+  return workflows.map(({ key, workflowId, live }) => `${key} ${workflowId}: ${live}`).join('; ')
+}
+
 /**
- * The webhook URLs of each workflow a written apply deployed (a `deployments/<key>.ts` it created
- * or updated), in the workspace it wrote: a promotion's are the target's, which are new URLs.
- * Each block is named as the workflow's reprinted lock names it, or, when the apply did not
- * reprint the workflow (it wrote only the deployment), as `savedLock` reads it from the directory
- * (none for a promotion, whose directory holds the source workspace's block ids).
+ * Each {@link WrittenWorkflow}, read from its deployment in the workspace the apply wrote (a
+ * promotion's are the target's), and the webhook URLs of each one it deployed (a
+ * `deployments/<key>.ts` it created or updated), which are new URLs for a promotion. Each block is
+ * named as the workflow's reprinted lock names it, or, when the apply did not reprint the workflow
+ * (it wrote only the deployment), as `savedLock` reads it from the directory (none for a
+ * promotion, whose directory holds the source workspace's block ids). A failed read is reported
+ * and leaves that workflow out: the apply itself stands.
  */
-async function deploymentUrls(
+async function writtenWorkflows(
   client: OperationClient<'getWorkflowDeployment'>,
   data: ApplyData,
   savedLock?: (path: string) => Promise<string | null>
-): Promise<WorkflowUrl[]> {
-  if (data.dryRun) return []
+): Promise<WrittenWorkflows> {
+  if (data.dryRun) return { workflows: [], urls: [] }
   const base = parseWorkspaceBase(data.base).base
-  const deployed = data.applied.filter(
-    (change) => change.kind === 'deployment' && change.action !== 'delete'
+  // A deleted deployment leaves its workflow, which then reports `not deployed`.
+  const written = data.applied.filter(
+    (change) =>
+      change.kind === 'deployment' || (change.kind === 'workflow' && change.action !== 'delete')
   )
-  const perWorkflow = await Promise.all(
-    deployed.map(async ({ key }): Promise<WorkflowUrl[]> => {
-      const workflowId = base?.resources[resourceAddress('workflow', key)]?.id
-      if (!workflowId) return []
-      const lockPath = `${workflowFolder(key)}/${SOURCE_LOCK_FILE}`
-      const lock = data.files[lockPath] ?? (await savedLock?.(lockPath)) ?? null
-      const named = await deployedUrls(client, workflowId, lockBlockNames(lock))
-      return named.map((url) => ({ workflow: key, ...url }))
-    })
+  const keys = [...new Set(written.map((change) => change.key))]
+  const deployedKeys = new Set(
+    written
+      .filter((change) => change.kind === 'deployment' && change.action !== 'delete')
+      .map((change) => change.key)
   )
-  return perWorkflow.flat()
+  const read = await mapWithConcurrency(keys, DEPLOYMENT_READ_CONCURRENCY, async (key) => {
+    const workflowId = base?.resources[resourceAddress('workflow', key)]?.id
+    if (!workflowId) return null
+    const status = await client
+      .request<GetWorkflowDeploymentResponse>('getWorkflowDeployment', { params: { workflowId } })
+      .then(
+        (response) => response.data,
+        (error: unknown) => {
+          if (isRequestCancelled(error)) throw error
+          printError(
+            `The apply was written, but the deployment of ${sanitize(key)} could not be read (${sanitize(getErrorMessage(error))}): \`sim workflows deployment status ${sanitize(workflowId)}\` shows it.`
+          )
+          return null
+        }
+      )
+    if (!status) return null
+    const workflow: WrittenWorkflow = {
+      key,
+      workflowId,
+      deployedVersion: status.activeDeployment?.version ?? null,
+      liveMatchesDraft: draftIsLive(status),
+      live: liveDeploymentStatus(status, workflowId).live,
+    }
+    if (!deployedKeys.has(key)) return { workflow, urls: [] }
+    const lockPath = `${workflowFolder(key)}/${SOURCE_LOCK_FILE}`
+    const lock = data.files[lockPath] ?? (await savedLock?.(lockPath)) ?? null
+    const urls = namedUrls(status.webhooks, lockBlockNames(lock)).map((url) => ({
+      workflow: key,
+      ...url,
+    }))
+    return { workflow, urls }
+  })
+  const found = read.filter((entry) => entry !== null)
+  return {
+    workflows: found.map((entry) => entry.workflow),
+    urls: found.flatMap((entry) => entry.urls),
+  }
 }
 
 /** This apply as a command, without `--yes` or `--dry-run`: what a plan run names next. */

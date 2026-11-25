@@ -13,7 +13,8 @@ function issuedId(value: unknown): value is string {
 
 const SAFE_ARGUMENT = /^[A-Za-z0-9_.:-]+$/
 
-function shellArgument(value: string): string {
+/** `value` as one shell word: as it is when it needs no quoting, else single-quoted. */
+export function shellArgument(value: string): string {
   return SAFE_ARGUMENT.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`
 }
 

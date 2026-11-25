@@ -96,6 +96,7 @@ function outcome(overrides: { dryRun?: boolean; diagnostics?: unknown[]; notes?:
       base: { ...BASE, fingerprint: 'sf1:b' },
       mintedIds: {},
       notes: overrides.notes ?? [],
+      deployedVersion: 3 as number | null,
       needsRedeployment: true,
     },
   }
@@ -236,7 +237,7 @@ describe('sim workflows source apply', () => {
     expect(markdown).toContain('1 to add, 0 to remove, 0 to modify, 0 renamed; connections +1 -0')
     expect(markdown).toContain('| + | start (start_trigger) | added |')
     expect(markdown).toContain('- `E_UNKNOWN_IDENTIFIER` workflow.ts:4: Nothing \\| named x.')
-    expect(markdown).toContain('The live deployment now differs from the draft.')
+    expect(markdown).toContain('Live: version 3, draft has undeployed changes')
   })
 
   it('names variable changes in --summary-file, which no block or connection count shows', async () => {
@@ -1019,7 +1020,11 @@ describe('sim workflows source apply', () => {
         isDeployed: true,
         deployedAt: null,
         warnings: [],
-        activeDeployment: null,
+        activeDeployment: {
+          deploymentVersionId: 'dv-4',
+          version: 4,
+          deployedAt: '2026-11-20T00:00:00Z',
+        } as { deploymentVersionId: string; version: number; deployedAt: string } | null,
         latestDeploymentAttempt: null,
         version: 4,
         lint: null,
@@ -1101,6 +1106,7 @@ describe('sim workflows source apply', () => {
       noop.data.applied = false
       noop.data.diff.noop = true
       noop.data.needsRedeployment = false
+      let attempt: Record<string, unknown> | null = null
       const status = (isDeployed: boolean) => ({
         data: {
           ...deployed.data,
@@ -1111,6 +1117,7 @@ describe('sim workflows source apply', () => {
           activeDeployment: isDeployed
             ? { deploymentVersionId: 'dv-7', version: 7, deployedAt: '2026-11-20T00:00:00Z' }
             : null,
+          latestDeploymentAttempt: attempt,
         },
       })
       let live = true
@@ -1136,6 +1143,27 @@ describe('sim workflows source apply', () => {
         DEPLOY_PATH,
         STATUS_PATH,
       ])
+
+      // A version still activating is about to replace the one that matches: the draft is deployed.
+      live = true
+      attempt = {
+        id: 'op-5',
+        deploymentVersionId: 'dv-5',
+        version: 5,
+        action: 'rollback',
+        status: 'activating',
+        isCurrent: true,
+        readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-11-20T00:00:00Z',
+      }
+      request.mockClear()
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        STATUS_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
     })
 
     it('without --deploy, names the deploy command when the deployed workflow now differs', async () => {
@@ -1151,6 +1179,89 @@ describe('sim workflows source apply', () => {
           command: `sim workflows deploy ${WORKFLOW_ID} --expected-draft-fingerprint sf1:b`,
         },
       })
+    })
+
+    it.each([
+      [null, false, 'not deployed'],
+      [3, false, 'version 3, matches the draft'],
+      [3, true, 'version 3, draft has undeployed changes'],
+    ])(
+      'without --deploy, a workflow live at %s (draft differs: %s) reads as %s',
+      async (deployedVersion, needsRedeployment, live) => {
+        setTerminal(false)
+        const answer = outcome()
+        answer.data.deployedVersion = deployedVersion
+        answer.data.needsRedeployment = needsRedeployment
+        request.mockResolvedValue(answer)
+
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+        expect(stdoutJson()).toMatchObject({ live, deployedVersion, needsRedeployment })
+        vi.mocked(console.log).mockClear()
+        contextMockState.output = 'text'
+        await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+        expect(vi.mocked(console.log).mock.calls[0].join(' ')).toBe(`live\t${live}`)
+      }
+    )
+
+    it('prints no live line against a server that does not report deployedVersion', async () => {
+      setTerminal(false)
+      const answer = outcome()
+      answer.data.needsRedeployment = false
+      Reflect.deleteProperty(answer.data, 'deployedVersion')
+      request.mockResolvedValue(answer)
+      contextMockState.output = 'text'
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes')
+
+      const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+      expect(lines.some((line) => line.startsWith('live\t'))).toBe(false)
+      expect(lines.join('\n')).not.toContain('undefined')
+    })
+
+    it('says the version it deployed is still activating, not that it is live', async () => {
+      setTerminal(false)
+      const activating = {
+        data: {
+          ...deployed.data,
+          activeDeployment: {
+            deploymentVersionId: 'dv-3',
+            version: 3,
+            deployedAt: '2026-11-20T00:00:00Z',
+          },
+          latestDeploymentAttempt: {
+            id: 'op-4',
+            deploymentVersionId: 'dv-4',
+            version: 4,
+            action: 'deploy',
+            status: 'activating',
+            isCurrent: true,
+            readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+            requestedAt: '2026-11-20T00:00:00Z',
+          },
+        },
+      }
+      request.mockImplementation(async (path: string) =>
+        path === DEPLOY_PATH ? activating : path === STATUS_PATH ? liveStatus : outcome()
+      )
+
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+
+      expect(stdoutJson()).toMatchObject({
+        live: 'version 3 still serving; version 4 activating',
+        deployedVersion: 3,
+        // Version 3 serves, and the draft is version 4: the live version is not the draft yet.
+        needsRedeployment: true,
+        next: { command: `sim workflows deployment status ${WORKFLOW_ID}` },
+      })
+
+      vi.mocked(console.log).mockClear()
+      contextMockState.output = 'text'
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      const lines = vi.mocked(console.log).mock.calls.map((call) => call.join(' '))
+      expect(lines[0]).toBe('live\tversion 3 still serving; version 4 activating')
+      // The admitted version is never printed as if it were deployed.
+      expect(lines.some((line) => line.startsWith('deployed\t'))).toBe(false)
     })
 
     it('deploys nothing after a refused apply, and refuses beside --dry-run', async () => {

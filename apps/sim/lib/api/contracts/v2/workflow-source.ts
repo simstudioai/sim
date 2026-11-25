@@ -253,9 +253,19 @@ const applyWorkflowSourceDataSchema = z
         'Block key → id for new blocks whose id was minted rather than taken from the lock.'
       ),
     notes: z.array(z.string()).describe('Non-fatal notes about the write.'),
+    deployedVersion: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .describe(
+        'The live deployment version `needsRedeployment` compares the draft against, or null when the workflow is not deployed.'
+      ),
     needsRedeployment: z
       .boolean()
-      .describe('Whether the draft now differs from the live deployment; apply never deploys.'),
+      .describe(
+        'Whether the draft now differs from the live deployment; apply never deploys. False when nothing is deployed, so read it beside `deployedVersion`.'
+      ),
   })
   .describe('The outcome of applying workflow source.')
 
