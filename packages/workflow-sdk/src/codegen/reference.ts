@@ -6,7 +6,7 @@
  */
 
 import { compareStrings, escapeRegExp } from '@sim/utils/string'
-import type { BlockCatalog, CatalogBuilder } from '@sim/workflow-code'
+import type { BlockCatalog, CatalogBlock, CatalogBuilder } from '@sim/workflow-code'
 import { suggestBuilder } from '@sim/workflow-code'
 import {
   catalogBlock,
@@ -39,7 +39,7 @@ export interface BuilderReference {
    * it differs): `read` changes nothing, `write` may. Absent for a trigger builder and for a block
    * with no `tools.access`.
    */
-  effect?: 'read' | 'write'
+  effect?: CatalogBlock['effect']
   /** An older block version's builder, kept so stored workflows print; write the current one. */
   legacy: boolean
   /** The block type that replaces a legacy block's, and the builders written for it. */

@@ -190,14 +190,8 @@ Never point a tool at `/api/...`, construct an absolute URL back to Sim, declare
 resources. A real external/browser route and an in-process tool may share the same operation, but
 neither calls the other. Follow the full transport and handler rules in the `add-tools` skill.
 
-Every tool declares `effect: 'read' | 'write'`. `read` means the call changes nothing outside Sim:
-no create, update, delete, send, post, trigger, enqueue, consume, or mark-read; no job, run,
-conversation, history item, or other resource left in an account; no contact data revealed for
-credits; no external delivery (usage billing for the call itself does not count). Anything else,
-anything that depends on its params, and anything you are unsure of is `write`. Revealing a
-person's contact data (email, phone) for credits is `write`; company/firmographic lookups and
-verifications that only spend lookup credits are `read`. Classify from the API docs you researched in Step 1; the full rules are in `add-tools` →
-Declaring the effect, and `bun run check:tool-effects` enforces them.
+Every tool declares `effect: 'read' | 'write'`, classified from the API docs you researched in Step 1
+by the rules in `add-tools` → Declaring the effect; `bun run check:tool-effects` enforces them.
 
 **types.ts:**
 ```typescript

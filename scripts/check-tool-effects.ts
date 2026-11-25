@@ -1,15 +1,13 @@
 #!/usr/bin/env bun
 /**
- * Keeps every tool's declared `effect` present and consistent with its HTTP verb.
+ * Keeps every tool's declared `effect` consistent with its HTTP verb. Type-check already requires
+ * every registered tool to declare `'read' | 'write'`.
  *
  * `effect` (`apps/sim/tools/types.ts` `ToolEffect`) is public catalog metadata: `read` promises
  * that running the tool changes nothing outside Sim, and Assistant applies its read policy to it.
  * A `write` mislabelled `read` is the one unsafe mistake, because whoever trusts the label runs a
  * real change. So this audit fails when:
  *
- *   - a registered tool declares no `effect`, or one other than `read` | `write`. The registry is
- *     loaded rather than the source scanned, so tools built by factories and `...spread` aliases
- *     are judged by the value they actually carry;
  *   - a tool's static HTTP verb contradicts its label: GET/HEAD labelled `write`, or
  *     PUT/PATCH/DELETE labelled `read`, or a `read` tool's function-valued verb can return
  *     PUT/PATCH/DELETE. Some are genuine (a GET that reads an event and then writes
@@ -110,7 +108,7 @@ function contradictsVerb(tool: ExecutableToolConfig): string | undefined {
   return undefined
 }
 
-/** Every effect a registered tool fails to declare, and every unjustified verb contradiction. */
+/** Every unjustified verb contradiction, and every stale or unattributable justification. */
 export function findToolEffectViolations(
   tools: Record<string, ExecutableToolConfig>,
   justifications: readonly ToolEffectJustification[]
@@ -119,17 +117,7 @@ export function findToolEffectViolations(
   const violations: ToolEffectViolation[] = []
 
   for (const [toolId, tool] of Object.entries(tools)) {
-    const effect: unknown = tool.effect
-    if (effect !== 'read' && effect !== 'write') {
-      violations.push({
-        toolId,
-        reason:
-          effect === undefined
-            ? 'declares no effect'
-            : `declares effect ${JSON.stringify(effect)}; use 'read' or 'write'`,
-      })
-      continue
-    }
+    const { effect } = tool
     const verb = contradictsVerb(tool)
     if (verb && !justified.has(toolId)) {
       violations.push({
@@ -173,11 +161,10 @@ async function main() {
     justifications.push(...findToolEffectJustifications(rel, readFileSync(file, 'utf8')))
   }
 
-  const registry = tools as Record<string, ExecutableToolConfig>
-  const violations = findToolEffectViolations(registry, justifications)
-  const total = Object.keys(registry).length
+  const violations = findToolEffectViolations(tools, justifications)
+  const total = Object.keys(tools).length
   if (violations.length === 0) {
-    const reads = Object.values(registry).filter((tool) => tool.effect === 'read').length
+    const reads = Object.values(tools).filter((tool) => tool.effect === 'read').length
     console.log(
       `✓ check-tool-effects: ${total} tools declare an effect (${reads} read, ${total - reads} write), ${justifications.length} justified verb exceptions`
     )
@@ -187,13 +174,8 @@ async function main() {
   console.error('✗ check-tool-effects\n')
   for (const { toolId, reason } of violations) console.error(`    ${toolId} — ${reason}`)
   console.error(
-    '\n  `read` means the call changes nothing outside Sim: no create, update, delete, send, post,\n' +
-      '  trigger, enqueue, consume, or mark-read; no job, run, conversation, history item, or other\n' +
-      '  resource left in an account; no contact data revealed for credits; no external delivery.\n' +
-      '  Usage billing for the call itself does not count. Anything else, including an effect that\n' +
-      "  depends on the params, is `write`. Revealing a person's contact data (email, phone) for\n" +
-      '  credits is `write`; company/firmographic lookups and verifications that only spend lookup\n' +
-      '  credits are `read`. When unsure, declare `write`.\n'
+    '\n  Classify by the rules in .agents/skills/add-tools/SKILL.md → Declaring the effect.\n' +
+      '  When unsure, declare `write`.\n'
   )
   process.exit(1)
 }

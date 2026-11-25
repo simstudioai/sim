@@ -75,12 +75,7 @@ import type {
   SailPointSourceItemRef,
 } from '@/tools/sailpoint/types'
 import { SAILPOINT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
-import type {
-  InternalToolConfig,
-  ToolConfig,
-  ToolEffect,
-  ToolParameterItemSchema,
-} from '@/tools/types'
+import type { InternalToolConfig, ToolConfig, ToolParameterItemSchema } from '@/tools/types'
 
 type ToolParams = ToolConfig['params']
 
@@ -205,7 +200,7 @@ interface SailPointDefinition<P extends SailPointCredentials> {
   id: string
   name: string
   description: string
-  effect: ToolEffect
+  effect: ToolConfig['effect']
   params: ToolParams
   input: (params: P) => Record<string, unknown>
   outputs: ToolConfig['outputs']

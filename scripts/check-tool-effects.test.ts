@@ -8,7 +8,7 @@ import {
 
 function httpTool(
   id: string,
-  effect: ToolEffect | undefined,
+  effect: ToolEffect,
   method: HttpMethod | (() => HttpMethod)
 ): ExecutableToolConfig {
   return {
@@ -16,7 +16,7 @@ function httpTool(
     name: id,
     description: id,
     version: '1.0.0',
-    effect: effect as ToolEffect,
+    effect,
     params: {},
     request: { url: 'https://api.example.com', method, headers: () => ({}) },
   }
@@ -40,18 +40,6 @@ const reasons = (
 ) => findToolEffectViolations(tools, justifications).map((v) => `${v.toolId}: ${v.reason}`)
 
 describe('tool effect audit', () => {
-  it('rejects a tool without an effect or with an unknown one', () => {
-    expect(
-      reasons({
-        missing: httpTool('missing', undefined, 'GET'),
-        bogus: httpTool('bogus', 'delete' as ToolEffect, 'GET'),
-      })
-    ).toEqual([
-      expect.stringMatching(/^bogus: declares effect "delete"/),
-      'missing: declares no effect',
-    ])
-  })
-
   it('rejects a static verb that contradicts the label', () => {
     expect(
       reasons({

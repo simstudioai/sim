@@ -55,10 +55,12 @@ export const readOrganizationToolPermissions = defineAuthorizedOrganizationUseCa
                 description: config.description,
                 effect: config.effect,
                 version: config.assistant.version,
-                policy: resolveAssistantToolPolicy(permissions, toolId, {
-                  effect: config.effect,
-                  version: config.assistant.version,
-                }),
+                policy: resolveAssistantToolPolicy(
+                  permissions,
+                  toolId,
+                  config.effect,
+                  config.assistant
+                ),
                 inherited: permissions.overrides[toolId] === undefined,
               },
             ]

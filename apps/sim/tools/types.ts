@@ -236,7 +236,8 @@ export interface ToolParameterItemSchema {
  * Revealing a person's contact data (email, phone) for credits is `write`; company/firmographic
  * lookups and verifications that only spend lookup credits are `read`.
  *
- * Public catalog metadata, audited by `check:tool-effects`.
+ * Public catalog metadata, audited by `check:tool-effects`. Full rules: the `add-tools` skill →
+ * Declaring the effect.
  */
 export type ToolEffect = 'read' | 'write'
 

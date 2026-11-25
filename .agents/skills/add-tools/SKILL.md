@@ -187,9 +187,9 @@ fallback, or caller-controlled `_context` authority.
 
 ## Declaring the effect
 
-Every tool declares `effect: 'read' | 'write'` (required by `ToolConfig`; `bun run check:tool-effects`
-fails a registered tool without one). It is public catalog metadata: Assistant applies its read or
-write policy by it, and `sim blocks get` and `sim workflows source params` show it to agents.
+Every tool declares `effect: 'read' | 'write'` (required by `ToolConfig`, so type-check fails a tool
+without one). It is public catalog metadata: Assistant applies its read or write policy by it, and
+`sim blocks get` and `sim workflows source params` show it to agents.
 Labelling a write `read` is the one unsafe mistake, so classify from the provider's documented
 semantics, never the name alone.
 
@@ -198,25 +198,24 @@ enqueue, consume, or mark-read; no job, run, conversation, history item, or othe
 an account; no contact data revealed for credits; no external delivery. Usage billing for the call
 itself does not count. `write` is anything else.
 
-**Contact reveals:** revealing a person's contact data (email, phone) for credits is `write`;
-company/firmographic lookups and verifications that only spend lookup credits are `read`. An email
-or phone finder, a person enrichment that returns an email or phone, and a domain search that lists
-people's emails are `write` even over GET (carry `// tool-effect:`); a company enrichment, a people
-search that returns no email or phone, and an email verifier stay `read`.
+**Contact reveals:** revealing a person's contact data (email, phone) for credits is `write`: an
+email or phone finder, a person enrichment that returns an email or phone, and a domain search that
+lists people's emails are `write` even over GET (carry `// tool-effect:`). Company/firmographic
+lookups and verifications that only spend lookup credits are `read`: a company enrichment, a people
+search that returns no email or phone, and an email verifier.
 
 - `read`: GET/HEAD reads, and POST endpoints the docs define as search, query, list, get, lookup, or
   verify; LLM, embedding, transcription, TTS, and media-generation calls that leave nothing in the
-  provider account; company/firmographic enrichment and verifications that only spend lookup
-  credits; queries the server enforces as read-only (a read-only transaction or setting, never a
-  client-side screen alone).
+  provider account; queries the server enforces as read-only (a read-only transaction or setting,
+  never a client-side screen alone).
 - `write`: an effect that depends on the params (a `method` param or function-valued
   `request.method` that can pick PUT/PATCH/DELETE or a mutating POST, raw SQL or Cypher the server
   does not restrict to reads, a generic RPC or command); a GET whose `transformResponse` or
   `postProcess` then writes; a read that consumes or acknowledges (a queue receive, mark-as-read);
   media generation, transcription, crawls, exports, and research or agent runs that leave a job,
-  run, asset, or history item in the provider account; a chat that keeps a conversation; a
-  person's email or phone revealed for credits; a reveal or enrichment that creates a resource or
-  delivers to a webhook; anything that saves to the workspace. When unsure, `write`.
+  run, asset, or history item in the provider account; a chat that keeps a conversation; a reveal
+  or enrichment that creates a resource or delivers to a webhook; anything that saves to the
+  workspace. When unsure, `write`.
 - PUT/PATCH/DELETE are `write`. A static GET/HEAD labelled `write`, or PUT/PATCH/DELETE labelled
   `read`, fails the audit unless the `effect` line carries `// tool-effect: <reason>` on one of the
   two lines above it; use it only for a genuine exception such as a GET that writes in `postProcess`.

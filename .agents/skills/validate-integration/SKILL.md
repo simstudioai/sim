@@ -78,14 +78,8 @@ For **every** tool file, check:
 - [ ] Tool `version` is set (`'1.0.0'` or `'2.0.0'` for V2)
 
 ### Effect
-- [ ] Every tool declares `effect`, and the label matches the API docs, not the name: `read` only
-      when the call changes nothing outside Sim (no create, update, delete, send, trigger, consume,
-      or mark-read, and no job, run, conversation, history item, or other resource left in the
-      provider account, and no person's email or phone revealed for credits); a param-dependent
-      effect (method param, raw SQL guarded only by a client-side screen, generic command), a GET
-      whose `transformResponse`/`postProcess` writes, and anything uncertain are `write`;
-      company/firmographic lookups and verifications that only spend lookup credits stay `read`
-      (rules: `add-tools` → Declaring the effect)
+- [ ] Every tool declares `effect`, and the label matches the API docs, not the name (rules:
+      `add-tools` → Declaring the effect)
 - [ ] Any `// tool-effect: <reason>` sits on a genuine verb/label exception, and
       `bun run check:tool-effects` passes
 

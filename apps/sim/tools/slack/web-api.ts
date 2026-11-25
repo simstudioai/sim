@@ -1,12 +1,6 @@
 import { z } from 'zod'
 import { readSlackResponse } from '@/tools/slack/api'
-import type {
-  OAuthConfig,
-  ToolConfig,
-  ToolEffect,
-  ToolOutputProperty,
-  ToolResponse,
-} from '@/tools/types'
+import type { OAuthConfig, ToolConfig, ToolOutputProperty, ToolResponse } from '@/tools/types'
 
 export interface SlackWebApiResponse<Output extends Record<string, unknown>> extends ToolResponse {
   output: Output
@@ -19,7 +13,7 @@ interface SlackWebApiDefinition<
   id: string
   name: string
   description: string
-  effect: ToolEffect
+  effect: ToolConfig['effect']
   assistant?: ToolConfig['assistant']
   method: 'GET' | 'POST'
   endpoint: string
