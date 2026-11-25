@@ -1,17 +1,19 @@
 import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import { formatQuotedNameList } from '@sim/utils/string'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import { isWorkflowBlockProtected, normalizeWorkflowBlockName } from '@sim/workflow-types/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   inlinesRunFiles,
   withholdUnadmittedInlineFiles,
 } from '@/lib/workflows/application/admit-run-files'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { resolveBlockSelector } from '@/lib/workflows/application/block-selector'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import {
+  type DryRunRequest,
+  resolveRunOverrides,
+} from '@/lib/workflows/application/dry-run-overrides'
 import type { ExecuteWorkflowInput } from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { PAUSING_BLOCK_TYPES, runsAnotherWorkflow, WriteStubPolicy } from '@/lib/workflows/dry-run'
 import {
   type ExecuteWorkflowServiceResult,
   executeWorkflowService,
@@ -25,19 +27,11 @@ import {
   resolveTriggerRunOptions,
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
-import { mockOutputRefusal } from '@/executor/utils/mock-output'
-import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
-interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'> {
+interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'>, DryRunRequest {
   input?: unknown
   mode: 'sync' | 'stream' | 'sync-result-stream'
   stopAfterBlockId?: string
-  /** Answer writes with placeholders and return what each would have sent (`run.dry`). */
-  dry?: boolean
-  /** Blocks, by selector, whose writes a dry run sends for real (`run.allowBlocks`). */
-  allowBlocks?: string[]
-  /** Block selector to the output that answers the block in a dry run (`run.mocks`). */
-  mocks?: Record<string, Record<string, unknown>>
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -66,44 +60,6 @@ async function loadManualState(workflowId: string) {
 }
 
 type ManualWorkflowState = Awaited<ReturnType<typeof loadManualState>>
-
-/** At most this many block names are listed when a block selector matches none. */
-const MAX_LISTED_BLOCKS = 25
-
-/** `"name" (id)` for each block of `ids`, at most {@link MAX_LISTED_BLOCKS} of them. */
-function listBlocks(state: ManualWorkflowState, ids: string[]): string {
-  return formatQuotedNameList(
-    ids,
-    MAX_LISTED_BLOCKS,
-    (id) => `"${state.blocks[id]?.name ?? id}" (${id})`
-  )
-}
-
-/**
- * The id of the saved block `selector` names: its id, else the one block whose display name or
- * reference key (the name lowercased, whitespace and dots removed: "Score lead" and `scorelead`)
- * matches it. A selector matching no block, or several, is refused with the candidates, so a
- * caller never has to read block ids out of the stored workflow. `field` names the wire field.
- */
-function resolveBlockSelector(state: ManualWorkflowState, selector: string, field: string): string {
-  if (Object.hasOwn(state.blocks, selector)) return selector
-  const key = normalizeWorkflowBlockName(selector)
-  const matches = Object.keys(state.blocks).filter((id) => {
-    const name = state.blocks[id]?.name
-    return typeof name === 'string' && normalizeWorkflowBlockName(name) === key
-  })
-  if (matches.length === 1) return matches[0]
-  if (matches.length > 1) {
-    throw new OrchestrationError(
-      'validation',
-      `${field} "${selector}" names ${matches.length} blocks: ${listBlocks(state, matches)}. Pass one of their ids.`
-    )
-  }
-  throw new OrchestrationError(
-    'validation',
-    `${field} "${selector}" is not a block in the current saved workflow. Pass a block's id, name or key: ${listBlocks(state, Object.keys(state.blocks))}.`
-  )
-}
 
 /** Blocks a run entering at `entryBlockId` can reach; the executor skips disabled blocks. */
 function reachableFrom(state: ManualWorkflowState, entryBlockId: string): Set<string> {
@@ -140,7 +96,7 @@ function resolveStopAfterBlock(
   entryBlockId: string
 ): string | undefined {
   if (selector === undefined) return undefined
-  const blockId = resolveBlockSelector(state, selector, 'run.stopAfterBlockId')
+  const blockId = resolveBlockSelector(state.blocks, selector, 'run.stopAfterBlockId')
   const block = state.blocks[blockId]
   if (block.enabled === false) {
     throw new OrchestrationError(
@@ -163,82 +119,11 @@ function resolveStopAfterBlock(
   return blockId
 }
 
-/**
- * The dry run a manual run asked for, its allowed and mocked blocks resolved like
- * {@link resolveBlockSelector}. A dry run is logged under the `test` trigger, never as a manual
- * run, and returns its side effects with the result it waits for, so it cannot stream or detach.
- * Mocks need a dry run, so a fixed output reaches a real write only through a block the caller
- * allows. A mock is data ({@link mockOutputRefusal}), and never replaces a locked block, whose
- * configured behaviour only an admin may change.
- */
-function resolveRunOverrides(
-  state: ManualWorkflowState,
-  input: ManualExecutionInput,
-  workflowId: string
-) {
-  if (!input.dry) {
-    if (input.allowBlocks?.length) {
-      throw new OrchestrationError('validation', 'run.allowBlocks requires run.dry')
-    }
-    if (input.mocks && Object.keys(input.mocks).length > 0) {
-      throw new OrchestrationError(
-        'validation',
-        'run.mocks requires run.dry: a mocked block must never steer a run that sends its writes'
-      )
-    }
-    return { triggerType: 'manual' as const }
-  }
-  if (input.mode === 'stream' || input.detachable) {
-    throw new OrchestrationError(
-      'validation',
-      'run.dry returns its side effects with the run result, so it cannot be combined with stream or waitTimeoutSeconds'
-    )
-  }
-  const allowBlockIds = new Set<string>()
-  for (const selector of input.allowBlocks ?? []) {
-    const blockId = resolveBlockSelector(state, selector, 'run.allowBlocks')
-    const blockType = state.blocks[blockId].type
-    if (PAUSING_BLOCK_TYPES.has(blockType)) {
-      throw new OrchestrationError(
-        'validation',
-        `run.allowBlocks "${selector}" is a Human in the loop or Wait block, which a dry run always answers with a placeholder and never pauses on; mock its output with run.mocks to choose it.`
-      )
-    }
-    if (runsAnotherWorkflow(blockType)) {
-      throw new OrchestrationError(
-        'validation',
-        `run.allowBlocks "${selector}" runs another workflow (a Workflow or custom block), whose writes a dry run never sends; mock its output with run.mocks instead.`
-      )
-    }
-    allowBlockIds.add(blockId)
-  }
-  const blockMocks = new Map<string, Record<string, unknown>>()
-  for (const [selector, output] of Object.entries(input.mocks ?? {})) {
-    const blockId = resolveBlockSelector(state, selector, 'run.mocks')
-    if (blockMocks.has(blockId)) {
-      throw new OrchestrationError('validation', `run.mocks names block "${blockId}" twice`)
-    }
-    if (isWorkflowBlockProtected(blockId, state.blocks)) {
-      throw new OrchestrationError(
-        'validation',
-        `run.mocks "${selector}" is a locked block (or inside a locked loop or parallel); its configured behaviour cannot be replaced.`
-      )
-    }
-    const refusal = mockOutputRefusal(`run.mocks "${selector}"`, output)
-    if (refusal) throw new OrchestrationError('validation', refusal)
-    blockMocks.set(blockId, output)
-  }
-  return {
-    triggerType: TEST_TRIGGER,
-    sideEffectPolicy: new WriteStubPolicy({ workflowId, allowBlockIds, blockMocks }),
-  }
-}
-
 function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): string {
   return options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
 }
 
-function executionServiceInput(params: {
+async function executionServiceInput(params: {
   principal: WorkflowExecutionPrincipal
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
@@ -247,7 +132,15 @@ function executionServiceInput(params: {
   stopAfterBlockId: string | undefined
 }) {
   return {
-    ...resolveRunOverrides(params.draftState, params.input, params.context.workflowId),
+    ...(await resolveRunOverrides({
+      principal: params.principal,
+      workspaceId: params.context.workspaceId,
+      workflow: params.context.workflow,
+      blocks: params.draftState.blocks,
+      mode: params.input.mode,
+      detachable: params.input.detachable,
+      request: params.input,
+    })),
     workflowId: params.context.workflowId,
     principal: params.principal,
     userId: requirePrincipalSubjectUserId(params.principal),
@@ -326,7 +219,13 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
     }
 
     const result = await executeWorkflowService({
-      ...executionServiceInput({ principal, context, input, draftState: state, stopAfterBlockId }),
+      ...(await executionServiceInput({
+        principal,
+        context,
+        input,
+        draftState: state,
+        stopAfterBlockId,
+      })),
       input: executionInput,
       triggerBlockId: selected.triggerBlockId,
     })
@@ -339,7 +238,7 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
   resolveContext: resolveContext<ExecuteManualWorkflowFromBlockInput>,
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
     const state = await loadManualState(context.workflowId)
-    const blockId = resolveBlockSelector(state, input.blockId, 'run.entry.blockId')
+    const blockId = resolveBlockSelector(state.blocks, input.blockId, 'run.entry.blockId')
     const stopAfterBlockId = resolveStopAfterBlock(state, input.stopAfterBlockId, blockId)
 
     const sourceSnapshot = await getExecutionStateForWorkflow(
@@ -355,7 +254,13 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
     }
 
     const result = await executeWorkflowService({
-      ...executionServiceInput({ principal, context, input, draftState: state, stopAfterBlockId }),
+      ...(await executionServiceInput({
+        principal,
+        context,
+        input,
+        draftState: state,
+        stopAfterBlockId,
+      })),
       input: input.input,
       runFromBlock: {
         startBlockId: blockId,

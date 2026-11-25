@@ -7523,7 +7523,7 @@ describe('MCP Tool Execution', () => {
     )
     const allowed = new WriteStubPolicy({
       workflowId: 'test-workflow',
-      allowBlockIds: new Set(['agent-1']),
+      allowBlocks: [{ workflowId: 'test-workflow', blockId: 'agent-1', block: 'Agent 1' }],
     })
     await executeTool('mcp-123-delete_file', params, {
       executionContext: createToolExecutionContext({ sideEffects: allowed }),

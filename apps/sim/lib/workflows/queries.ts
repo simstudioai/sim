@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { customBlock, workflow } from '@sim/db/schema'
+import { and, asc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { WorkflowListItem } from '@/lib/api/contracts/workflows'
 import {
   type CursorKey,
@@ -135,6 +135,42 @@ export async function listActiveWorkflowsNamed(workspaceId: string, name: string
       )
     )
     .limit(2)
+}
+
+/** At most this many workflows answer {@link listActiveWorkflowIdsByIdOrName}. */
+const MAX_WORKFLOWS_BY_ID_OR_NAME = 100
+
+/**
+ * Ids of the active workflows of `workspaceId` whose id or exact name is one of `keys`, in one
+ * query, at most {@link MAX_WORKFLOWS_BY_ID_OR_NAME}.
+ */
+export async function listActiveWorkflowIdsByIdOrName(
+  workspaceId: string,
+  keys: readonly string[]
+): Promise<string[]> {
+  if (keys.length === 0) return []
+  const rows = await db
+    .select({ id: workflow.id })
+    .from(workflow)
+    .where(
+      and(
+        eq(workflow.workspaceId, workspaceId),
+        isNull(workflow.archivedAt),
+        or(inArray(workflow.id, [...keys]), inArray(workflow.name, [...keys]))
+      )
+    )
+    .limit(MAX_WORKFLOWS_BY_ID_OR_NAME)
+  return rows.map((row) => row.id)
+}
+
+/** Whether `workflowId` is the source workflow a custom block runs. */
+export async function isCustomBlockSourceWorkflow(workflowId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: customBlock.id })
+    .from(customBlock)
+    .where(eq(customBlock.workflowId, workflowId))
+    .limit(1)
+  return row !== undefined
 }
 
 /** An active workflow's name by id, or null when it is archived or gone. */

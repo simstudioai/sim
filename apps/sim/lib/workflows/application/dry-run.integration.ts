@@ -31,6 +31,7 @@ import {
   organization,
   pausedExecutions,
   permissions,
+  resumeQueue,
   user,
   userStats,
   userTableDefinitions,
@@ -56,7 +57,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { subscriberRuns, session } = vi.hoisted(() => {
+const { subscriberRuns, session, viewer } = vi.hoisted(() => {
   /** Custom blocks are a self-hosted opt-in, read when the config module loads. */
   process.env.CUSTOM_BLOCKS_ENABLED = 'true'
   /** Agents keep durable turn history (rich history and the memory retrieval tool). */
@@ -72,6 +73,22 @@ const { subscriberRuns, session } = vi.hoisted(() => {
         session: { id: string }
       },
     },
+    /** Whether the viewer's permission group hides execution data; off unless a test hides it. */
+    viewer: { hidesTraceSpans: false },
+  }
+})
+
+/** A permission group hiding `logs.trace_spans`, applied when a test sets `viewer.hidesTraceSpans`. */
+vi.mock('@/lib/logs/projection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/logs/projection')>()
+  return {
+    ...actual,
+    resolveLogFieldProjection: async (
+      ...args: Parameters<typeof actual.resolveLogFieldProjection>
+    ) =>
+      viewer.hidesTraceSpans
+        ? { hideTraceSpans: true, hideCostInfo: false }
+        : actual.resolveLogFieldProjection(...args),
   }
 })
 
@@ -114,6 +131,8 @@ import type { PausePoint } from '@/executor/types'
 const ownerId = generateId()
 const organizationId = generateId()
 const workspaceId = generateId()
+/** A second workspace of the same owner, whose workflows a dry run never names. */
+const otherWorkspaceId = generateId()
 const SECRET = `dry-secret-${generateId()}`
 const UNREFERENCED_SECRET = `unreferenced-${generateId()}`
 const SECRET_URL = `http://dry-run.invalid/hook/${generateId()}`
@@ -184,14 +203,18 @@ function condition(name: string, expression: string): BlockState {
   return gate
 }
 
-/** Saves `state` as the draft of a new workflow in the fixture workspace. */
-async function saveWorkflow(state: WorkflowState, name = `Dry run ${generateId()}`) {
+/** Saves `state` as the draft of a new workflow, in the fixture workspace unless told otherwise. */
+async function saveWorkflow(
+  state: WorkflowState,
+  name = `Dry run ${generateId()}`,
+  inWorkspaceId = workspaceId
+) {
   const id = generateId()
   const now = new Date()
   await db.insert(workflow).values({
     id,
     userId: ownerId,
-    workspaceId,
+    workspaceId: inWorkspaceId,
     name,
     lastSynced: now,
     createdAt: now,
@@ -423,6 +446,13 @@ beforeAll(async () => {
     billedAccountUserId: ownerId,
     organizationId,
   })
+  await insertWorkspaceFixture(db, {
+    id: otherWorkspaceId,
+    name: 'Dry run other workspace',
+    ownerId,
+    billedAccountUserId: ownerId,
+    organizationId,
+  })
   await db.insert(permissions).values({
     id: generateId(),
     userId: ownerId,
@@ -453,6 +483,7 @@ beforeAll(async () => {
 afterEach(() => {
   vi.unstubAllGlobals()
   session.current = null
+  viewer.hidesTraceSpans = false
 })
 
 afterAll(async () => {
@@ -463,7 +494,7 @@ afterAll(async () => {
   await db
     .delete(workflowExecutionSnapshots)
     .where(inArray(workflowExecutionSnapshots.workflowId, workflowIds))
-  await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
+  await deleteWorkspaceFixture(db, inArray(workspace.id, [workspaceId, otherWorkspaceId]))
   await db.delete(organization).where(eq(organization.id, organizationId))
   await db.delete(user).where(eq(user.id, ownerId))
   await closeRedisConnection()
@@ -1923,6 +1954,25 @@ describe('a dry run’s mocks', () => {
     expect(await tableRows(tableId)).toEqual([])
   })
 
+  it('cannot hold a large-value reference, which would read a value the run was never granted', async () => {
+    const { parentId } = await parentFixture()
+    const ref = {
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_abcdefghijkl',
+      kind: 'array',
+      size: 1,
+    }
+
+    await expect(
+      run(parentId, { dry: true, mocks: { lookup: { rows: [], page: { rows: ref } } } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('holds a large-value reference'),
+    })
+    expect(await logTriggers(parentId)).toEqual([])
+  })
+
   it('cannot replace a locked block', async () => {
     const tableId = await createTable()
     const lookup = queryLeads('lookup', tableId)
@@ -2321,5 +2371,506 @@ return res.headers.get('x-sim-dry-run')`,
       ['header', 'function_execute', true],
       ['fetch', 'http_request', true],
     ])
+  })
+})
+
+/** Start → a Workflow block calling `childId`. */
+function callerOf(childId: string) {
+  return graph(
+    [block('start', 'start_trigger'), block('call', 'workflow', { workflowId: childId })],
+    [['start', 'call']]
+  ).state
+}
+
+/** Start → lookup (read) → save, a table write whose note holds `lookup`'s total count. */
+function lookupThenSave(tableId: string, email: string) {
+  return graph(
+    [
+      block('start', 'start_trigger'),
+      queryLeads('lookup', tableId),
+      block('save', 'table', {
+        operation: 'upsert_row',
+        tableSelector: tableId,
+        data: JSON.stringify({ email, note: 'count <lookup.totalCount>' }),
+      }),
+    ],
+    [
+      ['start', 'lookup'],
+      ['lookup', 'save'],
+    ]
+  )
+}
+
+describe('a dry run’s overrides of a child workflow', () => {
+  it('sends a child block’s writes when named <workflow>.<block>, by name or id, and records it', async () => {
+    const tableId = await createTable()
+    const childName = `Child ${generateId()}`
+    const child = lookupThenSave(tableId, 'child@b.co')
+    const childId = await saveWorkflow(child.state, childName)
+    const parentId = await saveWorkflow(callerOf(childId))
+
+    const byName = await run(parentId, { dry: true, allowBlocks: [`${childName}.save`] })
+
+    expect(byName.status, JSON.stringify(byName.error)).toBe('completed')
+    expect(await tableRows(tableId)).toEqual([expect.stringContaining('child@b.co')])
+    expect(byName.sideEffects?.allowed).toEqual([
+      { workflowId: childId, blockId: child.idOf('save'), block: 'save', tool: 'table_upsert_row' },
+    ])
+    expect(byName.sideEffects?.unused).toEqual([])
+    const recorded = {
+      allowBlocks: [],
+      mockedBlocks: [],
+      childAllowBlocks: [{ workflowId: childId, blockId: child.idOf('save') }],
+    }
+    expect(byName.dryRun).toEqual(recorded)
+
+    const byId = await run(parentId, {
+      dry: true,
+      allowBlocks: [`${childId}.${child.idOf('save')}`],
+    })
+    expect(byId.sideEffects?.allowed.map((entry) => entry.blockId)).toEqual([child.idOf('save')])
+    expect(byId.dryRun).toEqual(recorded)
+
+    const doubleDot = await run(parentId, { dry: true, allowBlocks: [`${childName}..save`] })
+    expect(doubleDot.dryRun).toEqual(recorded)
+  })
+
+  it('answers a grandchild’s block with a mock, at whatever depth it runs', async () => {
+    const tableId = await createTable()
+    const grandchildName = `Grandchild ${generateId()}`
+    const grandchild = lookupThenSave(tableId, 'grand@b.co')
+    const grandchildId = await saveWorkflow(grandchild.state, grandchildName)
+    const childId = await saveWorkflow(callerOf(grandchildId))
+    const parentId = await saveWorkflow(callerOf(childId))
+
+    const result = await run(parentId, {
+      dry: true,
+      mocks: { [`${grandchildName}.lookup`]: { rows: [], rowCount: 0, totalCount: 99 } },
+    })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    const [save] = result.sideEffects?.stubbed ?? []
+    expect(save).toMatchObject({ workflowId: grandchildId, block: 'save' })
+    expect(save.request).toMatchObject({ data: { email: 'grand@b.co', note: 'count 99' } })
+    expect(result.dryRun).toEqual({
+      allowBlocks: [],
+      mockedBlocks: [],
+      childMockedBlocks: [{ workflowId: grandchildId, blockId: grandchild.idOf('lookup') }],
+    })
+    expect(await tableRows(tableId)).toEqual([])
+  })
+
+  it('cannot replace a child’s locked block, or any block of a locked child workflow', async () => {
+    const tableId = await createTable()
+    const lockedBlock = lookupThenSave(tableId, 'a@b.co')
+    lockedBlock.state.blocks[lockedBlock.idOf('lookup')].locked = true
+    const childId = await saveWorkflow(lockedBlock.state)
+    const lockedWorkflowId = await saveWorkflow(lookupThenSave(tableId, 'b@b.co').state)
+    await db.update(workflow).set({ locked: true }).where(eq(workflow.id, lockedWorkflowId))
+    const parentId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('first', 'workflow', { workflowId: childId }),
+          block('second', 'workflow', { workflowId: lockedWorkflowId }),
+        ],
+        [
+          ['start', 'first'],
+          ['first', 'second'],
+        ]
+      ).state
+    )
+    const mock = { rows: [], rowCount: 0, totalCount: 99 }
+
+    await expect(
+      run(parentId, { dry: true, mocks: { [`${childId}.lookup`]: mock } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('locked block'),
+    })
+    await expect(
+      run(parentId, { dry: true, mocks: { [`${lockedWorkflowId}.lookup`]: mock } })
+    ).rejects.toMatchObject({
+      code: 'locked',
+      message: expect.stringContaining('Workflow is locked'),
+    })
+    expect(await logTriggers(parentId)).toEqual([])
+  })
+
+  it('never names a workflow of another workspace, saying no more than of one that does not exist', async () => {
+    const tableId = await createTable()
+    const elsewhere = lookupThenSave(tableId, 'x@b.co')
+    const elsewhereId = await saveWorkflow(
+      elsewhere.state,
+      `Elsewhere ${generateId()}`,
+      otherWorkspaceId
+    )
+    const parentId = await saveWorkflow(callerOf(elsewhereId))
+    const missingId = generateId()
+
+    const refusal = async (selector: string) =>
+      run(parentId, { dry: true, allowBlocks: [selector] }).then(
+        () => 'ran',
+        (error: OrchestrationError) => {
+          expect(error.code).toBe('validation')
+          return error.message.replace(selector, '<selector>')
+        }
+      )
+
+    const otherWorkspace = await refusal(`${elsewhereId}.save`)
+    expect(otherWorkspace).toEqual(await refusal(`${missingId}.save`))
+    expect(otherWorkspace).not.toContain(elsewhereId)
+    expect(await tableRows(tableId)).toEqual([])
+  })
+
+  it('refuses a block that never runs as itself: a loop, a parallel, a disabled block', async () => {
+    const tableId = await createTable()
+    const repeat = block('repeat', 'loop')
+    repeat.data = { loopType: 'for', count: 2 }
+    const fanOut = block('fanout', 'parallel')
+    fanOut.data = { parallelType: 'count', count: 2 }
+    const off = upsertLead('off', tableId, 'a@b.co')
+    off.enabled = false
+    const outer = block('outer', 'loop')
+    outer.data = { loopType: 'for', count: 2 }
+    outer.enabled = false
+    const inner = block('inner', 'loop')
+    inner.data = { loopType: 'for', count: 2, parentId: outer.id, extent: 'parent' }
+    const deep = upsertLead('deep', tableId, 'd@b.co')
+    deep.data = { parentId: inner.id, extent: 'parent' }
+    const workflowId = await saveWorkflow(
+      graph(
+        [block('start', 'start_trigger'), repeat, fanOut, off, outer, inner, deep],
+        [['start', 'repeat']]
+      ).state
+    )
+
+    for (const selector of ['repeat', 'fanout']) {
+      await expect(run(workflowId, { dry: true, allowBlocks: [selector] })).rejects.toMatchObject({
+        ...validationError,
+        message: expect.stringContaining('is a loop or parallel'),
+      })
+      await expect(
+        run(workflowId, { dry: true, mocks: { [selector]: { results: [] } } })
+      ).rejects.toMatchObject({
+        ...validationError,
+        message: expect.stringContaining('is a loop or parallel'),
+      })
+    }
+    for (const selector of ['off', 'deep']) {
+      await expect(run(workflowId, { dry: true, allowBlocks: [selector] })).rejects.toMatchObject({
+        ...validationError,
+        message: expect.stringContaining('is disabled'),
+      })
+    }
+    expect(await logTriggers(workflowId)).toEqual([])
+  })
+
+  it('reports allowed and mocked blocks the run never reached, and mock fields a block does not declare', async () => {
+    const tableId = await createTable()
+    const gate = condition('gate', 'false')
+    const fixture = graph(
+      [
+        block('start', 'start_trigger'),
+        queryLeads('lookup', tableId),
+        gate,
+        upsertLead('save', tableId, 'a@b.co'),
+        queryLeads('recheck', tableId),
+      ],
+      [
+        ['start', 'lookup'],
+        ['lookup', 'gate'],
+        ['gate', 'save', `condition-${gate.id}-if`],
+        ['gate', 'recheck', `condition-${gate.id}-if`],
+      ]
+    )
+    const workflowId = await saveWorkflow(fixture.state)
+
+    const result = await run(workflowId, {
+      dry: true,
+      allowBlocks: ['save'],
+      mocks: {
+        lookup: { rows: [], totalCuont: 3 },
+        recheck: { rows: [], totalCount: 0 },
+      },
+    })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(result.sideEffects?.unused).toEqual([
+      { workflowId, blockId: fixture.idOf('save'), block: 'save', override: 'allow' },
+      { workflowId, blockId: fixture.idOf('recheck'), block: 'recheck', override: 'mock' },
+    ])
+    expect(result.sideEffects?.undeclaredMockFields).toEqual([
+      { workflowId, blockId: fixture.idOf('lookup'), block: 'lookup', fields: ['totalCuont'] },
+    ])
+  })
+})
+
+describe('a dry run’s mocks from an earlier run', () => {
+  it('answers a block with the output it recorded, without what only its handler sets', async () => {
+    const fixture = graph(
+      [block('start', 'start_trigger'), agent('assistant', {})],
+      [['start', 'assistant']]
+    )
+    const workflowId = await saveWorkflow(fixture.state)
+    const source = await runWithModel(workflowId, 0)
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+    model.requests = []
+
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: source.executionId, blocks: ['assistant'] },
+      selectedOutputs: ['assistant'],
+    })
+
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
+    expect(model.requests).toEqual([])
+    const output = toRecord(replayed.blockOutputs?.assistant)
+    expect(output.content).toBe('Done')
+    for (const field of ['cost', 'tokens', 'model', 'providerTiming']) {
+      expect(output).not.toHaveProperty(field)
+    }
+    expect(replayed.dryRun).toEqual({
+      allowBlocks: [],
+      mockedBlocks: [],
+      mocksFrom: { runId: source.executionId, blockIds: [fixture.idOf('assistant')] },
+    })
+    expect(replayed.sideEffects?.unused).toEqual([])
+    expect(replayed.sideEffects?.droppedMockFields).toEqual([
+      {
+        workflowId,
+        blockId: fixture.idOf('assistant'),
+        block: 'assistant',
+        fields: expect.arrayContaining(['model', 'tokens', 'cost']),
+      },
+    ])
+  })
+
+  it('refuses a block the earlier run did not execute, and a run that is not this workflow’s', async () => {
+    const tableId = await createTable()
+    const gate = condition('gate', 'false')
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          queryLeads('lookup', tableId),
+          gate,
+          upsertLead('save', tableId, 'a@b.co'),
+        ],
+        [
+          ['start', 'lookup'],
+          ['lookup', 'gate'],
+          ['gate', 'save', `condition-${gate.id}-if`],
+        ]
+      ).state
+    )
+    const source = await run(workflowId, { dry: true })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+    const otherRun = await run(await saveWorkflow(lookupThenSave(tableId, 'b@b.co').state), {
+      dry: true,
+    })
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['save'] } })
+    ).rejects.toMatchObject({ ...validationError, message: expect.stringContaining('did not run') })
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: otherRun.executionId, blocks: ['lookup'] } })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      run(workflowId, { mocksFrom: { runId: source.executionId, blocks: ['lookup'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('requires run.dry'),
+    })
+  })
+
+  it('cannot be named twice, by a mock and by the earlier run', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(lookupThenSave(tableId, 'a@b.co').state)
+    const source = await run(workflowId, { dry: true })
+
+    await expect(
+      run(workflowId, {
+        dry: true,
+        mocks: { lookup: { rows: [] } },
+        mocksFrom: { runId: source.executionId, blocks: ['Lookup'] },
+      })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('run.mocks "lookup" and run.mocksFrom.blocks "Lookup"'),
+    })
+  })
+})
+
+/** POSTs a run to the v2 execute route as the fixture API key, answering its status and body. */
+async function postRun(workflowId: string, runSelection: Record<string, unknown>) {
+  const response = await v2Execute(
+    new NextRequest(`http://localhost:3000/api/v2/workflows/${workflowId}/execute`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': API_KEY,
+        'x-forwarded-for': '127.0.0.1',
+      },
+      body: JSON.stringify({ input: {}, run: runSelection }),
+    }),
+    { params: Promise.resolve({ workflowId }) }
+  )
+  return { status: response.status, body: (await response.json()) as Record<string, unknown> }
+}
+
+describe('a dry run’s block selectors', () => {
+  it('read a dotted selector as <workflow>.<block> unless a block of this workflow is named so exactly', async () => {
+    const tableId = await createTable()
+    const childName = `Slack ${generateId()}`
+    const child = graph(
+      [block('start', 'start_trigger'), upsertLead('Send', tableId, 'child@b.co')],
+      [['start', 'Send']]
+    )
+    const childId = await saveWorkflow(child.state, childName)
+    const parent = graph(
+      [
+        block('start', 'start_trigger'),
+        upsertLead(`${childName} Send`, tableId, 'parent@b.co'),
+        block('call', 'workflow', { workflowId: childId }),
+      ],
+      [
+        ['start', `${childName} Send`],
+        [`${childName} Send`, 'call'],
+      ]
+    )
+    const parentId = await saveWorkflow(parent.state)
+
+    const result = await run(parentId, { dry: true, allowBlocks: [`${childName}.Send`] })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(result.sideEffects?.allowed.map((entry) => [entry.workflowId, entry.blockId])).toEqual([
+      [childId, child.idOf('Send')],
+    ])
+    expect(await tableRows(tableId)).toEqual([expect.stringContaining('child@b.co')])
+  })
+
+  it('are at most 256 characters, so a selector cannot fan out into thousands of lookups', async () => {
+    const { parentId } = await parentFixture()
+    const long = `${'a.'.repeat(128)}save`
+
+    for (const selection of [
+      { allowBlocks: [long] },
+      { mocks: { [long]: { rows: [] } } },
+      { mocksFrom: { runId: generateId(), blocks: [long] } },
+    ]) {
+      const { status, body } = await postRun(parentId, {
+        source: 'manual',
+        dry: true,
+        ...selection,
+      })
+      expect(status, JSON.stringify(body)).toBe(400)
+      expect(JSON.stringify(body)).toContain('at most 256 characters')
+    }
+    expect(await logTriggers(parentId)).toEqual([])
+  })
+})
+
+describe('a dry run’s mocks from an earlier run, read as that run shows them', () => {
+  it('replay a block’s output redacted, never the run secret it resolved', async () => {
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('reveal', 'function', {
+            language: 'javascript',
+            code: 'return { key: "{{DRY_SECRET}}" }',
+          }),
+        ],
+        [['start', 'reveal']]
+      ).state
+    )
+    const source = await run(workflowId, { dry: true })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: source.executionId, blocks: ['reveal'] },
+      selectedOutputs: ['reveal'],
+    })
+
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
+    expect(JSON.stringify(replayed.blockOutputs?.reveal)).toContain('key')
+    expect(JSON.stringify(replayed.blockOutputs)).not.toContain(SECRET)
+  })
+
+  it('refuse a block a test run answered with a placeholder, but read one it mocked', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(lookupThenSave(tableId, 'a@b.co').state)
+    const source = await run(workflowId, {
+      dry: true,
+      mocks: { lookup: { rows: [], rowCount: 0, totalCount: 7 } },
+    })
+    expect(source.status, JSON.stringify(source.error)).toBe('completed')
+
+    await expect(
+      run(workflowId, { dry: true, mocksFrom: { runId: source.executionId, blocks: ['save'] } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('answered this block with a placeholder'),
+    })
+    const replayed = await run(workflowId, {
+      dry: true,
+      mocksFrom: { runId: source.executionId, blocks: ['lookup'] },
+    })
+    expect(replayed.status, JSON.stringify(replayed.error)).toBe('completed')
+    expect(replayed.sideEffects?.stubbed[0]?.request).toMatchObject({ data: { note: 'count 7' } })
+  })
+
+  it('are refused while the run is running, when its outputs are hidden, and before it has any', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(lookupThenSave(tableId, 'a@b.co').state)
+    const source = await run(workflowId, { dry: true })
+    const mocksFrom = (runId: string) => ({
+      dry: true,
+      mocksFrom: { runId, blocks: ['lookup'] },
+    })
+
+    viewer.hidesTraceSpans = true
+    await expect(run(workflowId, mocksFrom(source.executionId))).rejects.toMatchObject({
+      code: 'forbidden',
+      message: expect.stringContaining('permission group'),
+    })
+    viewer.hidesTraceSpans = false
+
+    const pausedId = generateId()
+    const attemptId = generateId()
+    await db.insert(pausedExecutions).values({
+      id: pausedId,
+      workflowId,
+      executionId: source.executionId,
+      executionSnapshot: {},
+      pausePoints: [],
+      totalPauseCount: 1,
+      status: 'resumed',
+    })
+    await db.insert(resumeQueue).values({
+      id: generateId(),
+      pausedExecutionId: pausedId,
+      parentExecutionId: source.executionId,
+      newExecutionId: attemptId,
+      contextId: 'context',
+      status: 'failed',
+      completedAt: new Date(),
+      failureReason: 'Resume execution failed',
+    })
+    await expect(run(workflowId, mocksFrom(attemptId))).rejects.toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('no recorded block outputs yet'),
+    })
+
+    await db
+      .update(workflowExecutionLogs)
+      .set({ status: 'running' })
+      .where(eq(workflowExecutionLogs.executionId, source.executionId))
+    await expect(run(workflowId, mocksFrom(source.executionId))).rejects.toMatchObject({
+      code: 'conflict',
+      message: expect.stringContaining('is still running'),
+    })
   })
 })

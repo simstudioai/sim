@@ -197,6 +197,8 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         failedBlock,
         rerunFromBlockId,
         dryRun,
+        /** Whether the viewer's group withheld `blockOutputs` and `finalOutput`. */
+        outputsHidden: projection.hideTraceSpans,
       }
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {

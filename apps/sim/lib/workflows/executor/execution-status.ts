@@ -270,8 +270,8 @@ export interface ProjectedWorkflowExecutionStatus {
    */
   failedBlock: FailedTraceBlock | null
   /**
-   * A failed dry run's allowed and mocked blocks, which a rerun of it names again; null for any
-   * other run, or when the viewer's group withholds execution data.
+   * A dry run's allowed and mocked blocks, whatever its status; null for any other run, or when
+   * the viewer's group withholds execution data.
    *
    * permission-group-enforced: logs.trace_spans
    */
@@ -373,7 +373,7 @@ interface ResolvedExecutionStatus {
   pausePoints: unknown
   /** The failing block the recorded trace names, when the answered `error` is the run's own. */
   failedBlock: FailedTraceBlock | null
-  /** A failed dry run's allowed and mocked blocks, as its log's trigger recorded them. */
+  /** A dry run's allowed and mocked blocks, as its log's trigger recorded them. */
   dryRun: DryRunOptions | null
 }
 
@@ -630,8 +630,7 @@ async function readWorkflowExecutionStatus(
     stateExecutionId: executionId,
     pausePoints: paused ? pausedRow?.pausePoints : null,
     failedBlock: error ? findFailedTraceBlock(executionData?.traceSpans, error) : null,
-    dryRun:
-      status === 'failed' && logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
+    dryRun: logRow.trigger === TEST_TRIGGER ? readDryRun(executionData) : null,
   }
 }
 

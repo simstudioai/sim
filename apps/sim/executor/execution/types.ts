@@ -320,10 +320,22 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
-/** A dry run's allowed and mocked blocks of the workflow it started, by id; never a mock's output. */
+/** A block of a child workflow a dry run names. */
+interface DryRunChildBlock {
+  workflowId: string
+  blockId: string
+}
+
+/** A dry run's allowed and mocked blocks, by id; never a mock's output. */
 export interface DryRunOptions {
+  /** Blocks of the workflow it started whose writes it sent. */
   allowBlocks: string[]
+  /** Blocks of the workflow it started answered with outputs the caller passed. */
   mockedBlocks: string[]
+  childAllowBlocks?: DryRunChildBlock[]
+  childMockedBlocks?: DryRunChildBlock[]
+  /** Blocks of the workflow it started answered with their outputs in another run. */
+  mocksFrom?: { runId: string; blockIds: string[] }
 }
 
 /** Where a call that may change state outside the run was made: a block of one executing workflow. */

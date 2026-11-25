@@ -66,6 +66,7 @@ type WorkflowRunSelection =
       dry?: true
       allowBlocks?: string[]
       mocks?: Record<string, Record<string, unknown>>
+      mocksFrom?: { runId: string; blocks: string[] }
     }
 
 /** The flags that run the saved draft, which a pinned deployment version never runs. */
@@ -79,6 +80,7 @@ const DRAFT_RUN_FLAGS = [
   ['sourceRun', '--source-run'],
   ['allow', '--allow'],
   ['mock', '--mock'],
+  ['mockFrom', '--mock-from'],
 ] as const
 
 /**
@@ -105,18 +107,45 @@ function pinnedDeployment(
   return { source: 'deployment', version }
 }
 
-/** `--mock <block>=<json|@file>` values as the block selector each names and its output object. */
-async function readBlockMocks(values: string[]): Promise<Record<string, Record<string, unknown>>> {
+/**
+ * `--mock <block>=<json|@file>` values as the block selector each names and its output object, and
+ * the blocks of each bare `--mock <block>`, which `--mock-from <runId>` answers with the output
+ * that run recorded.
+ */
+async function readBlockMocks(
+  values: string[],
+  mockFrom: string | undefined
+): Promise<{ mocks: Record<string, Record<string, unknown>>; recorded: string[] }> {
   const mocks: Record<string, Record<string, unknown>> = {}
+  const recorded: string[] = []
   for (const value of values) {
     const separator = value.indexOf('=')
-    const block = separator > 0 ? value.slice(0, separator).trim() : ''
+    if (separator === -1) {
+      const block = value.trim()
+      if (!block) throw new SimApiError('--mock requires a block id, name or key', 0)
+      if (mockFrom === undefined) {
+        throw new SimApiError(
+          `--mock ${block} names no output: pass <block>=<json|@file>, or add --mock-from <runId> to answer it with the output that run recorded`,
+          0
+        )
+      }
+      if (recorded.includes(block)) throw new SimApiError(`--mock names ${block} twice`, 0)
+      recorded.push(block)
+      continue
+    }
+    const block = value.slice(0, separator).trim()
     if (!block) {
       throw new SimApiError(`--mock "${value}" must be <block>=<json|@file>`, 0)
     }
     // A JSON object cannot carry `__proto__` as a key the server reads: name the block by its id.
     if (block === '__proto__') {
       throw new SimApiError('--mock cannot name a block __proto__; name it by its block id', 0)
+    }
+    if (value.slice(separator + 1).trim() === '<json>') {
+      throw new SimApiError(
+        `--mock ${block}=<json>: replace <json> with the block's output (next cannot repeat a passed mock)`,
+        0
+      )
     }
     const source = await readArgumentSource(value.slice(separator + 1), 'mock')
     let output: unknown
@@ -134,7 +163,13 @@ async function readBlockMocks(values: string[]): Promise<Record<string, Record<s
     if (Object.hasOwn(mocks, block)) throw new SimApiError(`--mock names ${block} twice`, 0)
     mocks[block] = output
   }
-  return mocks
+  if (mockFrom !== undefined && recorded.length === 0) {
+    throw new SimApiError(
+      '--mock-from answers the blocks named by a bare --mock <block>; name at least one',
+      0
+    )
+  }
+  return { mocks, recorded }
 }
 
 /** Projects friendly CLI flags into the API's strict nested run selector. */
@@ -149,6 +184,7 @@ async function resolveWorkflowRunSelection(
   const dry = flags.dry === true
   const allowBlocks = toArray<string>(flags.allow)
   const mockValues = toArray<string>(flags.mock)
+  const mockFrom = typeof flags.mockFrom === 'string' ? flags.mockFrom : undefined
   /** These flags only apply to the draft, so each implies `--manual`. */
   const manual =
     flags.manual === true ||
@@ -162,11 +198,14 @@ async function resolveWorkflowRunSelection(
   if (allowBlocks.length > 0 && !dry) {
     throw new SimApiError("--allow sends one block's writes during a dry run; add --dry", 0)
   }
-  if (mockValues.length > 0 && !dry) {
+  if ((mockValues.length > 0 || mockFrom !== undefined) && !dry) {
     throw new SimApiError(
-      '--mock answers a block during a dry run, so its output never drives real writes; add --dry',
+      `${mockFrom !== undefined ? '--mock-from' : '--mock'} answers a block during a dry run, so its output never drives real writes; add --dry`,
       0
     )
+  }
+  if (mockFrom !== undefined && mockFrom.trim() === '') {
+    throw new SimApiError('--mock-from requires a run id', 0)
   }
   if (allowBlocks.some((block) => block.trim() === '')) {
     throw new SimApiError('--allow requires a block id, name or key', 0)
@@ -206,12 +245,13 @@ async function resolveWorkflowRunSelection(
     throw new SimApiError('--stop-after requires a block id, name or key', 0)
   }
 
-  const mocks = await readBlockMocks(mockValues)
+  const { mocks, recorded } = await readBlockMocks(mockValues, mockFrom)
   const options = {
     ...(stopAfter !== undefined ? { stopAfterBlockId: stopAfter } : {}),
     ...(dry ? { dry: true as const } : {}),
     ...(allowBlocks.length > 0 ? { allowBlocks } : {}),
-    ...(mockValues.length > 0 ? { mocks } : {}),
+    ...(Object.keys(mocks).length > 0 ? { mocks } : {}),
+    ...(mockFrom !== undefined ? { mocksFrom: { runId: mockFrom, blocks: recorded } } : {}),
   }
   if (fromBlock && sourceRun) {
     return {
@@ -237,8 +277,9 @@ async function resolveWorkflowRunSelection(
  * A dry run's side effects in a few lines on stderr, for the human formats: each call that was
  * not sent (a read that depends on a stubbed write marked as such, and an MCP call its server
  * declares read-only with how to send it), sent because its block was allowed, or code in a remote
- * sandbox the run cannot see, and a note for an allowed block whose writes all stayed stubbed (an
- * Agent's call to a custom block). The request payloads are in the result itself
+ * sandbox the run cannot see, and notes for an allowed block whose writes all stayed stubbed (an
+ * Agent's call to a custom block), an allowed or mocked block the run never reached, and a mock
+ * setting fields its block does not declare. The request payloads are in the result itself
  * (`--output json`).
  */
 function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
@@ -282,6 +323,23 @@ function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
     if (!held) continue
     lines.push(
       `  note       ${safeOneLine(String(held.block))} was allowed but sent nothing: allowing an Agent sends only its own tool calls, not a workflow or custom block it calls`
+    )
+  }
+  for (const entry of list('unused')) {
+    lines.push(
+      `  note       ${safeOneLine(String(entry.block))} was ${entry.override === 'mock' ? 'mocked' : 'allowed'} but never ran: check the branch, the entry block, or the workflow you named`
+    )
+  }
+  for (const entry of list('undeclaredMockFields')) {
+    const fields = toArray(entry.fields).map(String).join(', ')
+    lines.push(
+      `  note       mock of ${safeOneLine(String(entry.block))} sets ${safeOneLine(fields)}, which the block does not declare; a block reading them gets nothing`
+    )
+  }
+  for (const entry of list('droppedMockFields')) {
+    const fields = toArray(entry.fields).map(String).join(', ')
+    lines.push(
+      `  note       mock of ${safeOneLine(String(entry.block))} from --mock-from left out ${safeOneLine(fields)}, which only a block sets; a block reading them gets nothing`
     )
   }
   lines.push('Request payloads: sideEffects in --output json')
@@ -810,10 +868,16 @@ Human in the loop and Wait blocks are answered whole, so the run never pauses. A
 memory but write none, and the run raises no workspace event. --allow <block> sends that block's
 writes (a Function's fetches included) for real (use a test resource); allowing an Agent sends
 only its own tool calls, not a workflow or custom block it calls. --mock <block>=<json> answers a
-block with fixed output, to steer a branch; a locked block cannot be mocked, and a mock is data,
-so it cannot set a field the run's execution, trace or billing reads (such as cost, tokens, model
-or a field starting with _). A dry run is the --source-run only of another dry run, and is never
-resumed.
+block with fixed output, to steer a branch; a locked block, or one of a locked workflow or folder,
+cannot be mocked, and a mock is data, so it cannot set a field the run's execution, trace or
+billing reads (such as cost, tokens, model or a field starting with _). --mock-from <runId> with a
+bare --mock <block> answers that block with the output it recorded in that run of this workflow
+(not a block a test run answered with a placeholder); fields only a block sets, such as cost or
+model, are left out and noted. --allow and --mock also name a block of a workflow this one calls
+as <workflow>.<block> (the workflow's id or name); the entry applies wherever that workflow runs,
+at every depth. Blocks for --from-block, --stop-after and a bare --mock with --mock-from are this
+workflow's only. Blocks never reached, and mock fields a block does not declare, are noted. A dry
+run is the --source-run only of another dry run, and is never resumed.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:
@@ -822,10 +886,10 @@ instead: success and output.
 
 A run that failed in a block has next: the command that reruns the saved draft from that block
 (or from the outermost loop or parallel holding it) with this run as --source-run, so after a fix
-only that block and those after it run again; a dry run's keeps --dry and --allow. The run records
-only which blocks were mocked, so pass each --mock again; its log shows a mocked block's output
-like any other. Add --stop-after <block> to stop after a block;
-naming the block next starts from reruns only it.
+only that block and those after it run again; a dry run's keeps --dry and --allow, and reads its
+mocks again with --mock-from (this run, for mocks you passed). A mock of a child's block, or one
+passed beside --mock-from, comes back as --mock <block>=<json>: replace <json> with the output.
+Add --stop-after <block> to stop after a block; naming the block next starts from reruns only it.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
 first, then the error on stderr), or the command failed; ${STILL_RUNNING_EXIT_CODE} still running when --wait-timeout
@@ -865,13 +929,17 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--allow <block>',
-      "Send this block's writes for real during a --dry run (its id, display name or key); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable",
+      "Send this block's writes for real during a --dry run (its id, display name or key, or <workflow>.<block> for a workflow it calls); for an Agent, only its own tool calls, not a workflow or custom block it calls; repeatable",
       collectRepeated
     )
     .option(
       '--mock <block>=<json|@file>',
-      'Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key), to steer a branch or give a stubbed write a realistic result. Not a locked block; data only, so no cost, tokens, model or other field the run’s trace or billing reads, and no field starting with _. The run records only which blocks were mocked, so a rerun passes it again (its log shows the output like any other block’s); repeatable',
+      'Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key, or <workflow>.<block> for a workflow it calls), to steer a branch or give a stubbed write a realistic result; a bare --mock <block> takes its output from --mock-from. Not a locked block, or one of a locked workflow or folder; data only, so no cost, tokens, model or other field the run’s trace or billing reads, and no field starting with _. The run records only which blocks were mocked, not the outputs (its log shows each like any other block’s output), so a rerun reads them again with --mock-from; repeatable',
       collectRepeated
+    )
+    .option(
+      '--mock-from <runId>',
+      "Answer each block a bare --mock <block> names (this workflow's blocks only) with the output it recorded in this earlier run of the workflow, redacted as the run shows it; fields only a block sets, such as cost or model, are left out (requires --dry)"
     )
     .option(
       '--trigger <blockId>',
