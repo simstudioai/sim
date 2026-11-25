@@ -2181,8 +2181,11 @@ export const VercelBlock: BlockConfig = {
     },
     events: {
       type: 'array',
-      description: 'Deployment build log events',
-      condition: { field: 'operation', value: 'get_deployment_events' },
+      description: 'Deployment build log events, or the events a webhook subscribes to',
+      condition: {
+        field: 'operation',
+        value: ['get_deployment_events', 'create_webhook', 'get_webhook'],
+      },
     },
     files: {
       type: 'array',
@@ -2209,10 +2212,16 @@ export const VercelBlock: BlockConfig = {
     },
     url: {
       type: 'string',
-      description: 'Deployment URL',
+      description: 'Deployment or webhook URL',
       condition: {
         field: 'operation',
-        value: ['get_deployment', 'create_deployment', 'cancel_deployment'],
+        value: [
+          'get_deployment',
+          'create_deployment',
+          'cancel_deployment',
+          'create_webhook',
+          'get_webhook',
+        ],
       },
     },
     state: {
@@ -2243,10 +2252,16 @@ export const VercelBlock: BlockConfig = {
     },
     verified: {
       type: 'boolean',
-      description: 'Whether the project domain is verified',
+      description: 'Whether the domain is verified',
       condition: {
         field: 'operation',
-        value: ['add_project_domain', 'update_project_domain', 'verify_project_domain'],
+        value: [
+          'add_domain',
+          'get_domain',
+          'add_project_domain',
+          'update_project_domain',
+          'verify_project_domain',
+        ],
       },
     },
     promoted: {

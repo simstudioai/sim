@@ -351,7 +351,7 @@ Append new block children (content) to a Notion page or block
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -391,7 +391,7 @@ Retrieve a single Notion block by its UUID, including its type-specific content
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -433,7 +433,7 @@ Retrieve the block children (content) of a Notion page or block
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -475,7 +475,7 @@ Update the content or archived state of a single Notion block
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -515,7 +515,7 @@ Delete (move to trash) a single Notion block
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -557,7 +557,7 @@ Create a comment on a Notion page or within an existing discussion thread
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -599,7 +599,7 @@ List unresolved comments on a Notion page or block
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -640,7 +640,7 @@ List all users (members and bots) in the Notion workspace
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
@@ -680,7 +680,7 @@ Retrieve a single Notion user by their UUID
 | `total_results` | number | Number of results returned |
 | `properties` | json | Database properties schema |
 | `appended` | boolean | Whether content was successfully appended |
-| `type` | string | Block type |
+| `type` | string | Block type, or user type \(person or bot\) |
 | `block` | json | The full Notion block object |
 | `has_children` | boolean | Whether the block has nested blocks |
 | `archived` | boolean | Whether the block is archived |
