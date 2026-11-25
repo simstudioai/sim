@@ -14,6 +14,7 @@ import type {
 import { SimApiError } from '../../http/client'
 import { apiCommand, type OperationClient } from '../../runtime/called-operations'
 import {
+  draftIsLive,
   liveAfterActivation,
   liveAgainstDraft,
   liveDeploymentStatus,
@@ -353,8 +354,8 @@ async function deployStep(
     }
   }
   if (!data.applied && !data.needsRedeployment) {
-    // A no-op write changed no draft: when the live version already matches it, a deploy would
-    // only publish the same version again.
+    // A no-op write changed no draft: when the live version already matches it and no other
+    // version is activating to replace it, a deploy would only publish the same version again.
     const status = await client
       .request<GetWorkflowDeploymentResponse>('getWorkflowDeployment', {
         params: { workflowId: data.workflowId },
@@ -365,7 +366,7 @@ async function deployStep(
           throw deployFailure(error, options, deployCommand)
         }
       )
-    if (status.isDeployed && !status.needsRedeployment) {
+    if (draftIsLive(status)) {
       if (!options.machine)
         printError('The live version already matches the draft; nothing was deployed.')
       return {

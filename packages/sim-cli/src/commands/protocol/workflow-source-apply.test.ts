@@ -1106,6 +1106,7 @@ describe('sim workflows source apply', () => {
       noop.data.applied = false
       noop.data.diff.noop = true
       noop.data.needsRedeployment = false
+      let attempt: Record<string, unknown> | null = null
       const status = (isDeployed: boolean) => ({
         data: {
           ...deployed.data,
@@ -1116,6 +1117,7 @@ describe('sim workflows source apply', () => {
           activeDeployment: isDeployed
             ? { deploymentVersionId: 'dv-7', version: 7, deployedAt: '2026-11-20T00:00:00Z' }
             : null,
+          latestDeploymentAttempt: attempt,
         },
       })
       let live = true
@@ -1133,6 +1135,27 @@ describe('sim workflows source apply', () => {
 
       // A workflow never deployed is deployed, no-op or not.
       live = false
+      request.mockClear()
+      await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
+      expect(request.mock.calls.map((call) => call[0])).toEqual([
+        APPLY_PATH,
+        STATUS_PATH,
+        DEPLOY_PATH,
+        STATUS_PATH,
+      ])
+
+      // A version still activating is about to replace the one that matches: the draft is deployed.
+      live = true
+      attempt = {
+        id: 'op-5',
+        deploymentVersionId: 'dv-5',
+        version: 5,
+        action: 'rollback',
+        status: 'activating',
+        isCurrent: true,
+        readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'ready' },
+        requestedAt: '2026-11-20T00:00:00Z',
+      }
       request.mockClear()
       await apply(WORKFLOW_ID, '--dir', dir, '--yes', '--deploy')
       expect(request.mock.calls.map((call) => call[0])).toEqual([
