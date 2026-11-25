@@ -120,7 +120,7 @@ import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/m
 import { installBrowserUserAgent } from '@/main/user-agent'
 import {
   createMainWindow,
-  detachVisibilityListenersOnClose,
+  guardVisibilityListenersAfterDestroy,
   setupPermissionHandlers,
 } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents, type WindowPolicyDeps } from '@/main/windows'
@@ -322,7 +322,7 @@ function main(): void {
     return getWindows().at(-1) ?? null
   }
   installMainProcessFailureObservers({ events, getWindow: getMainWindow })
-  app.on('browser-window-created', (_event, win) => detachVisibilityListenersOnClose(win))
+  app.on('browser-window-created', (_event, win) => guardVisibilityListenersAfterDestroy(win))
   const windowForContents = (contents: WebContents) => {
     const win = BrowserWindow.fromWebContents(contents)
     return win && windows.has(win) && !win.isDestroyed() ? win : null
