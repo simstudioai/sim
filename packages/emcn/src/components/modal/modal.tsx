@@ -20,6 +20,7 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { usePathname } from 'next/navigation'
+import { flushSync } from 'react-dom'
 import { cn } from '../../lib/cn'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 
@@ -79,7 +80,19 @@ export interface NativeSurfaceOcclusionPrepareDetail {
 
 interface NativeSurfaceOcclusionPreparation {
   completion: Promise<void>
+  /** Re-enables keyboard input. Idempotent; `cancel` also releases it. */
+  releaseInteraction: () => void
   cancel: () => void
+}
+
+interface NativeSurfaceOcclusionPreparationOptions {
+  /**
+   * Keeps keyboard input blocked after preparation settles until the caller
+   * calls `releaseInteraction`, instead of releasing it on the next frame. A
+   * surface that moves focus into itself on readiness releases right after
+   * that focus lands, so a focused control never drops its first key.
+   */
+  holdInteraction?: boolean
 }
 
 const PENDING_NATIVE_INTERACTION_EVENTS = [
@@ -162,7 +175,8 @@ function acquirePendingNativeInteractionLock(): () => void {
  * than exposing an unoccluded native surface underneath it.
  */
 function requestNativeSurfaceOcclusionPreparation(
-  kind: NativeSurfaceOcclusionPrepareDetail['kind']
+  kind: NativeSurfaceOcclusionPrepareDetail['kind'],
+  { holdInteraction = false }: NativeSurfaceOcclusionPreparationOptions = {}
 ): NativeSurfaceOcclusionPreparation | null {
   const preparations: Promise<unknown>[] = []
   const detail: NativeSurfaceOcclusionPrepareDetail = {
@@ -178,12 +192,13 @@ function requestNativeSurfaceOcclusionPreparation(
   const releaseInteractionLock = acquirePendingNativeInteractionLock()
   let releaseFrame: number | null = null
   const completion = Promise.all(preparations).then(() => undefined)
-  // Keep keyboard input blocked through the first ready paint. The modal's
-  // layout effect can move focus into its real content before interaction is
-  // re-enabled; rejected preparation deliberately remains fail-closed until
-  // the owning surface unmounts and calls `cancel`.
+  // Keep keyboard input blocked through the first ready paint, or with
+  // `holdInteraction` until the caller has moved focus and releases it.
+  // Rejected preparation deliberately remains fail-closed until the owning
+  // surface unmounts and calls `cancel`.
   void completion.then(
     () => {
+      if (holdInteraction) return
       releaseFrame = requestAnimationFrame(() => {
         releaseFrame = null
         releaseInteractionLock()
@@ -193,6 +208,7 @@ function requestNativeSurfaceOcclusionPreparation(
   )
   return {
     completion,
+    releaseInteraction: releaseInteractionLock,
     cancel: () => {
       if (releaseFrame !== null) cancelAnimationFrame(releaseFrame)
       releaseFrame = null
@@ -340,14 +356,21 @@ function NativeSurfaceModalGate({ barrierClaimedRef, onReadyChange }: NativeSurf
     let active = true
 
     onReadyChange(false)
-    const preparation = requestNativeSurfaceOcclusionPreparation('modal')
+    const preparation = requestNativeSurfaceOcclusionPreparation('modal', {
+      holdInteraction: true,
+    })
     barrierClaimedRef.current = preparation !== null
     if (!preparation) {
       onReadyChange(true)
     } else {
       void preparation.completion.then(
         () => {
-          if (active) onReadyChange(true)
+          if (!active) return
+          // Commit readiness now so ModalContent's layout effect moves focus into
+          // the dialog, then accept keys: a focused control must take the very
+          // next key (Escape on a Leave prompt), never drop it to the barrier.
+          flushSync(() => onReadyChange(true))
+          preparation.releaseInteraction()
         },
         () => {
           // A failed native-surface transition is unsafe to reveal through.
