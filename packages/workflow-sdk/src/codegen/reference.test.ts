@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { BlockCatalog } from '@sim/workflow-code'
 import { catalogBuilderPaths } from '@sim/workflow-code/catalog/view'
 import { describe, expect, it } from 'vitest'
+import { CORE_DTS } from './core-text.generated'
 import { builderSnippet, describeBuilder, lookupBuilder } from './reference'
 
 /** A real catalog projected from registry blocks, shared with the SDK's own type checks. */
@@ -36,6 +37,21 @@ describe('builder reference', () => {
     expect(describeBuilder(CATALOG, 'runWorkflow')?.doc).toContain('`result.data.field`')
     expect(describeBuilder(CATALOG, 'response')?.doc).toContain("`dataMode: 'json'` with `data`")
     expect(describeBuilder(CATALOG, 'agent')).not.toHaveProperty('doc')
+  })
+
+  it("takes a special builder's example call from the @example line of its core.d.ts doc", () => {
+    const condition = describeBuilder(CATALOG, 'condition')
+    const example = /^ \* @example (condition\(.+)$/m.exec(CORE_DTS)?.[1]
+    expect(example).toBeDefined()
+    expect(condition?.example).toBe(example)
+    expect(condition?.doc).not.toContain('@example')
+    if (!condition || !example) throw new Error('no condition example')
+    expect(builderSnippet(condition)).toContain(`\`\` const x = ${example} \`\``)
+    expect(describeBuilder(CATALOG, 'agent')).not.toHaveProperty('example')
+    const loop = lookupBuilder(CATALOG, 'loop')
+    expect(loop.kind === 'core' && loop.declaration).toMatch(
+      /@example const each = loop\.forEach\(/
+    )
   })
 
   it('fills a text, number or boolean param of a snippet with an example value, not its type', () => {

@@ -597,6 +597,14 @@ export type Container = Block<SubflowOutput>
 
 type Collection = AnyRef | Template | Json[] | string
 
+/**
+ * A loop container: `forEach` over a list, `for` a count, `while` or `doWhile` a condition. The
+ * body callback declares the blocks each iteration runs and wires the first from the scope
+ * (`p.to(first)`), which reads the iteration as `p.currentItem` and `p.index` (a code file:
+ * `$ref.loop.currentItem`). After it, `each.results` lists every iteration's output, and
+ * `each.to(next)` wires what runs once all finish.
+ * @example const each = loop.forEach('Each Order', { collection: orders.rows }, (p) => { const line = fn('Line', { code: js`return ${p.currentItem.data.id}` }); p.to(line) })
+ */
 export declare const loop: {
   for(
     name: string,
@@ -705,7 +713,11 @@ type ConditionBranches<B> = {
 type ConditionKeys<B> = keyof B extends never ? 'if' | 'else' : Extract<keyof B, string>
 type RouterKeys<R> = keyof R extends never ? 'route0' : Extract<keyof R, string>
 
-/** A condition: named branches, the last one `else` when there are two or more. */
+/**
+ * A condition: named branches tested in order, top to bottom; the first whose expression holds
+ * runs, and `else` (last, written `true`) runs when none does. Wire each as `x.<key>.to(block)`.
+ * @example condition('Route', { big: js`${order.total} >= 500`, small: js`${order.total} < 50`, else: true })
+ */
 export declare function condition<const B extends Record<string, BranchExpression>>(
   name: string,
   branches: B & ConditionBranches<B>,

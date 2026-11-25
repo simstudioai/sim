@@ -46,6 +46,11 @@ export interface BuilderReference {
   replacement?: { blockType: string; builders: string[] }
   /** What `core.d.ts` says of a builder it declares itself (`response`, `fn`), as prose. */
   doc?: string
+  /**
+   * The call its `core.d.ts` doc gives as `@example` (`condition`'s branches), which no example
+   * built from the params could show.
+   */
+  example?: string
   /** The call, as the declarations type it. */
   signature: string
   /** The agent tool form (`slack.tool.sendMessage(…)`), when the builder has one. */
@@ -263,16 +268,25 @@ function coreDeclaration(name: string): string {
   return out.slice(0, MAX_CORE_LINES).join('\n')
 }
 
-/** The doc comment above the first declaration of `name` in `core.d.ts`, as one paragraph. */
-function docOf(name: string): Pick<BuilderReference, 'doc'> {
+const EXAMPLE_TAG = '@example '
+
+/**
+ * The doc comment above the first declaration of `name` in `core.d.ts`, as one paragraph, and the
+ * call a line starting `@example` gives.
+ */
+function docOf(name: string): Pick<BuilderReference, 'doc' | 'example'> {
   const range = coreDeclarationRanges(name)[0]
   if (!range) return {}
-  const doc = CORE_LINES.slice(docCommentStart(range.start), range.start)
-    .map((line) => line.trim().replace(/^\/\*\*\s?|\s?\*\/$|^\*\s?/g, ''))
+  const lines = CORE_LINES.slice(docCommentStart(range.start), range.start).map((line) =>
+    line.trim().replace(/^\/\*\*\s?|\s?\*\/$|^\*\s?/g, '')
+  )
+  const example = lines.find((line) => line.startsWith(EXAMPLE_TAG))?.slice(EXAMPLE_TAG.length)
+  const doc = lines
+    .filter((line) => !line.startsWith(EXAMPLE_TAG))
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim()
-  return doc ? { doc } : {}
+  return { ...(doc ? { doc } : {}), ...(example ? { example } : {}) }
 }
 
 const MAX_SNIPPET_TYPE = 60
@@ -316,8 +330,12 @@ function paramLine(param: ParamFact): string {
   return `${param.key}: ${shortType(param.type)}${fallback}`
 }
 
-/** An example call of the builder with its required params filled in (`gate` first when it has no default). */
+/**
+ * An example call of the builder: its doc's `@example`, else one with its required params filled
+ * in (`gate` first when it has no default).
+ */
 function builderCall(reference: BuilderReference): string {
+  if (reference.example) return reference.example
   const required = reference.params.common.filter((param) => param.required)
   const gate = reference.params.gate
   const variant = gate
@@ -348,7 +366,8 @@ export function builderSnippet(
   const optional = reference.params.common.filter((param) => !param.required)
   const gate = reference.params.gate
   const call = builderCall(reference)
-  const lines = [`- \`${reference.key}\` (${reference.summary}): \`const x = ${call}\``]
+  const code = call.includes('`') ? `\`\` const x = ${call} \`\`` : `\`const x = ${call}\``
+  const lines = [`- \`${reference.key}\` (${reference.summary}): ${code}`]
   if (required.length > 0) lines.push(`  required: ${required.map(paramLine).join('; ')}`)
   if (gate) {
     const variants = gate.variants.map((variant) => {
