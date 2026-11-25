@@ -51,7 +51,6 @@
     "TS2554": 4
   },
   "apps/sim/app/api/billing/route.test.ts": {
-    "TS2345": 1,
     "TS2554": 4
   },
   "apps/sim/app/api/billing/switch-plan/route.test.ts": {

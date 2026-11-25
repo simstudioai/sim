@@ -19,8 +19,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/client'
-import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-import { CREDIT_MULTIPLIER, formatCreditCost } from '@/lib/billing/credits/conversion'
+import { ANNUAL_DISCOUNT_RATE, ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import {
   getCoveredUsage,
   getIsOnDemandActive,
@@ -29,7 +29,6 @@ import {
 } from '@/lib/billing/on-demand'
 import {
   getDisplayPlanName,
-  getPlanTierCredits,
   getPlanTierDollars,
   isEnterprise,
   isFree,
@@ -82,6 +81,13 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   open: { variant: 'amber', label: 'Open' },
   uncollectible: { variant: 'red', label: 'Uncollectible' },
   void: { variant: 'gray', label: 'Void' },
+}
+
+/** A plan's effective monthly price: the annual price spread over twelve months on annual billing. */
+function formatMonthlyPrice(plan: string, billingInterval: string | undefined): string {
+  const monthly =
+    getPlanTierDollars(plan) * (billingInterval === 'year' ? 1 - ANNUAL_DISCOUNT_RATE : 1)
+  return `$${Number.isInteger(monthly) ? monthly : monthly.toFixed(2)}`
 }
 
 function getPeriodEndLabel(isCancelledAtPeriodEnd: boolean, isTrialing: boolean): string {
@@ -249,7 +255,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const planIncludedAmount =
     subscription.isOrgScoped && organizationBilling
       ? organizationBilling.minimumBillingAmount
-      : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
+      : (subscriptionData?.data?.includedUsage ?? 0)
 
   const effectiveUsageLimit =
     subscription.isOrgScoped && organizationBilling
@@ -293,6 +299,10 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
     covered,
   })
 
+  const hasUsablePaidAccess = subscription.isPaid
+    ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
+    : false
+
   const permissions = getSubscriptionPermissions(
     {
       isFree: subscription.isFree,
@@ -302,15 +312,22 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       isPaid: subscription.isPaid,
       isOrgScoped: subscription.isOrgScoped,
       isEnterpriseSelfServe: enterpriseSelfServe !== null,
+      hasUsableAccess: hasUsablePaidAccess,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
     { isTeamAdmin, userRole: userRole || 'member' }
   )
 
-  const hasUsablePaidAccess = subscription.isPaid
-    ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
-    : false
+  /** A failed payment or an open dispute pauses the plan's usage. */
+  const hasPaymentProblem = subscription.isPaid && !hasUsablePaidAccess
+  const billingBlockedReason = isOrganizationScope
+    ? organizationBilling?.billingBlockedReason
+    : subscriptionData?.data?.billingBlockedReason
+  const paymentProblemLabel =
+    billingBlockedReason === 'dispute'
+      ? 'Usage is paused while a payment dispute is open. Contact support to resolve it'
+      : 'Payment failed. Update your payment method to resume usage'
 
   const isTogglingOnDemand = updateUserLimit.isPending || updateOrgLimit.isPending
 
@@ -479,7 +496,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
         ? 'Choose a new plan for this organization'
         : subscription.isEnterprise
           ? 'Custom pricing'
-          : `$${getPlanTierDollars(subscription.plan)} per user/month, ${billingPeriod}`
+          : `${formatMonthlyPrice(subscription.plan, billingInterval)}${isOrganizationScope ? ' per user' : ''}/month, ${billingPeriod}`
 
   const periodEnd = isOrganizationScope
     ? (organizationBilling?.billingPeriodEnd ?? null)
@@ -514,11 +531,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
       : usage.limit
 
   // A self-serve Enterprise limit cannot fall below what the contract already covers.
-  const usageLimitMinimum = enterpriseSelfServe
-    ? covered
-    : subscription.isOrgScoped && organizationBilling
-      ? organizationBilling.minimumBillingAmount
-      : getPlanTierDollars(subscription.plan)
+  const usageLimitMinimum = enterpriseSelfServe ? covered : planIncludedAmount
   const explorePlansLabel = isOrganizationScope
     ? 'Explore organization plans'
     : 'Explore personal plans'
@@ -655,8 +668,11 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
               />
             ) : (
               <div className='flex items-center justify-between'>
-                <span className='text-[var(--text-body)] text-small'>Payment method</span>
+                <span className='text-[var(--text-body)] text-small'>
+                  {hasPaymentProblem ? paymentProblemLabel : 'Payment method'}
+                </span>
                 <Chip
+                  variant={hasPaymentProblem ? 'primary' : undefined}
                   disabled={!canManageBilling || openBillingPortal.isPending}
                   onClick={handleOpenBillingPortal}
                 >

@@ -126,6 +126,7 @@ const PRO_BILLING = {
     isExceeded: false,
     daysRemaining: 10,
     creditBalance: 0,
+    includedUsage: 20,
     billingInterval: 'month',
     isPaid: true,
     isPro: true,

@@ -1,5 +1,8 @@
-import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
-import { getPlanTierCredits, getPlanTierDollars, isTeam } from '@/lib/billing/plan-helpers'
+import { getPlanTierDollars, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  getOrgIncludedUsageDollars,
+  type OrgAllowanceInput,
+} from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal } from '@/lib/billing/utils/decimal'
 
 export interface TeamOrganizationEconomics {
@@ -8,16 +11,20 @@ export interface TeamOrganizationEconomics {
   monthlyInvoiceAmountUsd: number
 }
 
-/** Canonical pooled Team allowance and invoice amount (`per-seat × members`). */
+/**
+ * Canonical pooled Team allowance for the billing period (`per-seat × members`, a year's worth on
+ * annual billing) and the monthly invoice amount.
+ */
 export function getTeamOrganizationEconomics(
-  plan: string | null | undefined,
+  subscription: OrgAllowanceInput | undefined,
   internalMemberCount: number
 ): TeamOrganizationEconomics | null {
-  if (!plan || !isTeam(plan)) return null
+  const plan = subscription?.plan
+  if (!subscription || !plan || !isTeam(plan)) return null
   const seats = Math.max(0, Math.trunc(internalMemberCount))
   return {
     seats,
-    planAllowanceDollars: (getPlanTierCredits(plan) * seats) / CREDIT_MULTIPLIER,
+    planAllowanceDollars: seats === 0 ? 0 : getOrgIncludedUsageDollars({ ...subscription, seats }),
     monthlyInvoiceAmountUsd: getPlanTierDollars(plan) * seats,
   }
 }

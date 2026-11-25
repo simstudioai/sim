@@ -183,6 +183,22 @@ export function InviteModal({
   const seatLimitReason = mayExceedSeatCapacity
     ? `Only ${availableSeats} seat${availableSeats === 1 ? '' : 's'} available — invites beyond that may fail. External collaborators and existing members do not use seats.`
     : null
+  /**
+   * Tells the inviter what accepting costs, since the seat is charged then rather than now. An
+   * organization invite needs the seat model, which only billing admins can read; a personal
+   * workspace's invitee always joins as a new seat.
+   */
+  const seatCapKind = isOrganizationInvite
+    ? organizationBillingData?.data?.seatCapKind
+    : 'on-demand'
+  const seatChargeHint =
+    billingEnabled && canInvite && membership !== 'external'
+      ? seatCapKind === 'baseline'
+        ? 'New members past your contracted seats are billed at the next seat true-up.'
+        : seatCapKind === 'on-demand'
+          ? "Each new member who accepts adds a paid seat, prorated for this period. Existing members don't add one."
+          : null
+      : null
 
   const validateEmail = useCallback(
     (email: string): string | null => {
@@ -270,7 +286,7 @@ export function InviteModal({
           value={emails}
           onChange={handleEmailsChange}
           validate={validateEmail}
-          hint={inviteDisabledReason ?? seatLimitReason}
+          hint={inviteDisabledReason ?? seatLimitReason ?? seatChargeHint}
           placeholder={
             canInvite
               ? 'Enter emails'

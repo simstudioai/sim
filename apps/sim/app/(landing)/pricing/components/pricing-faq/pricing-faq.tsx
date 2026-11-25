@@ -30,7 +30,7 @@ const PRICING_FAQS = [
   },
   {
     question: 'How much does Sim cost?',
-    answer: `Pro is $${PRO_CREDIT_TIER.dollars} per user per month with ${formatCredits(PRO_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(PRO_CREDIT_TIER.weeklyRefreshCredits)} more. Max is $${MAX_CREDIT_TIER.dollars} per user per month with ${formatCredits(MAX_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(MAX_CREDIT_TIER.weeklyRefreshCredits)}. Annual billing costs ${ANNUAL_DISCOUNT_RATE * 100}% less for the same credits. Enterprise pricing is custom.`,
+    answer: `Pro is $${PRO_CREDIT_TIER.dollars} per user per month with ${formatCredits(PRO_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(PRO_CREDIT_TIER.weeklyRefreshCredits)} more. Max is $${MAX_CREDIT_TIER.dollars} per user per month with ${formatCredits(MAX_CREDIT_TIER.credits)} credits a month and a weekly refresh of ${formatCredits(MAX_CREDIT_TIER.weeklyRefreshCredits)}. Annual billing costs ${ANNUAL_DISCOUNT_RATE * 100}% less for the same credits, and includes all twelve months of credits up front to use any time during the year. Enterprise pricing is custom.`,
   },
   {
     question: 'What is a credit, and what does an agent run cost?',

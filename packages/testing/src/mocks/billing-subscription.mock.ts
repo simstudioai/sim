@@ -1,34 +1,10 @@
 import { vi } from 'vitest'
 
-interface SubscriptionIntervalSource {
-  billingInterval?: string | null
-  metadata?: unknown
-}
-
-/** Faithful copy of the real `getBillingInterval`: anything but `'year'` is monthly. */
-function getBillingInterval(metadata: unknown): 'month' | 'year' {
-  const interval =
-    typeof metadata === 'object' && metadata !== null
-      ? (metadata as { billingInterval?: unknown }).billingInterval
-      : undefined
-  return interval === 'year' ? 'year' : 'month'
-}
-
-/** Faithful copy of the real `resolveBillingInterval`: column first, then metadata, then monthly. */
-function resolveBillingInterval(
-  sub: SubscriptionIntervalSource | null | undefined
-): 'month' | 'year' {
-  const column = sub?.billingInterval
-  if (column === 'year' || column === 'month') return column
-  return getBillingInterval(sub?.metadata ?? null)
-}
-
 /**
  * Controllable mock functions for `@/lib/billing/core/subscription`.
  *
  * Every async lookup is a bare `vi.fn()` (resolves `undefined`); set the plan or
- * entitlement a test needs per case. `getBillingInterval` / `resolveBillingInterval`
- * default to the real pure logic. `isSubscriptionBackedEntitlement` defaults to `false`
+ * entitlement a test needs per case. `isSubscriptionBackedEntitlement` defaults to `false`
  * (the real value reads env flags).
  *
  * @example
@@ -42,8 +18,6 @@ function resolveBillingInterval(
 export const billingSubscriptionMockFns = {
   mockGetHighestPriorityPersonalSubscription: vi.fn(),
   mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetBillingInterval: vi.fn(getBillingInterval),
-  mockResolveBillingInterval: vi.fn(resolveBillingInterval),
   mockWriteBillingInterval: vi.fn(),
   mockSyncSubscriptionPlan: vi.fn(),
   mockGetOrganizationSubscriptionUsable: vi.fn(),
@@ -81,8 +55,6 @@ export const billingSubscriptionMock = {
   getHighestPriorityPersonalSubscription:
     billingSubscriptionMockFns.mockGetHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription: billingSubscriptionMockFns.mockGetHighestPrioritySubscription,
-  getBillingInterval: billingSubscriptionMockFns.mockGetBillingInterval,
-  resolveBillingInterval: billingSubscriptionMockFns.mockResolveBillingInterval,
   writeBillingInterval: billingSubscriptionMockFns.mockWriteBillingInterval,
   syncSubscriptionPlan: billingSubscriptionMockFns.mockSyncSubscriptionPlan,
   getOrganizationSubscriptionUsable:

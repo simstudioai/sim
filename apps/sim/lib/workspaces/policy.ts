@@ -12,7 +12,10 @@ import {
 } from '@/lib/billing/organizations/membership'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import {
+  hasUsableSubscriptionStatus,
+  isTrialingSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
@@ -459,7 +462,10 @@ export async function getInvitePlanCategoryForUser(
 ): Promise<PlanCategory> {
   try {
     const sub = await getHighestPrioritySubscription(userId, { executor })
-    if (!sub || !hasUsableSubscriptionStatus(sub.status)) return 'free'
+    // A trial cannot take on seats until it converts, so it invites like a free account.
+    if (!sub || !hasUsableSubscriptionStatus(sub.status) || isTrialingSubscription(sub)) {
+      return 'free'
+    }
     return getPlanType(sub.plan)
   } catch (error) {
     logger.error('Failed to resolve subscription for invite policy', { userId, error })

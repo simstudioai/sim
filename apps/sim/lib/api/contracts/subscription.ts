@@ -67,6 +67,8 @@ export const subscriptionBillingDataSchema = z
     isExceeded: z.boolean(),
     daysRemaining: z.number(),
     creditBalance: z.number(),
+    /** The plan's included usage for this billing period, in dollars: also the lowest limit the payer may set. */
+    includedUsage: z.number(),
     billingInterval: z.enum(['month', 'year']),
     isPaid: z.boolean(),
     isPro: z.boolean(),

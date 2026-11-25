@@ -3312,6 +3312,13 @@
       "when": 1795546763493,
       "tag": "0473_enterprise_self_serve",
       "breakpoints": true
+    },
+    {
+      "idx": 474,
+      "version": "7",
+      "when": 1795562373761,
+      "tag": "0474_annual_seat_allowance",
+      "breakpoints": true
     }
   ]
 }

@@ -94,7 +94,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         stripe_customer_id text, stripe_subscription_id text, status text, period_start timestamp,
         period_end timestamp, cancel_at_period_end boolean, cancel_at timestamp, canceled_at timestamp,
         ended_at timestamp, seats integer, trial_start timestamp, trial_end timestamp,
-        billing_interval text, stripe_schedule_id text, metadata json, last_closed_period_start timestamp);
+        billing_interval text, stripe_schedule_id text, metadata json, last_closed_period_start timestamp, allowance_period_start timestamp, allowance_seats integer, allowance_seat_months numeric);
       CREATE TABLE project (id text PRIMARY KEY, owner_id text NOT NULL, organization_id text,
         organization_scope_key text GENERATED ALWAYS AS (CASE WHEN organization_id IS NULL THEN 'personal' ELSE 'organization:' || organization_id END) STORED,
         name text NOT NULL DEFAULT 'Project', created_at timestamp NOT NULL DEFAULT now(),

@@ -216,7 +216,7 @@ function buildDashboardOrganizationSummary({
   usagePeriod,
 }: DashboardOrganizationSummaryInput) {
   const metadata = metadataRecord(latestSubscription?.metadata)
-  const teamEconomics = getTeamOrganizationEconomics(latestSubscription?.plan, memberCount)
+  const teamEconomics = getTeamOrganizationEconomics(latestSubscription ?? undefined, memberCount)
   const invoiceAmountCents = metadataNumber(metadata, 'invoiceAmountCents')
   const monthlyPrice = metadataNumber(metadata, 'monthlyPrice')
   const usageLimitDollars = Math.max(0, Number(org.orgUsageLimit ?? 0))
@@ -1373,10 +1373,7 @@ export async function updateDashboardOrganizationLimits(
       .select({ value: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
-    const teamEconomics = getTeamOrganizationEconomics(
-      subscriptionRow?.plan,
-      memberCountRow?.value ?? 0
-    )
+    const teamEconomics = getTeamOrganizationEconomics(subscriptionRow, memberCountRow?.value ?? 0)
     const planAllowance = teamEconomics?.planAllowanceDollars ?? 0
     const prepaid = Number(org.creditBalance)
     const configuredUsageLimit =
@@ -1443,7 +1440,14 @@ export async function grantDashboardOrganizationBalance(
           .limit(1)
         if (!org) throw new Error('Organization not found')
         const [subscriptionRow] = await tx
-          .select({ plan: subscription.plan, metadata: subscription.metadata })
+          .select({
+            plan: subscription.plan,
+            metadata: subscription.metadata,
+            billingInterval: subscription.billingInterval,
+            periodStart: subscription.periodStart,
+            allowancePeriodStart: subscription.allowancePeriodStart,
+            allowanceSeatMonths: subscription.allowanceSeatMonths,
+          })
           .from(subscription)
           .where(eq(subscription.referenceId, organizationId))
           .orderBy(
@@ -1457,7 +1461,7 @@ export async function grantDashboardOrganizationBalance(
           .from(member)
           .where(eq(member.organizationId, organizationId))
         const teamEconomics = getTeamOrganizationEconomics(
-          subscriptionRow?.plan,
+          subscriptionRow,
           memberCountRow?.value ?? 0
         )
         const planAllowanceDollars = teamEconomics?.planAllowanceDollars ?? 0

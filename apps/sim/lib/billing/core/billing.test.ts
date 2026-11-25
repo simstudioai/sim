@@ -30,16 +30,12 @@ import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/b
 const { mockEnsureUserStatsExists } = billingUsageMockFns
 const { mockGetBillingPeriodUsageCost, mockGetBillingPeriodUsageCostWithSourceSubset } =
   billingUsageLogMockFns
-const {
-  mockGetHighestPriorityPersonalSubscription,
-  mockGetHighestPrioritySubscription,
-  mockResolveBillingInterval,
-} = billingSubscriptionMockFns
+const { mockGetHighestPriorityPersonalSubscription, mockGetHighestPrioritySubscription } =
+  billingSubscriptionMockFns
 
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
-    mockResolveBillingInterval.mockReturnValue('year')
     mockComputeWeeklyRefreshConsumed.mockResolvedValue(1)
     mockGetBillingPeriodUsageCostWithSourceSubset.mockResolvedValue({ total: 4, subset: 1 })
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue({

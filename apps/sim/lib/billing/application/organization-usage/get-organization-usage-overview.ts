@@ -95,12 +95,7 @@ export const getOrganizationUsageOverview = defineAuthorizedOrganizationUsageUse
         limit: ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT,
       }),
       subscription
-        ? getOrgUsageLimit(
-            input.organizationId,
-            subscription.plan,
-            subscription.seats ?? null,
-            dbReplica
-          )
+        ? getOrgUsageLimit(input.organizationId, subscription, dbReplica)
         : Promise.resolve(null),
     ])
 

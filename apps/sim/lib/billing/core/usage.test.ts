@@ -94,6 +94,9 @@ const {
 } = emailTemplatesMockFns
 const { mockSendEmail } = emailMailerMockFns
 billingSubscriptionUtilsMockFns.mockGetPlanPricing.mockReturnValue({ basePrice: 20 } as never)
+billingSubscriptionUtilsMockFns.mockGetOrgIncludedUsageDollars.mockImplementation(
+  (subscription: { seats?: number | null }) => (subscription.seats || 1) * 20
+)
 mockGetEmailSubject.mockReturnValue('Subject')
 mockGetLimitEmailSubject.mockReturnValue('Limit subject')
 mockRenderCreditsExhausted.mockResolvedValue('<html>free</html>')

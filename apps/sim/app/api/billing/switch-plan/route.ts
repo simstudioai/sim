@@ -1,22 +1,19 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
-import { getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
+import { recordPlanSwitch } from '@/lib/billing/core/plan-switch'
+import { getPlanTierCredits, getPlanType, isEnterprise } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
@@ -80,11 +77,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
-    const billingBlocked = hostContext
-      ? hostContext.ownerBilling.billingBlocked
-      : (await getEffectiveBillingStatus(userId)).billingBlocked
+    const { billingBlocked, billingBlockedReason } = hostContext
+      ? hostContext.ownerBilling
+      : await getEffectiveBillingStatus(userId)
     if (!hasUsableSubscriptionAccess(sub.status, billingBlocked)) {
-      return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
+      return NextResponse.json(
+        {
+          error:
+            billingBlockedReason === 'dispute'
+              ? 'Plan changes are paused while a payment dispute is open. Contact support to resolve it.'
+              : 'Your last payment failed. Update your payment method under Settings > Billing, then change your plan.',
+        },
+        { status: 400 }
+      )
     }
 
     if (isEnterprise(sub.plan) || isEnterprise(targetPlanName)) {
@@ -130,6 +135,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const currentInterval = subscriptionItem.price?.recurring?.interval
     const targetInterval = interval ?? currentInterval ?? 'month'
 
+    // An annual term's usage was covered by its tier's allowance; a lower tier mid-term would
+    // re-price that usage as overage, so the downgrade waits for renewal.
+    if (
+      currentInterval === 'year' &&
+      getPlanTierCredits(targetPlanName) < getPlanTierCredits(sub.plan)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'A lower tier is not available partway through an annual term. You can switch when your plan renews.',
+        },
+        { status: 400 }
+      )
+    }
+
     const targetPriceId =
       targetInterval === 'year' ? targetPlan.annualDiscountPriceId : targetPlan.priceId
 
@@ -173,14 +193,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    if (!alreadyInDb) {
-      await db
-        .update(subscriptionTable)
-        .set({ plan: targetPlanName })
-        .where(eq(subscriptionTable.id, sub.id))
-    }
-
-    await writeBillingInterval(sub.id, targetInterval as 'month' | 'year')
+    await recordPlanSwitch({
+      subscription: sub,
+      targetPlanName,
+      targetInterval: targetInterval as 'month' | 'year',
+      orgScoped: await isSubscriptionOrgScoped(sub),
+    })
 
     logger.info('Subscription switched successfully', {
       userId,

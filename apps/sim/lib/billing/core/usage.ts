@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
@@ -22,20 +22,23 @@ import {
 } from '@/lib/billing/core/reporting-period'
 import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { formatCredits } from '@/lib/billing/credits/conversion'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
-import { isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isFree, isPaid, isTeam } from '@/lib/billing/plan-helpers'
+import type { OrgAllowanceInput } from '@/lib/billing/subscriptions/utils'
 import {
   canEditUsageLimit,
   formatTrialEndDate,
   getFreeTierAllowance,
   getFreeTierLimit,
+  getOrgIncludedUsageDollars,
   getPerUserMinimumLimit,
-  getPlanPricing,
   getSubscriptionWeeklyRefreshDollars,
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
   isTrialingSubscription,
+  resolveBillingInterval,
 } from '@/lib/billing/subscriptions/utils'
 import type { UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
@@ -114,20 +117,24 @@ export async function getOrgLastPeriodCost(
  */
 export async function getOrgUsageLimit(
   organizationId: string,
-  plan: string,
-  seats: number | null,
+  subscription: OrgLimitSubscription,
   executor: DbClient = db
 ): Promise<OrgUsageLimitResult> {
   return (
-    (await findOrgUsageLimit(organizationId, plan, seats, executor)) ??
-    calculateOrgUsageLimit(organizationId, plan, seats, null)
+    (await findOrgUsageLimit(organizationId, subscription, executor)) ??
+    calculateOrgUsageLimit(organizationId, subscription, null)
   )
 }
 
+/**
+ * The subscription fields that decide an organization's usage-limit floor. A caller holding only a
+ * snapshot passes `id`, and an annual Team's recorded seat-months are read from the row.
+ */
+type OrgLimitSubscription = OrgAllowanceInput & { plan: string; id?: string }
+
 async function findOrgUsageLimit(
   organizationId: string,
-  plan: string,
-  seats: number | null,
+  subscription: OrgLimitSubscription,
   executor: DbClient = db
 ): Promise<OrgUsageLimitResult | null> {
   const [orgData] = await executor
@@ -138,20 +145,36 @@ async function findOrgUsageLimit(
 
   if (!orgData) return null
 
+  const needsRecordedAllowance =
+    subscription.id !== undefined &&
+    subscription.allowanceSeatMonths === undefined &&
+    isTeam(subscription.plan) &&
+    resolveBillingInterval(subscription) === 'year'
+  const [recordedAllowance] = needsRecordedAllowance
+    ? await executor
+        .select({
+          periodStart: subscriptionTable.periodStart,
+          allowancePeriodStart: subscriptionTable.allowancePeriodStart,
+          allowanceSeatMonths: subscriptionTable.allowanceSeatMonths,
+        })
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.id, subscription.id ?? ''))
+        .limit(1)
+    : []
+
   return calculateOrgUsageLimit(
     organizationId,
-    plan,
-    seats,
+    { ...subscription, ...recordedAllowance },
     orgData.orgUsageLimit ? toNumber(toDecimal(orgData.orgUsageLimit)) : null
   )
 }
 
 function calculateOrgUsageLimit(
   organizationId: string,
-  plan: string,
-  seats: number | null,
+  subscription: OrgLimitSubscription,
   configured: number | null
 ): OrgUsageLimitResult {
+  const { plan, seats } = subscription
   if (isEnterprise(plan)) {
     // Enterprise: Use configured limit directly (no per-seat minimum)
     if (configured !== null) {
@@ -161,10 +184,9 @@ function calculateOrgUsageLimit(
     return { limit: 0, minimum: 0 }
   }
 
-  const { basePrice } = getPlanPricing(plan)
   // `||` not `??` — 0 is never a valid seat count for a paid sub.
   const seatCount = seats || 1
-  const minimum = seatCount * basePrice
+  const minimum = getOrgIncludedUsageDollars(subscription)
 
   if (configured !== null) {
     return { limit: Math.max(configured, minimum), minimum }
@@ -385,12 +407,7 @@ async function getResolvedUserUsageData(
     let limit: number
 
     if (orgScoped && subscription) {
-      const orgLimit = await getOrgUsageLimit(
-        subscription.referenceId,
-        subscription.plan,
-        subscription.seats,
-        executor
-      )
+      const orgLimit = await getOrgUsageLimit(subscription.referenceId, subscription, executor)
       limit = orgLimit.limit
 
       lastPeriodCost = await getOrgLastPeriodCost(subscription.referenceId, executor)
@@ -483,11 +500,7 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     let canEdit: boolean
 
     if (orgScoped && subscription) {
-      const orgLimit = await getOrgUsageLimit(
-        subscription.referenceId,
-        subscription.plan,
-        subscription.seats
-      )
+      const orgLimit = await getOrgUsageLimit(subscription.referenceId, subscription)
       currentLimit = orgLimit.limit
       minimumLimit = orgLimit.minimum
       canEdit = false
@@ -566,7 +579,7 @@ export async function updateUserUsageLimit(
     if (newLimit < minimumLimit) {
       return {
         success: false,
-        error: `Usage limit cannot be below plan minimum of $${minimumLimit}`,
+        error: `Usage limit cannot be below your plan's ${formatCredits(minimumLimit)} included credits`,
       }
     }
 
@@ -614,11 +627,7 @@ export async function getUserUsageLimit(
       : await getHighestPrioritySubscription(userId)
 
   if (isOrgScopedSubscription(subscription, userId) && subscription) {
-    const orgLimit = await findOrgUsageLimit(
-      subscription.referenceId,
-      subscription.plan,
-      subscription.seats
-    )
+    const orgLimit = await findOrgUsageLimit(subscription.referenceId, subscription)
 
     if (!orgLimit) {
       throw new Error(`Organization not found: ${subscription.referenceId} for user: ${userId}`)
