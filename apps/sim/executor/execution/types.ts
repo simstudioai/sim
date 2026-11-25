@@ -320,7 +320,7 @@ export interface ExecutionTestHooks {
   recordSpy(call: { blockId: string; input: unknown; output: unknown }): void
 }
 
-/** The blocks of the workflow a dry run started that it sent and mocked, by id; never a mock's output. */
+/** A dry run's allowed and mocked blocks of the workflow it started, by id; never a mock's output. */
 export interface DryRunOptions {
   allowBlocks: string[]
   mockedBlocks: string[]
@@ -361,13 +361,11 @@ export interface AnsweredBlockCall extends SideEffectBlockSite {
 /**
  * How a run treats work that may change state outside it: a dry run, or a workflow test's
  * unmocked writes. Unlike {@link ExecutionTestHooks}, every child execution inherits it, including
- * a workflow an Agent calls as a tool, so a child's writes follow the run that started it.
- * `tools/index.ts` consults it for every tool call not declared `read` (an MCP tool declares
- * nothing, so every one) before a hosted key is drawn, and answers a stubbed call after
- * credentials resolve and before anything is sent; the block executor consults it before each
- * block's handler. Its presence alone also means the run keeps nothing beyond its log: an Agent
- * writes no memory, and files uploaded to a provider's Files API are deleted once the call
- * settles. Where only the log is at hand, the `test` trigger says the same.
+ * a workflow an Agent calls as a tool, so a child's writes follow the run that started it. Tool
+ * calls meet it in `tools/side-effects.ts`; the block executor consults it before each block's
+ * handler. Its presence alone also means the run keeps nothing beyond its log: an Agent writes no
+ * memory, and files uploaded to a provider's Files API are deleted once the call settles. Where
+ * only the log is at hand, the `test` trigger says the same.
  */
 export interface SideEffectPolicy {
   /**
@@ -375,6 +373,11 @@ export interface SideEffectPolicy {
    * the run should report: an allowed block's write, or code that runs unchecked.
    */
   decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub'
+  /**
+   * Records code that ran for real, which can make network calls the run cannot see: code run
+   * through `function_execute`, or a While or Do While loop's condition.
+   */
+  ranCode(site: SideEffectSite): void
   /** Records a write that was not sent and returns the placeholder output answering it. */
   stubWrite(call: StubbedToolCall): Record<string, unknown>
   /** Whether this block is answered with {@link answerBlock} instead of running its handler. */

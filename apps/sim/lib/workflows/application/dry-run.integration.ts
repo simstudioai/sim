@@ -4,12 +4,13 @@
  * it would have sent (credentials, run secrets and password fields redacted) under the `test`
  * trigger, and keeps nothing else: no Agent memory, no workspace event, no run count. An allowed
  * block writes for real while reads run for real; a child workflow's writes, an Agent's included,
- * stay stubbed; custom and Wait blocks are answered whole; code runs and is listed unchecked; a
- * mocked block steers a branch; a failed dry run keeps its side effects and is the source only of
- * another dry run. A test run is never the source of a run that sends its writes (the v2 use case,
- * Copilot and the editor route alike) and is never resumed; a mock never controls the run or
- * replaces a locked block, and only the ids of mocked blocks are kept. Model calls are answered by
- * a simulated Anthropic API.
+ * stay stubbed; custom and Wait blocks are answered whole; code runs and is listed unchecked, a
+ * Condition's expressions and a While loop's condition included; a mocked block steers a branch;
+ * a failed dry run keeps its side effects and is the source only of another dry run. A test run is
+ * never the source of a run that sends its writes (the v2 use case, Copilot and the editor route
+ * alike) and is never resumed; a mock, a dry run's or a workflow test's, is data that never
+ * controls the run, sets what it is billed or replaces a locked block, and only the ids of mocked
+ * blocks are kept. Model calls are answered by a simulated Anthropic API.
  */
 import { db } from '@sim/db'
 import {
@@ -688,7 +689,7 @@ describe('a dry run', () => {
     }
   })
 
-  it('runs code for real, listing a Function block unchecked and a Condition not at all', async () => {
+  it('runs code for real, listing a Function block and a Condition unchecked once each', async () => {
     const tableId = await createTable()
     const gate = condition('gate', '<score.result> > 50')
     const branching = graph(
@@ -713,7 +714,43 @@ describe('a dry run', () => {
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(result.sideEffects?.stubbed.map((entry) => entry.block)).toEqual(['high'])
     expect(result.sideEffects?.unchecked).toEqual([
-      expect.objectContaining({ blockId: branching.idOf('score'), block: 'score' }),
+      expect.objectContaining({
+        blockId: branching.idOf('score'),
+        block: 'score',
+        reason: expect.stringContaining('Function block code ran'),
+      }),
+      expect.objectContaining({
+        blockId: branching.idOf('gate'),
+        block: 'gate',
+        reason: expect.stringContaining('Condition expressions ran'),
+      }),
+    ])
+  })
+
+  it('lists a While loop’s condition unchecked once, however often it runs', async () => {
+    const repeat = block('repeat', 'loop')
+    repeat.data = { loopType: 'while', whileCondition: '<loop.index> < 3' }
+    const tick = block('tick', 'function', { language: 'javascript', code: 'return 1' })
+    tick.data = { parentId: repeat.id, extent: 'parent' }
+    const looping = graph(
+      [block('start', 'start_trigger'), repeat, tick],
+      [
+        ['start', 'repeat'],
+        ['repeat', 'tick', 'loop-start-source'],
+      ]
+    )
+    const workflowId = await saveWorkflow(looping.state)
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    expect(result.sideEffects?.unchecked).toEqual([
+      expect.objectContaining({
+        blockId: looping.idOf('repeat'),
+        block: 'repeat',
+        reason: expect.stringContaining('While or Do While loop condition ran'),
+      }),
+      expect.objectContaining({ blockId: looping.idOf('tick'), block: 'tick' }),
     ])
   })
 
@@ -972,7 +1009,10 @@ describe('a test run', () => {
       status: 400,
       body: { error: expect.stringContaining('is a test run') },
     })
-    expect(await fromBlock('latest')).toMatchObject({ status: 400 })
+    expect(await fromBlock('latest')).toMatchObject({
+      status: 400,
+      body: { error: expect.stringContaining('No execution state found for workflow') },
+    })
     expect(await tableRows(tableId)).toEqual([])
   })
 
@@ -1001,11 +1041,20 @@ describe('a test run', () => {
       },
       { timeout: 20_000, interval: 100 }
     )
-    /** A pausing block can no longer pause a test run; this stands in for one that did. */
+    // A test run never pauses, so relabel this paused manual run as one to prove resume refuses it.
     await db
       .update(workflowExecutionLogs)
       .set({ trigger: 'test' })
       .where(eq(workflowExecutionLogs.executionId, paused.executionId))
+    const pausedStatus = async () => {
+      const [row] = await db
+        .select({ status: pausedExecutions.status })
+        .from(pausedExecutions)
+        .where(eq(pausedExecutions.executionId, paused.executionId))
+      return row?.status
+    }
+    const statusBefore = await pausedStatus()
+    expect(statusBefore).toBe('paused')
 
     await expect(
       resumeWorkflowRun.execute({
@@ -1019,7 +1068,7 @@ describe('a test run', () => {
         },
       })
     ).rejects.toThrow('is never resumed')
-    await sleep(500)
+    expect(await pausedStatus()).toBe(statusBefore)
     expect(await tableRows(tableId)).toEqual([])
   })
 
@@ -1054,8 +1103,102 @@ describe('a dry run’s mocks', () => {
 
     await expect(
       run(parentId, { dry: true, mocks: { lookup: { rows: [], _pauseMetadata: pause } } })
-    ).rejects.toMatchObject(validationError)
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('sets _pauseMetadata'),
+    })
     expect(await pausedExecutionsOf(parentId)).toEqual([])
+  })
+
+  it('cannot set what the run is billed, beside a real model call', async () => {
+    const tableId = await createTable()
+    const workflowId = await saveWorkflow(
+      graph(
+        [block('start', 'start_trigger'), queryLeads('lookup', tableId), agent('assistant', {})],
+        [
+          ['start', 'lookup'],
+          ['lookup', 'assistant'],
+        ]
+      ).state
+    )
+    model.toolTurns = 0
+    vi.stubGlobal('fetch', answerModel)
+    const billed = { cost: { input: 0, output: 0, total: -5 }, model: 'claude-haiku-4-5' }
+
+    await expect(
+      run(workflowId, { dry: true, mocks: { lookup: { rows: [], ...billed } } })
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('sets cost, model'),
+    })
+    expect(await logTriggers(workflowId)).toEqual([])
+
+    const dataOnly = await run(workflowId, { dry: true, mocks: { lookup: { rows: [] } } })
+    expect(dataOnly.status, JSON.stringify(dataOnly.error)).toBe('completed')
+    const [log] = await db
+      .select({ modelsUsed: workflowExecutionLogs.modelsUsed })
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, dataOnly.executionId))
+    expect(log.modelsUsed).toEqual(['claude-haiku-4-5'])
+  })
+
+  it('in a workflow test cannot set a field that controls the run or what it is billed', async () => {
+    const tableId = await createTable()
+    const name = `Mocked test ${generateId()}`
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          queryLeads('lookup', tableId),
+          upsertLead('save', tableId, 'a@b.co'),
+        ],
+        [
+          ['start', 'lookup'],
+          ['lookup', 'save'],
+        ]
+      ).state,
+      name
+    )
+    const answerLookup = async (output: Record<string, unknown>) => {
+      const testSession = new WorkflowTestSession({
+        workspaceId,
+        principal,
+        version: 'draft',
+        only: null,
+        onProgress: async () => {},
+      })
+      let event = await testSession.start({
+        workflow: name,
+        trigger: null,
+        input: {},
+        targets: [{ key: 'lookup', kind: 'mock', workflow: null, block: 'lookup' }],
+      })
+      while (event.kind === 'waiting') event = await testSession.next(event.runId)
+      if (event.kind !== 'mock') throw new Error(`The lookup mock was not asked: ${event.kind}`)
+      event = await testSession.reply(event.runId, event.callId, { output })
+      while (event.kind === 'waiting') event = await testSession.next(event.runId)
+      return event
+    }
+    const pause = {
+      contextId: 'mocked',
+      pauseKind: 'time',
+      resumeAt: new Date().toISOString(),
+      blockId: 'lookup',
+    }
+
+    expect(
+      await answerLookup({
+        rows: [],
+        _pauseMetadata: pause,
+        cost: { input: 0, output: 0, total: -5 },
+      })
+    ).toMatchObject({ kind: 'done', error: expect.stringContaining('sets _pauseMetadata, cost') })
+    expect(await pausedExecutionsOf(workflowId)).toEqual([])
+
+    const dataOnly = await answerLookup({ rows: [], rowCount: 0, totalCount: 0 })
+    expect(dataOnly).toMatchObject({ kind: 'done' })
+    expect(dataOnly).not.toHaveProperty('error')
+    expect(await tableRows(tableId)).toEqual([])
   })
 
   it('cannot replace a locked block', async () => {
@@ -1074,7 +1217,10 @@ describe('a dry run’s mocks', () => {
 
     await expect(
       run(workflowId, { dry: true, mocks: { lookup: { rows: [], totalCount: 99 } } })
-    ).rejects.toMatchObject(validationError)
+    ).rejects.toMatchObject({
+      ...validationError,
+      message: expect.stringContaining('locked block'),
+    })
     expect(await logTriggers(workflowId)).toEqual([])
   })
 

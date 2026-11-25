@@ -742,5 +742,10 @@ describe('sim workflows run --dry', () => {
     await run(WORKFLOW_ID, '--dry')
     expect(JSON.parse(String(stdout.mock.calls[0][0])).sideEffects).toEqual(sideEffects)
     expect(stderr.join('')).not.toContain('Dry run')
+
+    stderr = []
+    output.format = 'table'
+    await run(WORKFLOW_ID, '--dry')
+    expect(stderr.join('')).toContain('Dry run: 1 not sent, 0 sent (allowed), 1 unchecked')
   })
 })

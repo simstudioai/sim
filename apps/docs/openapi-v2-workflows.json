@@ -17370,7 +17370,7 @@
               "required": ["workflowId", "blockId", "block", "reason"],
               "additionalProperties": false
             },
-            "description": "Blocks whose code ran for real, once per block: a Function block's code, or code an Agent's model wrote, which may make network calls the run cannot see."
+            "description": "Blocks whose code ran for real, once per block: a Function block's code, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model wrote, which may make network calls the run cannot see."
           },
           "omitted": {
             "type": "object",
@@ -17758,7 +17758,7 @@
                     "minLength": 1
                   },
                   "dry": {
-                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls, conditions and credential resolution run for real, and so does code (a Function block's, or code an Agent's model writes), listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
+                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a placeholder shaped like the tool's output and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes), listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
                     "type": "boolean"
                   },
                   "allowBlocks": {
@@ -17771,7 +17771,7 @@
                     }
                   },
                   "mocks": {
-                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked, and an output field cannot start with `_` (those control the run). The outputs are never stored: the run records only which blocks were mocked, so a rerun passes them again.",
+                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The outputs are never stored: the run records only which blocks were mocked, so a rerun passes them again.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"

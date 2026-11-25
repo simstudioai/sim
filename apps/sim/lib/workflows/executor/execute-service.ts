@@ -203,7 +203,7 @@ export interface ExecuteWorkflowServiceRun {
   paused?: RunPause | null
   /** What a dry run did with each write it reached; absent for any other run. */
   sideEffects?: SideEffectsSummary
-  /** The blocks a dry run sent and mocked, which a rerun of it passes again; absent otherwise. */
+  /** A dry run's allowed and mocked blocks, which a rerun of it passes again; absent otherwise. */
   dryRun?: DryRunOptions
 }
 
@@ -966,7 +966,13 @@ export async function executeWorkflowService(
           } catch (compactError) {
             const tooLarge = responseTooLarge(compactError)
             if (tooLarge) return tooLarge
-            throw compactError
+            // A failed dry run still returns its side effects: its allowed writes were sent.
+            if (!sideEffectPolicy) throw compactError
+            reqLogger.warn('Failed to compact a failed dry run’s output; returning it without', {
+              error: getErrorMessage(compactError),
+            })
+            compactErrorOutput = undefined
+            compactErrorBlockOutputs = null
           }
         }
 

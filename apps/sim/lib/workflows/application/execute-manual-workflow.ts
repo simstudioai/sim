@@ -25,6 +25,7 @@ import {
   resolveTriggerRunOptions,
   validateTriggerInput,
 } from '@/lib/workflows/triggers/run-options'
+import { mockOutputRefusal } from '@/executor/utils/mock-output'
 import { TEST_TRIGGER } from '@/stores/logs/filters/types'
 
 interface ManualExecutionInput extends Omit<ExecuteWorkflowInput, 'input' | 'mode'> {
@@ -166,9 +167,9 @@ function resolveStopAfterBlock(
  * The dry run a manual run asked for, its allowed and mocked blocks resolved like
  * {@link resolveBlockSelector}. A dry run is logged under the `test` trigger, never as a manual
  * run, and returns its side effects with the result it waits for, so it cannot stream or detach.
- * Mocks need a dry run: a fixed output must never drive a run's real writes. A mock is data: it
- * never carries an executor control field (`_pauseMetadata`, any `_` field), and never replaces a
- * locked block, whose configured behaviour only an admin may change.
+ * Mocks need a dry run, so a fixed output reaches a real write only through a block the caller
+ * allows. A mock is data ({@link mockOutputRefusal}), and never replaces a locked block, whose
+ * configured behaviour only an admin may change.
  */
 function resolveRunOverrides(
   state: ManualWorkflowState,
@@ -200,7 +201,7 @@ function resolveRunOverrides(
     if (PAUSING_BLOCK_TYPES.has(blockType)) {
       throw new OrchestrationError(
         'validation',
-        `run.allowBlocks "${selector}" pauses the run, which would resume without the dry run; mock its output with run.mocks instead.`
+        `run.allowBlocks "${selector}" is a Human in the loop or Wait block, which a dry run always answers with a placeholder and never pauses on; mock its output with run.mocks to choose it.`
       )
     }
     if (runsAnotherWorkflow(blockType)) {
@@ -223,13 +224,8 @@ function resolveRunOverrides(
         `run.mocks "${selector}" is a locked block (or inside a locked loop or parallel); its configured behaviour cannot be replaced.`
       )
     }
-    const controlFields = Object.keys(output).filter((field) => field.startsWith('_'))
-    if (controlFields.length > 0) {
-      throw new OrchestrationError(
-        'validation',
-        `run.mocks "${selector}" sets ${controlFields.join(', ')}: fields starting with "_" control the run's execution, so a mock cannot set them.`
-      )
-    }
+    const refusal = mockOutputRefusal(`run.mocks "${selector}"`, output)
+    if (refusal) throw new OrchestrationError('validation', refusal)
     blockMocks.set(blockId, output)
   }
   return {

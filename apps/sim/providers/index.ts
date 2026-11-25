@@ -394,6 +394,30 @@ export async function executeProviderRequest(
         modelSafeRequest
       )
     }
+    if (final && session) {
+      modelSafeRequest.abortSignal?.throwIfAborted()
+      const usage = session.getUsage()
+      cachedFinalResponse = {
+        ...final,
+        tokens: {
+          ...usage.tokens,
+          total:
+            usage.tokens.input +
+            usage.tokens.output +
+            (usage.tokens.cacheRead ?? 0) +
+            (usage.tokens.cacheWrite ?? 0),
+        },
+        cost: {
+          ...usage.cost,
+          pricing: getModelPricing(final.model) ?? {
+            input: 0,
+            output: 0,
+            updatedAt: new Date(0).toISOString(),
+          },
+        },
+      }
+      return cachedFinalResponse
+    }
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId, runtimeContext?.executionContext)
     /**
      * A run under a side-effect policy (a dry run, or a workflow test) leaves nothing on the
@@ -409,30 +433,6 @@ export async function executeProviderRequest(
         runtimeContext?.executionContext,
         uploadRemovals
       )
-      if (final && session) {
-        modelSafeRequest.abortSignal?.throwIfAborted()
-        const usage = session.getUsage()
-        cachedFinalResponse = {
-          ...final,
-          tokens: {
-            ...usage.tokens,
-            total:
-              usage.tokens.input +
-              usage.tokens.output +
-              (usage.tokens.cacheRead ?? 0) +
-              (usage.tokens.cacheWrite ?? 0),
-          },
-          cost: {
-            ...usage.cost,
-            pricing: getModelPricing(final.model) ?? {
-              input: 0,
-              output: 0,
-              updatedAt: new Date(0).toISOString(),
-            },
-          },
-        }
-        return cachedFinalResponse
-      }
       return await provider.executeRequest(modelSafeRequest)
     } finally {
       if (runtimeContext?.executionContext?.sideEffects) {

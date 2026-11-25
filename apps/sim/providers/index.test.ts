@@ -286,8 +286,8 @@ describe('executeProviderRequest — durable Agent continuation', () => {
     )) as ProviderResponse
 
     expect(mockGetApiKeyWithBYOK).toHaveBeenCalledTimes(1)
-    expect(mockAttachLargeFileRemoteUrls).toHaveBeenCalledTimes(1)
-    expect(mockUploadLargeFilesToProvider).toHaveBeenCalledTimes(1)
+    expect(mockAttachLargeFileRemoteUrls).not.toHaveBeenCalled()
+    expect(mockUploadLargeFilesToProvider).not.toHaveBeenCalled()
     expect(mockExecuteRequest).not.toHaveBeenCalled()
     expect(mockExecuteTool).not.toHaveBeenCalled()
     expect(result).toMatchObject({
@@ -481,24 +481,30 @@ describe('executeProviderRequest — durable Agent continuation', () => {
 
 describe('executeProviderRequest — tool identities', () => {
   it.each([
-    ['a run under a side-effect policy deletes', { sideEffects: {} }, 1],
-    ['any other run leaves', {}, 0],
-  ])('%s the files it uploaded when a later upload fails', async (_, policy, deletions) => {
+    ['a later upload fails', true],
+    ['the request succeeds', false],
+  ])('deletes the files a dry run uploaded when %s', async (_, uploadFails) => {
     const removeLanded = vi.fn(async () => {})
     mockUploadLargeFilesToProvider.mockImplementationOnce(
       async (_request, _provider, _context, removals: Array<() => Promise<void>>) => {
         removals.push(removeLanded)
-        throw new Error('The second upload failed')
+        if (uploadFails) throw new Error('The second upload failed')
       }
     )
-    const executionContext = { workflowId: 'workflow-1', ...policy } as ExecutionContext
+    if (!uploadFails) {
+      mockExecuteRequest.mockResolvedValueOnce({ content: 'ready', model: 'test-model' })
+    }
+    const executionContext = { workflowId: 'workflow-1', sideEffects: {} } as ExecutionContext
 
-    await expect(
-      executeProviderRequest('openai', { model: 'test-model' }, { executionContext })
-    ).rejects.toThrow('The second upload failed')
+    const settled = executeProviderRequest('openai', { model: 'test-model' }, { executionContext })
 
-    expect(removeLanded).toHaveBeenCalledTimes(deletions)
-    expect(mockExecuteRequest).not.toHaveBeenCalled()
+    if (uploadFails) {
+      await expect(settled).rejects.toThrow('The second upload failed')
+      expect(mockExecuteRequest).not.toHaveBeenCalled()
+    } else {
+      await expect(settled).resolves.toMatchObject({ content: 'ready' })
+    }
+    expect(removeLanded).toHaveBeenCalledTimes(1)
   })
 
   it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {

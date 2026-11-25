@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createExecutionContext } from '@sim/testing'
 import { maskClientMock, maskClientMockFns } from '@sim/testing/mocks/mask-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { WriteStubPolicy } from '@/lib/workflows/dry-run'
@@ -34,7 +35,7 @@ async function stubSlackMessage(
     toolId: 'slack_message',
     params,
     executionContext: {
-      workflowId: 'wf-1',
+      ...createExecutionContext({ workflowId: 'wf-1' }),
       sideEffects: policy,
       piiBlockOutputRedaction,
     } as ExecutionContext,
@@ -61,7 +62,7 @@ describe('a write a dry run does not send', () => {
 
   it('records no request when the run cannot vouch that no secret remains in it', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete('secret-transformed-by-tool')
+    registry.markIncomplete('projection-mismatch')
 
     const { response, stubbed } = await stubSlackMessage(registry, {
       method: 'POST',

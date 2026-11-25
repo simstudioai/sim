@@ -1,7 +1,8 @@
 /**
  * A dry run on a hosted deployment, against real PostgreSQL and Redis: a write that would use
  * Sim's hosted key is answered with a placeholder before a key is drawn, so the workspace's
- * hosted-key rate-limit counter in Redis is never touched and the recorded request carries no key.
+ * hosted-key rate-limit counter in Redis is never touched and the recorded request carries no key,
+ * while the same run sent for real draws one. Hunter is answered at the tool transport.
  */
 import { db } from '@sim/db'
 import {
@@ -34,6 +35,7 @@ vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
 }))
 
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import * as toolTransport from '@/lib/core/security/input-validation.server'
 import { executeManualWorkflowOperation } from '@/lib/workflows/application/execute-manual-workflow'
 import type { ExecuteWorkflowServiceRun } from '@/lib/workflows/executor/execute-service'
 
@@ -121,6 +123,9 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  vi.restoreAllMocks()
+  const counters = await workspaceRedisKeys()
+  if (counters.length > 0) await getRedisClient()?.del(...counters)
   await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workflowId, workflowId))
   await db
     .delete(workflowExecutionSnapshots)
@@ -134,20 +139,48 @@ afterAll(async () => {
 describe('a dry run on a hosted deployment', () => {
   it('stubs a hosted-key write without drawing a key or counting it against the workspace', async () => {
     expect(await workspaceRedisKeys()).toEqual([])
+    const hunterOnly = (url: string) => {
+      if (new URL(url).hostname !== 'api.hunter.io') {
+        throw new Error(`Unexpected network destination: ${url}`)
+      }
+    }
+    vi.spyOn(toolTransport, 'validateUrlWithDNS').mockImplementation(async (url) => {
+      hunterOnly(String(url))
+      return { isValid: true, resolvedIP: '203.0.113.1', originalHostname: 'api.hunter.io' }
+    })
+    const sent = vi
+      .spyOn(toolTransport, 'secureFetchWithPinnedIP')
+      .mockImplementation(async (url) => {
+        hunterOnly(url)
+        const response = Response.json({ data: { email: 'ada@example.com', score: 90 } })
+        return {
+          status: 200,
+          statusText: 'OK',
+          ok: true,
+          url,
+          headers: new toolTransport.SecureFetchHeaders({ 'content-type': 'application/json' }),
+          body: response.body,
+          text: () => response.text(),
+          json: () => response.json(),
+          arrayBuffer: () => response.arrayBuffer(),
+        }
+      })
+    const run = async (dry: boolean) =>
+      (await executeManualWorkflowOperation.execute({
+        principal,
+        input: {
+          workflowId,
+          requestId: generateId(),
+          executionId: generateId(),
+          input: {},
+          mode: 'sync',
+          requestHeaders: new Headers(),
+          useMockPayload: false,
+          dry,
+        },
+      })) as ExecuteWorkflowServiceRun
 
-    const result = (await executeManualWorkflowOperation.execute({
-      principal,
-      input: {
-        workflowId,
-        requestId: generateId(),
-        executionId: generateId(),
-        input: {},
-        mode: 'sync',
-        requestHeaders: new Headers(),
-        useMockPayload: false,
-        dry: true,
-      },
-    })) as ExecuteWorkflowServiceRun
+    const result = await run(true)
 
     expect(result.status, JSON.stringify(result.error)).toBe('completed')
     expect(result.sideEffects?.stubbed).toEqual([
@@ -155,5 +188,11 @@ describe('a dry run on a hosted deployment', () => {
     ])
     expect(JSON.stringify(result.sideEffects)).not.toContain(HOSTED_KEY)
     expect(await workspaceRedisKeys()).toEqual([])
+    expect(sent).not.toHaveBeenCalled()
+
+    const live = await run(false)
+    expect(live.status, JSON.stringify(live.error)).toBe('completed')
+    expect(sent).toHaveBeenCalledTimes(1)
+    expect(await workspaceRedisKeys()).not.toEqual([])
   })
 })

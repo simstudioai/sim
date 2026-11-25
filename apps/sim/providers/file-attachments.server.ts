@@ -150,8 +150,8 @@ export type ProviderFileRemoval = () => Promise<void>
 export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
   providerId: ProviderId | string,
-  executionContext?: ExecutionContext,
-  removals: ProviderFileRemoval[] = []
+  executionContext: ExecutionContext | undefined,
+  removals: ProviderFileRemoval[]
 ): Promise<void> {
   if (getProviderFileStrategy(providerId) !== 'files-api') return
 

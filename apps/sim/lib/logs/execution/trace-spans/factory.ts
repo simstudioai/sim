@@ -63,6 +63,24 @@ function liftChildTraceHandle(output: Record<string, unknown> | undefined): {
 }
 
 /**
+ * The top-level block output fields {@link createSpanFromLog} reads beyond the displayed output:
+ * provider timing, cost, tokens and model become the span's usage, which the run is billed by,
+ * and the rest build its tool and child-workflow spans. Only a block's own handler sets them.
+ */
+export const SPAN_SOURCE_OUTPUT_FIELDS: ReadonlySet<string> = new Set([
+  'cost',
+  'tokens',
+  'model',
+  'providerTiming',
+  'toolCalls',
+  'executionData',
+  'childTraceSpans',
+  'childWorkflowId',
+  'childWorkflowSnapshotId',
+  'childDeploymentVersionId',
+])
+
+/**
  * Creates a TraceSpan from a BlockLog. Returns null for invalid logs.
  *
  * Children are unified under `span.children` regardless of source:

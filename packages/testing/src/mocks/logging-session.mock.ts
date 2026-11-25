@@ -8,8 +8,7 @@ import { vi } from 'vitest'
  * boolean result, and `mockWhenLogStarted` resolves at once, as for a log already written. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
  * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
  * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, `getTriggerType` is
- * `manual`, and other methods
- * resolve to `undefined`.
+ * `manual`, and other methods resolve to `undefined`.
  * Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
  * @example

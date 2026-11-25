@@ -861,22 +861,20 @@ async function handleExecutePost(
         const { getExecutionStateForWorkflow, getLatestExecutionStateWithExecutionId } =
           await import('@/lib/workflows/executor/execution-state')
         let sourceExecution: { executionId: string; state: SerializableExecutionState } | null
-        try {
-          if (rawRunFromBlock.executionId === 'latest') {
-            sourceExecution = await getLatestExecutionStateWithExecutionId(workflowId)
-          } else {
-            const state = await getExecutionStateForWorkflow(
-              rawRunFromBlock.executionId,
-              workflowId
+        if (rawRunFromBlock.executionId === 'latest') {
+          sourceExecution = await getLatestExecutionStateWithExecutionId(workflowId)
+        } else {
+          let state: SerializableExecutionState | null
+          try {
+            state = await getExecutionStateForWorkflow(rawRunFromBlock.executionId, workflowId)
+          } catch (error) {
+            if (!(error instanceof OrchestrationError)) throw error
+            return NextResponse.json(
+              { error: error.message },
+              { status: statusForOrchestrationError(error.code) }
             )
-            sourceExecution = state ? { executionId: rawRunFromBlock.executionId, state } : null
           }
-        } catch (error) {
-          if (!(error instanceof OrchestrationError)) throw error
-          return NextResponse.json(
-            { error: error.message },
-            { status: statusForOrchestrationError(error.code) }
-          )
+          sourceExecution = state ? { executionId: rawRunFromBlock.executionId, state } : null
         }
         if (!sourceExecution) {
           if (rawRunFromBlock.sourceSnapshot && !isPublicApiAccess) {

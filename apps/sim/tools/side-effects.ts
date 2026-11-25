@@ -13,7 +13,7 @@ import {
 } from '@/lib/core/security/redaction'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import { parseMcpToolArguments, RUN_CONTEXT_PARAMS } from '@/lib/mcp/tool-arguments'
-import { getBlock, getBlockRegistry } from '@/blocks/registry'
+import { getBlock, getBlockByToolName, getBlockRegistry } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import type { SideEffectPolicy, SideEffectSite } from '@/executor/execution/types'
@@ -134,34 +134,16 @@ function passwordParamsOf(block: BlockConfig | undefined): ReadonlySet<string> {
   return params
 }
 
-/**
- * The static block registry's password params per block type, and the block each tool belongs
- * to, read once on the first unsent write rather than on every one.
- */
-let registryPasswordIndex:
-  | { paramsByBlockType: Map<string, ReadonlySet<string>>; blockTypeByTool: Map<string, string> }
-  | undefined
-
-function readRegistryPasswordIndex() {
-  if (registryPasswordIndex) return registryPasswordIndex
-  const paramsByBlockType = new Map<string, ReadonlySet<string>>()
-  const blockTypeByTool = new Map<string, string>()
-  for (const block of Object.values(getBlockRegistry())) {
-    paramsByBlockType.set(block.type, passwordParamsOf(block))
-    for (const toolId of block.tools?.access ?? []) {
-      if (!blockTypeByTool.has(toolId)) blockTypeByTool.set(toolId, block.type)
-    }
-  }
-  registryPasswordIndex = { paramsByBlockType, blockTypeByTool }
-  return registryPasswordIndex
-}
+/** The static block registry's password params, per block type a run's unsent writes named. */
+const registryPasswordParams = new Map<string, ReadonlySet<string>>()
 
 /** A block type's password params; a custom block's config is per workspace, so it is read live. */
 function passwordParamsFor(blockType: string): ReadonlySet<string> {
-  return (
-    readRegistryPasswordIndex().paramsByBlockType.get(blockType) ??
-    passwordParamsOf(getBlock(blockType))
-  )
+  const cached = registryPasswordParams.get(blockType)
+  if (cached) return cached
+  const params = passwordParamsOf(getBlock(blockType))
+  if (Object.hasOwn(getBlockRegistry(), blockType)) registryPasswordParams.set(blockType, params)
+  return params
 }
 
 /**
@@ -230,7 +212,7 @@ export async function answerUnsentWrite(
   }
 ): Promise<ToolResponse> {
   const { call } = write
-  const toolBlockType = readRegistryPasswordIndex().blockTypeByTool.get(call.toolId)
+  const toolBlockType = getBlockByToolName(call.toolId)?.type
   const request = await redactSideEffectPayload({
     payload: input.request,
     params: input.params,

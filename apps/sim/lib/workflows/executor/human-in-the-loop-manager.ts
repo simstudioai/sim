@@ -802,18 +802,26 @@ export class PauseResumeManager {
     const { executionId, workflowId, contextId, resumeInput, userId, allowedPauseKinds } = args
 
     return await execDb.transaction(async (tx) => {
-      const pausedExecution = await tx
-        .select()
+      const paused = await tx
+        .select({ execution: pausedExecutions, trigger: workflowExecutionLogs.trigger })
         .from(pausedExecutions)
+        .leftJoin(
+          workflowExecutionLogs,
+          and(
+            eq(workflowExecutionLogs.executionId, pausedExecutions.executionId),
+            eq(workflowExecutionLogs.workflowId, pausedExecutions.workflowId)
+          )
+        )
         .where(
           and(
             eq(pausedExecutions.executionId, executionId),
             eq(pausedExecutions.workflowId, workflowId)
           )
         )
-        .for('update')
+        .for('update', { of: pausedExecutions })
         .limit(1)
         .then((rows) => rows[0])
+      const pausedExecution = paused?.execution
 
       if (!pausedExecution) {
         throw new ResumeAdmissionError('Paused execution not found or already resumed', 404, false)
@@ -827,17 +835,7 @@ export class PauseResumeManager {
        * A test run (a dry run or a workflow test) answered its writes with placeholders, and a
        * resumed run carries no side-effect policy, so resuming it would send writes built on them.
        */
-      const [pausedLog] = await tx
-        .select({ trigger: workflowExecutionLogs.trigger })
-        .from(workflowExecutionLogs)
-        .where(
-          and(
-            eq(workflowExecutionLogs.executionId, executionId),
-            eq(workflowExecutionLogs.workflowId, workflowId)
-          )
-        )
-        .limit(1)
-      if (pausedLog?.trigger === TEST_TRIGGER) {
+      if (paused.trigger === TEST_TRIGGER) {
         throw new ResumeAdmissionError(
           'A test run (a dry run or a workflow test) is never resumed: its outputs hold placeholders for the writes it did not send',
           409,
