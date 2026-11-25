@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSecureWebPreferences } from '@/main/window-preferences'
 
@@ -7,7 +8,12 @@ import { BrowserWindow, dialog, screen, systemPreferences, WebContentsView } fro
 import { registerAgentWebContents } from '@/main/browser-agent/registry'
 import type { ConfigStore } from '@/main/config'
 import type { EventRecorder } from '@/main/observability'
-import { createMainWindow, resolvePermission, setupPermissionHandlers } from '@/main/window'
+import {
+  createMainWindow,
+  detachVisibilityListenersOnClose,
+  resolvePermission,
+  setupPermissionHandlers,
+} from '@/main/window'
 
 const APP = 'https://sim.ai'
 
@@ -193,5 +199,38 @@ describe('createMainWindow', () => {
     vi.mocked(dialog.showMessageBoxSync).mockReturnValueOnce(1)
     handler?.(event as never)
     expect(event.preventDefault).toHaveBeenCalledOnce()
+  })
+})
+
+describe('detachVisibilityListenersOnClose', () => {
+  /** A window wired the way Electron wires every BrowserWindow: its visibility listener reads the native window. */
+  function electronLikeWindow() {
+    let destroyed = false
+    const win = Object.assign(new EventEmitter(), {
+      isVisible: () => {
+        if (destroyed) throw new TypeError('Object has been destroyed')
+        return true
+      },
+      destroy: () => {
+        destroyed = true
+        win.emit('closed')
+      },
+    })
+    const visibilityChanged = () => win.isVisible()
+    for (const event of ['show', 'hide', 'minimize', 'maximize', 'restore']) {
+      win.on(event, visibilityChanged)
+    }
+    return win
+  }
+
+  it('a visibility event delivered after the window closed no longer throws', () => {
+    const win = electronLikeWindow()
+    detachVisibilityListenersOnClose(win as never)
+
+    win.emit('show')
+    win.destroy()
+
+    expect(() => win.emit('show')).not.toThrow()
+    expect(() => win.emit('hide')).not.toThrow()
   })
 })

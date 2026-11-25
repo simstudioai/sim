@@ -79,6 +79,12 @@ const FAILURE_DEDUPE_MS = 5_000
  * single native recovery surface. Error text is deliberately excluded from
  * the structured log because rejected values can contain request payloads or
  * credentials; the event kind and crash dumps are enough for triage.
+ *
+ * The recovery prompt never outlives a quit: a failure once a quit is committed
+ * (`will-quit`) exits without asking, since a dialog opened during shutdown can
+ * only fall back to a blocking native alert, and any quit request while the
+ * prompt is open answers it as Quit. A `before-quit` that another listener
+ * cancels leaves later failures their prompt.
  */
 export function installMainProcessFailureObservers({
   events,
@@ -86,6 +92,8 @@ export function installMainProcessFailureObservers({
   processSource = process,
 }: MainProcessFailureObserverDeps): void {
   let fatalRecoveryOpen = false
+  let quitCommitted = false
+  let openPrompt: AbortController | null = null
   let lastChildFailure = ''
   let lastChildFailureAt = 0
 
@@ -117,6 +125,12 @@ export function installMainProcessFailureObservers({
     fatalRecoveryOpen = true
     events.record(name, { valueType: value instanceof Error ? 'Error' : typeof value })
     logger.error('Fatal main-process failure', { kind: name })
+    if (quitCommitted) {
+      app.exit(1)
+      return
+    }
+    const promptAbort = new AbortController()
+    openPrompt = promptAbort
     const options = {
       type: 'error' as const,
       buttons: ['Restart Sim', 'Quit Sim'],
@@ -124,6 +138,7 @@ export function installMainProcessFailureObservers({
       cancelId: 1,
       message: 'Sim encountered a problem',
       detail: 'Restart Sim to recover. Diagnostic details were saved locally.',
+      signal: promptAbort.signal,
     }
     const win = getWindow()
     const prompt =
@@ -145,7 +160,17 @@ export function installMainProcessFailureObservers({
     reportFatal('main_uncaught_exception', error)
   }
 
+  const answerOpenPromptAsQuit = (): void => {
+    openPrompt?.abort()
+  }
+  const onWillQuit = (): void => {
+    quitCommitted = true
+    answerOpenPromptAsQuit()
+  }
+
   app.on('child-process-gone', onChildProcessGone)
+  app.on('before-quit', answerOpenPromptAsQuit)
+  app.on('will-quit', onWillQuit)
   processSource.on('unhandledRejection', onUnhandledRejection)
   processSource.on('uncaughtException', onUncaughtException)
 }
