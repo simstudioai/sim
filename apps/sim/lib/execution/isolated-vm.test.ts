@@ -1134,8 +1134,10 @@ describe('isolated-vm scheduler', () => {
       originalHostname: 'hook.example',
     })
     const decided: string[] = []
+    const decision = Promise.withResolvers<'stub'>()
+    let returned = false
 
-    const result = await executeInIsolatedVM(
+    const running = executeInIsolatedVM(
       {
         code: 'fetch("https://hook.example/write", { method: "POST" }); return "returned"',
         params: {},
@@ -1146,15 +1148,19 @@ describe('isolated-vm scheduler', () => {
       },
       {
         fetchPolicy: async (request) => {
-          await sleep(50)
           decided.push(request.method)
-          return 'stub'
+          return decision.promise
         },
       }
-    )
+    ).then((result) => {
+      returned = true
+      return result
+    })
+    await vi.waitFor(() => expect(decided).toEqual(['POST']))
 
-    expect(result.result).toBe('returned')
-    expect(decided).toEqual(['POST'])
+    expect(returned).toBe(false)
+    decision.resolve('stub')
+    expect((await running).result).toBe('returned')
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
