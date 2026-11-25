@@ -210,10 +210,13 @@ interface PendingExecution {
   runInOutboundScope: ReturnType<typeof captureOutboundScope>
   fetchPolicy?: IsolatedFetchPolicy
   /**
-   * Fetches whose {@link fetchPolicy} decision is still pending. The result waits for them, so a
-   * request the code never awaited is decided (and recorded) before the caller reads the run.
+   * Fetches whose {@link fetchPolicy} decision is still pending. The result waits for them until
+   * {@link deadline}, so a request the code never awaited is decided (and recorded) before the
+   * caller reads the run, and a slow decision never holds the code past its time limit.
    */
   fetchDecisions: Set<Promise<unknown>>
+  /** When the pool gives up on the execution (epoch ms): dispatch plus {@link hostTimeoutMs}. */
+  deadline: number
   resolve: (result: IsolatedVMExecutionResult) => void
   timeout: ReturnType<typeof setTimeout>
   ownerKey: string
@@ -905,6 +908,17 @@ function handleBrokerMessage(
     })
 }
 
+/** Settles once every promise in `pending` has, or at `deadline` (epoch ms), whichever is first. */
+function settleBefore(pending: Iterable<Promise<unknown>>, deadline: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, Math.max(0, deadline - Date.now()))
+    void Promise.allSettled(pending).then(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
 function handleWorkerMessage(workerId: number, message: unknown) {
   if (typeof message !== 'object' || message === null) return
   const msg = message as Record<string, unknown>
@@ -942,7 +956,10 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       const result = msg.result as IsolatedVMExecutionResult
       if (!pending.abort.signal.aborted) {
         if (pending.fetchDecisions.size === 0) pending.resolve(result)
-        else void Promise.allSettled(pending.fetchDecisions).then(() => pending.resolve(result))
+        else
+          void settleBefore(pending.fetchDecisions, pending.deadline).then(() =>
+            pending.resolve(result)
+          )
       }
       // The isolate's own timeout gives up on the execution just as the pool's does.
       if (result.termination === 'timeout') pending.abort.abort()
@@ -1450,6 +1467,7 @@ function dispatchToWorker(
     runInOutboundScope: state.runInOutboundScope,
     fetchPolicy: state.fetchPolicy,
     fetchDecisions: new Set(),
+    deadline: Date.now() + hostTimeoutMs,
     resolve,
     timeout,
     ownerKey: ownerState.ownerKey,

@@ -177,6 +177,34 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
+/** A worker whose code starts a POST it never awaits and returns at once. */
+function createUnawaitedFetchProc(): MockProc {
+  const proc = createBaseProc()
+  proc.send = (message: unknown) => {
+    const msg = message as { type?: string; executionId?: number }
+    if (msg.type === 'execute') {
+      setImmediate(() => {
+        proc.emit('message', {
+          type: 'fetch',
+          executionId: msg.executionId,
+          fetchId: 1,
+          requestId: 'req-unawaited',
+          url: 'https://hook.example/write',
+          optionsJson: JSON.stringify({ method: 'POST' }),
+        })
+        proc.emit('message', {
+          type: 'result',
+          executionId: msg.executionId,
+          result: { result: 'returned', stdout: '' },
+        })
+      })
+    }
+    return true
+  }
+  setImmediate(() => proc.emit('message', { type: 'ready' }))
+  return proc
+}
+
 const { mockSpawn, mockExecSync } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
   mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
@@ -1101,33 +1129,9 @@ describe('isolated-vm scheduler', () => {
   })
 
   it('returns a result only once the fetch policy decided a request the code never awaited', async () => {
-    const unawaitedFetchProc = () => {
-      const proc = createBaseProc()
-      proc.send = (message: unknown) => {
-        const msg = message as { type?: string; executionId?: number }
-        if (msg.type === 'execute') {
-          setImmediate(() => {
-            proc.emit('message', {
-              type: 'fetch',
-              executionId: msg.executionId,
-              fetchId: 1,
-              requestId: 'req-unawaited',
-              url: 'https://hook.example/write',
-              optionsJson: JSON.stringify({ method: 'POST' }),
-            })
-            proc.emit('message', {
-              type: 'result',
-              executionId: msg.executionId,
-              result: { result: 'returned', stdout: '' },
-            })
-          })
-        }
-        return true
-      }
-      setImmediate(() => proc.emit('message', { type: 'ready' }))
-      return proc
-    }
-    const { executeInIsolatedVM } = await loadExecutionModule({ spawns: [unawaitedFetchProc] })
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      spawns: [createUnawaitedFetchProc],
+    })
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',
@@ -1165,6 +1169,44 @@ describe('isolated-vm scheduler', () => {
     decide('stub')
     expect((await running).result).toBe('returned')
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('stops waiting for an unawaited request’s decision at the execution’s deadline', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    try {
+      const { executeInIsolatedVM } = await loadExecutionModule({
+        spawns: [createUnawaitedFetchProc],
+      })
+      inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
+        isValid: true,
+        resolvedIP: '93.184.216.34',
+        originalHostname: 'hook.example',
+      })
+      const decided: string[] = []
+
+      const running = executeInIsolatedVM(
+        {
+          code: 'fetch("https://hook.example/write", { method: "POST" }); return "returned"',
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: 100,
+          requestId: 'req-unawaited-slow',
+        },
+        {
+          fetchPolicy: (request) => {
+            decided.push(request.method)
+            return new Promise<'stub'>(() => {})
+          },
+        }
+      )
+      await vi.waitFor(() => expect(decided).toEqual(['POST']))
+      await vi.advanceTimersByTimeAsync(1100)
+
+      expect((await running).result).toBe('returned')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not log a resolved secret from a failed fetch URL or error', async () => {
