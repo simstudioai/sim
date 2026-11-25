@@ -1134,7 +1134,10 @@ describe('isolated-vm scheduler', () => {
       originalHostname: 'hook.example',
     })
     const decided: string[] = []
-    const decision = Promise.withResolvers<'stub'>()
+    let decide: (decision: 'stub') => void = () => {}
+    const decision = new Promise<'stub'>((resolve) => {
+      decide = resolve
+    })
     let returned = false
 
     const running = executeInIsolatedVM(
@@ -1149,7 +1152,7 @@ describe('isolated-vm scheduler', () => {
       {
         fetchPolicy: async (request) => {
           decided.push(request.method)
-          return decision.promise
+          return decision
         },
       }
     ).then((result) => {
@@ -1159,7 +1162,7 @@ describe('isolated-vm scheduler', () => {
     await vi.waitFor(() => expect(decided).toEqual(['POST']))
 
     expect(returned).toBe(false)
-    decision.resolve('stub')
+    decide('stub')
     expect((await running).result).toBe('returned')
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
