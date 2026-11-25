@@ -1709,7 +1709,7 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
         .boolean()
         .optional()
         .describe(
-          "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls other than a GET, HEAD or OPTIONS without a method-override header, custom and MCP tools) is not sent; it returns a correctly shaped placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked) and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes): JavaScript without imports sends its GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed), while any other request, or one carrying a method-override header, gets an empty 200 response (header `x-sim-dry-run: stubbed`) and is listed in `sideEffects.stubbed` as tool `function_execute`; code in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files) has network the run cannot see and is listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
+          "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls other than a GET, HEAD or OPTIONS without a method-override header, custom and MCP tools) is not sent; it returns a correctly shaped placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked) and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Placeholder ids and values the request cannot determine are distinctive: strings shaped `dry_run_<kind>_<n>` and numbers above 900000000. A read (a `read` tool, an HTTP GET, HEAD or OPTIONS, or code's GET, HEAD or OPTIONS `fetch`) that would send one the run returned (such as a placeholder row's id or issue number in a URL, or free text quoting one) is not sent either: it gets a placeholder (code's `fetch` an empty 200) and is listed there with `dependsOnStub`. Every MCP call is stubbed, even one its server declares read-only, a claim Sim cannot verify: its entry carries `readOnlyHint`, and `allowBlocks` sends it. Other reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes): JavaScript without imports sends its other GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed), while any other request, or one carrying a method-override header, gets an empty 200 response (header `x-sim-dry-run: stubbed`) and is listed in `sideEffects.stubbed` as tool `function_execute`; code in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files) has network the run cannot see and is listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`."
         ),
       allowBlocks: z
         .array(z.string().min(1, 'run.allowBlocks entries cannot be empty'))
@@ -1993,6 +1993,14 @@ const sideEffectBlockFields = {
   block: z.string().nullable().describe('Block display name; null when the call named no block.'),
 }
 
+const mcpCallTargetSchema = z
+  .object({
+    server: z.string().describe('MCP server or managed connection id.'),
+    tool: z.string().describe('MCP tool name.'),
+  })
+  .nullable()
+  .describe("The MCP server and tool an MCP block's call named; null for any other call.")
+
 const v2RunSideEffectsSchema = z
   .object({
     stubbed: z
@@ -2014,18 +2022,32 @@ const v2RunSideEffectsSchema = z
           returned: z
             .record(z.string(), z.unknown().describe('Placeholder field.'))
             .describe('Placeholder output the block or tool call returned to the run instead.'),
+          mcp: mcpCallTargetSchema,
+          dependsOnStub: z
+            .boolean()
+            .describe(
+              'True for a read that was not sent because what it would send holds a placeholder the run returned earlier (a `dry_run_<kind>_<n>` string or a number above 900000000, such as a placeholder row id), so it depends on a write that was never sent.'
+            ),
+          readOnlyHint: z
+            .boolean()
+            .describe(
+              "True for an MCP call whose server declares the tool read-only and not destructive (`readOnlyHint`, not `destructiveHint`). That is the server's claim, which Sim cannot verify, so the call was not sent; name its block in `run.allowBlocks` to send it."
+            ),
         })
       )
-      .describe('Writes that were not sent, in the order the run reached them.'),
+      .describe(
+        'Calls that were not sent, in the order the run reached them: writes, and reads that depend on one (`dependsOnStub`).'
+      ),
     allowed: z
       .array(
         z.object({
           ...sideEffectBlockFields,
           tool: z.string().nullable().describe('Tool sent; null when the whole block ran.'),
+          mcp: mcpCallTargetSchema,
         })
       )
       .describe(
-        'Writes sent for real because `run.allowBlocks` named their block, once per block and tool.'
+        "Writes sent for real because `run.allowBlocks` named their block, once per block and tool (an MCP block's per MCP tool)."
       ),
     unchecked: z
       .array(

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isReadRequest } from '@/lib/core/utils/http-methods'
+import { PlaceholderTokens } from '@/lib/workflows/dry-run/placeholders'
 import { sampleBlockOutput, sampleToolOutput } from '@/lib/workflows/dry-run/samples'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { BlockType, HUMAN_IN_THE_LOOP_BLOCK_TYPES } from '@/executor/constants'
@@ -7,10 +8,12 @@ import type {
   AnsweredBlockCall,
   CodeNetworkPolicy,
   DryRunOptions,
+  McpCallTarget,
   SideEffectBlockSite,
   SideEffectPolicy,
   SideEffectSite,
   StubbedToolCall,
+  ToolCallSite,
 } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
 
@@ -54,17 +57,25 @@ interface RecordedSite {
   block: string | null
 }
 
-/** A write the run did not send: the request it would have sent and the placeholder it got. */
+/** A call the run did not send: the request it would have sent and the placeholder it got. */
 interface StubbedSideEffect extends RecordedSite {
   /** The tool called; null when the whole block was answered instead of run. */
   tool: string | null
   request: Record<string, unknown> | null
   returned: Record<string, unknown>
+  /** The MCP server and tool the MCP block's operation names; null for any other call. */
+  mcp: McpCallTarget | null
+  /** A read held back because what it sends holds a placeholder an answer returned. */
+  dependsOnStub: boolean
+  /** An MCP call whose server declares the tool read-only, a claim Sim cannot verify. */
+  readOnlyHint: boolean
 }
 
 /** A write sent for real because its block was allowed. */
 interface AllowedSideEffect extends RecordedSite {
   tool: string | null
+  /** The MCP server and tool the MCP block's operation names; null for any other call. */
+  mcp: McpCallTarget | null
 }
 
 /** Code that ran for real in a remote sandbox, whose network the run cannot see. */
@@ -143,9 +154,13 @@ class RecordedList<T> {
  * write tool call is answered with a placeholder shaped like the tool's output, holding what the
  * request determines where the tool declares it (`dryRunOutput`), and recorded with
  * the request it would have sent, except an allowed block's, which are sent and recorded once per
- * block and tool. Reads always run. Code runs too: in the isolate its reads (`isReadRequest`) are
- * sent and any other request is answered with an empty 200 and recorded like a write, while code
- * in a remote sandbox, whose network the run cannot see, is listed unchecked. Custom blocks and
+ * block and tool (an MCP block's by the MCP tool it names). Reads run, except one that would send
+ * a placeholder an answer returned (a `dry_run_<kind>_<n>` token or a placeholder number), which
+ * is answered with a placeholder too, and is listed with `dependsOnStub`. Every MCP call is a write
+ * here, even one its server declares read-only, since Sim cannot verify that claim. Code runs too:
+ * in the isolate its reads (`isReadRequest`) are sent, unless they would send a placeholder, and any
+ * other request is answered with an empty 200 and recorded like a write, while code in a remote
+ * sandbox, whose network the run cannot see, is listed unchecked. Custom blocks and
  * {@link PAUSING_BLOCK_TYPES} are answered whole, as is a block that acts outside the tool seam
  * unless it is allowed, and `blockMocks` answers its blocks with fixed outputs. Allowed and mocked
  * blocks are blocks of the workflow the run started, never of a child it calls, and an allowed
@@ -157,6 +172,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
   private readonly unchecked = new RecordedList<UncheckedSideEffect>()
   private readonly allowBlockIds: ReadonlySet<string>
   private readonly blockMocks: ReadonlyMap<string, NormalizedBlockOutput>
+  private readonly placeholders = new PlaceholderTokens()
 
   constructor(
     private readonly options: {
@@ -195,7 +211,7 @@ export class WriteStubPolicy implements SideEffectPolicy {
    * own code (a Function block's, a Condition's expressions, or code an Agent's model wrote),
    * which is sent, its network decided by {@link codeNetwork}.
    */
-  decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub' {
+  decideWrite(call: ToolCallSite): 'send' | 'stub' {
     switch (call.toolId) {
       case 'deployed_block_executor':
         return 'stub'
@@ -204,9 +220,10 @@ export class WriteStubPolicy implements SideEffectPolicy {
         return 'send'
     }
     if (!this.allows(call)) return 'stub'
+    const mcpKey = call.mcp ? `:${call.mcp.server}:${call.mcp.tool}` : ''
     this.allowed.add(
-      { ...recordedSite(call), tool: call.toolId },
-      `${call.workflowId}:${call.blockId}:${call.toolId}`
+      { ...recordedSite(call), tool: call.toolId, mcp: call.mcp },
+      `${call.workflowId}:${call.blockId}:${call.toolId}${mcpKey}`
     )
     return 'send'
   }
@@ -225,9 +242,14 @@ export class WriteStubPolicy implements SideEffectPolicy {
           key
         ),
       onRequest: async (request) => {
-        if (isReadRequest(request.method, request.headerNames)) return 'send'
-        if (allowed) {
-          this.allowed.add({ ...recordedSite(site), tool: CODE_TOOL_ID }, `${key}:${CODE_TOOL_ID}`)
+        const reads = isReadRequest(request.method, request.headerNames)
+        const dependsOnStub = reads && this.placeholders.occursIn([request.url, request.body])
+        if (reads && !dependsOnStub) return 'send'
+        if (allowed && !dependsOnStub) {
+          this.allowed.add(
+            { ...recordedSite(site), tool: CODE_TOOL_ID, mcp: null },
+            `${key}:${CODE_TOOL_ID}`
+          )
           return 'send'
         }
         this.stubbed.add({
@@ -235,16 +257,32 @@ export class WriteStubPolicy implements SideEffectPolicy {
           tool: CODE_TOOL_ID,
           request: this.stubbed.full ? null : await describeOrNull(request.describe),
           returned: { status: 200, body: {} },
+          mcp: null,
+          dependsOnStub,
+          readOnlyHint: false,
         })
         return 'stub'
       },
     }
   }
 
-  stubWrite(call: StubbedToolCall): Record<string, unknown> {
-    const returned = sampleToolOutput(call.toolId, call.echoed)
-    this.stubbed.add({ ...recordedSite(call), tool: call.toolId, request: call.request, returned })
+  stubCall(call: StubbedToolCall): Record<string, unknown> {
+    const returned = sampleToolOutput(call.toolId, call.echoed, call.discoveredOutputs)
+    this.placeholders.register(returned)
+    this.stubbed.add({
+      ...recordedSite(call),
+      tool: call.toolId,
+      request: call.request,
+      returned,
+      mcp: call.mcp,
+      dependsOnStub: call.dependsOnStub,
+      readOnlyHint: call.readOnlyHint,
+    })
     return returned
+  }
+
+  sendsPlaceholder(sent: unknown): boolean {
+    return this.placeholders.occursIn(sent)
   }
 
   answersBlock(block: SideEffectBlockSite): boolean {
@@ -253,7 +291,10 @@ export class WriteStubPolicy implements SideEffectPolicy {
     if (isCustomBlockType(block.blockType)) return true
     if (!SELF_DIRECTED_BLOCK_TYPES.has(block.blockType)) return false
     if (!this.allows(block)) return true
-    this.allowed.add({ ...recordedSite(block), tool: null }, `${block.workflowId}:${block.blockId}`)
+    this.allowed.add(
+      { ...recordedSite(block), tool: null, mcp: null },
+      `${block.workflowId}:${block.blockId}`
+    )
     return false
   }
 
@@ -262,7 +303,16 @@ export class WriteStubPolicy implements SideEffectPolicy {
     if (mock) return structuredClone(mock)
     const input = await call.input()
     const returned = sampleBlockOutput({ type: call.blockType, params: input ?? {} })
-    this.stubbed.add({ ...recordedSite(call), tool: null, request: input, returned })
+    this.placeholders.register(returned)
+    this.stubbed.add({
+      ...recordedSite(call),
+      tool: null,
+      request: input,
+      returned,
+      mcp: null,
+      dependsOnStub: false,
+      readOnlyHint: false,
+    })
     return returned
   }
 

@@ -225,10 +225,12 @@ search that returns no email or phone, and an email verifier.
   `sim workflows run <workflowId> --dry --input '{…}'`. Each `write` call must appear in the result's
   `sideEffects.stubbed` with the request you expect (an HTTP tool's `method`, `url` and `body`, or an
   in-process operation's input, credentials redacted), and each `read` must run for real and return
-  live data; a read listed there is labelled `write`. A write missing from `stubbed` may not have
-  been reached (an untaken branch, or a block answered by `--mock`), so first confirm its block ran
-  in the trace: a reached write is absent only when its block was `--allow`ed and sent it for real,
-  so a reached, unallowed write missing from `stubbed` is labelled `read`. `stubbed` keeps at most
+  live data; a read listed there is labelled `write`, unless its entry has `dependsOnStub: true`
+  (it would have sent a stubbed write's placeholder id, so give it a real id). A write missing
+  from `stubbed` may not have been reached (an untaken branch, or a block answered by `--mock`),
+  so first confirm its block ran in the trace: a reached write is absent only when its block was
+  `--allow`ed and sent it for real, so a reached, unallowed write missing from `stubbed` is
+  labelled `read`. `stubbed` keeps at most
   50 entries and counts the rest in `sideEffects.omitted.stubbed`, so a write past the cap is
   counted, not missing: test one tool per run, or few enough to fit. An entry's `request` is `null`
   when the run cannot vouch that no secret remains in it, or cannot build it once secrets are

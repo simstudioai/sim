@@ -9,8 +9,8 @@ import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
-  answerUnsentMcpWrite,
-  answerUnsentWrite,
+  answerCheckedMcpCall,
+  answerUnsentCall,
   codeNetworkFor,
   describeMcpToolRequest,
   unsentWriteFor,
@@ -57,7 +57,7 @@ async function stubSlackMessage(
     _context: { blockId: 'notify' },
   }
   const { write, policy } = unsentWrite('slack_message', params, piiBlockOutputRedaction)
-  const response = await answerUnsentWrite(write, { params, registry, describe: () => request })
+  const response = await answerUnsentCall(write, { params, registry, describe: () => request })
   return { response, stubbed: policy.summary().stubbed }
 }
 
@@ -127,7 +127,7 @@ describe('a write a dry run does not send', () => {
     }
     const { write, policy } = unsentWrite('slack_message', params)
 
-    await answerUnsentWrite(write, {
+    await answerUnsentCall(write, {
       params,
       registry: new ResolvedSecretTraceRegistry(),
       describe: (masked) => ({ body: Buffer.from(String(masked.content)).toString('base64') }),
@@ -150,11 +150,15 @@ describe('a write a dry run does not send', () => {
       const params = { arguments: args, _context: { blockId: 'notify' } }
       const { write, policy } = unsentWrite('mcp-server-1-create_issue', params)
 
-      await answerUnsentMcpWrite(write, {
-        params,
-        registry: new ResolvedSecretTraceRegistry(),
-        describe: describeMcpToolRequest,
-      })
+      await answerCheckedMcpCall(
+        write,
+        { success: true, output: {} },
+        {
+          params,
+          registry: new ResolvedSecretTraceRegistry(),
+          describe: describeMcpToolRequest,
+        }
+      )
 
       const [{ request }] = policy.summary().stubbed
       expect(request).toEqual({

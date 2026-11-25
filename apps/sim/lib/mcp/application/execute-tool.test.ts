@@ -307,7 +307,12 @@ describe('executeMcpToolUseCase', () => {
     expect(mocks.executeTool).toHaveBeenCalledOnce()
   })
 
-  it('checks a held-back call against the server’s tools without sending it', async () => {
+  it('checks a held-back call against the server’s tools without sending it, reporting its hints', async () => {
+    const outputSchema = { type: 'object' as const, properties: { total: { type: 'number' } } }
+    const [lookup] = await mocks.discoverServerTools()
+    mocks.discoverServerTools.mockResolvedValue([
+      { ...lookup, outputSchema, annotations: { readOnlyHint: true } },
+    ])
     const input = {
       workspaceId: WORKSPACE.workspaceId,
       serverId: SERVER.id,
@@ -323,9 +328,13 @@ describe('executeMcpToolUseCase', () => {
         principal: PRINCIPAL,
         input: { ...input, arguments: { count: 1 } },
       })
-    ).resolves.toEqual({ success: true, checked: true })
+    ).resolves.toEqual({
+      success: true,
+      checked: true,
+      tool: { name: 'lookup', outputSchema, readOnlyHint: true },
+    })
 
-    expect(mocks.discoverServerTools).toHaveBeenCalledTimes(2)
+    expect(mocks.discoverServerTools).toHaveBeenCalledTimes(3)
     expect(mocks.executeTool).not.toHaveBeenCalled()
   })
 

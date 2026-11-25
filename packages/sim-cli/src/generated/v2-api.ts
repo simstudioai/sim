@@ -7168,12 +7168,22 @@ type ExecuteWorkflowResponseRef1 = {
     tool: string | null
     request: Record<string, unknown> | null
     returned: Record<string, unknown>
+    mcp: {
+      server: string
+      tool: string
+    } | null
+    dependsOnStub: boolean
+    readOnlyHint: boolean
   }>
   allowed: Array<{
     workflowId: string
     blockId: string | null
     block: string | null
     tool: string | null
+    mcp: {
+      server: string
+      tool: string
+    } | null
   }>
   unchecked: Array<{
     workflowId: string

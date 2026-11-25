@@ -130,13 +130,22 @@ export const testReportSchema = z.object({
 
 /** What one workflow run of a test did with the writes it reached, without their payloads. */
 const testRunSideEffectsSchema = z.object({
-  /** Writes no mock answered, stubbed with a placeholder; `tool` is null for a block answered whole. */
+  /**
+   * Calls no mock answered, stubbed with a placeholder: writes, and reads that would have sent a
+   * placeholder (`dependsOnStub`). `tool` is null for a block answered whole.
+   */
   stubbed: z.array(
     z.object({
       workflowId: z.string(),
       blockId: z.string().nullable(),
       block: z.string().nullable(),
       tool: z.string().nullable(),
+      /** The MCP server and tool an MCP block's call named; null for any other call. */
+      mcp: z.object({ server: z.string(), tool: z.string() }).nullable(),
+      /** A read that would have sent a placeholder an earlier stub returned. */
+      dependsOnStub: z.boolean(),
+      /** An MCP call whose server declares the tool read-only, unverified, so it was not sent. */
+      readOnlyHint: z.boolean(),
       /** Calls folded into this entry. */
       count: z.number().int().positive(),
     })

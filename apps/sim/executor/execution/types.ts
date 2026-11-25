@@ -342,9 +342,33 @@ export interface SideEffectBlockSite extends SideEffectSite {
   blockType: string
 }
 
-/** A write tool call the run answers instead of sending, with the request it would have sent. */
-export interface StubbedToolCall extends SideEffectSite {
+/** The MCP server and tool an MCP block's operation names. */
+export interface McpCallTarget {
+  server: string
+  tool: string
+}
+
+/** A tool call made at a block of one executing workflow. */
+export interface ToolCallSite extends SideEffectSite {
   toolId: string
+  /** The MCP server and tool, for the MCP block's `mcp_run_operation`; null for any other tool. */
+  mcp: McpCallTarget | null
+}
+
+/** A tool call the run answers instead of sending, with the request it would have sent. */
+export interface StubbedToolCall extends ToolCallSite {
+  /**
+   * A read held back because what it sends holds a placeholder
+   * ({@link SideEffectPolicy.sendsPlaceholder}).
+   */
+  dependsOnStub: boolean
+  /** An MCP call whose server declares the tool read-only and not destructive, unverified. */
+  readOnlyHint: boolean
+  /**
+   * JSON Schemas of outputs the call learned beside the tool's declared ones, sampled into its
+   * placeholder too: an MCP tool's discovered `outputSchema`, as `structuredContent`.
+   */
+  discoveredOutputs?: Record<string, unknown>
   /** The request with credentials, secrets and PII redacted; null when that cannot be vouched for. */
   request: Record<string, unknown> | null
   /**
@@ -369,6 +393,12 @@ interface CodeNetworkRequest {
   method: string
   /** The names of the headers it carries, never their values. */
   headerNames: string[]
+  /**
+   * The URL and body it sends, unredacted: only searched for the run's placeholders (a read that
+   * would send one is stubbed), never recorded.
+   */
+  url: string
+  body: string | undefined
   /**
    * What the request would send (method, capped origin and path with query parameter names, header
    * names, a capped body; never a header value), redacted like a stubbed write's request; null
@@ -400,18 +430,24 @@ export interface CodeNetworkPolicy {
  */
 export interface SideEffectPolicy {
   /**
-   * Whether this write tool call is sent or answered with {@link stubWrite}. Records an allowed
+   * Whether this write tool call is sent or answered with {@link stubCall}. Records an allowed
    * block's sent write.
    */
-  decideWrite(call: SideEffectSite & { toolId: string }): 'send' | 'stub'
+  decideWrite(call: ToolCallSite): 'send' | 'stub'
   /**
    * The network policy of code about to run at `site`: code run through `function_execute` (a
    * Function block's, a Condition's expressions, or code an Agent's model wrote), or a While or Do
    * While loop's condition.
    */
   codeNetwork(site: SideEffectSite): CodeNetworkPolicy
-  /** Records a write that was not sent and returns the placeholder output answering it. */
-  stubWrite(call: StubbedToolCall): Record<string, unknown>
+  /** Records a call that was not sent and returns the placeholder output answering it. */
+  stubCall(call: StubbedToolCall): Record<string, unknown>
+  /**
+   * Whether `sent`, what a read would send, holds a value one of the run's placeholders returned
+   * (a placeholder row's id): such a read depends on a write that was never sent, so it is answered
+   * with {@link stubCall} instead.
+   */
+  sendsPlaceholder(sent: unknown): boolean
   /** Whether this block is answered with {@link answerBlock} instead of running its handler. */
   answersBlock(block: SideEffectBlockSite): boolean
   /** The output answering a block that does not run: its mock, or a recorded placeholder. */

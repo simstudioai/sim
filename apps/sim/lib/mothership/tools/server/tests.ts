@@ -47,19 +47,22 @@ function failures(report: StoredTestReport | null) {
 }
 
 /**
- * Each write a run stubbed because no mock answered it, once, as `block → tool` (a block answered
- * whole by its name alone): a test that passes may still lean on a placeholder. The list is partial
- * when `omittedCalls` (stubbed calls a run's full list left out) or `omittedRuns` (runs past the
- * per-file cap, whose writes went unrecorded) is nonzero, and unknown (null) for a run with no
- * report, such as one that errored before the sandbox returned.
+ * Each call a run stubbed because no mock answered it, once, as `block → tool` (an MCP block's by
+ * the MCP tool it named, a block answered whole by its name alone, and a read marked when it was
+ * stubbed for sending an earlier stub's placeholder): a test that passes may still lean on a
+ * placeholder. The list is partial when `omittedCalls` (stubbed calls a run's full list left out)
+ * or `omittedRuns` (runs past the per-file cap, whose writes went unrecorded) is nonzero, and
+ * unknown (null) for a run with no report, such as one that errored before the sandbox returned.
  */
 function unmockedWrites(report: StoredTestReport | null) {
   if (!report) return null
   const executions = Object.values(report.sideEffects?.executions ?? {})
   const sites = executions.flatMap((execution) =>
-    execution.stubbed.map(({ block, blockId, tool }) => {
+    execution.stubbed.map(({ block, blockId, tool, mcp, dependsOnStub }) => {
       const site = block ?? blockId ?? 'unnamed block'
-      return tool ? `${site} → ${tool}` : site
+      const called = mcp ? mcp.tool : tool
+      const label = called ? `${site} → ${called}` : site
+      return dependsOnStub ? `${label} (read of a placeholder)` : label
     })
   )
   return {

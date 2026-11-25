@@ -681,7 +681,21 @@ describe('sim workflows run --dry', () => {
         block: 'Save lead',
         tool: 'table_upsert_row',
         request: { tableId: 'tbl_1', data: { email: 'a@b.co' } },
-        returned: { row: { id: 'item_1' } },
+        returned: { row: { id: 'dry_run_row_1' } },
+        mcp: null,
+        dependsOnStub: false,
+        readOnlyHint: false,
+      },
+      {
+        workflowId: WORKFLOW_ID,
+        blockId: 'docs',
+        block: 'Docs',
+        tool: 'mcp_run_operation',
+        request: { arguments: { path: '/q3.csv' } },
+        returned: {},
+        mcp: { server: 'mcp-files', tool: 'read_file' },
+        dependsOnStub: false,
+        readOnlyHint: true,
       },
     ],
     allowed: [],
@@ -792,7 +806,10 @@ describe('sim workflows run --dry', () => {
     stderr = []
     output.format = 'table'
     await run(WORKFLOW_ID, '--dry')
-    expect(stderr.join('')).toContain('Dry run: 1 not sent, 0 sent (allowed), 1 unchecked')
+    expect(stderr.join('')).toContain('Dry run: 2 not sent, 0 sent (allowed), 1 unchecked')
+    expect(stderr.join('')).toContain(
+      "not sent   Docs → read_file (server says read-only: --allow 'Docs' sends it)"
+    )
   })
 
   it('counts the writes each list left out once it was full', async () => {
@@ -803,7 +820,10 @@ describe('sim workflows run --dry', () => {
           runId: 'run-1',
           workflowId: WORKFLOW_ID,
           status: 'completed',
-          sideEffects: { ...sideEffects, omitted: { stubbed: 60, allowed: 0, unchecked: 2 } },
+          sideEffects: {
+            ...sideEffects,
+            omitted: { stubbed: 60, allowed: 0, unchecked: 2 },
+          },
         },
       })
     )
@@ -811,7 +831,7 @@ describe('sim workflows run --dry', () => {
 
     await run(WORKFLOW_ID, '--dry')
 
-    expect(stderr.join('')).toContain('Dry run: 61 not sent, 0 sent (allowed), 3 unchecked')
+    expect(stderr.join('')).toContain('Dry run: 62 not sent, 0 sent (allowed), 3 unchecked')
     expect(stderr.join('')).toContain('… 62 more')
   })
 })
