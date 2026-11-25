@@ -51,16 +51,6 @@ import { useBrowserSessionStore as store } from ${JSON.stringify(join(SIM_DIR, '
 import { BrowserPageDialogModal } from ${JSON.stringify(join(BROWSER_SESSION_COMPONENTS, 'browser-page-dialog.tsx'))};
 import { useBrowserPanelOcclusion } from ${JSON.stringify(join(BROWSER_SESSION_COMPONENTS, 'browser-panel-occlusion.ts'))};
 const scope = ${JSON.stringify(SCOPE)};
-const diag = (globalThis.escapeDiag = []);
-const stamp = (what, extra) => diag.push({ what, t: Math.round(performance.now()), active: document.activeElement?.textContent?.slice(0, 20) ?? null, hasFocus: document.hasFocus(), ...extra });
-const origAdd = window.addEventListener.bind(window);
-const origRemove = window.removeEventListener.bind(window);
-window.addEventListener = (type, fn, opts) => { if (type === 'keydown' && opts === true) stamp('lock-on'); return origAdd(type, fn, opts) };
-window.removeEventListener = (type, fn, opts) => { if (type === 'keydown' && opts === true) stamp('lock-off'); return origRemove(type, fn, opts) };
-origAdd('keydown', (e) => { if (e.key === 'Escape') stamp('esc-window-capture') }, true);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') stamp('esc-document-capture') }, true);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') stamp('esc-document-bubble', { prevented: e.defaultPrevented }) });
-document.addEventListener('focusin', () => stamp('focusin'), true);
 const api = globalThis.simDesktop.browserAgent;
 api.onPageState(state => store.getState().setPageState(state));
 store.subscribe(state => {
@@ -298,82 +288,26 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     })
 
     await test.step('Escape keeps the draft and returns typing to the page', async () => {
-      const results: unknown[] = []
-      await app.evaluate(({ webContents }, url) => {
-        const g = globalThis as unknown as { mainEsc: unknown[] }
-        g.mainEsc = []
-        for (const contents of webContents.getAllWebContents()) {
-          contents.on('before-input-event', (_event, input) => {
-            if (input.key === 'Escape')
-              g.mainEsc.push({
-                url: contents.getURL().slice(0, 40),
-                type: input.type,
-                loading: contents.isLoadingMainFrame(),
-                t: Date.now(),
-              })
-          })
-        }
-        void url
-      }, form)
-      for (let attempt = 0; attempt < 12; attempt++) {
-        await shell.evaluate(() => {
-          ;(globalThis as unknown as { escapeDiag: unknown[] }).escapeDiag.length = 0
+      await userInput(app, form, '#draft')
+      // The click is queued input: reloading before the page takes focus lets that focus land
+      // after the modal's, leaving the Sim window without keyboard focus.
+      await expect.poll(() => focusedPageUrl(app)).toBe(form)
+      await act({ action: 'reload' })
+      await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
+      const shown = await pageDialog()
+      await shell.keyboard.press('Escape')
+      await expect
+        .poll(pageDialog, {
+          message: `dialog ${shown?.requestId} was showing when Escape was pressed`,
         })
-        await userInput(app, form, '#draft')
-        await expect.poll(() => focusedPageUrl(app)).toBe(form)
-        await act({ action: 'reload' })
-        await expect(shell.getByRole('button', { name: 'Stay', exact: true })).toBeFocused()
-        const shown = await pageDialog()
-        const before = await app.evaluate(({ webContents, BrowserWindow }, url) => {
-          const page = webContents.getAllWebContents().find((c) => c.getURL() === url)
-          ;(globalThis as unknown as { mainEsc: unknown[] }).mainEsc.length = 0
-          return {
-            focusedContents: webContents.getFocusedWebContents()?.getURL()?.slice(0, 40) ?? null,
-            focusedWindow: Boolean(BrowserWindow.getFocusedWindow()),
-            pageLoading: page?.isLoading(),
-            pageLoadingMain: page?.isLoadingMainFrame(),
-            t: Date.now(),
-          }
-        }, form)
-        await shell.evaluate(() => {
-          ;(globalThis as unknown as { escapeDiag: { what: string }[] }).escapeDiag.push({
-            what: 'pre-press',
-          } as never)
-        })
-        await shell.keyboard.press('Escape')
-        let cleared = true
-        try {
-          await expect.poll(pageDialog, { timeout: 5000 }).toBeNull()
-        } catch {
-          cleared = false
-        }
-        const after = await pageDialog()
-        const renderer = await shell.evaluate(
-          () => (globalThis as unknown as { escapeDiag: unknown[] }).escapeDiag
-        )
-        const main = await app.evaluate(
-          () => (globalThis as unknown as { mainEsc: unknown[] }).mainEsc
-        )
-        results.push({
-          attempt,
-          cleared,
-          shown: shown?.requestId,
-          after: after?.requestId ?? null,
-          before,
-          renderer,
-          main,
-        })
-        if (!cleared) {
-          await shell.getByRole('button', { name: 'Stay', exact: true }).click()
-          await expect.poll(pageDialog).toBeNull()
-        }
-        await expect.poll(() => focusedPageUrl(app)).toBe(form)
-      }
-      console.log(`ESCAPE_DIAG ${JSON.stringify(results)}`)
-      const { writeFileSync, mkdirSync } = await import('node:fs')
-      mkdirSync('test-results', { recursive: true })
-      writeFileSync('test-results/escape-diag.json', JSON.stringify(results, null, 2))
-      expect(results.filter((r) => !(r as { cleared: boolean }).cleared)).toEqual([])
+        .toBeNull()
+      await expect.poll(() => focusedPageUrl(app)).toBe(form)
+      await app.evaluate(({ webContents }) => {
+        const contents = webContents.getFocusedWebContents()
+        if (!contents) throw new Error('Missing focused page')
+        contents.sendInputEvent({ type: 'char', keyCode: 'x' })
+      })
+      await expect.poll(() => draft()).toBe('xdraft')
     })
 
     await test.step('Leave lets the navigation through without asking again', async () => {
