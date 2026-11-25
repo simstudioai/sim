@@ -12,8 +12,12 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { captureOutboundScope } from '@/lib/core/network/context.server'
 import {
   type SecureFetchOptions,
+  type SecureFetchResponse,
+  secureFetchWithPinnedIP,
   secureFetchWithValidation,
+  validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { normalizeFetchMethod } from '@/lib/core/utils/http-methods'
 import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
 import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolated-vm-limits'
@@ -73,9 +77,28 @@ interface IsolatedVMTaskRequest {
  */
 export type IsolatedVMBrokerHandler = (args: unknown, brokerId: number) => Promise<unknown>
 
+/** A network request isolate code made, as its host would send it. */
+interface IsolatedFetchRequest {
+  /** As sent ({@link normalizeFetchMethod}); GET when the code named none. */
+  method: string
+  url: string
+  /** The names of the headers it carries, never their values. */
+  headerNames: string[]
+  body: string | undefined
+}
+
+/**
+ * Decides each network request isolate code makes before its host sends it: `stub` answers it
+ * with an empty 200 (`x-sim-dry-run: stubbed`) and sends nothing. Trusted host state, never
+ * anything user code or a request body sets.
+ */
+export type IsolatedFetchPolicy = (request: IsolatedFetchRequest) => Promise<'send' | 'stub'>
+
 export interface IsolatedVMExecutionOptions {
   /** Broker name → handler. Must cover every broker listed in `request.task.brokers`. */
   brokers?: Record<string, IsolatedVMBrokerHandler>
+  /** Decides each `fetch` the code makes; without one, every request is sent. */
+  fetchPolicy?: IsolatedFetchPolicy
   /** Cancel the execution early. Broadcasts a cancellation error to the caller. */
   signal?: AbortSignal
 }
@@ -185,6 +208,7 @@ const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
 interface PendingExecution {
   runInOutboundScope: ReturnType<typeof captureOutboundScope>
+  fetchPolicy?: IsolatedFetchPolicy
   resolve: (result: IsolatedVMExecutionResult) => void
   timeout: ReturnType<typeof setTimeout>
   ownerKey: string
@@ -235,6 +259,7 @@ interface QueuedExecution {
  */
 interface ExecutionState {
   runInOutboundScope: ReturnType<typeof captureOutboundScope>
+  fetchPolicy?: IsolatedFetchPolicy
   cancelled: boolean
   queueId?: number
   workerId?: number
@@ -339,7 +364,7 @@ function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptio
   }
 
   if (typeof options.method === 'string' && options.method.length > 0) {
-    normalized.method = options.method
+    normalized.method = normalizeFetchMethod(options.method)
   }
 
   if (
@@ -389,11 +414,27 @@ function normalizeFetchOptions(options?: IsolatedFetchOptions): SecureFetchOptio
   return normalized
 }
 
+/** What isolate code gets for a request its {@link IsolatedFetchPolicy} stubbed. */
+const STUBBED_FETCH_RESPONSE = JSON.stringify({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  body: '{}',
+  bodyTruncated: false,
+  headers: { 'content-type': 'application/json', 'x-sim-dry-run': 'stubbed' },
+})
+
+/**
+ * Sends one `fetch` of isolate code. With a policy, the target is validated before the policy
+ * decides, so a request it stubs fails where a live one would (a URL too long, invalid, or refused
+ * by the egress policy), and a request it sends goes to the IP that validation resolved.
+ */
 async function secureFetch(
   requestId: string,
   url: string,
   options: IsolatedFetchOptions | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
+  fetchPolicy: IsolatedFetchPolicy | undefined
 ): Promise<string> {
   if (url.length > MAX_FETCH_URL_LENGTH) {
     return JSON.stringify({
@@ -402,11 +443,22 @@ async function secureFetch(
   }
 
   try {
-    const response = await secureFetchWithValidation(
-      url,
-      { ...normalizeFetchOptions(options), signal },
-      'fetchUrl'
-    )
+    const fetchOptions = { ...normalizeFetchOptions(options), signal }
+    let response: SecureFetchResponse
+    if (fetchPolicy) {
+      const target = await validateUrlWithDNS(url, 'fetchUrl', fetchOptions.profile, { signal })
+      if (!target.isValid) return JSON.stringify({ error: target.error })
+      const decision = await fetchPolicy({
+        method: fetchOptions.method ?? 'GET',
+        url,
+        headerNames: Object.keys(fetchOptions.headers ?? {}),
+        body: typeof fetchOptions.body === 'string' ? fetchOptions.body : undefined,
+      })
+      if (decision === 'stub') return STUBBED_FETCH_RESPONSE
+      response = await secureFetchWithPinnedIP(url, target.resolvedIP, fetchOptions)
+    } else {
+      response = await secureFetchWithValidation(url, fetchOptions, 'fetchUrl')
+    }
     const bodyResult = truncateString(await response.text(), MAX_FETCH_RESPONSE_CHARS)
     const headers: Record<string, string> = {}
     for (const [key, value] of response.headers) {
@@ -931,7 +983,7 @@ function handleWorkerMessage(workerId: number, message: unknown) {
       AbortSignal.timeout(pending.hostTimeoutMs),
     ])
     pending
-      .runInOutboundScope(() => secureFetch(requestId, url, options, signal))
+      .runInOutboundScope(() => secureFetch(requestId, url, options, signal, pending.fetchPolicy))
       .then(sendFetchResponse)
       .catch((err) => {
         sendFetchResponse(JSON.stringify({ error: getErrorMessage(err, 'Fetch failed') }))
@@ -1357,6 +1409,7 @@ function dispatchToWorker(
 
   workerInfo.pendingExecutions.set(execId, {
     runInOutboundScope: state.runInOutboundScope,
+    fetchPolicy: state.fetchPolicy,
     resolve,
     timeout,
     ownerKey: ownerState.ownerKey,
@@ -1671,6 +1724,7 @@ export async function executeInIsolatedVM(
   const state: ExecutionState = {
     cancelled: false,
     runInOutboundScope: captureOutboundScope(),
+    fetchPolicy: options?.fetchPolicy,
     unsentRedispatches: 0,
   }
 

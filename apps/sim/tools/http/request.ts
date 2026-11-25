@@ -1,3 +1,4 @@
+import { isReadRequest } from '@/lib/core/utils/http-methods'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import type { RequestParams, RequestResponse } from '@/tools/http/types'
 import {
@@ -102,6 +103,16 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       description:
         'Send credential-bearing headers when a redirect targets a different origin. Enabled by default for compatibility.',
     },
+  },
+
+  readsWhen: (params) => {
+    const method: unknown = params.method || 'GET'
+    if (typeof method !== 'string') return false
+    try {
+      return isReadRequest(method, Object.keys(transformTable(params.headers || null)))
+    } catch {
+      return false
+    }
   },
 
   timeoutParamIsDeadline: true,

@@ -47,8 +47,9 @@ export interface RunWorkflowForTestInput {
  * One workflow run inside a workflow test: the workflow's single runnable trigger, the
  * test's input, and its mocks installed as executor test hooks. A write the test does not mock
  * is not sent: as in a dry run, it is answered with a placeholder shaped like the tool's output,
- * and so is a Human in the loop or Wait block, so the run never pauses. Billed and logged like any
- * run, under the `test` trigger.
+ * a `fetch` the workflow's code makes with any method but GET, HEAD or OPTIONS gets an empty 200,
+ * and a Human in the loop or Wait block is answered whole, so the run never pauses. Billed and
+ * logged like any run, under the `test` trigger.
  *
  * A step of the `workflow_tests.run` operation, which authorized the caller's write access to
  * the workspace before any test ran; nothing else may call it. Each nested run is not

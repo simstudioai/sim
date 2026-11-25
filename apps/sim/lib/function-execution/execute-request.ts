@@ -152,6 +152,7 @@ import {
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import type { CodeNetwork } from '@/tools/side-effects'
 
 const TEXT_OUTPUT_MIME_TYPES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
 
@@ -2259,6 +2260,8 @@ export interface TrustedFunctionExecutionAuth {
   principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
   sandboxProfile?: 'mothership'
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** The run's side-effect policy for this code: told of a remote sandbox, deciding each isolate `fetch`. */
+  codeNetwork?: CodeNetwork
 }
 
 /** Executes the Function protocol after the application operation authorizes its principal. */
@@ -2750,6 +2753,7 @@ export async function executeFunctionRequest(
       )
     }
     const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
+    if (useRemoteSandbox || lang === CodeLanguage.Shell) auth.codeNetwork?.ranInRemoteSandbox()
     const activeRouteContext = routeContext
     const mothershipSession = admittedSession
       ? {
@@ -3284,7 +3288,11 @@ export async function executeFunctionRequest(
         ownerKey: `user:${auth.attributedUserId}`,
         ownerWeight: 1,
       },
-      { brokers: createFunctionRuntimeBrokers(routeContext), signal: executionSignal }
+      {
+        brokers: createFunctionRuntimeBrokers(routeContext),
+        signal: executionSignal,
+        fetchPolicy: auth.codeNetwork?.fetchPolicy,
+      }
     )
 
     const executionTime = Date.now() - startTime

@@ -17265,7 +17265,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never headers), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain, or could not build the request once they were masked (such as a URL that is wholly a secret)."
+                  "description": "What the call would have sent: an in-process operation's input, an HTTP call's `method`, `url` and `body` (never header values; for code's `fetch`, header names, the URL capped with only query parameter names, the body capped, and the code's workspace and personal secrets masked, though a secret typed into the code itself is not), or a custom or MCP tool's `arguments`. For a block answered whole, its logged inputs. Credentials, secrets, password fields and (when the workspace redacts it) PII are redacted; null when the run could not prove none remain, or could not build the request once they were masked (such as a URL that is wholly a secret)."
                 },
                 "returned": {
                   "type": "object",
@@ -17370,7 +17370,7 @@
               "required": ["workflowId", "blockId", "block", "reason"],
               "additionalProperties": false
             },
-            "description": "Blocks whose code ran for real, once per block: a Function block's code, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model wrote, which may make network calls the run cannot see."
+            "description": "Blocks whose code ran for real in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files), once per block: a Function block's code, a Condition's expressions, or code an Agent's model wrote, whose network calls the run cannot see. Code run in the isolate is not listed: its network writes are stubbed."
           },
           "omitted": {
             "type": "object",
@@ -17758,7 +17758,7 @@
                     "minLength": 1
                   },
                   "dry": {
-                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls, custom and MCP tools) is not sent; it returns a correctly shaped placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked) and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes), listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
+                    "description": "Dry run: every tool call not declared `read` (sends, table writes, HTTP calls other than a GET, HEAD or OPTIONS without a method-override header, custom and MCP tools) is not sent; it returns a correctly shaped placeholder (a table row insert, upsert or update echoes the data it would have written, secrets masked) and is listed in `sideEffects.stubbed` with the request it would have sent, credentials, secrets and (when the workspace redacts it) PII redacted. Reads, model calls and credential resolution run for real, and so does code (a Function block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model writes): JavaScript without imports sends its GET, HEAD and OPTIONS `fetch` calls (an API that writes on a GET is not stubbed), while any other request, or one carrying a method-override header, gets an empty 200 response (header `x-sim-dry-run: stubbed`) and is listed in `sideEffects.stubbed` as tool `function_execute`; code in a remote sandbox (shell, Python, JavaScript with imports, a selected sandbox or files) has network the run cannot see and is listed in `sideEffects.unchecked`. Child workflows inherit it. Custom, Mothership, Pi, Human in the loop and Wait blocks are answered whole with placeholders. Agents read their memory but write none, and nothing else beyond the run's own log is kept: it raises no workspace event and does not count as a run of the workflow. Logged under the `test` trigger. Synchronous only: cannot be combined with `stream` or `waitTimeoutSeconds`.",
                     "type": "boolean"
                   },
                   "allowBlocks": {

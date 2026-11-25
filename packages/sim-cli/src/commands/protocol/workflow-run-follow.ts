@@ -194,9 +194,9 @@ async function resolveWorkflowRunSelection(
 
 /**
  * A dry run's side effects in a few lines on stderr, for the human formats: each write that was
- * not sent, sent because its block was allowed, or made by code the run cannot see, and a note
- * for an allowed block whose writes all stayed stubbed (an Agent's call to a custom block). The
- * request payloads are in the result itself (`--output json`).
+ * not sent, sent because its block was allowed, or code in a remote sandbox the run cannot see,
+ * and a note for an allowed block whose writes all stayed stubbed (an Agent's call to a custom
+ * block). The request payloads are in the result itself (`--output json`).
  */
 function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
   if (!isRecordLike(sideEffects)) return
@@ -728,17 +728,21 @@ Without --manual (or a flag that implies it) this runs the active deployment; a 
 deployed has none. --manual runs the saved draft, as the source loop leaves it.
 
 --dry runs the saved draft without its side effects: every tool call not declared read (sends,
-table writes, HTTP calls, custom and MCP tools) returns a placeholder and is listed in
-sideEffects.stubbed with the request it would have sent; check those payloads. Code (a Function
-block's, a Condition's expressions, a While or Do While loop's condition, or code an Agent's model
-writes) runs and is listed in sideEffects.unchecked. Child workflows run dry too; custom, Human in
-the loop and Wait blocks are answered whole, so the run never pauses. Agents read memory but
-write none, and the run raises no workspace event. --allow <block> sends that block's writes for
-real (use a test resource); allowing an Agent sends only its own tool calls, not a workflow or
-custom block it calls. --mock <block>=<json> answers a block with fixed output, to steer a
-branch; a locked block cannot be mocked, and a mock is data, so it cannot set a field the run's
-execution, trace or billing reads (such as cost, tokens, model or a field starting with _). A dry
-run is the --source-run only of another dry run, and is never resumed.
+table writes, HTTP calls other than GET/HEAD/OPTIONS, custom and MCP tools) returns a
+placeholder and is listed in sideEffects.stubbed with the request it would have sent; check
+those payloads. Code (a Function block's, a Condition's expressions, a While or Do While loop's
+condition, or code an Agent's model writes) runs: its GET/HEAD/OPTIONS fetches are sent (an API
+that writes on a GET is not stubbed), and any other fetch, or one with a method-override header,
+gets an empty 200 and is listed in sideEffects.stubbed. Code in a remote sandbox (shell, Python,
+imports) is listed in sideEffects.unchecked, since its network cannot be seen. Child workflows
+run dry too; custom, Human in the loop and Wait blocks are answered whole, so the run never
+pauses. Agents read memory but write none, and the run raises no workspace event. --allow
+<block> sends that block's writes (a Function's fetches included) for real (use a test
+resource); allowing an Agent sends only its own tool calls, not a workflow or custom block it
+calls. --mock <block>=<json> answers a block with fixed output, to steer a branch; a locked block
+cannot be mocked, and a mock is data, so it cannot set a field the run's execution, trace or
+billing reads (such as cost, tokens, model or a field starting with _). A dry run is the
+--source-run only of another dry run, and is never resumed.
 
 The result is the run: runId, status (completed, failed, paused or cancelled), error, output (the
 workflow's final output) and blockOutputs (what --select-output named). It has no success field:
