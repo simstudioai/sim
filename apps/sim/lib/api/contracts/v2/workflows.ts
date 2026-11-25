@@ -1635,6 +1635,9 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Input descriptions specify compatible modes; invalid combinations return `400`.'
 
+/** Blocks one run's `run.mocks` may answer. */
+const MAX_RUN_MOCKS = 50
+
 export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
     .object({
@@ -1722,12 +1725,13 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
             .record(z.string(), z.unknown().describe('Output field.'))
             .describe('Output object that answers the block instead of its handler.')
         )
-        .optional()
-        .refine((mocks) => mocks === undefined || Object.keys(mocks).length <= 50, {
-          message: 'run.mocks names at most 50 blocks',
+        .refine((mocks) => Object.keys(mocks).length <= MAX_RUN_MOCKS, {
+          message: `run.mocks names at most ${MAX_RUN_MOCKS} blocks`,
         })
+        .meta({ maxProperties: MAX_RUN_MOCKS })
+        .optional()
         .describe(
-          'Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The outputs are never stored: the run records only which blocks were mocked, so a rerun passes them again.'
+          'Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.'
         ),
     })
     .strict(),
@@ -2055,7 +2059,7 @@ export const v2RunDryRunSchema = z
     mockedBlocks: z
       .array(z.string().describe('Block id.'))
       .describe(
-        'Blocks the run answered with fixed outputs (`run.mocks`), by id. Their outputs are never stored, so a rerun passes them again.'
+        'Blocks the run answered with fixed outputs (`run.mocks`), by id. Only the ids are recorded, so a rerun passes the outputs again.'
       ),
   })
   .meta({

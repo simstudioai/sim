@@ -7491,7 +7491,7 @@ describe('MCP Tool Execution', () => {
     })
   })
 
-  it('stubs an MCP tool in a dry run, recording only its arguments, and sends an allowed one', async () => {
+  it('stubs an MCP tool in a dry run once the call checks out, recording only its arguments, and sends an allowed one', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
     const params = {
@@ -7499,18 +7499,24 @@ describe('MCP Tool Execution', () => {
       envVars: { UNREFERENCED_SECRET: 'workspace-secret-value' },
       _context: { blockId: 'agent-1' },
     }
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, checked: true })
+    )
 
     const result = await executeTool('mcp-123-delete_file', params, {
       executionContext: createToolExecutionContext({ sideEffects: dryRun }),
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
 
-    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.objectContaining({ checkOnly: true }) })
+    )
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(result.success).toBe(true)
     const [stubbed] = dryRun.summary().stubbed
     expect(stubbed).toMatchObject({ blockId: 'agent-1', tool: 'mcp-123-delete_file' })
     expect(stubbed.request).toEqual({ arguments: { path: '/test' } })
+    mockExecuteInternalToolOperation.mockClear()
 
     mockExecuteInternalToolOperation.mockResolvedValueOnce(
       Response.json({ success: true, data: { output: { deleted: true } } })
@@ -7522,8 +7528,26 @@ describe('MCP Tool Execution', () => {
     await executeTool('mcp-123-delete_file', params, {
       executionContext: createToolExecutionContext({ sideEffects: allowed }),
     })
-    expect(mockExecuteInternalToolOperation).toHaveBeenCalledTimes(1)
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.not.objectContaining({ checkOnly: true }) })
+    )
     expect(allowed.summary().stubbed).toEqual([])
+  })
+
+  it('fails an MCP write in a dry run as it would live when its server refuses the call', async () => {
+    const dryRun = new WriteStubPolicy({ workflowId: 'test-workflow' })
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: false, error: 'Resource not found' }, { status: 404 })
+    )
+
+    const result = await executeTool(
+      'mcp-123-delete_file',
+      { path: '/test', _context: { blockId: 'agent-1' } },
+      { executionContext: createToolExecutionContext({ sideEffects: dryRun }) }
+    )
+
+    expect(result).toMatchObject({ success: false, error: 'Resource not found' })
+    expect(dryRun.summary().stubbed).toEqual([])
   })
 
   it('preserves MCP operation error envelopes', async () => {

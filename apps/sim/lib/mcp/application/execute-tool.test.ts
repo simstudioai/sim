@@ -307,6 +307,28 @@ describe('executeMcpToolUseCase', () => {
     expect(mocks.executeTool).toHaveBeenCalledOnce()
   })
 
+  it('checks a held-back call against the server’s tools without sending it', async () => {
+    const input = {
+      workspaceId: WORKSPACE.workspaceId,
+      serverId: SERVER.id,
+      toolName: 'lookup',
+      checkOnly: true,
+    }
+
+    await expect(
+      executeMcpToolUseCase.execute({ principal: PRINCIPAL, input: { ...input, arguments: {} } })
+    ).rejects.toMatchObject({ code: 'validation' })
+    await expect(
+      executeMcpToolUseCase.execute({
+        principal: PRINCIPAL,
+        input: { ...input, arguments: { count: 1 } },
+      })
+    ).resolves.toEqual({ success: true, checked: true })
+
+    expect(mocks.discoverServerTools).toHaveBeenCalledTimes(2)
+    expect(mocks.executeTool).not.toHaveBeenCalled()
+  })
+
   it('rechecks a saved block restriction changed during discovery', async () => {
     mocks.loadWorkflow.mockResolvedValueOnce(await mocks.loadWorkflow()).mockResolvedValue({
       workspaceId: WORKSPACE.workspaceId,

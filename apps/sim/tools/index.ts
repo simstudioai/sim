@@ -127,6 +127,7 @@ import {
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
 import { HostedKeyRateLimitedError, HostedKeyUnavailableError } from '@/tools/errors'
+import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
 import {
   getOwnEnumerableDataEntries,
   prepareToolRequest,
@@ -135,6 +136,7 @@ import {
 } from '@/tools/request-transport'
 import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import {
+  answerUnsentMcpWrite,
   answerUnsentWrite,
   describeMcpToolRequest,
   describeToolRequest,
@@ -258,6 +260,16 @@ function createInternalToolOperationContext(
     fileKeys: context.fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
   }
+}
+
+/**
+ * The operation context of an MCP call a run's side-effect policy holds back: authorized and
+ * checked against the server's tools as a live call is, then answered without being sent.
+ */
+function checkOnlyContext(
+  context: InternalToolOperationContext | undefined
+): InternalToolOperationContext {
+  return { ...(context ?? { workflowId: '' }), checkOnly: true }
 }
 
 function toUserFileFromWorkspaceRecord(record: {
@@ -1946,23 +1958,23 @@ async function executeToolImplementation(
         logger.error(`Custom tool not found: ${normalizedToolId}`, { requestId })
       }
     } else if (isMcpTool(normalizedToolId)) {
-      // An MCP tool declares no effect, so a run's side-effect policy decides every one.
+      // An MCP tool declares no effect, so a run's side-effect policy decides every one. An unsent
+      // one is still authorized and checked against the server's tools, so it fails as live would.
       const unsentMcpWrite = unsentWriteFor({ toolId: normalizedToolId, params, executionContext })
-      if (unsentMcpWrite) {
-        return await answerUnsentWrite(unsentMcpWrite, {
-          params,
-          registry: resolvedSecretTraceRegistry,
-          request: describeMcpToolRequest(params),
-        })
-      }
-      return await executeMcpTool(
+      const response = await executeMcpTool(
         normalizedToolId,
         params,
-        operationContext,
+        unsentMcpWrite ? checkOnlyContext(operationContext) : operationContext,
         requestId,
         startTimeISO,
         effectiveSignal
       )
+      if (!unsentMcpWrite || !response.success) return response
+      return await answerUnsentMcpWrite(unsentMcpWrite, {
+        params,
+        registry: resolvedSecretTraceRegistry,
+        describe: describeMcpToolRequest,
+      })
     } else {
       tool = getTool(normalizedToolId)
       if (!tool) {
@@ -2251,11 +2263,31 @@ async function executeToolImplementation(
 
     // After credentials resolve, so an unsent write still proves them.
     if (unsentWrite) {
-      return await answerUnsentWrite(unsentWrite, {
+      const unsentTool = tool
+      const unsent = {
         params: contextParams,
         registry: resolvedSecretTraceRegistry,
-        request: describeToolRequest(tool, contextParams, resolvedSecretTraceRegistry),
+        describe: (maskedParams: Record<string, unknown>) =>
+          describeToolRequest(unsentTool, maskedParams),
+      }
+      if (normalizedToolId !== mcpRunOperationTool.id || !tool.operation) {
+        return await answerUnsentWrite(unsentWrite, unsent)
+      }
+      // The MCP block's operation is authorized and checked against the server's tools first, so
+      // an unusable one fails as live would; a failed check throws like a failed call.
+      await executeDeclaredInternalOperation({
+        toolId: normalizedToolId,
+        tool,
+        params: contextParams,
+        context: checkOnlyContext(operationContext),
+        signal: effectiveSignal,
+        requestId,
+        privateToolMetadataType,
+        resolvedSecretTraceRegistry,
+        internalSandboxProfile,
+        authorizedServiceAccountCredential,
       })
+      return await answerUnsentMcpWrite(unsentWrite, unsent)
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.

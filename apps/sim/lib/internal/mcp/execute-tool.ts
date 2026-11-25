@@ -176,6 +176,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
       callChain: request.context.callChain,
       timeoutMs,
       signal: request.signal,
+      checkOnly: request.context.checkOnly,
     }
     let result: ExecuteMcpToolResult
     if (target.kind === 'shared_server') {
@@ -196,7 +197,7 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
     }
     request.signal?.throwIfAborted()
     const body =
-      request.toolId === 'mcp_run_operation'
+      request.toolId === 'mcp_run_operation' || 'checked' in result
         ? result
         : result.success
           ? { success: true, data: { success: true, output: result.output } }

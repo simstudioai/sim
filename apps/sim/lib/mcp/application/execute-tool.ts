@@ -38,11 +38,15 @@ export interface ExecuteMcpToolInput {
   timeoutMs?: number
   signal?: AbortSignal
   onResolvedSecretTraceProvenance?: (provenance: ResolvedSecretTraceProvenanceV1) => void
+  /** Authorize, discover and validate the call as a live one would, then stop before sending it. */
+  checkOnly?: boolean
 }
 
 export type ExecuteMcpToolResult =
   | { success: true; output: McpToolResult }
   | { success: false; error: string }
+  /** A `checkOnly` call that would have been sent. */
+  | { success: true; checked: true }
 
 function hasType(value: unknown): value is SchemaProperty {
   return typeof value === 'object' && value !== null && 'type' in value
@@ -190,6 +194,7 @@ export const executeMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       ),
       input.toolName
     )
+    if (input.checkOnly) return { success: true, checked: true }
     const providerResult = await mcpService.executeTool(
       userId,
       context.server.id,

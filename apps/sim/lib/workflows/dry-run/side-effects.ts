@@ -217,8 +217,9 @@ export class WriteStubPolicy implements SideEffectPolicy {
   }
 
   /**
-   * The allowed and mocked blocks, by id, which a rerun of this run passes again. Never the mock
-   * outputs: they may carry secrets or personal data, and the run's log keeps this record.
+   * The allowed and mocked blocks, by id, which the run's log records so a rerun of this run passes
+   * them again. Never the mock outputs, which a rerun passes again: the log shows a mocked block's
+   * output only as that block's output, redacted like any other.
    */
   runOptions(): DryRunOptions {
     return { allowBlocks: [...this.allowBlockIds], mockedBlocks: [...this.blockMocks.keys()] }

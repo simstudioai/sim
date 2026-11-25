@@ -225,6 +225,10 @@ search that returns no email or phone, and an email verifier.
   `sideEffects.stubbed` with the request you expect (an HTTP tool's `method`, `url` and `body`, or an
   in-process operation's input, credentials redacted), and each `read` must run for real and return
   live data. A write missing from `stubbed` was sent; a read listed there is labelled `write`.
+  `stubbed` keeps at most 50 entries and counts the rest in `sideEffects.omitted.stubbed`, so a
+  write past the cap is counted, not missing: test one tool per run, or few enough to fit. An entry's
+  `request` is `null` when the run cannot vouch that no secret remains in it; then check the tool
+  label alone and compare the request fields only on entries that carry one.
 
 ## Critical Rules for Parameters
 

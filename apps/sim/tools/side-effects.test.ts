@@ -8,7 +8,12 @@ import { WriteStubPolicy } from '@/lib/workflows/dry-run'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { answerUnsentWrite, unsentWriteFor } from '@/tools/side-effects'
+import {
+  answerUnsentMcpWrite,
+  answerUnsentWrite,
+  describeMcpToolRequest,
+  unsentWriteFor,
+} from '@/tools/side-effects'
 
 vi.mock('@/lib/guardrails/mask-client', () => maskClientMock)
 
@@ -18,21 +23,15 @@ const PII_REDACTION: PiiBlockOutputRedaction = {
   language: 'en',
 }
 
-/** Stubs one `slack_message` call from block `notify` and returns what the policy recorded. */
-async function stubSlackMessage(
-  registry: ResolvedSecretTraceRegistry,
-  request: unknown,
+/** The write the dry-run policy holds back for a `toolId` call from block `notify`. */
+function unsentWrite(
+  toolId: string,
+  params: Record<string, unknown>,
   piiBlockOutputRedaction?: PiiBlockOutputRedaction
 ) {
   const policy = new WriteStubPolicy({ workflowId: 'wf-1' })
-  const params = {
-    accessToken: 'oauth-token-123',
-    apiKey: 'hosted-key-456',
-    channel: 'ops',
-    _context: { blockId: 'notify' },
-  }
   const write = unsentWriteFor({
-    toolId: 'slack_message',
+    toolId,
     params,
     executionContext: {
       ...createExecutionContext({ workflowId: 'wf-1' }),
@@ -41,7 +40,23 @@ async function stubSlackMessage(
     } as ExecutionContext,
   })
   if (!write) throw new Error('The policy sent the write')
-  const response = await answerUnsentWrite(write, { params, registry, request })
+  return { write, policy }
+}
+
+/** Stubs one `slack_message` call whose request is `request` and returns what the policy recorded. */
+async function stubSlackMessage(
+  registry: ResolvedSecretTraceRegistry,
+  request: unknown,
+  piiBlockOutputRedaction?: PiiBlockOutputRedaction
+) {
+  const params = {
+    accessToken: 'oauth-token-123',
+    apiKey: 'hosted-key-456',
+    channel: 'ops',
+    _context: { blockId: 'notify' },
+  }
+  const { write, policy } = unsentWrite('slack_message', params, piiBlockOutputRedaction)
+  const response = await answerUnsentWrite(write, { params, registry, describe: () => request })
   return { response, stubbed: policy.summary().stubbed }
 }
 
@@ -102,4 +117,48 @@ describe('a write a dry run does not send', () => {
     expect(response.success).toBe(true)
     expect(stubbed[0].request).toBeNull()
   })
+
+  it('builds its request from params whose secrets are already masked, so no encoding carries one', async () => {
+    const params = {
+      apiKey: 'hosted-key-456',
+      content: 'sent with hosted-key-456',
+      _context: { blockId: 'notify' },
+    }
+    const { write, policy } = unsentWrite('slack_message', params)
+
+    await answerUnsentWrite(write, {
+      params,
+      registry: new ResolvedSecretTraceRegistry(),
+      describe: (masked) => ({ body: Buffer.from(String(masked.content)).toString('base64') }),
+    })
+
+    const [{ request }] = policy.summary().stubbed
+    const body = Buffer.from(String(request?.body), 'base64').toString('utf8')
+    expect(body).toBe('sent with [REDACTED]')
+  })
+
+  it.each([
+    ['an object', { connection: { apiKey: 'nested-key-789' }, note: 'key nested-key-789' }],
+    [
+      'a JSON string',
+      JSON.stringify({ connection: { apiKey: 'nested-key-789' }, note: 'key nested-key-789' }),
+    ],
+  ])(
+    'masks a secret nested in MCP arguments given as %s wherever it reappears',
+    async (_, args) => {
+      const params = { arguments: args, _context: { blockId: 'notify' } }
+      const { write, policy } = unsentWrite('mcp-server-1-create_issue', params)
+
+      await answerUnsentMcpWrite(write, {
+        params,
+        registry: new ResolvedSecretTraceRegistry(),
+        describe: describeMcpToolRequest,
+      })
+
+      const [{ request }] = policy.summary().stubbed
+      expect(request).toEqual({
+        arguments: { connection: { apiKey: '[REDACTED]' }, note: 'key [REDACTED]' },
+      })
+    }
+  )
 })

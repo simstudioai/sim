@@ -20,6 +20,7 @@ import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
   openAgentMemoryTurnUseCase,
   readAgentMemoryArtifactUseCase,
+  readAgentMemoryPrefixUseCase,
   saveAgentMemoryTurnUseCase,
   storeAgentMemoryArtifactUseCase,
 } from '@/lib/memory/application/agent-turns'
@@ -362,6 +363,44 @@ export class AgentTurnSession extends AgentTurnStateMachine {
   }
 }
 
+/** Whether a workspace's Agents keep durable turn history (the `agent-memory-history` rollout). */
+async function keepsAgentMemoryHistory(workspaceId: string): Promise<boolean> {
+  try {
+    return await isFeatureEnabled('agent-memory-history', { workspaceId })
+  } catch {
+    logger.warn('Agent memory rollout configuration unavailable')
+    return false
+  }
+}
+
+/**
+ * The stored conversation an Agent reads without opening a turn in it, for a run that writes no
+ * memory (a dry run or a workflow test): the same rich history and retrieval an
+ * {@link openAgentTurnSession} turn reads, and nothing written. Undefined when the conversation
+ * is not stored, the workspace keeps no turn history, or it cannot be read.
+ */
+export async function findStoredAgentConversation(input: {
+  ctx: ExecutionContext
+  conversationId: string
+}): Promise<{ memoryId: string } | undefined> {
+  const { ctx, conversationId } = input
+  if (!ctx.workspaceId || !conversationId) return undefined
+  if (!(await keepsAgentMemoryHistory(ctx.workspaceId))) return undefined
+  try {
+    const stored = await readAgentMemoryPrefixUseCase.execute({
+      principal: await createExecutorPrincipalFromExecutionContext({
+        context: ctx,
+        audience: MEMORY_DELEGATION_AUDIENCE,
+      }),
+      input: { workspaceId: ctx.workspaceId, conversationId },
+    })
+    return stored ? { memoryId: stored.id } : undefined
+  } catch {
+    logger.warn('Agent memory history unavailable', { executionId: ctx.executionId })
+    return undefined
+  }
+}
+
 /** Durability errors are isolated; authorization for model/tool execution remains with the executor. */
 export async function openAgentTurnSession(
   input: OpenAgentTurnSessionInput
@@ -375,13 +414,7 @@ export async function openAgentTurnSession(
     !input.conversationId
   )
     return undefined
-  try {
-    if (!(await isFeatureEnabled('agent-memory-history', { workspaceId: ctx.workspaceId })))
-      return undefined
-  } catch {
-    logger.warn('Agent memory rollout configuration unavailable')
-    return undefined
-  }
+  if (!(await keepsAgentMemoryHistory(ctx.workspaceId))) return undefined
   const identity: AgentMemoryTurnIdentity = {
     workspaceId: ctx.workspaceId,
     workflowId: ctx.workflowId,

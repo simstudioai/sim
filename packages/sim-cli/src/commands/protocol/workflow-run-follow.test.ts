@@ -728,6 +728,9 @@ describe('sim workflows run --dry', () => {
     await expect(run(WORKFLOW_ID, '--dry', '--mock', 'Score=[1]')).rejects.toThrow(
       'must be a JSON object'
     )
+    await expect(run(WORKFLOW_ID, '--dry', '--mock', '__proto__={"route":"vip"}')).rejects.toThrow(
+      'name it by its block id'
+    )
     expect(requestRaw).not.toHaveBeenCalled()
   })
 
@@ -747,5 +750,25 @@ describe('sim workflows run --dry', () => {
     output.format = 'table'
     await run(WORKFLOW_ID, '--dry')
     expect(stderr.join('')).toContain('Dry run: 1 not sent, 0 sent (allowed), 1 unchecked')
+  })
+
+  it('counts the writes each list left out once it was full', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    requestRaw.mockImplementation(async () =>
+      jsonResponse({
+        data: {
+          runId: 'run-1',
+          workflowId: WORKFLOW_ID,
+          status: 'completed',
+          sideEffects: { ...sideEffects, omitted: { stubbed: 60, allowed: 0, unchecked: 2 } },
+        },
+      })
+    )
+    output.format = 'table'
+
+    await run(WORKFLOW_ID, '--dry')
+
+    expect(stderr.join('')).toContain('Dry run: 61 not sent, 0 sent (allowed), 3 unchecked')
+    expect(stderr.join('')).toContain('… 62 more')
   })
 })

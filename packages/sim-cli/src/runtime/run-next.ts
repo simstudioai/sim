@@ -52,9 +52,9 @@ function isTestRun(record: Record<string, unknown>): boolean {
 /**
  * The flags that keep a rerun of a test run a test: `--dry`, with a dry run's own `--allow`
  * blocks (`dryRun.allowBlocks`), so following `next` never sends what the run held back. A
- * workflow test's run has no `dryRun` but held its writes back all the same. A dry run's mock
- * outputs are never stored, so `next` cannot repeat its `--mock` flags; the caller passes them
- * again. Null when a block id is not in the format the server issues.
+ * workflow test's run has no `dryRun` but held its writes back all the same. A dry run records
+ * only which blocks were mocked, not their outputs, so `next` cannot repeat its `--mock` flags;
+ * the caller passes them again. Null when a block id is not in the format the server issues.
  */
 function dryRerunFlags(record: Record<string, unknown>): string | null {
   if (!isTestRun(record)) return ''

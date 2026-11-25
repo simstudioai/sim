@@ -36,6 +36,8 @@ export interface ExecuteManagedMcpToolInput {
   callChain?: string[]
   timeoutMs?: number
   signal?: AbortSignal
+  /** Authorize, discover and validate the call as a live one would, then stop before sending it. */
+  checkOnly?: boolean
 }
 
 function requireToolSchema(value: unknown): McpToolSchema {
@@ -150,6 +152,7 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
       context,
       credentialOperations.useManagedMcp.resourcePolicy
     )
+    if (input.checkOnly) return { success: true, checked: true }
     const providerResult = await mcpService.executeManagedMcpTool({
       connectionId: runtime.credentialId,
       serverId: runtime.mcpServerId,
@@ -163,15 +166,18 @@ export const executeManagedMcpToolUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     return transformToolResult(providerResult)
   },
-  projectAudit: ({ input, context }) => ({
-    action: AuditAction.CREDENTIAL_ACCESSED,
-    resourceType: AuditResourceType.CREDENTIAL,
-    resourceId: context.credentialId,
-    description: `Executed managed MCP tool ${input.toolName}`,
-    metadata: {
-      credentialType: 'managed_mcp',
-      mcpServerId: context.mcpServerId,
-      toolName: input.toolName,
-    },
-  }),
+  projectAudit: ({ input, context }) =>
+    input.checkOnly
+      ? []
+      : {
+          action: AuditAction.CREDENTIAL_ACCESSED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: context.credentialId,
+          description: `Executed managed MCP tool ${input.toolName}`,
+          metadata: {
+            credentialType: 'managed_mcp',
+            mcpServerId: context.mcpServerId,
+            toolName: input.toolName,
+          },
+        },
 })

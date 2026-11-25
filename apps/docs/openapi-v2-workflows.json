@@ -17421,7 +17421,7 @@
               "type": "string",
               "description": "Block id."
             },
-            "description": "Blocks the run answered with fixed outputs (`run.mocks`), by id. Their outputs are never stored, so a rerun passes them again."
+            "description": "Blocks the run answered with fixed outputs (`run.mocks`), by id. Only the ids are recorded, so a rerun passes the outputs again."
           }
         },
         "required": ["allowBlocks", "mockedBlocks"],
@@ -17771,7 +17771,7 @@
                     }
                   },
                   "mocks": {
-                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The outputs are never stored: the run records only which blocks were mocked, so a rerun passes them again.",
+                    "description": "Blocks of this workflow (keyed by id, display name or reference key) answered with this output object instead of running, to steer branches or give a stubbed write a realistic result. Requires `dry`. A locked block (or one inside a locked loop or parallel) cannot be mocked. A mock is data: it cannot set a field the run’s execution, trace or billing reads (`cost`, `tokens`, `model`, `providerTiming`, `toolCalls`, `executionData`, `childTraceSpans`, `childWorkflowId`, `childWorkflowSnapshotId`, `childDeploymentVersionId`, or any field starting with `_`). The run records only which blocks were mocked, so a rerun passes the outputs again; its log shows a mocked block’s output like any other block’s.",
                     "type": "object",
                     "propertyNames": {
                       "type": "string"
@@ -17785,7 +17785,8 @@
                         "description": "Output field."
                       },
                       "description": "Output object that answers the block instead of its handler."
-                    }
+                    },
+                    "maxProperties": 50
                   }
                 },
                 "required": ["source"],

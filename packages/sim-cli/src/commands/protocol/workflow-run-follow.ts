@@ -75,6 +75,10 @@ async function readBlockMocks(values: string[]): Promise<Record<string, Record<s
     if (!block) {
       throw new SimApiError(`--mock "${value}" must be <block>=<json|@file>`, 0)
     }
+    // A JSON object cannot carry `__proto__` as a key the server reads: name the block by its id.
+    if (block === '__proto__') {
+      throw new SimApiError('--mock cannot name a block __proto__; name it by its block id', 0)
+    }
     const source = await readArgumentSource(value.slice(separator + 1), 'mock')
     let output: unknown
     try {
@@ -200,20 +204,24 @@ function printSideEffects(sideEffects: unknown, dryRun: unknown): void {
   const stubbed = list('stubbed')
   const allowed = list('allowed')
   const unchecked = list('unchecked')
+  /** Each list keeps a bounded number of entries and counts the rest in `omitted`. */
+  const omittedCounts = toRecord(sideEffects.omitted)
+  const omittedOf = (key: string) => {
+    const count = omittedCounts[key]
+    return typeof count === 'number' ? count : 0
+  }
+  const total = (key: string, entries: unknown[]) => entries.length + omittedOf(key)
   const label = (entry: Record<string, unknown>) =>
     safeOneLine(`${String(entry.block)}${typeof entry.tool === 'string' ? ` → ${entry.tool}` : ''}`)
   const lines = [
-    `Dry run: ${stubbed.length} not sent, ${allowed.length} sent (allowed), ${unchecked.length} unchecked`,
+    `Dry run: ${total('stubbed', stubbed)} not sent, ${total('allowed', allowed)} sent (allowed), ${total('unchecked', unchecked)} unchecked`,
     ...stubbed.map((entry) => `  not sent   ${label(entry)}`),
     ...allowed.map((entry) => `  sent       ${label(entry)}`),
     ...unchecked.map(
       (entry) => `  unchecked  ${label(entry)}: ${safeOneLine(String(entry.reason))}`
     ),
   ]
-  const omitted = Object.values(toRecord(sideEffects.omitted)).reduce<number>(
-    (total, count) => total + (typeof count === 'number' ? count : 0),
-    0
-  )
+  const omitted = omittedOf('stubbed') + omittedOf('allowed') + omittedOf('unchecked')
   if (omitted > 0) lines.push(`  … ${omitted} more`)
   for (const blockId of toArray(toRecord(dryRun).allowBlocks)) {
     if (allowed.some((entry) => entry.blockId === blockId)) continue
@@ -739,8 +747,9 @@ instead: success and output.
 
 A run that failed in a block has next: the command that reruns the saved draft from that block
 (or from the outermost loop or parallel holding it) with this run as --source-run, so after a fix
-only that block and those after it run again; a dry run's keeps --dry and --allow. Mock outputs
-are never stored, so pass each --mock again. Add --stop-after <block> to stop after a block;
+only that block and those after it run again; a dry run's keeps --dry and --allow. The run records
+only which blocks were mocked, so pass each --mock again; its log shows a mocked block's output
+like any other. Add --stop-after <block> to stop after a block;
 naming the block next starts from reruns only it.
 
 Exit codes: 0 completed or paused (--async: queued); 1 failed or cancelled (the result is printed
@@ -783,7 +792,7 @@ export function attachWorkflowRunFollow(workflows: Command): void {
     )
     .option(
       '--mock <block>=<json|@file>',
-      'Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key), to steer a branch or give a stubbed write a realistic result. Not a locked block; data only, so no cost, tokens, model or other field the run’s trace or billing reads, and no field starting with _. Not stored, so a rerun passes it again; repeatable',
+      'Answer this block with the given JSON object instead of running it during a --dry run (its id, display name or key), to steer a branch or give a stubbed write a realistic result. Not a locked block; data only, so no cost, tokens, model or other field the run’s trace or billing reads, and no field starting with _. The run records only which blocks were mocked, so a rerun passes it again (its log shows the output like any other block’s); repeatable',
       collectRepeated
     )
     .option(

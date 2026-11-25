@@ -1,19 +1,22 @@
 /**
  * Dry runs against real PostgreSQL and Redis, through the manual run use cases and the v2 execute
- * route: a dry run writes no table row and sends no request, reports each write with the payload
- * it would have sent (credentials, run secrets and password fields redacted) under the `test`
- * trigger, and keeps nothing else: no Agent memory, no workspace event, no run count. An allowed
+ * route: a dry run writes no table row and sends no request, reports each write with the payload it
+ * would have sent (credentials, run secrets and password fields masked before the request is built)
+ * under the `test` trigger, and keeps nothing else: no Agent memory (which its Agents still read),
+ * no workspace event, no run count. An MCP write is authorized before it is answered. An allowed
  * block writes for real while reads run for real; a child workflow's writes, an Agent's included,
  * stay stubbed; custom and Wait blocks are answered whole; code runs and is listed unchecked, a
- * Condition's expressions and a While loop's condition included; a mocked block steers a branch;
- * a failed dry run keeps its side effects and is the source only of another dry run. A test run is
+ * Condition's expressions and a While loop's condition included; a mocked block steers a branch; a
+ * failed dry run keeps its side effects and is the source only of another dry run. A test run is
  * never the source of a run that sends its writes (the v2 use case, Copilot and the editor route
  * alike) and is never resumed; a mock, a dry run's or a workflow test's, is data that never
- * controls the run, sets what it is billed or replaces a locked block, and only the ids of mocked
- * blocks are kept. Model calls are answered by a simulated Anthropic API.
+ * controls the run, sets what it is billed or replaces a locked block; a rerun record keeps only
+ * the ids of mocked blocks, while the log shows a mocked output redacted like any other. Model
+ * calls are answered by a simulated Anthropic API.
  */
 import { db } from '@sim/db'
 import {
+  agentMemoryTurn,
   apiKey,
   customBlock,
   customTools,
@@ -39,15 +42,18 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { toArray, toRecord } from '@sim/utils/object'
 import { saveWorkflowToNormalizedTables } from '@sim/workflow-persistence/save'
 import type { BlockState, SubBlockState, WorkflowState } from '@sim/workflow-types/workflow'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const { subscriberRuns, session } = vi.hoisted(() => {
   /** Custom blocks are a self-hosted opt-in, read when the config module loads. */
   process.env.CUSTOM_BLOCKS_ENABLED = 'true'
+  /** Agents keep durable turn history (rich history and the memory retrieval tool). */
+  process.env.AGENT_MEMORY_HISTORY = 'true'
   return {
     subscriberRuns: { runIds: [] as string[] },
     /** The browser session the editor route sees; none unless a test signs in. */
@@ -80,6 +86,7 @@ import { closeRedisConnection } from '@/lib/core/config/redis'
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { AGENT_MEMORY_RETRIEVAL_TOOL_ID } from '@/lib/memory/retrieval-tool-types'
 import { WorkflowTestSession } from '@/lib/workflow-tests/session'
 import {
   type ExecuteManualWorkflowInput,
@@ -304,8 +311,11 @@ async function runCountOf(workflowId: string): Promise<number> {
   return row.runCount
 }
 
-/** The simulated Anthropic API: the first `toolTurns` turns call the first tool offered. */
-const model = { toolTurns: 0 }
+/**
+ * The simulated Anthropic API: the first `toolTurns` turns call the first tool offered, and each
+ * request it answers is kept in `requests`.
+ */
+const model = { toolTurns: 0, requests: [] as Record<string, unknown>[] }
 
 async function answerModel(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const request = new Request(input, init)
@@ -314,6 +324,7 @@ async function answerModel(input: RequestInfo | URL, init?: RequestInit): Promis
     throw new Error(`Unexpected network destination in a dry run: ${url.hostname}`)
   }
   const body = (await request.json()) as Record<string, unknown>
+  model.requests.push(body)
   const tools = Array.isArray(body.tools) ? (body.tools as Array<{ name: string }>) : []
   const callsTool = model.toolTurns > 0 && tools.length > 0
   if (callsTool) model.toolTurns--
@@ -569,6 +580,7 @@ describe('a dry run', () => {
 
   it('keeps a write in a workflow an Agent calls stubbed, and writes no Agent memory', async () => {
     const tableId = await createTable()
+    const conversationId = `conversation-${generateId()}`
     const childId = await saveWorkflow(
       graph(
         [block('start', 'start_trigger'), upsertLead('childsave', tableId, 'child@b.co')],
@@ -581,7 +593,7 @@ describe('a dry run', () => {
           block('start', 'start_trigger'),
           agent('assistant', {
             memoryType: 'conversation',
-            conversationId: `conversation-${generateId()}`,
+            conversationId,
             tools: [{ type: 'workflow', params: { workflowId: childId }, usageControl: 'auto' }],
           }),
         ],
@@ -599,8 +611,109 @@ describe('a dry run', () => {
     const memories = await db
       .select({ id: memory.id })
       .from(memory)
-      .where(eq(memory.workspaceId, workspaceId))
+      .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, conversationId)))
     expect(memories).toEqual([])
+  })
+
+  it('gives an Agent its stored conversation and memory retrieval, writing nothing to it', async () => {
+    const conversationId = `conversation-${generateId()}`
+    const agentInConversation = (content: string) =>
+      graph(
+        [
+          block('start', 'start_trigger'),
+          agent('assistant', {
+            memoryType: 'conversation',
+            conversationId,
+            messages: [{ role: 'user', content }],
+          }),
+        ],
+        [['start', 'assistant']]
+      ).state
+    model.toolTurns = 0
+    vi.stubGlobal('fetch', answerModel)
+    const remembered = await run(
+      await saveWorkflow(agentInConversation('Remember the word pelican'))
+    )
+    expect(remembered.status, JSON.stringify(remembered.error)).toBe('completed')
+    const [stored] = await db
+      .select({ id: memory.id })
+      .from(memory)
+      .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, conversationId)))
+    const turnsOf = async () =>
+      db
+        .select({ id: agentMemoryTurn.id })
+        .from(agentMemoryTurn)
+        .where(eq(agentMemoryTurn.memoryId, stored.id))
+    const turns = await turnsOf()
+    expect(turns).toHaveLength(1)
+
+    model.requests = []
+    const recalled = await runWithModel(await saveWorkflow(agentInConversation('Which word?')), 0)
+
+    expect(recalled.status, JSON.stringify(recalled.error)).toBe('completed')
+    const [request] = model.requests
+    expect(JSON.stringify(request.messages)).toContain('Remember the word pelican')
+    expect(toArray<{ name?: unknown }>(request.tools).map((tool) => tool.name)).toContain(
+      AGENT_MEMORY_RETRIEVAL_TOOL_ID
+    )
+    expect(await turnsOf()).toEqual(turns)
+  })
+
+  it('authorizes an MCP write before answering it, so an unusable one fails as it would live', async () => {
+    const missingServer = generateId()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('remove', 'mcp', {
+            operation: 'run',
+            serverSelector: missingServer,
+            serverReference: missingServer,
+            toolSelector: 'delete_file',
+            toolReference: 'delete_file',
+            arguments: { path: '/reports/q3.csv' },
+          }),
+        ],
+        [['start', 'remove']]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status).toBe('failed')
+    expect(JSON.stringify(result.error)).toContain('not found')
+    expect(result.sideEffects?.stubbed).toEqual([])
+  })
+
+  it('masks a run secret before building a write’s request, so no encoding carries it', async () => {
+    const knowledgeBaseId = generateId()
+    const workflowId = await saveWorkflow(
+      graph(
+        [
+          block('start', 'start_trigger'),
+          block('archive', 'knowledge', {
+            operation: 'create_document',
+            knowledgeBaseSelector: knowledgeBaseId,
+            manualKnowledgeBaseId: knowledgeBaseId,
+            name: 'notes.txt',
+            content: 'The deploy key is {{DRY_SECRET}}',
+          }),
+        ],
+        [['start', 'archive']]
+      ).state
+    )
+
+    const result = await run(workflowId, { dry: true })
+
+    expect(result.status, JSON.stringify(result.error)).toBe('completed')
+    const [write] = result.sideEffects?.stubbed ?? []
+    expect(write).toMatchObject({ tool: 'knowledge_create_document' })
+    const [document] = toArray<unknown>(toRecord(write.request).documents)
+    const fileUrl = String(toRecord(document).fileUrl)
+    const content = Buffer.from(fileUrl.slice(fileUrl.indexOf(',') + 1), 'base64').toString('utf8')
+    expect(content).toContain('The deploy key is')
+    expect(content).not.toContain(SECRET)
+    expect(JSON.stringify(result.sideEffects)).not.toContain(SECRET)
   })
 
   it('masks a secret typed into a password field, whatever the field is called', async () => {
@@ -1224,7 +1337,7 @@ describe('a dry run’s mocks', () => {
     expect(await logTriggers(workflowId)).toEqual([])
   })
 
-  it('are kept only as block ids, which a failed run reads back for its rerun', async () => {
+  it('are recorded for a rerun only as block ids, while the log shows the output redacted', async () => {
     const tableId = await createTable()
     const secret = `mock-secret-${generateId()}`
     const fixture = graph(
@@ -1243,10 +1356,11 @@ describe('a dry run’s mocks', () => {
     const workflowId = await saveWorkflow(fixture.state)
     const recorded = { allowBlocks: [fixture.idOf('save')], mockedBlocks: [fixture.idOf('lookup')] }
 
+    const mockKey = `mock-key-${generateId()}`
     const failed = await run(workflowId, {
       dry: true,
       allowBlocks: ['save'],
-      mocks: { lookup: { rows: [], rowCount: 0, totalCount: 0, note: secret } },
+      mocks: { lookup: { rows: [], rowCount: 0, totalCount: 0, note: secret, apiKey: mockKey } },
     })
 
     expect(failed.status).toBe('failed')
@@ -1261,6 +1375,10 @@ describe('a dry run’s mocks', () => {
     )
     const trigger = executionData.trigger as { data?: { dryRun?: unknown } }
     expect(trigger.data?.dryRun).toEqual(recorded)
+    /** The log shows the mocked block's output, which `save` consumed, redacted like any other. */
+    const traceSpans = JSON.stringify(executionData.traceSpans)
+    expect(traceSpans).toContain(secret)
+    expect(traceSpans).not.toContain(mockKey)
     const read = await readWorkflowRun.execute({
       principal,
       input: { workflowId, runId: failed.executionId, includeOutput: false, selectedOutputs: [] },

@@ -606,7 +606,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
 - [ ] Verified every tool output and `transformResponse` path against documented or live-verified JSON responses
 - [ ] If any response schema remained unknown, explicitly told the user instead of guessing
-- [ ] Ran the block in a workflow with `sim workflows run <workflowId> --dry`: each write is in `sideEffects.stubbed` with the documented request, and each read ran for real (send one write for real only with `--allow <block>` against a test resource)
+- [ ] Ran the block in a workflow with `sim workflows run <workflowId> --dry`: each write is in `sideEffects.stubbed` (at most 50 entries; the rest are counted in `sideEffects.omitted.stubbed`) with the documented request where `request` is not `null` (null: the run could not vouch it was free of secrets), and each read ran for real (send one write for real only with `--allow <block>` against a test resource)
 - [ ] `{Service}BlockMeta` exported with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 
 ## File Handling
