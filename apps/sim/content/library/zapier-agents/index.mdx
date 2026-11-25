@@ -15,7 +15,7 @@ faq:
   - q: "Can Zapier Agents run multi-step workflows?"
     a: "Zapier Agents can complete multi-step tasks by selecting and using permitted tools, but teams should use explicit workflow orchestration when branches, loops, parallel paths, or deterministic checkpoints must be designed directly."
   - q: "Can Zapier Agents use company data?"
-    a: "Zapier Agents can use connected knowledge sources and app data that the user authorizes, so teams should limit access according to the agent’s job and the sensitivity of the underlying information."
+    a: "Zapier Agents can use connected knowledge sources and app data that a team member authorizes, so teams should limit access according to the agent’s job and the sensitivity of the underlying information."
   - q: "Can you self-host Zapier Agents?"
     a: "Zapier Agents are a cloud-hosted Zapier product and are not offered by Zapier as a self-hosted agent runtime as of November 2026."
   - q: "Can Zapier Agents use any AI model?"
@@ -44,7 +44,7 @@ As of November 2026, Zapier is [migrating the standalone Agents product to AI by
 
 ## What are Zapier Agents?
 
-Zapier Agents are configurable AI assistants that can decide how to complete a task and take actions through Zapier’s app ecosystem. Instead of defining every step as a fixed sequence, a user gives an agent instructions, connects tools and data sources, and lets the agent choose relevant actions within those boundaries.
+Zapier Agents are configurable AI assistants that can decide how to complete a task and take actions through Zapier’s app ecosystem. Instead of defining every step as a fixed sequence, a team member gives an agent instructions, connects tools and data sources, and lets the agent choose relevant actions within those boundaries.
 
 [Zapier positions Agents](https://zapier.com/agents) for jobs such as researching prospects, preparing customer responses, updating business systems, and creating recurring reports. Suitable use cases have a clear goal, trusted data, a limited toolset, and an output that a person or downstream system can evaluate.
 
@@ -56,7 +56,7 @@ The product distinction is changing. Zapier says migrated agents become Zaps wit
 
 Zapier Agents work by combining natural-language instructions, connected tools, knowledge sources, and triggers inside Zapier’s hosted environment. Each component defines what the agent knows, what it is allowed to do, and when it should run.
 
-1. **Instructions define the job.** The user describes the agent’s role, objective, constraints, and expected output.
+1. **Instructions define the job.** The team member describes the agent’s role, objective, constraints, and expected output.
 2. **Tools let the agent act.** Connected Zapier apps provide actions such as finding a CRM record, sending a message, or adding a spreadsheet row.
 3. **Knowledge sources provide context.** Zapier documents how an agent can [use connected knowledge sources and search actions](https://help.zapier.com/hc/en-us/articles/24569690575117-Add-your-own-data-to-an-agent) when forming an answer or deciding what to do.
 4. **Triggers start work.** Zapier supports [on-demand, scheduled, Zap or Model Context Protocol (MCP), and app-based triggers](https://help.zapier.com/hc/en-us/articles/45394909914381-Set-up-your-agent-s-trigger) for Agents. MCP lets compatible external AI tools start an agent through Zapier.
@@ -74,7 +74,7 @@ Teams estimating cost should test representative requests and record:
 
 - How many activities a successful request consumes
 - How often the agent retries or takes an unnecessary action
-- How many requests users will submit each month
+- How many requests team members will submit each month
 - Whether deterministic steps can remain in Zaps
 - What separate Zapier automation, app, and AI usage costs still apply
 - How migration to AI by Zapier changes the usage meter for the same job
