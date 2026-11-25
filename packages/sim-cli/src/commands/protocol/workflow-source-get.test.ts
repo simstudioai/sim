@@ -10,7 +10,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { COOKBOOK_EXAMPLES } from '@sim/workflow-sdk/codegen'
+import { escapeRegExp } from '@sim/utils/string'
+import { COOKBOOK_EXAMPLES, WORKSPACE_COOKBOOK } from '@sim/workflow-sdk/codegen'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../../http/client'
@@ -22,6 +23,7 @@ import { digest } from './source-dir'
 import {
   AGENTS_POINTER_MARKER,
   agentsPointer,
+  PATTERNS_HEADING,
   PRIMER_MAX_BYTES,
   sourcePrimer,
 } from './source-primer'
@@ -327,6 +329,27 @@ describe('sim workflows source get --dir', () => {
       expect(Buffer.byteLength(sourcePrimer(kind))).toBeLessThanOrEqual(PRIMER_MAX_BYTES)
     }
   })
+
+  it.each(['workflow', 'workspace'] as const)(
+    'quotes in the %s primer patterns only code the type-checked examples hold',
+    (kind) => {
+      const examples = [
+        ...Object.values(COOKBOOK_EXAMPLES),
+        ...Object.values(WORKSPACE_COOKBOOK),
+      ].join('\n')
+      const lines = sourcePrimer(kind).split('\n')
+      const start = lines.findIndex((line) => line.startsWith(PATTERNS_HEADING))
+      const end = lines.findIndex((line, index) => index > start && !line.startsWith('  - '))
+      const spans = lines
+        .slice(start + 1, end)
+        .flatMap((line) => [...line.matchAll(/`([^`]+)`/g)].map((match) => match[1]))
+      expect(spans.length).toBeGreaterThan(20)
+      const missing = spans.filter(
+        (span) => !new RegExp(escapeRegExp(span).replace(/<[^>]+>/g, '.+?')).test(examples)
+      )
+      expect(missing).toEqual([])
+    }
+  )
 
   it('type-checks a builder of a block the directory does not hold: through the cache at once, and locally after a check', async () => {
     const workflow = [
