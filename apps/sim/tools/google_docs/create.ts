@@ -1,5 +1,6 @@
 import { generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
+import { dryRunId } from '@/tools/dry-run'
 import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from '@/tools/google_docs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -149,6 +150,19 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
 
       return metadata
     },
+  },
+
+  /** A dry run's placeholder names the document the call creates; its id is a placeholder. */
+  dryRunOutput: (params) => {
+    const documentId = dryRunId('document')
+    return {
+      metadata: {
+        documentId,
+        title: params.title,
+        mimeType: DOC_MIME_TYPE,
+        url: `https://docs.google.com/document/d/${documentId}/edit`,
+      },
+    }
   },
 
   transformResponse: async (response: Response) => {

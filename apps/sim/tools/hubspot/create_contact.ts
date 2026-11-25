@@ -4,6 +4,7 @@ import type {
   HubSpotCreateContactResponse,
 } from '@/tools/hubspot/types'
 import { CONTACT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { parseHubSpotProperties, placeholderCrmRecord } from '@/tools/hubspot/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotCreateContact')
@@ -61,14 +62,7 @@ export const hubspotCreateContactTool: ToolConfig<
       }
     },
     body: (params) => {
-      let properties = params.properties
-      if (typeof properties === 'string') {
-        try {
-          properties = JSON.parse(properties)
-        } catch {
-          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
-        }
-      }
+      const properties = parseHubSpotProperties(params.properties)
 
       const body: any = {
         properties,
@@ -91,6 +85,8 @@ export const hubspotCreateContactTool: ToolConfig<
       return body
     },
   },
+
+  dryRunOutput: (params) => placeholderCrmRecord('contact', params.properties),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

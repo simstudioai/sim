@@ -1,3 +1,5 @@
+import { dryRunId } from '@/tools/dry-run'
+
 /** Table output schemas expose operation status to downstream workflow references. */
 export function tableSuccess<T extends Record<string, unknown>>(
   output: T
@@ -15,7 +17,7 @@ const PLACEHOLDER_ROW_TIMESTAMP = '1970-01-01T00:00:00.000Z'
  */
 export function placeholderRow(data: unknown, position: number, id?: string) {
   return {
-    id: id ?? `dry_run_row_${position + 1}`,
+    id: id ?? dryRunId('row', position + 1),
     data,
     position,
     createdAt: PLACEHOLDER_ROW_TIMESTAMP,

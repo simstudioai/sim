@@ -8,7 +8,9 @@ import {
   appendResponseRenderParams,
   mapValueRange,
   RESPONSE_RENDER_PARAMS,
+  sheetWritePlaceholder,
   UPDATED_DATA_OUTPUT,
+  updateSheetRows,
 } from '@/tools/google_sheets/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -89,59 +91,14 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let processedValues: any = params.values || []
-
-      // Minimal shape enforcement: Google requires a 2D array
-      if (!Array.isArray(processedValues)) {
-        processedValues = [[processedValues]]
-      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
-        processedValues = (processedValues as any[]).map((row: any) =>
-          Array.isArray(row) ? row : [row]
-        )
-      }
-
-      // Handle array of objects (existing behavior)
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        processedValues = [headers, ...rows]
-      }
-
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
-        values: processedValues,
-      }
-      if (params.range) {
-        body.range = params.range
-      }
-      return body
-    },
+    body: (params) => ({
+      majorDimension: params.majorDimension || 'ROWS',
+      values: updateSheetRows(params.values),
+      ...(params.range ? { range: params.range } : {}),
+    }),
   },
+
+  dryRunOutput: (params) => sheetWritePlaceholder(params, updateSheetRows(params.values)),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
@@ -279,57 +236,13 @@ export const updateV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Up
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      let processedValues: any = params.values || []
-
-      // Minimal shape enforcement: Google requires a 2D array
-      if (!Array.isArray(processedValues)) {
-        processedValues = [[processedValues]]
-      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
-        processedValues = (processedValues as any[]).map((row: any) =>
-          Array.isArray(row) ? row : [row]
-        )
-      }
-
-      // Handle array of objects
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        processedValues = [headers, ...rows]
-      }
-
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
-        values: processedValues,
-      }
-
-      return body
-    },
+    body: (params) => ({
+      majorDimension: params.majorDimension || 'ROWS',
+      values: updateSheetRows(params.values),
+    }),
   },
+
+  dryRunOutput: (params) => sheetWritePlaceholder(params, updateSheetRows(params.values)),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

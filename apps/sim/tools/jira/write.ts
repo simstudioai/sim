@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { JiraWriteParams, JiraWriteResponse } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
 import { parseJiraFieldMap } from '@/tools/jira/utils'
@@ -179,6 +180,9 @@ export const jiraWriteTool: InternalToolConfig<JiraWriteParams, JiraWriteRespons
       }
     },
   },
+
+  /** A dry run's placeholder holds the summary of the issue the call creates; its id is a placeholder. */
+  dryRunOutput: (params) => ({ id: dryRunId('issue'), summary: params.summary }),
 
   transformResponse: async (response: Response) => {
     const responseText = await response.text()

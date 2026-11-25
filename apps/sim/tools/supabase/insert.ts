@@ -1,7 +1,12 @@
 import { validateDatabaseIdentifier } from '@/lib/core/security/input-validation'
 import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SupabaseInsertParams, SupabaseInsertResponse } from '@/tools/supabase/types'
-import { supabaseBaseUrl } from '@/tools/supabase/utils'
+import {
+  supabaseBaseUrl,
+  supabaseWriteMessage,
+  supabaseWritePlaceholder,
+  supabaseWriteRows,
+} from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse> = {
@@ -65,14 +70,10 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       }
       return headers
     },
-    body: (params) => {
-      // Prepare the data - if it's an object but not an array, wrap it in an array
-      const dataToSend =
-        typeof params.data === 'object' && !Array.isArray(params.data) ? [params.data] : params.data
-
-      return dataToSend
-    },
+    body: (params) => supabaseWriteRows(params.data),
   },
+
+  dryRunOutput: (params) => supabaseWritePlaceholder(params.data, 'inserted'),
 
   transformResponse: async (response: Response) => {
     const text = await response.text()
@@ -115,7 +116,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     return {
       success: true,
       output: {
-        message: `Successfully inserted ${insertedCount} row${insertedCount === 1 ? '' : 's'} into Supabase`,
+        message: supabaseWriteMessage('inserted', insertedCount),
         results: data,
       },
       error: undefined,

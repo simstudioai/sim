@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { NotionCreatePageParams, NotionResponse } from '@/tools/notion/types'
 import { PAGE_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle, toNotionRichText } from '@/tools/notion/utils'
@@ -98,6 +99,15 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     },
   },
 
+  /** A dry run's placeholder names the page the call creates; its id is a placeholder. */
+  dryRunOutput: (params) => {
+    const title = params.title || 'Untitled'
+    return {
+      content: `Successfully created page "${title}"`,
+      metadata: { title, pageId: dryRunId('page') },
+    }
+  },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
     const pageTitle = extractTitle(data.properties ?? {}) || 'Untitled'
@@ -160,6 +170,9 @@ export const notionCreatePageV2Tool: ToolConfig<
   oauth: notionCreatePageTool.oauth,
   params: notionCreatePageTool.params,
   request: notionCreatePageTool.request,
+
+  /** A dry run's placeholder names the page the call creates; its id is a placeholder. */
+  dryRunOutput: (params) => ({ id: dryRunId('page'), title: params.title || 'Untitled' }),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

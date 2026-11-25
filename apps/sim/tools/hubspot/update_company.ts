@@ -4,6 +4,7 @@ import type {
   HubSpotUpdateCompanyResponse,
 } from '@/tools/hubspot/types'
 import { COMPANY_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { parseHubSpotProperties, placeholderCrmRecord } from '@/tools/hubspot/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -73,20 +74,20 @@ export const hubspotUpdateCompanyTool: ToolConfig<
       }
     },
     body: (params) => {
-      let properties = params.properties
-      if (typeof properties === 'string') {
-        try {
-          properties = JSON.parse(properties)
-        } catch {
-          throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
-        }
-      }
+      const properties = parseHubSpotProperties(params.properties)
 
       return {
         properties,
       }
     },
   },
+
+  dryRunOutput: (params) =>
+    placeholderCrmRecord(
+      'company',
+      params.properties,
+      params.idProperty ? undefined : String(params.companyId).trim()
+    ),
 
   transformResponse: async (response: Response) => {
     const data = await response.json()

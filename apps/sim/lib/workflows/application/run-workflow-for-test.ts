@@ -3,6 +3,8 @@ import {
   requirePrincipalSubjectUserId,
   type WorkflowExecutionPrincipal,
 } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import {
@@ -16,12 +18,14 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { resolveTriggerExecution } from '@/lib/workflows/application/run-workflow-from-copilot'
-import { WriteStubPolicy } from '@/lib/workflows/dry-run'
+import { type SideEffectsSummary, WriteStubPolicy } from '@/lib/workflows/dry-run'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import type { ExecutionTestHooks } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
 import { attachAttemptedExecutionId } from '@/executor/utils/errors'
 import { TEST_TRIGGER } from '@/stores/logs/filters/types'
+
+const logger = createLogger('RunWorkflowForTest')
 
 export type WorkflowTestVersion = 'draft' | 'deployed'
 
@@ -41,6 +45,8 @@ export interface RunWorkflowForTestInput {
   triggerBlockId?: string
   testHooks: ExecutionTestHooks
   abortSignal: AbortSignal
+  /** What the run did with the writes it reached, once it ends, failed runs included. */
+  onSideEffects: (executionId: string, sideEffects: SideEffectsSummary) => void
 }
 
 /**
@@ -119,6 +125,7 @@ export async function runWorkflowForTest(
       )
     }
   }
+  const sideEffects = new WriteStubPolicy({ workflowId: context.workflowId })
   try {
     const result = await executeWorkflow(
       {
@@ -140,7 +147,7 @@ export async function runWorkflowForTest(
         abortSignal: input.abortSignal,
         billingAttribution,
         testHooks: input.testHooks,
-        sideEffects: new WriteStubPolicy({ workflowId: context.workflowId }),
+        sideEffects,
       },
       executionId
     )
@@ -150,6 +157,14 @@ export async function runWorkflowForTest(
     throw error
   } finally {
     await releaseExecutionSlot(executionId)
+    try {
+      input.onSideEffects(executionId, sideEffects.summary())
+    } catch (error) {
+      logger.warn('Recording a test run’s side effects failed', {
+        executionId,
+        error: getErrorMessage(error),
+      })
+    }
   }
 }
 

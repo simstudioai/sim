@@ -2,8 +2,8 @@ import type { Principal } from '@sim/auth/principal'
 import { generateShortId } from '@sim/utils/id'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
+  type StoredTestReport,
   type TestCaseStatus,
-  type TestReport,
   testReportSchema,
 } from '@/lib/workflow-tests/protocol'
 import type { EnteredWorkflow } from '@/lib/workflow-tests/repository'
@@ -29,11 +29,14 @@ export interface RunWorkflowTestFileInput {
 
 /**
  * Runs one test file in the sandbox. Each `runWorkflow()` it makes becomes a real workflow
- * run whose mocked blocks are answered by the file's own mocks.
+ * run whose mocked blocks are answered by the file's own mocks. The report adds what those runs
+ * did with the writes no mock answered, as the host saw it: only runs that finished before the
+ * sandbox returned, since a run the file left unawaited is cancelled when its session closes and
+ * reports nothing.
  */
 export async function runWorkflowTestFile(
   input: RunWorkflowTestFileInput
-): Promise<{ report: TestReport; entered: EnteredWorkflow[] }> {
+): Promise<{ report: StoredTestReport; entered: EnteredWorkflow[] }> {
   const requestId = generateShortId(12)
   const session = new WorkflowTestSession({
     workspaceId: input.workspaceId,
@@ -49,8 +52,9 @@ export async function runWorkflowTestFile(
       { workspaceId: input.workspaceId, code: input.source, codeFilename: input.filePath },
       { requestId, ownerKey: `workspace:${input.workspaceId}`, signal: input.signal }
     )
+    const report = testReportSchema.parse(JSON.parse(Buffer.from(bytes).toString('utf-8')))
     return {
-      report: testReportSchema.parse(JSON.parse(Buffer.from(bytes).toString('utf-8'))),
+      report: { ...report, sideEffects: session.sideEffects() },
       entered: session.enteredWorkflows(),
     }
   } finally {

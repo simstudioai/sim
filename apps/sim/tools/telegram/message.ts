@@ -56,6 +56,19 @@ export const telegramMessageTool: ToolConfig<
     }),
   },
 
+  /**
+   * A dry run's placeholder holds the chat the call names, when it names one by numeric id. The
+   * text stays a placeholder: Telegram returns it with the formatting the HTML conversion adds
+   * stripped.
+   */
+  dryRunOutput: (params) => {
+    const chatId = params.chatId.trim()
+    return {
+      message: 'Message sent successfully',
+      ...(/^-?\d+$/.test(chatId) ? { data: { chat: { id: Number(chatId) } } } : {}),
+    }
+  },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 

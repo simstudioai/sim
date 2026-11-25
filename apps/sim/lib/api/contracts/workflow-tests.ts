@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
-import { testCaseStatusSchema, testReportSchema } from '@/lib/workflow-tests/protocol'
+import { storedTestReportSchema, testCaseStatusSchema } from '@/lib/workflow-tests/protocol'
 
 const versionSchema = z.enum(['draft', 'deployed'])
 const testNameSchema = z
@@ -42,7 +42,7 @@ const runSummarySchema = z.object({
 
 /** One run with its report, and each case's status while it goes. */
 const runDetailSchema = runSummarySchema.extend({
-  report: testReportSchema.nullable(),
+  report: storedTestReportSchema.nullable(),
   /** Each case's status by `describe > it` path while the run goes; null before any. */
   progress: z.record(z.string(), testCaseStatusSchema).nullable(),
 })

@@ -1256,16 +1256,14 @@ describe('a dry run', () => {
     expect(await tableRows(tableId)).toEqual([])
   })
 
-  it('stubs a workflow test’s unmocked writes', async () => {
+  it('stubs a workflow test’s unmocked writes and records them on the host, payloads dropped', async () => {
     const tableId = await createTable()
     const name = `Dry test ${generateId()}`
-    await saveWorkflow(
-      graph(
-        [block('start', 'start_trigger'), upsertLead('save', tableId, 'a@b.co')],
-        [['start', 'save']]
-      ).state,
-      name
+    const fixture = graph(
+      [block('start', 'start_trigger'), upsertLead('save', tableId, 'a@b.co')],
+      [['start', 'save']]
     )
+    const workflowId = await saveWorkflow(fixture.state, name)
     const session = new WorkflowTestSession({
       workspaceId,
       principal,
@@ -1277,8 +1275,26 @@ describe('a dry run', () => {
     let event = await session.start({ workflow: name, trigger: null, input: {}, targets: [] })
     while (event.kind === 'waiting') event = await session.next(event.runId)
 
-    expect(event).toMatchObject({ kind: 'done' })
+    if (event.kind !== 'done') throw new Error(`The run ended with ${event.kind}`)
     expect(await tableRows(tableId)).toEqual([])
+    expect(session.sideEffects()).toEqual({
+      executions: {
+        [event.executionId]: {
+          stubbed: [
+            {
+              workflowId,
+              blockId: fixture.idOf('save'),
+              block: 'save',
+              tool: 'table_upsert_row',
+              count: 1,
+            },
+          ],
+          unchecked: [],
+          omitted: { stubbed: 0, unchecked: 0 },
+        },
+      },
+      omittedExecutions: 0,
+    })
   })
 
   it('is forwarded by the v2 execute route, a block entry’s included', async () => {

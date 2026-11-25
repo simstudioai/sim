@@ -1,3 +1,4 @@
+import { dryRunId } from '@/tools/dry-run'
 import type { MailSendParams, MailSendResult } from '@/tools/resend/types'
 import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
@@ -98,6 +99,14 @@ export const resendSendTool: InternalToolConfig<MailSendParams, MailSendResult> 
       ...(params.tags && { tags: params.tags }),
     }),
   },
+
+  /** A dry run's placeholder holds the recipient, subject and body the call sends; its id is a placeholder. */
+  dryRunOutput: (params) => ({
+    id: dryRunId('email'),
+    to: params.to,
+    subject: params.subject,
+    body: params.body,
+  }),
 
   transformResponse: async (response: Response, params): Promise<MailSendResult> => {
     const result = await response.json()

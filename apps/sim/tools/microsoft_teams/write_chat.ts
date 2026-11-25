@@ -1,3 +1,4 @@
+import { placeholderTeamsMessage } from '@/tools/microsoft_teams/dry-run'
 import type {
   MicrosoftTeamsToolParams,
   MicrosoftTeamsWriteResponse,
@@ -60,6 +61,8 @@ export const writeChatTool: InternalToolConfig<
         'Body format: "text" (default) or "html". Mentions and attachments always send HTML',
     },
   },
+
+  dryRunOutput: (params) => ({ ...placeholderTeamsMessage(params), chatId: params.chatId?.trim() }),
 
   outputs: {
     success: { type: 'boolean', description: 'Teams chat message send success status' },

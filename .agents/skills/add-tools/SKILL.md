@@ -241,7 +241,12 @@ search that returns no email or phone, and an email verifier.
   item by item where an array declares `items` (undeclared fields are dropped), and whole anywhere
   else, so return an undeclared shape (a `json` row) complete, with placeholders for what the request
   cannot know. Never guess at what the provider or stored state would add (a collision suffix on a
-  file name, an id).
+  file name, an id, a key resolved to an id, a default the provider picks): an id it would assign is
+  `dryRunId(kind, n)` from `@/tools/dry-run` (`dry_run_record_1`), and anything else is left out so
+  the sample stands. When the request builder normalises a param (parses a JSON string, builds rows
+  from objects), move that into a named helper the `body`/`operation.input` and the hook both call
+  (`appendSheetRows`, `parseHubSpotProperties`); never re-derive the request in the hook. Echoing a
+  secret is safe only because params arrive masked: never read credentials from anywhere else.
 
 ## Critical Rules for Parameters
 

@@ -74,6 +74,13 @@ export const insertTool: InternalToolConfig<MySQLInsertParams, MySQLResponse> = 
     }),
   },
 
+  /** A dry run's placeholder counts the one row the call inserts; MySQL returns no rows for it. */
+  dryRunOutput: () => ({
+    message: 'Data inserted successfully. 1 row(s) affected.',
+    rows: [],
+    rowCount: 1,
+  }),
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
 

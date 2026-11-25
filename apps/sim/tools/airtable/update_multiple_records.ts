@@ -2,6 +2,7 @@ import type {
   AirtableUpdateMultipleParams,
   AirtableUpdateMultipleResponse,
 } from '@/tools/airtable/types'
+import { placeholderRecords } from '@/tools/airtable/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const airtableUpdateMultipleRecordsTool: ToolConfig<
@@ -65,6 +66,15 @@ export const airtableUpdateMultipleRecordsTool: ToolConfig<
       ...(params.typecast != null ? { typecast: params.typecast } : {}),
     }),
   },
+
+  /** A dry run's placeholder holds the records the call updates, with the fields it writes. */
+  dryRunOutput: (params) => ({
+    records: placeholderRecords(params.records),
+    metadata: {
+      recordCount: params.records.length,
+      updatedRecordIds: params.records.map((record) => record.id),
+    },
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json()

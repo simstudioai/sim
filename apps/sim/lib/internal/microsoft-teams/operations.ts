@@ -8,6 +8,10 @@ import {
   type MicrosoftTeamsGraphObject,
 } from '@/lib/internal/microsoft-teams/client'
 import { MicrosoftTeamsOperationError } from '@/lib/internal/microsoft-teams/errors'
+import {
+  parseMentionNames,
+  rewritesTeamsMessage,
+} from '@/lib/internal/microsoft-teams/message-rewrite'
 import type {
   MicrosoftTeamsWriteChannelInput,
   MicrosoftTeamsWriteChatInput,
@@ -25,7 +29,6 @@ import type { UserFile } from '@/executor/types'
 
 const MAX_GRAPH_RESPONSE_BYTES = 2 * 1024 * 1024
 const MAX_TEAMS_FILE_SIZE = 4 * 1024 * 1024
-const MENTION_PATTERN = /<at>[^<]+<\/at>/i
 
 const logger = createLogger('MicrosoftTeamsOperations')
 
@@ -198,17 +201,6 @@ async function uploadFilesForMessage(
   return { attachments, files }
 }
 
-function parseMentionNames(content: string): Array<{ name: string; tag: string; id: number }> {
-  const parsed: Array<{ name: string; tag: string; id: number }> = []
-  const pattern = /<at>([^<]+)<\/at>/gi
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(content)) !== null) {
-    const name = match[1].trim()
-    if (name) parsed.push({ name, tag: match[0], id: parsed.length })
-  }
-  return parsed
-}
-
 async function resolveMentions(
   content: string,
   membersPath: string,
@@ -286,7 +278,7 @@ async function sendMessage(args: {
   plainMetadata: (data: MicrosoftTeamsGraphObject) => Record<string, unknown>
   enhancedMetadata: (data: MicrosoftTeamsGraphObject) => Record<string, unknown>
 }) {
-  const enhanced = Boolean(args.files?.length || MENTION_PATTERN.test(args.content))
+  const enhanced = rewritesTeamsMessage(args.content, args.files)
   const requestedContentType: 'text' | 'html' = args.contentType === 'html' ? 'html' : 'text'
   const client = new MicrosoftTeamsClient(args.accessToken)
   if (!enhanced) {

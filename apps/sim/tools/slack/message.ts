@@ -108,6 +108,24 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
     },
   },
 
+  /**
+   * A dry run's placeholder holds the text the call sends, unless it holds `&`, `<` or `>`, which
+   * Slack returns escaped or as links; the thread it replies in (which a message with files does
+   * not report); and how many files it attaches. The channel stays a placeholder: a DM's is the one
+   * Slack opens.
+   */
+  dryRunOutput: (params) => {
+    const threadTs = params.threadTs?.trim()
+    const fileCount = params.files?.length ?? 0
+    return {
+      message: {
+        ...(/[&<>]/.test(params.text) ? {} : { text: params.text }),
+        ...(threadTs && fileCount === 0 ? { thread_ts: threadTs } : {}),
+      },
+      ...(fileCount > 0 ? { fileCount } : {}),
+    }
+  },
+
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!data.success) {
