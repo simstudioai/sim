@@ -1,0 +1,153 @@
+---
+slug: microsoft-copilot-studio-pricing
+title: 'Microsoft Copilot Studio Pricing: Costs, Credits, and Licensing Explained'
+seoTitle: 'Microsoft Copilot Studio Pricing and Credits'
+description: 'Microsoft Copilot Studio pricing explained, including Copilot Credits, capacity packs, pay-as-you-go billing, Microsoft 365 licenses, and hidden costs.'
+date: 2026-11-25
+updated: 2026-11-25
+authors:
+  - andrew
+readingTime: 8
+tags: [AI Agents, Microsoft Copilot Studio, Pricing, Power Platform, Sim]
+ogImage: /library/microsoft-copilot-studio-pricing/cover.jpg
+draft: false
+faq:
+  - q: "Does Microsoft 365 Copilot include Copilot Studio?"
+    a: "Microsoft 365 Copilot includes agent-building and usage capabilities for licensed users within eligible Microsoft 365 experiences, but standalone, external-channel, or separately metered scenarios can require Copilot Studio capacity."
+  - q: "Can you buy Copilot Studio without Microsoft 365 Copilot?"
+    a: "Microsoft Copilot Studio can be purchased without Microsoft 365 Copilot by buying prepaid Copilot Credit capacity or enabling pay-as-you-go billing through Azure."
+  - q: "Does Copilot Studio require an Azure subscription?"
+    a: "Microsoft Copilot Studio requires an Azure subscription for pay-as-you-go billing, while the prepaid capacity-pack option does not use Azure as its usage meter."
+  - q: "Is Copilot Studio priced per user or by usage?"
+    a: "Microsoft Copilot Studio uses consumption pricing for standalone capacity, while Microsoft 365 Copilot uses per-user licensing and includes eligible agent capabilities for licensed users."
+  - q: "Do unused Copilot Studio credits roll over?"
+    a: "Microsoft Copilot Studio prepaid capacity is allocated monthly, so buyers should not assume unused monthly Copilot Credits will roll into a later month."
+  - q: "How are Copilot Studio messages calculated?"
+    a: "Microsoft Copilot Studio now calculates consumption in Copilot Credits, and the credits used depend on the capabilities and operations invoked rather than treating every user message as an identical billable event."
+  - q: "Can Copilot Studio agents be used outside Microsoft 365?"
+    a: "Microsoft Copilot Studio supports standalone agents and channels outside Microsoft 365 when the tenant has the required Copilot Studio capacity and channel configuration."
+  - q: "Is Copilot Studio pay as you go cheaper than a capacity pack?"
+    a: "Microsoft Copilot Studio pay as you go is cheaper at low or irregular volumes, while prepaid packs become cheaper when monthly usage is high enough to consume most of each 25,000-credit allocation."
+  - q: "Is Microsoft Copilot Studio free?"
+    a: "Microsoft Copilot Studio may provide trial or limited authoring access, but production agent usage requires an eligible Microsoft 365 Copilot license, prepaid Copilot Studio capacity, or pay-as-you-go billing."
+  - q: "Are model charges included in Copilot Studio pricing?"
+    a: "Microsoft Copilot Studio accounts for supported generative AI operations through its Copilot Credit consumption model, while separately connected Azure or third-party services can create their own charges."
+  - q: "Can a model-agnostic AI workspace cost less than Copilot Studio?"
+    a: "Sim can cost less than Microsoft Copilot Studio when a team avoids underused capacity packs or unnecessary Microsoft 365 seats, uses bring-your-own model keys, or runs local models on a self-hosted deployment."
+  - q: "What should IT compare before approving Copilot Studio?"
+    a: "Microsoft Copilot Studio should be evaluated on expected Copilot Credit consumption, Microsoft 365 seat requirements, Power Platform entitlements, connector licensing, Dataverse growth, Azure administration, governance labor, and peak-volume capacity."
+---
+
+## TL;DR
+
+As of November 2026, [Microsoft Copilot Studio](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio) costs $200 per month, billed annually, for 25,000 Copilot Credits or $0.01 per Copilot Credit with pay-as-you-go billing through Azure. [Microsoft 365 Copilot](https://www.microsoft.com/en-us/copilot/pricing/enterprise) costs $30 per user per month, billed annually, and includes agent-building capabilities for licensed users inside eligible Microsoft 365 experiences.
+
+The quoted rate is only the starting point. Total cost depends on how many credits each agent operation consumes, whether users need Microsoft 365 Copilot seats, and whether the implementation requires additional Power Platform, connector, Dataverse, or Azure capacity.
+
+## How much does Microsoft Copilot Studio cost?
+
+Microsoft Copilot Studio offers prepaid capacity, metered pay-as-you-go usage, and agent capabilities included with Microsoft 365 Copilot licenses.
+
+The following US list prices come from [Microsoft's Copilot Studio pricing page](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio) and [Microsoft's Microsoft 365 Copilot pricing page](https://www.microsoft.com/en-us/copilot/pricing/enterprise) as of November 2026. Regional pricing, taxes, negotiated enterprise discounts, and currency conversion can change the amount paid.
+
+| Pricing option | Published price as of November 2026 | What it includes | Fit |
+|---|---:|---|---|
+| Copilot Studio prepaid capacity | $200 per month, billed annually | 25,000 Copilot Credits per month, shared at the tenant level | Organizations with predictable agent usage that can use most of each monthly pack |
+| Copilot Studio pay as you go | $0.01 per Copilot Credit through an Azure subscription | Metered usage without buying a monthly capacity pack in advance | Pilots, seasonal demand, and workloads below or between pack thresholds |
+| Microsoft 365 Copilot | $30 per user per month, billed annually | Microsoft 365 Copilot plus the ability for licensed users to build and use agents within eligible Microsoft 365 experiences | Employee-facing agents for organizations already standardizing on Microsoft 365 Copilot |
+
+A Copilot Credit is a billing unit, not necessarily one conversation or one completed task. The number of credits consumed depends on the capabilities an agent invokes, so IT teams should model the actual operation mix rather than multiplying the expected number of users by a flat message rate. Microsoft's [billing rates documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management) details how different capabilities consume credits.
+
+## What changed recently in Microsoft Copilot Studio pricing?
+
+Microsoft Copilot Studio now presents metered agent consumption as Copilot Credits, replacing the simpler message terminology that appeared in earlier pricing and licensing materials.
+
+The commercial structure remains recognizable: organizations can buy monthly capacity in advance or connect Copilot Studio to an Azure subscription for pay-as-you-go billing. The important change for cost models is that a buyer should not treat every user message as one identical unit. Microsoft's [billing and licensing documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/billing-licensing) describes consumption according to the agent capabilities used.
+
+This terminology change also explains why older estimates based on messages per month may no longer match an invoice. Capacity should be modeled in credits, with conversations, actions, grounding, and autonomous operations mapped to their applicable consumption rates.
+
+## What drives Microsoft Copilot Studio costs as agents scale?
+
+Microsoft Copilot Studio costs rise with credit consumption, license scope, connected Power Platform services, storage, and the operational overhead required to govern production agents.
+
+The largest cost drivers are:
+
+- **Operation mix:** A simple response and a more complex operation involving grounding, actions, or orchestration may consume different amounts of capacity under Microsoft's [published billing rates](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management).
+- **Conversation volume:** More users, channels, sessions, and agent turns create more billable activity under Microsoft's [usage-based billing model](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management).
+- **Autonomous activity:** Scheduled or event-driven agents can consume capacity without waiting for a person to initiate each run, as reflected in Microsoft's [capability-specific billing rates](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management).
+- **Testing and retries:** Development runs, failed calls, retry logic, and repeated evaluations can add consumption beyond production traffic covered by Microsoft's [usage-based billing](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-messages-management).
+- **License mix:** Microsoft 365 Copilot is licensed per user, while standalone Copilot Studio capacity is consumption-based, as shown on Microsoft's [enterprise](https://www.microsoft.com/en-us/copilot/pricing/enterprise) and [Copilot Studio](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio) pricing pages.
+- **Pack utilization:** Under Microsoft's [published pack pricing](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio), prepaid capacity is economical when a tenant uses it consistently, but partially used packs increase the effective cost per credit.
+- **Demand spikes:** Capacity above the purchased amount may require another pack or metered capacity under Microsoft's [capacity options](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio), depending on the organization's configuration.
+
+IT leaders should estimate low, expected, and peak usage separately. A single average can hide the cost of launch events, seasonal demand, autonomous runs, or a popular agent deployed across the whole company.
+
+## How much would Microsoft Copilot Studio cost at three monthly credit volumes?
+
+Microsoft Copilot Studio's [published rates](https://www.microsoft.com/en-us/copilot/pricing/copilot-studio) produce different totals depending on whether an organization buys whole 25,000-credit packs or pays $0.01 for each credit consumed.
+
+The examples below treat message volume as billable Copilot Credit volume because one user message can trigger operations with different credit requirements. They assume US list prices as of November 2026, no taxes or negotiated discounts, linear pay-as-you-go billing, and no costs beyond Copilot Studio capacity.
+
+- **10,000 Copilot Credits per month:** Pay as you go costs $100, while one prepaid pack costs $200 and leaves 15,000 credits unused. Pay as you go is $100 less under these assumptions.
+- **50,000 Copilot Credits per month:** Pay as you go costs $500, while two prepaid packs cost $400. Prepaid capacity is $100 less under these assumptions.
+- **250,000 Copilot Credits per month:** Pay as you go costs $2,500, while ten prepaid packs cost $2,000. Prepaid capacity is $500 less under these assumptions.
+
+The arithmetic is straightforward: pay-as-you-go cost equals credits multiplied by $0.01, while prepaid cost equals the number of required 25,000-credit packs rounded up to a whole pack and multiplied by $200. Real workloads still need an operation-level estimate because conversations and credits are not interchangeable units.
+
+## What hidden costs should IT include in a Microsoft Copilot Studio budget?
+
+Microsoft Copilot Studio budgets should include Power Platform entitlements, connector requirements, Dataverse storage, Azure administration, governance, and implementation labor in addition to agent capacity.
+
+### Do Power Platform licenses add to the cost?
+
+Microsoft Power Platform licenses can add cost when an implementation uses apps, flows, or automation outside the rights included for the Copilot Studio agent scenario.
+
+Copilot Studio is built on Power Platform environments, but that does not make every related Power Apps or Power Automate use case universally included. IT should identify who owns each flow, where it runs, what triggers it, and whether it also serves users or processes outside the agent. Microsoft's [Copilot Studio licensing requirements](https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-subscriptions) should be applied to the exact architecture rather than treated as a blanket entitlement. For a closer look at the product boundary, read [Microsoft Copilot Studio vs Power Automate](https://www.sim.ai/library/microsoft-copilot-studio-vs-power-automate).
+
+### Do premium connectors add to the cost?
+
+Microsoft premium connectors can add licensing requirements when their use falls outside the entitlements attached to the licensed Copilot Studio scenario.
+
+Connector access depends on the product license and execution context. A design review should list every standard, premium, custom, and on-premises connector, then confirm its entitlement against Microsoft's [current Copilot Studio licensing guidance](https://www.microsoft.com/licensing/guidance/Microsoft-Copilot-Studio) as of November 2026. Teams should not assume that purchasing Copilot Studio capacity grants unrestricted premium-connector use across unrelated apps and flows.
+
+### Does Dataverse capacity add to the cost?
+
+Microsoft Dataverse capacity can add cost when agent data, logs, files, or related Power Platform applications exceed the storage included with the tenant's licenses.
+
+Production budgets should forecast database, file, and log growth rather than considering only live agent traffic. Microsoft documents these storage categories and capacity entitlements in its [Power Platform capacity guidance](https://learn.microsoft.com/en-us/power-platform/admin/capacity-storage), and retention policies can materially affect the result.
+
+### Does pay-as-you-go require additional Azure administration?
+
+Microsoft Copilot Studio pay as you go requires an Azure subscription and therefore introduces Azure billing, access-control, monitoring, and budget-management work, according to Microsoft's [credit purchasing documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/billing-manage-buy-credits).
+
+That operational cost may be small for an organization with established Azure governance, but it can be meaningful for a team that must create subscriptions, define spending alerts, assign billing ownership, and reconcile Azure charges for the first time.
+
+## What are the key platform facts at a glance?
+
+Microsoft Copilot Studio, Sim, and n8n use materially different licensing, hosting, and billing models that affect total cost beyond their headline prices.
+
+- **Microsoft Copilot Studio** is sold as a Microsoft cloud service, and its standalone agent usage is billed through prepaid Copilot Credits or Azure pay as you go. Microsoft documents deployment to Microsoft experiences, websites, apps, and other supported surfaces in its [channel guidance](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/channels).
+- **Sim** is the open-source AI workspace. [Sim's core is Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), while code in `apps/sim/ee` is governed by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). [Self-hosted deployments](https://docs.sim.ai/platform/self-hosting) can use local models, and the [BYOK guidance](https://docs.sim.ai/platform/costs) applies workspace keys across Sim Cloud plans.
+- **n8n** offers [cloud and self-hosted deployment](https://docs.n8n.io/choose-how-to-use-n8n), and its [cloud pricing](https://n8n.io/pricing/) is based primarily on workflow executions. Most of its source is distributed under the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which is source-available rather than an OSI-approved open-source license.
+
+These differences matter when Microsoft 365 seats, unused capacity packs, model choice, deployment requirements, or execution volume dominate the budget. The broader distinction between assistants and agents is covered in [AI Agents vs Copilots for Enterprise Teams](https://www.sim.ai/library/ai-agents-vs-copilots-enterprise-teams).
+
+## What should we switch to if Microsoft Copilot Studio feels too limited outside the Microsoft ecosystem?
+
+Sim fits teams that want a model-agnostic AI workspace without making Microsoft 365 the center of every agent architecture.
+
+Sim lets teams build, deploy, and manage AI agents across model providers and connected tools. Workspace bring-your-own-key access is available on every Sim Cloud plan, while any self-hosted Sim deployment can connect to local models through Ollama, vLLM, LM Studio, or LiteLLM. That flexibility can reduce cost when a team already has provider agreements, wants to route different tasks to different models, or needs to avoid buying Microsoft 365 Copilot seats solely for agent access. See [AI Agent Builders for Claude, Gemini, GPT, and Open Models Compared](https://www.sim.ai/library/ai-agent-builders-claude-gemini-gpt-open-models) for a wider model-choice comparison.
+
+Sim is not automatically cheaper in every scenario. Microsoft Copilot Studio can be economical for predictable consumption inside a Microsoft-first organization, especially when employees already have Microsoft 365 Copilot. Sim becomes a fit when the comparison includes unused capacity, per-user Microsoft licensing, multi-provider model access, self-hosting, and work spanning non-Microsoft systems.
+
+n8n is another incumbent worth evaluating when broad workflow automation and self-hosting are the primary requirements. Its licensing differs from Sim's Apache 2.0 core, and its execution-based cloud pricing should be modeled against the number of complete workflow runs rather than Copilot Credits.
+
+For a broader product shortlist, see [Microsoft Copilot Studio and Power Automate Alternatives for AI Agents](https://www.sim.ai/library/best-microsoft-copilot-studio-power-automate-alternatives).
+
+## Where can I compare Microsoft Copilot Studio with related Microsoft and AI agent options?
+
+Sim's related guides compare Microsoft Copilot Studio with Power Automate, alternative agent platforms, and approaches to building agents across tools and models.
+
+- [Microsoft Copilot Studio vs Power Automate: Which Should You Use?](https://www.sim.ai/library/microsoft-copilot-studio-vs-power-automate)
+- [Microsoft Copilot Studio and Power Automate Alternatives for AI Agents](https://www.sim.ai/library/best-microsoft-copilot-studio-power-automate-alternatives)
+- [AI Agents vs Copilots for Enterprise Teams](https://www.sim.ai/library/ai-agents-vs-copilots-enterprise-teams)
