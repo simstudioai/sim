@@ -173,7 +173,8 @@ export const createIssueV2Tool: ToolConfig<CreateIssueParams, any> = {
 
   /**
    * A dry run's placeholder holds what the call sets on the issue it creates, each label and
-   * assignee by the name it sends; its id, number, state, URL and times stay placeholders.
+   * assignee by the name it sends and the milestone by its number (null when none is set); its
+   * id, number, state, URL and times stay placeholders.
    */
   dryRunOutput: (params) => {
     const { labels, assignees, ...issue } = requestedIssue(params)
@@ -181,6 +182,7 @@ export const createIssueV2Tool: ToolConfig<CreateIssueParams, any> = {
       ...issue,
       ...(labels ? { labels: labels.map((name) => ({ name })) } : {}),
       ...(assignees ? { assignees: assignees.map((login) => ({ login })) } : {}),
+      milestone: params.milestone ? { number: params.milestone } : null,
     }
   },
 

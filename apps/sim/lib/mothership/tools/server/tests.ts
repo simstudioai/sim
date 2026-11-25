@@ -50,10 +50,12 @@ function failures(report: StoredTestReport | null) {
  * Each write a run stubbed because no mock answered it, once, as `block → tool` (a block answered
  * whole by its name alone): a test that passes may still lean on a placeholder. The list is partial
  * when `omittedCalls` (stubbed calls a run's full list left out) or `omittedRuns` (runs past the
- * per-file cap, whose writes went unrecorded) is nonzero.
+ * per-file cap, whose writes went unrecorded) is nonzero, and unknown (null) for a run with no
+ * report, such as one that errored before the sandbox returned.
  */
 function unmockedWrites(report: StoredTestReport | null) {
-  const executions = Object.values(report?.sideEffects?.executions ?? {})
+  if (!report) return null
+  const executions = Object.values(report.sideEffects?.executions ?? {})
   const sites = executions.flatMap((execution) =>
     execution.stubbed.map(({ block, blockId, tool }) => {
       const site = block ?? blockId ?? 'unnamed block'
@@ -63,7 +65,7 @@ function unmockedWrites(report: StoredTestReport | null) {
   return {
     sites: [...new Set(sites)],
     omittedCalls: executions.reduce((total, execution) => total + execution.omitted.stubbed, 0),
-    omittedRuns: report?.sideEffects?.omittedExecutions ?? 0,
+    omittedRuns: report.sideEffects?.omittedExecutions ?? 0,
   }
 }
 
