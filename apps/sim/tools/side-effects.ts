@@ -19,6 +19,7 @@ import { isCustomTool } from '@/executor/constants'
 import type { SideEffectPolicy, SideEffectSite } from '@/executor/execution/types'
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import { prepareToolRequest } from '@/tools/request-transport'
@@ -120,18 +121,28 @@ function checkScanDepth(depth: number): void {
   if (depth > MAX_SCAN_DEPTH) throw new SecretScanDepthError()
 }
 
-/** Every credential-named field masked, and each credential value masked wherever it reappears. */
-function redactCredentials(value: unknown, credentials: string[], depth = 0): unknown {
+/** The secrets a call's params carry, as {@link callSecrets} finds them. */
+interface CallSecrets {
+  /** Values masked wherever they reappear. */
+  values: string[]
+  /** Password fields of the calling blocks, masked by name like a credential-named field. */
+  passwordFields: ReadonlySet<string>
+}
+
+/** Every credential-named or password field masked, and each secret value wherever it reappears. */
+function redactCredentials(value: unknown, secrets: CallSecrets, depth = 0): unknown {
   checkScanDepth(depth)
-  if (typeof value === 'string') return redactExactSensitiveValues(value, credentials)
+  if (typeof value === 'string') return redactExactSensitiveValues(value, secrets.values)
   if (Array.isArray(value)) {
-    return value.map((item) => redactCredentials(item, credentials, depth + 1))
+    return value.map((item) => redactCredentials(item, secrets, depth + 1))
   }
   if (!isPlainRecord(value)) return value
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      isSensitiveKey(key) ? REDACTED_MARKER : redactCredentials(item, credentials, depth + 1),
+      isSensitiveKey(key) || secrets.passwordFields.has(key)
+        ? REDACTED_MARKER
+        : redactCredentials(item, secrets, depth + 1),
     ])
   )
 }
@@ -160,17 +171,19 @@ function passwordParamsFor(blockType: string): ReadonlySet<string> {
 }
 
 /**
- * The values in `params` that are secrets: every string under a credential-named field at any
- * depth (an access token, a hosted key, an MCP argument named `apiKey`), and whatever was typed
- * into a password field of the blocks `blockTypes` names, whatever the field is called.
+ * The secrets in `params`: every string under a credential-named field at any depth (an access
+ * token, a hosted key, an MCP argument named `apiKey`), and whatever was typed into a password
+ * field of the blocks `blockTypes` names, whatever the field is called. A value too short to
+ * identify a secret ({@link isNonIdentifyingSecretLiteral}) is masked only by its field, so a
+ * one-letter `reset_token` column never rewrites the rest of a row.
  */
-function secretValues(params: Record<string, unknown>, blockTypes: string[]): string[] {
+function callSecrets(params: Record<string, unknown>, blockTypes: string[]): CallSecrets {
   const passwordParams = blockTypes.map(passwordParamsFor)
   const found = new Set<string>()
   const collectStrings = (value: unknown, depth: number): void => {
     checkScanDepth(depth)
     if (typeof value === 'string') {
-      if (value !== '') found.add(value)
+      if (!isNonIdentifyingSecretLiteral(value)) found.add(value)
     } else if (Array.isArray(value)) {
       for (const item of value) collectStrings(item, depth + 1)
     } else if (isPlainRecord(value)) {
@@ -191,15 +204,35 @@ function secretValues(params: Record<string, unknown>, blockTypes: string[]): st
     }
   }
   visit(params, 0)
-  return [...found]
+  return {
+    values: [...found],
+    passwordFields: new Set(passwordParams.flatMap((fields) => [...fields])),
+  }
+}
+
+/**
+ * `value` with every secret the run resolved masked by its registry, then the secrets `params`
+ * carry ({@link callSecrets}) by field and by value. The registry goes first: a value masked inside
+ * a resolved secret would leave the rest of it unmatched. Null when the registry cannot vouch that
+ * no secret remains.
+ */
+function maskSecrets(
+  value: Record<string, unknown>,
+  params: Record<string, unknown>,
+  blockTypes: string[],
+  registry: ResolvedSecretTraceRegistry | undefined
+): Record<string, unknown> | null {
+  const projection = projectResolvedSecretModelContent(value, registry)
+  if (!projection.safe || !isPlainRecord(projection.value)) return null
+  const masked = redactCredentials(projection.value, callSecrets(params, blockTypes))
+  return isPlainRecord(masked) ? masked : null
 }
 
 /**
  * The params a tool call's request is described from: the run-context params no tool sends
- * dropped, and each secret masked before any request builder sees it ({@link secretValues} by
- * field and by value, then every secret the run resolved by its registry), so no transformation a
- * builder applies (base64 file content, URL encoding, hashing) can carry a secret past redaction.
- * Null when the registry cannot vouch that none remains.
+ * dropped, and each secret masked ({@link maskSecrets}) before any request builder sees it, so no
+ * transformation a builder applies (base64 file content, URL encoding, hashing) can carry a secret
+ * past redaction. Null when the registry cannot vouch that none remains.
  */
 function maskRequestParams(
   params: Record<string, unknown>,
@@ -209,16 +242,19 @@ function maskRequestParams(
   const sent = Object.fromEntries(
     Object.entries(params).filter(([key]) => !RUN_CONTEXT_PARAMS.has(key))
   )
-  const masked = redactCredentials(sent, secretValues(sent, blockTypes))
-  const projection = projectResolvedSecretModelContent(masked, registry)
-  return projection.safe && isPlainRecord(projection.value) ? projection.value : null
+  return maskSecrets(sent, sent, blockTypes, registry)
+}
+
+/** A payload as a record: one that is not is reported under `input`. */
+function asPayloadRecord(payload: unknown): Record<string, unknown> {
+  return isPlainRecord(payload) ? payload : { input: payload }
 }
 
 /**
- * A side effect's payload (a stubbed write's request, or an answered block's inputs) as a run may
- * report it: the secrets in `params` masked by field and by value, every secret the run resolved
- * masked by its registry, then the run's PII redaction applied as it is to a block's output. Null
- * when the registry cannot vouch that no secret remains, or the PII redaction fails.
+ * A side effect's payload (a stubbed write's request and placeholder, or an answered block's
+ * inputs) as a run may report it: its secrets masked ({@link maskSecrets}), then the run's PII
+ * redaction applied as it is to a block's output. Null when the registry cannot vouch that no
+ * secret remains, or the PII redaction fails.
  */
 export async function redactSideEffectPayload(input: {
   payload: unknown
@@ -228,22 +264,23 @@ export async function redactSideEffectPayload(input: {
   executionContext: ExecutionContext
   registry: ResolvedSecretTraceRegistry | undefined
 }): Promise<Record<string, unknown> | null> {
-  let redacted: unknown
+  let masked: Record<string, unknown> | null
   try {
-    redacted = redactCredentials(
-      isPlainRecord(input.payload) ? input.payload : { input: input.payload },
-      secretValues(input.params, input.blockTypes)
+    masked = maskSecrets(
+      asPayloadRecord(input.payload),
+      input.params,
+      input.blockTypes,
+      input.registry
     )
   } catch (error) {
     if (error instanceof SecretScanDepthError) return null
     throw error
   }
-  const projection = projectResolvedSecretModelContent(redacted, input.registry)
-  if (!projection.safe || !isPlainRecord(projection.value)) return null
+  if (!masked) return null
   const pii = input.executionContext.piiBlockOutputRedaction
-  if (!pii?.enabled) return projection.value
+  if (!pii?.enabled) return masked
   try {
-    return await redactObjectStrings(projection.value, {
+    return await redactObjectStrings(masked, {
       entityTypes: pii.entityTypes,
       language: pii.language,
       customPatterns: pii.customPatterns,
@@ -259,10 +296,13 @@ export async function redactSideEffectPayload(input: {
 
 /**
  * The response answering a write tool call the run's side-effect policy does not send, after the
- * policy recorded the request it would have sent: `describe` builds it from params whose secrets
- * are already masked ({@link maskRequestParams}), and the result is redacted again as a payload
- * ({@link redactSideEffectPayload}). The request is null when either step cannot vouch that no
- * secret remains, or it cannot be built from the masked params; the write is answered either way.
+ * policy recorded the request it would have sent: `describe` builds it, and `echo` (a tool's
+ * `dryRunOutput`) the output that request determines, both from params whose secrets are already
+ * masked ({@link maskRequestParams}). Both are redacted again in one {@link redactSideEffectPayload}
+ * call, so a workspace that redacts PII makes one call per write; the price is that when that
+ * pass cannot vouch for the pair, both are null. Each is also null when it cannot be built from the
+ * masked params. The write is answered either way, its placeholder the sample alone without an
+ * echo.
  */
 export async function answerUnsentWrite(
   write: UnsentWrite,
@@ -270,6 +310,7 @@ export async function answerUnsentWrite(
     params: Record<string, unknown>
     registry: ResolvedSecretTraceRegistry | undefined
     describe: (maskedParams: Record<string, unknown>) => unknown
+    echo?: (maskedParams: Record<string, unknown>) => Record<string, unknown>
   }
 ): Promise<ToolResponse> {
   const { call } = write
@@ -283,33 +324,47 @@ export async function answerUnsentWrite(
     maskedParams = null
   }
   const described = maskedParams
-    ? describeMaskedRequest(call.toolId, input.describe, maskedParams)
+    ? buildFromMaskedParams(call.toolId, input.describe, maskedParams)
     : null
-  const request = described
-    ? await redactSideEffectPayload({
-        payload: described.payload,
-        params: input.params,
-        blockTypes,
-        executionContext: write.executionContext,
-        registry: input.registry,
-      })
-    : null
-  return { success: true, output: write.policy.stubWrite({ ...call, request }) }
+  const echoed =
+    maskedParams && input.echo ? buildFromMaskedParams(call.toolId, input.echo, maskedParams) : null
+  const redacted =
+    described || echoed
+      ? await redactSideEffectPayload({
+          payload: {
+            ...(described ? { request: asPayloadRecord(described.payload) } : {}),
+            ...(echoed ? { echoed: echoed.payload } : {}),
+          },
+          params: input.params,
+          blockTypes,
+          executionContext: write.executionContext,
+          registry: input.registry,
+        })
+      : null
+  return {
+    success: true,
+    output: write.policy.stubWrite({
+      ...call,
+      request: isPlainRecord(redacted?.request) ? redacted.request : null,
+      echoed: isPlainRecord(redacted?.echoed) ? redacted.echoed : null,
+    }),
+  }
 }
 
 /**
- * The request a write would send, or null when it cannot be built from masked params (a URL that is
- * wholly a masked secret fails URL validation): describing an unsent write never fails the run.
+ * What `build` makes of a write's masked params (its request, or the output it determines), or
+ * null when it cannot be built from them (a URL that is wholly a masked secret fails URL
+ * validation): answering an unsent write never fails the run.
  */
-function describeMaskedRequest(
+function buildFromMaskedParams(
   toolId: string,
-  describe: (maskedParams: Record<string, unknown>) => unknown,
+  build: (maskedParams: Record<string, unknown>) => unknown,
   maskedParams: Record<string, unknown>
 ): { payload: unknown } | null {
   try {
-    return { payload: describe(maskedParams) }
+    return { payload: build(maskedParams) }
   } catch (error) {
-    logger.warn('Could not describe an unsent write from its masked params; recording no request', {
+    logger.warn('Could not build from the masked params of an unsent write; recording none', {
       toolId,
       errorName: error instanceof Error ? error.name : 'UnknownError',
     })

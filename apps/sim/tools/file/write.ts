@@ -1,3 +1,4 @@
+import { utf8ByteLength } from '@sim/utils/paste'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileWriteParams {
@@ -91,6 +92,16 @@ export const fileWriteTool: InternalToolConfig<FileWriteParams, ToolResponse> = 
       request: () => [{ key: 'content', inputPaths: [['content']] }],
     },
   },
+
+  /**
+   * A dry run's placeholder names the file the call asks for (a write that would collide is
+   * suffixed live) and sizes the text it writes, as masked; a stored file's size, and its name
+   * unless `fileName` overrides it, stay placeholders.
+   */
+  dryRunOutput: (params) => ({
+    name: params.fileName,
+    size: params.content === undefined ? undefined : utf8ByteLength(params.content),
+  }),
 
   transformResponse: async (response) => {
     const data = await response.json()

@@ -2269,6 +2269,7 @@ async function executeToolImplementation(
         registry: resolvedSecretTraceRegistry,
         describe: (maskedParams: Record<string, unknown>) =>
           describeToolRequest(unsentTool, maskedParams),
+        echo: unsentTool.dryRunOutput,
       }
       if (normalizedToolId !== mcpRunOperationTool.id || !tool.operation) {
         return await answerUnsentWrite(unsentWrite, unsent)

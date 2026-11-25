@@ -279,6 +279,17 @@ export interface ToolConfig<P = any, R = any> {
   >
   // Output schema - what this tool produces
   outputs?: Record<string, ToolOutputProperty>
+  /**
+   * Pure: the outputs a dry run's unsent write derives from its request alone, never a guess at
+   * what the provider or stored state would add. `params` have every secret masked, and the result
+   * is redacted like `sideEffects.stubbed[].request`. It is laid over the sample of {@link outputs}
+   * by their declared schema, one rule at every level: field by field where an output declares
+   * `properties` (a field it does not declare is dropped), item by item where it declares array
+   * `items`, and anywhere else the value replaces the sample whole, so a hook returns an undeclared
+   * shape (a `json` row) complete, with placeholders for what the request cannot know. Whatever it
+   * leaves out keeps the sample.
+   */
+  dryRunOutput?: (params: P) => Record<string, unknown>
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig

@@ -2,7 +2,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import { TABLE_ID_PARAM } from '@/tools/table/params'
-import { tableSuccess } from '@/tools/table/response'
+import { placeholderRow, tableSuccess } from '@/tools/table/response'
 import {
   IGNORED_COLUMNS_OUTPUT,
   type TableBatchInsertParams,
@@ -54,6 +54,13 @@ export const tableBatchInsertRowsTool: InternalToolConfig<
       }
     },
   },
+
+  /** A dry run's placeholder holds the rows the call writes, each with its own placeholder id. */
+  dryRunOutput: (params) => ({
+    rows: params.rows.map((data, index) => ({ ...placeholderRow(data, index), executions: {} })),
+    insertedCount: params.rows.length,
+    ignoredColumns: [],
+  }),
 
   transformResponse: async (response): Promise<TableBatchInsertResponse> => {
     const result = await response.json()
