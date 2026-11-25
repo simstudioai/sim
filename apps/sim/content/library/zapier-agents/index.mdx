@@ -1,0 +1,157 @@
+---
+slug: zapier-agents
+title: 'Zapier Agents: What Can They Do, How Much Do They Cost, and Where Do They Stop?'
+description: 'Learn how Zapier Agents work, how activity-based usage affects cost, where the product fits, and when teams need more control.'
+seoTitle: 'Zapier Agents: Features, Pricing, and Limits'
+date: 2026-11-25
+updated: 2026-11-25
+authors:
+  - andrew
+readingTime: 9
+tags: [AI Agents, Zapier, Automation, Sim]
+ogImage: /library/zapier-agents/cover.jpg
+draft: false
+faq:
+  - q: "Can Zapier Agents run multi-step workflows?"
+    a: "Zapier Agents can complete multi-step tasks by selecting and using permitted tools, but teams should use explicit workflow orchestration when branches, loops, parallel paths, or deterministic checkpoints must be designed directly."
+  - q: "Can Zapier Agents use company data?"
+    a: "Zapier Agents can use connected knowledge sources and app data that the user authorizes, so teams should limit access according to the agent’s job and the sensitivity of the underlying information."
+  - q: "Can you self-host Zapier Agents?"
+    a: "Zapier Agents are a cloud-hosted Zapier product and are not offered by Zapier as a self-hosted agent runtime as of November 2026."
+  - q: "Can Zapier Agents use any AI model?"
+    a: "Zapier Agents use the model options Zapier exposes in the product rather than functioning as an unrestricted local-model or bring-your-own-provider runtime."
+  - q: "Are Zapier Agents included with Zapier?"
+    a: "Zapier Agents operate within the Zapier product family but use Agent-specific activity allowances as of November 2026, so buyers should not assume that an existing Zap task allowance covers unlimited Agent usage."
+  - q: "Should I use Zapier Agents or Zapier Zaps?"
+    a: "Zapier Agents fit bounded work requiring interpretation and flexible tool selection, while Zapier Zaps fit processes where the trigger, sequence, and expected result can be defined deterministically."
+  - q: "What Zapier alternative fits AI workflows?"
+    a: "Sim fits teams that need a full AI agent workspace with visual workflows, model choice, BYOK, and self-hosting; n8n fits workflow-first automation, and the guide 16 Best Zapier Alternatives in 2026, Compared covers the broader market."
+  - q: "Is Sim open source?"
+    a: "Sim’s core is open source under the OSI-approved Apache 2.0 license, while apps/sim/ee is covered by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License, not OSI-approved open source, and its license restricts some commercial uses such as providing hosted n8n to customers."
+  - q: "Can Sim run local AI models?"
+    a: "Sim can connect to Ollama, vLLM, LM Studio, or LiteLLM on any self-hosted deployment without requiring Sim Enterprise."
+  - q: "Does Sim support bring-your-own-key model access?"
+    a: "Sim supports workspace BYOK on every Sim Cloud plan, while organization-level model keys require Pro for Teams, Max for Teams, or Enterprise."
+---
+
+## TL;DR
+
+[Zapier Agents are cloud-hosted AI assistants](https://zapier.com/agents) that interpret instructions, use connected apps and knowledge sources, and complete bounded tasks on a team’s behalf. They are a practical entry point for organizations already using Zapier, but teams may outgrow them when they need deeper workflow control, broader model choice, self-hosting, or centralized production-agent management.
+
+As of November 2026, Zapier is [migrating the standalone Agents product to AI by Zapier](https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier), where agentic reasoning and tool use run inside the Zap editor. Buyers evaluating Zapier Agents should therefore assess both the current standalone experience and the migration path rather than treating Agents as an unchanged long-term product.
+
+## What are Zapier Agents?
+
+Zapier Agents are configurable AI assistants that can decide how to complete a task and take actions through Zapier’s app ecosystem. Instead of defining every step as a fixed sequence, a user gives an agent instructions, connects tools and data sources, and lets the agent choose relevant actions within those boundaries.
+
+[Zapier positions Agents](https://zapier.com/agents) for jobs such as researching prospects, preparing customer responses, updating business systems, and creating recurring reports. Suitable use cases have a clear goal, trusted data, a limited toolset, and an output that a person or downstream system can evaluate.
+
+Zapier Agents are not the same as ordinary Zaps. A Zap follows predefined trigger-and-action logic, while a Zapier Agent can interpret context and decide which permitted tool to use next. Many teams can use both: Zaps for deterministic automation and Agents for tasks that require language understanding or flexible decisions.
+
+The product distinction is changing. Zapier says migrated agents become Zaps with an AI by Zapier step, allowing teams to combine agentic tool use with Zap triggers, actions, filters, branching logic, and automation history.
+
+## How do Zapier Agents work?
+
+Zapier Agents work by combining natural-language instructions, connected tools, knowledge sources, and triggers inside Zapier’s hosted environment. Each component defines what the agent knows, what it is allowed to do, and when it should run.
+
+1. **Instructions define the job.** The user describes the agent’s role, objective, constraints, and expected output.
+2. **Tools let the agent act.** Connected Zapier apps provide actions such as finding a CRM record, sending a message, or adding a spreadsheet row.
+3. **Knowledge sources provide context.** Zapier documents how an agent can [use connected knowledge sources and search actions](https://help.zapier.com/hc/en-us/articles/24569690575117-Add-your-own-data-to-an-agent) when forming an answer or deciding what to do.
+4. **Triggers start work.** Zapier supports [on-demand, scheduled, Zap or MCP, and app-based triggers](https://help.zapier.com/hc/en-us/articles/45394909914381-Set-up-your-agent-s-trigger) for Agents.
+5. **Activity history records work.** Teams can [review agent activity](https://help.zapier.com/hc/en-us/articles/33336184962573-Review-your-agent-s-activity) to inspect status, apps used, timing, and run details.
+
+Zapier Agents can perform multi-step work, but “multi-step” does not automatically mean unrestricted orchestration. The agent remains bounded by its instructions, available tools, account permissions, product limits, and the controls Zapier exposes.
+
+## How much do Zapier Agents cost?
+
+Zapier Agents use activity-based allowances rather than treating every Agent run as a traditional Zap task. As of November 2026, Zapier’s [Agents usage documentation](https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured) says usage is measured by activities and limited by the selected plan. Zapier also notes on that page that it is moving Agents to AI by Zapier, so buyers should check the current destination product before committing to a usage estimate.
+
+That billing model makes the shape of the workload important. An agent that handles one bounded request with a small number of searches and actions consumes capacity differently from an agent that repeatedly researches, retries, and updates several systems. Zapier explains that each action can count as a separate activity and that processing multiple items can increase usage.
+
+Teams estimating cost should test representative requests and record:
+
+- How many activities a successful request consumes
+- How often the agent retries or takes an unnecessary action
+- How many requests users will submit each month
+- Whether deterministic steps can remain in Zaps
+- What separate Zapier automation, app, and AI usage costs still apply
+- How migration to AI by Zapier changes the usage meter for the same job
+
+Zapier can change prices, allowances, and billing cadence. The live Agents usage documentation and [Zapier pricing page](https://zapier.com/pricing) are the authoritative sources for the allowance, plan, and task pricing available when purchasing. For conventional Zap task economics, see [Zapier Pricing at Scale: What Tasks Really Cost and When AI Agents Are Cheaper](https://www.sim.ai/library/zapier-pricing-at-scale).
+
+## What can Zapier Agents do well?
+
+Zapier Agents work well for bounded business tasks that rely on apps and data a team already connects through Zapier. They reduce the setup required to give an AI assistant access to familiar SaaS tools.
+
+| Job | Where Zapier Agents fit well | Boundary to define |
+|---|---|---|
+| Research and enrichment | Gather information and prepare a structured summary | Specify approved sources, required fields, and freshness expectations |
+| Sales operations | Research leads, prepare outreach, and update connected systems | Require review for sensitive or high-value communications |
+| Customer support preparation | Retrieve context and draft a response for an agent | Keep escalation and policy decisions explicit |
+| Reporting | Collect data from connected tools and produce recurring summaries | Define calculations and reconcile important totals deterministically |
+| Internal assistance | Answer questions from connected knowledge | Limit the data the agent can access and provide a fallback for weak evidence |
+| App updates | Create or modify records through permitted actions | Restrict destructive actions and monitor duplicate or malformed records |
+
+Zapier Agents are convenient when speed and access to Zapier-connected apps matter more than infrastructure control. They are less compelling when the agent itself must become a governed, portable software system. The announced migration also means new evaluations should include AI by Zapier, not only the standalone Agents interface.
+
+## Where do Zapier Agents stop being the right fit?
+
+Zapier Agents stop being the right fit when a team’s requirements exceed a guided, cloud-hosted assistant and call for a full environment for building, deploying, and managing production agents. The boundary is usually operational rather than a claim that Zapier Agents cannot complete any particular task.
+
+| Requirement | Zapier Agents fit | When a full AI agent workspace fits |
+|---|---|---|
+| Bounded multi-step work | Suitable for goals an agent can complete with a limited set of tools | Consider a workspace when work needs explicit branches, loops, parallel paths, reusable subflows, or deterministic checkpoints |
+| Model choice | Uses the models and options Zapier makes available | Consider a workspace when teams need provider-level control, workspace BYOK, or local models |
+| Hosting | Delivered as a hosted Zapier product | Consider a workspace when policy requires self-hosting or local inference |
+| Governance | Suitable when the controls in the selected Zapier account and plan meet the requirement | Consider a workspace when teams need one place for agent access, credentials, deployment policy, and production operations |
+| Observability | Activity history supports reviewing what an agent did | Consider a workspace when teams need workflow-level execution detail and a broader evaluation or monitoring process |
+| Cost at volume | Activity billing can be estimated for bounded usage | Consider a workspace when teams need to control model credentials directly or separate model, infrastructure, and workflow costs |
+| Deterministic control | Agents can work alongside Zaps, and the migration brings agentic steps into the Zap editor | Consider a workspace when deterministic logic and agent decisions must be designed and inspected as one portable workflow |
+
+Zapier Agents should not be dismissed simply because a use case has multiple steps. The more useful question is whether the team can express, test, govern, and troubleshoot those steps with the level of control the production process requires.
+
+## When should teams move from Zapier Agents to a full AI agent workspace?
+
+Teams should move from Zapier Agents to a full AI agent workspace when agent work becomes shared infrastructure rather than an individual productivity aid. The transition is justified when control, deployment, and governance requirements matter more than the convenience of configuring a hosted assistant.
+
+Common signals include:
+
+- The team needs to combine explicit workflow logic with model-driven decisions.
+- Different workflows require different model providers or workspace-owned API keys.
+- Security policy requires self-hosting or local model execution.
+- Several teams need to build and manage agents in a shared environment.
+- Troubleshooting requires more than reviewing an assistant’s activity history.
+- Agent costs need to be separated into model, infrastructure, and workflow components.
+- The same workflow must be reused, extended, or deployed through multiple interfaces.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. [Sim’s core is licensed under Apache 2.0, while code in `apps/sim/ee` is governed by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use.
+
+On self-hosted Sim, teams can [connect local models through Ollama, vLLM, LM Studio, or LiteLLM](https://docs.sim.ai/platform/self-hosting/environment-variables) without requiring Enterprise. [Sim Cloud supports workspace BYOK on every plan, while organization-level keys require Pro for Teams, Max for Teams, or Enterprise](https://docs.sim.ai/platform/costs#bring-your-own-key-byok). These capabilities make Sim a fit when model and deployment control are purchasing requirements rather than optional preferences.
+
+## How do Zapier Agents compare with Sim, n8n, and Zapier automation?
+
+Zapier Agents fit hosted assistants using Zapier-connected apps, while Sim fits teams that need a full AI agent workspace and n8n fits workflow-first automation with AI components. Traditional Zapier automation remains a practical choice when predefined triggers and actions can handle the process reliably.
+
+| Product | Fit | License and hosting | Primary usage meter |
+|---|---|---|---|
+| Zapier Agents | Guided AI assistants that use connected apps and knowledge | [Zapier-hosted product migrating to AI by Zapier](https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier) | [Agent activities for the standalone product](https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured) as of November 2026 |
+| Sim | Building, deploying, and managing model-driven agents and workflows | [Sim’s core is Apache 2.0; `apps/sim/ee` uses the Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE); cloud or self-hosted | [Cloud credits or provider and infrastructure costs on billing-disabled self-hosted deployments](https://docs.sim.ai/platform/costs) |
+| n8n | Workflow-first automation with an [AI Agent node](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) | [Cloud or self-hosted](https://docs.n8n.io/choose-how-to-use-n8n/) under n8n’s [source-available Sustainable Use License](https://docs.n8n.io/n8n-community-license/community-license/license-faq/) | [A workflow execution is one run of a workflow](https://docs.n8n.io/build/understand-workflows/understand-executions/) |
+| Zapier Zaps | Deterministic trigger-and-action automation across SaaS apps | Zapier-hosted product | [Tasks under applicable Zapier plans](https://zapier.com/pricing) |
+
+Zapier Agents and Sim are not interchangeable versions of the same product. Zapier Agents prioritize configuration inside Zapier, whereas Sim provides a workspace for teams that want to design agent behavior and deployment with more control.
+
+n8n supports [cloud and self-hosted deployment](https://docs.n8n.io/choose-how-to-use-n8n/), but its [Sustainable Use License](https://docs.n8n.io/n8n-community-license/community-license/license-faq/) is source-available rather than OSI-approved open source. n8n defines an [execution as a single run of a workflow](https://docs.n8n.io/build/understand-workflows/understand-executions/). Teams that make licensing a procurement criterion should distinguish n8n’s license from the Apache 2.0 license covering Sim’s core.
+
+For a deeper licensing comparison, see [Apache 2.0 vs Fair-Code: Why Sim's Core License Differs From n8n's for Self-Hosting](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+
+## Which Zapier comparison should buyers read next?
+
+Sim’s Zapier guides separate product-explainer, cost, switching, and platform-selection intent so buyers can evaluate the question they actually have.
+
+- For a broad alternatives list, read [16 Best Zapier Alternatives in 2026, Compared](https://www.sim.ai/library/best-zapier-alternatives).
+- For task pricing and scale economics, read [Zapier Pricing at Scale: What Tasks Really Cost and When AI Agents Are Cheaper](https://www.sim.ai/library/zapier-pricing-at-scale).
+- For a direct product comparison, read [Sim vs Zapier: Open-Source AI Agents vs Zaps, Compared](https://www.sim.ai/library/sim-open-source-zapier-alternative).
+- For the broader agent-platform market, read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
